@@ -310,7 +310,15 @@ export class RemoteFileService extends FileService {
 	}
 
 	private async _doMove(provider: IFileSystemProvider, source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat> {
-		// TODO@joh overwrite? -> stat&delete?
+		if (overwrite) {
+			try {
+				await this.del(target);
+			} catch (e) {
+				// TODO@Joh Better errors
+				// ignore not_exists error
+				// abort on other errors
+			}
+		}
 		await provider.rename(source, target);
 		const stat = await this.resolveFile(target);
 		this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.MOVE, stat));
@@ -338,17 +346,28 @@ export class RemoteFileService extends FileService {
 	async copyFile(source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat> {
 		if (source.scheme === target.scheme && !this._provider.has(source.scheme)) {
 			return super.copyFile(source, target, overwrite);
+		}
 
-		} else {
-			const content = await this.resolveContent(source);
-			const provider = this._provider.get(target.scheme);
-			if (provider) {
-				const stat = await this._doUpdateContent(provider, target, content.value, { encoding: content.encoding });
-				this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.COPY, stat));
-				return stat;
-			} else {
-				return super.updateContent(target, content.value, { encoding: content.encoding });
+		if (overwrite) {
+			try {
+				await this.del(target);
+			} catch (e) {
+				// TODO@Joh Better errors
+				// ignore not_exists error
+				// abort on other errors
 			}
+		}
+		// TODO@Joh This does only work for textfiles
+		// because the content turns things into a string
+		// and all binary data will be broken
+		const content = await this.resolveContent(source);
+		const targetProvider = this._provider.get(target.scheme);
+		if (targetProvider) {
+			const stat = await this._doUpdateContent(targetProvider, target, content.value, { encoding: content.encoding });
+			this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.COPY, stat));
+			return stat;
+		} else {
+			return super.updateContent(target, content.value, { encoding: content.encoding });
 		}
 	}
 }
