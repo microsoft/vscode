@@ -573,7 +573,7 @@ export class FileSorter implements ISorter {
 		if (statA.isRoot) {
 			if (statB.isRoot) {
 				const ws = this.contextService.getWorkspace();
-				return ws.roots.indexOf(statA.resource) - ws.roots.indexOf(statB.resource);
+				return ws.folders.indexOf(statA.resource) - ws.folders.indexOf(statB.resource);
 			}
 			return -1;
 		}
