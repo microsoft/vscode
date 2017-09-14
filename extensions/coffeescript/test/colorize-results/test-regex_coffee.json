@@ -69,8 +69,8 @@
 		"c": "(",
 		"t": "source.coffee string.regexp.coffee meta.group.regexp punctuation.definition.group.regexp",
 		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
+			"dark_plus": "punctuation.definition.group.regexp: #D7BA7D",
+			"light_plus": "punctuation.definition.group.regexp: #FF0000",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969"
@@ -80,19 +80,19 @@
 		"c": "\\d",
 		"t": "source.coffee string.regexp.coffee meta.group.regexp constant.character.character-class.regexp",
 		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
+			"dark_plus": "constant.character: #569CD6",
+			"light_plus": "constant.character: #0000FF",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "string.regexp: #D16969"
+			"hc_black": "constant.character: #569CD6"
 		}
 	},
 	{
 		"c": "+",
 		"t": "source.coffee string.regexp.coffee meta.group.regexp keyword.operator.quantifier.regexp",
 		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
+			"dark_plus": "keyword.operator.quantifier.regexp: #D4D4D4",
+			"light_plus": "keyword.operator.quantifier.regexp: #0000FF",
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4"
@@ -102,8 +102,8 @@
 		"c": ")",
 		"t": "source.coffee string.regexp.coffee meta.group.regexp punctuation.definition.group.regexp",
 		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
+			"dark_plus": "punctuation.definition.group.regexp: #D7BA7D",
+			"light_plus": "punctuation.definition.group.regexp: #FF0000",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969"
@@ -454,11 +454,11 @@
 		"c": "#{",
 		"t": "source.coffee string.regexp.coffee source.coffee.embedded.source punctuation.section.embedded.coffee",
 		"r": {
-			"dark_plus": "punctuation.section.embedded.coffee: #569CD6",
-			"light_plus": "punctuation.section.embedded.coffee: #0000FF",
-			"dark_vs": "punctuation.section.embedded.coffee: #569CD6",
-			"light_vs": "punctuation.section.embedded.coffee: #0000FF",
-			"hc_black": "punctuation.section.embedded.coffee: #569CD6"
+			"dark_plus": "punctuation.section.embedded: #569CD6",
+			"light_plus": "punctuation.section.embedded: #0000FF",
+			"dark_vs": "punctuation.section.embedded: #569CD6",
+			"light_vs": "punctuation.section.embedded: #0000FF",
+			"hc_black": "punctuation.section.embedded: #569CD6"
 		}
 	},
 	{
@@ -476,11 +476,11 @@
 		"c": "}",
 		"t": "source.coffee string.regexp.coffee source.coffee.embedded.source punctuation.section.embedded.coffee",
 		"r": {
-			"dark_plus": "punctuation.section.embedded.coffee: #569CD6",
-			"light_plus": "punctuation.section.embedded.coffee: #0000FF",
-			"dark_vs": "punctuation.section.embedded.coffee: #569CD6",
-			"light_vs": "punctuation.section.embedded.coffee: #0000FF",
-			"hc_black": "punctuation.section.embedded.coffee: #569CD6"
+			"dark_plus": "punctuation.section.embedded: #569CD6",
+			"light_plus": "punctuation.section.embedded: #0000FF",
+			"dark_vs": "punctuation.section.embedded: #569CD6",
+			"light_vs": "punctuation.section.embedded: #0000FF",
+			"hc_black": "punctuation.section.embedded: #569CD6"
 		}
 	},
 	{

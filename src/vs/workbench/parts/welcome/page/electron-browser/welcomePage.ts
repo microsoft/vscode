@@ -306,12 +306,6 @@ class WelcomePage {
 			};
 		}));
 
-		if (this.experimentService.getExperiments().deployToAzureQuickLink) {
-			container.querySelector('.showInterfaceOverview').remove();
-		} else {
-			container.querySelector('.deployToAzure').remove();
-		}
-
 		if (product.quality !== 'stable') {
 			container.querySelector('.stable-only').remove();
 		} else {

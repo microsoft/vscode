@@ -64,7 +64,7 @@ describe('Editor', () => {
 
 		await app.workbench.editor.gotoDefinition('express', 11);
 
-		await app.workbench.waitForActiveOpen('index.d.ts');
+		await app.workbench.waitForActiveTab('index.d.ts');
 	});
 
 	it(`verifies that 'Peek Definition' works`, async function () {

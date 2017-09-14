@@ -549,7 +549,8 @@ export class FileSorter implements ISorter {
 	private sortOrder: SortOrder;
 
 	constructor(
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		this.toDispose = [];
 
@@ -570,6 +571,10 @@ export class FileSorter implements ISorter {
 
 		// Do not sort roots
 		if (statA.isRoot) {
+			if (statB.isRoot) {
+				const ws = this.contextService.getWorkspace();
+				return ws.roots.indexOf(statA.resource) - ws.roots.indexOf(statB.resource);
+			}
 			return -1;
 		}
 		if (statB.isRoot) {

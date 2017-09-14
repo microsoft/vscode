@@ -174,7 +174,6 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	private static MAX_HISTORY_ITEMS = 200;
 	private static MAX_STACK_ITEMS = 20;
 	private static MAX_RECENTLY_CLOSED_EDITORS = 20;
-	private static MERGE_EVENT_CHANGES_THRESHOLD = 300;
 
 	private stack: IStackEntry[];
 	private index: number;
@@ -545,19 +544,12 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		// on the stack.
 		// We can also be instructed to force replace the last entry.
 		let replace = false;
-		if (this.stack[this.index]) {
+		const currentEntry = this.stack[this.index];
+		if (currentEntry) {
 			if (forceReplace) {
-				replace = true;
-			} else {
-				const currentEntry = this.stack[this.index];
-				if (this.matches(input, currentEntry.input) &&													// and: entry of same input
-					(
-						this.sameSelection(currentEntry.selection, selection) ||								// and: entry has same selection
-						(Date.now() - currentEntry.timestamp < HistoryService.MERGE_EVENT_CHANGES_THRESHOLD)	// or: entry occured very fast and is likely not human
-					)
-				) {
-					replace = true;
-				}
+				replace = true; // replace if we are forced to
+			} else if (this.matches(input, currentEntry.input) && this.sameSelection(currentEntry.selection, selection)) {
+				replace = true; // replace if the input is the same as the current one and the selection as well
 			}
 		}
 

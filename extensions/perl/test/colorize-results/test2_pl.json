@@ -1301,11 +1301,11 @@
 		"c": "\\d\\d\\d",
 		"t": "source.perl string.regexp.find.perl constant.character.escape.perl",
 		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
+			"dark_plus": "constant.character.escape: #C586C0",
+			"light_plus": "constant.character.escape: #FF0000",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "string.regexp: #D16969"
+			"hc_black": "constant.character: #569CD6"
 		}
 	},
 	{
@@ -1323,11 +1323,11 @@
 		"c": "\\d\\d",
 		"t": "source.perl string.regexp.find.perl constant.character.escape.perl",
 		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
+			"dark_plus": "constant.character.escape: #C586C0",
+			"light_plus": "constant.character.escape: #FF0000",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "string.regexp: #D16969"
+			"hc_black": "constant.character: #569CD6"
 		}
 	},
 	{
@@ -1345,11 +1345,11 @@
 		"c": "\\d\\d",
 		"t": "source.perl string.regexp.find.perl constant.character.escape.perl",
 		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
+			"dark_plus": "constant.character.escape: #C586C0",
+			"light_plus": "constant.character.escape: #FF0000",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "string.regexp: #D16969"
+			"hc_black": "constant.character: #569CD6"
 		}
 	},
 	{
@@ -1774,11 +1774,11 @@
 		"c": "\\d",
 		"t": "source.perl string.regexp.find.perl constant.character.escape.perl",
 		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
+			"dark_plus": "constant.character.escape: #C586C0",
+			"light_plus": "constant.character.escape: #FF0000",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "string.regexp: #D16969"
+			"hc_black": "constant.character: #569CD6"
 		}
 	},
 	{

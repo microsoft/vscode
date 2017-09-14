@@ -8,7 +8,7 @@
 			}
 		},
 		{
-			"scope": "meta.embedded",
+			"scope": ["meta.embedded", "source.groovy.embedded"],
 			"settings": {
 				"background": "#F5F5F5",
 				"foreground": "#333333"

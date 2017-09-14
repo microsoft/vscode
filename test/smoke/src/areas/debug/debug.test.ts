@@ -45,12 +45,15 @@ describe('Debug', () => {
 		await app.workbench.debug.openDebugViewlet();
 		await app.workbench.openFile('app.js');
 		await app.workbench.debug.configure();
-		const content = await app.workbench.editor.getEditorVisibleText();
-
-		// TODO@isidor: sometimes on the linux build agent,
-		// you get the contents of app.js here, so everything
-		// blows up
-		const json = JSON.parse(stripJsonComments(content));
+		await app.screenCapturer.capture('launch.json file');
+		let json;
+		await app.client.waitFor(async () => {
+			const content = await app.workbench.editor.getEditorVisibleText();
+			try {
+				json = JSON.parse(stripJsonComments(content));
+				return true;
+			} catch (e) { return false; }
+		}, result => result);
 
 		assert.equal(json.configurations[0].request, 'launch');
 		assert.equal(json.configurations[0].type, 'node');
@@ -102,20 +105,12 @@ describe('Debug', () => {
 
 	it('continue', async function () {
 		await app.workbench.debug.continue();
-
-		await new Promise(c => {
-			setTimeout(() => {
-				http.get(`http://localhost:3000`)
-					.on('error', e => void 0);
-				c();
-			}, 400);
-		});
-
+		http.get(`http://localhost:3000`).on('error', e => void 0);
 		await app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 6);
 	});
 
 	it('debug console', async function () {
-		const result = await app.workbench.debug.console('2 + 2 \n', 'number');
+		const result = await app.workbench.debug.console('2 + 2 \n');
 		assert.equal(result, '4');
 	});
 
