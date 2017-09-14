@@ -1673,7 +1673,7 @@ class WorkspacesManager {
 				type: 'info',
 				buttons: [localize('ok', "OK")],
 				message: localize('workspaceOpenedMessage', "Unable to save workspace '{0}'", basename(path)),
-				detail: localize('workspaceOpenedDetail', "The workspace is already opened in another window. Please close the window first and then try again."),
+				detail: localize('workspaceOpenedDetail', "The workspace is already opened in another window. Please close that window first and then try again."),
 				noLink: true
 			};
 
