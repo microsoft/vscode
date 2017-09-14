@@ -155,11 +155,26 @@ suite('Splitview', () => {
 		splitview.addView(view, 20);
 		assert.equal(view.size, TOTAL_SIZE, 'view was stretched');
 
+		splitview.layout(TOTAL_SIZE);
+		assert.equal(view.size, TOTAL_SIZE, 'view stayed the same');
+
+		splitview.layout(100);
+		assert.equal(view.size, 100, 'view was collapsed');
+
+		splitview.layout(20);
+		assert.equal(view.size, 20, 'view was collapsed');
+
+		splitview.layout(10);
+		assert.equal(view.size, 20, 'view was clamped');
+
+		splitview.layout(TOTAL_SIZE);
+		assert.equal(view.size, TOTAL_SIZE, 'view was stretched');
+
 		splitview.dispose();
 		view.dispose();
 	});
 
-	test('splitview respects preferred sizes', () => {
+	test('splitview respects preferred sizes with structural changes', () => {
 		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
 		const view2 = new TestView(20, Number.POSITIVE_INFINITY);
 		const view3 = new TestView(20, Number.POSITIVE_INFINITY);

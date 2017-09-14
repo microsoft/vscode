@@ -6,24 +6,17 @@
 'use strict';
 
 import 'vs/css!./splitview';
-import { IDisposable, combinedDisposable, empty as EmptyDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import Event, { fromEventEmitter, mapEvent } from 'vs/base/common/event';
 import types = require('vs/base/common/types');
 import dom = require('vs/base/browser/dom');
 import { clamp } from 'vs/base/common/numbers';
-import { range, firstIndex, weave } from 'vs/base/common/arrays';
+import { range, firstIndex } from 'vs/base/common/arrays';
 import { Sash, IVerticalSashLayoutProvider, IHorizontalSashLayoutProvider, Orientation, ISashEvent as IBaseSashEvent } from 'vs/base/browser/ui/sash/sash';
 export { Orientation } from 'vs/base/browser/ui/sash/sash';
 
-interface ISashEvent {
-	sash: Sash;
-	start: number;
-	current: number;
-}
-
 export interface IOptions {
 	orientation?: Orientation; // default Orientation.VERTICAL
-	canChangeOrderByDragAndDrop?: boolean;
 }
 
 export interface IView {
@@ -35,22 +28,18 @@ export interface IView {
 	focus(): void;
 }
 
+interface ISashEvent {
+	sash: Sash;
+	start: number;
+	current: number;
+}
+
 interface IViewItem {
 	view: IView;
 	size: number;
 	explicitSize: number;
 	container: HTMLElement;
 	disposable: IDisposable;
-}
-
-function layoutViewItem(item: IViewItem, orientation: Orientation): void {
-	if (orientation === Orientation.VERTICAL) {
-		item.container.style.height = `${item.size}px`;
-	} else {
-		item.container.style.width = `${item.size}px`;
-	}
-
-	item.view.layout(item.size, orientation);
 }
 
 interface ISashItem {
@@ -71,32 +60,24 @@ interface ISashDragState {
 
 const sum = (a: number[]) => a.reduce((a, b) => a + b, 0);
 
+function layoutViewItem(item: IViewItem, orientation: Orientation): void {
+	if (orientation === Orientation.VERTICAL) {
+		item.container.style.height = `${item.size}px`;
+	} else {
+		item.container.style.width = `${item.size}px`;
+	}
+
+	item.view.layout(item.size, orientation);
+}
+
 export class SplitView implements IDisposable, IHorizontalSashLayoutProvider, IVerticalSashLayoutProvider {
 
 	private orientation: Orientation;
-
 	private el: HTMLElement;
 	private size = 0;
-	// private viewElements: HTMLElement[];
 	private viewItems: IViewItem[] = [];
 	private sashItems: ISashItem[] = [];
-	// private viewChangeListeners: IDisposable[];
-	// private viewFocusPreviousListeners: IDisposable[];
-	// private viewFocusNextListeners: IDisposable[];
-	// private viewFocusListeners: IDisposable[];
-	// private viewDnDListeners: IDisposable[][];
-	// private sashOrientation: Orientation;
-	// private sashes: Sash[];
-	// private sashesListeners: IDisposable[];
-	// private eventWrapper: (event: ISashEvent) => ISashEvent;
-	// private animationTimeout: number;
 	private sashDragState: ISashDragState;
-
-	// private _onFocus: Emitter<IView> = this._register(new Emitter<IView>());
-	// readonly onFocus: Event<IView> = this._onFocus.event;
-
-	// private _onDidOrderChange: Emitter<void> = this._register(new Emitter<void>());
-	// readonly onDidOrderChange: Event<void> = this._onDidOrderChange.event;
 
 	get length(): number {
 		return this.viewItems.length;
@@ -110,63 +91,25 @@ export class SplitView implements IDisposable, IHorizontalSashLayoutProvider, IV
 		dom.addClass(this.el, 'monaco-split-view');
 		dom.addClass(this.el, this.orientation === Orientation.VERTICAL ? 'vertical' : 'horizontal');
 		container.appendChild(this.el);
-
-		// this.size = null;
-		// this.viewElements = [];
-		// this.views = [];
-		// this.viewChangeListeners = [];
-		// this.viewFocusPreviousListeners = [];
-		// this.viewFocusNextListeners = [];
-		// this.viewFocusListeners = [];
-		// this.viewDnDListeners = [];
-		// this.sashes = [];
-		// this.sashesListeners = [];
-		// this.animationTimeout = null;
-
-		// this.sashOrientation = this.orientation === Orientation.VERTICAL
-		// 	? Orientation.HORIZONTAL
-		// 	: Orientation.VERTICAL;
-
-		// if (this.orientation === Orientation.VERTICAL) {
-		// 	this.eventWrapper = e => { return { start: e.startY, current: e.currentY }; };
-		// } else {
-		// 	this.eventWrapper = e => { return { start: e.startX, current: e.currentX }; };
-		// }
-
-		// The void space exists to handle the case where all other views are fixed size
-		// this.addView(new VoidView(), 0);
 	}
 
-	// private getContainerSize(): number {
-	// 	return this.orientation === Orientation.VERTICAL
-	// 		? dom.getContentHeight(this.container)
-	// 		: dom.getContentWidth(this.container);
-	// }
-
 	addView(view: IView, size: number, index = this.viewItems.length): void {
-		// Create view container
-		const container = document.createElement('div');
-		dom.addClass(container, 'split-view-view');
-		const containerDisposable = toDisposable(() => this.el.removeChild(container));
+		// Add view
+		const container = dom.$('.split-view-view');
 
-		// Create item
-		const item: IViewItem = { view, container, explicitSize: size, size, disposable: EmptyDisposable };
-		this.viewItems.splice(index, 0, item);
-
-		const onChangeDisposable = mapEvent(view.onDidChange, () => item)(this.onViewChange, this);
-
-		// Disposable
-		item.disposable = combinedDisposable([onChangeDisposable, containerDisposable]);
-
-		// Render view
-		view.render(container, this.orientation);
-
-		// Attach view
 		if (this.viewItems.length === 1) {
 			this.el.appendChild(container);
 		} else {
 			this.el.insertBefore(container, this.el.children.item(index));
 		}
+
+		const onChangeDisposable = mapEvent(view.onDidChange, () => item)(this.onViewChange, this);
+		const containerDisposable = toDisposable(() => this.el.removeChild(container));
+		const disposable = combinedDisposable([onChangeDisposable, containerDisposable]);
+
+		const explicitSize = size;
+		const item: IViewItem = { view, container, explicitSize, size, disposable };
+		this.viewItems.splice(index, 0, item);
 
 		// Add sash
 		if (this.viewItems.length > 1) {
@@ -186,16 +129,8 @@ export class SplitView implements IDisposable, IHorizontalSashLayoutProvider, IV
 			this.sashItems.splice(index - 1, 0, sashItem);
 		}
 
-		// TODO: layout
-		// go through all viewitems, set their size to preferred size
-		// sum all sizes up
-		// run expandcollapse
-
-		this.viewItems.forEach(i => i.size = clamp(i.explicitSize, i.view.minimumSize, i.view.maximumSize));
-
-		const previousSize = this.size;
-		this.size = this.viewItems.reduce((r, i) => r + i.size, 0);
-		this.layout(previousSize);
+		view.render(container, this.orientation);
+		this.relayout();
 	}
 
 	removeView(index: number): void {
@@ -205,7 +140,6 @@ export class SplitView implements IDisposable, IHorizontalSashLayoutProvider, IV
 
 		// Remove view
 		const viewItem = this.viewItems.splice(index, 1)[0];
-		const collapse = viewItem.size;
 		viewItem.disposable.dispose();
 
 		// Remove sash
@@ -215,21 +149,18 @@ export class SplitView implements IDisposable, IHorizontalSashLayoutProvider, IV
 			sashItem.disposable.dispose();
 		}
 
-		// Layout views
-		const up = range(index - 1, -1);
-		const down = range(index, this.viewItems.length);
-		const indexes = weave(up, down);
-		const collapses = this.viewItems.map(i => Math.max(i.size - i.view.minimumSize, 0));
+		this.relayout();
+	}
 
-		this.expandCollapse(collapse, collapses, [], indexes, []);
+	private relayout(): void {
+		this.viewItems.forEach(i => i.size = clamp(i.explicitSize, i.view.minimumSize, i.view.maximumSize));
+
+		const previousSize = this.size;
+		this.size = this.viewItems.reduce((r, i) => r + i.size, 0);
+		this.layout(previousSize);
 	}
 
 	layout(size: number): void {
-		// size = size || this.getContainerSize();
-
-		// size = Math.max(size, this.viewItems.reduce((t, i) => t + i.view.minimumSize, 0));
-
-
 		if (this.size === size) {
 			return;
 		}
@@ -237,11 +168,12 @@ export class SplitView implements IDisposable, IHorizontalSashLayoutProvider, IV
 		const indexes = range(this.viewItems.length - 1, -1);
 		const collapses = this.viewItems.map(i => Math.max(i.size - i.view.minimumSize, 0));
 		const expands = this.viewItems.map(i => Math.max(i.view.maximumSize - i.size, 0));
-		const diff = Math.abs(this.size - size);
+		const totalViewsSize = this.viewItems.reduce((r, i) => r + i.size, 0);
+		const diff = Math.abs(totalViewsSize - size);
 
-		if (size < this.size) {
+		if (size < totalViewsSize) {
 			this.expandCollapse(Math.min(diff, sum(collapses)), collapses, expands, indexes, []);
-		} else if (size > this.size) {
+		} else if (size > totalViewsSize) {
 			this.expandCollapse(Math.min(diff, sum(expands)), collapses, expands, [], indexes);
 		}
 
@@ -288,8 +220,6 @@ export class SplitView implements IDisposable, IHorizontalSashLayoutProvider, IV
 			return;
 		}
 
-		// this could maybe use the same code than the addView() does
-
 		// this.setupAnimation();
 
 		const index = this.viewItems.indexOf(item);
@@ -301,7 +231,6 @@ export class SplitView implements IDisposable, IHorizontalSashLayoutProvider, IV
 
 		const collapses = this.viewItems.map(i => Math.max(i.size - i.view.minimumSize, 0));
 		const expands = this.viewItems.map(i => Math.max(i.view.maximumSize - i.size, 0));
-
 
 		let collapse: number, collapseIndexes: number[], expandIndexes: number[];
 
@@ -317,7 +246,6 @@ export class SplitView implements IDisposable, IHorizontalSashLayoutProvider, IV
 		}
 
 		this.expandCollapse(collapse, collapses, expands, collapseIndexes, expandIndexes);
-		// this.layoutViews();
 	}
 
 	// private setupAnimation(): void {
@@ -355,26 +283,26 @@ export class SplitView implements IDisposable, IHorizontalSashLayoutProvider, IV
 		this.sashItems.forEach(item => item.sash.layout());
 
 		// Update sashes enablement
-		// let previous = false;
-		// let collapsesDown = this.views.map(v => previous = (v.size - v.minimumSize > 0) || previous);
+		let previous = false;
+		const collapsesDown = this.viewItems.map(i => previous = (i.size - i.view.minimumSize > 0) || previous);
 
-		// previous = false;
-		// let expandsDown = this.views.map(v => previous = (v.maximumSize - v.size > 0) || previous);
+		previous = false;
+		const expandsDown = this.viewItems.map(i => previous = (i.view.maximumSize - i.size > 0) || previous);
 
-		// let reverseViews = this.views.slice().reverse();
-		// previous = false;
-		// let collapsesUp = reverseViews.map(v => previous = (v.size - v.minimumSize > 0) || previous).reverse();
+		const reverseViews = [...this.viewItems].reverse();
+		previous = false;
+		const collapsesUp = reverseViews.map(i => previous = (i.size - i.view.minimumSize > 0) || previous).reverse();
 
-		// previous = false;
-		// let expandsUp = reverseViews.map(v => previous = (v.maximumSize - v.size > 0) || previous).reverse();
+		previous = false;
+		const expandsUp = reverseViews.map(i => previous = (i.view.maximumSize - i.size > 0) || previous).reverse();
 
-		// this.sashes.forEach((s, i) => {
-		// 	if ((collapsesDown[i] && expandsUp[i + 1]) || (expandsDown[i] && collapsesUp[i + 1])) {
-		// 		s.enable();
-		// 	} else {
-		// 		s.disable();
-		// 	}
-		// });
+		this.sashItems.forEach((s, i) => {
+			if ((collapsesDown[i] && expandsUp[i + 1]) || (expandsDown[i] && collapsesUp[i + 1])) {
+				s.sash.enable();
+			} else {
+				s.sash.disable();
+			}
+		});
 	}
 
 	getVerticalSashLeft(sash: Sash): number {
@@ -400,5 +328,10 @@ export class SplitView implements IDisposable, IHorizontalSashLayoutProvider, IV
 	}
 
 	dispose(): void {
+		this.viewItems.forEach(i => i.disposable.dispose());
+		this.viewItems = [];
+
+		this.sashItems.forEach(i => i.disposable.dispose());
+		this.sashItems = [];
 	}
 }
