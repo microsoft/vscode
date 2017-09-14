@@ -59,6 +59,14 @@ function toIFileStat(provider: IFileSystemProvider, stat: IStat, recurse: boolea
 	}
 }
 
+async function toDeepIFileStat(provider: IFileSystemProvider, stat: IFileStat, to: URI[]): TPromise<IFileStat> {
+	if (isFalsyOrEmpty(to)) {
+		return TPromise.as(stat);
+	}
+
+	return TPromise.as(stat);
+}
+
 export class RemoteFileService extends FileService {
 
 	// public touchFile(resource: URI): TPromise<IFileStat, any> {
@@ -163,6 +171,7 @@ export class RemoteFileService extends FileService {
 		for (const item of toResolve) {
 			promises.push(provider.stat(item.resource)
 				.then(stat => toIFileStat(provider, stat, true))
+				.then(stat => toDeepIFileStat(provider, stat, item.options && item.options.resolveTo))
 				.then(stat => result.push({ stat, success: true })));
 		}
 		return TPromise.join(promises).then(() => result);
