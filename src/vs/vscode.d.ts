@@ -3888,9 +3888,29 @@ declare module 'vscode' {
 		constructor(taskDefinition: TaskDefinition, name: string, source: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string | string[]);
 
 		/**
+		 * Creates a new task.
+		 *
+		 * @param definition The task definition as defined in the taskDefinitions extension point.
+		 * @param workspaceFolder The workspace folder this task is created for.
+		 * @param name The task's name. Is presented in the user interface.
+		 * @param source The task's source (e.g. 'gulp', 'npm', ...). Is presented in the user interface.
+		 * @param execution The process or shell execution.
+		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
+		 *  or '$eslint'. Problem matchers can be contributed by an extension using
+		 *  the `problemMatchers` extension point.
+		 */
+		constructor(taskDefinition: TaskDefinition, workspaceFolder: WorkspaceFolder, name: string, source: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string | string[]);
+
+		/**
 		 * The task's definition.
 		 */
 		definition: TaskDefinition;
+
+		/**
+		 * The workspace folder this task is associated with. Can be undefined if
+		 * the task is not associated with any workspace folder.
+		 */
+		workspaceFolder?: WorkspaceFolder;
 
 		/**
 		 * The task's name
