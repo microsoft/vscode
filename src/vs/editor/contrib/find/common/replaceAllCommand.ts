@@ -45,7 +45,7 @@ export class ReplaceAllCommand implements editorCommon.ICommand {
 			// Merge operations that touch each other
 			var resultOps: IEditOperation[] = [];
 			var previousOp = ops[0];
-			for (var i = 1; i < ops.length; i++) {
+			for (let i = 1; i < ops.length; i++) {
 				if (previousOp.range.endLineNumber === ops[i].range.startLineNumber && previousOp.range.endColumn === ops[i].range.startColumn) {
 					// These operations are one after another and can be merged
 					previousOp.range = previousOp.range.plusRange(ops[i].range);
@@ -57,7 +57,7 @@ export class ReplaceAllCommand implements editorCommon.ICommand {
 			}
 			resultOps.push(previousOp);
 
-			for (var i = 0; i < resultOps.length; i++) {
+			for (let i = 0; i < resultOps.length; i++) {
 				builder.addEditOperation(resultOps[i].range, resultOps[i].text);
 			}
 		}

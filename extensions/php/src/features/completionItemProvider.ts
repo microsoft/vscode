@@ -63,19 +63,19 @@ export default class PHPCompletionItemProvider implements CompletionItemProvider
 				result.push(createNewProposal(CompletionItemKind.Variable, name, phpGlobals.globalvariables[name]));
 			}
 		}
-		for (var name in phpGlobals.globalfunctions) {
+		for (let name in phpGlobals.globalfunctions) {
 			if (phpGlobals.globalfunctions.hasOwnProperty(name) && matches(name)) {
 				added[name] = true;
 				result.push(createNewProposal(CompletionItemKind.Function, name, phpGlobals.globalfunctions[name]));
 			}
 		}
-		for (var name in phpGlobals.compiletimeconstants) {
+		for (let name in phpGlobals.compiletimeconstants) {
 			if (phpGlobals.compiletimeconstants.hasOwnProperty(name) && matches(name)) {
 				added[name] = true;
 				result.push(createNewProposal(CompletionItemKind.Field, name, phpGlobals.compiletimeconstants[name]));
 			}
 		}
-		for (var name in phpGlobals.keywords) {
+		for (let name in phpGlobals.keywords) {
 			if (phpGlobals.keywords.hasOwnProperty(name) && matches(name)) {
 				added[name] = true;
 				result.push(createNewProposal(CompletionItemKind.Keyword, name, phpGlobals.keywords[name]));
@@ -85,7 +85,7 @@ export default class PHPCompletionItemProvider implements CompletionItemProvider
 		var text = document.getText();
 		if (prefix[0] === '$') {
 			var variableMatch = /\$([a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*)/g;
-			var match: RegExpExecArray = null;
+			let match: RegExpExecArray = null;
 			while (match = variableMatch.exec(text)) {
 				var word = match[0];
 				if (!added[word]) {
@@ -95,9 +95,9 @@ export default class PHPCompletionItemProvider implements CompletionItemProvider
 			}
 		}
 		var functionMatch = /function\s+([a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*)\s*\(/g;
-		var match: RegExpExecArray = null;
+		let match: RegExpExecArray = null;
 		while (match = functionMatch.exec(text)) {
-			var word = match[1];
+			let word = match[1];
 			if (!added[word]) {
 				added[word] = true;
 				result.push(createNewProposal(CompletionItemKind.Function, word, null));

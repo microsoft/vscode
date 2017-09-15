@@ -123,7 +123,8 @@ const tslintFilter = [
 	'!**/node_modules/**',
 	'!extensions/typescript/test/colorize-fixtures/**',
 	'!extensions/vscode-api-tests/testWorkspace/**',
-	'!extensions/**/*.test.ts'
+	'!extensions/**/*.test.ts',
+	'!extensions/html/server/lib/jquery.d.ts'
 ];
 
 const copyrightHeader = [
