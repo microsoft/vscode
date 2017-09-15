@@ -9,7 +9,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { ICommonCodeEditor, IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -32,28 +32,30 @@ export class QuickFixController implements IEditorContribution {
 
 	private _editor: ICodeEditor;
 	private _model: QuickFixModel;
-	private _quickFixContextMenu: QuickFixContextMenu | undefined;
-	private _lightBulbWidget: LightBulbWidget | undefined;
+	private _quickFixContextMenu: QuickFixContextMenu;
+	private _lightBulbWidget: LightBulbWidget;
 	private _disposables: IDisposable[] = [];
-	private enabled: boolean = false;
 
-
-	constructor(
-		editor: ICodeEditor,
+	constructor(editor: ICodeEditor,
 		@IMarkerService markerService: IMarkerService,
-		@ICommandService private readonly _commandService: ICommandService,
-		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ICommandService commandService: ICommandService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IKeybindingService private _keybindingService: IKeybindingService
 	) {
 		this._editor = editor;
 		this._model = new QuickFixModel(this._editor, markerService);
+		this._quickFixContextMenu = new QuickFixContextMenu(editor, contextMenuService, commandService);
+		this._lightBulbWidget = new LightBulbWidget(editor);
+
+		this._updateLightBulbTitle();
 
 		this._disposables.push(
-			this._editor.onDidChangeConfiguration(() => this.onEditorConfigurationChange()),
-			this._model.onDidChangeFixes(e => this._onQuickFixEvent(e))
+			this._quickFixContextMenu.onDidExecuteCodeAction(_ => this._model.trigger('auto')),
+			this._lightBulbWidget.onClick(this._handleLightBulbSelect, this),
+			this._model.onDidChangeFixes(e => this._onQuickFixEvent(e)),
+			this._keybindingService.onDidUpdateKeybindings(this._updateLightBulbTitle, this)
 		);
-
-		this.onEditorConfigurationChange();
 	}
 
 	public dispose(): void {
@@ -61,46 +63,21 @@ export class QuickFixController implements IEditorContribution {
 		dispose(this._disposables);
 	}
 
-	private get lightBulbWidget(): LightBulbWidget {
-		if (!this._lightBulbWidget) {
-			this._lightBulbWidget = new LightBulbWidget(this._editor);
-			this._disposables.push(
-				this._lightBulbWidget.onClick(this._handleLightBulbSelect, this),
-				this._keybindingService.onDidUpdateKeybindings(this._updateLightBulbTitle, this)
-			);
-			this._updateLightBulbTitle();
-		}
-		return this._lightBulbWidget;
-	}
-
-	private get quickFixContextMenu(): QuickFixContextMenu {
-		if (!this._quickFixContextMenu) {
-			this._quickFixContextMenu = new QuickFixContextMenu(this._editor, this._contextMenuService, this._commandService);
-			this._disposables.push(this._quickFixContextMenu.onDidExecuteCodeAction(_ => {
-				this._model.trigger('auto');
-			}));
-		}
-		return this._quickFixContextMenu;
-	}
-
 	private _onQuickFixEvent(e: QuickFixComputeEvent): void {
 		if (e && e.type === 'manual') {
-			this.quickFixContextMenu.show(e.fixes, e.position);
+			this._quickFixContextMenu.show(e.fixes, e.position);
+
 		} else if (e && e.fixes) {
 			// auto magically triggered
 			// * update an existing list of code actions
 			// * manage light bulb
-			if (this.quickFixContextMenu.isVisible) {
-				this.quickFixContextMenu.show(e.fixes, e.position);
+			if (this._quickFixContextMenu.isVisible) {
+				this._quickFixContextMenu.show(e.fixes, e.position);
 			} else {
-				if (this.enabled) {
-					this.lightBulbWidget.model = e;
-				}
+				this._lightBulbWidget.model = e;
 			}
 		} else {
-			if (this._lightBulbWidget) {
-				this._lightBulbWidget.hide();
-			}
+			this._lightBulbWidget.hide();
 		}
 	}
 
@@ -109,7 +86,7 @@ export class QuickFixController implements IEditorContribution {
 	}
 
 	private _handleLightBulbSelect(coords: { x: number, y: number }): void {
-		this.quickFixContextMenu.show(this.lightBulbWidget.model.fixes, coords);
+		this._quickFixContextMenu.show(this._lightBulbWidget.model.fixes, coords);
 	}
 
 	public triggerFromEditorSelection(): void {
@@ -117,10 +94,6 @@ export class QuickFixController implements IEditorContribution {
 	}
 
 	private _updateLightBulbTitle(): void {
-		if (!this._lightBulbWidget) {
-			return;
-		}
-
 		const kb = this._keybindingService.lookupKeybinding(QuickFixAction.Id);
 		let title: string;
 		if (kb) {
@@ -128,18 +101,7 @@ export class QuickFixController implements IEditorContribution {
 		} else {
 			title = nls.localize('quickFix', "Show Fixes");
 		}
-		this.lightBulbWidget.title = title;
-	}
-
-	private onEditorConfigurationChange(): void {
-		this.enabled = this._editor.getConfiguration().contribInfo.lightbulbEnabled;
-
-		if (!this.enabled) {
-			if (this._lightBulbWidget) {
-				this._lightBulbWidget.dispose();
-				this._lightBulbWidget = undefined;
-			}
-		}
+		this._lightBulbWidget.title = title;
 	}
 }
 
