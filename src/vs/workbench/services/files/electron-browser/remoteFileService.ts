@@ -8,7 +8,7 @@ import URI from 'vs/base/common/uri';
 import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';
 import { IContent, IStreamContent, IFileStat, IResolveContentOptions, IUpdateContentOptions, IResolveFileOptions, IResolveFileResult, FileOperationEvent, FileOperation, IFileSystemProvider, IStat, FileType, IImportResult } from 'vs/platform/files/common/files';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { basename, join } from 'path';
+import { basename, join, dirname } from 'path';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as Ftp from './ftpFileSystemProvider';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -24,6 +24,8 @@ import { compare } from 'vs/base/common/strings';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { decodeStream, encode } from 'vs/base/node/encoding';
+import { Graph } from 'vs/base/common/graph';
+import { values } from 'vs/base/common/collections';
 
 function toIFileStat(provider: IFileSystemProvider, stat: IStat, recurse: boolean): TPromise<IFileStat> {
 	const ret: IFileStat = {
@@ -59,9 +61,40 @@ function toIFileStat(provider: IFileSystemProvider, stat: IStat, recurse: boolea
 	}
 }
 
-async function toDeepIFileStat(provider: IFileSystemProvider, stat: IFileStat, to: URI[]): TPromise<IFileStat> {
+export async function toDeepIFileStat(provider: IFileSystemProvider, stat: IFileStat, to: URI[]): TPromise<IFileStat> {
 	if (isFalsyOrEmpty(to)) {
 		return TPromise.as(stat);
+	}
+
+	const graph = new Graph<URI>(uri => uri.path);
+	graph.lookupOrInsertNode(stat.resource); // root
+
+	to.sort((a, b) => compare(a.path, b.path)).forEach(resource => {
+		let parent = resource.with({ path: dirname(resource.path) });
+		let hitParent = false;
+		while (!hitParent) {
+			hitParent = !!graph.lookup(parent) || parent.path === '/';
+			graph.insertEdge(parent, resource);
+			resource = parent;
+			parent = resource.with({ path: dirname(resource.path) });
+		}
+	});
+
+	const stack: IFileStat[] = [stat];
+	while (stack.length > 0) {
+		const parent = stack.shift();
+		if (parent.isDirectory) {
+			parent.children = [];
+			const { outgoing } = graph.lookup(parent.resource);
+
+			await values(outgoing).map(child => {
+				return provider.stat(child.data)
+					.then(stat => toIFileStat(provider, stat, false))
+					.then(stat => parent.children.push(stat));
+			});
+
+			stack.push(...parent.children);
+		}
 	}
 
 	return TPromise.as(stat);
