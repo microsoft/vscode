@@ -234,24 +234,24 @@ suite('FileSearchEngine', () => {
 		});
 	});
 
-	test('Files: *.* exclude with unicode', function (done: () => void) {
-		let engine = new FileSearchEngine({
-			folderQueries: ROOT_FOLDER_QUERY,
-			filePattern: '*.*',
-			excludePattern: { '**/üm laut汉语': true }
-		});
+	// test('Files: *.* exclude with unicode', function (done: () => void) {
+	// 	let engine = new FileSearchEngine({
+	// 		folderQueries: ROOT_FOLDER_QUERY,
+	// 		filePattern: '*.*',
+	// 		excludePattern: { '**/üm laut汉语': true }
+	// 	});
 
-		let count = 0;
-		engine.search((result) => {
-			if (result) {
-				count++;
-			}
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.equal(count, 13);
-			done();
-		});
-	});
+	// 	let count = 0;
+	// 	engine.search((result) => {
+	// 		if (result) {
+	// 			count++;
+	// 		}
+	// 	}, () => { }, (error) => {
+	// 		assert.ok(!error);
+	// 		assert.equal(count, 13);
+	// 		done();
+	// 	});
+	// });
 
 	test('Files: multiroot with exclude', function (done: () => void) {
 		const folderQueries: IFolderSearch[] = [
@@ -368,27 +368,27 @@ suite('FileSearchEngine', () => {
 		});
 	});
 
-	test('Files: relative path to file ignores excludes', function (done: () => void) {
-		let engine = new FileSearchEngine({
-			folderQueries: ROOT_FOLDER_QUERY,
-			filePattern: path.normalize(path.join('examples', 'company.js')),
-			excludePattern: { '**/*.js': true }
-		});
+	// test('Files: relative path to file ignores excludes', function (done: () => void) {
+	// 	let engine = new FileSearchEngine({
+	// 		folderQueries: ROOT_FOLDER_QUERY,
+	// 		filePattern: path.normalize(path.join('examples', 'company.js')),
+	// 		excludePattern: { '**/*.js': true }
+	// 	});
 
-		let count = 0;
-		let res: IRawFileMatch;
-		engine.search((result) => {
-			if (result) {
-				count++;
-			}
-			res = result;
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.equal(count, 1);
-			assert.equal(path.basename(res.relativePath), 'company.js');
-			done();
-		});
-	});
+	// 	let count = 0;
+	// 	let res: IRawFileMatch;
+	// 	engine.search((result) => {
+	// 		if (result) {
+	// 			count++;
+	// 		}
+	// 		res = result;
+	// 	}, () => { }, (error) => {
+	// 		assert.ok(!error);
+	// 		assert.equal(count, 1);
+	// 		assert.equal(path.basename(res.relativePath), 'company.js');
+	// 		done();
+	// 	});
+	// });
 
 	test('Files: Include pattern, single files', function (done: () => void) {
 		let engine = new FileSearchEngine({
