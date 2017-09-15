@@ -7,8 +7,13 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { wireCancellationToken } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { QuickPickOptions, QuickPickItem, InputBoxOptions } from 'vscode';
+import { QuickPickOptions, QuickPickItem, InputBoxOptions, WorkspaceFolder, WorkspaceFolderPickOptions } from 'vscode';
 import { MainContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, MyQuickPickItems, IMainContext } from './extHost.protocol';
+import { FileKind } from 'vs/platform/files/common/files';
+import { getPathLabel } from 'vs/base/common/labels';
+import { dirname } from 'path';
+import { homedir } from 'os';
+import { localize } from 'vs/nls';
 
 export type Item = string | QuickPickItem;
 
@@ -116,5 +121,51 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 			return TPromise.as(this._validateInput(input));
 		}
 		return undefined;
+	}
+
+	// ---- workspace folder picker
+
+	showWorkspaceFolderPick(folders: WorkspaceFolder[], options?: WorkspaceFolderPickOptions, token = CancellationToken.None): Thenable<WorkspaceFolder> {
+
+		// clear state from last invocation
+		this._onDidSelectItem = undefined;
+
+		const quickPickWidget = this._proxy.$show({
+			autoFocus: { autoFocusFirstEntry: true },
+			placeHolder: (options && options.placeHolder) || localize('workspaceFolderPickerPlaceholder', "Select workspace folder"),
+			ignoreFocusLost: options && options.ignoreFocusOut,
+			matchOnDescription: true
+		});
+
+		type WorkspaceFolderPick = MyQuickPickItems & { folder: WorkspaceFolder };
+
+		const items = folders.map((folder, index) => ({
+			handle: index,
+			label: folder.name,
+			description: getPathLabel(dirname(folder.uri.fsPath), void 0, { userHome: homedir() }),
+			folder,
+			resource: folder.uri,
+			fileKind: FileKind.ROOT_FOLDER
+		} as WorkspaceFolderPick));
+
+		// handle selection changes
+		if (options && typeof options.onDidSelectWorkspaceFolder === 'function') {
+			this._onDidSelectItem = (handle) => {
+				options.onDidSelectWorkspaceFolder(items[handle].folder);
+			};
+		}
+
+		// show items
+		this._proxy.$setItems(items);
+
+		// wait for user choice
+		const promise = quickPickWidget.then(handle => {
+			if (typeof handle === 'number') {
+				return items[handle].folder;
+			}
+			return undefined;
+		});
+
+		return wireCancellationToken<WorkspaceFolder>(token, promise, true);
 	}
 }

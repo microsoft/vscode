@@ -347,6 +347,14 @@ export function createApiFactory(
 			showQuickPick(items: any, options: vscode.QuickPickOptions, token?: vscode.CancellationToken) {
 				return extHostQuickOpen.showQuickPick(items, options, token);
 			},
+			showWorkspaceFolderPick(options: vscode.WorkspaceFolderPickOptions, token?: vscode.CancellationToken) {
+				const folders = extHostWorkspace.getWorkspaceFolders();
+				if (!folders || folders.length === 0) {
+					return TPromise.as(undefined);
+				}
+
+				return extHostQuickOpen.showWorkspaceFolderPick(folders, options, token);
+			},
 			showInputBox(options?: vscode.InputBoxOptions, token?: vscode.CancellationToken) {
 				return extHostQuickOpen.showInput(options, token);
 			},

@@ -329,6 +329,15 @@ suite('window namespace tests', () => {
 		return Promise.all([a, b]);
 	});
 
+	test('showWorkspaceFolderPick, undefined on cancel', function () {
+		const source = new CancellationTokenSource();
+		const p = (<any>window).showWorkspaceFolderPick(undefined, source.token);
+		source.cancel();
+		return p.then(value => {
+			assert.equal(value, undefined);
+		});
+	});
+
 	test('Default value for showInput Box accepted even if fails validateInput, #33691', function () {
 		const result = window.showInputBox({
 			validateInput: (value: string) => {
