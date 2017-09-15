@@ -57,16 +57,14 @@ class TestView implements IView {
 	}
 }
 
-const TOTAL_SIZE = 200;
-
 suite('Splitview', () => {
 	let container: HTMLElement;
 
 	setup(() => {
 		container = document.createElement('div');
 		container.style.position = 'absolute';
-		container.style.width = `${TOTAL_SIZE}px`;
-		container.style.height = `${TOTAL_SIZE}px`;
+		container.style.width = `${200}px`;
+		container.style.height = `${200}px`;
 	});
 
 	teardown(() => {
@@ -79,7 +77,7 @@ suite('Splitview', () => {
 		splitview.dispose();
 	});
 
-	test('splitview has views as sashes as children', () => {
+	test('has views as sashes as children', () => {
 		const view1 = new TestView(20, 20);
 		const view2 = new TestView(20, 20);
 		const view3 = new TestView(20, 20);
@@ -125,7 +123,7 @@ suite('Splitview', () => {
 		view3.dispose();
 	});
 
-	test('splitview calls view methods on addView and removeView', () => {
+	test('calls view methods on addView and removeView', () => {
 		const view = new TestView(20, 20);
 		const splitview = new SplitView(container);
 
@@ -138,8 +136,8 @@ suite('Splitview', () => {
 		splitview.addView(view, 20);
 
 		assert.equal(view.size, 20, 'view has right size');
-		assert(didLayout, 'layout was called');
-		assert(didLayout, 'render was called');
+		assert(didLayout, 'layout is called');
+		assert(didLayout, 'render is called');
 
 		splitview.dispose();
 		layoutDisposable.dispose();
@@ -147,51 +145,78 @@ suite('Splitview', () => {
 		view.dispose();
 	});
 
-	test('splitview stretches view to viewport', () => {
+	test('stretches view to viewport', () => {
 		const view = new TestView(20, Number.POSITIVE_INFINITY);
 		const splitview = new SplitView(container);
-		splitview.layout(TOTAL_SIZE);
+		splitview.layout(200);
 
 		splitview.addView(view, 20);
-		assert.equal(view.size, TOTAL_SIZE, 'view was stretched');
+		assert.equal(view.size, 200, 'view is stretched');
 
-		splitview.layout(TOTAL_SIZE);
-		assert.equal(view.size, TOTAL_SIZE, 'view stayed the same');
+		splitview.layout(200);
+		assert.equal(view.size, 200, 'view stayed the same');
 
 		splitview.layout(100);
-		assert.equal(view.size, 100, 'view was collapsed');
+		assert.equal(view.size, 100, 'view is collapsed');
 
 		splitview.layout(20);
-		assert.equal(view.size, 20, 'view was collapsed');
+		assert.equal(view.size, 20, 'view is collapsed');
 
 		splitview.layout(10);
-		assert.equal(view.size, 20, 'view was clamped');
+		assert.equal(view.size, 20, 'view is clamped');
 
-		splitview.layout(TOTAL_SIZE);
-		assert.equal(view.size, TOTAL_SIZE, 'view was stretched');
+		splitview.layout(200);
+		assert.equal(view.size, 200, 'view is stretched');
 
 		splitview.dispose();
 		view.dispose();
 	});
 
-	test('splitview respects preferred sizes with structural changes', () => {
+	test('respects preferred sizes with structural changes', () => {
 		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
 		const view2 = new TestView(20, Number.POSITIVE_INFINITY);
 		const view3 = new TestView(20, Number.POSITIVE_INFINITY);
 		const splitview = new SplitView(container);
-		splitview.layout(TOTAL_SIZE);
+		splitview.layout(200);
 
 		splitview.addView(view1, 20);
-		assert.equal(view1.size, TOTAL_SIZE, 'view1 was stretched');
+		assert.equal(view1.size, 200, 'view1 is stretched');
 
 		splitview.addView(view2, 20);
-		assert.equal(view1.size, 20, 'view1 size was restored');
-		assert.equal(view2.size, TOTAL_SIZE - 20, 'view2 was stretched');
+		assert.equal(view1.size, 20, 'view1 size is restored');
+		assert.equal(view2.size, 200 - 20, 'view2 is stretched');
 
 		splitview.addView(view3, 20);
-		assert.equal(view1.size, 20, 'view1 size was restored');
-		assert.equal(view2.size, 20, 'view2 size was restored');
-		assert.equal(view3.size, TOTAL_SIZE - 20 * 2, 'view3 was stretched');
+		assert.equal(view1.size, 20, 'view1 size is restored');
+		assert.equal(view2.size, 20, 'view2 size is restored');
+		assert.equal(view3.size, 160, 'view3 is stretched');
+
+		splitview.dispose();
+		view3.dispose();
+		view2.dispose();
+		view1.dispose();
+	});
+
+	test('can resize views', () => {
+		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
+		const view2 = new TestView(20, Number.POSITIVE_INFINITY);
+		const view3 = new TestView(20, Number.POSITIVE_INFINITY);
+		const splitview = new SplitView(container);
+		splitview.layout(200);
+
+		splitview.addView(view1, 20);
+		splitview.addView(view2, 20);
+		splitview.addView(view3, 20);
+
+		assert.equal(view1.size, 20, 'view1 size is the default');
+		assert.equal(view2.size, 20, 'view2 size the the default');
+		assert.equal(view3.size, 160, 'view3 is stretched');
+
+		splitview.resizeView(1, 40);
+
+		assert.equal(view1.size, 20, 'view1 is untouched');
+		assert.equal(view2.size, 40, 'view2 is stretched');
+		assert.equal(view3.size, 140, 'view3 is collapsed');
 
 		splitview.dispose();
 		view3.dispose();
