@@ -97,7 +97,7 @@ export function createApiFactory(
 	const extHostQuickOpen = threadService.set(ExtHostContext.ExtHostQuickOpen, new ExtHostQuickOpen(threadService));
 	const extHostTerminalService = threadService.set(ExtHostContext.ExtHostTerminalService, new ExtHostTerminalService(threadService));
 	const extHostSCM = threadService.set(ExtHostContext.ExtHostSCM, new ExtHostSCM(threadService, extHostCommands));
-	const extHostTask = threadService.set(ExtHostContext.ExtHostTask, new ExtHostTask(threadService));
+	const extHostTask = threadService.set(ExtHostContext.ExtHostTask, new ExtHostTask(threadService, extHostWorkspace));
 	const extHostCredentials = threadService.set(ExtHostContext.ExtHostCredentials, new ExtHostCredentials(threadService));
 	const extHostWindow = threadService.set(ExtHostContext.ExtHostWindow, new ExtHostWindow(threadService));
 	threadService.set(ExtHostContext.ExtHostExtensionService, extensionService);
@@ -599,6 +599,7 @@ export function createApiFactory(
 			TaskGroup: extHostTypes.TaskGroup,
 			ProcessExecution: extHostTypes.ProcessExecution,
 			ShellExecution: extHostTypes.ShellExecution,
+			TaskScope: extHostTypes.TaskScope,
 			Task: extHostTypes.Task,
 			ConfigurationTarget: extHostTypes.ConfigurationTarget
 		};

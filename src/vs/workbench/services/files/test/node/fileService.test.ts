@@ -71,6 +71,45 @@ suite('FileService', () => {
 		}, error => onError(error, done));
 	});
 
+	test('createFile (does not overwrite by default)', function (done: () => void) {
+		const contents = 'Hello World';
+		const resource = uri.file(path.join(testDir, 'test.txt'));
+
+		fs.writeFileSync(resource.fsPath, ''); // create file
+
+		service.createFile(resource, contents).done(null, error => {
+			assert.ok(error);
+
+			done();
+		});
+	});
+
+	test('createFile (allows to overwrite existing)', function (done: () => void) {
+		let event: FileOperationEvent;
+		const toDispose = service.onAfterOperation(e => {
+			event = e;
+		});
+
+		const contents = 'Hello World';
+		const resource = uri.file(path.join(testDir, 'test.txt'));
+
+		fs.writeFileSync(resource.fsPath, ''); // create file
+
+		service.createFile(resource, contents, { overwrite: true }).done(s => {
+			assert.equal(s.name, 'test.txt');
+			assert.equal(fs.existsSync(s.resource.fsPath), true);
+			assert.equal(fs.readFileSync(s.resource.fsPath), contents);
+
+			assert.ok(event);
+			assert.equal(event.resource.fsPath, resource.fsPath);
+			assert.equal(event.operation, FileOperation.CREATE);
+			assert.equal(event.target.resource.fsPath, resource.fsPath);
+			toDispose.dispose();
+
+			done();
+		}, error => onError(error, done));
+	});
+
 	test('createFolder', function (done: () => void) {
 		let event: FileOperationEvent;
 		const toDispose = service.onAfterOperation(e => {

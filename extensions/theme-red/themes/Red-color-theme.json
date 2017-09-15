@@ -170,8 +170,16 @@
 			}
 		},
 		{
-			"name": "String constant",
-			"scope": "string constant",
+			"scope": "constant.character",
+			"settings": {
+				"foreground": "#ec0d1e"
+			}
+		},
+		{
+			"scope": [
+				"string constant",
+				"constant.character.escape"
+			],
 			"settings": {
 				"fontStyle": "",
 				"foreground": "#ffe862ff"
@@ -392,7 +400,7 @@
 				"punctuation.definition.template-expression.begin",
 				"punctuation.definition.template-expression.end",
 				"punctuation.section.embedded",
-				"constant.character.format.placeholder"
+				".format.placeholder"
 			],
 			"settings": {
 				"foreground": "#ec0d1e"

@@ -308,7 +308,8 @@ export class View extends ViewEventHandler {
 	}
 
 	private getEditorClassName() {
-		return this._context.configuration.editor.editorClassName + ' ' + getThemeTypeSelector(this._context.theme.type);
+		let focused = this._textAreaHandler.isFocused() ? ' focused' : '';
+		return this._context.configuration.editor.editorClassName + ' ' + getThemeTypeSelector(this._context.theme.type) + focused;
 	}
 
 	// --- begin event handlers
@@ -323,7 +324,7 @@ export class View extends ViewEventHandler {
 		return false;
 	}
 	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
-		this.domNode.toggleClassName('focused', e.isFocused);
+		this.domNode.setClassName(this.getEditorClassName());
 		if (e.isFocused) {
 			this.outgoingEvents.emitViewFocusGained();
 		} else {

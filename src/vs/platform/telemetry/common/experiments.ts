@@ -10,7 +10,6 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 
 export interface IExperiments {
 	ripgrepQuickSearch: boolean;
-	deployToAzureQuickLink: boolean;
 }
 
 export const IExperimentService = createDecorator<IExperimentService>('experimentService');
@@ -60,12 +59,11 @@ function applyOverrides(experiments: IExperiments, configurationService: IConfig
 function splitExperimentsRandomness(storageService: IStorageService): IExperiments {
 	const random1 = getExperimentsRandomness(storageService);
 	const [random2, ripgrepQuickSearch] = splitRandom(random1);
-	const [/* random3 */, deployToAzureQuickLink] = splitRandom(random2);
+	const [/* random3 */, /* deployToAzureQuickLink */] = splitRandom(random2);
 	// const [random4, /* mergeQuickLinks */] = splitRandom(random3);
 	// const [random5, /* enableWelcomePage */] = splitRandom(random4);
 	return {
 		ripgrepQuickSearch,
-		deployToAzureQuickLink
 	};
 }
 

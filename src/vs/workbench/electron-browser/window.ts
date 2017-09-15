@@ -39,7 +39,7 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { Themable } from 'vs/workbench/common/theme';
 import { ipcRenderer as ipc, webFrame } from 'electron';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 
 const TextInputActions: IAction[] = [
@@ -288,18 +288,13 @@ export class ElectronWindow extends Themable {
 		const foldersToAdd = request.foldersToAdd.map(folderToAdd => URI.file(folderToAdd.filePath));
 
 		// Workspace: just add to workspace config
-		if (this.contextService.hasMultiFolderWorkspace()) {
-			this.workspaceEditingService.addRoots(foldersToAdd).done(null, errors.onUnexpectedError);
+		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
+			this.workspaceEditingService.addFolders(foldersToAdd).done(null, errors.onUnexpectedError);
 		}
 
 		// Single folder or no workspace: create workspace and open
 		else {
-			const workspaceFolders: URI[] = [];
-
-			// Folder of workspace is the first of multi root workspace, so add it
-			if (this.contextService.hasFolderWorkspace()) {
-				workspaceFolders.push(...this.contextService.getWorkspace().roots);
-			}
+			const workspaceFolders: URI[] = [...this.contextService.getWorkspace().folders];
 
 			// Fill in remaining ones from request
 			workspaceFolders.push(...request.foldersToAdd.map(folderToAdd => URI.file(folderToAdd.filePath)));

@@ -93,7 +93,7 @@ export interface IFileService {
 	 *
 	 * The optional parameter content can be used as value to fill into the new file.
 	 */
-	createFile(resource: URI, content?: string): TPromise<IFileStat>;
+	createFile(resource: URI, content?: string, options?: ICreateFileOptions): TPromise<IFileStat>;
 
 	/**
 	 * Creates a new folder with the given path. The returned promise
@@ -489,6 +489,15 @@ export interface IUpdateContentOptions {
 export interface IResolveFileOptions {
 	resolveTo?: URI[];
 	resolveSingleChildDescendants?: boolean;
+}
+
+export interface ICreateFileOptions {
+
+	/**
+	 * Overwrite the file to create if it already exists on disk. Otherwise
+	 * an error will be thrown (FILE_MODIFIED_SINCE).
+	 */
+	overwrite?: boolean;
 }
 
 export interface IImportResult {

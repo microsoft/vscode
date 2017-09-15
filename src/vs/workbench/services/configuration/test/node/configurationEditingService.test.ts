@@ -45,6 +45,7 @@ import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IChoiceService, IMessageService } from 'vs/platform/message/common/message';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -117,30 +118,32 @@ suite('ConfigurationEditingService', () => {
 		const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
 		instantiationService.stub(IEnvironmentService, environmentService);
 		const workspacesService = instantiationService.stub(IWorkspacesService, {});
-		const workspaceService = noWorkspace ? new EmptyWorkspaceServiceImpl(environmentService) : new WorkspaceServiceImpl(workspaceDir, environmentService, workspacesService);
+		const workspaceService = noWorkspace ? new EmptyWorkspaceServiceImpl(<IWindowConfiguration>{}, environmentService) : new WorkspaceServiceImpl(workspaceDir, environmentService, workspacesService);
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
-		instantiationService.stub(IConfigurationService, workspaceService);
-		instantiationService.stub(ILifecycleService, new TestLifecycleService());
-		instantiationService.stub(IEditorGroupService, new TestEditorGroupService());
-		instantiationService.stub(ITelemetryService, NullTelemetryService);
-		instantiationService.stub(IModeService, ModeServiceImpl);
-		instantiationService.stub(IModelService, instantiationService.createInstance(ModelServiceImpl));
-		instantiationService.stub(IFileService, new FileService(workspaceService, new TestTextResourceConfigurationService(), new TestConfigurationService(), { disableWatcher: true }));
-		instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
-		instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
-		instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
-		instantiationService.stub(IBackupFileService, new TestBackupFileService());
-		choiceService = instantiationService.stub(IChoiceService, {
-			choose: (severity, message, options, cancelId): TPromise<number> => {
-				return TPromise.as(cancelId);
-			}
-		});
-		instantiationService.stub(IMessageService, {
-			show: (severity, message, options, cancelId): void => { }
-		});
+		return workspaceService.initialize().then(() => {
+			instantiationService.stub(IConfigurationService, workspaceService);
+			instantiationService.stub(ILifecycleService, new TestLifecycleService());
+			instantiationService.stub(IEditorGroupService, new TestEditorGroupService());
+			instantiationService.stub(ITelemetryService, NullTelemetryService);
+			instantiationService.stub(IModeService, ModeServiceImpl);
+			instantiationService.stub(IModelService, instantiationService.createInstance(ModelServiceImpl));
+			instantiationService.stub(IFileService, new FileService(workspaceService, new TestTextResourceConfigurationService(), new TestConfigurationService(), { disableWatcher: true }));
+			instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
+			instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
+			instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
+			instantiationService.stub(IBackupFileService, new TestBackupFileService());
+			choiceService = instantiationService.stub(IChoiceService, {
+				choose: (severity, message, options, cancelId): TPromise<number> => {
+					return TPromise.as(cancelId);
+				}
+			});
+			instantiationService.stub(IMessageService, {
+				show: (severity, message, options, cancelId): void => { }
+			});
 
-		testObject = instantiationService.createInstance(ConfigurationEditingService);
-		return workspaceService.initialize();
+			testObject = instantiationService.createInstance(ConfigurationEditingService);
+			return workspaceService.initialize();
+		});
 	}
 
 	teardown(() => {

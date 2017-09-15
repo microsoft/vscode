@@ -107,8 +107,8 @@ export function getSettingsTargetName(target: ConfigurationTarget, resource: URI
 		case ConfigurationTarget.WORKSPACE:
 			return localize('workspaceSettingsTarget', "Workspace Settings");
 		case ConfigurationTarget.FOLDER:
-			const root = workspaceContextService.getRoot(resource);
-			return root ? paths.basename(root.fsPath) : '';
+			const folder = workspaceContextService.getWorkspaceFolder(resource);
+			return folder ? paths.basename(folder.fsPath) : '';
 	}
 }
 

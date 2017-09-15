@@ -31,70 +31,69 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	) {
 	}
 
-	public addRoots(rootsToAdd: URI[]): TPromise<void> {
+	public addFolders(foldersToAdd: URI[]): TPromise<void> {
 		if (!this.isSupported()) {
 			return TPromise.as(void 0); // we need a workspace to begin with
 		}
 
-		const roots = this.contextService.getWorkspace().roots;
+		const folders = this.contextService.getWorkspace().folders;
 
-		return this.doSetRoots([...roots, ...rootsToAdd]);
+		return this.doSetFolders([...folders, ...foldersToAdd]);
 	}
 
-	public removeRoots(rootsToRemove: URI[]): TPromise<void> {
+	public removeFolders(foldersToRemove: URI[]): TPromise<void> {
 		if (!this.isSupported()) {
 			return TPromise.as(void 0); // we need a workspace to begin with
 		}
 
-		const roots = this.contextService.getWorkspace().roots;
-		const rootsToRemoveRaw = rootsToRemove.map(root => root.toString());
+		const folders = this.contextService.getWorkspace().folders;
+		const foldersToRemoveRaw = foldersToRemove.map(folder => folder.toString());
 
-		return this.doSetRoots(roots.filter(root => rootsToRemoveRaw.indexOf(root.toString()) === -1));
+		return this.doSetFolders(folders.filter(folder => foldersToRemoveRaw.indexOf(folder.toString()) === -1));
 	}
 
 	private isSupported(): boolean {
-		// TODO@Ben multi root
 		return (
 			this.environmentService.appQuality !== 'stable'  // not yet enabled in stable
-			&& this.contextService.hasMultiFolderWorkspace() // we need a multi folder workspace to begin with
+			&& !!this.contextService.getWorkspace().configuration // we need a workspace configuration file to begin with
 		);
 	}
 
-	private doSetRoots(newRoots: URI[]): TPromise<void> {
+	private doSetFolders(newFolders: URI[]): TPromise<void> {
 		const workspace = this.contextService.getWorkspace();
-		const currentWorkspaceRoots = this.contextService.getWorkspace().roots.map(root => root.fsPath);
-		const newWorkspaceRoots = this.validateRoots(newRoots);
+		const currentWorkspaceFolders = this.contextService.getWorkspace().folders.map(folder => folder.fsPath);
+		const newWorkspaceFolders = this.validateFolders(newFolders);
 
 		// See if there are any changes
-		if (equals(currentWorkspaceRoots, newWorkspaceRoots)) {
+		if (equals(currentWorkspaceFolders, newWorkspaceFolders)) {
 			return TPromise.as(void 0);
 		}
 
 		// Apply to config
-		if (newWorkspaceRoots.length) {
+		if (newWorkspaceFolders.length) {
 			const workspaceConfigFolder = dirname(workspace.configuration.fsPath);
-			const value: IStoredWorkspaceFolder[] = newWorkspaceRoots.map(newWorkspaceRoot => {
-				if (isEqualOrParent(newWorkspaceRoot, workspaceConfigFolder, !isLinux)) {
-					newWorkspaceRoot = relative(workspaceConfigFolder, newWorkspaceRoot) || '.'; // absolute paths get converted to relative ones to workspace location if possible
+			const value: IStoredWorkspaceFolder[] = newWorkspaceFolders.map(newWorkspaceFolder => {
+				if (isEqualOrParent(newWorkspaceFolder, workspaceConfigFolder, !isLinux)) {
+					newWorkspaceFolder = relative(workspaceConfigFolder, newWorkspaceFolder) || '.'; // absolute paths get converted to relative ones to workspace location if possible
 				}
 
-				return { path: newWorkspaceRoot };
+				return { path: newWorkspaceFolder };
 			});
 
 			return this.jsonEditingService.write(workspace.configuration, { key: 'folders', value }, true);
 		} else {
-			// TODO: Sandeep - Removing all roots?
+			// TODO: Sandeep - Removing all folders?
 		}
 
 		return TPromise.as(null);
 	}
 
-	private validateRoots(roots: URI[]): string[] {
-		if (!roots) {
+	private validateFolders(folders: URI[]): string[] {
+		if (!folders) {
 			return [];
 		}
 
 		// Prevent duplicates
-		return distinct(roots.map(root => root.fsPath), root => isLinux ? root : root.toLowerCase());
+		return distinct(folders.map(folder => folder.fsPath), folder => isLinux ? folder : folder.toLowerCase());
 	}
 }

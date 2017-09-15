@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { once } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -62,7 +62,7 @@ export class WorkspaceMigrationService implements IWorkspaceMigrationService {
 	}
 
 	private migrateConfiguration(toWorkspaceId: IWorkspaceIdentifier): TPromise<void> {
-		if (!this.contextService.hasFolderWorkspace()) {
+		if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER) {
 			return TPromise.as(void 0); // return early if not a folder workspace is opened
 		}
 

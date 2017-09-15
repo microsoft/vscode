@@ -46,7 +46,8 @@ const options: minimist.Opts = {
 		'list-extensions',
 		'show-versions',
 		'nolazy',
-		'skip-getting-started'
+		'skip-getting-started',
+		'sticky-quickopen'
 	],
 	alias: {
 		add: 'a',

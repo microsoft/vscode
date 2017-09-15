@@ -10,7 +10,10 @@
 			}
 		},
 		{
-			"scope": ["meta.embedded", "source.groovy.embedded"],
+			"scope": [
+				"meta.embedded",
+				"source.groovy.embedded"
+			],
 			"settings": {
 				"foreground": "#D4D4D4",
 				"background": "#1E1E1E"
@@ -252,8 +255,7 @@
 			"scope": [
 				"punctuation.definition.template-expression.begin",
 				"punctuation.definition.template-expression.end",
-				"punctuation.section.embedded",
-				"constant.character.format.placeholder"
+				"punctuation.section.embedded"
 			],
 			"settings": {
 				"foreground": "#569cd6"

@@ -248,8 +248,7 @@
 			"scope": [
 				"punctuation.definition.template-expression.begin",
 				"punctuation.definition.template-expression.end",
-				"punctuation.section.embedded",
-				"constant.character.format.placeholder"
+				"punctuation.section.embedded"
 			],
 			"settings": {
 				"foreground": "#0000ff"

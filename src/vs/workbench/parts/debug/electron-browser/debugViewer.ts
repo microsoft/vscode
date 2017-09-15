@@ -22,7 +22,7 @@ import { DefaultController, DefaultDragAndDrop, ClickBehavior } from 'vs/base/pa
 import { Constants } from 'vs/editor/common/core/uint';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
 import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
@@ -532,7 +532,7 @@ export class CallStackRenderer implements IRenderer {
 
 	private renderProcess(process: debug.IProcess, data: IProcessTemplateData): void {
 		data.process.title = nls.localize({ key: 'process', comment: ['Process is a noun'] }, "Process");
-		data.name.textContent = process.getName(this.contextService.hasMultiFolderWorkspace());
+		data.name.textContent = process.getName(this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE);
 		const stoppedThread = process.getAllThreads().filter(t => t.stopped).pop();
 
 		data.stateLabel.textContent = stoppedThread ? nls.localize('paused', "Paused")
