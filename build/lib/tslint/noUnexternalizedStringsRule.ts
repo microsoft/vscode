@@ -105,8 +105,8 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 		// Ignore strings in import and export nodes.
 		if (info && info.isImport && doubleQuoted) {
 			const fix = [
-				new Lint.Replacement(node.getStart(), 1, '\''),
-				new Lint.Replacement(node.getStart() + text.length - 1, 1, '\''),
+				Lint.Replacement.replaceFromTo(node.getStart(), 1, '\''),
+				Lint.Replacement.replaceFromTo(node.getStart() + text.length - 1, 1, '\''),
 			];
 			this.addFailureAtNode(
 				node,
@@ -124,7 +124,7 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 		if (doubleQuoted && (!callInfo || callInfo.argIndex === -1 || !this.signatures[functionName])) {
 			const s = node.getText();
 			const fix = [
-				new Lint.Replacement(node.getStart(), node.getWidth(), `nls.localize('KEY-${s.substring(1, s.length - 1)}', ${s})`),
+				Lint.Replacement.replaceFromTo(node.getStart(), node.getWidth(), `nls.localize('KEY-${s.substring(1, s.length - 1)}', ${s})`),
 			];
 			this.addFailure(this.createFailure(node.getStart(), node.getWidth(), `Unexternalized string found: ${node.getText()}`, fix));
 			return;
