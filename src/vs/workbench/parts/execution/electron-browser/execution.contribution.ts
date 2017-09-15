@@ -182,7 +182,8 @@ export class ExplorerViewerActionContributor extends ActionBarContributor {
 	}
 
 	public hasSecondaryActions(context: any): boolean {
-		return !!explorerItemToFileResource(context.element);
+		const fileResource = explorerItemToFileResource(context.element);
+		return fileResource && fileResource.resource.scheme === 'file';
 	}
 
 	public getSecondaryActions(context: any): IAction[] {
