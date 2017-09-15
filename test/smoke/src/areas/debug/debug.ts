@@ -25,7 +25,6 @@ const STACK_FRAME = `${VIEWLET} .monaco-tree-row .stack-frame`;
 const VARIABLE = `${VIEWLET} .debug-variables .monaco-tree-row .expression`;
 const CONSOLE_OUTPUT = `.repl .output.expression`;
 const CONSOLE_INPUT_OUTPUT = `.repl .input-output-pair .output.expression .value`;
-const SCOPE = `${VIEWLET} .debug-variables .scope`;
 
 const REPL_FOCUSED = '.repl-input-wrapper .monaco-editor.focused';
 
@@ -112,18 +111,18 @@ export class Debug extends Viewlet {
 		await this.spectron.workbench.waitForTab(name);
 	}
 
-	async console(text: string): Promise<string> {
+	async waitForReplCommand(text: string, accept: (result: string) => boolean): Promise<void> {
 		await this.spectron.workbench.quickopen.runCommand('Debug: Focus Debug Console');
 		await this.spectron.client.waitForElement(REPL_FOCUSED);
 		await this.spectron.client.type(text);
 		await this.spectron.client.waitForElement(CONSOLE_INPUT_OUTPUT);
-
-		const result = await this.getConsoleOutput();
-		return result[result.length - 1] || '';
+		await this.spectron.client.waitFor(async () => {
+			const result = await this.getConsoleOutput();
+			return result[result.length - 1] || '';
+		}, accept);
 	}
 
 	async getLocalVariableCount(): Promise<number> {
-		await this.spectron.client.waitForElement(SCOPE);
 		return await this.spectron.webclient.selectorExecute(VARIABLE, div => (Array.isArray(div) ? div : [div]).length);
 	}
 

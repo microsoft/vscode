@@ -69,10 +69,12 @@ describe('Debug', () => {
 		port = await app.workbench.debug.startDebugging();
 		await app.screenCapturer.capture('debugging has started');
 
-		await new Promise((c, e) => http.get(`http://localhost:${port}`).on('response', c).on('error', e));
-		await app.screenCapturer.capture('server was pinged');
+		await new Promise((c, e) => {
+			const request = http.get(`http://localhost:${port}`);
+			request.on('error', e);
+			app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 6).then(c, e);
+		});
 
-		await app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 6);
 		await app.screenCapturer.capture('debugging is paused');
 	});
 
@@ -108,15 +110,17 @@ describe('Debug', () => {
 		await app.workbench.debug.continue();
 		await app.screenCapturer.capture('debugging has continued');
 
-		await new Promise((c, e) => http.get(`http://localhost:${port}`).on('response', c).on('error', e));
-		await app.screenCapturer.capture('server was pinged');
+		await new Promise((c, e) => {
+			const request = http.get(`http://localhost:${port}`);
+			request.on('error', e);
+			app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 6).then(c, e);
+		});
 
-		await app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 6);
 		await app.screenCapturer.capture('debugging is paused');
 	});
 
 	it('debug console', async function () {
-		await app.client.waitFor(() => app.workbench.debug.console('2 + 2 \n'), r => r === '4', 'debug console should return 2 + 2 = 4');
+		await app.workbench.debug.waitForReplCommand('2 + 2 \n', r => r === '4');
 	});
 
 	it('stop debugging', async function () {
