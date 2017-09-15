@@ -145,30 +145,41 @@ export class SpectronClient {
 		return this.spectron.client.getTitle();
 	}
 
+	private running = false;
 	public async waitFor<T>(func: () => T | Promise<T | undefined>, accept?: (result: T) => boolean | Promise<boolean>, timeoutMessage?: string, retryCount?: number): Promise<T>;
 	public async waitFor<T>(func: () => T | Promise<T>, accept: (result: T) => boolean | Promise<boolean> = result => !!result, timeoutMessage?: string, retryCount?: number): Promise<T> {
-		let trial = 1;
-		retryCount = typeof retryCount === 'number' ? retryCount : this.retryCount;
+		if (this.running) {
+			throw new Error('Not allowed to run nested waitFor calls!');
+		}
 
-		while (true) {
-			if (trial > retryCount) {
-				await this.application.screenCapturer.capture('timeout');
-				throw new Error(`${timeoutMessage}: Timed out after ${(retryCount * this.retryDuration) / 1000} seconds.`);
+		this.running = true;
+
+		try {
+			let trial = 1;
+			retryCount = typeof retryCount === 'number' ? retryCount : this.retryCount;
+
+			while (true) {
+				if (trial > retryCount) {
+					await this.application.screenCapturer.capture('timeout');
+					throw new Error(`${timeoutMessage}: Timed out after ${(retryCount * this.retryDuration) / 1000} seconds.`);
+				}
+
+				let result;
+				try {
+					result = await func();
+				} catch (e) {
+					// console.log(e);
+				}
+
+				if (accept(result)) {
+					return result;
+				}
+
+				await new Promise(resolve => setTimeout(resolve, this.retryDuration));
+				trial++;
 			}
-
-			let result;
-			try {
-				result = await func();
-			} catch (e) {
-				// console.log(e);
-			}
-
-			if (accept(result)) {
-				return result;
-			}
-
-			await new Promise(resolve => setTimeout(resolve, this.retryDuration));
-			trial++;
+		} finally {
+			this.running = false;
 		}
 	}
 
