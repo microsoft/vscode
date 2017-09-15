@@ -9,7 +9,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as stripJsonComments from 'strip-json-comments';
-import { SpectronApplication, VSCODE_BUILD, EXTENSIONS_DIR } from '../../spectron/application';
+import { SpectronApplication, VSCODE_BUILD, EXTENSIONS_DIR, findFreePort } from '../../spectron/application';
 
 describe('Debug', () => {
 	let app: SpectronApplication = new SpectronApplication();
@@ -38,7 +38,9 @@ describe('Debug', () => {
 		fs.symlinkSync(debug2Path, path.join(EXTENSIONS_DIR, 'vscode-node-debug2'));
 	}
 
-	before(() => app.start('Debug'));
+	// We must get a different port for our smoketest express app
+	// otherwise concurrent test runs will clash on those ports
+	before(async () => await app.start('Debug', [], { PORT: String(await findFreePort()), ...process.env }));
 	after(() => app.stop());
 	beforeEach(function () { app.screenCapturer.testName = this.currentTest.title; });
 

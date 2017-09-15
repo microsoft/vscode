@@ -27,9 +27,10 @@ export enum VSCODE_BUILD {
 	STABLE
 }
 
-async function findFreePort(): Promise<number> {
+// Just hope random helps us here, cross your fingers!
+export async function findFreePort(): Promise<number> {
 	for (let i = 0; i < 10; i++) {
-		const port = 10000 + Math.round(Math.random() * 5000);
+		const port = 10000 + Math.round(Math.random() * 10000);
 
 		if (await testPort(port)) {
 			return port;
@@ -83,10 +84,10 @@ export class SpectronApplication {
 		return this._workbench;
 	}
 
-	public async start(testSuiteName: string, codeArgs: string[] = []): Promise<any> {
+	public async start(testSuiteName: string, codeArgs: string[] = [], env = process.env): Promise<any> {
 		await this.retrieveKeybindings();
 		cp.execSync('git checkout .', { cwd: WORKSPACE_PATH });
-		await this.startApplication(testSuiteName, codeArgs);
+		await this.startApplication(testSuiteName, codeArgs, env);
 		await this.checkWindowReady();
 		await this.waitForWelcome();
 		await this.screenCapturer.capture('Application started');
@@ -110,7 +111,7 @@ export class SpectronApplication {
 		return new Promise(resolve => setTimeout(resolve, seconds * 1000));
 	}
 
-	private async startApplication(testSuiteName: string, codeArgs: string[] = []): Promise<any> {
+	private async startApplication(testSuiteName: string, codeArgs: string[] = [], env = process.env): Promise<any> {
 
 		let args: string[] = [];
 		let chromeDriverArgs: string[] = [];
@@ -139,6 +140,7 @@ export class SpectronApplication {
 			path: this._electronPath,
 			port,
 			args,
+			env,
 			chromeDriverArgs,
 			startTimeout: 10000,
 			requireName: 'nodeRequire'
