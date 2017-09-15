@@ -7,10 +7,6 @@
 import * as paths from 'vs/base/common/paths';
 import uri from 'vs/base/common/uri';
 
-export function basename(resource: uri): string {
-	if (resource.scheme === 'file' || resource.scheme === 'untitled') {
-		return paths.basename(resource.fsPath);
-	}
-
-	return paths.basename(resource.authority + resource.path);
+export function basenameOrAuthority(resource: uri): string {
+	return paths.basename(resource.fsPath) || resource.authority;
 }

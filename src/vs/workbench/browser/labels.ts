@@ -217,11 +217,11 @@ export class FileLabel extends ResourceLabel {
 			getWorkspace(): { folders: uri[]; } { return { folders: [options.root] }; },
 		} : this.contextService;
 
-		const description = resource.scheme === 'file' ? getPathLabel(paths.dirname(resource.fsPath), rootProvider, this.environmentService) : resource.authority;
+		const description = resource.scheme === 'file' || resource.scheme === 'untitled' ? getPathLabel(paths.dirname(resource.fsPath), rootProvider, this.environmentService) : resource.authority;
 
 		this.setLabel({
 			resource,
-			name: (options && options.hideLabel) ? void 0 : resources.basename(resource),
+			name: (options && options.hideLabel) ? void 0 : resources.basenameOrAuthority(resource),
 			description: !hidePath ? description : void 0
 		}, options);
 	}
@@ -234,28 +234,28 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 
 
 	if (resource) {
-		const basename = cssEscape(resources.basename(resource).toLowerCase());
+		const name = cssEscape(resources.basenameOrAuthority(resource).toLowerCase());
 
 		// Folders
 		if (fileKind === FileKind.FOLDER) {
-			classes.push(`${basename}-name-folder-icon`);
+			classes.push(`${name}-name-folder-icon`);
 		}
 
 		// Files
 		else {
 
 			// Name
-			classes.push(`${basename}-name-file-icon`);
+			classes.push(`${name}-name-file-icon`);
 
 			// Extension(s)
-			const dotSegments = basename.split('.');
+			const dotSegments = name.split('.');
 			for (let i = 1; i < dotSegments.length; i++) {
 				classes.push(`${dotSegments.slice(i).join('.')}-ext-file-icon`); // add each combination of all found extensions if more than one
 			}
 
 			// Configured Language
 			let configuredLangId = getConfiguredLangId(modelService, resource);
-			configuredLangId = configuredLangId || modeService.getModeIdByFilenameOrFirstLine(basename);
+			configuredLangId = configuredLangId || modeService.getModeIdByFilenameOrFirstLine(name);
 			if (configuredLangId) {
 				classes.push(`${cssEscape(configuredLangId)}-lang-file-icon`);
 			}
