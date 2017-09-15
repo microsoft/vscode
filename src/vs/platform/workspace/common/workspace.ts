@@ -109,7 +109,7 @@ export class Workspace implements IWorkspace {
 	}
 
 	private ensureUnique(folders: URI[]): URI[] {
-		return distinct(folders, folder => isLinux ? folder.fsPath : folder.fsPath.toLowerCase());
+		return distinct(folders, folder => isLinux ? folder.toString() : folder.toString().toLowerCase());
 	}
 
 	public get folders(): URI[] {
@@ -142,13 +142,13 @@ export class Workspace implements IWorkspace {
 			return null;
 		}
 
-		return this._foldersMap.findSubstr(resource.fsPath);
+		return this._foldersMap.findSubstr(resource.scheme === 'file' ? resource.fsPath : resource.authority);
 	}
 
 	private updateFoldersMap(): void {
 		this._foldersMap = new TrieMap<URI>();
 		for (const folder of this.folders) {
-			this._foldersMap.insert(folder.fsPath, folder);
+			this._foldersMap.insert(folder.scheme === 'file' ? folder.fsPath : folder.authority, folder);
 		}
 	}
 
