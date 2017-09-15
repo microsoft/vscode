@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Application, SpectronClient as WebClient } from 'spectron';
+import { test as testPort } from 'portastic';
 import { SpectronClient } from './client';
 import { ScreenCapturer } from '../helpers/screenshot';
 import { Workbench } from '../areas/workbench/workbench';
@@ -24,6 +25,18 @@ export enum VSCODE_BUILD {
 	DEV,
 	INSIDERS,
 	STABLE
+}
+
+async function findFreePort(): Promise<number> {
+	for (let i = 0; i < 10; i++) {
+		const port = 10000 + Math.round(Math.random() * 5000);
+
+		if (await testPort(port)) {
+			return port;
+		}
+	}
+
+	throw new Error('Could not find free port!');
 }
 
 /**
@@ -116,8 +129,15 @@ export class SpectronApplication {
 
 		chromeDriverArgs.push(`--user-data-dir=${path.join(this._userDir, new Date().getTime().toString())}`);
 
+		// Spectron always uses the same port number for the chrome driver
+		// and it handles gracefully when two instances use the same port number
+		// This works, but when one of the instances quits, it takes down
+		// chrome driver with it, leaving the other instance in DISPAIR!!! :(
+		const port = await findFreePort();
+
 		this.spectron = new Application({
 			path: this._electronPath,
+			port,
 			args,
 			chromeDriverArgs,
 			startTimeout: 10000,
@@ -135,7 +155,7 @@ export class SpectronApplication {
 		// Spectron opens multiple terminals in Windows platform
 		// Workaround to focus the right window - https://github.com/electron/spectron/issues/60
 		await this.client.windowByIndex(1);
-		await this.app.browserWindow.focus();
+		// await this.app.browserWindow.focus();
 		await this.client.waitForHTML('[id="workbench.main.container"]');
 	}
 

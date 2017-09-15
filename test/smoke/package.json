@@ -19,6 +19,7 @@
     "htmlparser2": "^3.9.2",
     "mocha": "^3.2.0",
     "ncp": "^2.0.0",
+    "portastic": "^1.0.1",
     "rimraf": "^2.6.1",
     "spectron": "~3.6.4",
     "strip-json-comments": "^2.0.1",
