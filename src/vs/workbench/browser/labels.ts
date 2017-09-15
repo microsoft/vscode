@@ -7,6 +7,7 @@
 
 import uri from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
+import resources = require('vs/base/common/resources');
 import { IconLabel, IIconLabelOptions, IIconLabelCreationOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -216,11 +217,11 @@ export class FileLabel extends ResourceLabel {
 			getWorkspace(): { folders: uri[]; } { return { folders: [options.root] }; },
 		} : this.contextService;
 
-		const name = resource.fsPath.length > 1 ? paths.basename(resource.fsPath) : resource.authority;
-		const description = resource.fsPath.length > 1 ? getPathLabel(paths.dirname(resource.fsPath), rootProvider, this.environmentService) : resource.authority;
+		const description = resource.scheme === 'file' ? getPathLabel(paths.dirname(resource.fsPath), rootProvider, this.environmentService) : resource.authority;
+
 		this.setLabel({
 			resource,
-			name: (options && options.hideLabel) ? void 0 : name,
+			name: (options && options.hideLabel) ? void 0 : resources.basename(resource),
 			description: !hidePath ? description : void 0
 		}, options);
 	}
@@ -231,13 +232,9 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 	// we always set these base classes even if we do not have a path
 	const classes = fileKind === FileKind.ROOT_FOLDER ? ['rootfolder-icon'] : fileKind === FileKind.FOLDER ? ['folder-icon'] : ['file-icon'];
 
-	let path: string;
-	if (resource) {
-		path = resource.fsPath;
-	}
 
-	if (path) {
-		const basename = cssEscape(paths.basename(path).toLowerCase());
+	if (resource) {
+		const basename = cssEscape(resources.basename(resource).toLowerCase());
 
 		// Folders
 		if (fileKind === FileKind.FOLDER) {
@@ -258,7 +255,7 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 
 			// Configured Language
 			let configuredLangId = getConfiguredLangId(modelService, resource);
-			configuredLangId = configuredLangId || modeService.getModeIdByFilenameOrFirstLine(path);
+			configuredLangId = configuredLangId || modeService.getModeIdByFilenameOrFirstLine(basename);
 			if (configuredLangId) {
 				classes.push(`${cssEscape(configuredLangId)}-lang-file-icon`);
 			}
