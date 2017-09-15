@@ -26,7 +26,7 @@ import { IExtensionsConfiguration, ConfigurationKey } from 'vs/workbench/parts/e
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import * as cp from 'child_process';
+import * as fs from 'fs';
 import { distinct } from 'vs/base/common/arrays';
 
 interface IExtensionsContent {
@@ -68,7 +68,6 @@ export class ExtensionTipsService implements IExtensionTipsService {
 
 		this._suggestTips();
 		this._suggestWorkspaceRecommendations();
-		this._suggestBasedOnExecutables();
 	}
 
 	getWorkspaceRecommendations(): TPromise<string[]> {
@@ -92,7 +91,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		const fileBased = Object.keys(this._fileBasedRecommendations)
 			.filter(recommendation => allRecomendations.indexOf(recommendation) !== -1);
 
-		const exeBased = distinct(this._exeBasedRecommendations);
+		const exeBased = distinct(this._suggestBasedOnExecutables());
 
 		this.telemetryService.publicLog('extensionRecommendations:unfiltered', { fileBased, exeBased });
 
@@ -319,15 +318,42 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		});
 	}
 
-	private _suggestBasedOnExecutables() {
-		const cmd = process.platform === 'win32' ? 'where' : 'which';
+	private _suggestBasedOnExecutables(): string[] {
+		if (!process.env.PATH || this._exeBasedRecommendations.length > 0) {
+			return this._exeBasedRecommendations;
+		}
+
+		let envpaths = process.env.PATH.split(process.platform === 'win32' ? ';' : ':');
+		let foundExecutables: Set<string> = new Set<string>();
+
+		// Loop through recommended extensions
 		forEach(product.exeBasedExtensionTips, entry => {
-			cp.exec(`${cmd} ${entry.value.replace(/,/g, ' ')}`, (err, stdout, stderr) => {
-				if (stdout) {
-					this._exeBasedRecommendations.push(entry.key);
+			let executables = entry.value.split(',');
+
+			// Loop through executables that would result in recommending current extension
+			for (let i = 0; i < executables.length; i++) {
+				if (!foundExecutables.has(executables[i])) {
+
+					// Loop through paths in PATH to find current executable
+					for (let pathEntry of envpaths) {
+						let fullPath = paths.join(pathEntry, executables[i]);
+						if (process.platform === 'win32') {
+							fullPath += '.exe';
+						}
+						if (fs.existsSync(fullPath)) {
+							foundExecutables.add(executables[i]);
+							break;
+						}
+					}
 				}
-			});
+				if (foundExecutables.has(executables[i])) {
+					this._exeBasedRecommendations.push(entry.key);
+					break;
+				}
+			}
 		});
+
+		return this._exeBasedRecommendations;
 	}
 
 	private setIgnoreRecommendationsConfig(configVal: boolean) {
