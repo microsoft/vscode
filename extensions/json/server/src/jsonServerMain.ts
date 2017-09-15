@@ -13,7 +13,6 @@ import {
 import { DocumentColorRequest, ServerCapabilities as CPServerCapabilities } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
 
 import { xhr, XHRResponse, configure as configureHttpRequests, getErrorStatusDescription } from 'request-light';
-import path = require('path');
 import fs = require('fs');
 import URI from 'vscode-uri';
 import * as URL from 'url';
@@ -54,9 +53,7 @@ let clientDynamicRegisterSupport = false;
 
 // After the server has started the client sends an initilize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilities.
-let workspaceRoot: URI;
 connection.onInitialize((params: InitializeParams): InitializeResult => {
-	workspaceRoot = URI.parse(params.rootPath);
 
 	function hasClientCapability(...keys: string[]) {
 		let c = params.capabilities;
@@ -192,19 +189,12 @@ function updateConfiguration() {
 		}
 	}
 	if (jsonConfigurationSettings) {
-		jsonConfigurationSettings.forEach(schema => {
+		jsonConfigurationSettings.forEach((schema, index) => {
 			let uri = schema.url;
 			if (!uri && schema.schema) {
-				uri = schema.schema.id;
-			}
-			if (!uri && schema.fileMatch) {
-				uri = 'vscode://schemas/custom/' + encodeURIComponent(schema.fileMatch.join('&'));
+				uri = schema.schema.id || `vscode://schemas/custom/${index}`;
 			}
 			if (uri) {
-				if (uri[0] === '.' && workspaceRoot) {
-					// workspace relative path
-					uri = URI.file(path.normalize(path.join(workspaceRoot.fsPath, uri))).toString();
-				}
 				languageSettings.schemas.push({ uri, fileMatch: schema.fileMatch, schema: schema.schema });
 			}
 		});

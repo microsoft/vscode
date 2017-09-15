@@ -10,11 +10,11 @@ import { workspace, languages, ExtensionContext, extensions, Uri, TextDocument, 
 import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import { ConfigurationFeature } from 'vscode-languageclient/lib/proposed';
-
 import { DocumentColorRequest } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
 
 
 import * as nls from 'vscode-nls';
+import { hash } from './utils/hash';
 let localize = nls.loadMessageBundle();
 
 namespace VSCodeContentRequest {
@@ -192,8 +192,6 @@ function getSettings(): Settings {
 	let httpSettings = workspace.getConfiguration('http');
 	let jsonSettings = workspace.getConfiguration('json');
 
-	let schemas = [];
-
 	let settings: Settings = {
 		http: {
 			proxy: httpSettings.get('proxy'),
@@ -201,39 +199,67 @@ function getSettings(): Settings {
 		},
 		json: {
 			format: jsonSettings.get('format'),
-			schemas: schemas,
+			schemas: [],
 		}
 	};
-	let settingsSchemas = jsonSettings.get('schemas');
-	if (Array.isArray(settingsSchemas)) {
-		schemas.push(...settingsSchemas);
-	}
+	let schemaSettingsById: { [schemaId: string]: JSONSchemaSettings } = Object.create(null);
+	let collectSchemaSettings = (schemaSettings: JSONSchemaSettings[], rootPath?: string, fileMatchPrefix?: string) => {
+		for (let setting of schemaSettings) {
+			let url = getSchemaId(setting, rootPath);
+			if (!url) {
+				continue;
+			}
+			let schemaSetting = schemaSettingsById[url];
+			if (!schemaSetting) {
+				schemaSetting = schemaSettingsById[url] = { url, fileMatch: [] };
+				settings.json.schemas.push(schemaSetting);
+			}
+			let fileMatches = setting.fileMatch;
+			if (Array.isArray(fileMatches)) {
+				if (fileMatchPrefix) {
+					fileMatches = fileMatches.map(m => fileMatchPrefix + m);
+				}
+				schemaSetting.fileMatch.push(...fileMatches);
+			}
+			if (setting.schema) {
+				schemaSetting.schema = setting.schema;
+			}
+		}
+	};
 
+	// merge global and folder settings. Qualify all file matches with the folder path.
+	let globalSettings = jsonSettings.get<JSONSchemaSettings[]>('schemas');
+	if (Array.isArray(globalSettings)) {
+		collectSchemaSettings(globalSettings, workspace.rootPath);
+	}
 	let folders = workspace.workspaceFolders;
 	if (folders) {
-		folders.forEach(folder => {
-			let jsonConfig = workspace.getConfiguration('json', folder.uri);
-			let schemaConfigInfo = jsonConfig.inspect<JSONSchemaSettings[]>('schemas');
+		for (let folder of folders) {
+			let folderUri = folder.uri;
+			let schemaConfigInfo = workspace.getConfiguration('json', folderUri).inspect<JSONSchemaSettings[]>('schemas');
 			let folderSchemas = schemaConfigInfo.workspaceFolderValue;
 			if (Array.isArray(folderSchemas)) {
-				folderSchemas.forEach(schema => {
-					let url = schema.url;
-					if (!url && schema.schema) {
-						url = schema.schema.id;
-					}
-					if (url && url[0] === '.') {
-						url = Uri.file(path.normalize(path.join(folder.uri.fsPath, url))).toString();
-					}
-					let fileMatch = schema.fileMatch;
-					if (fileMatch) {
-						fileMatch = fileMatch.map(m => folder.uri.toString() + '*' + m);
-					}
-					schemas.push({ url, fileMatch, schema: schema.schema });
-				});
+				let folderPath = folderUri.toString();
+				if (folderPath[folderPath.length - 1] !== '/') {
+					folderPath = folderPath + '/';
+				}
+				collectSchemaSettings(folderSchemas, folderUri.fsPath, folderPath + '*');
 			};
-		});
+		};
 	}
 	return settings;
+}
+
+function getSchemaId(schema: JSONSchemaSettings, rootPath?: string) {
+	let url = schema.url;
+	if (!url) {
+		if (schema.schema) {
+			url = schema.schema.id || `vscode://schemas/custom/${encodeURIComponent(hash(schema.schema).toString(16))}`;
+		}
+	} else if (rootPath && (url[0] === '.' || url[0] === '/')) {
+		url = Uri.file(path.normalize(path.join(rootPath, url))).toString();
+	}
+	return url;
 }
 
 function getPackageInfo(context: ExtensionContext): IPackageInfo {
