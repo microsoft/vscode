@@ -429,5 +429,6 @@
 		],
 		"duplicate-imports": true,
 		"translation-remind": true
-	}
+	},
+	"defaultSeverity": "warning"
 }
