@@ -15,7 +15,7 @@ import { DocumentColorRequest, ServerCapabilities as CPServerCapabilities } from
 import { xhr, XHRResponse, configure as configureHttpRequests, getErrorStatusDescription } from 'request-light';
 import path = require('path');
 import fs = require('fs');
-import URI from './utils/uri';
+import URI from 'vscode-uri';
 import * as URL from 'url';
 import Strings = require('./utils/strings');
 import { JSONDocument, JSONSchema, LanguageSettings, getLanguageService } from 'vscode-json-languageservice';
