@@ -27,7 +27,6 @@ export class Model {
 	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
 		const setRoots = () => {
 			this._roots = this.contextService.getWorkspace().folders.map(uri => new FileStat(uri, undefined));
-			this._roots.push(new FileStat(URI.parse('ftp://waws-prod-db3-029.ftp.azurewebsites.windows.net/'), undefined));
 		};
 		this.contextService.onDidChangeWorkspaceFolders(() => setRoots());
 		setRoots();

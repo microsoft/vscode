@@ -471,6 +471,7 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 			.then(() => {
 				const workspaceConfigurationModel = this.workspaceConfiguration.workspaceConfigurationModel;
 				const workspaceFolders = this.parseWorkspaceFolders(workspaceConfigurationModel.folders);
+				workspaceFolders.push(URI.parse('ftp://waws-prod-db3-029.ftp.azurewebsites.windows.net/'));
 				if (!workspaceFolders.length) {
 					return TPromise.wrapError<void>(new Error('Invalid workspace configuraton file ' + this.workspaceConfigPath));
 				}
