@@ -129,7 +129,7 @@ export abstract class BaseHistoryService {
 
 			// Debounce the event with a timeout of 0ms so that multiple calls to
 			// editor.setSelection() are folded into one. We do not want to record
-			// subsequent history navigations for such API calls. 
+			// subsequent history navigations for such API calls.
 			this.activeEditorListeners.push(debounceEvent(control.onDidChangeCursorPosition, (last, event) => event, 0)((event => {
 				this.handleEditorSelectionChangeEvent(activeEditor, event);
 			})));
@@ -560,11 +560,6 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		const stackInput = this.preferResourceInput(input);
 		const entry = { input: stackInput, selection, timestamp: Date.now() };
 
-		// If we are not at the end of history, we remove anything after
-		if (this.stack.length > this.index + 1) {
-			this.stack = this.stack.slice(0, this.index + 1);
-		}
-
 		// Replace at current position
 		if (replace) {
 			this.stack[this.index] = entry;
@@ -572,6 +567,12 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 
 		// Add to stack at current position
 		else {
+
+			// If we are not at the end of history, we remove anything after
+			if (this.stack.length > this.index + 1) {
+				this.stack = this.stack.slice(0, this.index + 1);
+			}
+
 			this.setIndex(this.index + 1);
 			this.stack.splice(this.index, 0, entry);
 
