@@ -33,6 +33,11 @@ export class FtpFileSystemProvider implements IFileSystemProvider {
 		ninvoke(this._connection, this._connection.raw, 'QUIT');
 	}
 
+	utimes(resource: URI, mtime: number): TPromise<IStat> {
+		return ninvoke(this._connection, this._connection.raw, 'NOOP')
+			.then(() => this.stat(resource));
+	}
+
 	stat(resource: URI): TPromise<IStat> {
 		const { path } = resource;
 		if (path === '/') {

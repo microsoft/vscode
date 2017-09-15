@@ -69,16 +69,6 @@ async function toDeepIFileStat(provider: IFileSystemProvider, stat: IFileStat, t
 
 export class RemoteFileService extends FileService {
 
-	// public touchFile(resource: URI): TPromise<IFileStat, any> {
-	// 	throw new Error("Method not implemented.");
-	// }
-	// public watchFileChanges(resource: URI): void {
-	// 	throw new Error("Method not implemented.");
-	// }
-	// public unwatchFileChanges(resource: URI): void {
-	// 	throw new Error("Method not implemented.");
-	// }
-
 	private readonly _provider = new Map<string, IFileSystemProvider>();
 
 	constructor(
@@ -370,4 +360,33 @@ export class RemoteFileService extends FileService {
 			return super.updateContent(target, content.value, { encoding: content.encoding });
 		}
 	}
+
+	touchFile(resource: URI): TPromise<IFileStat, any> {
+		const provider = this._provider.get(resource.scheme);
+		if (provider) {
+			return this._doTouchFile(provider, resource);
+		} else {
+			return super.touchFile(resource);
+		}
+	}
+
+	private async _doTouchFile(provider: IFileSystemProvider, resource: URI): TPromise<IFileStat> {
+		let stat: IStat;
+		try {
+			await provider.stat(resource);
+			stat = await provider.utimes(resource, Date.now());
+		} catch (e) {
+			// TODO@Joh, if ENOENT
+			await provider.write(resource, new Uint8Array(0));
+			stat = await provider.stat(resource);
+		}
+		return toIFileStat(provider, stat, false);
+	}
+
+	// public watchFileChanges(resource: URI): void {
+	// 	throw new Error("Method not implemented.");
+	// }
+	// public unwatchFileChanges(resource: URI): void {
+	// 	throw new Error("Method not implemented.");
+	// }
 }

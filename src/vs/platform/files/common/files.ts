@@ -165,9 +165,12 @@ export interface IStat {
 }
 
 export interface IFileSystemProvider {
-	// utime
-	// ...
+
 	onDidChange?: Event<FileChangesEvent>;
+
+	// more...
+	//
+	utimes(resource: URI, mtime: number): TPromise<IStat>;
 	stat(resource: URI): TPromise<IStat>;
 	read(resource: URI, progress: IProgress<Uint8Array>): TPromise<void>;
 	write(resource: URI, content: Uint8Array): TPromise<void>;
