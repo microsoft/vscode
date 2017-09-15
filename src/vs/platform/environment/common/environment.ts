@@ -40,6 +40,7 @@ export interface ParsedArgs {
 	'enable-proposed-api'?: string | string[];
 	'open-url'?: string | string[];
 	'skip-getting-started'?: boolean;
+	'sticky-quickopen'?: boolean;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');

@@ -121,8 +121,13 @@ export class SpectronApplication {
 		}
 
 		args.push(this._workspace);
+
 		// Prevent 'Getting Started' web page from opening on clean user-data-dir
 		args.push('--skip-getting-started');
+
+		// Prevent Quick Open from closing when focus is stolen, this allows concurrent smoketest suite running
+		args.push('--sticky-quickopen');
+
 		// Ensure that running over custom extensions directory, rather than picking up the one that was used by a tester previously
 		args.push(`--extensions-dir=${EXTENSIONS_DIR}`);
 
