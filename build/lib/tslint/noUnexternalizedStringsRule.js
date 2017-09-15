@@ -84,7 +84,6 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
         }
         if (doubleQuoted && (!callInfo || callInfo.argIndex === -1 || !this.signatures[functionName])) {
             const s = node.getText();
-            console.log("tslint", node.getStart(), node.getWidth());
             const fix = [
                 new Lint.Replacement(node.getStart(), node.getWidth(), `nls.localize('KEY-${s.substring(1, s.length - 1)}', ${s})`),
             ];
