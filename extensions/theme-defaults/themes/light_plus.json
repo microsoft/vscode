@@ -103,28 +103,44 @@
 			}
 		},
 		{
+			"name": "Regular expression groups",
 			"scope": [
 				"punctuation.definition.group.regexp",
 				"punctuation.definition.group.assertion.regexp",
 				"punctuation.definition.character-class.regexp",
+				"punctuation.character.set.begin.regexp",
+				"punctuation.character.set.end.regexp",
 				"keyword.operator.negation.regexp",
-				"support.other.parenthesis.regexp",
-				"meta.character.set.regexp"
+				"support.other.parenthesis.regexp"
 			],
 			"settings": {
-				"foreground": "#ff0000"
+				"foreground": "#d16969"
+			}
+		},
+		{
+			"scope": [
+				"constant.character.character-class.regexp",
+				"constant.other.character-class.set.regexp",
+				"constant.other.character-class.regexp",
+				"constant.character.set.regexp"
+			],
+			"settings": {
+				"foreground": "#811f3f"
 			}
 		},
 		{
 			"scope": "keyword.operator.quantifier.regexp",
 			"settings": {
-				"foreground": "#0000ff"
+				"foreground": "#000000"
 			}
 		},
 		{
-			"scope": "keyword.control.anchor.regexp",
+			"scope": [
+				"keyword.operator.or.regexp",
+				"keyword.control.anchor.regexp"
+			],
 			"settings": {
-				"foreground": "#09885a"
+				"foreground": "#ff0000"
 			}
 		},
 		{
@@ -136,8 +152,9 @@
 		{
 			"scope": "constant.character.escape",
 			"settings": {
-				"foreground": "#ff0000"
+				"foreground": "#a31515"
 			}
 		}
+
 	]
 }

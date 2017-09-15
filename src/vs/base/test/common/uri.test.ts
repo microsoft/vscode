@@ -38,13 +38,11 @@ suite('URI', () => {
 			assert.equal(URI.file('c:/win/path/').fsPath, 'c:\\win\\path\\');
 			assert.equal(URI.file('C:/win/path').fsPath, 'c:\\win\\path');
 			assert.equal(URI.file('/c:/win/path').fsPath, 'c:\\win\\path');
-			assert.equal(URI.file('./c/win/path').fsPath, '\\.\\c\\win\\path');
 		} else {
 			assert.equal(URI.file('c:/win/path').fsPath, 'c:/win/path');
 			assert.equal(URI.file('c:/win/path/').fsPath, 'c:/win/path/');
 			assert.equal(URI.file('C:/win/path').fsPath, 'c:/win/path');
 			assert.equal(URI.file('/c:/win/path').fsPath, 'c:/win/path');
-			assert.equal(URI.file('./c/win/path').fsPath, '/./c/win/path');
 		}
 	});
 
@@ -318,25 +316,10 @@ suite('URI', () => {
 	test('URI#file, no path-is-uri check', () => {
 
 		// we don't complain here
-		let value = URI.file('file://path/to/file');
+		let value = URI.file('/file://path/to/file');
 		assert.equal(value.scheme, 'file');
 		assert.equal(value.authority, '');
 		assert.equal(value.path, '/file://path/to/file');
-	});
-
-	test('URI#file, always slash', () => {
-
-		var value = URI.file('a.file');
-		assert.equal(value.scheme, 'file');
-		assert.equal(value.authority, '');
-		assert.equal(value.path, '/a.file');
-		assert.equal(value.toString(), 'file:///a.file');
-
-		value = URI.parse(value.toString());
-		assert.equal(value.scheme, 'file');
-		assert.equal(value.authority, '');
-		assert.equal(value.path, '/a.file');
-		assert.equal(value.toString(), 'file:///a.file');
 	});
 
 	test('URI.toString, only scheme and query', () => {
@@ -366,6 +349,23 @@ suite('URI', () => {
 
 		value = URI.from({ scheme: 'http', authority: 'löcalhost:8080', path: '/far', query: undefined, fragment: undefined });
 		assert.equal(value.toString(), 'http://l%C3%B6calhost:8080/far');
+	});
+
+	test('URI#toString, user information in authority', () => {
+		var value = URI.parse('http://foo:bar@localhost/far');
+		assert.equal(value.toString(), 'http://foo:bar@localhost/far');
+
+		value = URI.parse('http://foo@localhost/far');
+		assert.equal(value.toString(), 'http://foo@localhost/far');
+
+		value = URI.parse('http://foo:bAr@localhost:8080/far');
+		assert.equal(value.toString(), 'http://foo:bAr@localhost:8080/far');
+
+		value = URI.parse('http://foo@localhost:8080/far');
+		assert.equal(value.toString(), 'http://foo@localhost:8080/far');
+
+		value = URI.from({ scheme: 'http', authority: 'föö:bör@löcalhost:8080', path: '/far', query: undefined, fragment: undefined });
+		assert.equal(value.toString(), 'http://f%C3%B6%C3%B6:b%C3%B6r@l%C3%B6calhost:8080/far');
 	});
 
 	test('correctFileUriToFilePath2', () => {
@@ -410,13 +410,36 @@ suite('URI', () => {
 		assert.equal(uri.toString(true), 'https://twitter.com/search?src=typd&q=%23tag');
 	});
 
+	test('class URI cannot represent relative file paths, #34449', function () {
+		const uri = URI.parse('file:./relative/path');
+		assert.equal(uri.scheme, 'file');
+		assert.equal(uri.authority, '');
+		assert.equal(uri.path, './relative/path');
+
+		assert.equal(uri.toString(), 'file://./relative/path');
+
+		// this is asymetric to be spec-compliant
+		const uri2 = URI.parse(uri.toString());
+		assert.equal(uri2.authority, '.');
+		assert.equal(uri2.path, '/relative/path');
+	});
+
+	test('class URI cannot represent relative file paths, #34449', function () {
+
+		const path = '/foo/bar';
+		assert.equal(URI.file(path).path, path);
+
+		// no relative paths
+		assert.throws(() => URI.file('foo/bar'));
+		assert.throws(() => URI.file('./foo/bar'));
+	});
 
 	test('URI - (de)serialize', function () {
 
 		var values = [
 			URI.parse('http://localhost:8080/far'),
 			URI.file('c:\\test with %25\\c#code'),
-			URI.file('\\\\shäres\\path\\c#\\plugin.json'),
+			URI.file('//shäres/path/c#/plugin.json'),
 			URI.parse('http://api/files/test.me?t=1234'),
 			URI.parse('http://api/files/test.me?t=1234#fff'),
 			URI.parse('http://api/files/test.me#fff'),

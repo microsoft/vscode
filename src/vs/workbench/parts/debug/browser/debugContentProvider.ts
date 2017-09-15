@@ -32,13 +32,21 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 	public provideTextContent(resource: uri): TPromise<IModel> {
 
 		let process: IProcess;
+		let sourceRef: number;
+
 		if (resource.query) {
 			const keyvalues = resource.query.split('&');
 			for (let keyvalue of keyvalues) {
 				const pair = keyvalue.split('=');
-				if (pair.length === 2 && pair[0] === 'session') {
-					process = this.debugService.findProcessByUUID(decodeURIComponent(pair[1]));
-					break;
+				if (pair.length === 2) {
+					switch (pair[0]) {
+						case 'session':
+							process = this.debugService.findProcessByUUID(decodeURIComponent(pair[1]));
+							break;
+						case 'sourceRef':
+							sourceRef = parseInt(pair[1]);
+							break;
+					}
 				}
 			}
 		}
@@ -55,18 +63,26 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 		let rawSource: DebugProtocol.Source;
 		if (source) {
 			rawSource = source.raw;
+			if (!sourceRef) {
+				sourceRef = source.reference;
+			}
 		} else {
-			// Remove debug: scheme
-			rawSource = { path: resource.with({ scheme: '', query: '' }).toString(true) };
+			// create a Source
+			rawSource = {
+				path: resource.with({ scheme: '', query: '' }).toString(true),	// Remove debug: scheme
+				sourceReference: sourceRef
+			};
 		}
 
-		return process.session.source({ sourceReference: source ? source.reference : undefined, source: rawSource }).then(response => {
+		return process.session.source({ sourceReference: sourceRef, source: rawSource }).then(response => {
+
 			const mime = response.body.mimeType || guessMimeTypes(resource.toString())[0];
 			const modePromise = this.modeService.getOrCreateMode(mime);
 			const model = this.modelService.createModel(response.body.content, modePromise, resource);
 
 			return model;
 		}, (err: DebugProtocol.ErrorResponse) => {
+
 			this.debugService.sourceIsNotAvailable(resource);
 			const modePromise = this.modeService.getOrCreateMode(MIME_TEXT);
 			const model = this.modelService.createModel(err.message, modePromise, resource);

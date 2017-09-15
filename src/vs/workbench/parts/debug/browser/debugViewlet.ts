@@ -56,10 +56,6 @@ export class DebugViewlet extends PersistentViewsViewlet {
 	public focus(): void {
 		super.focus();
 
-		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			this.views[0].focusBody();
-		}
-
 		if (this.startDebugActionItem) {
 			this.startDebugActionItem.focus();
 		}

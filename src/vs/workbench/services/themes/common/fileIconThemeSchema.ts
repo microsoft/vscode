@@ -167,6 +167,7 @@ const schema: IJSONSchema = {
 					},
 					fontColor: {
 						type: 'string',
+						format: 'color',
 						description: nls.localize('schema.fontColor', 'When using a glyph font: The color to use.')
 					},
 					fontSize: {
