@@ -8,7 +8,7 @@ import URI from 'vs/base/common/uri';
 import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';
 import { IContent, IStreamContent, IFileStat, IResolveContentOptions, IUpdateContentOptions, IResolveFileOptions, IResolveFileResult, FileOperationEvent, FileOperation, IFileSystemProvider, IStat, FileType, IImportResult } from 'vs/platform/files/common/files';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { basename, join, dirname } from 'path';
+import { basename, join } from 'path';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as Ftp from './ftpFileSystemProvider';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -24,10 +24,9 @@ import { compare } from 'vs/base/common/strings';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { decodeStream, encode } from 'vs/base/node/encoding';
-import { Graph } from 'vs/base/common/graph';
-import { values } from 'vs/base/common/collections';
+import { TrieMap } from 'vs/base/common/map';
 
-function toIFileStat(provider: IFileSystemProvider, stat: IStat, recurse: boolean): TPromise<IFileStat> {
+function toIFileStat(provider: IFileSystemProvider, stat: IStat, recurse?: (stat: IStat) => boolean): TPromise<IFileStat> {
 	const ret: IFileStat = {
 		isDirectory: false,
 		hasChildren: false,
@@ -48,9 +47,9 @@ function toIFileStat(provider: IFileSystemProvider, stat: IStat, recurse: boolea
 			ret.isDirectory = true;
 			ret.hasChildren = items.length > 0;
 
-			if (recurse) {
+			if (recurse && recurse(stat)) {
 				// resolve children if requested
-				return TPromise.join(items.map(stat => toIFileStat(provider, stat, false))).then(children => {
+				return TPromise.join(items.map(stat => toIFileStat(provider, stat, recurse))).then(children => {
 					ret.children = children;
 					return ret;
 				});
@@ -61,46 +60,20 @@ function toIFileStat(provider: IFileSystemProvider, stat: IStat, recurse: boolea
 	}
 }
 
-export async function toDeepIFileStat(provider: IFileSystemProvider, stat: IFileStat, to: URI[]): TPromise<IFileStat> {
-	if (to) {
-		to.length = 0;
-	}
-	if (isFalsyOrEmpty(to)) {
-		return TPromise.as(stat);
+
+export function toDeepIFileStat(provider: IFileSystemProvider, stat: IStat, to: URI[]): TPromise<IFileStat> {
+
+	const trie = new TrieMap<true>();
+	trie.insert(stat.resource.toString(), true);
+
+	if (!isFalsyOrEmpty(to)) {
+		to.forEach(uri => trie.insert(uri.toString(), true));
 	}
 
-	const graph = new Graph<URI>(uri => uri.path);
-	graph.lookupOrInsertNode(stat.resource); // root
-
-	to.sort((a, b) => compare(a.path, b.path)).forEach(resource => {
-		let parent = resource.with({ path: dirname(resource.path) });
-		let hitParent = false;
-		while (!hitParent) {
-			hitParent = !!graph.lookup(parent) || parent.path === '/';
-			graph.insertEdge(parent, resource);
-			resource = parent;
-			parent = resource.with({ path: dirname(resource.path) });
-		}
+	return toIFileStat(provider, stat, candidate => {
+		const sub = trie.findSuperstr(candidate.resource.toString());
+		return !!sub;
 	});
-
-	const stack: IFileStat[] = [stat];
-	while (stack.length > 0) {
-		const parent = stack.shift();
-		if (parent.isDirectory) {
-			parent.children = [];
-			const { outgoing } = graph.lookup(parent.resource);
-
-			await values(outgoing).map(child => {
-				return provider.stat(child.data)
-					.then(stat => toIFileStat(provider, stat, false))
-					.then(stat => parent.children.push(stat));
-			});
-
-			stack.push(...parent.children);
-		}
-	}
-
-	return TPromise.as(stat);
 }
 
 export class RemoteFileService extends FileService {
@@ -196,7 +169,6 @@ export class RemoteFileService extends FileService {
 		let promises: TPromise<any>[] = [];
 		for (const item of toResolve) {
 			promises.push(provider.stat(item.resource)
-				.then(stat => toIFileStat(provider, stat, true))
 				.then(stat => toDeepIFileStat(provider, stat, item.options && item.options.resolveTo))
 				.then(stat => result.push({ stat, success: true })));
 		}
@@ -225,7 +197,7 @@ export class RemoteFileService extends FileService {
 
 	private async _doResolveContent(provider: IFileSystemProvider, resource: URI): TPromise<IStreamContent> {
 
-		const stat = await toIFileStat(provider, await provider.stat(resource), false);
+		const stat = await toIFileStat(provider, await provider.stat(resource));
 
 		const encoding = this.getEncoding(resource);
 		const stream = decodeStream(encoding);
@@ -268,7 +240,7 @@ export class RemoteFileService extends FileService {
 		const encoding = this.getEncoding(resource, options.encoding);
 		await provider.write(resource, encode(content, encoding));
 		const stat = await provider.stat(resource);
-		const fileStat = await toIFileStat(provider, stat, false);
+		const fileStat = await toIFileStat(provider, stat);
 		return fileStat;
 	}
 
@@ -305,7 +277,7 @@ export class RemoteFileService extends FileService {
 		const provider = this._provider.get(resource.scheme);
 		if (provider) {
 			await provider.mkdir(resource);
-			const stat = await toIFileStat(provider, await provider.stat(resource), false);
+			const stat = await toIFileStat(provider, await provider.stat(resource));
 			this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, stat));
 			return stat;
 		} else {
@@ -416,7 +388,7 @@ export class RemoteFileService extends FileService {
 			await provider.write(resource, new Uint8Array(0));
 			stat = await provider.stat(resource);
 		}
-		return toIFileStat(provider, stat, false);
+		return toIFileStat(provider, stat);
 	}
 
 	// public watchFileChanges(resource: URI): void {
