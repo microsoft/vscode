@@ -63,8 +63,8 @@ export class FtpFileSystemProvider implements IFileSystemProvider {
 				};
 			}
 			}
-			console.log(entries, name, resource);
-			throw new Error(`NotFound: ${resource.path}`);
+			// console.log(entries, name, resource);
+			throw new Error(`ENO: ${resource.path}`);
 		});
 	}
 

@@ -62,6 +62,9 @@ function toIFileStat(provider: IFileSystemProvider, stat: IStat, recurse: boolea
 }
 
 export async function toDeepIFileStat(provider: IFileSystemProvider, stat: IFileStat, to: URI[]): TPromise<IFileStat> {
+	if (to) {
+		to.length = 0;
+	}
 	if (isFalsyOrEmpty(to)) {
 		return TPromise.as(stat);
 	}
