@@ -1214,11 +1214,16 @@ export class ShellExecution implements vscode.ShellExecution {
 	}
 }
 
+export enum TaskScope {
+	Global = 1,
+	Workspace = 2
+}
+
 export class Task implements vscode.Task {
 
 	private _definition: vscode.TaskDefinition;
 	private _definitionKey: string;
-	private _workspaceFolder: vscode.WorkspaceFolder;
+	private _scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder;
 	private _name: string;
 	private _execution: ProcessExecution | ShellExecution;
 	private _problemMatchers: string[];
@@ -1229,8 +1234,8 @@ export class Task implements vscode.Task {
 	private _presentationOptions: vscode.TaskPresentationOptions;
 
 	constructor(definition: vscode.TaskDefinition, name: string, source: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string | string[]);
-	constructor(definition: vscode.TaskDefinition, workspaceFolder: vscode.WorkspaceFolder, name: string, source: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string | string[]);
-	constructor(definition: vscode.TaskDefinition, arg2: string | vscode.WorkspaceFolder, arg3: any, arg4?: any, arg5?: any, arg6?: any) {
+	constructor(definition: vscode.TaskDefinition, scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder, name: string, source: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string | string[]);
+	constructor(definition: vscode.TaskDefinition, arg2: string | (vscode.TaskScope.Global | vscode.TaskScope.Workspace) | vscode.WorkspaceFolder, arg3: any, arg4?: any, arg5?: any, arg6?: any) {
 		this.definition = definition;
 		let problemMatchers: string | string[];
 		if (typeof arg2 === 'string') {
@@ -1238,8 +1243,14 @@ export class Task implements vscode.Task {
 			this.source = arg3;
 			this.execution = arg4;
 			problemMatchers = arg5;
+		} else if (arg2 === TaskScope.Global || arg2 === TaskScope.Workspace) {
+			this.target = arg2;
+			this.name = arg3;
+			this.source = arg4;
+			this.execution = arg5;
+			problemMatchers = arg6;
 		} else {
-			this.workspaceFolder = arg2;
+			this.target = arg2;
 			this.name = arg3;
 			this.source = arg4;
 			this.execution = arg5;
@@ -1279,12 +1290,12 @@ export class Task implements vscode.Task {
 		return this._definitionKey;
 	}
 
-	get workspaceFolder(): vscode.WorkspaceFolder {
-		return this._workspaceFolder;
+	get scope(): vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder {
+		return this._scope;
 	}
 
-	set workspaceFolder(value: vscode.WorkspaceFolder) {
-		this._workspaceFolder = value;
+	set target(value: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder) {
+		this._scope = value;
 	}
 
 	get name(): string {

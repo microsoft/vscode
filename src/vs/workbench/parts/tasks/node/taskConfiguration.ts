@@ -1222,7 +1222,7 @@ namespace CustomTask {
 		let result: Tasks.CustomTask = {
 			type: 'custom',
 			_id: context.uuidMap.getUUID(taskName),
-			_source: Objects.assign({}, source, { config: { index, element: external, file: '.vscode\\tasks.json' } }),
+			_source: Objects.assign({}, source, { config: { index, element: external, file: '.vscode\\tasks.json', workspaceFolder: context.workspaceFolder } }),
 			_label: taskName,
 			name: taskName,
 			identifier: taskName,
@@ -1756,7 +1756,7 @@ class ConfigurationParser {
 			let isBackground = fileConfig.isBackground ? !!fileConfig.isBackground : fileConfig.isWatching ? !!fileConfig.isWatching : undefined;
 			let task: Tasks.CustomTask = {
 				_id: context.uuidMap.getUUID(globals.command.name),
-				_source: Objects.assign({}, source, { config: { index: -1, element: fileConfig } }),
+				_source: Objects.assign({}, source, { config: { index: -1, element: fileConfig, workspaceFolder: context.workspaceFolder } }),
 				_label: globals.command.name,
 				type: 'custom',
 				name: globals.command.name,

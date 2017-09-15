@@ -21,12 +21,23 @@ import { ActionBarContributor, ContributableActionProvider } from 'vs/workbench/
 
 export class TaskEntry extends Model.QuickOpenEntry {
 
-	constructor(protected taskService: ITaskService, protected quickOpenService: IQuickOpenService, protected _task: CustomTask | ContributedTask, highlights: Model.IHighlight[] = []) {
+	constructor(protected quickOpenService: IQuickOpenService, protected taskService: ITaskService, protected _task: CustomTask | ContributedTask, highlights: Model.IHighlight[] = []) {
 		super(highlights);
 	}
 
 	public getLabel(): string {
 		return this.task._label;
+	}
+
+	public getDescription(): string {
+		if (!this.taskService.hasMultipleFolders()) {
+			return null;
+		}
+		let workspaceFolder = Task.getWorkspaceFolder(this.task);
+		if (!workspaceFolder) {
+			return null;
+		}
+		return workspaceFolder.uri.fsPath;
 	}
 
 	public getAriaLabel(): string {

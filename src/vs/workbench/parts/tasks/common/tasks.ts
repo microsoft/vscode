@@ -216,6 +216,12 @@ export namespace TaskGroup {
 export type TaskGroup = 'clean' | 'build' | 'rebuild' | 'test';
 
 
+export enum TaskScope {
+	Global = 1,
+	Workspace = 2,
+	Folder = 3
+}
+
 export namespace TaskSourceKind {
 	export const Workspace: 'workspace' = 'workspace';
 	export const Extension: 'extension' = 'extension';
@@ -234,22 +240,23 @@ export interface TaskSourceConfigElement {
 }
 
 export interface WorkspaceTaskSource {
-	kind: 'workspace';
-	label: string;
-	config: TaskSourceConfigElement;
-	customizes?: TaskIdentifier;
+	readonly kind: 'workspace';
+	readonly label: string;
+	readonly config: TaskSourceConfigElement;
+	readonly customizes?: TaskIdentifier;
 }
 
 export interface ExtensionTaskSource {
-	kind: 'extension';
-	label: string;
-	extension: string;
-	workspaceFolder: WorkspaceFolder | undefined;
+	readonly kind: 'extension';
+	readonly label: string;
+	readonly extension: string;
+	readonly scope: TaskScope;
+	readonly workspaceFolder: WorkspaceFolder | undefined;
 }
 
 export interface CompositeTaskSource {
-	kind: 'composite';
-	label: string;
+	readonly kind: 'composite';
+	readonly label: string;
 }
 
 export type TaskSource = WorkspaceTaskSource | ExtensionTaskSource | CompositeTaskSource;

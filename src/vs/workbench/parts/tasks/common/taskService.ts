@@ -59,7 +59,8 @@ export interface ITaskService extends IEventEmitter {
 	getTasksForGroup(group: string): TPromise<Task[]>;
 	getRecentlyUsedTasks(): LinkedMap<string, string>;
 
-	canCustomize(): boolean;
+	hasMultipleFolders();
+	canCustomize(task: ContributedTask | CustomTask): boolean;
 	customize(task: ContributedTask | CustomTask, properties?: {}, openConfig?: boolean): TPromise<void>;
 	openConfig(task: CustomTask): TPromise<void>;
 
