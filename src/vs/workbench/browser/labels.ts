@@ -148,7 +148,7 @@ export class ResourceLabel extends IconLabel {
 		if (this.options && typeof this.options.title === 'string') {
 			title = this.options.title;
 		} else if (resource) {
-			title = getPathLabel(resource.fsPath, void 0, this.environmentService);
+			title = getPathLabel(resource, void 0, this.environmentService);
 		}
 
 		if (!this.computedIconClasses) {
