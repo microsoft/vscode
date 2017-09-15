@@ -62,47 +62,65 @@ describe('Debug', () => {
 	it('breakpoints', async function () {
 		await app.workbench.openFile('index.js');
 		await app.workbench.debug.setBreakpointOnLine(6);
+		await app.screenCapturer.capture('breakpoints are set');
 	});
 
 	it('start debugging', async function () {
 		port = await app.workbench.debug.startDebugging();
-		http.get(`http://localhost:${port}`).on('error', e => void 0);
+		await app.screenCapturer.capture('debugging has started');
+
+		await new Promise((c, e) => http.get(`http://localhost:${port}`).on('response', c).on('error', e));
+		await app.screenCapturer.capture('server was pinged');
 
 		await app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 6);
+		await app.screenCapturer.capture('debugging is paused');
 	});
 
 	it('focus stack frames and variables', async function () {
-		assert.equal(await app.workbench.debug.getLocalVariableCount(), 4);
+		await app.client.waitFor(() => app.workbench.debug.getLocalVariableCount(), c => c === 4, 'there should be 4 local variables');
+
 		await app.workbench.debug.focusStackFrame('layer.js');
-		assert.equal(await app.workbench.debug.getLocalVariableCount(), 5);
+		await app.client.waitFor(() => app.workbench.debug.getLocalVariableCount(), c => c === 5, 'there should be 5 local variables');
+
 		await app.workbench.debug.focusStackFrame('route.js');
-		assert.equal(await app.workbench.debug.getLocalVariableCount(), 3);
+		await app.client.waitFor(() => app.workbench.debug.getLocalVariableCount(), c => c === 3, 'there should be 3 local variables');
+
 		await app.workbench.debug.focusStackFrame('index.js');
-		assert.equal(await app.workbench.debug.getLocalVariableCount(), 4);
+		await app.client.waitFor(() => app.workbench.debug.getLocalVariableCount(), c => c === 4, 'there should be 4 local variables');
 	});
 
 	it('stepOver, stepIn, stepOut', async function () {
 		await app.workbench.debug.stepIn();
+		await app.screenCapturer.capture('debugging has stepped in');
+
 		const first = await app.workbench.debug.waitForStackFrame(sf => sf.name === 'response.js');
 		await app.workbench.debug.stepOver();
+		await app.screenCapturer.capture('debugging has stepped over');
+
 		await app.workbench.debug.waitForStackFrame(sf => sf.name === 'response.js' && sf.lineNumber === first.lineNumber + 1);
 		await app.workbench.debug.stepOut();
+		await app.screenCapturer.capture('debugging has stepped out');
+
 		await app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 7);
 	});
 
-
 	it('continue', async function () {
 		await app.workbench.debug.continue();
-		http.get(`http://localhost:${port}`).on('error', e => void 0);
+		await app.screenCapturer.capture('debugging has continued');
+
+		await new Promise((c, e) => http.get(`http://localhost:${port}`).on('response', c).on('error', e));
+		await app.screenCapturer.capture('server was pinged');
+
 		await app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 6);
+		await app.screenCapturer.capture('debugging is paused');
 	});
 
 	it('debug console', async function () {
-		const result = await app.workbench.debug.console('2 + 2 \n');
-		assert.equal(result, '4');
+		await app.client.waitFor(() => app.workbench.debug.console('2 + 2 \n'), r => r === '4', 'debug console should return 2 + 2 = 4');
 	});
 
 	it('stop debugging', async function () {
 		await app.workbench.debug.stopDebugging();
+		await app.screenCapturer.capture('debugging has stopped');
 	});
 });
