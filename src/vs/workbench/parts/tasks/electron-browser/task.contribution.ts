@@ -1398,6 +1398,13 @@ class TaskService extends EventEmitter implements ITaskService {
 			return this.getWorkspaceTasks().then((customTasks) => {
 				customTasks.forEach((folderTasks, key) => {
 					let contributed = contributedTasks.get(key);
+					if (!folderTasks.set) {
+						if (contributed) {
+							result.push(...contributed);
+						}
+						return;
+					}
+
 					if (!contributed) {
 						result.push(...folderTasks.set.tasks);
 					} else {
