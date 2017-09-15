@@ -177,7 +177,7 @@ export interface IFileSystemProvider {
 	unlink(resource: URI): TPromise<void>;
 	rename(resource: URI, target: URI): TPromise<void>;
 	mkdir(resource: URI): TPromise<void>;
-	readdir(resource: URI): TPromise<URI[]>;
+	readdir(resource: URI): TPromise<IStat[]>;
 	rmdir(resource: URI): TPromise<void>;
 }
 

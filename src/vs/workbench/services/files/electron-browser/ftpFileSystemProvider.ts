@@ -68,11 +68,16 @@ export class FtpFileSystemProvider implements IFileSystemProvider {
 		});
 	}
 
-	readdir(resource: URI): TPromise<URI[]> {
+	readdir(resource: URI): TPromise<IStat[]> {
 		return ninvoke<JSFtp.Entry[]>(this._connection, this._connection.ls, resource.path).then(ret => {
-			const result: URI[] = [];
+			const result: IStat[] = [];
 			for (let entry of ret) {
-				result.push(resource.with({ path: join(resource.path, entry.name) }));
+				result.push({
+					resource: resource.with({ path: join(resource.path, entry.name) }),
+					mtime: entry.time,
+					size: entry.size,
+					type: entry.type
+				});
 			}
 			return result;
 		});

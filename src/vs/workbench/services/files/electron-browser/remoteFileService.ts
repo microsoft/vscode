@@ -50,7 +50,7 @@ function toIFileStat(provider: IFileSystemProvider, stat: IStat, recurse: boolea
 
 			if (recurse) {
 				// resolve children if requested
-				return TPromise.join(items.map(resource => provider.stat(resource).then(stat => toIFileStat(provider, stat, false)))).then(children => {
+				return TPromise.join(items.map(stat => toIFileStat(provider, stat, false))).then(children => {
 					ret.children = children;
 					return ret;
 				});

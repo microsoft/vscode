@@ -22,7 +22,7 @@ suite('RemoteFileSystem', function () {
 				: StatOnlyProvider.createFileStat(resource)
 			);
 		}
-		readdir(resource: URI): TPromise<URI[], any> {
+		readdir(resource: URI): TPromise<IStat[], any> {
 			return TPromise.as([]);
 		}
 		// throw errors on the rest
