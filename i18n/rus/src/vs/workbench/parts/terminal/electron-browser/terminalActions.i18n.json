@@ -38,6 +38,5 @@
 	"workbench.action.terminal.focusFindWidget": "Выделить мини-приложение поиска",
 	"workbench.action.terminal.hideFindWidget": "Скрыть мини-приложение поиска",
 	"nextTerminalFindTerm": "Показать следующий найденный термин",
-	"previousTerminalFindTerm": "Показать предыдущий найденный термин",
-	"quickOpenTerm": "Терминал: переключить активный терминал"
+	"previousTerminalFindTerm": "Показать предыдущий найденный термин"
 }

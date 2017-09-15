@@ -10,6 +10,7 @@
 	"workspaces": "Arbeitsbereiche",
 	"developer": "Entwickler",
 	"showEditorTabs": "Steuert, ob geöffnete Editoren auf Registerkarten angezeigt werden sollen.",
+	"workbench.editor.labelFormat.short": "Den Namen der Datei anzeigen, gefolgt von dessen Verzeichnisnamen.",
 	"editorTabCloseButton": "Steuert die Position der Schließen-Schaltflächen der Editor-Registerkarten oder deaktiviert sie bei der Einstellung \"off\".",
 	"showIcons": "Steuert, ob geöffnete Editoren mit einem Symbol angezeigt werden sollen. Hierzu muss auch ein Symboldesign aktiviert werden.",
 	"enablePreview": "Steuert, ob geöffnete Editoren als Vorschau angezeigt werden. Vorschau-Editoren werden wiederverwendet, bis sie gespeichert werden (z. B. über Doppelklicken oder Bearbeiten).",

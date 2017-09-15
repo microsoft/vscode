@@ -13,8 +13,6 @@
 	"contributes.defaults.highContrast": "高對比佈景主題的預設色彩。應為十六進位 (#RRGGBB[AA]) 的色彩值，或提供預設的可設定佈景主題色彩。",
 	"invalid.colorConfiguration": "'configuration.colors' 必須是陣列",
 	"invalid.default.colorType": "{0} 必須是十六進位 (#RRGGBB[AA] or #RGB[A]) 的色彩值，或是提供預設的可設定佈景主題色彩之識別碼。",
-	"invalid.id": "'configuration.colors.id' 必須定義且不得為空白",
 	"invalid.id.format": "'configuration.colors.id' 必須依照 word[.word]*",
-	"invalid.description": "'configuration.colors.description' 必須定義且不得為空白",
 	"invalid.defaults": "'configuration.colors.defaults' 必須定義，且必須包含 'light'、'dark' 及 'highContrast'"
 }

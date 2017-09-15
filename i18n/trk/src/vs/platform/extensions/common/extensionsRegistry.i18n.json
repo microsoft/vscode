@@ -16,7 +16,6 @@
 	"vscode.extension.activationEvents": "VS Code eklentisi için etkinleştirme olayları.",
 	"vscode.extension.activationEvents.onLanguage": "Belirtilen dilde çözümlenen bir dosya her açıldığında bir etkinleştirme olayı yayınlanır.",
 	"vscode.extension.activationEvents.onCommand": "Belirtilen komut her çağrıldığında bir etkinleştirme olayı yayınlanır.",
-	"vscode.extension.activationEvents.onDebug": "Belirtilen türde bir hata ayıklama oturumu her başladığında bir etkinleştirme olayı yayınlanır.",
 	"vscode.extension.activationEvents.workspaceContains": "Belirtilen glob deseni ile eşleşen en az bir dosya içeren bir klasör her açıldığında bir etkinleştirme olayı yayınlanır.",
 	"vscode.extension.activationEvents.onView": "Belirtilen görünüm her genişletildiğinde bir etkinleştirme olayı yayınlanır.",
 	"vscode.extension.activationEvents.star": "VS Code başlatıldığında yayılan etkinleştirme olayı. Mükemmel bir son kullanıcı deneyimi sağlandığından emin olmak için, lütfen bu etkinleştirme olayını eklentinizde sadece kullanım durumunuzda başka hiçbir aktivasyon olayı kombinasyonu çalışmıyorsa kullanın.",

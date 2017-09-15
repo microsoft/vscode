@@ -19,7 +19,6 @@
 	"manyMarkers": "99",
 	"runningTasks": "Afficher les tâches en cours d'exécution",
 	"tasks": "Tâches",
-	"TaskSystem.noHotSwap": "Le changement du moteur d’exécution de tâches nécessite de recharger la fenêtre",
 	"TaskService.noBuildTask1": "Aucune tâche de build définie. Marquez une tâche avec 'isBuildCommand' dans le fichier tasks.json.",
 	"TaskService.noBuildTask2": "Aucune tâche de génération définie. Marquez une tâche comme groupe 'build' dans le fichier tasks.json.",
 	"TaskService.noTestTask1": "Aucune tâche de test définie. Marquez une tâche avec 'isTestCommand' dans le fichier tasks.json.",

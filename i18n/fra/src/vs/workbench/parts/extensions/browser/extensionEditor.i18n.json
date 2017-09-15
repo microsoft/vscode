@@ -29,7 +29,6 @@
 	"view id": "ID",
 	"view name": "Nom",
 	"view location": "Emplacement",
-	"themes": "Thèmes ({0})",
 	"JSON Validation": "Validation JSON ({0})",
 	"commands": "Commandes ({0})",
 	"command name": "Nom",

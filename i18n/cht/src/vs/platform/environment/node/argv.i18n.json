@@ -15,7 +15,7 @@
 	"reuseWindow": "強制在最近使用的視窗中開啟檔案或資料夾。",
 	"userDataDir": "指定保留使用者資料的目錄，這在以根目錄身分執行時有用。",
 	"verbose": "列印詳細資訊輸出 (表示 --wait)。",
-	"wait": "等候視窗在傳回前關閉。",
+	"wait": "等候檔案在傳回前關閉。",
 	"extensionHomePath": "設定擴充功能的根路徑。",
 	"listExtensions": "列出已安裝的擴充功能。",
 	"showVersions": "使用 --list-extension 時，顯示安裝的擴充功能版本。",

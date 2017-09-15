@@ -19,7 +19,6 @@
 	"manyMarkers": "99+",
 	"runningTasks": "Показать выполняемые задачи",
 	"tasks": "Задачи",
-	"TaskSystem.noHotSwap": "Чтобы изменить подсистему выполнения задач, необходимо перезагрузить окно",
 	"TaskService.noBuildTask1": "Задача сборки не определена. Отметьте задачу с помощью \"isBuildCommand\" в файле tasks.json.",
 	"TaskService.noBuildTask2": "Задача сборки не определена. Отметьте задачу с помощью группы 'build' в файле tasks.json.",
 	"TaskService.noTestTask1": "Задача теста не определена. Отметьте задачу с помощью \"isTestCommand\" в файле tasks.json.",

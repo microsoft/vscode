@@ -6,6 +6,7 @@
 {
 	"showTriggerActions": "Перейти к символу в рабочей области...",
 	"name": "Поиск",
+	"search": "Поиск",
 	"showSearchViewlet": "Показать средство поиска",
 	"view": "Просмотр",
 	"findInFiles": "Найти в файлах",

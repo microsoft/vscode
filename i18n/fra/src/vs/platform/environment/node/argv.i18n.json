@@ -15,7 +15,6 @@
 	"reuseWindow": "Forcez l'ouverture d'un fichier ou dossier dans la dernière fenêtre active.",
 	"userDataDir": "Spécifie le répertoire où sont conservées les données des utilisateurs. S'avère utile pour une exécution en tant que root.",
 	"verbose": "Affichez la sortie détaillée (implique --wait).",
-	"wait": "Attendez la fermeture de la fenêtre avant un retour.",
 	"extensionHomePath": "Définissez le chemin racine des extensions.",
 	"listExtensions": "Listez les extensions installées.",
 	"showVersions": "Affichez les versions des extensions installées, quand --list-extension est utilisé.",

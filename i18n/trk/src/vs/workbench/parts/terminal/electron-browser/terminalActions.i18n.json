@@ -38,6 +38,5 @@
 	"workbench.action.terminal.focusFindWidget": "Bulma Aracına Odakla",
 	"workbench.action.terminal.hideFindWidget": "Bulma Aracını Gizle",
 	"nextTerminalFindTerm": "Sonraki Arama Terimini Göster",
-	"previousTerminalFindTerm": "Önceki Arama Terimini Göster",
-	"quickOpenTerm": "Terminal: Aktif Terminali Değiştir"
+	"previousTerminalFindTerm": "Önceki Arama Terimini Göster"
 }

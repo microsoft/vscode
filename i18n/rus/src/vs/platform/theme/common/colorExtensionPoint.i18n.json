@@ -13,8 +13,6 @@
 	"contributes.defaults.highContrast": "Цвет по умолчанию для тем с высоким контрастом. Укажите значение цвета в шестнадцатеричном формате (#RRGGBB[AA]) или идентификатор цвета темы.",
 	"invalid.colorConfiguration": "'configuration.colors' должен быть массивом",
 	"invalid.default.colorType": "{0} должен представлять собой значение цвета в шестнадцатеричном формате (#RRGGBB[AA] или #RGB[A]) или идентификатор цвета темы.",
-	"invalid.id": "Параметр 'configuration.colors.id' должен быть указан и не может быть пустым",
 	"invalid.id.format": "Параметр 'configuration.colors.id' должен следовать за word[.word]*",
-	"invalid.description": "Параметр 'configuration.colors.description' должен быть указан и не может быть пустым ",
 	"invalid.defaults": "'configuration.colors.defaults' может быть указан и может содержать значения 'light', 'dark' и 'highContrast'"
 }

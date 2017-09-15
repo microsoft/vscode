@@ -29,7 +29,6 @@
 	"view id": "ID",
 	"view name": "Nome",
 	"view location": "Dove",
-	"themes": "Temi ({0})",
 	"JSON Validation": "Convalida JSON ({0})",
 	"commands": "Comandi ({0})",
 	"command name": "Nome",

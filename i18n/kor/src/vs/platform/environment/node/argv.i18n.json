@@ -15,7 +15,6 @@
 	"reuseWindow": "마지막 활성 창에서 파일 또는 폴더를 강제로 엽니다.",
 	"userDataDir": "사용자 데이터가 저장되는 디렉터리를 지정합니다(루트로 실행할 경우 유용함).",
 	"verbose": "자세한 정보 표시를 출력합니다(--wait를 의미).",
-	"wait": "창이 닫힐 때까지 기다린 후 돌아갑니다.",
 	"extensionHomePath": "확장의 루트 경로를 설정합니다.",
 	"listExtensions": "설치된 확장을 나열합니다.",
 	"showVersions": "#NAME?",

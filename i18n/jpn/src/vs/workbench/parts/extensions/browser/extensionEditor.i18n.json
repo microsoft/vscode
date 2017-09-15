@@ -29,7 +29,7 @@
 	"view id": "ID",
 	"view name": "名前",
 	"view location": "場所",
-	"themes": "テーマ ({0})",
+	"colorId": "Id",
 	"JSON Validation": "JSON 検証 ({0})",
 	"commands": "コマンド ({0})",
 	"command name": "名前",
