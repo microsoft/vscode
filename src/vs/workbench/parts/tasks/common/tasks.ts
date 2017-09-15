@@ -7,6 +7,7 @@
 import URI from 'vs/base/common/uri';
 import * as Types from 'vs/base/common/types';
 import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
+import * as Objects from 'vs/base/common/objects';
 
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ProblemMatcher } from 'vs/platform/markers/common/problemMatcher';
@@ -433,6 +434,10 @@ export namespace Task {
 		} else {
 			return undefined;
 		}
+	}
+
+	export function clone(task: Task): Task {
+		return Objects.assign({}, task);
 	}
 
 	export function getTelemetryKind(task: Task): string {

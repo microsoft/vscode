@@ -1019,7 +1019,7 @@ class TaskService extends EventEmitter implements ITaskService {
 						this.customize(task, { problemMatcher: [] }, true);
 						return task;
 					} else if (selected.matcher) {
-						let newTask = Objects.deepClone(task);
+						let newTask = Task.clone(task);
 						let matcherReference = `$${selected.matcher.name}`;
 						newTask.problemMatchers = [matcherReference];
 						this.customize(task, { problemMatcher: [matcherReference] }, true);
