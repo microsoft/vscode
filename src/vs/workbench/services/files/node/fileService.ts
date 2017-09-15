@@ -11,7 +11,7 @@ import os = require('os');
 import crypto = require('crypto');
 import assert = require('assert');
 
-import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, IImportResult, MAX_FILE_SIZE, FileChangesEvent, IFilesConfiguration } from 'vs/platform/files/common/files';
+import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, IImportResult, MAX_FILE_SIZE, FileChangesEvent, IFilesConfiguration, ICreateFileOptions } from 'vs/platform/files/common/files';
 import { isEqualOrParent } from 'vs/base/common/paths';
 import { ResourceMap } from 'vs/base/common/map';
 import arrays = require('vs/base/common/arrays');
@@ -220,7 +220,7 @@ export class FileService implements IFileService {
 		// Guard early against attempts to resolve an invalid file path
 		if (resource.scheme !== 'file' || !resource.fsPath) {
 			return TPromise.wrapError<IStreamContent>(new FileOperationError(
-				nls.localize('fileInvalidPath', "Invalid file resource ({0})", resource.toString()),
+				nls.localize('fileInvalidPath', "Invalid file resource ({0})", resource.toString(true)),
 				FileOperationResult.FILE_INVALID_PATH
 			));
 		}
@@ -292,7 +292,7 @@ export class FileService implements IFileService {
 				// Return if file not found
 				if (!exists) {
 					return TPromise.wrapError<IStreamContent>(new FileOperationError(
-						nls.localize('fileNotFoundError', "File not found ({0})", resource.toString()),
+						nls.localize('fileNotFoundError', "File not found ({0})", resource.toString(true)),
 						FileOperationResult.FILE_NOT_FOUND
 					));
 				}
@@ -381,15 +381,33 @@ export class FileService implements IFileService {
 		});
 	}
 
-	public createFile(resource: uri, content: string = ''): TPromise<IFileStat> {
+	public createFile(resource: uri, content: string = '', options: ICreateFileOptions = Object.create(null)): TPromise<IFileStat> {
+		const absolutePath = this.toAbsolutePath(resource);
 
-		// Create file
-		return this.updateContent(resource, content).then(result => {
+		let checkFilePromise: TPromise<boolean>;
+		if (options.overwrite) {
+			checkFilePromise = TPromise.as(false);
+		} else {
+			checkFilePromise = pfs.exists(absolutePath);
+		}
 
-			// Events
-			this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, result));
+		// Check file exists
+		return checkFilePromise.then(exists => {
+			if (exists && !options.overwrite) {
+				return TPromise.wrapError<IFileStat>(new FileOperationError(
+					nls.localize('fileExists', "File to create already exits ({0})", resource.toString(true)),
+					FileOperationResult.FILE_MODIFIED_SINCE
+				));
+			}
 
-			return result;
+			// Create file
+			return this.updateContent(resource, content).then(result => {
+
+				// Events
+				this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, result));
+
+				return result;
+			});
 		});
 	}
 
