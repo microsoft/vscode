@@ -6,7 +6,7 @@
 
 import Event, { Emitter } from 'vs/base/common/event';
 import { Disposable } from './extHostTypes';
-import { parse, ParsedPattern } from 'vs/base/common/glob';
+import { parse } from 'vs/base/common/glob';
 import { Uri, FileSystemWatcher as _FileSystemWatcher } from 'vscode';
 import { FileSystemEvents, ExtHostFileSystemEventServiceShape } from './extHost.protocol';
 
@@ -17,7 +17,6 @@ class FileSystemWatcher implements _FileSystemWatcher {
 	private _onDidDelete = new Emitter<Uri>();
 	private _disposable: Disposable;
 	private _config: number;
-	private _parsedPattern: ParsedPattern;
 
 	get ignoreCreateEvents(): boolean {
 		return Boolean(this._config & 0b001);
@@ -44,26 +43,26 @@ class FileSystemWatcher implements _FileSystemWatcher {
 			this._config += 0b100;
 		}
 
-		this._parsedPattern = parse(globPattern);
+		const parsedPattern = parse(globPattern);
 
 		let subscription = dispatcher(events => {
 			if (!ignoreCreateEvents) {
 				for (let created of events.created) {
-					if (this._parsedPattern(created.fsPath)) {
+					if (parsedPattern(created.fsPath)) {
 						this._onDidCreate.fire(created);
 					}
 				}
 			}
 			if (!ignoreChangeEvents) {
 				for (let changed of events.changed) {
-					if (this._parsedPattern(changed.fsPath)) {
+					if (parsedPattern(changed.fsPath)) {
 						this._onDidChange.fire(changed);
 					}
 				}
 			}
 			if (!ignoreDeleteEvents) {
 				for (let deleted of events.deleted) {
-					if (this._parsedPattern(deleted.fsPath)) {
+					if (parsedPattern(deleted.fsPath)) {
 						this._onDidDelete.fire(deleted);
 					}
 				}
