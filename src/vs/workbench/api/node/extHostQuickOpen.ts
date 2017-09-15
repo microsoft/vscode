@@ -14,17 +14,20 @@ import { getPathLabel } from 'vs/base/common/labels';
 import { dirname } from 'path';
 import { homedir } from 'os';
 import { localize } from 'vs/nls';
+import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 
 export type Item = string | QuickPickItem;
 
 export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 
 	private _proxy: MainThreadQuickOpenShape;
+	private _workspace: ExtHostWorkspace;
 	private _onDidSelectItem: (handle: number) => void;
 	private _validateInput: (input: string) => string;
 
-	constructor(mainContext: IMainContext) {
+	constructor(mainContext: IMainContext, workspace: ExtHostWorkspace) {
 		this._proxy = mainContext.get(MainContext.MainThreadQuickOpen);
+		this._workspace = workspace;
 	}
 
 	showQuickPick(itemsOrItemsPromise: string[] | Thenable<string[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<string | undefined>;
@@ -125,10 +128,11 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 
 	// ---- workspace folder picker
 
-	showWorkspaceFolderPick(folders: WorkspaceFolder[], options?: WorkspaceFolderPickOptions, token = CancellationToken.None): Thenable<WorkspaceFolder> {
-
-		// clear state from last invocation
-		this._onDidSelectItem = undefined;
+	showWorkspaceFolderPick(options?: WorkspaceFolderPickOptions, token = CancellationToken.None): Thenable<WorkspaceFolder> {
+		const folders = this._workspace.getWorkspaceFolders();
+		if (!folders || folders.length === 0) {
+			return TPromise.as(undefined);
+		}
 
 		const quickPickWidget = this._proxy.$show({
 			autoFocus: { autoFocusFirstEntry: true },
@@ -147,13 +151,6 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 			resource: folder.uri,
 			fileKind: FileKind.ROOT_FOLDER
 		} as WorkspaceFolderPick));
-
-		// handle selection changes
-		if (options && typeof options.onDidSelectWorkspaceFolder === 'function') {
-			this._onDidSelectItem = (handle) => {
-				options.onDidSelectWorkspaceFolder(items[handle].folder);
-			};
-		}
 
 		// show items
 		this._proxy.$setItems(items);

@@ -49,11 +49,6 @@ declare module 'vscode' {
 		 * Set to `true` to keep the picker open when focus moves to another part of the editor or to another window.
 		 */
 		ignoreFocusOut?: boolean;
-
-		/**
-		 * An optional function that is invoked whenever a [workspace folder](#WorkspaceFolder) is selected.
-		 */
-		onDidSelectWorkspaceFolder?(folder: WorkspaceFolder): any;
 	}
 
 	// todo@joh discover files etc
