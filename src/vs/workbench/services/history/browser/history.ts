@@ -20,7 +20,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { once } from 'vs/base/common/event';
+import { once, debounceEvent } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
@@ -126,9 +126,13 @@ export abstract class BaseHistoryService {
 		// Apply listener for selection changes if this is a text editor
 		const control = getCodeEditor(activeEditor);
 		if (control) {
-			this.activeEditorListeners.push(control.onDidChangeCursorPosition(event => {
+
+			// Debounce the event with a timeout of 0ms so that multiple calls to
+			// editor.setSelection() are folded into one. We do not want to record
+			// subsequent history navigations for such API calls. 
+			this.activeEditorListeners.push(debounceEvent(control.onDidChangeCursorPosition, (last, event) => event, 0)((event => {
 				this.handleEditorSelectionChangeEvent(activeEditor, event);
-			}));
+			})));
 		}
 	}
 
