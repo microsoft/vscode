@@ -4,15 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
-import Filters = require('vs/base/common/filters');
+import * as nls from 'vs/nls';
+import * as Paths from 'vs/base/common/paths';
+import * as Filters from 'vs/base/common/filters';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action, IAction } from 'vs/base/common/actions';
 import { IStringDictionary } from 'vs/base/common/collections';
 
-import Quickopen = require('vs/workbench/browser/quickopen');
-import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');
-import Model = require('vs/base/parts/quickopen/browser/quickOpenModel');
+import * as Quickopen from 'vs/workbench/browser/quickopen';
+import * as QuickOpen from 'vs/base/parts/quickopen/common/quickOpen';
+import * as Model from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 
 import { Task, CustomTask, ContributedTask } from 'vs/workbench/parts/tasks/common/tasks';
@@ -37,7 +38,7 @@ export class TaskEntry extends Model.QuickOpenEntry {
 		if (!workspaceFolder) {
 			return null;
 		}
-		return workspaceFolder.uri.fsPath;
+		return `(${Paths.basename(workspaceFolder.uri.fsPath)})`;
 	}
 
 	public getAriaLabel(): string {
