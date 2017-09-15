@@ -145,14 +145,15 @@ export class SpectronClient {
 		return this.spectron.client.getTitle();
 	}
 
-	public async waitFor<T>(func: () => T | Promise<T | undefined>, accept?: (result: T) => boolean | Promise<boolean>, timeoutMessage?: string): Promise<T>;
-	public async waitFor<T>(func: () => T | Promise<T>, accept: (result: T) => boolean | Promise<boolean> = result => !!result, timeoutMessage?: string): Promise<T> {
+	public async waitFor<T>(func: () => T | Promise<T | undefined>, accept?: (result: T) => boolean | Promise<boolean>, timeoutMessage?: string, retryCount?: number): Promise<T>;
+	public async waitFor<T>(func: () => T | Promise<T>, accept: (result: T) => boolean | Promise<boolean> = result => !!result, timeoutMessage?: string, retryCount?: number): Promise<T> {
 		let trial = 1;
+		retryCount = typeof retryCount === 'number' ? retryCount : this.retryCount;
 
 		while (true) {
-			if (trial > this.retryCount) {
+			if (trial > retryCount) {
 				this.application.screenCapturer.capture('timeout');
-				throw new Error(`${timeoutMessage}: Timed out after ${(this.retryCount * this.retryDuration) / 1000} seconds.`);
+				throw new Error(`${timeoutMessage}: Timed out after ${(retryCount * this.retryDuration) / 1000} seconds.`);
 			}
 
 			let result;
