@@ -224,11 +224,11 @@ suite('Splitview', () => {
 		assert.equal(view2.size, 20, 'view2 is collapsed');
 		assert.equal(view3.size, 110, 'view3 is collapsed');
 
-		splitview.resizeView(2, 20);
+		assert.throws(() => splitview.resizeView(2, 20));
 
-		assert.equal(view1.size, 70, 'view1 is stretched');
-		assert.equal(view2.size, 110, 'view2 is stretched');
-		assert.equal(view3.size, 20, 'view3 is collapsed only to minimum size');
+		assert.equal(view1.size, 70, 'view1 stays the same');
+		assert.equal(view2.size, 20, 'view2 stays the same');
+		assert.equal(view3.size, 110, 'view3 stays the same');
 
 		splitview.dispose();
 		view3.dispose();
