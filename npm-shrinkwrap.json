@@ -567,9 +567,9 @@
       "resolved": "https://registry.npmjs.org/winreg/-/winreg-1.2.0.tgz"
     },
     "windows-process-tree": {
-      "version": "0.1.5",
-      "from": "windows-process-tree@0.1.5",
-      "resolved": "https://registry.npmjs.org/windows-process-tree/-/windows-process-tree-0.1.5.tgz"
+      "version": "0.1.6",
+      "from": "windows-process-tree@0.1.6",
+      "resolved": "https://registry.npmjs.org/windows-process-tree/-/windows-process-tree-0.1.6.tgz"
     },
     "xterm": {
       "version": "3.0.0",
