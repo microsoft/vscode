@@ -459,7 +459,7 @@ export class Thread implements IThread {
 			}
 
 			return response.body.stackFrames.map((rsf, index) => {
-				let source = new Source(rsf.source);
+				let source = new Source(rsf.source, this.process.getId());
 				if (this.process.sources.has(source.uri.toString())) {
 					source = this.process.sources.get(source.uri.toString());
 				} else {

@@ -43,7 +43,7 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 						case 'session':
 							process = this.debugService.findProcessByUUID(decodeURIComponent(pair[1]));
 							break;
-						case 'sourceRef':
+						case 'ref':
 							sourceRef = parseInt(pair[1]);
 							break;
 					}
