@@ -48,6 +48,7 @@ import { ITreeItem } from 'vs/workbench/common/views';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { SerializedError } from 'vs/base/common/errors';
+import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -64,7 +65,7 @@ export interface IEnvironment {
 export interface IWorkspaceData {
 	id: string;
 	name: string;
-	folders: URI[];
+	folders: WorkspaceFolder[];
 }
 
 export interface IInitData {

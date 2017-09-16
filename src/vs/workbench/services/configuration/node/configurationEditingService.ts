@@ -333,14 +333,14 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 			const workspace = this.contextService.getWorkspace();
 
 			if (target === ConfigurationTarget.WORKSPACE) {
-				return workspace.configuration || this.toResource(relativePath, workspace.folders[0]);
+				return workspace.configuration || this.toResource(relativePath, workspace.folders[0].uri);
 			}
 
 			if (target === ConfigurationTarget.FOLDER && this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 				if (resource) {
 					const folder = this.contextService.getWorkspaceFolder(resource);
 					if (folder) {
-						return this.toResource(relativePath, folder);
+						return this.toResource(relativePath, folder.uri);
 					}
 				}
 			}

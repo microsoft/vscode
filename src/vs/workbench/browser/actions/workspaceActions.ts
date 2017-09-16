@@ -77,7 +77,7 @@ export abstract class BaseWorkspacesAction extends Action {
 		let defaultPath: string;
 		const workspace = this.contextService.getWorkspace();
 		if (workspace.folders.length > 0) {
-			defaultPath = dirname(workspace.folders[0].fsPath); // pick the parent of the first root by default
+			defaultPath = dirname(workspace.folders[0].uri.fsPath); // pick the parent of the first root by default
 		}
 
 		return this.windowService.showOpenDialog({
@@ -117,7 +117,7 @@ export class AddRootFolderAction extends BaseWorkspacesAction {
 				return this.viewletService.openViewlet(this.viewletService.getDefaultViewletId(), true);
 			});
 		}
-		return this.instantiationService.createInstance(NewWorkspaceAction, NewWorkspaceAction.ID, NewWorkspaceAction.LABEL, this.contextService.getWorkspace().folders).run();
+		return this.instantiationService.createInstance(NewWorkspaceAction, NewWorkspaceAction.ID, NewWorkspaceAction.LABEL, this.contextService.getWorkspace().folders.map(folder => folder.uri)).run();
 	}
 }
 
@@ -204,7 +204,7 @@ export class SaveWorkspaceAsAction extends BaseWorkspacesAction {
 			switch (workspaceState) {
 
 				case WorkbenchState.FOLDER:
-					const workspaceFolders = this.contextService.getWorkspace().folders.map(root => root.fsPath);
+					const workspaceFolders = this.contextService.getWorkspace().folders.map(root => root.uri.fsPath);
 					return this.windowService.createAndOpenWorkspace(workspaceFolders, configPath);
 
 				case WorkbenchState.WORKSPACE:
@@ -221,7 +221,7 @@ export class SaveWorkspaceAsAction extends BaseWorkspacesAction {
 		if (workspace.configuration && !this.isUntitledWorkspace(workspace.configuration.fsPath)) {
 			defaultPath = workspace.configuration.fsPath;
 		} else if (workspace.folders.length > 0) {
-			defaultPath = dirname(workspace.folders[0].fsPath); // pick the parent of the first root by default
+			defaultPath = dirname(workspace.folders[0].uri.fsPath); // pick the parent of the first root by default
 		}
 
 		return this.windowService.showSaveDialog({

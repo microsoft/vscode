@@ -45,7 +45,7 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 	) {
 		const workspace = this.contextService.getWorkspace();
 		this.foldersCount = workspace.folders.length;
-		this.firstFolderPath = workspace.folders.length > 0 ? workspace.folders[0].fsPath : void 0;
+		this.firstFolderPath = workspace.folders.length > 0 ? workspace.folders[0].uri.fsPath : void 0;
 
 		this.onConfigurationChange(configurationService.getConfiguration<IConfiguration>(), false);
 
@@ -99,7 +99,7 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		const workspace = this.contextService.getWorkspace();
 
 		const newFoldersCount = workspace.folders.length;
-		const newFirstFolderPath = workspace.folders.length > 0 ? workspace.folders[0].fsPath : void 0;
+		const newFirstFolderPath = workspace.folders.length > 0 ? workspace.folders[0].uri.fsPath : void 0;
 
 		let reloadWindow = false;
 		let reloadExtensionHost = false;

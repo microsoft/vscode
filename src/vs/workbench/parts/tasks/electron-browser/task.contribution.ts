@@ -1619,20 +1619,20 @@ class TaskService extends EventEmitter implements ITaskService {
 		let schemaVersion = JsonSchemaVersion.V2_0_0;
 
 		if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
-			let workspaceFolder: WorkspaceFolder = { uri: this.contextService.getWorkspace().folders[0] };
+			let workspaceFolder: WorkspaceFolder = { uri: this.contextService.getWorkspace().folders[0].uri };
 			workspaceFolders.push(workspaceFolder);
 			executionEngine = this.computeExecutionEngine(workspaceFolder);
 			schemaVersion = this.computeJsonSchemaVersion(workspaceFolder);
 		} else if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			for (let folder of this.contextService.getWorkspace().folders) {
-				let workspaceFolder = { uri: folder };
+				let workspaceFolder = { uri: folder.uri };
 				if (schemaVersion === this.computeJsonSchemaVersion(workspaceFolder)) {
 					workspaceFolders.push(workspaceFolder);
 				} else {
 					this._outputChannel.append(nls.localize(
 						'taskService.ignoreingFolder',
 						'Ignoring task configurations for workspace folder {0}. Multi root folder support requires that all folders use task version 2.0.',
-						folder.fsPath));
+						folder.uri.fsPath));
 				}
 			}
 		}

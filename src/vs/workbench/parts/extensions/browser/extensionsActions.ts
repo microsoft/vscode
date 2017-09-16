@@ -1276,7 +1276,7 @@ export class ConfigureWorkspaceRecommendedExtensionsAction extends Action {
 	}
 
 	private getOrCreateExtensionsFile(): TPromise<{ created: boolean, extensionsFileResource: URI }> {
-		const extensionsFileResource = URI.file(paths.join(this.contextService.getWorkspace().folders[0].fsPath, '.vscode', 'extensions.json')); // TODO@Sandeep (https://github.com/Microsoft/vscode/issues/29242)
+		const extensionsFileResource = URI.file(paths.join(this.contextService.getWorkspace().folders[0].uri.fsPath, '.vscode', 'extensions.json')); // TODO@Sandeep (https://github.com/Microsoft/vscode/issues/29242)
 
 		return this.fileService.resolveContent(extensionsFileResource).then(content => {
 			return { created: false, extensionsFileResource };

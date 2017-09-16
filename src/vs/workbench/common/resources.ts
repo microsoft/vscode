@@ -107,12 +107,12 @@ export class ResourceGlobMatcher {
 
 		// Add excludes per workspaces that got added
 		this.contextService.getWorkspace().folders.forEach(folder => {
-			const rootExcludes = this.globFn(folder);
-			if (!this.mapRootToExpressionConfig.has(folder.toString()) || !objects.equals(this.mapRootToExpressionConfig.get(folder.toString()), rootExcludes)) {
+			const rootExcludes = this.globFn(folder.uri);
+			if (!this.mapRootToExpressionConfig.has(folder.uri.toString()) || !objects.equals(this.mapRootToExpressionConfig.get(folder.uri.toString()), rootExcludes)) {
 				changed = true;
 
-				this.mapRootToParsedExpression.set(folder.toString(), this.parseFn(rootExcludes));
-				this.mapRootToExpressionConfig.set(folder.toString(), objects.clone(rootExcludes));
+				this.mapRootToParsedExpression.set(folder.uri.toString(), this.parseFn(rootExcludes));
+				this.mapRootToExpressionConfig.set(folder.uri.toString(), objects.clone(rootExcludes));
 			}
 		});
 
@@ -145,11 +145,11 @@ export class ResourceGlobMatcher {
 	}
 
 	public matches(resource: URI): boolean {
-		const root = this.contextService.getWorkspaceFolder(resource);
+		const folder = this.contextService.getWorkspaceFolder(resource);
 
 		let expressionForRoot: ParsedExpression;
-		if (root && this.mapRootToParsedExpression.has(root.toString())) {
-			expressionForRoot = this.mapRootToParsedExpression.get(root.toString());
+		if (folder && this.mapRootToParsedExpression.has(folder.uri.toString())) {
+			expressionForRoot = this.mapRootToParsedExpression.get(folder.uri.toString());
 		} else {
 			expressionForRoot = this.mapRootToParsedExpression.get(ResourceGlobMatcher.NO_ROOT);
 		}
@@ -159,8 +159,8 @@ export class ResourceGlobMatcher {
 		// a glob pattern of "src/**" will not match on an absolute path "/folder/src/file.txt"
 		// but can match on "src/file.txt"
 		let resourcePathToMatch: string;
-		if (root) {
-			resourcePathToMatch = paths.normalize(paths.relative(root.fsPath, resource.fsPath));
+		if (folder) {
+			resourcePathToMatch = paths.normalize(paths.relative(folder.uri.fsPath, resource.fsPath));
 		} else {
 			resourcePathToMatch = resource.fsPath;
 		}

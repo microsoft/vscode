@@ -240,7 +240,8 @@ export class PreferencesEditor extends BaseEditor {
 			return resource;
 		}
 
-		return this.workspaceContextService.getWorkspaceFolder(resource);
+		const workspaceFolder = this.workspaceContextService.getWorkspaceFolder(resource);
+		return workspaceFolder ? workspaceFolder.uri : null;
 	}
 
 	private onWorkspaceFoldersChanged(): void {
@@ -887,7 +888,7 @@ class SettingsEditorContribution extends AbstractSettingsEditorContribution impl
 		}
 
 		for (const folder of this.workspaceContextService.getWorkspace().folders) {
-			const folderSettingsResource = this.preferencesService.getFolderSettingsResource(folder);
+			const folderSettingsResource = this.preferencesService.getFolderSettingsResource(folder.uri);
 			if (folderSettingsResource && folderSettingsResource.fsPath === model.uri.fsPath) {
 				return true;
 			}

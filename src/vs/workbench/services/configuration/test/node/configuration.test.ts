@@ -21,6 +21,7 @@ import uuid = require('vs/base/common/uuid');
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { WorkspaceServiceImpl, WorkspaceService } from 'vs/workbench/services/configuration/node/configuration';
 import { FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -31,26 +32,103 @@ class SettingsTestEnvironmentService extends EnvironmentService {
 	get appSettingsPath(): string { return this.customAppSettingsHome; }
 }
 
-suite('WorkspaceConfigurationService - Node', () => {
+function createWorkspace(callback: (workspaceDir: string, globalSettingsFile: string, cleanUp: (callback: () => void) => void) => void): void {
+	const id = uuid.generateUuid();
+	const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+	const workspaceDir = path.join(parentDir, 'workspaceconfig', id);
+	const workspaceSettingsDir = path.join(workspaceDir, '.vscode');
+	const globalSettingsFile = path.join(workspaceDir, 'config.json');
 
-	function createWorkspace(callback: (workspaceDir: string, globalSettingsFile: string, cleanUp: (callback: () => void) => void) => void): void {
-		const id = uuid.generateUuid();
-		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
-		const workspaceDir = path.join(parentDir, 'workspaceconfig', id);
-		const workspaceSettingsDir = path.join(workspaceDir, '.vscode');
-		const globalSettingsFile = path.join(workspaceDir, 'config.json');
+	extfs.mkdirp(workspaceSettingsDir, 493, (error) => {
+		callback(workspaceDir, globalSettingsFile, (callback) => extfs.del(parentDir, os.tmpdir(), () => { }, callback));
+	});
+}
 
+function setUpFolder(folderName: string): TPromise<{ parentDir: string, workspaceDir: string, workspaceService: WorkspaceService }> {
+	const id = uuid.generateUuid();
+	const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+	const workspaceDir = path.join(parentDir, folderName);
+	const workspaceSettingsDir = path.join(workspaceDir, '.vscode');
+	const globalSettingsFile = path.join(workspaceDir, 'config.json');
+
+	return new TPromise((c, e) => {
 		extfs.mkdirp(workspaceSettingsDir, 493, (error) => {
-			callback(workspaceDir, globalSettingsFile, (callback) => extfs.del(parentDir, os.tmpdir(), () => { }, callback));
+			if (error) {
+				e(error);
+				return null;
+			}
+			const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
+			const workspaceService = new WorkspaceServiceImpl(workspaceDir, environmentService, null);
+			workspaceService.initialize().then(() => c({ parentDir, workspaceDir, workspaceService }));
 		});
-	}
+	});
+}
 
-	function createService(workspaceDir: string, globalSettingsFile: string): TPromise<WorkspaceService> {
-		const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
-		const service = new WorkspaceServiceImpl(workspaceDir, environmentService, null);
+function createService(workspaceDir: string, globalSettingsFile: string): TPromise<WorkspaceService> {
+	const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
+	const service = new WorkspaceServiceImpl(workspaceDir, environmentService, null);
 
-		return service.initialize().then(() => service);
-	}
+	return service.initialize().then(() => service);
+}
+
+suite('WorkspaceContextService - Folder', () => {
+
+	let workspaceName = `testWorkspace${uuid.generateUuid}`, parentResource: string, workspaceResource: string, workspaceContextService: IWorkspaceContextService;
+
+	setup(() => {
+		return setUpFolder(workspaceName)
+			.then(({ parentDir, workspaceDir, workspaceService }) => {
+				parentResource = parentDir;
+				workspaceResource = workspaceDir;
+				workspaceContextService = workspaceService;
+			});
+	});
+
+	teardown(done => {
+		if (workspaceContextService) {
+			(<WorkspaceService>workspaceContextService).dispose();
+		}
+		if (parentResource) {
+			extfs.del(parentResource, os.tmpdir(), () => { }, done);
+		}
+	});
+
+	test('getWorkspace()', () => {
+		const actual = workspaceContextService.getWorkspace();
+
+		assert.equal(actual.folders.length, 1);
+		assert.equal(actual.folders[0].uri.fsPath, workspaceResource);
+		assert.equal(actual.folders[0].name, workspaceName);
+		assert.equal(actual.folders[0].index, 0);
+		assert.equal(actual.folders[0].raw, workspaceResource);
+		assert.ok(!actual.configuration);
+	});
+
+	test('getWorkbenchState()', () => {
+		const actual = workspaceContextService.getWorkbenchState();
+
+		assert.equal(actual, WorkbenchState.FOLDER);
+	});
+
+	test('getWorkspaceFolder()', () => {
+		const actual = workspaceContextService.getWorkspaceFolder(URI.file(path.join(workspaceResource, 'a')));
+
+		assert.equal(actual, workspaceContextService.getWorkspace().folders[0]);
+	});
+
+	test('isCurrentWorkspace() => true', () => {
+		assert.ok(workspaceContextService.isCurrentWorkspace(workspaceResource));
+	});
+
+	test('isCurrentWorkspace() => false', () => {
+		assert.ok(!workspaceContextService.isCurrentWorkspace(workspaceResource + 'abc'));
+	});
+});
+
+suite('WorkspaceContextService - Folder', () => {
+});
+
+suite('WorkspaceConfigurationService - Node', () => {
 
 	test('defaults', (done: () => void) => {
 		interface ITestSetting {

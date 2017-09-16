@@ -36,7 +36,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 			return TPromise.as(void 0); // we need a workspace to begin with
 		}
 
-		const folders = this.contextService.getWorkspace().folders;
+		const folders = this.contextService.getWorkspace().folders.map(folder => folder.uri);
 
 		return this.doSetFolders([...folders, ...foldersToAdd]);
 	}
@@ -49,7 +49,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		const folders = this.contextService.getWorkspace().folders;
 		const foldersToRemoveRaw = foldersToRemove.map(folder => folder.toString());
 
-		return this.doSetFolders(folders.filter(folder => foldersToRemoveRaw.indexOf(folder.toString()) === -1));
+		return this.doSetFolders(folders.filter(folder => foldersToRemoveRaw.indexOf(folder.uri.toString()) === -1).map(folder => folder.uri));
 	}
 
 	private isSupported(): boolean {
@@ -61,7 +61,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 	private doSetFolders(newFolders: URI[]): TPromise<void> {
 		const workspace = this.contextService.getWorkspace();
-		const currentWorkspaceFolders = this.contextService.getWorkspace().folders.map(folder => folder.fsPath);
+		const currentWorkspaceFolders = this.contextService.getWorkspace().folders.map(folder => folder.uri.fsPath);
 		const newWorkspaceFolders = this.validateFolders(newFolders);
 
 		// See if there are any changes

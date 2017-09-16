@@ -25,7 +25,7 @@ export class Model {
 	private _roots: FileStat[];
 
 	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
-		const setRoots = () => this._roots = this.contextService.getWorkspace().folders.map(uri => new FileStat(uri, undefined));
+		const setRoots = () => this._roots = this.contextService.getWorkspace().folders.map(folder => new FileStat(folder.uri, undefined));
 		this.contextService.onDidChangeWorkspaceFolders(() => setRoots());
 		setRoots();
 	}
@@ -51,7 +51,7 @@ export class Model {
 	public findClosest(resource: URI): FileStat {
 		const folder = this.contextService.getWorkspaceFolder(resource);
 		if (folder) {
-			const root = this.roots.filter(r => r.resource.toString() === folder.toString()).pop();
+			const root = this.roots.filter(r => r.resource.toString() === folder.uri.toString()).pop();
 			if (root) {
 				return root.find(resource);
 			}

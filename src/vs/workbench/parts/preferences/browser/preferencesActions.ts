@@ -107,7 +107,7 @@ export class OpenFolderSettingsAction extends Action {
 	public run(): TPromise<any> {
 		const picks: IPickOpenEntry[] = this.workspaceContextService.getWorkspace().folders.map((folder, index) => {
 			return <IPickOpenEntry>{
-				label: getSettingsTargetName(ConfigurationTarget.FOLDER, folder, this.workspaceContextService),
+				label: getSettingsTargetName(ConfigurationTarget.FOLDER, folder.uri, this.workspaceContextService),
 				id: `${index}`
 			};
 		});
@@ -115,7 +115,7 @@ export class OpenFolderSettingsAction extends Action {
 		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickFolder', "Select Folder") })
 			.then(pick => {
 				if (pick) {
-					return this.preferencesService.openFolderSettings(this.workspaceContextService.getWorkspace().folders[parseInt(pick.id)]);
+					return this.preferencesService.openFolderSettings(this.workspaceContextService.getWorkspace().folders[parseInt(pick.id)].uri);
 				}
 				return undefined;
 			});

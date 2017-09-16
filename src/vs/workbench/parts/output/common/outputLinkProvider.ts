@@ -80,7 +80,7 @@ export class OutputLinkProvider {
 
 		if (!this.worker) {
 			const createData: ICreateData = {
-				workspaceFolders: this.contextService.getWorkspace().folders.map(folder => folder.toString())
+				workspaceFolders: this.contextService.getWorkspace().folders.map(folder => folder.uri.toString())
 			};
 
 			this.worker = createWebWorker<OutputLinkComputer>(this.modelService, {
