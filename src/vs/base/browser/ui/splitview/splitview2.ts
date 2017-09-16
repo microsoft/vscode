@@ -48,16 +48,10 @@ interface ISashItem {
 }
 
 interface ISashDragState {
+	index: number;
 	start: number;
-	up: number[];
-	down: number[];
-	maxUp: number;
-	maxDown: number;
-	collapses: number[];
-	expands: number[];
+	sizes: number[];
 }
-
-const sum = (a: number[]) => a.reduce((a, b) => a + b, 0);
 
 function layoutViewItem(item: IViewItem, orientation: Orientation): void {
 	if (orientation === Orientation.VERTICAL) {
@@ -160,116 +154,29 @@ export class SplitView implements IDisposable, IHorizontalSashLayoutProvider, IV
 	}
 
 	layout(size: number): void {
-		if (this.size === size) {
-			return;
-		}
-
-		const indexes = range(this.viewItems.length - 1, -1);
-		const collapses = this.viewItems.map(i => Math.max(i.size - i.view.minimumSize, 0));
-		const expands = this.viewItems.map(i => Math.max(i.view.maximumSize - i.size, 0));
-		const totalViewsSize = this.viewItems.reduce((r, i) => r + i.size, 0);
-		const diff = Math.abs(totalViewsSize - size);
-
-		if (size < totalViewsSize) {
-			this.expandCollapse(Math.min(diff, sum(collapses)), collapses, expands, indexes, []);
-		} else if (size > totalViewsSize) {
-			this.expandCollapse(Math.min(diff, sum(expands)), collapses, expands, [], indexes);
-		}
-
-		this.size = size;
+		this.resize(this.viewItems.length - 1, size - this.size);
+		this.size = Math.max(size, this.viewItems.reduce((r, i) => r + i.size, 0));
 	}
 
 	private onSashStart({ sash, start }: ISashEvent): void {
 		const index = firstIndex(this.sashItems, item => item.sash === sash);
-		const collapses = this.viewItems.map(i => Math.max(i.size - i.view.minimumSize, 0));
-		const expands = this.viewItems.map(i => Math.max(i.view.maximumSize - i.size, 0));
+		const sizes = this.viewItems.map(i => i.size);
 
-		const up = range(index, -1);
-		const down = range(index + 1, this.viewItems.length);
-
-		const collapsesUp = up.map(i => collapses[i]);
-		const collapsesDown = down.map(i => collapses[i]);
-		const expandsUp = up.map(i => expands[i]);
-		const expandsDown = down.map(i => expands[i]);
-
-		const maxUp = Math.min(sum(collapsesUp), sum(expandsDown));
-		const maxDown = Math.min(sum(expandsUp), sum(collapsesDown));
-
-		this.sashDragState = { start, up, down, maxUp, maxDown, collapses, expands };
+		this.sashDragState = { start, index, sizes };
 	}
 
-	private onSashChange({ sash, start, current }: ISashEvent): void {
-		const diff = current - this.sashDragState.start;
+	private onSashChange({ sash, current }: ISashEvent): void {
+		const { index, start, sizes } = this.sashDragState;
 
-		if (diff < 0) {
-			this.expandCollapse(Math.min(-diff, this.sashDragState.maxUp), this.sashDragState.collapses, this.sashDragState.expands, this.sashDragState.up, this.sashDragState.down);
-		} else {
-			this.expandCollapse(Math.min(diff, this.sashDragState.maxDown), this.sashDragState.collapses, this.sashDragState.expands, this.sashDragState.down, this.sashDragState.up);
-		}
-
+		this.resize(index, current - start, sizes);
 		this.viewItems.forEach(viewItem => viewItem.explicitSize = viewItem.size);
 	}
 
-	resizeView(index: number, size: number): void {
-		if (index < 0 || index >= this.viewItems.length) {
-			return;
-		}
-
-		const viewItem = this.viewItems[index];
-		size = clamp(size, viewItem.view.minimumSize, viewItem.view.maximumSize);
-
-		const collapses = this.viewItems.map(i => Math.max(i.size - i.view.minimumSize, 0));
-		const expands = this.viewItems.map(i => Math.max(i.view.maximumSize - i.size, 0));
-		const up = range(index, -1);
-		const down = range(index + 1, this.viewItems.length);
-		const collapsesUp = up.map(i => collapses[i]);
-		const collapsesDown = down.map(i => collapses[i]);
-		const expandsUp = up.map(i => expands[i]);
-		const expandsDown = down.map(i => expands[i]);
-		const maxUp = Math.min(sum(collapsesUp), sum(expandsDown));
-		const maxDown = Math.min(sum(expandsUp), sum(collapsesDown));
-		const diff = size - viewItem.size;
-
-		if (diff < 0) {
-			this.expandCollapse(Math.min(-diff, maxUp), collapses, expands, up, down);
-		} else {
-			this.expandCollapse(Math.min(diff, maxDown), collapses, expands, down, up);
-		}
-	}
-
 	private onViewChange(item: IViewItem): void {
+		const index = this.viewItems.indexOf(item);
 		const size = clamp(item.size, item.view.minimumSize, item.view.maximumSize);
 
-		if (size === item.size) {
-			return;
-		}
-
-		// this.setupAnimation();
-
-		const index = this.viewItems.indexOf(item);
-		const diff = Math.abs(size - item.size);
-
-		const up = range(index - 1, -1);
-		const down = range(index + 1, this.viewItems.length);
-		const downUp = down.concat(up);
-
-		const collapses = this.viewItems.map(i => Math.max(i.size - i.view.minimumSize, 0));
-		const expands = this.viewItems.map(i => Math.max(i.view.maximumSize - i.size, 0));
-
-		let collapse: number, collapseIndexes: number[], expandIndexes: number[];
-
-		if (size < item.size) {
-			collapse = Math.min(downUp.reduce((t, i) => t + expands[i], 0), diff);
-			collapseIndexes = [index];
-			expandIndexes = downUp;
-
-		} else {
-			collapse = Math.min(downUp.reduce((t, i) => t + collapses[i], 0), diff);
-			collapseIndexes = downUp;
-			expandIndexes = [index];
-		}
-
-		this.expandCollapse(collapse, collapses, expands, collapseIndexes, expandIndexes);
+		this.resize(index, size - item.size);
 	}
 
 	// private setupAnimation(): void {
@@ -286,22 +193,44 @@ export class SplitView implements IDisposable, IHorizontalSashLayoutProvider, IV
 	// 	dom.removeClass(this.el, 'animated');
 	// }
 
-	// Main algorithm
-	private expandCollapse(collapse: number, collapses: number[], expands: number[], collapseIndexes: number[], expandIndexes: number[]): void {
-		let totalCollapse = collapse;
-		let totalExpand = totalCollapse;
+	resizeView(index: number, size: number): void {
+		if (index < 0 || index >= this.viewItems.length - 1) {
+			throw new Error('Cant resize view');
+		}
 
-		collapseIndexes.forEach(i => {
-			let collapse = Math.min(collapses[i], totalCollapse);
-			totalCollapse -= collapse;
-			this.viewItems[i].size -= collapse;
-		});
+		this.resize(index, size - this.viewItems[index].size);
+	}
 
-		expandIndexes.forEach(i => {
-			let expand = Math.min(expands[i], totalExpand);
-			totalExpand -= expand;
-			this.viewItems[i].size += expand;
-		});
+	private resize(index: number, delta: number, sizes = this.viewItems.map(i => i.size)): void {
+		if (delta === 0 || index < 0 || index >= this.viewItems.length) {
+			return;
+		}
+
+		const upIndexes = range(index, -1);
+		const up = upIndexes.map(i => this.viewItems[i]);
+		const upSizes = upIndexes.map(i => sizes[i]);
+
+		const downIndexes = range(index + 1, this.viewItems.length);
+		const down = downIndexes.map(i => this.viewItems[i]);
+		const downSizes = downIndexes.map(i => sizes[i]);
+
+		for (let i = 0, deltaUp = delta; deltaUp !== 0 && i < up.length; i++) {
+			const item = up[i];
+			const size = clamp(upSizes[i] + deltaUp, item.view.minimumSize, item.view.maximumSize);
+			const viewDelta = size - upSizes[i];
+
+			deltaUp -= viewDelta;
+			item.size = size;
+		}
+
+		for (let i = 0, deltaDown = delta; deltaDown !== 0 && i < down.length; i++) {
+			const item = down[i];
+			const size = clamp(downSizes[i] - deltaDown, item.view.minimumSize, item.view.maximumSize);
+			const viewDelta = size - downSizes[i];
+
+			deltaDown += viewDelta;
+			item.size = size;
+		}
 
 		this.viewItems.forEach(item => layoutViewItem(item, this.orientation));
 		this.sashItems.forEach(item => item.sash.layout());
