@@ -418,6 +418,7 @@ export class EnableForWorkspaceAction extends Action implements IExtensionAction
 		super(EnableForWorkspaceAction.ID, label);
 
 		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
+		this.disposables.push(this.workspaceContextService.onDidChangeWorkbenchState(() => this.update()));
 		this.update();
 	}
 
@@ -555,6 +556,7 @@ export class DisableForWorkspaceAction extends Action implements IExtensionActio
 
 		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
 		this.update();
+		this.workspaceContextService.onDidChangeWorkbenchState(() => this.update(), this, this.disposables);
 	}
 
 	private update(): void {
@@ -1087,13 +1089,21 @@ export class ShowWorkspaceRecommendedExtensionsAction extends Action {
 	static ID = 'workbench.extensions.action.showWorkspaceRecommendedExtensions';
 	static LABEL = localize('showWorkspaceRecommendedExtensions', "Show Workspace Recommended Extensions");
 
+	private disposables: IDisposable[] = [];
+
 	constructor(
 		id: string,
 		label: string,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IViewletService private viewletService: IViewletService
 	) {
-		super(id, label, null, contextService.getWorkbenchState() !== WorkbenchState.EMPTY);
+		super(id, label, null);
+		this.contextService.onDidChangeWorkbenchState(() => this.update(), this, this.disposables);
+		this.update();
+	}
+
+	private update(): void {
+		this.enabled = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY;
 	}
 
 	run(): TPromise<void> {
@@ -1107,6 +1117,11 @@ export class ShowWorkspaceRecommendedExtensionsAction extends Action {
 
 	protected isEnabled(): boolean {
 		return true;
+	}
+
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
+		super.dispose();
 	}
 }
 
@@ -1242,6 +1257,8 @@ export class ConfigureWorkspaceRecommendedExtensionsAction extends Action {
 	static ID = 'workbench.extensions.action.configureWorkspaceRecommendedExtensions';
 	static LABEL = localize('configureWorkspaceRecommendedExtensions', "Configure Recommended Extensions (Workspace)");
 
+	private disposables: IDisposable[] = [];
+
 	constructor(
 		id: string,
 		label: string,
@@ -1251,7 +1268,13 @@ export class ConfigureWorkspaceRecommendedExtensionsAction extends Action {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IMessageService private messageService: IMessageService
 	) {
-		super(id, label, null, contextService.getWorkbenchState() !== WorkbenchState.EMPTY);
+		super(id, label, null);
+		this.contextService.onDidChangeWorkbenchState(() => this.update(), this, this.disposables);
+		this.update();
+	}
+
+	private update(): void {
+		this.enabled = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY;
 	}
 
 	public run(event: any): TPromise<any> {
@@ -1285,6 +1308,11 @@ export class ConfigureWorkspaceRecommendedExtensionsAction extends Action {
 				return { created: true, extensionsFileResource };
 			});
 		});
+	}
+
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
+		super.dispose();
 	}
 }
 
@@ -1359,7 +1387,8 @@ export class DisableAllWorkpsaceAction extends Action {
 	) {
 		super(id, label);
 		this.update();
-		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
+		this.workspaceContextService.onDidChangeWorkbenchState(() => this.update(), this, this.disposables);
+		this.extensionsWorkbenchService.onChange(() => this.update(), this, this.disposables);
 	}
 
 	private update(): void {
@@ -1422,7 +1451,8 @@ export class EnableAllWorkpsaceAction extends Action {
 	) {
 		super(id, label);
 		this.update();
-		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
+		this.extensionsWorkbenchService.onChange(() => this.update(), this, this.disposables);
+		this.workspaceContextService.onDidChangeWorkbenchState(() => this.update(), this, this.disposables);
 	}
 
 	private update(): void {

@@ -67,6 +67,7 @@ export class ExplorerViewlet extends PersistentViewsViewlet {
 		this.onConfigurationUpdated();
 		this._register(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated()));
 		this._register(this.contextService.onDidChangeWorkspaceName(e => this.updateTitleArea()));
+		this._register(this.contextService.onDidChangeWorkbenchState(() => this.registerViews()));
 	}
 
 	public create(parent: Builder): TPromise<void> {
@@ -74,17 +75,43 @@ export class ExplorerViewlet extends PersistentViewsViewlet {
 	}
 
 	private registerViews(): void {
-		let viewDescriptors = [];
+		const viewDescriptors = ViewsRegistry.getViews(ViewLocation.Explorer);
 
-		viewDescriptors.push(this.createOpenEditorsViewDescriptor());
+		let viewDescriptorsToRegister = [];
+		let viewDescriptorsToDeregister: string[] = [];
 
-		if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
-			viewDescriptors.push(this.createExplorerViewDescriptor());
+		const openEditorsViewDescriptor = this.createOpenEditorsViewDescriptor();
+		const openEditorsViewDescriptorExists = viewDescriptors.some(v => v.id === openEditorsViewDescriptor.id);
+		const explorerViewDescriptor = this.createExplorerViewDescriptor();
+		const explorerViewDescriptorExists = viewDescriptors.some(v => v.id === explorerViewDescriptor.id);
+		const emptyViewDescriptor = this.createEmptyViewDescriptor();
+		const emptyViewDescriptorExists = viewDescriptors.some(v => v.id === emptyViewDescriptor.id);
+
+		if (!openEditorsViewDescriptorExists) {
+			viewDescriptorsToRegister.push(openEditorsViewDescriptor);
+		}
+		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
+			if (explorerViewDescriptorExists) {
+				viewDescriptorsToDeregister.push(explorerViewDescriptor.id);
+			}
+			if (!emptyViewDescriptorExists) {
+				viewDescriptorsToRegister.push(emptyViewDescriptor);
+			}
 		} else {
-			viewDescriptors.push(this.createEmptyViewDescriptor());
+			if (emptyViewDescriptorExists) {
+				viewDescriptorsToDeregister.push(emptyViewDescriptor.id);
+			}
+			if (!explorerViewDescriptorExists) {
+				viewDescriptorsToRegister.push(explorerViewDescriptor);
+			}
 		}
 
-		ViewsRegistry.registerViews(viewDescriptors);
+		if (viewDescriptorsToRegister.length) {
+			ViewsRegistry.registerViews(viewDescriptorsToRegister);
+		}
+		if (viewDescriptorsToDeregister.length) {
+			ViewsRegistry.deregisterViews(viewDescriptorsToDeregister, ViewLocation.Explorer);
+		}
 	}
 
 	private createOpenEditorsViewDescriptor(): IViewDescriptor {

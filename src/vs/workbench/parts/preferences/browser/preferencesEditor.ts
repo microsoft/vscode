@@ -153,6 +153,7 @@ export class PreferencesEditor extends BaseEditor {
 
 		this.preferencesRenderers = this._register(new PreferencesRenderers());
 		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => this.onWorkspaceFoldersChanged()));
+		this._register(this.workspaceContextService.onDidChangeWorkbenchState(() => this.onWorkbenchStateChanged()));
 	}
 
 	public setInput(newInput: PreferencesEditorInput, options?: EditorOptions): TPromise<void> {
@@ -223,12 +224,16 @@ export class PreferencesEditor extends BaseEditor {
 		if (this.preferencesService.userSettingsResource.fsPath === resource.fsPath) {
 			return ConfigurationTarget.USER;
 		}
-		if (this.preferencesService.workspaceSettingsResource.fsPath === resource.fsPath) {
+
+		const workspaceSettingsResource = this.preferencesService.workspaceSettingsResource;
+		if (workspaceSettingsResource && workspaceSettingsResource.fsPath === resource.fsPath) {
 			return ConfigurationTarget.WORKSPACE;
 		}
+
 		if (this.workspaceContextService.getWorkspaceFolder(resource)) {
 			return ConfigurationTarget.FOLDER;
 		}
+
 		return null;
 	}
 
@@ -249,6 +254,16 @@ export class PreferencesEditor extends BaseEditor {
 			const settingsResource = toResource((<PreferencesEditorInput>this.input).master);
 			const targetResource = this.getSettingsConfigurationTargetUri(settingsResource);
 			if (!targetResource) {
+				this.switchSettings(this.preferencesService.userSettingsResource);
+			}
+		}
+	}
+
+	private onWorkbenchStateChanged(): void {
+		if (this.input) {
+			const settingsResource = toResource((<PreferencesEditorInput>this.input).master);
+			const target = this.getSettingsConfigurationTarget(settingsResource);
+			if (target !== ConfigurationTarget.USER) {
 				this.switchSettings(this.preferencesService.userSettingsResource);
 			}
 		}
