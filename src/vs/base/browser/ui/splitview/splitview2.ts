@@ -71,6 +71,7 @@ export class SplitView implements IDisposable, IHorizontalSashLayoutProvider, IV
 	private viewItems: IViewItem[] = [];
 	private sashItems: ISashItem[] = [];
 	private sashDragState: ISashDragState;
+	private animationTimeout: number;
 
 	get length(): number {
 		return this.viewItems.length;
@@ -150,15 +151,15 @@ export class SplitView implements IDisposable, IHorizontalSashLayoutProvider, IV
 		this.relayout();
 	}
 
-	layout(size: number): void {
-		this.resize(this.viewItems.length - 1, size - this.size);
-		this.size = Math.max(size, this.viewItems.reduce((r, i) => r + i.size, 0));
-	}
-
 	private relayout(): void {
 		const previousSize = this.size;
 		this.size = this.viewItems.reduce((r, i) => r + i.size, 0);
 		this.layout(previousSize);
+	}
+
+	layout(size: number): void {
+		this.resize(this.viewItems.length - 1, size - this.size);
+		this.size = Math.max(size, this.viewItems.reduce((r, i) => r + i.size, 0));
 	}
 
 	private onSashStart({ sash, start }: ISashEvent): void {
@@ -177,22 +178,24 @@ export class SplitView implements IDisposable, IHorizontalSashLayoutProvider, IV
 
 	private onViewChange(item: IViewItem): void {
 		item.size = clamp(item.size, item.view.minimumSize, item.view.maximumSize);
+		this.setupAnimation();
 		this.relayout();
 	}
 
-	// private setupAnimation(): void {
-	// 	if (types.isNumber(this.animationTimeout)) {
-	// 		window.clearTimeout(this.animationTimeout);
-	// 	}
+	// TODO@Joao: move this to panelview
+	private setupAnimation(): void {
+		// Setup animation
+		if (types.isNumber(this.animationTimeout)) {
+			window.clearTimeout(this.animationTimeout);
+		}
 
-	// 	dom.addClass(this.el, 'animated');
-	// 	this.animationTimeout = window.setTimeout(() => this.clearAnimation(), 200);
-	// }
+		dom.addClass(this.el, 'animated');
 
-	// private clearAnimation(): void {
-	// 	this.animationTimeout = null;
-	// 	dom.removeClass(this.el, 'animated');
-	// }
+		this.animationTimeout = window.setTimeout(() => {
+			this.animationTimeout = null;
+			dom.removeClass(this.el, 'animated');
+		}, 200);
+	}
 
 	resizeView(index: number, size: number): void {
 		if (index < 0 || index >= this.viewItems.length - 1) {
