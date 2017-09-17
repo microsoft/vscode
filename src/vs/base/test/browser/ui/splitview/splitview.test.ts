@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import { Emitter } from 'vs/base/common/event';
 import { SplitView, IView, Orientation } from 'vs/base/browser/ui/splitview/splitview2';
+import { Sash } from 'vs/base/browser/ui/sash/sash';
 
 class TestView implements IView {
 
@@ -55,6 +56,10 @@ class TestView implements IView {
 		this._onDidLayout.dispose();
 		this._onDidFocus.dispose();
 	}
+}
+
+function getSashes(splitview: SplitView): Sash[] {
+	return (splitview as any).sashItems.map(i => i.sash) as Sash[];
 }
 
 suite('Splitview', () => {
@@ -229,6 +234,101 @@ suite('Splitview', () => {
 		assert.equal(view1.size, 70, 'view1 stays the same');
 		assert.equal(view2.size, 20, 'view2 stays the same');
 		assert.equal(view3.size, 110, 'view3 stays the same');
+
+		splitview.dispose();
+		view3.dispose();
+		view2.dispose();
+		view1.dispose();
+	});
+
+	test('reacts to view changes', () => {
+		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
+		const view2 = new TestView(20, Number.POSITIVE_INFINITY);
+		const view3 = new TestView(20, Number.POSITIVE_INFINITY);
+		const splitview = new SplitView(container);
+		splitview.layout(200);
+
+		splitview.addView(view1, 20);
+		splitview.addView(view2, 20);
+		splitview.addView(view3, 20);
+
+		assert.equal(view1.size, 20, 'view1 size is restored');
+		assert.equal(view2.size, 20, 'view2 size is restored');
+		assert.equal(view3.size, 160, 'view3 is stretched');
+
+		view3.maximumSize = 20;
+
+		assert.equal(view1.size, 20, 'view1 stays the same');
+		assert.equal(view2.size, 160, 'view2 is stretched');
+		assert.equal(view3.size, 20, 'view3 is collapsed');
+
+		view2.maximumSize = 40;
+
+		assert.equal(view1.size, 140, 'view1 is stretched');
+		assert.equal(view2.size, 40, 'view2 is collapsed');
+		assert.equal(view3.size, 20, 'view3 is collapsed');
+
+		view3.maximumSize = 200;
+
+		assert.equal(view1.size, 140, 'view1 stays the same');
+		assert.equal(view2.size, 40, 'view2 stays the same');
+		assert.equal(view3.size, 20, 'view3 stays the same');
+
+		view3.minimumSize = 100;
+
+		assert.equal(view1.size, 80, 'view1 is collapsed');
+		assert.equal(view2.size, 20, 'view2 stays the same');
+		assert.equal(view3.size, 100, 'view3 is stretched');
+
+		splitview.dispose();
+		view3.dispose();
+		view2.dispose();
+		view1.dispose();
+	});
+
+	test('sashes are properly enabled/disabled', () => {
+		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
+		const view2 = new TestView(20, Number.POSITIVE_INFINITY);
+		const view3 = new TestView(20, Number.POSITIVE_INFINITY);
+		const splitview = new SplitView(container);
+		splitview.layout(200);
+
+		splitview.addView(view1, 20);
+		splitview.addView(view2, 20);
+		splitview.addView(view3, 20);
+
+		let sashes = getSashes(splitview);
+		assert.equal(sashes.length, 2, 'there are two sashes');
+		assert.equal(sashes[0].enabled, true, 'first sash is enabled');
+		assert.equal(sashes[1].enabled, true, 'second sash is enabled');
+
+		splitview.layout(60);
+		assert.equal(sashes[0].enabled, false, 'first sash is disabled');
+		assert.equal(sashes[1].enabled, false, 'second sash is disabled');
+
+		splitview.layout(20);
+		assert.equal(sashes[0].enabled, false, 'first sash is disabled');
+		assert.equal(sashes[1].enabled, false, 'second sash is disabled');
+
+		splitview.layout(200);
+		assert.equal(sashes[0].enabled, true, 'first sash is enabled');
+		assert.equal(sashes[1].enabled, true, 'second sash is enabled');
+
+		view1.maximumSize = 20;
+		assert.equal(sashes[0].enabled, false, 'first sash is disabled');
+		assert.equal(sashes[1].enabled, true, 'second sash is enabled');
+
+		view2.maximumSize = 20;
+		assert.equal(sashes[0].enabled, false, 'first sash is disabled');
+		assert.equal(sashes[1].enabled, false, 'second sash is disabled');
+
+		view1.maximumSize = 300;
+		assert.equal(sashes[0].enabled, true, 'first sash is enabled');
+		assert.equal(sashes[1].enabled, true, 'second sash is enabled');
+
+		view2.maximumSize = 200;
+		assert.equal(sashes[0].enabled, true, 'first sash is enabled');
+		assert.equal(sashes[1].enabled, true, 'second sash is enabled');
 
 		splitview.dispose();
 		view3.dispose();
