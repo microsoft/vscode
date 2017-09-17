@@ -146,6 +146,24 @@ export class SplitView implements IDisposable {
 		this.relayoutPreferredSizes();
 	}
 
+	moveView(from: number, to: number): void {
+		if (from < 0 || from >= this.viewItems.length) {
+			return;
+		}
+
+		if (to < 0 || to >= this.viewItems.length) {
+			return;
+		}
+
+		if (from === to) {
+			return;
+		}
+
+		const viewItem = this.viewItems.splice(from, 1)[0];
+		this.viewItems.splice(to, 0, viewItem);
+		this.render();
+	}
+
 	private relayoutPreferredSizes(): void {
 		this.viewItems.forEach(i => i.size = clamp(i.explicitSize, i.view.minimumSize, i.view.maximumSize));
 		this.relayout();
@@ -220,10 +238,14 @@ export class SplitView implements IDisposable {
 				deltaDown += viewDelta;
 				item.size = size;
 			}
-
-			this.viewItems.forEach(item => layoutViewItem(item, this.orientation));
-			this.sashItems.forEach(item => item.sash.layout());
 		}
+
+		this.render();
+	}
+
+	private render(): void {
+		this.viewItems.forEach(item => layoutViewItem(item, this.orientation));
+		this.sashItems.forEach(item => item.sash.layout());
 
 		// Update sashes enablement
 		let previous = false;
