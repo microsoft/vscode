@@ -123,7 +123,7 @@ export class SplitView implements IDisposable, IHorizontalSashLayoutProvider, IV
 		}
 
 		view.render(container, this.orientation);
-		this.relayout();
+		this.relayoutPreferredSizes();
 	}
 
 	removeView(index: number): void {
@@ -142,20 +142,23 @@ export class SplitView implements IDisposable, IHorizontalSashLayoutProvider, IV
 			sashItem.disposable.dispose();
 		}
 
-		this.relayout();
+		this.relayoutPreferredSizes();
 	}
 
-	private relayout(): void {
+	private relayoutPreferredSizes(): void {
 		this.viewItems.forEach(i => i.size = clamp(i.explicitSize, i.view.minimumSize, i.view.maximumSize));
-
-		const previousSize = this.size;
-		this.size = this.viewItems.reduce((r, i) => r + i.size, 0);
-		this.layout(previousSize);
+		this.relayout();
 	}
 
 	layout(size: number): void {
 		this.resize(this.viewItems.length - 1, size - this.size);
 		this.size = Math.max(size, this.viewItems.reduce((r, i) => r + i.size, 0));
+	}
+
+	private relayout(): void {
+		const previousSize = this.size;
+		this.size = this.viewItems.reduce((r, i) => r + i.size, 0);
+		this.layout(previousSize);
 	}
 
 	private onSashStart({ sash, start }: ISashEvent): void {
@@ -173,10 +176,8 @@ export class SplitView implements IDisposable, IHorizontalSashLayoutProvider, IV
 	}
 
 	private onViewChange(item: IViewItem): void {
-		const index = this.viewItems.indexOf(item);
-		const size = clamp(item.size, item.view.minimumSize, item.view.maximumSize);
-
-		this.resize(index, size - item.size);
+		item.size = clamp(item.size, item.view.minimumSize, item.view.maximumSize);
+		this.relayout();
 	}
 
 	// private setupAnimation(): void {
@@ -202,38 +203,40 @@ export class SplitView implements IDisposable, IHorizontalSashLayoutProvider, IV
 	}
 
 	private resize(index: number, delta: number, sizes = this.viewItems.map(i => i.size)): void {
-		if (delta === 0 || index < 0 || index >= this.viewItems.length) {
+		if (index < 0 || index >= this.viewItems.length) {
 			return;
 		}
 
-		const upIndexes = range(index, -1);
-		const up = upIndexes.map(i => this.viewItems[i]);
-		const upSizes = upIndexes.map(i => sizes[i]);
+		if (delta !== 0) {
+			const upIndexes = range(index, -1);
+			const up = upIndexes.map(i => this.viewItems[i]);
+			const upSizes = upIndexes.map(i => sizes[i]);
 
-		const downIndexes = range(index + 1, this.viewItems.length);
-		const down = downIndexes.map(i => this.viewItems[i]);
-		const downSizes = downIndexes.map(i => sizes[i]);
+			const downIndexes = range(index + 1, this.viewItems.length);
+			const down = downIndexes.map(i => this.viewItems[i]);
+			const downSizes = downIndexes.map(i => sizes[i]);
 
-		for (let i = 0, deltaUp = delta; deltaUp !== 0 && i < up.length; i++) {
-			const item = up[i];
-			const size = clamp(upSizes[i] + deltaUp, item.view.minimumSize, item.view.maximumSize);
-			const viewDelta = size - upSizes[i];
+			for (let i = 0, deltaUp = delta; deltaUp !== 0 && i < up.length; i++) {
+				const item = up[i];
+				const size = clamp(upSizes[i] + deltaUp, item.view.minimumSize, item.view.maximumSize);
+				const viewDelta = size - upSizes[i];
 
-			deltaUp -= viewDelta;
-			item.size = size;
+				deltaUp -= viewDelta;
+				item.size = size;
+			}
+
+			for (let i = 0, deltaDown = delta; deltaDown !== 0 && i < down.length; i++) {
+				const item = down[i];
+				const size = clamp(downSizes[i] - deltaDown, item.view.minimumSize, item.view.maximumSize);
+				const viewDelta = size - downSizes[i];
+
+				deltaDown += viewDelta;
+				item.size = size;
+			}
+
+			this.viewItems.forEach(item => layoutViewItem(item, this.orientation));
+			this.sashItems.forEach(item => item.sash.layout());
 		}
-
-		for (let i = 0, deltaDown = delta; deltaDown !== 0 && i < down.length; i++) {
-			const item = down[i];
-			const size = clamp(downSizes[i] - deltaDown, item.view.minimumSize, item.view.maximumSize);
-			const viewDelta = size - downSizes[i];
-
-			deltaDown += viewDelta;
-			item.size = size;
-		}
-
-		this.viewItems.forEach(item => layoutViewItem(item, this.orientation));
-		this.sashItems.forEach(item => item.sash.layout());
 
 		// Update sashes enablement
 		let previous = false;
