@@ -525,8 +525,11 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 	private readonly _onDidChangeWorkspaceName: Emitter<void> = new Emitter<void>();
 	public readonly onDidChangeWorkspaceName: Event<void> = this._onDidChangeWorkspaceName.event;
 
-	private readonly _onDidChangeWorkspaceRoots: Emitter<void> = new Emitter<void>();
-	public readonly onDidChangeWorkspaceFolders: Event<void> = this._onDidChangeWorkspaceRoots.event;
+	private readonly _onDidChangeWorkspaceFolders: Emitter<void> = new Emitter<void>();
+	public readonly onDidChangeWorkspaceFolders: Event<void> = this._onDidChangeWorkspaceFolders.event;
+
+	private readonly _onDidChangeWorkbenchState: Emitter<WorkbenchState> = new Emitter<WorkbenchState>();
+	public readonly onDidChangeWorkbenchState: Event<WorkbenchState> = this._onDidChangeWorkbenchState.event;
 
 	private readonly workspace: IWorkspace;
 

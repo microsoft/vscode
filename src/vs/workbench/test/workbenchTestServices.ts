@@ -74,6 +74,7 @@ export class TestContextService implements IWorkspaceContextService {
 
 	private _onDidChangeWorkspaceName: Emitter<void>;
 	private _onDidChangeWorkspaceFolders: Emitter<void>;
+	private _onDidChangeWorkbenchState: Emitter<WorkbenchState>;
 
 	constructor(workspace: any = TestWorkspace, options: any = null) {
 		this.workspace = workspace;
@@ -88,6 +89,10 @@ export class TestContextService implements IWorkspaceContextService {
 
 	public get onDidChangeWorkspaceFolders(): Event<void> {
 		return this._onDidChangeWorkspaceFolders.event;
+	}
+
+	public get onDidChangeWorkbenchState(): Event<WorkbenchState> {
+		return this._onDidChangeWorkbenchState.event;
 	}
 
 	public getFolders(): WorkspaceFolder[] {

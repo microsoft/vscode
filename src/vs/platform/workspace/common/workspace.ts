@@ -40,6 +40,11 @@ export interface IWorkspaceContextService {
 	getWorkbenchState(): WorkbenchState;
 
 	/**
+	 * An event which fires on workbench state changes.
+	 */
+	onDidChangeWorkbenchState: Event<WorkbenchState>;
+
+	/**
 	 * An event which fires on workspace name changes.
 	 */
 	onDidChangeWorkspaceName: Event<void>;
