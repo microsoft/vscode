@@ -11,9 +11,9 @@ import Event, { Emitter, chain } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { $, append, toggleClass } from 'vs/base/browser/dom';
-import { IOptions, SplitView, IView } from './splitview2';
-export { IOptions } from './splitview2';
+import { $, append, addClass, removeClass, toggleClass } from 'vs/base/browser/dom';
+import { firstIndex } from 'vs/base/common/arrays';
+import { SplitView, IView } from './splitview2';
 
 enum PanelState {
 	Expanded,
@@ -37,7 +37,6 @@ export abstract class Panel implements IView {
 	private _maximumBodySize: number;
 	private ariaHeaderLabel: string;
 	private header: HTMLElement;
-	private body: HTMLElement;
 	private disposables: IDisposable[] = [];
 
 	get minimumBodySize(): number {
@@ -84,7 +83,8 @@ export abstract class Panel implements IView {
 		header.setAttribute('aria-label', this.ariaHeaderLabel);
 		this.renderHeader();
 
-		const onHeaderKeyDown = chain(domEvent(header, 'keydown')).map(e => new StandardKeyboardEvent(e));
+		const onHeaderKeyDown = chain(domEvent(header, 'keydown'))
+			.map(e => new StandardKeyboardEvent(e));
 
 		onHeaderKeyDown.filter(e => e.keyCode === KeyCode.Enter || e.keyCode === KeyCode.Space)
 			.event(this.toggleExpansion, this, this.disposables);
@@ -95,6 +95,8 @@ export abstract class Panel implements IView {
 		onHeaderKeyDown.filter(e => e.keyCode === KeyCode.RightArrow)
 			.event(this.expand, this, this.disposables);
 
+		domEvent(header, 'click')(this.toggleExpansion, this, this.disposables);
+
 		// TODO@Joao move this down to panelview
 		// onHeaderKeyDown.filter(e => e.keyCode === KeyCode.UpArrow)
 		// 	.event(focusPrevious, this, this.disposables);
@@ -102,12 +104,8 @@ export abstract class Panel implements IView {
 		// onHeaderKeyDown.filter(e => e.keyCode === KeyCode.DownArrow)
 		// 	.event(focusNext, this, this.disposables);
 
-		this.body = append(panel, $('.panel-body'));
-	}
-
-	private renderHeader(): void {
-		toggleClass(this.header, 'expanded', this.state === PanelState.Expanded);
-		this.header.setAttribute('aria-expanded', String(this.state === PanelState.Expanded));
+		const body = append(panel, $('.panel-body'));
+		this.renderBody(body);
 	}
 
 	layout(size: number): void {
@@ -115,7 +113,7 @@ export abstract class Panel implements IView {
 	}
 
 	focus(): void {
-
+		// TODO@joao what to do
 	}
 
 	toggleExpansion(): void {
@@ -132,6 +130,7 @@ export abstract class Panel implements IView {
 		}
 
 		this.renderHeader();
+		this._onDidChange.fire();
 	}
 
 	collapse(): void {
@@ -140,6 +139,12 @@ export abstract class Panel implements IView {
 		}
 
 		this.renderHeader();
+		this._onDidChange.fire();
+	}
+
+	private renderHeader(): void {
+		toggleClass(this.header, 'expanded', this.state === PanelState.Expanded);
+		this.header.setAttribute('aria-expanded', String(this.state === PanelState.Expanded));
 	}
 
 	protected abstract renderBody(container: HTMLElement): void;
@@ -150,26 +155,66 @@ export abstract class Panel implements IView {
 	}
 }
 
+export class IPanelViewOptions {
+	dnd?: boolean;
+}
+
+interface IPanelItem {
+	panel: Panel;
+	disposable: IDisposable;
+}
+
 export class PanelView implements IDisposable {
 
+	private el: HTMLElement;
+	private panelItems: IPanelItem[] = [];
 	private splitview: SplitView;
+	private animationTimer: number | null = null;
 
-	constructor(private container: HTMLElement, options?: IOptions) {
-		this.splitview = new SplitView(container, options);
+	constructor(private container: HTMLElement, options?: IPanelViewOptions) {
+		this.el = append(container, $('.monaco-panel-view'));
+		this.splitview = new SplitView(container);
 	}
 
-	addPanel(): void {
+	addPanel(panel: Panel, size: number, index = this.splitview.length): void {
+		const disposable = panel.onDidChange(this.setupAnimation, this);
+		const panelItem = { panel, disposable };
 
+		this.panelItems.splice(index, 0, panelItem);
+		this.splitview.addView(panel, size, index);
 	}
 
-	removePanel(): void {
+	removePanel(panel: Panel): void {
+		const index = firstIndex(this.panelItems, item => item.panel === panel);
 
+		if (index === -1) {
+			return;
+		}
+
+		this.splitview.removeView(index);
+		const panelItem = this.panelItems.splice(index, 1)[0];
+		panelItem.disposable.dispose();
 	}
 
 	layout(size: number): void {
+		this.splitview.layout(size);
+	}
 
+	// TODO@Joao: move this to panelview
+	private setupAnimation(): void {
+		if (typeof this.animationTimer === 'number') {
+			window.clearTimeout(this.animationTimer);
+		}
+
+		addClass(this.el, 'animated');
+
+		this.animationTimer = window.setTimeout(() => {
+			this.animationTimer = null;
+			removeClass(this.el, 'animated');
+		}, 200);
 	}
 
 	dispose(): void {
+
 	}
 }

@@ -15,7 +15,7 @@ import { range, firstIndex } from 'vs/base/common/arrays';
 import { Sash, Orientation, ISashEvent as IBaseSashEvent } from 'vs/base/browser/ui/sash/sash';
 export { Orientation } from 'vs/base/browser/ui/sash/sash';
 
-export interface IOptions {
+export interface ISplitViewOptions {
 	orientation?: Orientation; // default Orientation.VERTICAL
 }
 
@@ -71,13 +71,12 @@ export class SplitView implements IDisposable {
 	private viewItems: IViewItem[] = [];
 	private sashItems: ISashItem[] = [];
 	private sashDragState: ISashDragState;
-	private animationTimeout: number;
 
 	get length(): number {
 		return this.viewItems.length;
 	}
 
-	constructor(private container: HTMLElement, options?: IOptions) {
+	constructor(private container: HTMLElement, options?: ISplitViewOptions) {
 		options = options || {};
 		this.orientation = types.isUndefined(options.orientation) ? Orientation.VERTICAL : options.orientation;
 
@@ -179,23 +178,7 @@ export class SplitView implements IDisposable {
 
 	private onViewChange(item: IViewItem): void {
 		item.size = clamp(item.size, item.view.minimumSize, item.view.maximumSize);
-		this.setupAnimation();
 		this.relayout();
-	}
-
-	// TODO@Joao: move this to panelview
-	private setupAnimation(): void {
-		// Setup animation
-		if (types.isNumber(this.animationTimeout)) {
-			window.clearTimeout(this.animationTimeout);
-		}
-
-		dom.addClass(this.el, 'animated');
-
-		this.animationTimeout = window.setTimeout(() => {
-			this.animationTimeout = null;
-			dom.removeClass(this.el, 'animated');
-		}, 200);
 	}
 
 	resizeView(index: number, size: number): void {
