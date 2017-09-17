@@ -76,8 +76,7 @@ export class SplitView implements IDisposable {
 		return this.viewItems.length;
 	}
 
-	constructor(private container: HTMLElement, options?: ISplitViewOptions) {
-		options = options || {};
+	constructor(private container: HTMLElement, options: ISplitViewOptions = {}) {
 		this.orientation = types.isUndefined(options.orientation) ? Orientation.VERTICAL : options.orientation;
 
 		this.el = document.createElement('div');
@@ -161,7 +160,7 @@ export class SplitView implements IDisposable {
 
 		const viewItem = this.viewItems.splice(from, 1)[0];
 		this.viewItems.splice(to, 0, viewItem);
-		this.render();
+		this.layoutViews();
 	}
 
 	private relayoutPreferredSizes(): void {
@@ -240,10 +239,10 @@ export class SplitView implements IDisposable {
 			}
 		}
 
-		this.render();
+		this.layoutViews();
 	}
 
-	private render(): void {
+	private layoutViews(): void {
 		this.viewItems.forEach(item => layoutViewItem(item, this.orientation));
 		this.sashItems.forEach(item => item.sash.layout());
 
