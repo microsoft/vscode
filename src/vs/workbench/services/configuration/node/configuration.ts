@@ -250,11 +250,8 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		return false;
 	}
 
-	public toResource(workspaceRelativePath: string): URI {
-		if (this.workspace.folders.length) {
-			return URI.file(paths.join(this.workspace.folders[0].uri.fsPath, workspaceRelativePath));
-		}
-		return null;
+	public toResource(workspaceRelativePath: string, workspaceFolder: WorkspaceFolder): URI {
+		return URI.file(paths.join(workspaceFolder.uri.fsPath, workspaceRelativePath));
 	}
 
 	public initialize(trigger: boolean = true): TPromise<any> {

@@ -560,7 +560,7 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 		return resource && resource.scheme === SimpleWorkspaceContextService.SCHEME;
 	}
 
-	public toResource(workspaceRelativePath: string): URI {
+	public toResource(workspaceRelativePath: string, workspaceFolder: WorkspaceFolder): URI {
 		return URI.file(workspaceRelativePath);
 	}
 

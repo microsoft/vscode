@@ -19,7 +19,7 @@ import { IChoiceService, IMessageService } from 'vs/platform/message/common/mess
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import Severity from 'vs/base/common/severity';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Schemas } from 'vs/base/common/network';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IExtensionsConfiguration, ConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
@@ -71,10 +71,11 @@ export class ExtensionTipsService implements IExtensionTipsService {
 	}
 
 	getWorkspaceRecommendations(): TPromise<string[]> {
-		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
+		const workspaceFolder = this.contextService.getWorkspace().folders[0];
+		if (!workspaceFolder) {
 			return TPromise.as([]);
 		}
-		return this.fileService.resolveContent(this.contextService.toResource(paths.join('.vscode', 'extensions.json'))).then(content => { //TODO@Sandeep (https://github.com/Microsoft/vscode/issues/29242)
+		return this.fileService.resolveContent(this.contextService.toResource(paths.join('.vscode', 'extensions.json'), workspaceFolder)).then(content => { //TODO@Sandeep (https://github.com/Microsoft/vscode/issues/29242)
 			const extensionsContent = <IExtensionsContent>json.parse(content.value, []);
 			if (extensionsContent.recommendations) {
 				const regEx = new RegExp(EXTENSION_IDENTIFIER_PATTERN);

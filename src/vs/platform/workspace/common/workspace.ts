@@ -71,9 +71,9 @@ export interface IWorkspaceContextService {
 	isInsideWorkspace(resource: URI): boolean;
 
 	/**
-	 * Given a workspace relative path, returns the resource with the absolute path.
+	 * Given a workspace relative path and workspace folder, returns the resource with the absolute path.
 	 */
-	toResource: (workspaceRelativePath: string) => URI;
+	toResource: (workspaceRelativePath: string, workspaceFolder: WorkspaceFolder) => URI;
 }
 
 export interface IWorkspace {

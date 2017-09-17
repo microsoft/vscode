@@ -119,7 +119,7 @@ abstract class OpenTaskConfigurationAction extends Action {
 		}
 		let sideBySide = !!(event && (event.ctrlKey || event.metaKey));
 		let configFileCreated = false;
-		return this.fileService.resolveFile(this.contextService.toResource('.vscode/tasks.json')).then((success) => { // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
+		return this.fileService.resolveFile(this.contextService.toResource('.vscode/tasks.json', this.contextService.getWorkspace().folders[0])).then((success) => { // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
 
 			return success;
 		}, (err: any) => {
@@ -170,7 +170,7 @@ abstract class OpenTaskConfigurationAction extends Action {
 						content = content.replace(/(\n)(\t+)/g, (_, s1, s2) => s1 + strings.repeat(' ', s2.length * editorConfig.editor.tabSize));
 					}
 					configFileCreated = true;
-					return this.fileService.createFile(this.contextService.toResource('.vscode/tasks.json'), content).then((result) => {
+					return this.fileService.createFile(this.contextService.toResource('.vscode/tasks.json', this.contextService.getWorkspace().folders[0]), content).then((result) => {
 						this.telemetryService.publicLog(TaskService.TemplateTelemetryEventName, {
 							templateId: selection.id,
 							autoDetect: selection.autoDetect
@@ -1123,7 +1123,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			if (editorConfig.editor.insertSpaces) {
 				content = content.replace(/(\n)(\t+)/g, (_, s1, s2) => s1 + strings.repeat(' ', s2.length * editorConfig.editor.tabSize));
 			}
-			promise = this.fileService.createFile(this.contextService.toResource('.vscode/tasks.json'), content).then(() => { }); // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
+			promise = this.fileService.createFile(this.contextService.toResource('.vscode/tasks.json', this.contextService.getWorkspace().folders[0]), content).then(() => { }); // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
 		} else {
 			let value: IConfigurationValue = { key: undefined, value: undefined };
 			// We have a global task configuration
@@ -1162,7 +1162,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			};
 			this.telemetryService.publicLog(TaskService.CustomizationTelemetryEventName, event);
 			if (openConfig) {
-				let resource = this.contextService.toResource('.vscode/tasks.json'); // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
+				let resource = this.contextService.toResource('.vscode/tasks.json', this.contextService.getWorkspace().folders[0]); // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
 				this.editorService.openEditor({
 					resource: resource,
 					options: {
@@ -1186,7 +1186,7 @@ class TaskService extends EventEmitter implements ITaskService {
 
 	public openConfig(task: CustomTask): TPromise<void> {
 		// @ToDo need to adopt since this is not working anymore
-		let resource = this.contextService.toResource(task._source.config.file);
+		let resource = this.contextService.toResource(task._source.config.file, this.contextService.getWorkspace().folders[0]);
 		return this.editorService.openEditor({
 			resource: resource,
 			options: {
