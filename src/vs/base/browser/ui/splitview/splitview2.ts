@@ -12,7 +12,7 @@ import types = require('vs/base/common/types');
 import dom = require('vs/base/browser/dom');
 import { clamp } from 'vs/base/common/numbers';
 import { range, firstIndex } from 'vs/base/common/arrays';
-import { Sash, IVerticalSashLayoutProvider, IHorizontalSashLayoutProvider, Orientation, ISashEvent as IBaseSashEvent } from 'vs/base/browser/ui/sash/sash';
+import { Sash, Orientation, ISashEvent as IBaseSashEvent } from 'vs/base/browser/ui/sash/sash';
 export { Orientation } from 'vs/base/browser/ui/sash/sash';
 
 export interface IOptions {
@@ -63,7 +63,7 @@ function layoutViewItem(item: IViewItem, orientation: Orientation): void {
 	item.view.layout(item.size, orientation);
 }
 
-export class SplitView implements IDisposable, IHorizontalSashLayoutProvider, IVerticalSashLayoutProvider {
+export class SplitView implements IDisposable {
 
 	private orientation: Orientation;
 	private el: HTMLElement;
@@ -108,7 +108,8 @@ export class SplitView implements IDisposable, IHorizontalSashLayoutProvider, IV
 		// Add sash
 		if (this.viewItems.length > 1) {
 			const orientation = this.orientation === Orientation.VERTICAL ? Orientation.HORIZONTAL : Orientation.VERTICAL;
-			const sash = new Sash(this.el, this, { orientation });
+			const layoutProvider = this.orientation === Orientation.VERTICAL ? { getHorizontalSashTop: sash => this.getSashPosition(sash) } : { getVerticalSashLeft: sash => this.getSashPosition(sash) };
+			const sash = new Sash(this.el, layoutProvider, { orientation });
 			const sashEventMapper = this.orientation === Orientation.VERTICAL
 				? (e: IBaseSashEvent) => ({ sash, start: e.startY, current: e.currentY })
 				: (e: IBaseSashEvent) => ({ sash, start: e.startX, current: e.currentX });
@@ -262,14 +263,6 @@ export class SplitView implements IDisposable, IHorizontalSashLayoutProvider, IV
 				s.sash.disable();
 			}
 		});
-	}
-
-	getVerticalSashLeft(sash: Sash): number {
-		return this.getSashPosition(sash);
-	}
-
-	getHorizontalSashTop(sash: Sash): number {
-		return this.getSashPosition(sash);
 	}
 
 	private getSashPosition(sash: Sash): number {
