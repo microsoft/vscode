@@ -13,7 +13,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { $, append, addClass, removeClass, toggleClass } from 'vs/base/browser/dom';
 import { firstIndex } from 'vs/base/common/arrays';
-import { Color } from 'vs/base/common/color';
+import { Color, RGBA } from 'vs/base/common/color';
 import { SplitView, IView } from './splitview2';
 
 enum PanelState {
@@ -26,6 +26,10 @@ export interface IPanelOptions {
 	minimumBodySize?: number;
 	maximumBodySize?: number;
 	collapsed?: boolean;
+}
+
+export interface IPanelStyles {
+	dropBackground?: Color;
 }
 
 export abstract class Panel implements IView {
@@ -157,14 +161,16 @@ export abstract class Panel implements IView {
 }
 
 interface IDndContext {
+	dropBackground: Color | undefined;
 	draggable: PanelDraggable | null;
 }
 
 class PanelDraggable implements IDisposable {
 
+	private static DefaultDragOverBackgroundColor = new Color(new RGBA(128, 128, 128, 0.5));
+
 	// see https://github.com/Microsoft/vscode/issues/14470
 	private dragOverCounter = 0;
-	private dropBackground: Color | undefined;
 	private disposables: IDisposable[] = [];
 
 	private _onDidDrop = new Emitter<{ from: Panel, to: Panel }>();
@@ -235,9 +241,13 @@ class PanelDraggable implements IDisposable {
 	}
 
 	private renderHeader(): void {
-		this.panel.header.style.backgroundColor = this.dragOverCounter === 0 && this.dropBackground
-			? this.dropBackground.toString()
-			: null;
+		let backgroundColor: string = null;
+
+		if (this.dragOverCounter > 0) {
+			backgroundColor = (this.context.dropBackground || PanelDraggable.DefaultDragOverBackgroundColor).toString();
+		}
+
+		this.panel.header.style.backgroundColor = backgroundColor;
 	}
 
 	dispose(): void {
@@ -257,7 +267,7 @@ interface IPanelItem {
 export class PanelView implements IDisposable {
 
 	private dnd: boolean;
-	private dndContext: IDndContext = { draggable: null };
+	private dndContext: IDndContext = { dropBackground: undefined, draggable: null };
 	private el: HTMLElement;
 	private panelItems: IPanelItem[] = [];
 	private splitview: SplitView;
@@ -312,7 +322,10 @@ export class PanelView implements IDisposable {
 		this.splitview.layout(size);
 	}
 
-	// TODO@Joao: move this to panelview
+	style(styles: IPanelStyles): void {
+		this.dndContext.dropBackground = styles.dropBackground;
+	}
+
 	private setupAnimation(): void {
 		if (typeof this.animationTimer === 'number') {
 			window.clearTimeout(this.animationTimer);
