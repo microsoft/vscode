@@ -44,7 +44,7 @@ import { EnvironmentService } from 'vs/platform/environment/node/environmentServ
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IWindowsService, IWindowService, INativeOpenDialogOptions } from 'vs/platform/windows/common/windows';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
@@ -58,6 +58,7 @@ import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderW
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IPosition } from 'vs/editor/common/core/position';
+import { ICommandAction } from 'vs/platform/actions/common/actions';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -550,6 +551,10 @@ export class TestEditorGroupService implements IEditorGroupService {
 	public getTabOptions(): IEditorTabOptions {
 		return {};
 	}
+
+	public invokeWithinEditorContext<T>(fn: (accessor: ServicesAccessor) => T): T {
+		return fn(null);
+	}
 }
 
 export class TestEditorService implements IWorkbenchEditorService {
@@ -955,6 +960,10 @@ export class TestWindowService implements IWindowService {
 	showOpenDialog(options: Electron.OpenDialogOptions, callback?: (fileNames: string[]) => void): string[] {
 		return void 0;
 	}
+
+	updateTouchBar(items: ICommandAction[][]): Promise<void> {
+		return TPromise.as(void 0);
+	}
 }
 
 export class TestLifecycleService implements ILifecycleService {
@@ -1158,6 +1167,10 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	toggleWindowTabsBar(): Promise<void> {
+		return TPromise.as(void 0);
+	}
+
+	updateTouchBar(windowId: number, items: ICommandAction[][]): Promise<void> {
 		return TPromise.as(void 0);
 	}
 

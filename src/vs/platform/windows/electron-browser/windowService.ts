@@ -10,6 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IWindowService, IWindowsService, INativeOpenDialogOptions } from 'vs/platform/windows/common/windows';
 import { remote } from 'electron';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
+import { ICommandAction } from 'vs/platform/actions/common/actions';
 
 export class WindowService implements IWindowService {
 
@@ -142,5 +143,9 @@ export class WindowService implements IWindowService {
 		}
 
 		return remote.dialog.showOpenDialog(remote.getCurrentWindow(), options); // https://github.com/electron/electron/issues/4936
+	}
+
+	updateTouchBar(items: ICommandAction[][]): TPromise<void> {
+		return this.windowsService.updateTouchBar(this.windowId, items);
 	}
 }

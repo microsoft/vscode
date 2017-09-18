@@ -1306,8 +1306,6 @@ export class WindowsManager implements IWindowsMainService {
 		this.workspacesManager.openWorkspace(win);
 	}
 
-
-
 	private onBeforeWindowUnload(e: IWindowUnloadEvent): void {
 		const windowClosing = (e.reason === UnloadReason.CLOSE);
 		const windowLoading = (e.reason === UnloadReason.LOAD);

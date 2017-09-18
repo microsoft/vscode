@@ -12,6 +12,7 @@ import errors = require('vs/base/common/errors');
 import types = require('vs/base/common/types');
 import { TPromise } from 'vs/base/common/winjs.base';
 import arrays = require('vs/base/common/arrays');
+import objects = require('vs/base/common/objects');
 import DOM = require('vs/base/browser/dom');
 import Severity from 'vs/base/common/severity';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -41,6 +42,11 @@ import { Themable } from 'vs/workbench/common/theme';
 import { ipcRenderer as ipc, webFrame } from 'electron';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
+import { IMenuService, MenuId, IMenu, MenuItemAction, ICommandAction } from 'vs/platform/actions/common/actions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 const TextInputActions: IAction[] = [
 	new Action('undo', nls.localize('undo', "Undo"), null, true, () => document.execCommand('undo') && TPromise.as(true)),
@@ -56,6 +62,13 @@ const TextInputActions: IAction[] = [
 export class ElectronWindow extends Themable {
 
 	private static AUTO_SAVE_SETTING = 'files.autoSave';
+
+	private touchBarUpdater: RunOnceScheduler;
+	private touchBarMenu: IMenu;
+	private touchBarDisposables: IDisposable[];
+	private lastInstalledTouchedBar: ICommandAction[][];
+
+	private previousConfiguredZoomLevel: number;
 
 	constructor(
 		shellContainer: HTMLElement,
@@ -78,22 +91,33 @@ export class ElectronWindow extends Themable {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
-		@IFileService private fileService: IFileService
+		@IFileService private fileService: IFileService,
+		@IMenuService private menuService: IMenuService,
+		@IContextKeyService private contextKeyService: IContextKeyService
 	) {
 		super(themeService);
 
+		this.touchBarDisposables = [];
+
+		this.touchBarUpdater = new RunOnceScheduler(() => this.doSetupTouchbar(), 300);
+		this.toUnbind.push(this.touchBarUpdater);
+
 		this.registerListeners();
-		this.setup();
+		this.create();
 	}
 
 	private registerListeners(): void {
 
 		// React to editor input changes
-		this.editorGroupService.onEditorsChanged(() => {
-			const file = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
+		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => {
 
+			// Represented File Name
+			const file = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
 			this.titleService.setRepresentedFilename(file ? file.fsPath : '');
-		});
+
+			// Touch Bar
+			this.updateTouchbarMenu();
+		}));
 
 		// prevent opening a real URL inside the shell
 		[DOM.EventType.DRAG_OVER, DOM.EventType.DROP].forEach(event => {
@@ -101,17 +125,6 @@ export class ElectronWindow extends Themable {
 				DOM.EventHelper.stop(e);
 			});
 		});
-
-		// Handle window.open() calls
-		const $this = this;
-		(<any>window).open = function (url: string, target: string, features: string, replace: boolean): any {
-			$this.windowsService.openExternal(url);
-
-			return null;
-		};
-	}
-
-	private setup(): void {
 
 		// Support runAction event
 		ipc.on('vscode:runAction', (event, actionId: string) => {
@@ -139,11 +152,6 @@ export class ElectronWindow extends Themable {
 			}, () => errors.onUnexpectedError);
 		});
 
-		// Send over all extension viewlets when extensions are ready
-		this.extensionService.onReady().then(() => {
-			ipc.send('vscode:extensionViewlets', JSON.stringify(this.viewletService.getViewlets().filter(v => !!v.extensionId).map(v => { return { id: v.id, label: v.name }; })));
-		});
-
 		ipc.on('vscode:reportError', (event, error) => {
 			if (error) {
 				const errorParsed = JSON.parse(error);
@@ -157,11 +165,6 @@ export class ElectronWindow extends Themable {
 
 		// Support addFolders event if we have a workspace opened
 		ipc.on('vscode:addFolders', (event, request: IAddFoldersRequest) => this.onAddFolders(request));
-
-		// Emit event when vscode has loaded
-		this.partService.joinCreation().then(() => {
-			ipc.send('vscode:workbenchLoaded', this.windowService.getCurrentWindowId());
-		});
 
 		// Message support
 		ipc.on('vscode:showInfoMessage', (event, message: string) => {
@@ -216,47 +219,134 @@ export class ElectronWindow extends Themable {
 		});
 
 		// Configuration changes
-		let previousConfiguredZoomLevel: number;
-		this.configurationService.onDidUpdateConfiguration(e => {
-			const windowConfig: IWindowsConfiguration = this.configurationService.getConfiguration<IWindowsConfiguration>();
-
-			let newZoomLevel = 0;
-			if (windowConfig.window && typeof windowConfig.window.zoomLevel === 'number') {
-				newZoomLevel = windowConfig.window.zoomLevel;
-
-				// Leave early if the configured zoom level did not change (https://github.com/Microsoft/vscode/issues/1536)
-				if (previousConfiguredZoomLevel === newZoomLevel) {
-					return;
-				}
-
-				previousConfiguredZoomLevel = newZoomLevel;
-			}
-
-			if (webFrame.getZoomLevel() !== newZoomLevel) {
-				webFrame.setZoomLevel(newZoomLevel);
-				browser.setZoomFactor(webFrame.getZoomFactor());
-				// See https://github.com/Microsoft/vscode/issues/26151
-				// Cannot be trusted because the webFrame might take some time
-				// until it really applies the new zoom level
-				browser.setZoomLevel(webFrame.getZoomLevel(), /*isTrusted*/false);
-			}
-		});
+		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onDidUpdateConfiguration(e)));
 
 		// Context menu support in input/textarea
-		window.document.addEventListener('contextmenu', e => {
-			if (e.target instanceof HTMLElement) {
-				const target = <HTMLElement>e.target;
-				if (target.nodeName && (target.nodeName.toLowerCase() === 'input' || target.nodeName.toLowerCase() === 'textarea')) {
-					e.preventDefault();
-					e.stopPropagation();
+		window.document.addEventListener('contextmenu', e => this.onContextMenu(e));
+	}
 
-					this.contextMenuService.showContextMenu({
-						getAnchor: () => e,
-						getActions: () => TPromise.as(TextInputActions)
-					});
-				}
+	private onContextMenu(e: PointerEvent): void {
+		if (e.target instanceof HTMLElement) {
+			const target = <HTMLElement>e.target;
+			if (target.nodeName && (target.nodeName.toLowerCase() === 'input' || target.nodeName.toLowerCase() === 'textarea')) {
+				e.preventDefault();
+				e.stopPropagation();
+
+				this.contextMenuService.showContextMenu({
+					getAnchor: () => e,
+					getActions: () => TPromise.as(TextInputActions)
+				});
 			}
+		}
+	}
+
+	private onDidUpdateConfiguration(e): void {
+		const windowConfig: IWindowsConfiguration = this.configurationService.getConfiguration<IWindowsConfiguration>();
+
+		let newZoomLevel = 0;
+		if (windowConfig.window && typeof windowConfig.window.zoomLevel === 'number') {
+			newZoomLevel = windowConfig.window.zoomLevel;
+
+			// Leave early if the configured zoom level did not change (https://github.com/Microsoft/vscode/issues/1536)
+			if (this.previousConfiguredZoomLevel === newZoomLevel) {
+				return;
+			}
+
+			this.previousConfiguredZoomLevel = newZoomLevel;
+		}
+
+		if (webFrame.getZoomLevel() !== newZoomLevel) {
+			webFrame.setZoomLevel(newZoomLevel);
+			browser.setZoomFactor(webFrame.getZoomFactor());
+			// See https://github.com/Microsoft/vscode/issues/26151
+			// Cannot be trusted because the webFrame might take some time
+			// until it really applies the new zoom level
+			browser.setZoomLevel(webFrame.getZoomLevel(), /*isTrusted*/false);
+		}
+	}
+
+	private create(): void {
+
+		// Handle window.open() calls
+		const $this = this;
+		(<any>window).open = function (url: string, target: string, features: string, replace: boolean): any {
+			$this.windowsService.openExternal(url);
+
+			return null;
+		};
+
+		// Send over all extension viewlets when extensions are ready
+		this.extensionService.onReady().then(() => {
+			ipc.send('vscode:extensionViewlets', JSON.stringify(this.viewletService.getViewlets().filter(v => !!v.extensionId).map(v => { return { id: v.id, label: v.name }; })));
 		});
+
+		// Emit event when vscode has loaded
+		this.partService.joinCreation().then(() => {
+			ipc.send('vscode:workbenchLoaded', this.windowService.getCurrentWindowId());
+		});
+
+		// Touchbar Support
+		this.updateTouchbarMenu();
+	}
+
+	private updateTouchbarMenu(): void {
+		if (!platform.isMacintosh) {
+			return; // macOS only
+		}
+
+		// Dispose old
+		this.touchBarDisposables = dispose(this.touchBarDisposables);
+
+		// Create new
+		this.touchBarMenu = this.editorGroupService.invokeWithinEditorContext(accessor => this.menuService.createMenu(MenuId.TouchBarContext, accessor.get(IContextKeyService)));
+		this.touchBarDisposables.push(this.touchBarMenu);
+		this.touchBarDisposables.push(this.touchBarMenu.onDidChange(() => {
+			this.scheduleSetupTouchbar();
+		}));
+
+		this.scheduleSetupTouchbar();
+	}
+
+	private scheduleSetupTouchbar(): void {
+		this.touchBarUpdater.schedule();
+	}
+
+	private doSetupTouchbar(): void {
+		const actions: (MenuItemAction | Separator)[] = [];
+
+		// Fill actions into groups respecting order
+		fillInActions(this.touchBarMenu, void 0, actions);
+
+		// Convert into command action multi array
+		const items: ICommandAction[][] = [];
+		let group: ICommandAction[] = [];
+		for (let i = 0; i < actions.length; i++) {
+			const action = actions[i];
+
+			// Command
+			if (action instanceof MenuItemAction) {
+				group.push(action.item);
+			}
+
+			// Separator
+			else if (action instanceof Separator) {
+				if (group.length) {
+					items.push(group);
+				}
+
+				group = [];
+			}
+		}
+
+		if (group.length) {
+			items.push(group);
+		}
+
+		// Only update if the actions have changed
+		if (!objects.equals(this.lastInstalledTouchedBar, items)) {
+			this.lastInstalledTouchedBar = items;
+			this.windowService.updateTouchBar(items);
+		}
 	}
 
 	private resolveKeybindings(actionIds: string[]): TPromise<{ id: string; label: string, isNative: boolean; }[]> {
@@ -400,5 +490,11 @@ export class ElectronWindow extends Themable {
 		}
 
 		this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: ElectronWindow.AUTO_SAVE_SETTING, value: newAutoSaveValue });
+	}
+
+	public dispose(): void {
+		this.touchBarDisposables = dispose(this.touchBarDisposables);
+
+		super.dispose();
 	}
 }
