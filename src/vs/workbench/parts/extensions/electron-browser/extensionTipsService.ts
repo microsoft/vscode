@@ -19,7 +19,7 @@ import { IChoiceService, IMessageService } from 'vs/platform/message/common/mess
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import Severity from 'vs/base/common/severity';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { Schemas } from 'vs/base/common/network';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IExtensionsConfiguration, ConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
@@ -27,7 +27,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import * as fs from 'fs';
-import { distinct } from 'vs/base/common/arrays';
+import { flatten, distinct } from 'vs/base/common/arrays';
 
 interface IExtensionsContent {
 	recommendations: string[];
@@ -71,20 +71,22 @@ export class ExtensionTipsService implements IExtensionTipsService {
 	}
 
 	getWorkspaceRecommendations(): TPromise<string[]> {
-		const workspaceFolder = this.contextService.getWorkspace().folders[0];
-		if (!workspaceFolder) {
-			return TPromise.as([]);
-		}
-		return this.fileService.resolveContent(this.contextService.toResource(paths.join('.vscode', 'extensions.json'), workspaceFolder)).then(content => { //TODO@Sandeep (https://github.com/Microsoft/vscode/issues/29242)
-			const extensionsContent = <IExtensionsContent>json.parse(content.value, []);
-			if (extensionsContent.recommendations) {
-				const regEx = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
-				return extensionsContent.recommendations.filter((element, position) => {
-					return extensionsContent.recommendations.indexOf(element) === position && regEx.test(element);
-				});
-			}
-			return [];
-		}, err => []);
+		return TPromise.join(this.contextService.getWorkspace().folders.map(workspaceFolder => this.resolveWorkspaceRecommendations(workspaceFolder)))
+			.then(recommendations => distinct(flatten(recommendations)));
+	}
+
+	private resolveWorkspaceRecommendations(workspaceFolder: WorkspaceFolder): TPromise<string[]> {
+		return this.fileService.resolveContent(this.contextService.toResource(paths.join('.vscode', 'extensions.json'), workspaceFolder))
+			.then(content => {
+				const extensionsContent = <IExtensionsContent>json.parse(content.value, []);
+				if (extensionsContent.recommendations) {
+					const regEx = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
+					return extensionsContent.recommendations.filter((element, position) => {
+						return extensionsContent.recommendations.indexOf(element) === position && regEx.test(element);
+					});
+				}
+				return [];
+			}, err => []);
 	}
 
 	getRecommendations(): string[] {
