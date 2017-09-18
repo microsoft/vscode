@@ -189,6 +189,43 @@ function validateProperties(configuration: IConfigurationNode, collector: Extens
 	}
 }
 
+const contributionRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
+contributionRegistry.registerSchema('vscode://schemas/workspaceConfig', {
+	default: {
+		folders: [
+			{
+				path: ''
+			}
+		],
+		settings: {
+		}
+	},
+	required: ['folders'],
+	properties: {
+		'folders': {
+			minItems: 1,
+			uniqueItems: true,
+			description: nls.localize('workspaceConfig.folders.description', "List of folders to be loaded in the workspace. Must be a file path. e.g. `/root/folderA` or `./folderA` for a relative path that will be resolved against the location of the workspace file."),
+			items: {
+				type: 'object',
+				default: { path: '' },
+				properties: {
+					path: {
+						type: 'string',
+						description: nls.localize('workspaceConfig.folder.description', "A file path. e.g. `/root/folderA` or `./folderA` for a relative path that will be resolved against the location of the workspace file.")
+					}
+				}
+			}
+		},
+		'settings': {
+			type: 'object',
+			default: {},
+			description: nls.localize('workspaceConfig.settings.description', "Workspace settings"),
+			$ref: schemaId
+		}
+	}
+});
+
 export class WorkspaceService extends Disposable implements IWorkspaceConfigurationService, IWorkspaceContextService {
 
 	public _serviceBrand: any;
@@ -335,7 +372,6 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	}
 
 	private createMulitFolderWorkspace(workspaceIdentifier: IWorkspaceIdentifier): TPromise<Workspace> {
-		this.registerWorkspaceConfigSchema();
 		const workspaceConfigPath = URI.file(workspaceIdentifier.configPath);
 		return this.workspaceConfiguration.load(workspaceConfigPath)
 			.then(() => {
@@ -516,47 +552,6 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		}
 
 		return path1 === path2;
-	}
-
-	private registerWorkspaceConfigSchema(): void {
-		const contributionRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
-		if (!contributionRegistry.getSchemaContributions().schemas['vscode://schemas/workspaceConfig']) {
-			contributionRegistry.registerSchema('vscode://schemas/workspaceConfig', {
-				default: {
-					folders: [
-						{
-							path: ''
-						}
-					],
-					settings: {
-					}
-				},
-				required: ['folders'],
-				properties: {
-					'folders': {
-						minItems: 1,
-						uniqueItems: true,
-						description: nls.localize('workspaceConfig.folders.description', "List of folders to be loaded in the workspace. Must be a file path. e.g. `/root/folderA` or `./folderA` for a relative path that will be resolved against the location of the workspace file."),
-						items: {
-							type: 'object',
-							default: { path: '' },
-							properties: {
-								path: {
-									type: 'string',
-									description: nls.localize('workspaceConfig.folder.description', "A file path. e.g. `/root/folderA` or `./folderA` for a relative path that will be resolved against the location of the workspace file.")
-								}
-							}
-						}
-					},
-					'settings': {
-						type: 'object',
-						default: {},
-						description: nls.localize('workspaceConfig.settings.description', "Workspace settings"),
-						$ref: schemaId
-					}
-				}
-			});
-		}
 	}
 }
 
