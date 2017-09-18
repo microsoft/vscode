@@ -14,8 +14,9 @@ import { IWindowsService, IWindowService, IWindowsConfiguration } from 'vs/platf
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 interface IConfiguration extends IWindowsConfiguration {
 	update: { channel: string; };
@@ -30,8 +31,10 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 	private nativeTabs: boolean;
 	private updateChannel: string;
 	private enableCrashReporter: boolean;
-	private foldersCount: number;
+
 	private firstFolderPath: string;
+	private workbenchState: WorkbenchState;
+	private extensionHostRestarter: RunOnceScheduler;
 
 	constructor(
 		@IWindowsService private windowsService: IWindowsService,
@@ -44,8 +47,9 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		@IExtensionService private extensionService: IExtensionService
 	) {
 		const workspace = this.contextService.getWorkspace();
-		this.foldersCount = workspace.folders.length;
 		this.firstFolderPath = workspace.folders.length > 0 ? workspace.folders[0].uri.fsPath : void 0;
+		this.workbenchState = this.contextService.getWorkbenchState();
+		this.extensionHostRestarter = new RunOnceScheduler(() => this.extensionService.restartExtensionHost(), 10);
 
 		this.onConfigurationChange(configurationService.getConfiguration<IConfiguration>(), false);
 
@@ -55,6 +59,7 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 	private registerListeners(): void {
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(this.configurationService.getConfiguration<IConfiguration>(), true)));
 		this.toDispose.push(this.contextService.onDidChangeWorkspaceFolders(() => this.onDidChangeWorkspaceFolders()));
+		this.toDispose.push(this.contextService.onDidChangeWorkbenchState(() => this.onDidChangeWorkbenchState()));
 	}
 
 	private onConfigurationChange(config: IConfiguration, notify: boolean): void {
@@ -98,39 +103,28 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 	private onDidChangeWorkspaceFolders(): void {
 		const workspace = this.contextService.getWorkspace();
 
-		const newFoldersCount = workspace.folders.length;
+		// Restart extension host if first root folder changed (impact on deprecated workspace.rootPath API)
 		const newFirstFolderPath = workspace.folders.length > 0 ? workspace.folders[0].uri.fsPath : void 0;
-
-		let reloadWindow = false;
-		let reloadExtensionHost = false;
-
-		if (this.foldersCount === 0 && newFoldersCount > 0) {
-			reloadWindow = true; // transition: from 0 folders to 1+
-		} else if (this.foldersCount > 0 && newFoldersCount === 0) {
-			reloadWindow = true; // transition: from 1+ folders to 0
-		}
-
 		if (this.firstFolderPath !== newFirstFolderPath) {
-			reloadExtensionHost = true; // first root folder changed (impact on deprecated workspace.rootPath API)
-		}
+			this.firstFolderPath = newFirstFolderPath;
 
-		this.foldersCount = newFoldersCount;
-		this.firstFolderPath = newFirstFolderPath;
-
-		// Reload window if this is needed
-		if (reloadWindow) {
-			this.doConfirm(
-				localize('relaunchWorkspaceMessage', "This workspace change requires a reload of our extension system."),
-				void 0,
-				localize('reload', "Reload"),
-				() => this.windowService.reloadWindow()
-			);
+			this.doRestartExtensionHost();
 		}
+	}
 
-		// Reload extension host if this is needed
-		else if (reloadExtensionHost) {
-			this.extensionService.restartExtensionHost();
+	private onDidChangeWorkbenchState(): void {
+
+		// Restart extension host if the workbench state changes (impact on extension storage)
+		const newWorkbenchState = this.contextService.getWorkbenchState();
+		if (newWorkbenchState !== this.workbenchState) {
+			this.workbenchState = newWorkbenchState;
+
+			this.doRestartExtensionHost();
 		}
+	}
+
+	private doRestartExtensionHost(): void {
+		this.extensionHostRestarter.schedule(); // buffer calls to extension host restart
 	}
 
 	private doConfirm(message: string, detail: string, primaryButton: string, confirmed: () => void): void {
