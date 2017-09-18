@@ -301,7 +301,7 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(this.contextService.onDidChangeWorkspaceFolders(() => this.updateStyles()));
+		this.toUnbind.push(this.contextService.onDidChangeWorkbenchState(() => this.updateStyles()));
 	}
 
 	protected updateStyles(): void {

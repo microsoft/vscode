@@ -100,8 +100,9 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.FOCUS, () => this.onFocus()));
 		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(() => this.onConfigurationChanged(true)));
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
-		this.toUnbind.push(this.contextService.onDidChangeWorkspaceFolders(() => this.onDidChangeWorkspaceFolders()));
-		this.toUnbind.push(this.contextService.onDidChangeWorkspaceName(() => this.onDidChangeWorkspaceName()));
+		this.toUnbind.push(this.contextService.onDidChangeWorkspaceFolders(() => this.setTitle(this.getWindowTitle())));
+		this.toUnbind.push(this.contextService.onDidChangeWorkbenchState(() => this.setTitle(this.getWindowTitle())));
+		this.toUnbind.push(this.contextService.onDidChangeWorkspaceName(() => this.setTitle(this.getWindowTitle())));
 	}
 
 	private onBlur(): void {
@@ -112,14 +113,6 @@ export class TitlebarPart extends Part implements ITitleService {
 	private onFocus(): void {
 		this.isInactive = false;
 		this.updateStyles();
-	}
-
-	private onDidChangeWorkspaceFolders(): void {
-		this.setTitle(this.getWindowTitle());
-	}
-
-	private onDidChangeWorkspaceName(): void {
-		this.setTitle(this.getWindowTitle());
 	}
 
 	private onConfigurationChanged(update?: boolean): void {

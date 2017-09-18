@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as paths from 'vs/base/common/paths';
 import * as DOM from 'vs/base/browser/dom';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -14,7 +14,7 @@ import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { FileLabel } from 'vs/workbench/browser/labels';
 import { ITree, IDataSource, ISorter, IAccessibilityProvider, IFilter, IRenderer } from 'vs/base/parts/tree/browser/tree';
 import { Match, SearchResult, FileMatch, FileMatchOrMatch, SearchModel, FolderMatch } from 'vs/workbench/parts/search/common/searchModel';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { Range } from 'vs/editor/common/core/range';
 import { SearchViewlet } from 'vs/workbench/parts/search/browser/searchViewlet';
 import { RemoveAction, ReplaceAllAction, ReplaceAction } from 'vs/workbench/parts/search/browser/searchActions';
@@ -28,7 +28,17 @@ export class SearchDataSource implements IDataSource {
 
 	private static AUTOEXPAND_CHILD_LIMIT = 10;
 
-	constructor(private includeFolderMatch: boolean = true) { }
+	private includeFolderMatch: boolean;
+	private listener: IDisposable;
+
+	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
+		this.updateIncludeFolderMatch();
+		this.listener = this.contextService.onDidChangeWorkbenchState(() => this.updateIncludeFolderMatch());
+	}
+
+	private updateIncludeFolderMatch(): void {
+		this.includeFolderMatch = (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE);
+	}
 
 	public getId(tree: ITree, element: any): string {
 		if (element instanceof FolderMatch) {
@@ -89,6 +99,10 @@ export class SearchDataSource implements IDataSource {
 			return false;
 		}
 		return numChildren < SearchDataSource.AUTOEXPAND_CHILD_LIMIT || element instanceof FolderMatch;
+	}
+
+	public dispose(): void {
+		this.listener = dispose(this.listener);
 	}
 }
 

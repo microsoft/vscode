@@ -118,8 +118,10 @@ export class StartAction extends AbstractDebugAction {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		super(id, label, 'debug-action start', debugService, keybindingService);
-		this.debugService.getConfigurationManager().onDidSelectConfiguration(() => this.updateEnablement());
-		this.debugService.getModel().onDidChangeCallStack(() => this.updateEnablement());
+
+		this.toDispose.push(this.debugService.getConfigurationManager().onDidSelectConfiguration(() => this.updateEnablement()));
+		this.toDispose.push(this.debugService.getModel().onDidChangeCallStack(() => this.updateEnablement()));
+		this.toDispose.push(this.contextService.onDidChangeWorkbenchState(() => this.updateEnablement()));
 	}
 
 	public run(): TPromise<any> {

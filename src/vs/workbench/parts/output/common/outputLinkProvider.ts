@@ -37,6 +37,7 @@ export class OutputLinkProvider {
 	}
 
 	private registerListeners(): void {
+		this.contextService.onDidChangeWorkbenchState(() => this.updateLinkProviderWorker());
 		this.contextService.onDidChangeWorkspaceFolders(() => this.updateLinkProviderWorker());
 	}
 
