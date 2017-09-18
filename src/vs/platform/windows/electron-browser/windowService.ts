@@ -11,6 +11,7 @@ import { IWindowService, IWindowsService, INativeOpenDialogOptions } from 'vs/pl
 import { remote } from 'electron';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ICommandAction } from 'vs/platform/actions/common/actions';
+import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 export class WindowService implements IWindowService {
 
@@ -69,11 +70,11 @@ export class WindowService implements IWindowService {
 		return this.windowsService.openWorkspace(this.windowId);
 	}
 
-	createAndOpenWorkspace(folders?: string[], path?: string): TPromise<void> {
+	createAndOpenWorkspace(folders?: string[], path?: string): TPromise<IWorkspaceIdentifier> {
 		return this.windowsService.createAndOpenWorkspace(this.windowId, folders, path);
 	}
 
-	saveAndOpenWorkspace(path: string): TPromise<void> {
+	saveAndOpenWorkspace(path: string): TPromise<IWorkspaceIdentifier> {
 		return this.windowsService.saveAndOpenWorkspace(this.windowId, path);
 	}
 

@@ -24,8 +24,8 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'toggleDevTools', arg: number): TPromise<void>;
 	call(command: 'closeWorkspace', arg: number): TPromise<void>;
 	call(command: 'openWorkspace', arg: number): TPromise<void>;
-	call(command: 'createAndOpenWorkspace', arg: [number, string[], string]): TPromise<void>;
-	call(command: 'saveAndOpenWorkspace', arg: [number, string]): TPromise<void>;
+	call(command: 'createAndOpenWorkspace', arg: [number, string[], string]): TPromise<IWorkspaceIdentifier>;
+	call(command: 'saveAndOpenWorkspace', arg: [number, string]): TPromise<IWorkspaceIdentifier>;
 	call(command: 'toggleFullScreen', arg: number): TPromise<void>;
 	call(command: 'setRepresentedFilename', arg: [number, string]): TPromise<void>;
 	call(command: 'addRecentlyOpened', arg: string[]): TPromise<void>;
@@ -174,11 +174,11 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('openWorkspace', windowId);
 	}
 
-	createAndOpenWorkspace(windowId: number, folders?: string[], path?: string): TPromise<void> {
+	createAndOpenWorkspace(windowId: number, folders?: string[], path?: string): TPromise<IWorkspaceIdentifier> {
 		return this.channel.call('createAndOpenWorkspace', [windowId, folders, path]);
 	}
 
-	saveAndOpenWorkspace(windowId: number, path: string): TPromise<void> {
+	saveAndOpenWorkspace(windowId: number, path: string): TPromise<IWorkspaceIdentifier> {
 		return this.channel.call('saveAndOpenWorkspace', [windowId, path]);
 	}
 

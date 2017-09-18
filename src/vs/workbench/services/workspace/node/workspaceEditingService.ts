@@ -9,14 +9,15 @@ import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { IWorkspacesService, IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesService, IStoredWorkspaceFolder, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { dirname } from 'path';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { massageFolderPathForWorkspace } from 'vs/platform/workspaces/node/workspaces';
 import { isLinux } from 'vs/base/common/platform';
+import { WorkspaceServiceImpl } from 'vs/workbench/services/configuration/node/configuration';
 
 export class WorkspaceEditingService implements IWorkspaceEditingService {
 
@@ -27,6 +28,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWindowsService private windowsService: IWindowsService,
+		@IWindowService private windowService: IWindowService,
 		@IWorkspacesService private workspacesService: IWorkspacesService,
 		@IWorkspaceConfigurationService private workspaceConfigurationService: IWorkspaceConfigurationService
 	) {
@@ -113,5 +115,17 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 			return resource.toString().toLowerCase() === toCheck.toString().toLowerCase();
 		});
+	}
+
+	public createAndOpenWorkspace(folders?: string[], path?: string): TPromise<void> {
+		return this.windowService.createAndOpenWorkspace(folders).then(workspace => this.openWorkspace(workspace));
+	}
+
+	public saveAndOpenWorkspace(path: string): TPromise<void> {
+		return this.windowService.saveAndOpenWorkspace(path).then(workspace => this.openWorkspace(workspace));
+	}
+
+	private openWorkspace(workspace: IWorkspaceIdentifier): TPromise<void> {
+		return (this.contextService as WorkspaceServiceImpl).initialize(workspace); // TODO@Ben ugly cast
 	}
 }

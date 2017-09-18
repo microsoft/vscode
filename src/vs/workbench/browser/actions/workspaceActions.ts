@@ -9,14 +9,14 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import nls = require('vs/nls');
 import { distinct } from 'vs/base/common/arrays';
-import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import URI from 'vs/base/common/uri';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspacesService, WORKSPACE_FILTER } from 'vs/platform/workspaces/common/workspaces';
+import { WORKSPACE_FILTER } from 'vs/platform/workspaces/common/workspaces';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isLinux } from 'vs/base/common/platform';
@@ -113,10 +113,12 @@ export class AddRootFolderAction extends BaseWorkspacesAction {
 			if (!folders || !folders.length) {
 				return TPromise.as(null);
 			}
+
 			return this.workspaceEditingService.addFolders(folders.map(folder => URI.file(folder))).then(() => {
 				return this.viewletService.openViewlet(this.viewletService.getDefaultViewletId(), true);
 			});
 		}
+
 		return this.instantiationService.createInstance(NewWorkspaceAction, NewWorkspaceAction.ID, NewWorkspaceAction.LABEL, this.contextService.getWorkspace().folders.map(folder => folder.uri)).run();
 	}
 }
@@ -133,8 +135,7 @@ class NewWorkspaceAction extends BaseWorkspacesAction {
 		@IWindowService windowService: IWindowService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IWorkspacesService protected workspacesService: IWorkspacesService,
-		@IWindowsService protected windowsService: IWindowsService,
+		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService
 	) {
 		super(id, label, windowService, environmentService, contextService);
 	}
@@ -151,7 +152,7 @@ class NewWorkspaceAction extends BaseWorkspacesAction {
 	private createWorkspace(folders: URI[]): TPromise<void> {
 		const workspaceFolders = distinct(folders.map(folder => folder.fsPath), folder => isLinux ? folder : folder.toLowerCase());
 
-		return this.windowService.createAndOpenWorkspace(workspaceFolders);
+		return this.workspaceEditingService.createAndOpenWorkspace(workspaceFolders);
 	}
 }
 
@@ -185,9 +186,8 @@ export class SaveWorkspaceAsAction extends BaseWorkspacesAction {
 		@IWindowService windowService: IWindowService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IWorkspacesService protected workspacesService: IWorkspacesService,
-		@IWindowsService private windowsService: IWindowsService,
-		@IMessageService private messageService: IMessageService
+		@IMessageService private messageService: IMessageService,
+		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService
 	) {
 		super(id, label, windowService, environmentService, contextService);
 	}
@@ -196,6 +196,7 @@ export class SaveWorkspaceAsAction extends BaseWorkspacesAction {
 		const workspaceState = this.contextService.getWorkbenchState();
 		if (workspaceState === WorkbenchState.EMPTY) {
 			this.messageService.show(Severity.Info, nls.localize('saveEmptyWorkspaceNotSupported', "Please open a workspace first to save."));
+
 			return TPromise.as(null);
 		}
 
@@ -205,10 +206,10 @@ export class SaveWorkspaceAsAction extends BaseWorkspacesAction {
 
 				case WorkbenchState.FOLDER:
 					const workspaceFolders = this.contextService.getWorkspace().folders.map(root => root.uri.fsPath);
-					return this.windowService.createAndOpenWorkspace(workspaceFolders, configPath);
+					return this.workspaceEditingService.createAndOpenWorkspace(workspaceFolders, configPath);
 
 				case WorkbenchState.WORKSPACE:
-					return this.windowService.saveAndOpenWorkspace(configPath);
+					return this.workspaceEditingService.saveAndOpenWorkspace(configPath);
 			}
 		}
 
