@@ -44,7 +44,7 @@ import { EnvironmentService } from 'vs/platform/environment/node/environmentServ
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IWindowsService, IWindowService, INativeOpenDialogOptions } from 'vs/platform/windows/common/windows';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
@@ -555,6 +555,10 @@ export class TestEditorGroupService implements IEditorGroupService {
 
 	public getTabOptions(): IEditorTabOptions {
 		return {};
+	}
+
+	public invokeWithinEditorContext<T>(fn: (accessor: ServicesAccessor) => T): T {
+		return fn(null);
 	}
 }
 
