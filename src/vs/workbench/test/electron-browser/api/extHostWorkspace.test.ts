@@ -199,7 +199,9 @@ suite('ExtHostWorkspace', function () {
 		return {
 			uri,
 			index,
-			raw: uri.toString(),
+			raw: {
+				path: uri.toString()
+			},
 			name: name || basename(uri.path)
 		};
 	}

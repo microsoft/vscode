@@ -271,6 +271,32 @@ suite('WorkspacesMainService', () => {
 		});
 	});
 
+	test('saveWorkspace (saved workspace, preserves forward slashes)', done => {
+		return service.createWorkspace([process.cwd(), os.tmpdir(), path.join(os.tmpdir(), 'somefolder')]).then(workspace => {
+			const workspaceConfigPath = path.join(os.tmpdir(), `myworkspace.${Date.now()}.${WORKSPACE_EXTENSION}`);
+			const newWorkspaceConfigPath = path.join(os.tmpdir(), `mySavedWorkspace.${Date.now()}.${WORKSPACE_EXTENSION}`);
+
+			return service.saveWorkspace(workspace, workspaceConfigPath).then(savedWorkspace => {
+				const contents = fs.readFileSync(savedWorkspace.configPath).toString();
+				fs.writeFileSync(savedWorkspace.configPath, contents.replace(/[\\]/g, '/')); // convert backslash to slash
+
+				return service.saveWorkspace(savedWorkspace, newWorkspaceConfigPath).then(newSavedWorkspace => {
+					assert.ok(newSavedWorkspace.id);
+					assert.notEqual(newSavedWorkspace.id, workspace.id);
+					assert.equal(newSavedWorkspace.configPath, newWorkspaceConfigPath);
+
+					const ws = JSON.parse(fs.readFileSync(newSavedWorkspace.configPath).toString()) as IStoredWorkspace;
+					assert.ok(ws.folders.every(f => f.path.indexOf('\\') < 0));
+
+					extfs.delSync(workspaceConfigPath);
+					extfs.delSync(newWorkspaceConfigPath);
+
+					done();
+				});
+			});
+		});
+	});
+
 	test('deleteUntitledWorkspaceSync (untitled)', done => {
 		return service.createWorkspace([process.cwd(), os.tmpdir()]).then(workspace => {
 			assert.ok(fs.existsSync(workspace.configPath));

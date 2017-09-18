@@ -535,7 +535,7 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 
 	constructor() {
 		const resource = URI.from({ scheme: SimpleWorkspaceContextService.SCHEME, authority: 'model', path: '/' });
-		this.workspace = { id: '4064f6ec-cb38-4ad0-af64-ee6467e63c82', folders: [{ uri: resource, raw: resource.toString(), name: '', index: 0, }], name: resource.fsPath };
+		this.workspace = { id: '4064f6ec-cb38-4ad0-af64-ee6467e63c82', folders: [{ uri: resource, raw: { path: resource.toString() }, name: '', index: 0, }], name: resource.fsPath };
 	}
 
 	public getWorkspace(): IWorkspace {

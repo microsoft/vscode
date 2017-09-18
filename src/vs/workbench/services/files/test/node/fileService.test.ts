@@ -38,7 +38,7 @@ suite('FileService', () => {
 				return onError(error, done);
 			}
 
-			service = new FileService(new TestContextService(new Workspace(testDir, testDir, [{ uri: uri.file(testDir), raw: testDir, index: 0, name: '' }])), new TestTextResourceConfigurationService(), new TestConfigurationService(), { disableWatcher: true });
+			service = new FileService(new TestContextService(new Workspace(testDir, testDir, [{ uri: uri.file(testDir), raw: { path: testDir }, index: 0, name: '' }])), new TestTextResourceConfigurationService(), new TestConfigurationService(), { disableWatcher: true });
 			done();
 		});
 	});
@@ -853,11 +853,11 @@ suite('FileService', () => {
 		});
 	});
 
-	function aWorkspaceFolder(raw: string, index: number, name: string = ''): WorkspaceFolder {
+	function aWorkspaceFolder(path: string, index: number, name: string = ''): WorkspaceFolder {
 		return {
-			uri: uri.file(raw),
+			uri: uri.file(path),
 			index,
-			raw,
+			raw: { path: path },
 			name
 		};
 	}

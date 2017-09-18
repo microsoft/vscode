@@ -120,7 +120,7 @@ export interface WorkspaceFolder {
 	/**
 	 * The raw path of this workspace folder
 	 */
-	readonly raw: string;
+	readonly raw: IStoredWorkspaceFolder;
 }
 
 export class Workspace implements IWorkspace {
@@ -190,12 +190,12 @@ export function toWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], 
 }
 
 function parseWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], relativeTo: URI): WorkspaceFolder[] {
-	return configuredFolders.map(({ path, name }, index) => {
-		const uri = toUri(path, relativeTo);
+	return configuredFolders.map((configuredFolder, index) => {
+		const uri = toUri(configuredFolder.path, relativeTo);
 		if (!uri) {
 			return void 0;
 		}
-		return { uri, raw: path, index, name };
+		return { uri, raw: configuredFolder, index, name: configuredFolder.name };
 	});
 }
 

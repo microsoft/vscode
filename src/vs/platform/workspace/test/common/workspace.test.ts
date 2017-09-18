@@ -51,7 +51,7 @@ suite('Workspace', () => {
 
 		assert.equal(actual.length, 1);
 		assert.equal(actual[0].uri.fsPath, '/src/test');
-		assert.equal(actual[0].raw, '/src/test');
+		assert.equal(actual[0].raw.path, '/src/test');
 		assert.equal(actual[0].index, 0);
 		assert.equal(actual[0].name, 'test');
 	});
@@ -61,7 +61,7 @@ suite('Workspace', () => {
 
 		assert.equal(actual.length, 1);
 		assert.equal(actual[0].uri.fsPath, '/src/test');
-		assert.equal(actual[0].raw, './test');
+		assert.equal(actual[0].raw.path, './test');
 		assert.equal(actual[0].index, 0);
 		assert.equal(actual[0].name, 'test');
 	});
@@ -71,7 +71,7 @@ suite('Workspace', () => {
 
 		assert.equal(actual.length, 1);
 		assert.equal(actual[0].uri.fsPath, '/src/test');
-		assert.equal(actual[0].raw, '/src/test');
+		assert.equal(actual[0].raw.path, '/src/test');
 		assert.equal(actual[0].index, 0);
 		assert.equal(actual[0].name, 'hello');
 	});
@@ -81,17 +81,17 @@ suite('Workspace', () => {
 
 		assert.equal(actual.length, 3);
 		assert.equal(actual[0].uri.fsPath, '/src/test2');
-		assert.equal(actual[0].raw, '/src/test2');
+		assert.equal(actual[0].raw.path, '/src/test2');
 		assert.equal(actual[0].index, 0);
 		assert.equal(actual[0].name, 'test2');
 
 		assert.equal(actual[1].uri.fsPath, '/src/test3');
-		assert.equal(actual[1].raw, '/src/test3');
+		assert.equal(actual[1].raw.path, '/src/test3');
 		assert.equal(actual[1].index, 1);
 		assert.equal(actual[1].name, 'test3');
 
 		assert.equal(actual[2].uri.fsPath, '/src/test1');
-		assert.equal(actual[2].raw, '/src/test1');
+		assert.equal(actual[2].raw.path, '/src/test1');
 		assert.equal(actual[2].index, 2);
 		assert.equal(actual[2].name, 'test1');
 	});
@@ -101,17 +101,17 @@ suite('Workspace', () => {
 
 		assert.equal(actual.length, 3);
 		assert.equal(actual[0].uri.fsPath, '/src/test2');
-		assert.equal(actual[0].raw, '/src/test2');
+		assert.equal(actual[0].raw.path, '/src/test2');
 		assert.equal(actual[0].index, 0);
 		assert.equal(actual[0].name, 'test2');
 
 		assert.equal(actual[1].uri.fsPath, '/src/test3');
-		assert.equal(actual[1].raw, '/src/test3');
+		assert.equal(actual[1].raw.path, '/src/test3');
 		assert.equal(actual[1].index, 1);
 		assert.equal(actual[1].name, 'noName');
 
 		assert.equal(actual[2].uri.fsPath, '/src/test1');
-		assert.equal(actual[2].raw, '/src/test1');
+		assert.equal(actual[2].raw.path, '/src/test1');
 		assert.equal(actual[2].index, 2);
 		assert.equal(actual[2].name, 'test1');
 	});
@@ -121,17 +121,17 @@ suite('Workspace', () => {
 
 		assert.equal(actual.length, 3);
 		assert.equal(actual[0].uri.fsPath, '/src/test2');
-		assert.equal(actual[0].raw, '/src/test2');
+		assert.equal(actual[0].raw.path, '/src/test2');
 		assert.equal(actual[0].index, 0);
 		assert.equal(actual[0].name, 'test2');
 
 		assert.equal(actual[1].uri.fsPath, '/abc/test3');
-		assert.equal(actual[1].raw, '/abc/test3');
+		assert.equal(actual[1].raw.path, '/abc/test3');
 		assert.equal(actual[1].index, 1);
 		assert.equal(actual[1].name, 'noName');
 
 		assert.equal(actual[2].uri.fsPath, '/src/test1');
-		assert.equal(actual[2].raw, './test1');
+		assert.equal(actual[2].raw.path, './test1');
 		assert.equal(actual[2].index, 2);
 		assert.equal(actual[2].name, 'test1');
 	});
@@ -141,12 +141,12 @@ suite('Workspace', () => {
 
 		assert.equal(actual.length, 2);
 		assert.equal(actual[0].uri.fsPath, '/src/test2');
-		assert.equal(actual[0].raw, '/src/test2');
+		assert.equal(actual[0].raw.path, '/src/test2');
 		assert.equal(actual[0].index, 0);
 		assert.equal(actual[0].name, 'test2');
 
 		assert.equal(actual[1].uri.fsPath, '/src/test1');
-		assert.equal(actual[1].raw, '/src/test1');
+		assert.equal(actual[1].raw.path, '/src/test1');
 		assert.equal(actual[1].index, 1);
 		assert.equal(actual[1].name, 'test1');
 	});
@@ -156,17 +156,17 @@ suite('Workspace', () => {
 
 		assert.equal(actual.length, 3);
 		assert.equal(actual[0].uri.fsPath, '/src/test2');
-		assert.equal(actual[0].raw, '/src/test2');
+		assert.equal(actual[0].raw.path, '/src/test2');
 		assert.equal(actual[0].index, 0);
 		assert.equal(actual[0].name, 'test2');
 
 		assert.equal(actual[1].uri.fsPath, '/src/test3');
-		assert.equal(actual[1].raw, '/src/test3');
+		assert.equal(actual[1].raw.path, '/src/test3');
 		assert.equal(actual[1].index, 1);
 		assert.equal(actual[1].name, 'noName');
 
 		assert.equal(actual[2].uri.fsPath, '/abc/test1');
-		assert.equal(actual[2].raw, '/abc/test1');
+		assert.equal(actual[2].raw.path, '/abc/test1');
 		assert.equal(actual[2].index, 2);
 		assert.equal(actual[2].name, 'test1');
 	});
@@ -176,23 +176,25 @@ suite('Workspace', () => {
 
 		assert.equal(actual.length, 3);
 		assert.equal(actual[0].uri.fsPath, '/src/test2');
-		assert.equal(actual[0].raw, '/src/test2');
+		assert.equal(actual[0].raw.path, '/src/test2');
 		assert.equal(actual[0].index, 0);
 		assert.equal(actual[0].name, 'test2');
 
 		assert.equal(actual[1].uri.fsPath, '/src/test3');
-		assert.equal(actual[1].raw, './test3');
+		assert.equal(actual[1].raw.path, './test3');
 		assert.equal(actual[1].index, 1);
 		assert.equal(actual[1].name, 'test3');
 
 		assert.equal(actual[2].uri.fsPath, '/abc/test1');
-		assert.equal(actual[2].raw, '/abc/test1');
+		assert.equal(actual[2].raw.path, '/abc/test1');
 		assert.equal(actual[2].index, 2);
 		assert.equal(actual[2].name, 'test1');
 	});
 
 	function aWorkspaceFolder(uri: URI, index: number = 0): WorkspaceFolder {
-		return { uri, raw: uri.fsPath, index, name: '' };
+		return {
+			uri, raw: { path: uri.fsPath }, index, name: ''
+		};
 	}
 
 });

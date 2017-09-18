@@ -74,7 +74,7 @@ suite('Keybindings Editing', () => {
 			instantiationService.stub(ITelemetryService, NullTelemetryService);
 			instantiationService.stub(IModeService, ModeServiceImpl);
 			instantiationService.stub(IModelService, instantiationService.createInstance(ModelServiceImpl));
-			instantiationService.stub(IFileService, new FileService(new TestContextService(new Workspace(testDir, testDir, [{ uri: uri.file(testDir), raw: testDir, index: 0, name: '' }])), new TestTextResourceConfigurationService(), new TestConfigurationService(), { disableWatcher: true }));
+			instantiationService.stub(IFileService, new FileService(new TestContextService(new Workspace(testDir, testDir, [{ uri: uri.file(testDir), raw: { path: testDir }, index: 0, name: '' }])), new TestTextResourceConfigurationService(), new TestConfigurationService(), { disableWatcher: true }));
 			instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
 			instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 			instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));

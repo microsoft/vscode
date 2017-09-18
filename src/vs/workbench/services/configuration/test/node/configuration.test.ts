@@ -100,7 +100,7 @@ suite('WorkspaceContextService - Folder', () => {
 		assert.equal(actual.folders[0].uri.fsPath, workspaceResource);
 		assert.equal(actual.folders[0].name, workspaceName);
 		assert.equal(actual.folders[0].index, 0);
-		assert.equal(actual.folders[0].raw, workspaceResource);
+		assert.equal(actual.folders[0].raw.path, workspaceResource);
 		assert.ok(!actual.configuration);
 	});
 
