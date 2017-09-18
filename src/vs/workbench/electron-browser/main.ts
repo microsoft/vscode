@@ -162,7 +162,7 @@ function createStorageService(workspaceService: IWorkspaceContextService, enviro
 		// the ctime is used as secondary workspace id to clean up stale UI state if necessary
 		case WorkbenchState.FOLDER:
 			const workspace: Workspace = <Workspace>workspaceService.getWorkspace();
-			workspaceId = workspace.folders[0].toString();
+			workspaceId = workspace.folders[0].uri.toString();
 			secondaryWorkspaceId = workspace.ctime;
 			break;
 

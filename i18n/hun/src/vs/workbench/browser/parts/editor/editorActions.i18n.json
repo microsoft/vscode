@@ -35,6 +35,7 @@
 	"openPreviousEditorInGroup": "A csoport előző szerkesztőablakának megnyitása",
 	"navigateNext": "Ugrás előre",
 	"navigatePrevious": "Ugrás vissza",
+	"navigateLast": "Ugrás az utolsóra",
 	"reopenClosedEditor": "Bezárt szerkesztőablak újranyitása",
 	"clearRecentFiles": "Legutóbb megnyitottak listájának ürítése",
 	"showEditorsInFirstGroup": "Az első csoportban található szerkesztőablakok megjelenítése",

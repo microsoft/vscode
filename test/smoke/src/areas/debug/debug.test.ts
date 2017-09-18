@@ -9,7 +9,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as stripJsonComments from 'strip-json-comments';
-import { SpectronApplication, VSCODE_BUILD, EXTENSIONS_DIR } from '../../spectron/application';
+import { SpectronApplication, VSCODE_BUILD, EXTENSIONS_DIR, findFreePort } from '../../spectron/application';
 
 describe('Debug', () => {
 	let app: SpectronApplication = new SpectronApplication();
@@ -38,7 +38,9 @@ describe('Debug', () => {
 		fs.symlinkSync(debug2Path, path.join(EXTENSIONS_DIR, 'vscode-node-debug2'));
 	}
 
-	before(() => app.start('Debug'));
+	// We must get a different port for our smoketest express app
+	// otherwise concurrent test runs will clash on those ports
+	before(async () => await app.start('Debug', [], { PORT: String(await findFreePort()), ...process.env }));
 	after(() => app.stop());
 	beforeEach(function () { app.screenCapturer.testName = this.currentTest.title; });
 
@@ -69,10 +71,12 @@ describe('Debug', () => {
 		port = await app.workbench.debug.startDebugging();
 		await app.screenCapturer.capture('debugging has started');
 
-		await new Promise((c, e) => http.get(`http://localhost:${port}`).on('response', c).on('error', e));
-		await app.screenCapturer.capture('server was pinged');
+		await new Promise((c, e) => {
+			const request = http.get(`http://localhost:${port}`);
+			request.on('error', e);
+			app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 6).then(c, e);
+		});
 
-		await app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 6);
 		await app.screenCapturer.capture('debugging is paused');
 	});
 
@@ -108,15 +112,17 @@ describe('Debug', () => {
 		await app.workbench.debug.continue();
 		await app.screenCapturer.capture('debugging has continued');
 
-		await new Promise((c, e) => http.get(`http://localhost:${port}`).on('response', c).on('error', e));
-		await app.screenCapturer.capture('server was pinged');
+		await new Promise((c, e) => {
+			const request = http.get(`http://localhost:${port}`);
+			request.on('error', e);
+			app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 6).then(c, e);
+		});
 
-		await app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 6);
 		await app.screenCapturer.capture('debugging is paused');
 	});
 
 	it('debug console', async function () {
-		await app.client.waitFor(() => app.workbench.debug.console('2 + 2 \n'), r => r === '4', 'debug console should return 2 + 2 = 4');
+		await app.workbench.debug.waitForReplCommand('2 + 2 \n', r => r === '4');
 	});
 
 	it('stop debugging', async function () {

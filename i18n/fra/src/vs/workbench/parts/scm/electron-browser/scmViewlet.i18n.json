@@ -6,7 +6,6 @@
 {
 	"commitMessage": "Message (press {0} to commit)",
 	"installAdditionalSCMProviders": "Installer des fournisseurs SCM supplémentaires...",
-	"no open repo": "Aucun contrôle de code source actif.",
 	"source control": "Contrôle de code source",
 	"viewletTitle": "{0} : {1}"
 }

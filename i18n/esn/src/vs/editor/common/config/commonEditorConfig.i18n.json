@@ -88,6 +88,7 @@
 	"accessibilitySupport": "Controla si el editor se debe ejecutar en un modo optimizado para lectores de pantalla.",
 	"links": "Controla si el editor debe detectar enlaces y hacerlos cliqueables",
 	"colorDecorators": "Controla si el editor debe representar el Selector de colores y los elementos Decorator de color en línea.",
+	"codeActions": "Permite que el foco de acción del código",
 	"sideBySide": "Controla si el editor de diferencias muestra las diferencias en paralelo o alineadas.",
 	"ignoreTrimWhitespace": "Controla si el editor de diferencias muestra los cambios de espacio inicial o espacio final como diferencias.",
 	"renderIndicators": "Controla si el editor de diff muestra indicadores +/- para cambios agregados/quitados",

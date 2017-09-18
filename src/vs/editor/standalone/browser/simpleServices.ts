@@ -18,7 +18,7 @@ import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingReso
 import { IKeybindingEvent, KeybindingSource, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfirmation, IMessageService } from 'vs/platform/message/common/message';
-import { IWorkspaceContextService, IWorkspace, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspace, WorkbenchState, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -525,14 +525,17 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 	private readonly _onDidChangeWorkspaceName: Emitter<void> = new Emitter<void>();
 	public readonly onDidChangeWorkspaceName: Event<void> = this._onDidChangeWorkspaceName.event;
 
-	private readonly _onDidChangeWorkspaceRoots: Emitter<void> = new Emitter<void>();
-	public readonly onDidChangeWorkspaceFolders: Event<void> = this._onDidChangeWorkspaceRoots.event;
+	private readonly _onDidChangeWorkspaceFolders: Emitter<void> = new Emitter<void>();
+	public readonly onDidChangeWorkspaceFolders: Event<void> = this._onDidChangeWorkspaceFolders.event;
+
+	private readonly _onDidChangeWorkbenchState: Emitter<WorkbenchState> = new Emitter<WorkbenchState>();
+	public readonly onDidChangeWorkbenchState: Event<WorkbenchState> = this._onDidChangeWorkbenchState.event;
 
 	private readonly workspace: IWorkspace;
 
 	constructor() {
 		const resource = URI.from({ scheme: SimpleWorkspaceContextService.SCHEME, authority: 'model', path: '/' });
-		this.workspace = { id: '4064f6ec-cb38-4ad0-af64-ee6467e63c82', folders: [resource], name: resource.fsPath };
+		this.workspace = { id: '4064f6ec-cb38-4ad0-af64-ee6467e63c82', folders: [{ uri: resource, raw: { path: resource.toString() }, name: '', index: 0, }], name: resource.fsPath };
 	}
 
 	public getWorkspace(): IWorkspace {
@@ -549,7 +552,7 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 		return WorkbenchState.EMPTY;
 	}
 
-	public getWorkspaceFolder(resource: URI): URI {
+	public getWorkspaceFolder(resource: URI): WorkspaceFolder {
 		return resource && resource.scheme === SimpleWorkspaceContextService.SCHEME ? this.workspace.folders[0] : void 0;
 	}
 
@@ -557,7 +560,7 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 		return resource && resource.scheme === SimpleWorkspaceContextService.SCHEME;
 	}
 
-	public toResource(workspaceRelativePath: string): URI {
+	public toResource(workspaceRelativePath: string, workspaceFolder: WorkspaceFolder): URI {
 		return URI.file(workspaceRelativePath);
 	}
 

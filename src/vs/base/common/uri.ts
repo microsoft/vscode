@@ -56,7 +56,6 @@ export default class URI {
 	private static _empty = '';
 	private static _slash = '/';
 	private static _regexp = /^(([^:/?#]+?):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?/;
-	private static _driveLetter = /^[a-zA-Z]:/;
 	private static _driveLetterPath = /^\/[a-zA-Z]:/;
 	private static _upperCaseDrive = /^(\/)?([A-Z]:)/;
 
@@ -213,23 +212,17 @@ export default class URI {
 			let idx = path.indexOf(URI._slash, 2);
 			if (idx === -1) {
 				authority = path.substring(2);
-				path = URI._slash;
+				path = URI._empty;
 			} else {
 				authority = path.substring(2, idx);
 				path = path.substring(idx);
 			}
 		}
 
-		// absolute windows paths get another slash
-		if (URI._driveLetter.test(path)) {
+		// Ensure that path starts with a slash
+		// or that it is at least a slash
+		if (path[0] !== URI._slash) {
 			path = URI._slash + path;
-		}
-
-		// path must be absolute because we cannot format them
-		// otherwise: `file:./foo` -> file://./foo -> `{ authority: '.', path: 'foo' }`
-		// https://tools.ietf.org/html/rfc8089#section-2
-		else if (path[0] !== URI._slash) {
-			throw new Error('[UriError]: relative paths are not supported.');
 		}
 
 		return new URI('file', authority, path, URI._empty, URI._empty);

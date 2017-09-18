@@ -93,18 +93,17 @@ export class FileWatcher {
 			return;
 		}
 
-		const folders = this.contextService.getWorkspace().folders;
-		this.service.setRoots(folders.map(folder => {
+		this.service.setRoots(this.contextService.getWorkspace().folders.map(folder => {
 			// Fetch the root's watcherExclude setting and return it
 			const configuration = this.configurationService.getConfiguration<IFilesConfiguration>(undefined, {
-				resource: folder
+				resource: folder.uri
 			});
 			let ignored: string[] = [];
 			if (configuration.files && configuration.files.watcherExclude) {
 				ignored = Object.keys(configuration.files.watcherExclude).filter(k => !!configuration.files.watcherExclude[k]);
 			}
 			return {
-				basePath: folder.fsPath,
+				basePath: folder.uri.fsPath,
 				ignored
 			};
 		}));

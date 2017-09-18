@@ -19,7 +19,6 @@
 	"manyMarkers": "mehr als 99",
 	"runningTasks": "Aktive Aufgaben anzeigen",
 	"tasks": "Aufgaben",
-	"TaskSystem.noHotSwap": "Zum Ändern des Aufgabenausführungsmoduls muss das Fenster erneut geladen werden.",
 	"TaskService.noBuildTask1": "Keine Buildaufgabe definiert. Markieren Sie eine Aufgabe mit 'isBuildCommand' in der tasks.json-Datei.",
 	"TaskService.noBuildTask2": "Es ist keine Buildaufgabe definiert. Markieren Sie eine Aufgabe in der Datei \"tasks.json\" als \"Buildgruppe\". ",
 	"TaskService.noTestTask1": "Keine Testaufgabe definiert. Markieren Sie eine Aufgabe mit 'isTestCommand' in der tasks.json-Datei.",

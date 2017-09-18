@@ -15,7 +15,7 @@
 	"reuseWindow": "Fuerce la apertura de un archivo o carpeta en la última ventana activa.",
 	"userDataDir": "Especifica el directorio en que se conservan los datos de usuario; es útil cuando se ejecuta como raíz.",
 	"verbose": "Imprima salidas detalladas (implica --wait).",
-	"wait": "Espere que se cierre la ventana antes de volver.",
+	"wait": "Espere a que los archivos sean cerrados antes de volver.",
 	"extensionHomePath": "Establezca la ruta de acceso raíz para las extensiones.",
 	"listExtensions": "Enumere las extensiones instaladas.",
 	"showVersions": "Muestra las versiones de las extensiones instaladas cuando se usa --list-extension.",

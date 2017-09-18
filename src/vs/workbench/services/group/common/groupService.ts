@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, ServiceIdentifier, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Position, IEditorInput } from 'vs/platform/editor/common/editor';
 import { IEditorStacksModel, IEditorGroup } from 'vs/workbench/common/editor';
 import Event from 'vs/base/common/event';
@@ -132,4 +132,9 @@ export interface IEditorGroupService {
 	 * Returns tab options.
 	 */
 	getTabOptions(): IEditorTabOptions;
+
+	/**
+	 * Invoke a function in the context of the active editor.
+	 */
+	invokeWithinEditorContext<T>(fn: (accessor: ServicesAccessor) => T): T;
 }

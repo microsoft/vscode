@@ -19,7 +19,6 @@
 	"manyMarkers": "99+",
 	"runningTasks": "실행 중인 작업 표시",
 	"tasks": "작업",
-	"TaskSystem.noHotSwap": "작업 실행 엔진을 변경하면 창을 다시 로드해야 합니다.",
 	"TaskService.noBuildTask1": "정의된 빌드 작업이 없습니다. tasks.json 파일에서 작업을 'isBuildCommand'로 표시하세요.",
 	"TaskService.noBuildTask2": "정의된 빌드 작업이 없습니다. tasks.json 파일에서 작업을 'build'로 표시하세요.",
 	"TaskService.noTestTask1": "정의된 테스트 작업이 없습니다. tasks.json 파일에서 작업을 'isTestCommand'로 표시하세요.",

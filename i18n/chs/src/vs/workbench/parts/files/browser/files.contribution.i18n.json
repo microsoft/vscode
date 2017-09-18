@@ -14,8 +14,6 @@
 	"files.exclude.boolean": "匹配文件路径所依据的 glob 模式。设置为 true 或 false 可启用或禁用该模式。",
 	"files.exclude.when": "对匹配文件的同级文件的其他检查。使用 $(basename) 作为匹配文件名的变量。",
 	"associations": "配置语言的文件关联(如: \"*.extension\": \"html\")。这些关联的优先级高于已安装语言的默认关联。",
-	"encoding": "读取和编写文件时将使用的默认字符集编码。",
-	"autoGuessEncoding": "启用时，会在打开文件时尝试猜测字符集编码",
 	"eol": "默认行尾字符。使用 \\n 表示 LF，\\r\\n 表示 CRLF。",
 	"trimTrailingWhitespace": "启用后，将在保存文件时剪裁尾随空格。",
 	"insertFinalNewline": "启用后，保存文件时在文件末尾插入一个最终新行。",

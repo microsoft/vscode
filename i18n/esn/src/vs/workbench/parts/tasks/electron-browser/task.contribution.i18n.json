@@ -19,7 +19,6 @@
 	"manyMarkers": "Más de 99",
 	"runningTasks": "Mostrar tareas en ejecución",
 	"tasks": "Tareas",
-	"TaskSystem.noHotSwap": "Para cambiar el motor de ejecución de tareas, es necesario recargar la ventana",
 	"TaskService.noBuildTask1": "No se ha definido ninguna tarea de compilación. Marque una tarea con \"isBuildCommand\" en el archivo tasks.json.",
 	"TaskService.noBuildTask2": "No se ha definido ninguna tarea de compilación. Marque una tarea con un grupo \"build\" en el archivo tasks.json. ",
 	"TaskService.noTestTask1": "No se ha definido ninguna tarea de prueba. Marque una tarea con \"isTestCommand\" en el archivo tasks.json.",

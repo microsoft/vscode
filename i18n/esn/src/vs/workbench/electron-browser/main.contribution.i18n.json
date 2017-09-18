@@ -10,6 +10,8 @@
 	"workspaces": "Áreas de trabajo",
 	"developer": "Desarrollador",
 	"showEditorTabs": "Controla si los editores abiertos se deben mostrar o no en pestañas.",
+	"workbench.editor.labelFormat.short": "Mostrar el nombre del archivo seguido de su nombre de directorio.",
+	"workbench.editor.labelFormat.medium": "Mostrar el nombre del archivo seguido de la ruta de acceso relativo a la raíz del espacio de trabajo.",
 	"editorTabCloseButton": "Controla la posición de los botones de cierre de pestañas del editor o los deshabilita si se establece en \"off\".",
 	"showIcons": "Controla si los editores abiertos deben mostrarse o no con un icono. Requiere que también se habilite un tema de icono.",
 	"enablePreview": "Controla si los editores abiertos se muestran en vista previa. Los editores en vista previa se reutilizan hasta que se guardan (por ejemplo, mediante doble clic o editándolos).",

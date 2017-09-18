@@ -213,8 +213,8 @@ export class FileLabel extends ResourceLabel {
 	public setFile(resource: uri, options?: IFileLabelOptions): void {
 		const hidePath = (options && options.hidePath) || (resource.scheme === Schemas.untitled && !this.untitledEditorService.hasAssociatedFilePath(resource));
 		const rootProvider: IWorkspaceFolderProvider = (options && options.root) ? {
-			getWorkspaceFolder(): uri { return options.root; },
-			getWorkspace(): { folders: uri[]; } { return { folders: [options.root] }; },
+			getWorkspaceFolder(): { uri: uri } { return { uri: options.root }; },
+			getWorkspace(): { folders: { uri: uri }[]; } { return { folders: [{ uri: options.root }] }; },
 		} : this.contextService;
 
 		const description = resource.scheme === 'file' || resource.scheme === 'untitled' ? getPathLabel(paths.dirname(resource.fsPath), rootProvider, this.environmentService) : resource.authority;

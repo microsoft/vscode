@@ -21,6 +21,7 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 	_serviceBrand: any;
 	private _execPath: string;
 	private _workspaceRoot: string;
+	private _workspaceFolder: string;
 
 	constructor(
 		envVariables: { [key: string]: string },
@@ -40,11 +41,19 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 	}
 
 	private get cwd(): string {
-		return this.workspaceRoot;
+		if (this.workspaceRoot) {
+			return this.workspaceRoot;
+		} else {
+			return process.cwd();
+		}
 	}
 
 	private get workspaceRoot(): string {
 		return this._workspaceRoot;
+	}
+
+	private get workspaceFolder(): string {
+		return this._workspaceFolder;
 	}
 
 	private get workspaceRootFolderName(): string {
@@ -105,30 +114,40 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 	public resolve(root: uri, value: string[]): string[];
 	public resolve(root: uri, value: IStringDictionary<string>): IStringDictionary<string>;
 	public resolve(root: uri, value: any): any {
-		this._workspaceRoot = root.fsPath.toString();
-		if (types.isString(value)) {
-			return this.resolveString(root, value);
-		} else if (types.isArray(value)) {
-			return this.resolveArray(root, value);
-		} else if (types.isObject(value)) {
-			return this.resolveLiteral(root, value);
+		try {
+			this._workspaceFolder = root.fsPath.toString();
+			this._workspaceRoot = this._workspaceFolder;
+			if (types.isString(value)) {
+				return this.resolveString(root, value);
+			} else if (types.isArray(value)) {
+				return this.resolveArray(root, value);
+			} else if (types.isObject(value)) {
+				return this.resolveLiteral(root, value);
+			}
+			return value;
+		} finally {
+			this._workspaceRoot = undefined;
+			this._workspaceFolder = undefined;
 		}
-
-		return value;
 	}
 
 	public resolveAny<T>(root: uri, value: T): T;
 	public resolveAny<T>(root: uri, value: any): any {
-		this._workspaceRoot = root.fsPath.toString();
-		if (types.isString(value)) {
-			return this.resolveString(root, value);
-		} else if (types.isArray(value)) {
-			return this.resolveAnyArray(root, value);
-		} else if (types.isObject(value)) {
-			return this.resolveAnyLiteral(root, value);
+		try {
+			this._workspaceFolder = root.fsPath.toString();
+			this._workspaceRoot = this._workspaceFolder;
+			if (types.isString(value)) {
+				return this.resolveString(root, value);
+			} else if (types.isArray(value)) {
+				return this.resolveAnyArray(root, value);
+			} else if (types.isObject(value)) {
+				return this.resolveAnyLiteral(root, value);
+			}
+			return value;
+		} finally {
+			this._workspaceFolder = undefined;
+			this._workspaceRoot = undefined;
 		}
-
-		return value;
 	}
 
 	private resolveString(root: uri, value: string): string {

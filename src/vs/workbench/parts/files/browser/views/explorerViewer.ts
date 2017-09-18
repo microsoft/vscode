@@ -572,8 +572,7 @@ export class FileSorter implements ISorter {
 		// Do not sort roots
 		if (statA.isRoot) {
 			if (statB.isRoot) {
-				const ws = this.contextService.getWorkspace();
-				return ws.folders.indexOf(statA.resource) - ws.folders.indexOf(statB.resource);
+				return this.contextService.getWorkspaceFolder(statA.resource).index - this.contextService.getWorkspaceFolder(statB.resource).index;
 			}
 			return -1;
 		}
@@ -666,10 +665,10 @@ export class FileFilter implements IFilter {
 	public updateConfiguration(): boolean {
 		let needsRefresh = false;
 		this.contextService.getWorkspace().folders.forEach(folder => {
-			const configuration = this.configurationService.getConfiguration<IFilesConfiguration>(undefined, { resource: folder });
+			const configuration = this.configurationService.getConfiguration<IFilesConfiguration>(undefined, { resource: folder.uri });
 			const excludesConfig = (configuration && configuration.files && configuration.files.exclude) || Object.create(null);
-			needsRefresh = needsRefresh || !objects.equals(this.hiddenExpressionPerRoot.get(folder.toString()), excludesConfig);
-			this.hiddenExpressionPerRoot.set(folder.toString(), objects.clone(excludesConfig)); // do not keep the config, as it gets mutated under our hoods
+			needsRefresh = needsRefresh || !objects.equals(this.hiddenExpressionPerRoot.get(folder.uri.toString()), excludesConfig);
+			this.hiddenExpressionPerRoot.set(folder.uri.toString(), objects.clone(excludesConfig)); // do not keep the config, as it gets mutated under our hoods
 		});
 
 		return needsRefresh;
@@ -843,7 +842,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 				return fromDesktop || isCopy ? DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY(true) : DRAG_OVER_ACCEPT_BUBBLE_DOWN(true);
 			}
 
-			if (this.contextService.getWorkspace().folders.every(r => r.toString() !== target.resource.toString())) {
+			if (this.contextService.getWorkspace().folders.every(folder => folder.uri.toString() !== target.resource.toString())) {
 				return fromDesktop || isCopy ? DRAG_OVER_ACCEPT_BUBBLE_UP_COPY : DRAG_OVER_ACCEPT_BUBBLE_UP;
 			}
 		}
@@ -899,7 +898,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 				});
 
 				if (result) {
-					const currentFolders = this.contextService.getWorkspace().folders;
+					const currentFolders = this.contextService.getWorkspace().folders.map(folder => folder.uri);
 					const newRoots = [...currentFolders, ...folders];
 
 					return this.windowService.createAndOpenWorkspace(distinct(newRoots.map(root => root.fsPath)));

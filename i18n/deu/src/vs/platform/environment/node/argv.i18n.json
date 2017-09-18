@@ -15,7 +15,7 @@
 	"reuseWindow": "Erzwingt das Öffnen einer Datei oder eines Ordners im letzten aktiven Fenster.",
 	"userDataDir": "Gibt das Verzeichnis an, in dem Benutzerdaten gespeichert werden. Nützlich, wenn die Ausführung als \"root\" erfolgt.",
 	"verbose": "Ausführliche Ausgabe (impliziert \"-wait\").",
-	"wait": "Wartet, bis das Fenster geschlossen wurde, bevor die Rückgabe erfolgt.",
+	"wait": "Warten Sie, bis die Dateien geschlossen sind, bevor Sie zurück gehen können.",
 	"extensionHomePath": "Legen Sie den Stammpfad für Extensions fest.",
 	"listExtensions": "Listet die installierten Extensions auf.",
 	"showVersions": "Zeigt Versionen der installierten Erweiterungen an, wenn \"--list-extension\" verwendet wird.",

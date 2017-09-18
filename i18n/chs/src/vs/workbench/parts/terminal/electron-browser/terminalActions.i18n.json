@@ -38,6 +38,5 @@
 	"workbench.action.terminal.focusFindWidget": "聚焦于查找小组件",
 	"workbench.action.terminal.hideFindWidget": "隐藏查找小组件",
 	"nextTerminalFindTerm": "显示下一个搜索结果",
-	"previousTerminalFindTerm": "显示上一个搜索结果",
-	"quickOpenTerm": "终端: 切换活动终端"
+	"previousTerminalFindTerm": "显示上一个搜索结果"
 }

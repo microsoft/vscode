@@ -19,7 +19,6 @@
 	"manyMarkers": "99+",
 	"runningTasks": "顯示執行中的工作",
 	"tasks": "工作",
-	"TaskSystem.noHotSwap": "必須重新載入視窗才能變更工作執行引擎",
 	"TaskService.noBuildTask1": "未定義任何建置工作。請使用 'isBuildCommand' 標記 tasks.json 檔案中的工作。",
 	"TaskService.noBuildTask2": "未定義任何組建工作，請在 tasks.json 檔案中將工作標記為 'build' 群組。",
 	"TaskService.noTestTask1": "未定義任何建置工作。請使用 'isTestCommand' 標記 tasks.json 檔案中的工作。",

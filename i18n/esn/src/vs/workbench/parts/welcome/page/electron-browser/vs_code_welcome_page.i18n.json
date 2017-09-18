@@ -10,6 +10,7 @@
 	"welcomePage.newFile": "Nuevo archivo",
 	"welcomePage.openFolder": "Abrir carpeta...",
 	"welcomePage.cloneGitRepository": "Clonar el repositorio GIT...",
+	"welcomePage.addWorkspaceFolder": "Agregar carpeta de espacio de trabajo...",
 	"welcomePage.recent": "Reciente",
 	"welcomePage.moreRecent": "Más...",
 	"welcomePage.noRecentFolders": "No hay ninguna carpeta reciente",
@@ -35,8 +36,6 @@
 	"welcomePage.showCommandsDescription": "Acceda rápidamente y busque comandos desde la Paleta de Comandos ({0})",
 	"welcomePage.interfaceOverview": "Introducción a la interfaz",
 	"welcomePage.interfaceOverviewDescription": "Obtenga una superposición que resalta los componentes principales de la interfaz de usuario",
-	"welcomePage.deployToAzure": "Implementar aplicaciones en la nube",
-	"welcomePage.deployToAzureDescription": "Vea cómo implementar sus aplicaciones de Node en Azure App Service",
 	"welcomePage.interactivePlayground": "Área de juegos interactiva",
 	"welcomePage.interactivePlaygroundDescription": "Pruebe las características esenciales del editor en un tutorial corto"
 }

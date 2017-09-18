@@ -39,5 +39,5 @@
 	"workbench.action.terminal.hideFindWidget": "Ocultar Encontrar Widget",
 	"nextTerminalFindTerm": "Mostrar siguiente término de búsqueda",
 	"previousTerminalFindTerm": "Mostrar término de búsqueda anterior",
-	"quickOpenTerm": "Terminal: Cambiar Terminal Activo"
+	"quickOpenTerm": "Cambiar terminal activo"
 }

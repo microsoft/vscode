@@ -30,7 +30,7 @@ import { IEditorPart } from 'vs/workbench/services/editor/browser/editorService'
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { Position, POSITIONS, Direction } from 'vs/platform/editor/common/editor';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IMessageService, IMessageWithAction, Severity } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -44,6 +44,7 @@ import { EDITOR_GROUP_BACKGROUND } from 'vs/workbench/common/theme';
 import { createCSSRule } from 'vs/base/browser/dom';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { join } from 'vs/base/common/paths';
+import { isCommonCodeEditor } from 'vs/editor/common/editorCommon';
 
 class ProgressMonitor {
 
@@ -1296,6 +1297,20 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				group.unpin(input);
 			});
 		}
+	}
+
+	public invokeWithinEditorContext<T>(fn: (accessor: ServicesAccessor) => T): T {
+		const activeEditor = this.getActiveEditor();
+		if (activeEditor) {
+			const activeEditorControl = activeEditor.getControl();
+			if (isCommonCodeEditor(activeEditorControl)) {
+				return activeEditorControl.invokeWithinContext(fn);
+			}
+
+			return this.editorGroupsControl.getInstantiationService(activeEditor.position).invokeFunction(fn);
+		}
+
+		return this.instantiationService.invokeFunction(fn);
 	}
 
 	public layout(dimension: Dimension): Dimension[] {

@@ -617,7 +617,7 @@ namespace ShellConfiguration {
 namespace CommandOptions {
 
 	const properties: MetaData<Tasks.CommandOptions, Tasks.ShellConfiguration>[] = [{ property: 'cwd' }, { property: 'env' }, { property: 'shell', type: ShellConfiguration }];
-	const defaults: CommandOptions = { cwd: '${workspaceRoot}' };
+	const defaults: CommandOptions = { cwd: '${workspaceFolder}' };
 
 	export function from(this: void, options: CommandOptions, context: ParseContext): Tasks.CommandOptions {
 		let result: Tasks.CommandOptions = {};

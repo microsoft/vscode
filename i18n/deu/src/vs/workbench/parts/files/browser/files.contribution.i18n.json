@@ -14,8 +14,6 @@
 	"files.exclude.boolean": "Das Globmuster, mit dem Dateipfade verglichen werden sollen. Legen Sie diesen Wert auf \"true\" oder \"false\" fest, um das Muster zu aktivieren bzw. zu deaktivieren.",
 	"files.exclude.when": "Zusätzliche Überprüfung der gleichgeordneten Elemente einer entsprechenden Datei. Verwenden Sie \"$(basename)\" als Variable für den entsprechenden Dateinamen.",
 	"associations": "Konfigurieren Sie Dateizuordnungen zu Sprachen (beispielsweise \"*.extension\": \"html\"). Diese besitzen Vorrang vor den Standardzuordnungen der installierten Sprachen.",
-	"encoding": "Die Standardzeichensatz-Codierung, die beim Lesen und Schreiben von Dateien verwendet werden soll.",
-	"autoGuessEncoding": "Ist diese Option aktiviert, wird beim Öffnen von Dateien versucht, die Zeichensatzcodierung automatisch zu ermitteln.",
 	"eol": "Das Zeilenende-Standardzeichen. Verwenden Sie \\n für LF und \\r\\n für CRLF.",
 	"trimTrailingWhitespace": "Bei Aktivierung werden nachgestellte Leerzeichen beim Speichern einer Datei gekürzt.",
 	"insertFinalNewline": "Bei Aktivierung wird beim Speichern einer Datei eine abschließende neue Zeile am Dateiende eingefügt.",
