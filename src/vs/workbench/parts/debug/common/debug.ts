@@ -17,6 +17,7 @@ import { ISuggestion } from 'vs/editor/common/modes';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export const VIEWLET_ID = 'workbench.view.debug';
@@ -420,9 +421,7 @@ export interface ILaunch {
 	 */
 	uri: uri;
 
-	workspaceUri: uri;
-
-	name: string;
+	workspace: WorkspaceFolder;
 
 	/**
 	 * Returns a configuration with the specified name.

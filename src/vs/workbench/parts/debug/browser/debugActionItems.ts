@@ -160,7 +160,7 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 				if (name === manager.selectedName && launch === manager.selectedLaunch) {
 					this.selected = this.options.length;
 				}
-				const label = launches.length > 1 ? `${name} (${launch.name})` : name;
+				const label = launches.length > 1 ? `${name} (${launch.workspace.name})` : name;
 				this.options.push({ label, handler: () => { manager.selectConfiguration(launch, name); return true; } });
 			}));
 
@@ -171,10 +171,10 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 
 		const disabledIdx = this.options.length - 1;
 		launches.forEach(l => {
-			const label = launches.length > 1 ? nls.localize("addConfigTo", "Add Config ({0})...", l.name) : nls.localize('addConfiguration', "Add Configuration...");
+			const label = launches.length > 1 ? nls.localize("addConfigTo", "Add Config ({0})...", l.workspace.name) : nls.localize('addConfiguration', "Add Configuration...");
 			this.options.push({
 				label, handler: () => {
-					this.commandService.executeCommand('debug.addConfiguration', l.workspaceUri.toString()).done(undefined, errors.onUnexpectedError);
+					this.commandService.executeCommand('debug.addConfiguration', l.workspace.uri.toString()).done(undefined, errors.onUnexpectedError);
 					return false;
 				}
 			});

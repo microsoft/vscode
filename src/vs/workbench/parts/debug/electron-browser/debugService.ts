@@ -608,7 +608,7 @@ export class DebugService implements debug.IDebugService {
 				}
 				this.launchJsonChanged = false;
 				const manager = this.getConfigurationManager();
-				const launch = root ? manager.getLaunches().filter(l => l.workspaceUri.toString() === root.toString()).pop() : undefined;
+				const launch = root ? manager.getLaunches().filter(l => l.workspace.uri.toString() === root.toString()).pop() : undefined;
 
 				let config: debug.IConfig, compound: debug.ICompound;
 				if (!configOrName) {
@@ -658,14 +658,14 @@ export class DebugService implements debug.IDebugService {
 						config.noDebug = true;
 					}
 
-					return this.configurationManager.resolveDebugConfiguration(launch ? launch.workspaceUri : undefined, type, config).then(config => {
+					return this.configurationManager.resolveDebugConfiguration(launch ? launch.workspace.uri : undefined, type, config).then(config => {
 
 						// a falsy config indicates an aborted launch
 						if (config) {
 
 							// deprecated code: use DebugConfigurationProvider instead of startSessionCommand
 							if (commandAndType && commandAndType.command) {
-								return this.commandService.executeCommand(commandAndType.command, config, launch ? launch.workspaceUri : undefined).then((result: StartSessionResult) => {
+								return this.commandService.executeCommand(commandAndType.command, config, launch ? launch.workspace.uri : undefined).then((result: StartSessionResult) => {
 									if (launch) {
 										if (result && result.status === 'initialConfiguration') {
 											return launch.openConfigFile(false, commandAndType.type);
