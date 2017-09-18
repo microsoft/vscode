@@ -260,6 +260,12 @@ function showPreview(cspArbiter: ExtensionContentSecurityPolicyArbiter, uri?: vs
 		});
 
 	if (telemetryReporter) {
+		/* __GDPR__
+		   "openPreview" : {
+			  "where" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "how": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		   }
+		 */
 		telemetryReporter.sendTelemetryEvent('openPreview', {
 			where: sideBySide ? 'sideBySide' : 'inPlace',
 			how: (uri instanceof vscode.Uri) ? 'action' : 'pallete'
