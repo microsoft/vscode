@@ -12,6 +12,7 @@ import Event from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { ICommandAction } from 'vs/platform/actions/common/actions';
 
 export interface ICodeWindow {
 	id: number;
@@ -35,6 +36,8 @@ export interface ICodeWindow {
 	setRepresentedFilename(name: string): void;
 	getRepresentedFilename(): string;
 	onWindowTitleDoubleClick(): void;
+
+	updateTouchBar(items: ICommandAction[][]): void;
 }
 
 export const IWindowsMainService = createDecorator<IWindowsMainService>('windowsMainService');

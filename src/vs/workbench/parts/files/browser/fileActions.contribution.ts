@@ -26,6 +26,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { explorerItemToFileResource, ExplorerFocusCondition, FilesExplorerFocusCondition } from 'vs/workbench/parts/files/common/files';
+import URI from 'vs/base/common/uri';
 
 class FilesViewerActionContributor extends ActionBarContributor {
 
@@ -338,5 +339,13 @@ function appendSaveConflictEditorTitleAction(id: string, title: string, iconClas
 		when: ContextKeyExpr.equals(CONFLICT_RESOLUTION_CONTEXT, true),
 		group: 'navigation',
 		order
+	});
+}
+
+// Touch Bar
+if (isMacintosh) {
+	MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
+		command: { id: GlobalNewUntitledFileAction.ID, title: GlobalNewUntitledFileAction.LABEL, iconPath: URI.parse(require.toUrl('vs/workbench/parts/files/browser/media/new-file-tb.png')).fsPath },
+		group: '1_modification'
 	});
 }

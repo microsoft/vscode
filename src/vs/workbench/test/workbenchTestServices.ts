@@ -58,6 +58,7 @@ import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderW
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IPosition } from 'vs/editor/common/core/position';
+import { ICommandAction } from 'vs/platform/actions/common/actions';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -965,6 +966,10 @@ export class TestWindowService implements IWindowService {
 	showOpenDialog(options: Electron.OpenDialogOptions, callback?: (fileNames: string[]) => void): string[] {
 		return void 0;
 	}
+
+	updateTouchBar(items: ICommandAction[][]): Promise<void> {
+		return TPromise.as(void 0);
+	}
 }
 
 export class TestLifecycleService implements ILifecycleService {
@@ -1168,6 +1173,10 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	toggleWindowTabsBar(): Promise<void> {
+		return TPromise.as(void 0);
+	}
+
+	updateTouchBar(windowId: number, items: ICommandAction[][]): Promise<void> {
 		return TPromise.as(void 0);
 	}
 

@@ -13,6 +13,7 @@ import { IProcessEnvironment } from 'vs/base/common/platform';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
+import { ICommandAction } from 'vs/platform/actions/common/actions';
 
 export const IWindowsService = createDecorator<IWindowsService>('windowsService');
 
@@ -68,6 +69,9 @@ export interface IWindowsService {
 	mergeAllWindowTabs(): TPromise<void>;
 	toggleWindowTabsBar(): TPromise<void>;
 
+	// macOS TouchBar
+	updateTouchBar(windowId: number, items: ICommandAction[][]): TPromise<void>;
+
 	// Shared process
 	whenSharedProcessReady(): TPromise<void>;
 	toggleSharedProcess(): TPromise<void>;
@@ -106,6 +110,7 @@ export interface IWindowService {
 	toggleDevTools(): TPromise<void>;
 	closeWorkspace(): TPromise<void>;
 	openWorkspace(): TPromise<void>;
+	updateTouchBar(items: ICommandAction[][]): TPromise<void>;
 	createAndOpenWorkspace(folders?: string[], path?: string): TPromise<void>;
 	saveAndOpenWorkspace(path: string): TPromise<void>;
 	toggleFullScreen(): TPromise<void>;

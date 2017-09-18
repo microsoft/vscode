@@ -11,6 +11,7 @@ import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/i
 import { IWindowsService, INativeOpenDialogOptions } from './windows';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
+import { ICommandAction } from 'vs/platform/actions/common/actions';
 
 export interface IWindowsChannel extends IChannel {
 	call(command: 'event:onWindowOpen'): TPromise<number>;
@@ -36,6 +37,7 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'moveWindowTabToNewWindow', arg: number): TPromise<void>;
 	call(command: 'mergeAllWindowTabs', arg: number): TPromise<void>;
 	call(command: 'toggleWindowTabsBar', arg: number): TPromise<void>;
+	call(command: 'updateTouchBar', arg: [number, ICommandAction[][]]): TPromise<void>;
 	call(command: 'focusWindow', arg: number): TPromise<void>;
 	call(command: 'closeWindow', arg: number): TPromise<void>;
 	call(command: 'isFocused', arg: number): TPromise<boolean>;
@@ -97,6 +99,7 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'moveWindowTabToNewWindow': return this.service.moveWindowTabToNewWindow();
 			case 'mergeAllWindowTabs': return this.service.mergeAllWindowTabs();
 			case 'toggleWindowTabsBar': return this.service.toggleWindowTabsBar();
+			case 'updateTouchBar': return this.service.updateTouchBar(arg[0], arg[1]);
 			case 'getRecentlyOpened': return this.service.getRecentlyOpened(arg);
 			case 'focusWindow': return this.service.focusWindow(arg);
 			case 'closeWindow': return this.service.closeWindow(arg);
@@ -305,5 +308,9 @@ export class WindowsChannelClient implements IWindowsService {
 
 	startCrashReporter(config: Electron.CrashReporterStartOptions): TPromise<void> {
 		return this.channel.call('startCrashReporter', config);
+	}
+
+	updateTouchBar(windowId: number, items: ICommandAction[][]): TPromise<void> {
+		return this.channel.call('updateTouchBar', [windowId, items]);
 	}
 }
