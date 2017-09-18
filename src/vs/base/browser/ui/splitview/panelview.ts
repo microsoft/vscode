@@ -16,16 +16,11 @@ import { firstIndex } from 'vs/base/common/arrays';
 import { Color, RGBA } from 'vs/base/common/color';
 import { SplitView, IView } from './splitview2';
 
-enum PanelState {
-	Expanded,
-	Collapsed
-}
-
 export interface IPanelOptions {
 	ariaHeaderLabel?: string;
 	minimumBodySize?: number;
 	maximumBodySize?: number;
-	collapsed?: boolean;
+	expanded?: boolean;
 }
 
 export interface IPanelStyles {
@@ -36,7 +31,8 @@ export abstract class Panel implements IView {
 
 	private static HEADER_SIZE = 22;
 
-	private state: PanelState = PanelState.Expanded;
+	private _expanded: boolean;
+	private _headerVisible: boolean;
 	private _onDidChange = new Emitter<void>();
 	private _minimumBodySize: number;
 	private _maximumBodySize: number;
@@ -63,20 +59,56 @@ export abstract class Panel implements IView {
 	}
 
 	get minimumSize(): number {
-		return Panel.HEADER_SIZE + (this.state === PanelState.Collapsed ? 0 : this._minimumBodySize);
+		const headerSize = this.headerVisible ? Panel.HEADER_SIZE : 0;
+		const expanded = !this.headerVisible || this.expanded;
+		const minimumBodySize = expanded ? this._minimumBodySize : 0;
+
+		return headerSize + minimumBodySize;
 	}
 
 	get maximumSize(): number {
-		return Panel.HEADER_SIZE + (this.state === PanelState.Collapsed ? 0 : this._maximumBodySize);
+		const headerSize = this.headerVisible ? Panel.HEADER_SIZE : 0;
+		const expanded = !this.headerVisible || this.expanded;
+		const maximumBodySize = expanded ? this._maximumBodySize : 0;
+
+		return headerSize + maximumBodySize;
 	}
 
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	constructor(options: IPanelOptions = {}) {
+		this._expanded = typeof options.expanded === 'undefined' ? true : !!options.expanded;
 		this.ariaHeaderLabel = options.ariaHeaderLabel || '';
 		this._minimumBodySize = typeof options.minimumBodySize === 'number' ? options.minimumBodySize : 44;
 		this._maximumBodySize = typeof options.maximumBodySize === 'number' ? options.maximumBodySize : Number.POSITIVE_INFINITY;
-		this.state = options.collapsed ? PanelState.Collapsed : PanelState.Expanded;
+	}
+
+	get expanded(): boolean {
+		return this._expanded;
+	}
+
+	set expanded(expanded: boolean) {
+		if (this._expanded === !!expanded) {
+			return;
+		}
+
+		this._expanded = !!expanded;
+		this.renderHeader();
+		this._onDidChange.fire();
+	}
+
+	get headerVisible(): boolean {
+		return this._headerVisible;
+	}
+
+	set headerVisible(visible: boolean) {
+		if (this._headerVisible === !!visible) {
+			return;
+		}
+
+		this._headerVisible = !!visible;
+		this.renderHeader();
+		this._onDidChange.fire();
 	}
 
 	render(container: HTMLElement): void {
@@ -92,15 +124,16 @@ export abstract class Panel implements IView {
 			.map(e => new StandardKeyboardEvent(e));
 
 		onHeaderKeyDown.filter(e => e.keyCode === KeyCode.Enter || e.keyCode === KeyCode.Space)
-			.event(this.toggleExpansion, this, this.disposables);
+			.event(() => this.expanded = !this.expanded, null, this.disposables);
 
 		onHeaderKeyDown.filter(e => e.keyCode === KeyCode.LeftArrow)
-			.event(this.collapse, this, this.disposables);
+			.event(() => this.expanded = false, null, this.disposables);
 
 		onHeaderKeyDown.filter(e => e.keyCode === KeyCode.RightArrow)
-			.event(this.expand, this, this.disposables);
+			.event(() => this.expanded = true, null, this.disposables);
 
-		domEvent(header, 'click')(this.toggleExpansion, this, this.disposables);
+		domEvent(header, 'click')
+			(() => this.expanded = !this.expanded, null, this.disposables);
 
 		// TODO@Joao move this down to panelview
 		// onHeaderKeyDown.filter(e => e.keyCode === KeyCode.UpArrow)
@@ -114,42 +147,20 @@ export abstract class Panel implements IView {
 	}
 
 	layout(size: number): void {
-		this.layoutBody(size - Panel.HEADER_SIZE);
+		const headerSize = this.headerVisible ? Panel.HEADER_SIZE : 0;
+		this.layoutBody(size - headerSize);
 	}
 
 	focus(): void {
 		// TODO@joao what to do
 	}
 
-	toggleExpansion(): void {
-		if (this.state === PanelState.Expanded) {
-			return this.collapse();
-		} else {
-			return this.expand();
-		}
-	}
-
-	expand(): void {
-		if (this.state === PanelState.Expanded) {
-			return;
-		}
-
-		this.renderHeader();
-		this._onDidChange.fire();
-	}
-
-	collapse(): void {
-		if (this.state === PanelState.Collapsed) {
-			return;
-		}
-
-		this.renderHeader();
-		this._onDidChange.fire();
-	}
-
 	private renderHeader(): void {
-		toggleClass(this.header, 'expanded', this.state === PanelState.Expanded);
-		this.header.setAttribute('aria-expanded', String(this.state === PanelState.Expanded));
+		const expanded = !this.headerVisible || this.expanded;
+
+		toggleClass(this.header, 'hidden', !this.headerVisible);
+		toggleClass(this.header, 'expanded', expanded);
+		this.header.setAttribute('aria-expanded', String(expanded));
 	}
 
 	protected abstract renderBody(container: HTMLElement): void;
@@ -273,6 +284,9 @@ export class PanelView implements IDisposable {
 	private splitview: SplitView;
 	private animationTimer: number | null = null;
 
+	private _onDidDrop = new Emitter<{ from: Panel, to: Panel }>();
+	readonly onDidDrop: Event<{ from: Panel, to: Panel }> = this._onDidDrop.event;
+
 	constructor(private container: HTMLElement, options?: IPanelViewOptions) {
 		this.dnd = !!options.dnd;
 		this.el = append(container, $('.monaco-panel-view'));
@@ -286,7 +300,7 @@ export class PanelView implements IDisposable {
 		if (this.dnd) {
 			const draggable = new PanelDraggable(panel, this.dndContext);
 			disposables.push(draggable);
-			draggable.onDidDrop(({ from, to }) => this.movePanel(from, to), null, disposables);
+			draggable.onDidDrop(this._onDidDrop.fire, this._onDidDrop, disposables);
 		}
 
 		const panelItem = { panel, disposable: combinedDisposable(disposables) };
@@ -340,6 +354,7 @@ export class PanelView implements IDisposable {
 	}
 
 	dispose(): void {
-
+		this.panelItems.forEach(i => i.disposable.dispose());
+		this.splitview.dispose();
 	}
 }
