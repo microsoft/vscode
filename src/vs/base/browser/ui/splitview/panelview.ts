@@ -5,7 +5,7 @@
 
 'use strict';
 
-import 'vs/css!./splitview';
+import 'vs/css!./panelview';
 import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter, chain } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
@@ -25,6 +25,9 @@ export interface IPanelOptions {
 
 export interface IPanelStyles {
 	dropBackground?: Color;
+	headerForeground?: Color;
+	headerBackground?: Color;
+	headerHighContrastBorder?: Color;
 }
 
 export abstract class Panel implements IView {
@@ -38,8 +41,17 @@ export abstract class Panel implements IView {
 	private _maximumBodySize: number;
 	private ariaHeaderLabel: string;
 
-	readonly header: HTMLElement;
+	private header: HTMLElement;
 	protected disposables: IDisposable[] = [];
+
+	get draggable(): HTMLElement {
+		return this.header;
+	}
+
+	private _dropBackground: Color | undefined;
+	get dropBackground(): Color | undefined {
+		return this._dropBackground;
+	}
 
 	get minimumBodySize(): number {
 		return this._minimumBodySize;
@@ -59,8 +71,12 @@ export abstract class Panel implements IView {
 		this._onDidChange.fire();
 	}
 
+	private get headerSize(): number {
+		return this.headerVisible ? Panel.HEADER_SIZE : 0;
+	}
+
 	get minimumSize(): number {
-		const headerSize = this.headerVisible ? Panel.HEADER_SIZE : 0;
+		const headerSize = this.headerSize;
 		const expanded = !this.headerVisible || this.expanded;
 		const minimumBodySize = expanded ? this._minimumBodySize : 0;
 
@@ -68,7 +84,7 @@ export abstract class Panel implements IView {
 	}
 
 	get maximumSize(): number {
-		const headerSize = this.headerVisible ? Panel.HEADER_SIZE : 0;
+		const headerSize = this.headerSize;
 		const expanded = !this.headerVisible || this.expanded;
 		const maximumBodySize = expanded ? this._maximumBodySize : 0;
 
@@ -82,6 +98,7 @@ export abstract class Panel implements IView {
 		this.ariaHeaderLabel = options.ariaHeaderLabel || '';
 		this._minimumBodySize = typeof options.minimumBodySize === 'number' ? options.minimumBodySize : 44;
 		this._maximumBodySize = typeof options.maximumBodySize === 'number' ? options.maximumBodySize : Number.POSITIVE_INFINITY;
+		this.header = $('.panel-header');
 	}
 
 	get expanded(): boolean {
@@ -94,7 +111,7 @@ export abstract class Panel implements IView {
 		}
 
 		this._expanded = !!expanded;
-		this.renderHeader();
+		this.updateHeader();
 		this._onDidChange.fire();
 	}
 
@@ -108,20 +125,21 @@ export abstract class Panel implements IView {
 		}
 
 		this._headerVisible = !!visible;
-		this.renderHeader();
+		this.updateHeader();
 		this._onDidChange.fire();
 	}
 
 	render(container: HTMLElement): void {
 		const panel = append(container, $('.panel'));
-		const header = append(panel, $('.panel-header'));
 
-		header.setAttribute('tabindex', '0');
-		header.setAttribute('role', 'toolbar');
-		header.setAttribute('aria-label', this.ariaHeaderLabel);
-		this.renderHeader();
+		append(panel, this.header);
+		this.header.setAttribute('tabindex', '0');
+		this.header.setAttribute('role', 'toolbar');
+		this.header.setAttribute('aria-label', this.ariaHeaderLabel);
+		this.renderHeader(this.header);
+		this.updateHeader();
 
-		const onHeaderKeyDown = chain(domEvent(header, 'keydown'))
+		const onHeaderKeyDown = chain(domEvent(this.header, 'keydown'))
 			.map(e => new StandardKeyboardEvent(e));
 
 		onHeaderKeyDown.filter(e => e.keyCode === KeyCode.Enter || e.keyCode === KeyCode.Space)
@@ -133,7 +151,7 @@ export abstract class Panel implements IView {
 		onHeaderKeyDown.filter(e => e.keyCode === KeyCode.RightArrow)
 			.event(() => this.expanded = true, null, this.disposables);
 
-		domEvent(header, 'click')
+		domEvent(this.header, 'click')
 			(() => this.expanded = !this.expanded, null, this.disposables);
 
 		// TODO@Joao move this down to panelview
@@ -152,18 +170,24 @@ export abstract class Panel implements IView {
 		this.layoutBody(size - headerSize);
 	}
 
-	focus(): void {
-		// TODO@joao what to do
+	style(styles: IPanelStyles): void {
+		this.header.style.color = styles.headerForeground ? styles.headerForeground.toString() : null;
+		this.header.style.backgroundColor = styles.headerBackground ? styles.headerBackground.toString() : null;
+		this.header.style.borderTop = styles.headerHighContrastBorder ? `1px solid ${styles.headerHighContrastBorder}` : null;
+		this._dropBackground = styles.dropBackground;
 	}
 
-	private renderHeader(): void {
+	private updateHeader(): void {
 		const expanded = !this.headerVisible || this.expanded;
 
+		this.header.style.height = `${this.headerSize}px`;
+		this.header.style.lineHeight = `${this.headerSize}px`;
 		toggleClass(this.header, 'hidden', !this.headerVisible);
 		toggleClass(this.header, 'expanded', expanded);
 		this.header.setAttribute('aria-expanded', String(expanded));
 	}
 
+	protected abstract renderHeader(container: HTMLElement): void;
 	protected abstract renderBody(container: HTMLElement): void;
 	protected abstract layoutBody(size: number): void;
 
@@ -173,7 +197,6 @@ export abstract class Panel implements IView {
 }
 
 interface IDndContext {
-	dropBackground: Color | undefined;
 	draggable: PanelDraggable | null;
 }
 
@@ -189,17 +212,17 @@ class PanelDraggable implements IDisposable {
 	readonly onDidDrop = this._onDidDrop.event;
 
 	constructor(private panel: Panel, private context: IDndContext) {
-		domEvent(panel.header, 'dragstart')(this.onDragStart, this, this.disposables);
-		domEvent(panel.header, 'dragenter')(this.onDragEnter, this, this.disposables);
-		domEvent(panel.header, 'dragleave')(this.onDragLeave, this, this.disposables);
-		domEvent(panel.header, 'dragend')(this.onDragEnd, this, this.disposables);
-		domEvent(panel.header, 'drop')(this.onDrop, this, this.disposables);
+		domEvent(panel.draggable, 'dragstart')(this.onDragStart, this, this.disposables);
+		domEvent(panel.draggable, 'dragenter')(this.onDragEnter, this, this.disposables);
+		domEvent(panel.draggable, 'dragleave')(this.onDragLeave, this, this.disposables);
+		domEvent(panel.draggable, 'dragend')(this.onDragEnd, this, this.disposables);
+		domEvent(panel.draggable, 'drop')(this.onDrop, this, this.disposables);
 	}
 
 	private onDragStart(e: DragEvent): void {
 		e.dataTransfer.effectAllowed = 'move';
 
-		const dragImage = append(document.body, $('.monaco-panel-drag-image', {}, this.panel.header.textContent));
+		const dragImage = append(document.body, $('.monaco-panel-drag-image', {}, this.panel.draggable.textContent));
 		e.dataTransfer.setDragImage(dragImage, -10, -10);
 		setTimeout(() => document.body.removeChild(dragImage), 0);
 
@@ -256,10 +279,10 @@ class PanelDraggable implements IDisposable {
 		let backgroundColor: string = null;
 
 		if (this.dragOverCounter > 0) {
-			backgroundColor = (this.context.dropBackground || PanelDraggable.DefaultDragOverBackgroundColor).toString();
+			backgroundColor = (this.panel.dropBackground || PanelDraggable.DefaultDragOverBackgroundColor).toString();
 		}
 
-		this.panel.header.style.backgroundColor = backgroundColor;
+		this.panel.draggable.style.backgroundColor = backgroundColor;
 	}
 
 	dispose(): void {
@@ -279,7 +302,7 @@ interface IPanelItem {
 export class PanelView implements IDisposable {
 
 	private dnd: boolean;
-	private dndContext: IDndContext = { dropBackground: undefined, draggable: null };
+	private dndContext: IDndContext = { draggable: null };
 	private el: HTMLElement;
 	private panelItems: IPanelItem[] = [];
 	private splitview: SplitView;
@@ -288,10 +311,10 @@ export class PanelView implements IDisposable {
 	private _onDidDrop = new Emitter<{ from: Panel, to: Panel }>();
 	readonly onDidDrop: Event<{ from: Panel, to: Panel }> = this._onDidDrop.event;
 
-	constructor(private container: HTMLElement, options?: IPanelViewOptions) {
+	constructor(private container: HTMLElement, options: IPanelViewOptions = {}) {
 		this.dnd = !!options.dnd;
 		this.el = append(container, $('.monaco-panel-view'));
-		this.splitview = new SplitView(container);
+		this.splitview = new SplitView(this.el);
 	}
 
 	addPanel(panel: Panel, size: number, index = this.splitview.length): void {
@@ -335,10 +358,6 @@ export class PanelView implements IDisposable {
 
 	layout(size: number): void {
 		this.splitview.layout(size);
-	}
-
-	style(styles: IPanelStyles): void {
-		this.dndContext.dropBackground = styles.dropBackground;
 	}
 
 	private setupAnimation(): void {

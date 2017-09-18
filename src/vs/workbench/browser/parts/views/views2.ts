@@ -6,7 +6,9 @@
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { Emitter } from 'vs/base/common/event';
-import { attachStyler } from 'vs/platform/theme/common/styler';
+import { ColorIdentifier, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { attachStyler, IColorMapping, IThemable } from 'vs/platform/theme/common/styler';
+import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND } from 'vs/workbench/common/theme';
 import { Dimension, Builder } from 'vs/base/browser/builder';
 import { append, $ } from 'vs/base/browser/dom';
 import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
@@ -21,8 +23,23 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 import { PanelView, IPanelOptions, Panel } from 'vs/base/browser/ui/splitview/panelview';
+
+export interface IPanelColors extends IColorMapping {
+	dropBackground?: ColorIdentifier;
+	headerForeground?: ColorIdentifier;
+	headerBackground?: ColorIdentifier;
+	headerHighContrastBorder?: ColorIdentifier;
+}
+
+export function attachPanelStyler(widget: IThemable, themeService: IThemeService) {
+	return attachStyler<IPanelColors>(themeService, {
+		headerForeground: SIDE_BAR_SECTION_HEADER_FOREGROUND,
+		headerBackground: SIDE_BAR_SECTION_HEADER_BACKGROUND,
+		headerHighContrastBorder: contrastBorder,
+		dropBackground: SIDE_BAR_DRAG_AND_DROP_BACKGROUND
+	}, widget);
+}
 
 export interface IViewletPanelOptions extends IPanelOptions {
 	actionRunner?: IActionRunner;
@@ -37,28 +54,24 @@ export abstract class ViewletPanel extends Panel {
 	private toolbar: ToolBar;
 
 	constructor(
-		readonly name: string,
-		initialSize: number,
+		readonly title: string,
 		options: IViewletPanelOptions,
-		protected keybindingService: IKeybindingService,
-		protected contextMenuService: IContextMenuService
+		@IKeybindingService protected keybindingService: IKeybindingService,
+		@IContextMenuService protected contextMenuService: IContextMenuService
 	) {
 		super(options);
 
 		this.actionRunner = options.actionRunner;
 	}
 
-	render(container: HTMLElement): void {
-		super.render(container);
+	protected renderHeader(container: HTMLElement): void {
+		this.renderHeaderTitle(container);
 
-		const title = append(this.header, $('div.title'));
-		title.textContent = this.name;
-
-		const actions = append(this.header, $('div.actions'));
+		const actions = append(container, $('.actions'));
 		this.toolbar = new ToolBar(actions, this.contextMenuService, {
 			orientation: ActionsOrientation.HORIZONTAL,
 			actionItemProvider: action => this.getActionItem(action),
-			ariaLabel: nls.localize('viewToolbarAriaLabel', "{0} actions", this.name),
+			ariaLabel: nls.localize('viewToolbarAriaLabel', "{0} actions", this.title),
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
 			actionRunner: this.actionRunner
 		});
@@ -67,8 +80,11 @@ export abstract class ViewletPanel extends Panel {
 		this.updateActions();
 	}
 
+	protected renderHeaderTitle(container: HTMLElement): void {
+		append(container, $('.title', null, this.title));
+	}
+
 	focus(): void {
-		super.focus();
 		this._onDidFocus.fire();
 	}
 
@@ -101,10 +117,6 @@ export abstract class ViewletPanel extends Panel {
 export interface IViewsViewletOptions {
 	showHeaderInTitleWhenSingleView: boolean;
 }
-
-const SplitViewThemeMapping = {
-	dropBackground: SIDE_BAR_DRAG_AND_DROP_BACKGROUND
-};
 
 interface IViewletPanelItem {
 	panel: ViewletPanel;
@@ -139,15 +151,13 @@ export class PanelViewlet extends Viewlet {
 
 		const container = parent.getHTMLElement();
 		this.panelview = this._register(new PanelView(container));
-		this._register(attachStyler(this.themeService, SplitViewThemeMapping, this.panelview));
-		// this._register(this.panelview.onFocus(view => this.lastFocusedView = view));
 	}
 
 	getTitle(): string {
 		let title = Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlet(this.getId()).name;
 
 		if (this.isSingleView) {
-			title += ': ' + this.panelItems[0].panel.name;
+			title += ': ' + this.panelItems[0].panel.title;
 		}
 
 		return title;
@@ -190,20 +200,21 @@ export class PanelViewlet extends Viewlet {
 		return Math.max(...sizes);
 	}
 
-	addView(panel: ViewletPanel, index = this.panelItems.length - 1): void {
+	addPanel(panel: ViewletPanel, size: number, index = this.panelItems.length - 1): void {
 		const disposables: IDisposable[] = [];
 		const onDidFocus = panel.onDidFocus(() => this.lastFocusedPanel = panel, null, disposables);
-		const disposable = combinedDisposable([onDidFocus]);
+		const styler = attachPanelStyler(panel, this.themeService);
+		const disposable = combinedDisposable([onDidFocus, styler]);
 		const panelItem: IViewletPanelItem = { panel, disposable };
 
 		this.panelItems.splice(index, 0, panelItem);
-		this.panelview.addPanel(panel, 200, index);
+		this.panelview.addPanel(panel, size, index);
 
 		this.updateViewHeaders();
 		this.updateTitleArea();
 	}
 
-	removeView(panel: ViewletPanel): void {
+	removePanel(panel: ViewletPanel): void {
 		const index = firstIndex(this.panelItems, i => i.panel === panel);
 
 		if (index === -1) {
