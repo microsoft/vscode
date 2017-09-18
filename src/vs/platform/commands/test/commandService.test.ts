@@ -35,6 +35,10 @@ class SimpleExtensionService implements IExtensionService {
 	}
 	restartExtensionHost(): void {
 	}
+	startExtensionHost(): void {
+	}
+	stopExtensionHost(): void {
+	}
 }
 
 suite('CommandService', function () {

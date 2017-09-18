@@ -18,6 +18,12 @@ import { IWorkspaceConfigurationService } from 'vs/workbench/services/configurat
 import { massageFolderPathForWorkspace } from 'vs/platform/workspaces/node/workspaces';
 import { isLinux } from 'vs/base/common/platform';
 import { WorkspaceServiceImpl } from 'vs/workbench/services/configuration/node/configuration';
+import { migrateStorageToMultiRootWorkspace } from 'vs/platform/storage/common/migration';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { StorageService } from 'vs/platform/storage/common/storageService';
+import { ConfigurationScope, IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 
 export class WorkspaceEditingService implements IWorkspaceEditingService {
 
@@ -30,7 +36,9 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		@IWindowsService private windowsService: IWindowsService,
 		@IWindowService private windowService: IWindowService,
 		@IWorkspacesService private workspacesService: IWorkspacesService,
-		@IWorkspaceConfigurationService private workspaceConfigurationService: IWorkspaceConfigurationService
+		@IWorkspaceConfigurationService private workspaceConfigurationService: IWorkspaceConfigurationService,
+		@IStorageService private storageService: IStorageService,
+		@IExtensionService private extensionService: IExtensionService
 	) {
 	}
 
@@ -125,7 +133,53 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		return this.windowService.saveAndOpenWorkspace(path).then(workspace => this.openWorkspace(workspace));
 	}
 
-	private openWorkspace(workspace: IWorkspaceIdentifier): TPromise<void> {
-		return (this.contextService as WorkspaceServiceImpl).initialize(workspace); // TODO@Ben ugly cast
+	private openWorkspace(workspace?: IWorkspaceIdentifier): TPromise<void> {
+		if (!workspace) {
+			return void 0; // can happen when the saving/creation failed
+		}
+
+		// Stop the extension host first
+		this.extensionService.stopExtensionHost();
+
+		// Migrate storage and settings
+		return this.migrate(workspace).then(() => {
+
+			// Initialize configuration service
+			const workspaceImpl = this.contextService as WorkspaceServiceImpl; // TODO@Ben TODO@Sandeep ugly cast
+			return workspaceImpl.initialize(workspace).then(() => {
+
+				// Start extension host again
+				this.extensionService.startExtensionHost();
+			});
+		});
+	}
+
+	private migrate(toWorkspaceId: IWorkspaceIdentifier): TPromise<void> {
+		this.migrateStorage(toWorkspaceId);
+
+		return this.migrateConfiguration(toWorkspaceId);
+	}
+
+	private migrateStorage(toWorkspaceId: IWorkspaceIdentifier): void {
+
+		// TODO@Ben revisit this when we move away from local storage to a file based approach
+		const storageImpl = this.storageService as StorageService;
+		migrateStorageToMultiRootWorkspace(storageImpl.storageId, toWorkspaceId, storageImpl.workspaceStorage);
+	}
+
+	private migrateConfiguration(toWorkspaceId: IWorkspaceIdentifier): TPromise<void> {
+		if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER) {
+			return TPromise.as(void 0); // return early if not a folder workspace is opened
+		}
+
+		const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
+		const targetWorkspaceConfiguration = {};
+		for (const key of this.workspaceConfigurationService.keys().workspace) {
+			if (configurationProperties[key] && configurationProperties[key].scope === ConfigurationScope.WINDOW) {
+				targetWorkspaceConfiguration[key] = this.workspaceConfigurationService.lookup(key).workspace;
+			}
+		}
+
+		return this.jsonEditingService.write(URI.file(toWorkspaceId.configPath), { key: 'settings', value: targetWorkspaceConfiguration }, true);
 	}
 }

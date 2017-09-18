@@ -105,6 +105,14 @@ export class ExtensionService implements IExtensionService {
 		this._startExtensionHostProcess(Object.keys(this._allRequestedActivateEvents));
 	}
 
+	public startExtensionHost(): void {
+		this._startExtensionHostProcess(Object.keys(this._allRequestedActivateEvents));
+	}
+
+	public stopExtensionHost(): void {
+		this._stopExtensionHostProcess();
+	}
+
 	private _stopExtensionHostProcess(): void {
 		this._extensionHostProcessFinishedActivateEvents = Object.create(null);
 		this._extensionHostProcessActivationTimes = Object.create(null);

@@ -341,21 +341,30 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 
 		const currentState = this.getWorkbenchState();
 		const currentFolders = this.workspace.folders;
+		const currentWorkspacePath = this.workspace.configuration ? this.workspace.configuration.fsPath : void 0;
 
 		return this.initializeWorkspace(arg).then(() => this.initializeConfiguration(true)).then(() => {
 			if (!handleStateChange) {
 				return;
 			}
 
+			// Emit event for STATE transition
 			const newState = this.getWorkbenchState();
 			if (newState !== currentState) {
 				this._onDidChangeWorkbenchState.fire(newState);
 				this._onDidChangeWorkspaceName.fire();
 			}
 
+			// Emit event for FOLDERS change
 			const foldersChanged = !equals(this.workspace.folders, currentFolders, (folder1, folder2) => folder1.uri.fsPath === folder2.uri.fsPath);
 			if (foldersChanged) {
 				this._onDidChangeWorkspaceFolders.fire();
+			}
+
+			// Emit event for workspace NAME change
+			const newWorkspacePath = this.workspace.configuration ? this.workspace.configuration.fsPath : void 0;
+			if (currentWorkspacePath !== newWorkspacePath) {
+				this._onDidChangeWorkspaceName.fire();
 			}
 		});
 	}

@@ -33,8 +33,9 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 	private enableCrashReporter: boolean;
 
 	private firstFolderPath: string;
-	private workbenchState: WorkbenchState;
 	private extensionHostRestarter: RunOnceScheduler;
+
+	private onDidChangeWorkspaceFoldersUnbind: IDisposable;
 
 	constructor(
 		@IWindowsService private windowsService: IWindowsService,
@@ -48,18 +49,17 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 	) {
 		const workspace = this.contextService.getWorkspace();
 		this.firstFolderPath = workspace.folders.length > 0 ? workspace.folders[0].uri.fsPath : void 0;
-		this.workbenchState = this.contextService.getWorkbenchState();
 		this.extensionHostRestarter = new RunOnceScheduler(() => this.extensionService.restartExtensionHost(), 10);
 
 		this.onConfigurationChange(configurationService.getConfiguration<IConfiguration>(), false);
+		this.handleWorkbenchState();
 
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(this.configurationService.getConfiguration<IConfiguration>(), true)));
-		this.toDispose.push(this.contextService.onDidChangeWorkspaceFolders(() => this.onDidChangeWorkspaceFolders()));
-		this.toDispose.push(this.contextService.onDidChangeWorkbenchState(() => this.onDidChangeWorkbenchState()));
+		this.toDispose.push(this.contextService.onDidChangeWorkbenchState(() => this.handleWorkbenchState()));
 	}
 
 	private onConfigurationChange(config: IConfiguration, notify: boolean): void {
@@ -100,6 +100,21 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		}
 	}
 
+	private handleWorkbenchState(): void {
+
+		// React to folder changes when we are in workspace state
+		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
+			if (!this.onDidChangeWorkspaceFoldersUnbind) {
+				this.onDidChangeWorkspaceFoldersUnbind = this.contextService.onDidChangeWorkspaceFolders(() => this.onDidChangeWorkspaceFolders());
+			}
+		}
+
+		// Ignore the workspace folder changes in EMPTY or FOLDER state
+		else {
+			this.onDidChangeWorkspaceFoldersUnbind = dispose(this.onDidChangeWorkspaceFoldersUnbind);
+		}
+	}
+
 	private onDidChangeWorkspaceFolders(): void {
 		const workspace = this.contextService.getWorkspace();
 
@@ -108,23 +123,8 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		if (this.firstFolderPath !== newFirstFolderPath) {
 			this.firstFolderPath = newFirstFolderPath;
 
-			this.doRestartExtensionHost();
+			this.extensionHostRestarter.schedule(); // buffer calls to extension host restart
 		}
-	}
-
-	private onDidChangeWorkbenchState(): void {
-
-		// Restart extension host if the workbench state changes (impact on extension storage)
-		const newWorkbenchState = this.contextService.getWorkbenchState();
-		if (newWorkbenchState !== this.workbenchState) {
-			this.workbenchState = newWorkbenchState;
-
-			this.doRestartExtensionHost();
-		}
-	}
-
-	private doRestartExtensionHost(): void {
-		this.extensionHostRestarter.schedule(); // buffer calls to extension host restart
 	}
 
 	private doConfirm(message: string, detail: string, primaryButton: string, confirmed: () => void): void {

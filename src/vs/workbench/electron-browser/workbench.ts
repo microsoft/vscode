@@ -83,7 +83,7 @@ import { ProgressService2 } from 'vs/workbench/services/progress/browser/progres
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ILifecycleService, ShutdownReason, ShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWindowService, IWindowConfiguration as IWindowSettings, IWindowConfiguration, IPath } from 'vs/platform/windows/common/windows';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
@@ -95,11 +95,9 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { OpenRecentAction, ToggleDevToolsAction, ReloadWindowAction, ShowPreviousWindowTab, MoveWindowTabToNewWindow, MergeAllWindowTabs, ShowNextWindowTab, ToggleWindowTabsBar } from 'vs/workbench/electron-browser/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { IWorkspaceEditingService, IWorkspaceMigrationService } from 'vs/workbench/services/workspace/common/workspaceEditing';
+import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { WorkspaceEditingService } from 'vs/workbench/services/workspace/node/workspaceEditingService';
 import URI from 'vs/base/common/uri';
-import { isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { WorkspaceMigrationService } from 'vs/workbench/services/workspace/node/workspaceMigrationService';
 
 export const MessagesVisibleContext = new RawContextKey<boolean>('globalMessageVisible', false);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
@@ -179,7 +177,6 @@ export class Workbench implements IPartService {
 	private keybindingService: IKeybindingService;
 	private backupFileService: IBackupFileService;
 	private configurationEditingService: IConfigurationEditingService;
-	private workspaceMigrationService: WorkspaceMigrationService;
 	private fileService: IFileService;
 	private titlebarPart: TitlebarPart;
 	private activitybarPart: ActivitybarPart;
@@ -503,7 +500,6 @@ export class Workbench implements IPartService {
 	private initServices(): void {
 		const { serviceCollection } = this.workbenchParams;
 
-		this.toDispose.push(this.lifecycleService.onWillShutdown(event => this.onWillShutdown(event)));
 		this.toDispose.push(this.lifecycleService.onShutdown(this.shutdownComponents, this));
 
 		// Services we contribute
@@ -609,10 +605,6 @@ export class Workbench implements IPartService {
 
 		// Configuration Resolver
 		serviceCollection.set(IConfigurationResolverService, new SyncDescriptor(ConfigurationResolverService, process.env));
-
-		// Workspace Migrating
-		this.workspaceMigrationService = this.instantiationService.createInstance(WorkspaceMigrationService);
-		serviceCollection.set(IWorkspaceMigrationService, this.workspaceMigrationService);
 
 		// Quick open service (quick open controller)
 		this.quickOpen = this.instantiationService.createInstance(QuickOpenController);
@@ -947,19 +939,6 @@ export class Workbench implements IPartService {
 	public layout(options?: ILayoutOptions): void {
 		if (this.isStarted()) {
 			this.workbenchLayout.layout(options);
-		}
-	}
-
-	private onWillShutdown(event: ShutdownEvent): void {
-
-		if (event.reason === ShutdownReason.RELOAD) {
-			const workspace = event.payload;
-
-			// We are transitioning into a workspace from an empty workspace or workspace, and
-			// as such we want to migrate UI state from the current workspace to the new one.
-			if (isWorkspaceIdentifier(workspace)) {
-				event.veto(this.instantiationService.createInstance(WorkspaceMigrationService).migrate(workspace).then(() => false, () => false));
-			}
 		}
 	}
 

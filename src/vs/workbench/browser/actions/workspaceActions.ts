@@ -108,18 +108,25 @@ export class AddRootFolderAction extends BaseWorkspacesAction {
 	}
 
 	public run(): TPromise<any> {
+		let addFoldersPromise: TPromise<void>;
+
+		// Workspace
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			const folders = super.pickFolders(mnemonicButtonLabel(nls.localize({ key: 'add', comment: ['&& denotes a mnemonic'] }, "&&Add")), nls.localize('addFolderToWorkspaceTitle', "Add Folder to Workspace"));
 			if (!folders || !folders.length) {
 				return TPromise.as(null);
 			}
 
-			return this.workspaceEditingService.addFolders(folders.map(folder => URI.file(folder))).then(() => {
-				return this.viewletService.openViewlet(this.viewletService.getDefaultViewletId(), true);
-			});
+			addFoldersPromise = this.workspaceEditingService.addFolders(folders.map(folder => URI.file(folder)));
 		}
 
-		return this.instantiationService.createInstance(NewWorkspaceAction, NewWorkspaceAction.ID, NewWorkspaceAction.LABEL, this.contextService.getWorkspace().folders.map(folder => folder.uri)).run();
+		// Empty or Folder
+		else {
+			addFoldersPromise = this.instantiationService.createInstance(NewWorkspaceAction, NewWorkspaceAction.ID, NewWorkspaceAction.LABEL, this.contextService.getWorkspace().folders.map(folder => folder.uri)).run();
+		}
+
+		// Add and show Files Explorer viewlet
+		return addFoldersPromise.then(() => this.viewletService.openViewlet(this.viewletService.getDefaultViewletId(), true));
 	}
 }
 
