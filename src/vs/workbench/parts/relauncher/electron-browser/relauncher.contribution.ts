@@ -105,7 +105,13 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		// React to folder changes when we are in workspace state
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			if (!this.onDidChangeWorkspaceFoldersUnbind) {
-				this.onDidChangeWorkspaceFoldersUnbind = this.contextService.onDidChangeWorkspaceFolders(() => this.onDidChangeWorkspaceFolders());
+
+				// use a timeout here to prevent event spam because a folder change event
+				// might follow right after and we really only want to react on folder
+				// changes from within the workspace and not during state transition.
+				setTimeout(() => {
+					this.onDidChangeWorkspaceFoldersUnbind = this.contextService.onDidChangeWorkspaceFolders(() => this.onDidChangeWorkspaceFolders());
+				}, 0);
 			}
 		}
 
