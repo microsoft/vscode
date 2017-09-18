@@ -56,6 +56,7 @@ export interface IWindowsMainService {
 	onWindowsCountChanged: Event<IWindowsCountChangedEvent>;
 	onWindowClose: Event<number>;
 	onWindowReload: Event<number>;
+	onWindowWorkspaceOpen: Event<number>;
 
 	// methods
 	ready(initialUserEnv: IProcessEnvironment): void;

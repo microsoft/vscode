@@ -119,6 +119,7 @@ export class CodeMenu {
 		this.windowsService.onWindowsCountChanged(e => this.onWindowsCountChanged(e));
 		this.windowsService.onActiveWindowChanged(() => this.updateWorkspaceMenuItems());
 		this.windowsService.onWindowReady(() => this.updateWorkspaceMenuItems());
+		this.windowsService.onWindowWorkspaceOpen(() => this.updateWorkspaceMenuItems());
 		this.windowsService.onWindowClose(() => this.updateWorkspaceMenuItems());
 
 		// Listen to extension viewlets

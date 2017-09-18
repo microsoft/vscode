@@ -125,6 +125,9 @@ export class WindowsManager implements IWindowsMainService {
 	private _onWindowLoad = new Emitter<number>();
 	onWindowLoad: CommonEvent<number> = this._onWindowLoad.event;
 
+	private _onWindowOpenWorkspace = new Emitter<number>();
+	onWindowWorkspaceOpen: CommonEvent<number> = this._onWindowOpenWorkspace.event;
+
 	private _onActiveWindowChanged = new Emitter<CodeWindow>();
 	onActiveWindowChanged: CommonEvent<CodeWindow> = this._onActiveWindowChanged.event;
 
@@ -1295,11 +1298,23 @@ export class WindowsManager implements IWindowsMainService {
 	}
 
 	public saveAndOpenWorkspace(win: CodeWindow, path: string): TPromise<IWorkspaceIdentifier> {
-		return this.workspacesManager.saveAndOpenWorkspace(win, path);
+		return this.workspacesManager.saveAndOpenWorkspace(win, path).then(workspace => {
+
+			// Event
+			this._onWindowOpenWorkspace.fire(win.id);
+
+			return workspace;
+		});
 	}
 
 	public createAndOpenWorkspace(win: CodeWindow, folders?: string[], path?: string): TPromise<IWorkspaceIdentifier> {
-		return this.workspacesManager.createAndOpenWorkspace(win, folders, path);
+		return this.workspacesManager.createAndOpenWorkspace(win, folders, path).then(workspace => {
+
+			// Event
+			this._onWindowOpenWorkspace.fire(win.id);
+
+			return workspace;
+		});
 	}
 
 	public openWorkspace(win?: CodeWindow): void {
