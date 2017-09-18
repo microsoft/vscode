@@ -3,17 +3,32 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+var __extends = (this && this.__extends) || (function () {
+    var extendStatics = Object.setPrototypeOf ||
+        ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
+        function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+    return function (d, b) {
+        extendStatics(d, b);
+        function __() { this.constructor = d; }
+        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
-const ts = require("typescript");
-const Lint = require("tslint");
+var ts = require("typescript");
+var Lint = require("tslint");
 /**
  * Implementation of the no-unexternalized-strings rule.
  */
-class Rule extends Lint.Rules.AbstractRule {
-    apply(sourceFile) {
-        return this.applyWithWalker(new NoUnexternalizedStringsRuleWalker(sourceFile, this.getOptions()));
+var Rule = /** @class */ (function (_super) {
+    __extends(Rule, _super);
+    function Rule() {
+        return _super !== null && _super.apply(this, arguments) || this;
     }
-}
+    Rule.prototype.apply = function (sourceFile) {
+        return this.applyWithWalker(new NoUnexternalizedStringsRuleWalker(sourceFile, this.getOptions()));
+    };
+    return Rule;
+}(Lint.Rules.AbstractRule));
 exports.Rule = Rule;
 function isStringLiteral(node) {
     return node && node.kind === ts.SyntaxKind.StringLiteral;
@@ -24,70 +39,73 @@ function isObjectLiteral(node) {
 function isPropertyAssignment(node) {
     return node && node.kind === ts.SyntaxKind.PropertyAssignment;
 }
-class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
-    constructor(file, opts) {
-        super(file, opts);
-        this.signatures = Object.create(null);
-        this.ignores = Object.create(null);
-        this.messageIndex = undefined;
-        this.keyIndex = undefined;
-        this.usedKeys = Object.create(null);
-        let options = this.getOptions();
-        let first = options && options.length > 0 ? options[0] : null;
+var NoUnexternalizedStringsRuleWalker = /** @class */ (function (_super) {
+    __extends(NoUnexternalizedStringsRuleWalker, _super);
+    function NoUnexternalizedStringsRuleWalker(file, opts) {
+        var _this = _super.call(this, file, opts) || this;
+        _this.signatures = Object.create(null);
+        _this.ignores = Object.create(null);
+        _this.messageIndex = undefined;
+        _this.keyIndex = undefined;
+        _this.usedKeys = Object.create(null);
+        var options = _this.getOptions();
+        var first = options && options.length > 0 ? options[0] : null;
         if (first) {
             if (Array.isArray(first.signatures)) {
-                first.signatures.forEach((signature) => this.signatures[signature] = true);
+                first.signatures.forEach(function (signature) { return _this.signatures[signature] = true; });
             }
             if (Array.isArray(first.ignores)) {
-                first.ignores.forEach((ignore) => this.ignores[ignore] = true);
+                first.ignores.forEach(function (ignore) { return _this.ignores[ignore] = true; });
             }
             if (typeof first.messageIndex !== 'undefined') {
-                this.messageIndex = first.messageIndex;
+                _this.messageIndex = first.messageIndex;
             }
             if (typeof first.keyIndex !== 'undefined') {
-                this.keyIndex = first.keyIndex;
+                _this.keyIndex = first.keyIndex;
             }
         }
+        return _this;
     }
-    visitSourceFile(node) {
-        super.visitSourceFile(node);
-        Object.keys(this.usedKeys).forEach(key => {
-            let occurrences = this.usedKeys[key];
+    NoUnexternalizedStringsRuleWalker.prototype.visitSourceFile = function (node) {
+        var _this = this;
+        _super.prototype.visitSourceFile.call(this, node);
+        Object.keys(this.usedKeys).forEach(function (key) {
+            var occurrences = _this.usedKeys[key];
             if (occurrences.length > 1) {
-                occurrences.forEach(occurrence => {
-                    this.addFailure((this.createFailure(occurrence.key.getStart(), occurrence.key.getWidth(), `Duplicate key ${occurrence.key.getText()} with different message value.`)));
+                occurrences.forEach(function (occurrence) {
+                    _this.addFailure((_this.createFailure(occurrence.key.getStart(), occurrence.key.getWidth(), "Duplicate key " + occurrence.key.getText() + " with different message value.")));
                 });
             }
         });
-    }
-    visitStringLiteral(node) {
+    };
+    NoUnexternalizedStringsRuleWalker.prototype.visitStringLiteral = function (node) {
         this.checkStringLiteral(node);
-        super.visitStringLiteral(node);
-    }
-    checkStringLiteral(node) {
-        let text = node.getText();
-        let doubleQuoted = text.length >= 2 && text[0] === NoUnexternalizedStringsRuleWalker.DOUBLE_QUOTE && text[text.length - 1] === NoUnexternalizedStringsRuleWalker.DOUBLE_QUOTE;
-        let info = this.findDescribingParent(node);
+        _super.prototype.visitStringLiteral.call(this, node);
+    };
+    NoUnexternalizedStringsRuleWalker.prototype.checkStringLiteral = function (node) {
+        var text = node.getText();
+        var doubleQuoted = text.length >= 2 && text[0] === NoUnexternalizedStringsRuleWalker.DOUBLE_QUOTE && text[text.length - 1] === NoUnexternalizedStringsRuleWalker.DOUBLE_QUOTE;
+        var info = this.findDescribingParent(node);
         // Ignore strings in import and export nodes.
         if (info && info.isImport && doubleQuoted) {
-            const fix = [
+            var fix = [
                 new Lint.Replacement(node.getStart(), 1, '\''),
                 new Lint.Replacement(node.getStart() + text.length - 1, 1, '\''),
             ];
             this.addFailureAtNode(node, NoUnexternalizedStringsRuleWalker.ImportFailureMessage, fix);
             return;
         }
-        let callInfo = info ? info.callInfo : null;
-        let functionName = callInfo ? callInfo.callExpression.expression.getText() : null;
+        var callInfo = info ? info.callInfo : null;
+        var functionName = callInfo ? callInfo.callExpression.expression.getText() : null;
         if (functionName && this.ignores[functionName]) {
             return;
         }
         if (doubleQuoted && (!callInfo || callInfo.argIndex === -1 || !this.signatures[functionName])) {
-            const s = node.getText();
-            const fix = [
-                new Lint.Replacement(node.getStart(), node.getWidth(), `nls.localize('KEY-${s.substring(1, s.length - 1)}', ${s})`),
+            var s = node.getText();
+            var fix = [
+                new Lint.Replacement(node.getStart(), node.getWidth(), "nls.localize('KEY-" + s.substring(1, s.length - 1) + "', " + s + ")"),
             ];
-            this.addFailure(this.createFailure(node.getStart(), node.getWidth(), `Unexternalized string found: ${node.getText()}`, fix));
+            this.addFailure(this.createFailure(node.getStart(), node.getWidth(), "Unexternalized string found: " + node.getText(), fix));
             return;
         }
         // We have a single quoted string outside a localize function name.
@@ -95,7 +113,7 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
             return;
         }
         // We have a string that is a direct argument into the localize call.
-        let keyArg = callInfo.argIndex === this.keyIndex
+        var keyArg = callInfo.argIndex === this.keyIndex
             ? callInfo.callExpression.arguments[this.keyIndex]
             : null;
         if (keyArg) {
@@ -103,12 +121,12 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
                 this.recordKey(keyArg, this.messageIndex ? callInfo.callExpression.arguments[this.messageIndex] : undefined);
             }
             else if (isObjectLiteral(keyArg)) {
-                for (let i = 0; i < keyArg.properties.length; i++) {
-                    let property = keyArg.properties[i];
+                for (var i = 0; i < keyArg.properties.length; i++) {
+                    var property = keyArg.properties[i];
                     if (isPropertyAssignment(property)) {
-                        let name = property.name.getText();
-                        if (name === 'key') {
-                            let initializer = property.initializer;
+                        var name_1 = property.name.getText();
+                        if (name_1 === 'key') {
+                            var initializer = property.initializer;
                             if (isStringLiteral(initializer)) {
                                 this.recordKey(initializer, this.messageIndex ? callInfo.callExpression.arguments[this.messageIndex] : undefined);
                             }
@@ -118,34 +136,34 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
                 }
             }
         }
-        let messageArg = callInfo.argIndex === this.messageIndex
+        var messageArg = callInfo.argIndex === this.messageIndex
             ? callInfo.callExpression.arguments[this.messageIndex]
             : null;
         if (messageArg && messageArg !== node) {
-            this.addFailure(this.createFailure(messageArg.getStart(), messageArg.getWidth(), `Message argument to '${callInfo.callExpression.expression.getText()}' must be a string literal.`));
+            this.addFailure(this.createFailure(messageArg.getStart(), messageArg.getWidth(), "Message argument to '" + callInfo.callExpression.expression.getText() + "' must be a string literal."));
             return;
         }
-    }
-    recordKey(keyNode, messageNode) {
-        let text = keyNode.getText();
-        let occurrences = this.usedKeys[text];
+    };
+    NoUnexternalizedStringsRuleWalker.prototype.recordKey = function (keyNode, messageNode) {
+        var text = keyNode.getText();
+        var occurrences = this.usedKeys[text];
         if (!occurrences) {
             occurrences = [];
             this.usedKeys[text] = occurrences;
         }
         if (messageNode) {
-            if (occurrences.some(pair => pair.message ? pair.message.getText() === messageNode.getText() : false)) {
+            if (occurrences.some(function (pair) { return pair.message ? pair.message.getText() === messageNode.getText() : false; })) {
                 return;
             }
         }
         occurrences.push({ key: keyNode, message: messageNode });
-    }
-    findDescribingParent(node) {
-        let parent;
+    };
+    NoUnexternalizedStringsRuleWalker.prototype.findDescribingParent = function (node) {
+        var parent;
         while ((parent = node.parent)) {
-            let kind = parent.kind;
+            var kind = parent.kind;
             if (kind === ts.SyntaxKind.CallExpression) {
-                let callExpression = parent;
+                var callExpression = parent;
                 return { callInfo: { callExpression: callExpression, argIndex: callExpression.arguments.indexOf(node) } };
             }
             else if (kind === ts.SyntaxKind.ImportEqualsDeclaration || kind === ts.SyntaxKind.ImportDeclaration || kind === ts.SyntaxKind.ExportDeclaration) {
@@ -159,7 +177,8 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
             }
             node = parent;
         }
-    }
-}
-NoUnexternalizedStringsRuleWalker.ImportFailureMessage = 'Do not use double qoutes for imports.';
-NoUnexternalizedStringsRuleWalker.DOUBLE_QUOTE = '"';
+    };
+    NoUnexternalizedStringsRuleWalker.ImportFailureMessage = 'Do not use double qoutes for imports.';
+    NoUnexternalizedStringsRuleWalker.DOUBLE_QUOTE = '"';
+    return NoUnexternalizedStringsRuleWalker;
+}(Lint.RuleWalker));

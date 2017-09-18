@@ -10,6 +10,7 @@
 		"experimentalDecorators": true,
 		"declaration": true,
 		"noImplicitReturns": true,
+		"noUnusedLocals": true,
 		"baseUrl": ".",
 		"typeRoots": [
 			"typings"
