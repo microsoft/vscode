@@ -127,15 +127,27 @@ export class Workspace implements IWorkspace {
 
 	private _foldersMap: TrieMap<WorkspaceFolder> = new TrieMap<WorkspaceFolder>();
 	private _folders: WorkspaceFolder[];
+	private _id: string;
+	private _name: string;
+	private _configuration: URI;
+	private _ctime: number;
 
 	constructor(
-		public readonly id: string,
-		private _name: string,
+		id: string,
+		name: string,
 		folders: WorkspaceFolder[],
-		private _configuration: URI = null,
-		public readonly ctime?: number
+		configuration: URI = null,
+		ctime?: number
 	) {
+		this.update(id, name, folders, configuration, ctime);
+	}
+
+	public update(id: string, name: string, folders: WorkspaceFolder[], configuration: URI = null, ctime?: number) {
+		this._id = id;
+		this._name = name;
 		this.folders = folders;
+		this._configuration = configuration;
+		this._ctime = ctime;
 	}
 
 	public get folders(): WorkspaceFolder[] {
@@ -145,6 +157,14 @@ export class Workspace implements IWorkspace {
 	public set folders(folders: WorkspaceFolder[]) {
 		this._folders = folders;
 		this.updateFoldersMap();
+	}
+
+	public get id(): string {
+		return this._id;
+	}
+
+	public get ctime(): number {
+		return this._ctime;
 	}
 
 	public get name(): string {
