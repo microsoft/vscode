@@ -373,7 +373,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		}
 
 		const currentState = this.getWorkbenchState();
-		const currentName = this.workspace.name;
+		const currentWorkspacePath = this.workspace.configuration ? this.workspace.configuration.fsPath : void 0;
 		const currentFolders = this.workspace.folders;
 
 		this.workspace.update(workspace);
@@ -383,7 +383,8 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 			this._onDidChangeWorkbenchState.fire(newState);
 		}
 
-		if (currentName !== this.workspace.name) {
+		const newWorkspacePath = this.workspace.configuration ? this.workspace.configuration.fsPath : void 0;
+		if (newWorkspacePath !== currentWorkspacePath || newState !== currentState) {
 			this._onDidChangeWorkspaceName.fire();
 		}
 
