@@ -470,11 +470,11 @@ gulp.task('generate-vscode-configuration', () => {
 		}
 
 		const appPath = path.join(buildDir, 'VSCode-darwin/Visual\\ Studio\\ Code\\ -\\ Insiders.app/Contents/Resources/app/bin/code');
-		const codeProc = cp.exec(`${appPath} --dump-default-configuration='${allConfigDetailsPath}' --wait`);
+		const codeProc = cp.exec(`${appPath} --export-default-configuration='${allConfigDetailsPath}' --wait`);
 
 		const timer = setTimeout(() => {
 			codeProc.kill();
-			reject(new Error('dump-default-configuration process timed out'));
+			reject(new Error('export-default-configuration process timed out'));
 		}, 10 * 1000);
 
 		codeProc.stdout.on('data', d => console.log(d.toString()));

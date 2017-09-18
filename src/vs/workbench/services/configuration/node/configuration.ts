@@ -869,14 +869,30 @@ export class Configuration<T> extends BaseConfiguration<T> {
 	}
 }
 
-export class DefaultConfigurationDumpHelper {
+interface IExportedConfigurationNode {
+	name: string;
+	description: string;
+	default: any;
+	type: string | string[];
+	enum?: any[];
+	enumDescriptions?: string[];
+}
+
+interface IConfigurationExport {
+	settings: IExportedConfigurationNode[];
+	buildTime: number;
+	commit: string;
+	version: string;
+}
+
+export class DefaultConfigurationExportHelper {
 
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IExtensionService private extensionService: IExtensionService,
 		@ICommandService private commandService: ICommandService) {
-		if (environmentService.args['dump-default-configuration']) {
-			this.writeConfigModelAndQuit(environmentService.args['dump-default-configuration']);
+		if (environmentService.args['export-default-configuration']) {
+			this.writeConfigModelAndQuit(environmentService.args['export-default-configuration']);
 		}
 	}
 
@@ -888,15 +904,21 @@ export class DefaultConfigurationDumpHelper {
 	}
 
 	private writeConfigModel(targetPath: string): TPromise<void> {
+		const config = this.getConfigModel();
+
+		const resultString = JSON.stringify(config, undefined, '  ');
+		return writeFile(targetPath, resultString);
+	}
+
+	private getConfigModel(): IConfigurationExport {
 		const configurations = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurations().slice();
-		const settings = [];
+		const settings: IExportedConfigurationNode[] = [];
 		const processConfig = (config: IConfigurationNode) => {
 			if (config.properties) {
 				for (let name in config.properties) {
 					const prop = config.properties[name];
-					const propDetails: any = {
+					const propDetails: IExportedConfigurationNode = {
 						name,
-						title: prop.title,
 						description: prop.description,
 						default: prop.default,
 						type: prop.type
@@ -919,30 +941,15 @@ export class DefaultConfigurationDumpHelper {
 			}
 		};
 
-		configurations.sort(this.compareConfigurationNodes)
-			.forEach(processConfig);
+		configurations.forEach(processConfig);
 
-		const result: any = { settings };
-		result.build_time = Date.now();
-		result.commit = product.commit;
-		result.version = pkg.version;
+		const result: IConfigurationExport = {
+			settings: settings.sort((a, b) => a.name.localeCompare(b.name)),
+			buildTime: Date.now(),
+			commit: product.commit,
+			version: pkg.version
+		};
 
-		const resultString = JSON.stringify(result, undefined, '  ');
-		return writeFile(targetPath, resultString);
-	}
-
-	private compareConfigurationNodes(c1: IConfigurationNode, c2: IConfigurationNode): number {
-		if (typeof c1.order !== 'number') {
-			return 1;
-		}
-		if (typeof c2.order !== 'number') {
-			return -1;
-		}
-		if (c1.order === c2.order) {
-			const title1 = c1.title || '';
-			const title2 = c2.title || '';
-			return title1.localeCompare(title2);
-		}
-		return c1.order - c2.order;
+		return result;
 	}
 }

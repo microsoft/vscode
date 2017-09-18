@@ -41,7 +41,7 @@ export interface ParsedArgs {
 	'open-url'?: string | string[];
 	'skip-getting-started'?: boolean;
 	'sticky-quickopen'?: boolean;
-	'dump-default-configuration'?: string;
+	'export-default-configuration'?: string;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
