@@ -368,21 +368,12 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 
 	public _serviceBrand: any;
 
-	private workspaceConfigPath: URI;
-	private folderPath: URI;
 	private baseConfigurationService: GlobalConfigurationService<any>;
 	private workspaceConfiguration: WorkspaceConfiguration;
 	private cachedFolderConfigs: StrictResourceMap<FolderConfiguration<any>>;
 
 	constructor(private workspaceIdentifier: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier, private environmentService: IEnvironmentService, private workspacesService: IWorkspacesService, private workspaceSettingsRootFolder: string = WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME) {
 		super();
-
-		if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier)) {
-			this.folderPath = URI.file(workspaceIdentifier);
-		} else {
-			this.workspaceConfigPath = URI.file(workspaceIdentifier.configPath);
-		}
-
 		this.workspaceConfiguration = this._register(new WorkspaceConfiguration());
 		this.baseConfigurationService = this._register(new GlobalConfigurationService(environmentService));
 	}
@@ -397,8 +388,8 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 				.then(() => super.initialize(trigger));
 		}
 
-		if (this.workspaceConfigPath) {
-			return this.workspaceConfiguration.load(this.workspaceConfigPath)
+		if (isWorkspaceIdentifier(this.workspaceIdentifier)) {
+			return this.workspaceConfiguration.load(URI.file(this.workspaceIdentifier.configPath))
 				.then(() => super.initialize(trigger));
 		}
 
@@ -435,7 +426,7 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 	}
 
 	private initializeWorkspace(): TPromise<void> {
-		return (this.workspaceConfigPath ? this.initializeMulitFolderWorkspace() : this.initializeSingleFolderWorkspace())
+		return (isWorkspaceIdentifier(this.workspaceIdentifier) ? this.initializeMulitFolderWorkspace(URI.file(this.workspaceIdentifier.configPath)) : this.initializeSingleFolderWorkspace(URI.file(this.workspaceIdentifier)))
 			.then(() => {
 				this._register(this.baseConfigurationService.onDidUpdateConfiguration(e => this.onBaseConfigurationChanged(e)));
 			});
@@ -465,19 +456,19 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 	// 	});
 	// }
 
-	private initializeMulitFolderWorkspace(): TPromise<void> {
+	private initializeMulitFolderWorkspace(workspaceConfigPath: URI): TPromise<void> {
 		this.registerWorkspaceConfigSchema();
-		return this.workspaceConfiguration.load(this.workspaceConfigPath)
+		return this.workspaceConfiguration.load(workspaceConfigPath)
 			.then(() => {
 				const workspaceConfigurationModel = this.workspaceConfiguration.workspaceConfigurationModel;
-				const workspaceFolders = toWorkspaceFolders(workspaceConfigurationModel.folders, URI.file(paths.dirname(this.workspaceConfigPath.fsPath)));
+				const workspaceFolders = toWorkspaceFolders(workspaceConfigurationModel.folders, URI.file(paths.dirname(workspaceConfigPath.fsPath)));
 				if (!workspaceFolders.length) {
-					return TPromise.wrapError<void>(new Error('Invalid workspace configuraton file ' + this.workspaceConfigPath));
+					return TPromise.wrapError<void>(new Error('Invalid workspace configuraton file ' + workspaceConfigPath));
 				}
 				const workspaceId = (this.workspaceIdentifier as IWorkspaceIdentifier).id;
-				const workspaceName = getWorkspaceLabel({ id: workspaceId, configPath: this.workspaceConfigPath.fsPath }, this.environmentService);
-				this.workspace = new Workspace(workspaceId, workspaceName, workspaceFolders, this.workspaceConfigPath);
-				this._register(this.workspaceConfiguration.onDidUpdateConfiguration(() => this.onWorkspaceConfigurationChanged()));
+				const workspaceName = getWorkspaceLabel({ id: workspaceId, configPath: workspaceConfigPath.fsPath }, this.environmentService);
+				this.workspace = new Workspace(workspaceId, workspaceName, workspaceFolders, workspaceConfigPath);
+				this._register(this.workspaceConfiguration.onDidUpdateConfiguration(() => this.onWorkspaceConfigurationChanged(workspaceConfigPath)));
 				return null;
 			});
 	}
@@ -523,13 +514,13 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 		}
 	}
 
-	private initializeSingleFolderWorkspace(): TPromise<void> {
-		return stat(this.folderPath.fsPath)
+	private initializeSingleFolderWorkspace(folderPath: URI): TPromise<void> {
+		return stat(folderPath.fsPath)
 			.then(workspaceStat => {
 				const ctime = isLinux ? workspaceStat.ino : workspaceStat.birthtime.getTime(); // On Linux, birthtime is ctime, so we cannot use it! We use the ino instead!
-				const id = createHash('md5').update(this.folderPath.fsPath).update(ctime ? String(ctime) : '').digest('hex');
-				const folder = URI.file(this.folderPath.fsPath);
-				this.workspace = new Workspace(id, paths.basename(this.folderPath.fsPath), toWorkspaceFolders([{ path: folder.fsPath }]), null, ctime);
+				const id = createHash('md5').update(folderPath.fsPath).update(ctime ? String(ctime) : '').digest('hex');
+				const folder = URI.file(folderPath.fsPath);
+				this.workspace = new Workspace(id, paths.basename(folderPath.fsPath), toWorkspaceFolders([{ path: folder.fsPath }]), null, ctime);
 				return TPromise.as(null);
 			});
 	}
@@ -557,8 +548,8 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 		}
 	}
 
-	private onWorkspaceConfigurationChanged(): void {
-		let configuredFolders = toWorkspaceFolders(this.workspaceConfiguration.workspaceConfigurationModel.folders, URI.file(paths.dirname(this.workspaceConfigPath.fsPath)));
+	private onWorkspaceConfigurationChanged(workspaceConfigPath: URI): void {
+		let configuredFolders = toWorkspaceFolders(this.workspaceConfiguration.workspaceConfigurationModel.folders, URI.file(paths.dirname(workspaceConfigPath.fsPath)));
 		const foldersChanged = !equals(this.workspace.folders, configuredFolders, (folder1, folder2) => folder1.uri.fsPath === folder2.uri.fsPath);
 		if (foldersChanged) { // TODO@Sandeep be smarter here about detecting changes
 			this.workspace.folders = configuredFolders;
