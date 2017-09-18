@@ -7,7 +7,7 @@ var rename = require('gulp-rename');
 
 const languages = [
 	{ name: 'css', language: 'css', identifiers: ['css', 'css.erb'], source: 'source.css' },
-	{ name: 'basic', language: 'basic', identifiers: ['html', 'htm', 'shtml', 'xhtml', 'inc', 'tmpl', 'tpl'], source: 'text.html.basic' },
+	{ name: 'basic', language: 'html', identifiers: ['html', 'htm', 'shtml', 'xhtml', 'inc', 'tmpl', 'tpl'], source: 'text.html.basic' },
 	{ name: 'ini', language: 'ini', identifiers: ['ini', 'conf'], source: 'source.ini' },
 	{ name: 'java', language: 'java', identifiers: ['java', 'bsh'], source: 'source.java' },
 	{ name: 'lua', language: 'lua', identifiers: ['lua'], source: 'source.lua' },

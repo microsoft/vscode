@@ -680,7 +680,7 @@
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
 							<key>contentName</key>
-							<string>meta.embedded.block.basic</string>
+							<string>meta.embedded.block.html</string>
 							<key>patterns</key>
 							<array>
 								<dict>
