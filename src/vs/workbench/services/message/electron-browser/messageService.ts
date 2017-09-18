@@ -61,6 +61,8 @@ export class MessageService extends WorkbenchMessageService implements IChoiceSe
 			opts.checkboxLabel = confirmation.checkboxLabel;
 		}
 
+		confirmation.checked = false;
+
 		let result = this.showMessageBox(opts);
 
 		return result === 0 ? true : false;
@@ -104,6 +106,7 @@ export class MessageService extends WorkbenchMessageService implements IChoiceSe
 		opts.title = opts.title || product.nameLong;
 
 		const result = this.windowService.showMessageBox(opts);
+
 		return isLinux ? opts.buttons.length - result - 1 : result;
 	}
 }
