@@ -12,7 +12,7 @@ import { chain } from 'vs/base/common/event';
 import { basename } from 'vs/base/common/paths';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose, combinedDisposable, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
-import { Builder } from 'vs/base/browser/builder';
+import { Builder, Dimension } from 'vs/base/browser/builder';
 import { PanelViewlet, ViewletPanel } from 'vs/workbench/browser/parts/views/views2';
 import { append, $, toggleClass, trackFocus } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -68,11 +68,12 @@ class SCMMenuItemActionItem extends MenuItemActionItem {
 	}
 }
 
-interface IViewModel {
+export interface IViewModel {
+	readonly height: number | undefined;
+
 	addRepositoryPanel(panel: RepositoryPanel, size: number, index?: number): void;
 	removeRepositoryPanel(panel: RepositoryPanel): void;
 	moveRepositoryPanel(from: RepositoryPanel, to: RepositoryPanel): void;
-
 	isRepositoryVisible(repository: ISCMRepository): boolean;
 	toggleRepositoryVisibility(repository: ISCMRepository, visible: boolean);
 }
@@ -236,9 +237,9 @@ class MainPanel extends ViewletPanel {
 		this.list.splice(this.list.length, 0, [repository]);
 		this.updateBodySize();
 
-		if (this.repositories.length === 1) {
-			this.list.setSelection([0]);
-		}
+		// if (this.repositories.length === 1) {
+		this.list.setSelection(this.repositories.map((_, i) => i));
+		// }
 	}
 
 	private onDidRemoveRepository(repository: ISCMRepository): void {
@@ -254,16 +255,27 @@ class MainPanel extends ViewletPanel {
 	}
 
 	private onSelectionChange(e: IListEvent<ISCMRepository>): void {
-		console.log(e.elements);
+		// Remove unselected panels
+		this.repositoryPanels
+			.filter(p => e.elements.every(r => p.repository !== r))
+			.forEach(panel => this.viewModel.removeRepositoryPanel(panel));
 
-		const toRemove = this.repositoryPanels.filter(p => e.elements.every(r => p.repository !== r));
-		const toAdd = e.elements.filter(r => this.repositoryPanels.every(p => p.repository !== r));
+		// Collect panels still selected
+		const repositoryPanels = this.repositoryPanels
+			.filter(p => e.elements.some(r => p.repository === r));
 
-		console.log(toAdd, toRemove);
+		// Collect new selected panels
+		const newRepositoryPanels = e.elements
+			.filter(r => this.repositoryPanels.every(p => p.repository !== r))
+			.map(r => this.instantiationService.createInstance(RepositoryPanel, r));
 
+		// Add new selected panels
+		const height = typeof this.viewModel.height === 'number' ? this.viewModel.height : 1000;
+		const size = (height - this.minimumSize) / e.elements.length;
+		console.log(this.viewModel.height, height, this.minimumBodySize, e.elements.length, size);
+		newRepositoryPanels.forEach(panel => this.viewModel.addRepositoryPanel(panel, size));
 
-		// this.viewModel.addRepositoryPanel();
-		// this.repositoryPanels
+		this.repositoryPanels = [...repositoryPanels, ...newRepositoryPanels];
 	}
 
 	private updateBodySize(): void {
@@ -483,8 +495,11 @@ export class RepositoryPanel extends ViewletPanel {
 		@IInstantiationService protected instantiationService: IInstantiationService
 	) {
 		super(repository.provider.label, {}, keybindingService, contextMenuService);
-
 		this.menus = instantiationService.createInstance(SCMMenus, repository.provider);
+	}
+
+	render(container: HTMLElement): void {
+		super.render(container);
 		this.menus.onDidChangeTitle(this.updateActions, this, this.disposables);
 	}
 
@@ -703,14 +718,14 @@ class InstallAdditionalSCMProvidersAction extends Action {
 	}
 }
 
-export class SCMViewlet extends PanelViewlet {
+export class SCMViewlet extends PanelViewlet implements IViewModel {
 
 	private menus: SCMMenus;
-
 	private mainPanel: MainPanel;
-
-	// private repositoryToViewDescriptor = new Map<string, ProviderViewDescriptor>();
 	private disposables: IDisposable[] = [];
+
+	private _height: number | undefined = undefined;
+	get height(): number | undefined { return this._height; }
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -835,7 +850,12 @@ export class SCMViewlet extends PanelViewlet {
 		return new SCMMenuItemActionItem(action, this.keybindingService, this.messageService);
 	}
 
-	addRepositoryPanel(panel: RepositoryPanel, size: number, index?: number): void {
+	layout(dimension: Dimension): void {
+		super.layout(dimension);
+		this._height = dimension.height;
+	}
+
+	addRepositoryPanel(panel: RepositoryPanel, size: number, index: number = this.length): void {
 		this.addPanel(panel, size, index + 1);
 	}
 

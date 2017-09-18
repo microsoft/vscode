@@ -39,6 +39,7 @@ interface IViewItem {
 	explicitSize: number;
 	container: HTMLElement;
 	disposable: IDisposable;
+	layout(): void;
 }
 
 interface ISashItem {
@@ -50,16 +51,6 @@ interface ISashDragState {
 	index: number;
 	start: number;
 	sizes: number[];
-}
-
-function layoutViewItem(item: IViewItem, orientation: Orientation): void {
-	if (orientation === Orientation.VERTICAL) {
-		item.container.style.height = `${item.size}px`;
-	} else {
-		item.container.style.width = `${item.size}px`;
-	}
-
-	item.view.layout(item.size, orientation);
 }
 
 export class SplitView implements IDisposable {
@@ -98,8 +89,23 @@ export class SplitView implements IDisposable {
 		const containerDisposable = toDisposable(() => this.el.removeChild(container));
 		const disposable = combinedDisposable([onChangeDisposable, containerDisposable]);
 
+		const layoutContainer = this.orientation === Orientation.VERTICAL
+			? size => item.container.style.height = `${item.size}px`
+			: size => item.container.style.width = `${item.size}px`;
+
+		let previousSize: number | undefined = undefined;
+		const layout = () => {
+			if (item.size === previousSize) {
+				return;
+			}
+
+			layoutContainer(item.size);
+			item.view.layout(item.size, this.orientation);
+			previousSize = item.size;
+		};
+
 		const explicitSize = size;
-		const item: IViewItem = { view, container, explicitSize, size, disposable };
+		const item: IViewItem = { view, container, explicitSize, size, layout, disposable };
 		this.viewItems.splice(index, 0, item);
 
 		// Add sash
@@ -193,8 +199,14 @@ export class SplitView implements IDisposable {
 	}
 
 	private onViewChange(item: IViewItem): void {
-		item.size = clamp(item.size, item.view.minimumSize, item.view.maximumSize);
-		this.relayout();
+		const index = this.viewItems.indexOf(item);
+
+		if (index < 0 || index >= this.viewItems.length - 1) {
+			return;
+		}
+
+		const size = clamp(item.size, item.view.minimumSize, item.view.maximumSize);
+		this.resize(index, size - item.size);
 	}
 
 	resizeView(index: number, size: number): void {
@@ -219,6 +231,12 @@ export class SplitView implements IDisposable {
 			const down = downIndexes.map(i => this.viewItems[i]);
 			const downSizes = downIndexes.map(i => sizes[i]);
 
+			delta = clamp(
+				delta,
+				-upIndexes.reduce((r, i) => r + (sizes[i] - this.viewItems[i].view.minimumSize), 0),
+				downIndexes.reduce((r, i) => r + (sizes[i] - this.viewItems[i].view.minimumSize), 0)
+			);
+
 			for (let i = 0, deltaUp = delta; deltaUp !== 0 && i < up.length; i++) {
 				const item = up[i];
 				const size = clamp(upSizes[i] + deltaUp, item.view.minimumSize, item.view.maximumSize);
@@ -242,7 +260,7 @@ export class SplitView implements IDisposable {
 	}
 
 	private layoutViews(): void {
-		this.viewItems.forEach(item => layoutViewItem(item, this.orientation));
+		this.viewItems.forEach(item => item.layout());
 		this.sashItems.forEach(item => item.sash.layout());
 
 		// Update sashes enablement
