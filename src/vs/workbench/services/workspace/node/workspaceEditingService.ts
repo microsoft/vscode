@@ -17,7 +17,7 @@ import { dirname } from 'path';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { massageFolderPathForWorkspace } from 'vs/platform/workspaces/node/workspaces';
 import { isLinux } from 'vs/base/common/platform';
-import { WorkspaceServiceImpl } from 'vs/workbench/services/configuration/node/configuration';
+import { WorkspaceService } from 'vs/workbench/services/configuration/node/configuration';
 import { migrateStorageToMultiRootWorkspace } from 'vs/platform/storage/common/migration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { StorageService } from 'vs/platform/storage/common/storageService';
@@ -145,7 +145,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		return this.migrate(workspace).then(() => {
 
 			// Initialize configuration service
-			const workspaceImpl = this.contextService as WorkspaceServiceImpl; // TODO@Ben TODO@Sandeep ugly cast
+			const workspaceImpl = this.contextService as WorkspaceService; // TODO@Ben TODO@Sandeep ugly cast
 			return workspaceImpl.initialize(workspace).then(() => {
 
 				// Start extension host again

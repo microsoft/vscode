@@ -19,7 +19,7 @@ import { parseArgs } from 'vs/platform/environment/node/argv';
 import extfs = require('vs/base/node/extfs');
 import uuid = require('vs/base/common/uuid');
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { WorkspaceServiceImpl, WorkspaceService } from 'vs/workbench/services/configuration/node/configuration';
+import { WorkspaceService } from 'vs/workbench/services/configuration/node/configuration';
 import { FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 
@@ -44,7 +44,7 @@ function createWorkspace(callback: (workspaceDir: string, globalSettingsFile: st
 	});
 }
 
-function setUpFolder(folderName: string): TPromise<{ parentDir: string, workspaceDir: string, workspaceService: WorkspaceServiceImpl }> {
+function setUpFolder(folderName: string): TPromise<{ parentDir: string, workspaceDir: string, workspaceService: WorkspaceService }> {
 	const id = uuid.generateUuid();
 	const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 	const workspaceDir = path.join(parentDir, folderName);
@@ -58,15 +58,15 @@ function setUpFolder(folderName: string): TPromise<{ parentDir: string, workspac
 				return null;
 			}
 			const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
-			const workspaceService = new WorkspaceServiceImpl(environmentService, null);
+			const workspaceService = new WorkspaceService(environmentService, null);
 			workspaceService.initialize(workspaceDir).then(() => c({ parentDir, workspaceDir, workspaceService }));
 		});
 	});
 }
 
-function createService(workspaceDir: string, globalSettingsFile: string): TPromise<WorkspaceServiceImpl> {
+function createService(workspaceDir: string, globalSettingsFile: string): TPromise<WorkspaceService> {
 	const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
-	const service = new WorkspaceServiceImpl(environmentService, null);
+	const service = new WorkspaceService(environmentService, null);
 
 	return service.initialize(workspaceDir).then(() => service);
 }

@@ -21,7 +21,7 @@ import extfs = require('vs/base/node/extfs');
 import { TestTextFileService, TestEditorGroupService, TestLifecycleService, TestBackupFileService, TestTextResourceConfigurationService } from 'vs/workbench/test/workbenchTestServices';
 import uuid = require('vs/base/common/uuid');
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { WorkspaceService, WorkspaceServiceImpl } from 'vs/workbench/services/configuration/node/configuration';
+import { WorkspaceService } from 'vs/workbench/services/configuration/node/configuration';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
 import { ConfigurationEditingService } from 'vs/workbench/services/configuration/node/configurationEditingService';
 import { ConfigurationTarget, ConfigurationEditingError, ConfigurationEditingErrorCode } from 'vs/workbench/services/configuration/common/configurationEditing';
@@ -118,7 +118,7 @@ suite('ConfigurationEditingService', () => {
 		const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
 		instantiationService.stub(IEnvironmentService, environmentService);
 		const workspacesService = instantiationService.stub(IWorkspacesService, {});
-		const workspaceService = new WorkspaceServiceImpl(environmentService, workspacesService);
+		const workspaceService = new WorkspaceService(environmentService, workspacesService);
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
 		return workspaceService.initialize(noWorkspace ? <IWindowConfiguration>{} : workspaceDir).then(() => {
 			instantiationService.stub(IConfigurationService, workspaceService);

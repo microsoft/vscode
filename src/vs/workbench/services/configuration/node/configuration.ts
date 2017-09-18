@@ -189,7 +189,7 @@ function validateProperties(configuration: IConfigurationNode, collector: Extens
 	}
 }
 
-export class WorkspaceServiceImpl extends Disposable implements IWorkspaceConfigurationService, IWorkspaceContextService {
+export class WorkspaceService extends Disposable implements IWorkspaceConfigurationService, IWorkspaceContextService {
 
 	public _serviceBrand: any;
 
