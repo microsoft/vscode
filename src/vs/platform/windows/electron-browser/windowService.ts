@@ -116,7 +116,11 @@ export class WindowService implements IWindowService {
 		return this.windowsService.setDocumentEdited(this.windowId, flag);
 	}
 
-	showMessageBox(options: Electron.ShowMessageBoxOptions): number {
+	showMessageBox(options: Electron.ShowMessageBoxOptions, callback?: (response: number, checkboxChecked: boolean) => void): number {
+		if (callback) {
+			return remote.dialog.showMessageBox(remote.getCurrentWindow(), options, callback);
+		}
+
 		return remote.dialog.showMessageBox(remote.getCurrentWindow(), options);
 	}
 

@@ -37,6 +37,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -691,6 +692,7 @@ export class FileDragAndDrop implements IDragAndDrop {
 		@IProgressService private progressService: IProgressService,
 		@IFileService private fileService: IFileService,
 		@IConfigurationService private configurationService: IConfigurationService,
+		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IBackupFileService private backupFileService: IBackupFileService
@@ -895,7 +897,7 @@ export class FileDragAndDrop implements IDragAndDrop {
 							detail: nls.localize('irreversible', "This action is irreversible!"),
 							primaryButton: nls.localize({ key: 'moveButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Move"),
 							type: 'warning',
-							checkboxLabel: nls.localize('showMessageCheckbox', "Don't show this message again.")
+							checkboxLabel: nls.localize('showMessageCheckbox', "Don't show this message again!")
 						};
 
 						if (this.messageService.confirm(confirm)) {
@@ -930,6 +932,8 @@ export class FileDragAndDrop implements IDragAndDrop {
 								return onError(error, true);
 							});
 						}
+
+						return 0;
 					})
 
 					// 4.) resolve those that were dirty to load their previous dirty contents from disk
