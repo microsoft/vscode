@@ -10,9 +10,7 @@ import { normalize } from 'vs/base/common/paths';
 import { delta } from 'vs/base/common/arrays';
 import { relative } from 'path';
 import { Workspace } from 'vs/platform/workspace/common/workspace';
-import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { fromRange, EndOfLine } from 'vs/workbench/api/node/extHostTypeConverters';
 import { IWorkspaceData, ExtHostWorkspaceShape, MainContext, MainThreadWorkspaceShape, IMainContext } from './extHost.protocol';
 import * as vscode from 'vscode';
 import { compare } from 'vs/base/common/strings';
@@ -180,27 +178,6 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 
 	saveAll(includeUntitled?: boolean): Thenable<boolean> {
 		return this._proxy.$saveAll(includeUntitled);
-	}
-
-	appyEdit(edit: vscode.WorkspaceEdit): TPromise<boolean> {
-
-		let resourceEdits: IResourceEdit[] = [];
-
-		let entries = edit.entries();
-		for (let entry of entries) {
-			let [uri, edits] = entry;
-
-			for (let edit of edits) {
-				resourceEdits.push({
-					resource: <URI>uri,
-					newText: edit.newText,
-					newEol: EndOfLine.from(edit.newEol),
-					range: edit.range && fromRange(edit.range)
-				});
-			}
-		}
-
-		return this._proxy.$applyWorkspaceEdit(resourceEdits);
 	}
 
 	// --- EXPERIMENT: workspace resolver

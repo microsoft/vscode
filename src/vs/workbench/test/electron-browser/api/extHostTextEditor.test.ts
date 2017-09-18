@@ -64,6 +64,7 @@ suite('ExtHostTextEditorOptions', () => {
 			$tryRevealRange: undefined,
 			$trySetSelections: undefined,
 			$tryApplyEdits: undefined,
+			$tryApplyWorkspaceEdit: undefined,
 			$tryInsertSnippet: undefined,
 			$getDiffInformation: undefined
 		};

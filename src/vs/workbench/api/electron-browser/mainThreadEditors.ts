@@ -8,7 +8,7 @@ import URI from 'vs/base/common/uri';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { disposed } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ISingleEditOperation, IDecorationRenderOptions, IDecorationOptions, ILineChange } from 'vs/editor/common/editorCommon';
+import { ISingleEditOperation, IDecorationRenderOptions, IDecorationOptions, ILineChange, ICommonCodeEditor, isCommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -18,9 +18,13 @@ import { ITextEditorConfigurationUpdate, TextEditorRevealType, IApplyEditsOption
 import { MainThreadDocumentsAndEditors } from './mainThreadDocumentsAndEditors';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { equals as objectEquals } from 'vs/base/common/objects';
-import { ExtHostContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextDocumentShowOptions, ITextEditorPositionData, IExtHostContext } from '../node/extHost.protocol';
+import { ExtHostContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextDocumentShowOptions, ITextEditorPositionData, IExtHostContext, IWorkspaceResourceEdit } from '../node/extHost.protocol';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IFileService } from 'vs/platform/files/common/files';
+import { bulkEdit, IResourceEdit } from 'vs/editor/common/services/bulkEdit';
+import { IModelService } from 'vs/editor/common/services/modelService';
 
 export class MainThreadEditors implements MainThreadEditorsShape {
 
@@ -38,7 +42,10 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 		@ICodeEditorService private _codeEditorService: ICodeEditorService,
 		@IWorkbenchEditorService workbenchEditorService: IWorkbenchEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@ITelemetryService telemetryService: ITelemetryService
+		@ITelemetryService telemetryService: ITelemetryService,
+		@ITextModelService private readonly _textModelResolverService: ITextModelService,
+		@IFileService private readonly _fileService: IFileService,
+		@IModelService private readonly _modelService: IModelService,
 	) {
 		this._proxy = extHostContext.get(ExtHostContext.ExtHostEditors);
 		this._documentsAndEditors = documentsAndEditors;
@@ -192,6 +199,52 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 			return TPromise.wrapError<boolean>(disposed(`TextEditor(${id})`));
 		}
 		return TPromise.as(this._documentsAndEditors.getEditor(id).applyEdits(modelVersionId, edits, opts));
+	}
+
+	$tryApplyWorkspaceEdit(workspaceResourceEdits: IWorkspaceResourceEdit[]): TPromise<boolean> {
+
+		// First check if loaded models were not changed in the meantime
+		for (let i = 0, len = workspaceResourceEdits.length; i < len; i++) {
+			const workspaceResourceEdit = workspaceResourceEdits[i];
+			if (workspaceResourceEdit.modelVersionId) {
+				let model = this._modelService.getModel(workspaceResourceEdit.resource);
+				if (model && model.getVersionId() !== workspaceResourceEdit.modelVersionId) {
+					// model changed in the meantime
+					return TPromise.as(false);
+				}
+			}
+		}
+
+		// Convert to shape expected by bulkEdit below
+		let resourceEdits: IResourceEdit[] = [];
+		for (let i = 0, len = workspaceResourceEdits.length; i < len; i++) {
+			const workspaceResourceEdit = workspaceResourceEdits[i];
+			const uri = workspaceResourceEdit.resource;
+			const edits = workspaceResourceEdit.edits;
+
+			for (let j = 0, lenJ = edits.length; j < lenJ; j++) {
+				const edit = edits[j];
+
+				resourceEdits.push({
+					resource: <URI>uri,
+					newText: edit.newText,
+					newEol: edit.newEol,
+					range: edit.range
+				});
+			}
+		}
+
+		let codeEditor: ICommonCodeEditor;
+		let editor = this._workbenchEditorService.getActiveEditor();
+		if (editor) {
+			let candidate = editor.getControl();
+			if (isCommonCodeEditor(candidate)) {
+				codeEditor = candidate;
+			}
+		}
+
+		return bulkEdit(this._textModelResolverService, codeEditor, resourceEdits, this._fileService)
+			.then(() => true);
 	}
 
 	$tryInsertSnippet(id: string, template: string, ranges: IRange[], opts: IUndoStopOptions): TPromise<boolean> {
