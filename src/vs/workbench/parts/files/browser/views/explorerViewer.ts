@@ -574,8 +574,10 @@ export class FileSorter implements ISorter {
 			if (statB.isRoot) {
 				return this.contextService.getWorkspaceFolder(statA.resource).index - this.contextService.getWorkspaceFolder(statB.resource).index;
 			}
+
 			return -1;
 		}
+
 		if (statB.isRoot) {
 			return 1;
 		}
@@ -607,6 +609,9 @@ export class FileSorter implements ISorter {
 				}
 
 				break;
+
+			case 'mixed':
+				break; // not sorting when "mixed" is on
 
 			default: /* 'default', 'modified' */
 				if (statA.isDirectory && !statB.isDirectory) {
