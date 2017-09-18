@@ -709,6 +709,13 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	private _attachPressAnyKeyToCloseListener() {
+		//Allow Escape to be used to close terminal #33683
+		this._processDisposables.push(dom.addDisposableListener(this._xterm.textarea, 'keydown', (event: KeyboardEvent) => {
+			if (event.keyCode === 27) {
+				this.dispose();
+				event.preventDefault();
+			}
+		}));
 		this._processDisposables.push(dom.addDisposableListener(this._xterm.textarea, 'keypress', (event: KeyboardEvent) => {
 			this.dispose();
 			event.preventDefault();
