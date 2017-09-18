@@ -36,6 +36,35 @@ endif
 
 -include $(TOP_DIR)3rdparty.mk
 
+  define spaces_before_define
+    "Dummy"
+  endef
+
+  ifdef spaces_before_define
+    $(info space_before_define is defined)
+  endif
+
 ifeq ($(strip $(call defined,CODIT_DIR)),0)
-  $(info CODIT_DIR must be set in $(TOP_DIR)3rdparty.mk)
+  ifeq (1,1)
+    $(info CODIT_DIR must be set in $(TOP_DIR)3rdparty.mk)
+  endif
 endif
+
+ifeq (0,1)
+  # Never pass inside
+  $(corrupted
+     variable
+       is not highlighted)
+  $(backslash allows \
+     to highlight \
+       the variable)
+  $(info The same is \
+           for functions)
+endif
+
+# Handle braces inside the variable
+SIMPLE := $(info ()()(()))
+CXXVER_GE480 := $(shell expr `$(CXX) -dumpversion | sed -e 's/\.\([0-9][0-9]\)/\1/g' -e 's/\.\([0-9]\)/0\1/g' -e 's/^[0-9]\{3,4\}$$/&00/'` \>= 40800)
+
+N := $(strip ) $ $() 123 () # Result: "123 ()". Braces at the end are not highlighted.
+$(info Show the $$N variable inside $$(info Show...): $(strip $N), $(strip $(N)))
