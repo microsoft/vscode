@@ -292,6 +292,10 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		return [];
 	}
 
+	public getFoldersConfiguration(): IStoredWorkspaceFolder[] {
+		return [];
+	}
+
 	public isInWorkspaceContext(): boolean {
 		return false;
 	}
@@ -389,6 +393,10 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 
 	public getUnsupportedWorkspaceKeys(): string[] {
 		return this.getWorkbenchState() === WorkbenchState.FOLDER ? this._configuration.getFolderConfigurationModel(this.workspace.folders[0].uri).workspaceSettingsConfig.unsupportedKeys : [];
+	}
+
+	public getFoldersConfiguration(): IStoredWorkspaceFolder[] {
+		return objects.clone(this.workspaceConfiguration.workspaceConfigurationModel.folders);
 	}
 
 	public initialize(trigger: boolean = true): TPromise<any> {
