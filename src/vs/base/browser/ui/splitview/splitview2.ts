@@ -5,7 +5,7 @@
 
 'use strict';
 
-import 'vs/css!./splitview';
+import 'vs/css!./splitview2';
 import { IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import Event, { fromEventEmitter, mapEvent } from 'vs/base/common/event';
 import types = require('vs/base/common/types');
@@ -25,7 +25,6 @@ export interface IView {
 	readonly onDidChange: Event<void>;
 	render(container: HTMLElement, orientation: Orientation): void;
 	layout(size: number, orientation: Orientation): void;
-	focus(): void;
 }
 
 interface ISashEvent {
@@ -80,7 +79,7 @@ export class SplitView implements IDisposable {
 		this.orientation = types.isUndefined(options.orientation) ? Orientation.VERTICAL : options.orientation;
 
 		this.el = document.createElement('div');
-		dom.addClass(this.el, 'monaco-split-view');
+		dom.addClass(this.el, 'monaco-split-view2');
 		dom.addClass(this.el, this.orientation === Orientation.VERTICAL ? 'vertical' : 'horizontal');
 		container.appendChild(this.el);
 	}

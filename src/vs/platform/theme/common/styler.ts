@@ -15,11 +15,15 @@ export interface IThemable {
 	style: styleFn;
 }
 
-export function attachStyler(themeService: IThemeService, optionsMapping: { [optionsKey: string]: ColorIdentifier | ColorFunction }, widgetOrCallback: IThemable | styleFn): IDisposable {
+export interface IColorMapping {
+	[optionsKey: string]: ColorIdentifier | ColorFunction | undefined;
+}
+
+export function attachStyler<T extends IColorMapping>(themeService: IThemeService, optionsMapping: T, widgetOrCallback: IThemable | styleFn): IDisposable {
 	function applyStyles(theme: ITheme): void {
 		const styles = Object.create(null);
 		for (let key in optionsMapping) {
-			const value = optionsMapping[key];
+			const value = optionsMapping[key as string];
 			if (typeof value === 'string') {
 				styles[key] = theme.getColor(value);
 			} else if (typeof value === 'function') {
