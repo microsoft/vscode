@@ -73,7 +73,7 @@ function createService(workspaceDir: string, globalSettingsFile: string): TPromi
 
 suite('WorkspaceContextService - Folder', () => {
 
-	let workspaceName = `testWorkspace${uuid.generateUuid}`, parentResource: string, workspaceResource: string, workspaceContextService: IWorkspaceContextService;
+	let workspaceName = `testWorkspace${uuid.generateUuid()}`, parentResource: string, workspaceResource: string, workspaceContextService: IWorkspaceContextService;
 
 	setup(() => {
 		return setUpFolder(workspaceName)
