@@ -17,7 +17,7 @@ import { PanelViewlet, ViewletPanel } from 'vs/workbench/browser/parts/views/vie
 import { append, $, toggleClass, trackFocus } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
-import { IDelegate, IRenderer, IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
+import { IDelegate, IRenderer, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
 import { VIEWLET_ID } from 'vs/workbench/parts/scm/common/scm';
 import { FileLabel } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
@@ -68,18 +68,11 @@ class SCMMenuItemActionItem extends MenuItemActionItem {
 	}
 }
 
-function identityProvider(r: ISCMResourceGroup | ISCMResource): string {
-	if (isSCMResource(r)) {
-		const group = r.resourceGroup;
-		const provider = group.provider;
-		return `${provider.contextValue}/${group.id}/${r.sourceUri.toString()}`;
-	} else {
-		const provider = r.provider;
-		return `${provider.contextValue}/${r.id}`;
-	}
-}
-
 interface IViewModel {
+	addRepositoryPanel(panel: RepositoryPanel, size: number, index?: number): void;
+	removeRepositoryPanel(panel: RepositoryPanel): void;
+	moveRepositoryPanel(from: RepositoryPanel, to: RepositoryPanel): void;
+
 	isRepositoryVisible(repository: ISCMRepository): boolean;
 	toggleRepositoryVisibility(repository: ISCMRepository, visible: boolean);
 }
@@ -202,9 +195,11 @@ class ProviderRenderer implements IRenderer<ISCMRepository, RepositoryTemplateDa
 	}
 }
 
-class ProvidersPanel extends ViewletPanel {
+class MainPanel extends ViewletPanel {
 
 	private list: List<ISCMRepository>;
+	private repositories: ISCMRepository[] = [];
+	private repositoryPanels: RepositoryPanel[] = [];
 
 	constructor(
 		protected viewModel: IViewModel,
@@ -220,11 +215,16 @@ class ProvidersPanel extends ViewletPanel {
 	protected renderBody(container: HTMLElement): void {
 		const delegate = new ProvidersListDelegate();
 		const renderer = this.instantiationService.createInstance(ProviderRenderer, this.viewModel);
-		this.list = new List<ISCMRepository>(container, delegate, [renderer]);
+
+		this.list = new List<ISCMRepository>(container, delegate, [renderer], {
+			identityProvider: repository => repository.provider.id
+		});
+
+		this.list.onSelectionChange(this.onSelectionChange, this, this.disposables);
 
 		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
 		this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
-		this.update();
+		this.scmService.repositories.forEach(r => this.onDidAddRepository(r));
 	}
 
 	protected layoutBody(size: number): void {
@@ -232,20 +232,42 @@ class ProvidersPanel extends ViewletPanel {
 	}
 
 	private onDidAddRepository(repository: ISCMRepository): void {
-		this.update();
+		this.repositories.push(repository);
+		this.list.splice(this.list.length, 0, [repository]);
+		this.updateBodySize();
+
+		if (this.repositories.length === 1) {
+			this.list.setSelection([0]);
+		}
 	}
 
 	private onDidRemoveRepository(repository: ISCMRepository): void {
-		this.update();
-	}
+		const index = this.repositories.indexOf(repository);
 
-	private update(): void {
-		this.list.splice(0, this.list.length, this.scmService.repositories);
+		if (index === -1) {
+			return;
+		}
+
+		this.repositories.splice(index, 1);
+		this.list.splice(index, 1);
 		this.updateBodySize();
 	}
 
+	private onSelectionChange(e: IListEvent<ISCMRepository>): void {
+		console.log(e.elements);
+
+		const toRemove = this.repositoryPanels.filter(p => e.elements.every(r => p.repository !== r));
+		const toAdd = e.elements.filter(r => this.repositoryPanels.every(p => p.repository !== r));
+
+		console.log(toAdd, toRemove);
+
+
+		// this.viewModel.addRepositoryPanel();
+		// this.repositoryPanels
+	}
+
 	private updateBodySize(): void {
-		const size = Math.min(5, this.scmService.repositories.length) * 22;
+		const size = Math.min(5, this.repositories.length) * 22;
 		this.minimumBodySize = size;
 		this.maximumBodySize = size;
 	}
@@ -427,7 +449,18 @@ class ProviderListDelegate implements IDelegate<ISCMResourceGroup | ISCMResource
 // 	}
 // }
 
-class ProviderPanel extends ViewletPanel {
+function scmResourceIdentityProvider(r: ISCMResourceGroup | ISCMResource): string {
+	if (isSCMResource(r)) {
+		const group = r.resourceGroup;
+		const provider = group.provider;
+		return `${provider.contextValue}/${group.id}/${r.sourceUri.toString()}`;
+	} else {
+		const provider = r.provider;
+		return `${provider.contextValue}/${r.id}`;
+	}
+}
+
+export class RepositoryPanel extends ViewletPanel {
 
 	private cachedHeight: number | undefined;
 	private inputBoxContainer: HTMLElement;
@@ -437,7 +470,7 @@ class ProviderPanel extends ViewletPanel {
 	private menus: SCMMenus;
 
 	constructor(
-		private repository: ISCMRepository,
+		readonly repository: ISCMRepository,
 		@IKeybindingService protected keybindingService: IKeybindingService,
 		@IThemeService protected themeService: IThemeService,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
@@ -514,7 +547,7 @@ class ProviderPanel extends ViewletPanel {
 		];
 
 		this.list = new List(this.listContainer, delegate, renderers, {
-			identityProvider,
+			identityProvider: scmResourceIdentityProvider,
 			keyboardSupport: false
 		});
 
@@ -674,7 +707,7 @@ export class SCMViewlet extends PanelViewlet {
 
 	private menus: SCMMenus;
 
-	private providersPanel: ProvidersPanel;
+	private mainPanel: MainPanel;
 
 	// private repositoryToViewDescriptor = new Map<string, ProviderViewDescriptor>();
 	private disposables: IDisposable[] = [];
@@ -709,8 +742,8 @@ export class SCMViewlet extends PanelViewlet {
 		parent.addClass('scm-viewlet'/* , 'empty' */);
 		// append(parent.getHTMLElement(), $('div.empty-message', null, localize('no open repo', "There are no source control providers active.")));
 
-		this.providersPanel = this.instantiationService.createInstance(ProvidersPanel, this);
-		this.addPanel(this.providersPanel, this.providersPanel.minimumSize);
+		this.mainPanel = this.instantiationService.createInstance(MainPanel, this);
+		this.addPanel(this.mainPanel, this.mainPanel.minimumSize);
 
 		// this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
 		// this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
@@ -800,6 +833,18 @@ export class SCMViewlet extends PanelViewlet {
 		}
 
 		return new SCMMenuItemActionItem(action, this.keybindingService, this.messageService);
+	}
+
+	addRepositoryPanel(panel: RepositoryPanel, size: number, index?: number): void {
+		this.addPanel(panel, size, index + 1);
+	}
+
+	removeRepositoryPanel(panel: RepositoryPanel): void {
+		this.removePanel(panel);
+	}
+
+	moveRepositoryPanel(from: RepositoryPanel, to: RepositoryPanel): void {
+		this.movePanel(from, to);
 	}
 
 	dispose(): void {
