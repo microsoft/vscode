@@ -97,7 +97,7 @@ suite('WorkspaceContextService - Folder', () => {
 		const actual = workspaceContextService.getWorkspace();
 
 		assert.equal(actual.folders.length, 1);
-		assert.equal(actual.folders[0].uri.fsPath, workspaceResource);
+		assert.equal(actual.folders[0].uri.fsPath, URI.file(workspaceResource).fsPath);
 		assert.equal(actual.folders[0].name, workspaceName);
 		assert.equal(actual.folders[0].index, 0);
 		assert.equal(actual.folders[0].raw.path, workspaceResource);
