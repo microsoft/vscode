@@ -1,4 +1,5 @@
 {
+	"css.title": "CSS",
 	"css.lint.argumentsInColorFunction.desc": "Invalid number of parameters",
 	"css.lint.boxModel.desc": "Do not use width or height when using padding or border",
 	"css.lint.compatibleVendorPrefixes.desc": "When using a vendor-specific prefix make sure to also include all other vendor-specific properties",
@@ -20,6 +21,7 @@
 	"css.trace.server.desc": "Traces the communication between VS Code and the CSS language server.",
 	"css.validate.title": "Controls CSS validation and problem severities.",
 	"css.validate.desc": "Enables or disables all validations",
+	"less.title": "LESS",
 	"less.lint.argumentsInColorFunction.desc": "Invalid number of parameters",
 	"less.lint.boxModel.desc": "Do not use width or height when using padding or border",
 	"less.lint.compatibleVendorPrefixes.desc": "When using a vendor-specific prefix make sure to also include all other vendor-specific properties",
@@ -40,6 +42,7 @@
 	"less.lint.zeroUnits.desc": "No unit for zero needed",
 	"less.validate.title": "Controls LESS validation and problem severities.",
 	"less.validate.desc": "Enables or disables all validations",
+	"scss.title": "SCSS (Sass)",
 	"scss.lint.argumentsInColorFunction.desc": "Invalid number of parameters",
 	"scss.lint.boxModel.desc": "Do not use width or height when using padding or border",
 	"scss.lint.compatibleVendorPrefixes.desc": "When using a vendor-specific prefix make sure to also include all other vendor-specific properties",

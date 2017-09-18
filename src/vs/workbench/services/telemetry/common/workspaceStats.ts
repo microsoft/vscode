@@ -11,7 +11,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import { IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 
@@ -152,11 +152,12 @@ export class WorkspaceStats {
 		tags['workbench.filesToCreate'] = filesToCreate && filesToCreate.length || undefined;
 		tags['workbench.filesToDiff'] = filesToDiff && filesToDiff.length || undefined;
 
+		const isEmpty = this.contextService.getWorkbenchState() === WorkbenchState.EMPTY;
 		const workspace = this.contextService.getWorkspace();
-		tags['workspace.roots'] = workspace ? workspace.roots.length : 0;
-		tags['workspace.empty'] = !workspace;
+		tags['workspace.roots'] = isEmpty ? 0 : workspace.folders.length;
+		tags['workspace.empty'] = isEmpty;
 
-		const folders = workspace ? workspace.roots : this.environmentService.appQuality !== 'stable' && this.findFolders(configuration);
+		const folders = !isEmpty ? workspace.folders : this.environmentService.appQuality !== 'stable' && this.findFolders(configuration);
 		if (folders && folders.length && this.fileService) {
 			return this.fileService.resolveFiles(folders.map(resource => ({ resource }))).then(results => {
 				const names = (<IFileStat[]>[]).concat(...results.map(result => result.success ? (result.stat.children || []) : [])).map(c => c.name);
@@ -323,8 +324,7 @@ export class WorkspaceStats {
 	}
 
 	public reportCloudStats(): void {
-		const workspace = this.contextService.getWorkspace();
-		const uris = workspace && workspace.roots;
+		const uris = this.contextService.getWorkspace().folders;
 		if (uris && uris.length && this.fileService) {
 			this.reportRemoteDomains(uris);
 			this.reportRemotes(uris);

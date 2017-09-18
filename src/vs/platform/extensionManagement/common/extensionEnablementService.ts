@@ -10,7 +10,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IExtensionManagementService, DidUninstallExtensionEvent, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { adoptToGalleryExtensionId, getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
@@ -35,7 +35,7 @@ export class ExtensionEnablementService implements IExtensionEnablementService {
 	}
 
 	private get hasWorkspace(): boolean {
-		return this.contextService.hasWorkspace();
+		return this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY;
 	}
 
 	public getGloballyDisabledExtensions(): string[] {

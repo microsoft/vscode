@@ -64,7 +64,7 @@ export interface IEnvironment {
 export interface IWorkspaceData {
 	id: string;
 	name: string;
-	roots: URI[];
+	folders: URI[];
 }
 
 export interface IInitData {

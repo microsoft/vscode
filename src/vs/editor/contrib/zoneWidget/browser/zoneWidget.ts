@@ -7,7 +7,6 @@
 
 import 'vs/css!./zoneWidget';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Widget } from 'vs/base/browser/ui/widget';
 import * as objects from 'vs/base/common/objects';
 import * as dom from 'vs/base/browser/dom';
 import { Sash, Orientation, IHorizontalSashLayoutProvider, ISashEvent } from 'vs/base/browser/ui/sash/sash';
@@ -157,7 +156,7 @@ class Arrow {
 	}
 }
 
-export abstract class ZoneWidget extends Widget implements IHorizontalSashLayoutProvider {
+export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 
 	private _arrow: Arrow;
 	private _overlayWidget: OverlayWidgetDelegate;
@@ -174,7 +173,6 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 
 
 	constructor(editor: ICodeEditor, options: IOptions = {}) {
-		super();
 		this.editor = editor;
 		this.options = objects.clone(options);
 		objects.mixin(this.options, defaultOptions, false);

@@ -26,7 +26,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Query } from 'vs/workbench/parts/extensions/common/extensionQuery';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IExtensionService, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import URI from 'vs/base/common/uri';
@@ -559,7 +559,7 @@ export class DisableForWorkspaceAction extends Action implements IExtensionActio
 
 	private update(): void {
 		this.enabled = false;
-		if (this.extension && this.workspaceContextService.hasWorkspace()) {
+		if (this.extension && this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
 			this.enabled = this.extension.type !== LocalExtensionType.System && !this.extension.disabledGlobally && !this.extension.disabledForWorkspace;
 		}
 	}
@@ -1093,7 +1093,7 @@ export class ShowWorkspaceRecommendedExtensionsAction extends Action {
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IViewletService private viewletService: IViewletService
 	) {
-		super(id, label, null, contextService.hasWorkspace());
+		super(id, label, null, contextService.getWorkbenchState() !== WorkbenchState.EMPTY);
 	}
 
 	run(): TPromise<void> {
@@ -1251,7 +1251,7 @@ export class ConfigureWorkspaceRecommendedExtensionsAction extends Action {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IMessageService private messageService: IMessageService
 	) {
-		super(id, label, null, contextService.hasWorkspace());
+		super(id, label, null, contextService.getWorkbenchState() !== WorkbenchState.EMPTY);
 	}
 
 	public run(event: any): TPromise<any> {
@@ -1259,7 +1259,7 @@ export class ConfigureWorkspaceRecommendedExtensionsAction extends Action {
 	}
 
 	private openExtensionsFile(): TPromise<any> {
-		if (!this.contextService.hasWorkspace()) {
+		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this.messageService.show(severity.Info, localize('ConfigureWorkspaceRecommendations.noWorkspace', 'Recommendations are only available on a workspace folder.'));
 			return TPromise.as(undefined);
 		}
@@ -1276,7 +1276,7 @@ export class ConfigureWorkspaceRecommendedExtensionsAction extends Action {
 	}
 
 	private getOrCreateExtensionsFile(): TPromise<{ created: boolean, extensionsFileResource: URI }> {
-		const extensionsFileResource = URI.file(paths.join(this.contextService.getLegacyWorkspace().resource.fsPath, '.vscode', 'extensions.json')); // TODO@Sandeep (https://github.com/Microsoft/vscode/issues/29242)
+		const extensionsFileResource = URI.file(paths.join(this.contextService.getWorkspace().folders[0].fsPath, '.vscode', 'extensions.json')); // TODO@Sandeep (https://github.com/Microsoft/vscode/issues/29242)
 
 		return this.fileService.resolveContent(extensionsFileResource).then(content => {
 			return { created: false, extensionsFileResource };
@@ -1363,7 +1363,7 @@ export class DisableAllWorkpsaceAction extends Action {
 	}
 
 	private update(): void {
-		this.enabled = this.workspaceContextService.hasWorkspace() && this.extensionsWorkbenchService.local.some(e => e.type === LocalExtensionType.User && !e.disabledForWorkspace && !e.disabledGlobally);
+		this.enabled = this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.extensionsWorkbenchService.local.some(e => e.type === LocalExtensionType.User && !e.disabledForWorkspace && !e.disabledGlobally);
 	}
 
 	run(): TPromise<any> {
@@ -1426,7 +1426,7 @@ export class EnableAllWorkpsaceAction extends Action {
 	}
 
 	private update(): void {
-		this.enabled = this.workspaceContextService.hasWorkspace() && this.extensionsWorkbenchService.local.some(e => this.extensionEnablementService.canEnable(e.id) && !e.disabledGlobally && e.disabledForWorkspace);
+		this.enabled = this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.extensionsWorkbenchService.local.some(e => this.extensionEnablementService.canEnable(e.id) && !e.disabledGlobally && e.disabledForWorkspace);
 	}
 
 	run(): TPromise<any> {

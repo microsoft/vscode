@@ -206,7 +206,16 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 		const font = this._configHelper.getFont();
 		this._cols = Math.max(Math.floor(dimension.width / font.charWidth), 1);
-		this._rows = Math.max(Math.floor(dimension.height / Math.floor(font.charHeight * font.lineHeight)), 1);
+
+		// xterm.js does the horizontal space calculation using values scaled
+		// with window.devicePixelRatio. In these calculations, ceil and floor
+		// are used which require us to check it on this side as well or we
+		// would lose that precision.
+		const scaledSpaceAvailable = dimension.height * window.devicePixelRatio;
+		const scaledCharHeight = Math.ceil(font.charHeight * window.devicePixelRatio);
+		const scaledLineHeight = Math.floor(scaledCharHeight * font.lineHeight);
+		this._rows = Math.floor(scaledSpaceAvailable / scaledLineHeight);
+
 		return dimension.width;
 	}
 

@@ -102,6 +102,13 @@ export class Editor {
 		await this.spectron.client.waitAndClick(selector);
 	}
 
+	public async getFocusedEditorUri(): Promise<string> {
+		return this.spectron.webclient.selectorExecute(`.editor-container .monaco-editor.focused`, (elements: HTMLElement[]) => {
+			elements = Array.isArray(elements) ? elements : [elements];
+			return elements[0].getAttribute('data-uri');
+		});
+	}
+
 	private async getClassSelectors(term: string, viewline: number): Promise<string[]> {
 		const result: { text: string, className: string }[] = await this.spectron.webclient.selectorExecute(`${Editor.VIEW_LINES}>:nth-child(${viewline}) span span`,
 			elements => (Array.isArray(elements) ? elements : [elements])

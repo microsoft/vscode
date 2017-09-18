@@ -400,6 +400,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 
 			this._view.render(false, true);
 			this.hasView = true;
+			this._view.domNode.domNode.setAttribute('data-uri', model.uri.toString());
 		}
 	}
 

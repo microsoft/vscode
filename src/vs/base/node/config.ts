@@ -6,7 +6,7 @@
 'use strict';
 
 import * as fs from 'fs';
-import * as path from 'path';
+import { dirname, basename } from 'path';
 import * as objects from 'vs/base/common/objects';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -49,9 +49,11 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 	private timeoutHandle: NodeJS.Timer;
 	private disposables: IDisposable[];
 	private _onDidUpdateConfiguration: Emitter<IConfigurationChangeEvent<T>>;
+	private configName: string;
 
 	constructor(private _path: string, private options: IConfigOptions<T> = { changeBufferDelay: 0, defaultConfig: Object.create(null), onError: error => console.error(error) }) {
 		this.disposables = [];
+		this.configName = basename(this._path);
 
 		this._onDidUpdateConfiguration = new Emitter<IConfigurationChangeEvent<T>>();
 		this.disposables.push(this._onDidUpdateConfiguration);
@@ -121,8 +123,8 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 	private registerWatcher(): void {
 
 		// Watch the parent of the path so that we detect ADD and DELETES
-		const parentFolder = path.dirname(this._path);
-		this.watch(parentFolder);
+		const parentFolder = dirname(this._path);
+		this.watch(parentFolder, true);
 
 		// Check if the path is a symlink and watch its target if so
 		fs.lstat(this._path, (err, stat) => {
@@ -137,20 +139,20 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 						return; // path is not a valid symlink
 					}
 
-					this.watch(realPath);
+					this.watch(realPath, false);
 				});
 			}
 		});
 	}
 
-	private watch(path: string): void {
+	private watch(path: string, isParentFolder: boolean): void {
 		if (this.disposed) {
 			return; // avoid watchers that will never get disposed by checking for being disposed
 		}
 
 		try {
 			const watcher = fs.watch(path);
-			watcher.on('change', () => this.onConfigFileChange());
+			watcher.on('change', (type, file) => this.onConfigFileChange(type, file.toString(), isParentFolder));
 			watcher.on('error', (code, signal) => this.options.onError(`Error watching ${path} for configuration changes (${code}, ${signal})`));
 
 			this.disposables.push(toDisposable(() => {
@@ -166,7 +168,11 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 		}
 	}
 
-	private onConfigFileChange(): void {
+	private onConfigFileChange(eventType: string, filename: string, isParentFolder: boolean): void {
+		if (isParentFolder && filename !== this.configName) {
+			return; // a change to a sibling file that is not our config file
+		}
+
 		if (this.timeoutHandle) {
 			global.clearTimeout(this.timeoutHandle);
 			this.timeoutHandle = null;

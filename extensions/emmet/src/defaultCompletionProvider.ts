@@ -55,7 +55,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 				return;
 			}
 
-			let result: vscode.CompletionList = doComplete(document, position, syntax, getEmmetConfiguration(syntax));
+			let result = doComplete(document, position, syntax, getEmmetConfiguration(syntax));
 			let newItems: vscode.CompletionItem[] = [];
 			if (result && result.items) {
 				result.items.forEach(item => {

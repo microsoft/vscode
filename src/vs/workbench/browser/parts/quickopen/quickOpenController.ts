@@ -111,6 +111,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService,
 		@IListService private listService: IListService,
+		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IThemeService themeService: IThemeService
 	) {
 		super(QuickOpenController.ID, themeService);
@@ -138,7 +139,11 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	}
 
 	private updateConfiguration(settings: IWorkbenchQuickOpenConfiguration): void {
-		this.closeOnFocusLost = settings.workbench && settings.workbench.quickOpen && settings.workbench.quickOpen.closeOnFocusLost;
+		if (this.environmentService.args['sticky-quickopen']) {
+			this.closeOnFocusLost = false;
+		} else {
+			this.closeOnFocusLost = settings.workbench && settings.workbench.quickOpen && settings.workbench.quickOpen.closeOnFocusLost;
+		}
 	}
 
 	public get onShow(): Event<void> {

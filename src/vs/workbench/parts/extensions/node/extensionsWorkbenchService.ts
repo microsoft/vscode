@@ -34,7 +34,7 @@ import { IExtension, IExtensionDependencies, ExtensionState, IExtensionsWorkbenc
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IURLService } from 'vs/platform/url/common/url';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import product from 'vs/platform/node/product';
 
 interface IExtensionStateProvider {
@@ -663,7 +663,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		}
 
 		const globalElablement = this.extensionEnablementService.setEnablement(extension.id, enable, false);
-		if (enable && this.workspaceContextService.hasWorkspace()) {
+		if (enable && this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
 			const workspaceEnablement = this.extensionEnablementService.setEnablement(extension.id, enable, true);
 			return TPromise.join([globalElablement, workspaceEnablement]).then(values => values[0] || values[1]);
 		}

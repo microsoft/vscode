@@ -4,14 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as platform from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export interface IExperiments {
 	ripgrepQuickSearch: boolean;
-	deployToAzureQuickLink: boolean;
 }
 
 export const IExperimentService = createDecorator<IExperimentService>('experimentService');
@@ -44,10 +42,7 @@ export class ExperimentService implements IExperimentService {
 
 function loadExperiments(storageService: IStorageService, configurationService: IConfigurationService): IExperiments {
 	const experiments = splitExperimentsRandomness(storageService);
-	if (platform.isWindows) {
-		// Ripgrep triggers MsMpEng.exe (https://github.com/BurntSushi/ripgrep/issues/600)
-		experiments.ripgrepQuickSearch = false;
-	}
+	experiments.ripgrepQuickSearch = true;
 	return applyOverrides(experiments, configurationService);
 }
 
@@ -64,12 +59,11 @@ function applyOverrides(experiments: IExperiments, configurationService: IConfig
 function splitExperimentsRandomness(storageService: IStorageService): IExperiments {
 	const random1 = getExperimentsRandomness(storageService);
 	const [random2, ripgrepQuickSearch] = splitRandom(random1);
-	const [/* random3 */, deployToAzureQuickLink] = splitRandom(random2);
+	const [/* random3 */, /* deployToAzureQuickLink */] = splitRandom(random2);
 	// const [random4, /* mergeQuickLinks */] = splitRandom(random3);
 	// const [random5, /* enableWelcomePage */] = splitRandom(random4);
 	return {
 		ripgrepQuickSearch,
-		deployToAzureQuickLink
 	};
 }
 

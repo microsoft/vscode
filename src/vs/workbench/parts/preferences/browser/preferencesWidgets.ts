@@ -20,7 +20,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ISettingsGroup, IPreferencesService, getSettingsTargetName } from 'vs/workbench/parts/preferences/common/preferences';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { attachInputBoxStyler, attachStylerCallback, attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -293,7 +293,7 @@ export class SettingsTargetsWidget extends Widget {
 
 	private create(parent: HTMLElement): void {
 		this.settingsTargetsContainer = DOM.append(parent, DOM.$('.settings-targets-widget'));
-		this.settingsTargetsContainer.style.width = this.workspaceContextService.hasMultiFolderWorkspace() ? '200px' : '150px';
+		this.settingsTargetsContainer.style.width = this.workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? '200px' : '150px';
 
 		const targetElement = DOM.append(this.settingsTargetsContainer, DOM.$('.settings-target'));
 		this.targetLabel = DOM.append(targetElement, DOM.$('.settings-target-label'));
@@ -337,7 +337,7 @@ export class SettingsTargetsWidget extends Widget {
 			run: () => this.onTargetClicked(userSettingsResource)
 		});
 
-		if (this.workspaceContextService.hasWorkspace()) {
+		if (this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
 			const workspaceSettingsResource = this.preferencesService.workspaceSettingsResource;
 			actions.push(<IAction>{
 				id: 'workspaceSettingsTarget',
@@ -348,15 +348,15 @@ export class SettingsTargetsWidget extends Widget {
 			});
 		}
 
-		if (this.workspaceContextService.hasMultiFolderWorkspace()) {
+		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			actions.push(new Separator());
-			actions.push(...this.workspaceContextService.getWorkspace().roots.map((root, index) => {
+			actions.push(...this.workspaceContextService.getWorkspace().folders.map((folder, index) => {
 				return <IAction>{
 					id: 'folderSettingsTarget' + index,
-					label: getSettingsTargetName(ConfigurationTarget.FOLDER, root, this.workspaceContextService),
-					checked: this.uri.fsPath === root.fsPath,
+					label: getSettingsTargetName(ConfigurationTarget.FOLDER, folder, this.workspaceContextService),
+					checked: this.uri.fsPath === folder.fsPath,
 					enabled: true,
-					run: () => this.onTargetClicked(root)
+					run: () => this.onTargetClicked(folder)
 				};
 			}));
 		}

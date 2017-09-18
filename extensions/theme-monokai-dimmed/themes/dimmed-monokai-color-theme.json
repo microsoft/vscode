@@ -52,7 +52,7 @@
 			}
 		},
 		{
-			"scope": "meta.embedded",
+			"scope": ["meta.embedded", "source.groovy.embedded"],
 			"settings": {
 				"background": "#1e1e1e",
 				"foreground": "#C5C8C6"
@@ -453,7 +453,9 @@
 		},
 		{
 			"name": "Ruby Embedded Source",
-			"scope": "source.ruby.embedded.source",
+			"scope": [
+				"punctuation.section.embedded.begin.ruby",
+				"punctuation.section.embedded.end.ruby"],
 			"settings": {
 				"foreground": "#D08442"
 			}

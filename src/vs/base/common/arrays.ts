@@ -325,11 +325,43 @@ export function flatten<T>(arr: T[][]): T[] {
 	return arr.reduce((r, v) => r.concat(v), []);
 }
 
-export function range(to: number, from = 0): number[] {
+export function range(to: number): number[];
+export function range(from: number, to: number): number[];
+export function range(arg: number, to?: number): number[] {
+	let from = typeof to === 'number' ? arg : 0;
+
+	if (typeof to === 'number') {
+		from = arg;
+	} else {
+		from = 0;
+		to = arg;
+	}
+
 	const result: number[] = [];
 
-	for (let i = from; i < to; i++) {
-		result.push(i);
+	if (from <= to) {
+		for (let i = from; i < to; i++) {
+			result.push(i);
+		}
+	} else {
+		for (let i = from; i > to; i--) {
+			result.push(i);
+		}
+	}
+
+	return result;
+}
+
+export function weave<T>(a: T[], b: T[]): T[] {
+	const result: T[] = [];
+	let ai = 0, bi = 0;
+
+	for (let i = 0, length = a.length + b.length; i < length; i++) {
+		if ((i % 2 === 0 && ai < a.length) || bi >= b.length) {
+			result.push(a[ai++]);
+		} else {
+			result.push(b[bi++]);
+		}
 	}
 
 	return result;

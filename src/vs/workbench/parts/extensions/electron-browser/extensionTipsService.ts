@@ -19,14 +19,14 @@ import { IChoiceService, IMessageService } from 'vs/platform/message/common/mess
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import Severity from 'vs/base/common/severity';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { Schemas } from 'vs/base/common/network';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IExtensionsConfiguration, ConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import * as cp from 'child_process';
+import * as fs from 'fs';
 import { distinct } from 'vs/base/common/arrays';
 
 interface IExtensionsContent {
@@ -68,11 +68,10 @@ export class ExtensionTipsService implements IExtensionTipsService {
 
 		this._suggestTips();
 		this._suggestWorkspaceRecommendations();
-		this._suggestBasedOnExecutables();
 	}
 
 	getWorkspaceRecommendations(): TPromise<string[]> {
-		if (!this.contextService.hasWorkspace()) {
+		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			return TPromise.as([]);
 		}
 		return this.fileService.resolveContent(this.contextService.toResource(paths.join('.vscode', 'extensions.json'))).then(content => { //TODO@Sandeep (https://github.com/Microsoft/vscode/issues/29242)
@@ -92,7 +91,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		const fileBased = Object.keys(this._fileBasedRecommendations)
 			.filter(recommendation => allRecomendations.indexOf(recommendation) !== -1);
 
-		const exeBased = distinct(this._exeBasedRecommendations);
+		const exeBased = distinct(this._suggestBasedOnExecutables());
 
 		this.telemetryService.publicLog('extensionRecommendations:unfiltered', { fileBased, exeBased });
 
@@ -319,15 +318,42 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		});
 	}
 
-	private _suggestBasedOnExecutables() {
-		const cmd = process.platform === 'win32' ? 'where' : 'which';
+	private _suggestBasedOnExecutables(): string[] {
+		if (!process.env.PATH || this._exeBasedRecommendations.length > 0) {
+			return this._exeBasedRecommendations;
+		}
+
+		let envpaths = process.env.PATH.split(process.platform === 'win32' ? ';' : ':');
+		let foundExecutables: Set<string> = new Set<string>();
+
+		// Loop through recommended extensions
 		forEach(product.exeBasedExtensionTips, entry => {
-			cp.exec(`${cmd} ${entry.value.replace(/,/g, ' ')}`, (err, stdout, stderr) => {
-				if (stdout) {
-					this._exeBasedRecommendations.push(entry.key);
+			let executables = entry.value.split(',');
+
+			// Loop through executables that would result in recommending current extension
+			for (let i = 0; i < executables.length; i++) {
+				if (!foundExecutables.has(executables[i])) {
+
+					// Loop through paths in PATH to find current executable
+					for (let pathEntry of envpaths) {
+						let fullPath = paths.join(pathEntry, executables[i]);
+						if (process.platform === 'win32') {
+							fullPath += '.exe';
+						}
+						if (fs.existsSync(fullPath)) {
+							foundExecutables.add(executables[i]);
+							break;
+						}
+					}
 				}
-			});
+				if (foundExecutables.has(executables[i])) {
+					this._exeBasedRecommendations.push(entry.key);
+					break;
+				}
+			}
 		});
+
+		return this._exeBasedRecommendations;
 	}
 
 	private setIgnoreRecommendationsConfig(configVal: boolean) {

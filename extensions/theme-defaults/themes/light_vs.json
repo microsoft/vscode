@@ -4,7 +4,7 @@
 	"include": "./light_defaults.json",
 	"tokenColors": [
 		{
-			"scope": "meta.embedded",
+			"scope": ["meta.embedded", "source.groovy.embedded"],
 			"settings": {
 				"foreground": "#000000ff",
 				"background":"#ffffffff"
@@ -244,11 +244,11 @@
 			}
 		},
 		{
-			"name": "JavaScript string interpolation ${}",
+			"name": "String interpolation",
 			"scope": [
 				"punctuation.definition.template-expression.begin",
 				"punctuation.definition.template-expression.end",
-				"punctuation.section.embedded.coffee"
+				"punctuation.section.embedded"
 			],
 			"settings": {
 				"foreground": "#0000ff"

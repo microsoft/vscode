@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import URI from 'vs/base/common/uri';
 import * as Types from 'vs/base/common/types';
 import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 
@@ -215,34 +216,47 @@ export namespace TaskGroup {
 export type TaskGroup = 'clean' | 'build' | 'rebuild' | 'test';
 
 
+export enum TaskScope {
+	Global = 1,
+	Workspace = 2,
+	Folder = 3
+}
+
 export namespace TaskSourceKind {
 	export const Workspace: 'workspace' = 'workspace';
 	export const Extension: 'extension' = 'extension';
 	export const Composite: 'composite' = 'composite';
 }
 
+export interface WorkspaceFolder {
+	uri: URI;
+}
+
 export interface TaskSourceConfigElement {
+	workspaceFolder: WorkspaceFolder;
 	file: string;
 	index: number;
 	element: any;
 }
 
 export interface WorkspaceTaskSource {
-	kind: 'workspace';
-	label: string;
-	config: TaskSourceConfigElement;
-	customizes?: TaskIdentifier;
+	readonly kind: 'workspace';
+	readonly label: string;
+	readonly config: TaskSourceConfigElement;
+	readonly customizes?: TaskIdentifier;
 }
 
 export interface ExtensionTaskSource {
-	kind: 'extension';
-	label: string;
-	extension: string;
+	readonly kind: 'extension';
+	readonly label: string;
+	readonly extension: string;
+	readonly scope: TaskScope;
+	readonly workspaceFolder: WorkspaceFolder | undefined;
 }
 
 export interface CompositeTaskSource {
-	kind: 'composite';
-	label: string;
+	readonly kind: 'composite';
+	readonly label: string;
 }
 
 export type TaskSource = WorkspaceTaskSource | ExtensionTaskSource | CompositeTaskSource;
@@ -408,6 +422,16 @@ export namespace Task {
 			return task.identifier;
 		} else {
 			return task.defines._key;
+		}
+	}
+
+	export function getWorkspaceFolder(task: Task): WorkspaceFolder | undefined {
+		if (CustomTask.is(task)) {
+			return task._source.config.workspaceFolder;
+		} else if (ContributedTask.is(task)) {
+			return task._source.workspaceFolder;
+		} else {
+			return undefined;
 		}
 	}
 
