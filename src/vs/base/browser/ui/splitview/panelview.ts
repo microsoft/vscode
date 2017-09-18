@@ -353,6 +353,9 @@ export class PanelView implements IDisposable {
 			return;
 		}
 
+		const [panelItem] = this.panelItems.splice(fromIndex, 1);
+		this.panelItems.splice(toIndex < fromIndex ? toIndex : toIndex - 1, 0, panelItem);
+
 		this.splitview.moveView(fromIndex, toIndex);
 	}
 
