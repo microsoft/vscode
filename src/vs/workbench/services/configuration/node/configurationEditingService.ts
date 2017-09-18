@@ -261,9 +261,11 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 				return this.wrapError(ConfigurationEditingErrorCode.ERROR_INVALID_FOLDER_TARGET, target, operation);
 			}
 
-			const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
-			if (configurationProperties[operation.key].scope !== ConfigurationScope.RESOURCE) {
-				return this.wrapError(ConfigurationEditingErrorCode.ERROR_INVALID_FOLDER_CONFIGURATION, target, operation);
+			if (!operation.isWorkspaceStandalone) {
+				const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
+				if (configurationProperties[operation.key].scope !== ConfigurationScope.RESOURCE) {
+					return this.wrapError(ConfigurationEditingErrorCode.ERROR_INVALID_FOLDER_CONFIGURATION, target, operation);
+				}
 			}
 		}
 
