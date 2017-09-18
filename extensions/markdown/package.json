@@ -234,7 +234,13 @@
 				"editor.wordWrap": "on",
 				"editor.quickSuggestions": false
 			}
-		}
+		},
+		"jsonValidation": [
+			{
+				"fileMatch": "package.json",
+				"url": "./schemas/package.schema.json"
+			  }
+		]
 	},
 	"scripts": {
 		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:markdown ./tsconfig.json",
