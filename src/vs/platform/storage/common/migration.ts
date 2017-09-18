@@ -170,12 +170,12 @@ export function parseStorage(storage: IStorage): IParsedStorage {
 	};
 }
 
-export function migrateStorageToMultiRootWorkspace(fromWorkspaceId: string, toWorkspaceId: IWorkspaceIdentifier, storage: IStorage): void {
+export function migrateStorageToMultiRootWorkspace(fromWorkspaceId: string, toWorkspace: IWorkspaceIdentifier, storage: IStorage): string {
 	const parsed = parseStorage(storage);
 
-	const newStorageKey = URI.from({ path: toWorkspaceId.id, scheme: 'root' }).toString();
+	const newWorkspaceId = URI.from({ path: toWorkspace.id, scheme: 'root' }).toString();
 
-	// Find in which location the workspace storage is to be migrated rom
+	// Find in which location the workspace storage is to be migrated from
 	let storageForWorkspace: StorageObject;
 	if (parsed.multiRoot.has(fromWorkspaceId)) {
 		storageForWorkspace = parsed.multiRoot.get(fromWorkspaceId);
@@ -192,7 +192,9 @@ export function migrateStorageToMultiRootWorkspace(fromWorkspaceId: string, toWo
 				return; // make sure to never migrate the workspace identifier
 			}
 
-			storage.setItem(`${StorageService.WORKSPACE_PREFIX}${newStorageKey}/${key}`, storageForWorkspace[key]);
+			storage.setItem(`${StorageService.WORKSPACE_PREFIX}${newWorkspaceId}/${key}`, storageForWorkspace[key]);
 		});
 	}
+
+	return newWorkspaceId;
 }

@@ -154,20 +154,21 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		});
 	}
 
-	private migrate(toWorkspaceId: IWorkspaceIdentifier): TPromise<void> {
-		this.migrateStorage(toWorkspaceId);
+	private migrate(toWorkspace: IWorkspaceIdentifier): TPromise<void> {
+		this.migrateStorage(toWorkspace);
 
-		return this.migrateConfiguration(toWorkspaceId);
+		return this.migrateConfiguration(toWorkspace);
 	}
 
-	private migrateStorage(toWorkspaceId: IWorkspaceIdentifier): void {
+	private migrateStorage(toWorkspace: IWorkspaceIdentifier): void {
 
 		// TODO@Ben revisit this when we move away from local storage to a file based approach
 		const storageImpl = this.storageService as StorageService;
-		migrateStorageToMultiRootWorkspace(storageImpl.storageId, toWorkspaceId, storageImpl.workspaceStorage);
+		const newWorkspaceId = migrateStorageToMultiRootWorkspace(storageImpl.workspaceId, toWorkspace, storageImpl.workspaceStorage);
+		storageImpl.setWorkspaceId(newWorkspaceId);
 	}
 
-	private migrateConfiguration(toWorkspaceId: IWorkspaceIdentifier): TPromise<void> {
+	private migrateConfiguration(toWorkspace: IWorkspaceIdentifier): TPromise<void> {
 		if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER) {
 			return TPromise.as(void 0); // return early if not a folder workspace is opened
 		}
@@ -180,6 +181,6 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 			}
 		}
 
-		return this.jsonEditingService.write(URI.file(toWorkspaceId.configPath), { key: 'settings', value: targetWorkspaceConfiguration }, true);
+		return this.jsonEditingService.write(URI.file(toWorkspace.configPath), { key: 'settings', value: targetWorkspaceConfiguration }, true);
 	}
 }

@@ -33,18 +33,18 @@ export class StorageService implements IStorageService {
 	private _globalStorage: IStorage;
 
 	private workspaceKey: string;
+	private _workspaceId: string;
 
 	constructor(
 		globalStorage: IStorage,
 		workspaceStorage: IStorage,
-		private workspaceId?: string,
+		workspaceId?: string,
 		legacyWorkspaceId?: number
 	) {
 		this._globalStorage = globalStorage;
 		this._workspaceStorage = workspaceStorage || globalStorage;
 
-		// Calculate workspace storage key
-		this.workspaceKey = this.getWorkspaceKey(workspaceId);
+		this.setWorkspaceId(workspaceId);
 
 		// Make sure to delete all workspace storage if the workspace has been recreated meanwhile
 		// which is only possible if a id property is provided that we can check on
@@ -53,8 +53,15 @@ export class StorageService implements IStorageService {
 		}
 	}
 
-	public get storageId(): string {
-		return this.workspaceId;
+	public get workspaceId(): string {
+		return this._workspaceId;
+	}
+
+	public setWorkspaceId(workspaceId: string): void {
+		this._workspaceId = workspaceId;
+
+		// Calculate workspace storage key
+		this.workspaceKey = this.getWorkspaceKey(workspaceId);
 	}
 
 	public get globalStorage(): IStorage {
