@@ -146,3 +146,7 @@
 .scm-viewlet .scm-editor.scroll > .monaco-inputbox > .wrapper > textarea.input {
 	overflow-y: scroll;
 }
+
+.scm-viewlet .split-view-view {
+	background: green;
+}

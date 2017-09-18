@@ -96,7 +96,7 @@ export abstract class Panel implements IView {
 	constructor(options: IPanelOptions = {}) {
 		this._expanded = typeof options.expanded === 'undefined' ? true : !!options.expanded;
 		this.ariaHeaderLabel = options.ariaHeaderLabel || '';
-		this._minimumBodySize = typeof options.minimumBodySize === 'number' ? options.minimumBodySize : 44;
+		this._minimumBodySize = typeof options.minimumBodySize === 'number' ? options.minimumBodySize : 120;
 		this._maximumBodySize = typeof options.maximumBodySize === 'number' ? options.maximumBodySize : Number.POSITIVE_INFINITY;
 		this.header = $('.panel-header');
 	}
