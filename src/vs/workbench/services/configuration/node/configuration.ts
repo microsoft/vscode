@@ -222,6 +222,12 @@ contributionRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 			default: {},
 			description: nls.localize('workspaceConfig.settings.description', "Workspace settings"),
 			$ref: schemaId
+		},
+		'extensions': {
+			type: 'object',
+			default: {},
+			description: nls.localize('workspaceConfig.extensions.description', "Workspace extensions"),
+			$ref: 'vscode://schemas/extensions'
 		}
 	}
 });
