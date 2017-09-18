@@ -626,6 +626,8 @@
 							<string>(^|\G)(\s*)(.*)</string>
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>contentName</key>
+							<string>meta.embedded.block.css</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -677,6 +679,8 @@
 							<string>(^|\G)(\s*)(.*)</string>
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>contentName</key>
+							<string>meta.embedded.block.basic</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -728,6 +732,8 @@
 							<string>(^|\G)(\s*)(.*)</string>
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>contentName</key>
+							<string>meta.embedded.block.ini</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -779,6 +785,8 @@
 							<string>(^|\G)(\s*)(.*)</string>
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>contentName</key>
+							<string>meta.embedded.block.java</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -830,6 +838,8 @@
 							<string>(^|\G)(\s*)(.*)</string>
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>contentName</key>
+							<string>meta.embedded.block.lua</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -881,6 +891,8 @@
 							<string>(^|\G)(\s*)(.*)</string>
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>contentName</key>
+							<string>meta.embedded.block.makefile</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -932,6 +944,8 @@
 							<string>(^|\G)(\s*)(.*)</string>
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>contentName</key>
+							<string>meta.embedded.block.perl</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -983,6 +997,8 @@
 							<string>(^|\G)(\s*)(.*)</string>
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>contentName</key>
+							<string>meta.embedded.block.r</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -1034,6 +1050,8 @@
 							<string>(^|\G)(\s*)(.*)</string>
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>contentName</key>
+							<string>meta.embedded.block.ruby</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -1085,6 +1103,8 @@
 							<string>(^|\G)(\s*)(.*)</string>
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>contentName</key>
+							<string>meta.embedded.block.php</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -1140,6 +1160,8 @@
 							<string>(^|\G)(\s*)(.*)</string>
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>contentName</key>
+							<string>meta.embedded.block.sql</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -1191,6 +1213,8 @@
 							<string>(^|\G)(\s*)(.*)</string>
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>contentName</key>
+							<string>meta.embedded.block.vs_net</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -1242,6 +1266,8 @@
 							<string>(^|\G)(\s*)(.*)</string>
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>contentName</key>
+							<string>meta.embedded.block.xml</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -1293,6 +1319,8 @@
 							<string>(^|\G)(\s*)(.*)</string>
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>contentName</key>
+							<string>meta.embedded.block.xsl</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -1344,6 +1372,8 @@
 							<string>(^|\G)(\s*)(.*)</string>
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>contentName</key>
+							<string>meta.embedded.block.yaml</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -1395,6 +1425,8 @@
 							<string>(^|\G)(\s*)(.*)</string>
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>contentName</key>
+							<string>meta.embedded.block.dosbatch</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -1446,6 +1478,8 @@
 							<string>(^|\G)(\s*)(.*)</string>
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>contentName</key>
+							<string>meta.embedded.block.clojure</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -1497,6 +1531,8 @@
 							<string>(^|\G)(\s*)(.*)</string>
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>contentName</key>
+							<string>meta.embedded.block.coffee</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -1548,6 +1584,8 @@
 							<string>(^|\G)(\s*)(.*)</string>
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>contentName</key>
+							<string>meta.embedded.block.c</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -1599,6 +1637,8 @@
 							<string>(^|\G)(\s*)(.*)</string>
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>contentName</key>
+							<string>meta.embedded.block.cpp</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -1650,6 +1690,8 @@
 							<string>(^|\G)(\s*)(.*)</string>
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>contentName</key>
+							<string>meta.embedded.block.diff</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -1701,6 +1743,8 @@
 							<string>(^|\G)(\s*)(.*)</string>
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>contentName</key>
+							<string>meta.embedded.block.dockerfile</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -1752,6 +1796,8 @@
 							<string>(^|\G)(\s*)(.*)</string>
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>contentName</key>
+							<string>meta.embedded.block.git_commit</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -1803,6 +1849,8 @@
 							<string>(^|\G)(\s*)(.*)</string>
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>contentName</key>
+							<string>meta.embedded.block.git_rebase</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -1854,6 +1902,8 @@
 							<string>(^|\G)(\s*)(.*)</string>
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>contentName</key>
+							<string>meta.embedded.block.go</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -1905,6 +1955,8 @@
 							<string>(^|\G)(\s*)(.*)</string>
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>contentName</key>
+							<string>meta.embedded.block.groovy</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -1956,6 +2008,8 @@
 							<string>(^|\G)(\s*)(.*)</string>
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>contentName</key>
+							<string>meta.embedded.block.jade</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -2007,6 +2061,8 @@
 							<string>(^|\G)(\s*)(.*)</string>
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>contentName</key>
+							<string>meta.embedded.block.javascript</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -2058,6 +2114,8 @@
 							<string>(^|\G)(\s*)(.*)</string>
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>contentName</key>
+							<string>meta.embedded.block.js_regexp</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -2109,6 +2167,8 @@
 							<string>(^|\G)(\s*)(.*)</string>
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>contentName</key>
+							<string>meta.embedded.block.json</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -2160,6 +2220,8 @@
 							<string>(^|\G)(\s*)(.*)</string>
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>contentName</key>
+							<string>meta.embedded.block.less</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -2211,6 +2273,8 @@
 							<string>(^|\G)(\s*)(.*)</string>
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>contentName</key>
+							<string>meta.embedded.block.objc</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -2262,6 +2326,8 @@
 							<string>(^|\G)(\s*)(.*)</string>
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>contentName</key>
+							<string>meta.embedded.block.scss</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -2313,6 +2379,8 @@
 							<string>(^|\G)(\s*)(.*)</string>
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>contentName</key>
+							<string>meta.embedded.block.perl6</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -2364,6 +2432,8 @@
 							<string>(^|\G)(\s*)(.*)</string>
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>contentName</key>
+							<string>meta.embedded.block.powershell</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -2415,6 +2485,8 @@
 							<string>(^|\G)(\s*)(.*)</string>
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>contentName</key>
+							<string>meta.embedded.block.python</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -2466,6 +2538,8 @@
 							<string>(^|\G)(\s*)(.*)</string>
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>contentName</key>
+							<string>meta.embedded.block.regexp_python</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -2517,6 +2591,8 @@
 							<string>(^|\G)(\s*)(.*)</string>
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>contentName</key>
+							<string>meta.embedded.block.rust</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -2568,6 +2644,8 @@
 							<string>(^|\G)(\s*)(.*)</string>
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>contentName</key>
+							<string>meta.embedded.block.scala</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -2619,6 +2697,8 @@
 							<string>(^|\G)(\s*)(.*)</string>
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>contentName</key>
+							<string>meta.embedded.block.shellscript</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -2670,6 +2750,8 @@
 							<string>(^|\G)(\s*)(.*)</string>
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>contentName</key>
+							<string>meta.embedded.block.typescript</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -2721,6 +2803,8 @@
 							<string>(^|\G)(\s*)(.*)</string>
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>contentName</key>
+							<string>meta.embedded.block.typescriptreact</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -2772,6 +2856,8 @@
 							<string>(^|\G)(\s*)(.*)</string>
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>contentName</key>
+							<string>meta.embedded.block.csharp</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -2823,6 +2909,8 @@
 							<string>(^|\G)(\s*)(.*)</string>
 							<key>while</key>
 							<string>(^|\G)(?!\s*([`~]{3,})\s*$)</string>
+							<key>contentName</key>
+							<string>meta.embedded.block.fsharp</string>
 							<key>patterns</key>
 							<array>
 								<dict>
