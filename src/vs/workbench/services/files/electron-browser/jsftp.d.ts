@@ -28,6 +28,7 @@ declare namespace JSFtp {
 }
 
 interface JSFtp extends EventEmitter {
+	auth(user: string, password: string, callback: JSFtp.Callback<void>): void
 	keepAlive(wait?: number): void;
 	ls(path: string, callback: JSFtp.Callback<JSFtp.Entry[]>): void;
 	list(path: string, callback: JSFtp.Callback<any>): void;
