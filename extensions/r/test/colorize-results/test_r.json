@@ -22,8 +22,8 @@
 		}
 	},
 	{
-		"c": "#",
-		"t": "source.r comment.line.number-sign.r punctuation.definition.comment.r",
+		"c": "#'",
+		"t": "source.r comment.line.roxygen.r punctuation.definition.comment.r",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -33,8 +33,8 @@
 		}
 	},
 	{
-		"c": "' Add together two numbers.",
-		"t": "source.r comment.line.number-sign.r",
+		"c": " Add together two numbers.",
+		"t": "source.r comment.line.roxygen.r",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -44,8 +44,8 @@
 		}
 	},
 	{
-		"c": "#",
-		"t": "source.r comment.line.number-sign.r punctuation.definition.comment.r",
+		"c": "#'",
+		"t": "source.r comment.line.roxygen.r punctuation.definition.comment.r",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -55,8 +55,8 @@
 		}
 	},
 	{
-		"c": "'",
-		"t": "source.r comment.line.number-sign.r",
+		"c": "#'",
+		"t": "source.r comment.line.roxygen.r punctuation.definition.comment.r",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -66,8 +66,8 @@
 		}
 	},
 	{
-		"c": "#",
-		"t": "source.r comment.line.number-sign.r punctuation.definition.comment.r",
+		"c": " ",
+		"t": "source.r comment.line.roxygen.r",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -77,8 +77,19 @@
 		}
 	},
 	{
-		"c": "' @param x A number.",
-		"t": "source.r comment.line.number-sign.r",
+		"c": "@param",
+		"t": "source.r comment.line.roxygen.r keyword.other.r",
+		"r": {
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.r comment.line.roxygen.r",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -88,8 +99,19 @@
 		}
 	},
 	{
-		"c": "#",
-		"t": "source.r comment.line.number-sign.r punctuation.definition.comment.r",
+		"c": "x",
+		"t": "source.r comment.line.roxygen.r variable.parameter.r",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "comment: #608B4E",
+			"light_vs": "comment: #008000",
+			"hc_black": "variable: #9CDCFE"
+		}
+	},
+	{
+		"c": " A number.",
+		"t": "source.r comment.line.roxygen.r",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -99,8 +121,8 @@
 		}
 	},
 	{
-		"c": "' @param y A number.",
-		"t": "source.r comment.line.number-sign.r",
+		"c": "#'",
+		"t": "source.r comment.line.roxygen.r punctuation.definition.comment.r",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -110,8 +132,8 @@
 		}
 	},
 	{
-		"c": "#",
-		"t": "source.r comment.line.number-sign.r punctuation.definition.comment.r",
+		"c": " ",
+		"t": "source.r comment.line.roxygen.r",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -121,8 +143,19 @@
 		}
 	},
 	{
-		"c": "' @return The sum of \\code{x} and \\code{y}.",
-		"t": "source.r comment.line.number-sign.r",
+		"c": "@param",
+		"t": "source.r comment.line.roxygen.r keyword.other.r",
+		"r": {
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.r comment.line.roxygen.r",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -132,8 +165,19 @@
 		}
 	},
 	{
-		"c": "#",
-		"t": "source.r comment.line.number-sign.r punctuation.definition.comment.r",
+		"c": "y",
+		"t": "source.r comment.line.roxygen.r variable.parameter.r",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "comment: #608B4E",
+			"light_vs": "comment: #008000",
+			"hc_black": "variable: #9CDCFE"
+		}
+	},
+	{
+		"c": " A number.",
+		"t": "source.r comment.line.roxygen.r",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -143,8 +187,8 @@
 		}
 	},
 	{
-		"c": "' @examples",
-		"t": "source.r comment.line.number-sign.r",
+		"c": "#'",
+		"t": "source.r comment.line.roxygen.r punctuation.definition.comment.r",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -154,8 +198,8 @@
 		}
 	},
 	{
-		"c": "#",
-		"t": "source.r comment.line.number-sign.r punctuation.definition.comment.r",
+		"c": " ",
+		"t": "source.r comment.line.roxygen.r",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -165,8 +209,19 @@
 		}
 	},
 	{
-		"c": "' add(1, 1)",
-		"t": "source.r comment.line.number-sign.r",
+		"c": "@return",
+		"t": "source.r comment.line.roxygen.r keyword.other.r",
+		"r": {
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6"
+		}
+	},
+	{
+		"c": " The sum of \\code{x} and \\code{y}.",
+		"t": "source.r comment.line.roxygen.r",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -176,8 +231,8 @@
 		}
 	},
 	{
-		"c": "#",
-		"t": "source.r comment.line.number-sign.r punctuation.definition.comment.r",
+		"c": "#'",
+		"t": "source.r comment.line.roxygen.r punctuation.definition.comment.r",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -187,8 +242,63 @@
 		}
 	},
 	{
-		"c": "' add(10, 1)",
-		"t": "source.r comment.line.number-sign.r",
+		"c": " ",
+		"t": "source.r comment.line.roxygen.r",
+		"r": {
+			"dark_plus": "comment: #608B4E",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #608B4E",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": "@examples",
+		"t": "source.r comment.line.roxygen.r keyword.other.r",
+		"r": {
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6"
+		}
+	},
+	{
+		"c": "#'",
+		"t": "source.r comment.line.roxygen.r punctuation.definition.comment.r",
+		"r": {
+			"dark_plus": "comment: #608B4E",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #608B4E",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": " add(1, 1)",
+		"t": "source.r comment.line.roxygen.r",
+		"r": {
+			"dark_plus": "comment: #608B4E",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #608B4E",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": "#'",
+		"t": "source.r comment.line.roxygen.r punctuation.definition.comment.r",
+		"r": {
+			"dark_plus": "comment: #608B4E",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #608B4E",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": " add(10, 1)",
+		"t": "source.r comment.line.roxygen.r",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -254,7 +364,7 @@
 	},
 	{
 		"c": "(",
-		"t": "source.r",
+		"t": "source.r meta.function.r punctuation.section.parens.begin.r",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -265,7 +375,7 @@
 	},
 	{
 		"c": "x",
-		"t": "source.r variable.other.r",
+		"t": "source.r meta.function.r meta.function.parameters.r variable.parameter.r",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -275,8 +385,19 @@
 		}
 	},
 	{
-		"c": ", ",
-		"t": "source.r",
+		"c": ",",
+		"t": "source.r meta.function.r meta.function.parameters.r punctuation.separator.parameters.r",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.r meta.function.r meta.function.parameters.r",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -287,7 +408,7 @@
 	},
 	{
 		"c": "y",
-		"t": "source.r variable.other.r",
+		"t": "source.r meta.function.r meta.function.parameters.r variable.parameter.r",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -297,7 +418,18 @@
 		}
 	},
 	{
-		"c": ") ",
+		"c": ")",
+		"t": "source.r meta.function.r punctuation.section.parens.end.r",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
 		"t": "source.r",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -309,7 +441,7 @@
 	},
 	{
 		"c": "{",
-		"t": "source.r meta.block.r punctuation.section.block.begin.r",
+		"t": "source.r punctuation.section.braces.begin.r",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -320,7 +452,7 @@
 	},
 	{
 		"c": "  ",
-		"t": "source.r meta.block.r",
+		"t": "source.r",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -331,7 +463,7 @@
 	},
 	{
 		"c": "x",
-		"t": "source.r meta.block.r variable.other.r",
+		"t": "source.r variable.other.r",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -342,7 +474,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.r meta.block.r",
+		"t": "source.r",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -353,83 +485,6 @@
 	},
 	{
 		"c": "+",
-		"t": "source.r meta.block.r keyword.operator.arithmetic.r",
-		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4"
-		}
-	},
-	{
-		"c": " ",
-		"t": "source.r meta.block.r",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "y",
-		"t": "source.r meta.block.r variable.other.r",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
-		}
-	},
-	{
-		"c": "}",
-		"t": "source.r meta.block.r punctuation.section.block.end.r",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "add(",
-		"t": "source.r",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "1",
-		"t": "source.r constant.numeric.r",
-		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
-			"hc_black": "constant.numeric: #B5CEA8"
-		}
-	},
-	{
-		"c": ", ",
-		"t": "source.r",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "-",
 		"t": "source.r keyword.operator.arithmetic.r",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
@@ -440,8 +495,63 @@
 		}
 	},
 	{
-		"c": "2",
-		"t": "source.r constant.numeric.r",
+		"c": " ",
+		"t": "source.r",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "y",
+		"t": "source.r variable.other.r",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
+		}
+	},
+	{
+		"c": "}",
+		"t": "source.r punctuation.section.braces.end.r",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "add",
+		"t": "source.r meta.function-call.r variable.function.r",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.r meta.function-call.r punctuation.section.parens.begin.r",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "1",
+		"t": "source.r meta.function-call.r meta.function-call.arguments.r constant.numeric.float.decimal.r",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -451,8 +561,63 @@
 		}
 	},
 	{
-		"c": ", ",
-		"t": "source.r",
+		"c": ",",
+		"t": "source.r meta.function-call.r meta.function-call.arguments.r punctuation.separator.parameters.r",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.r meta.function-call.r meta.function-call.arguments.r",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "-",
+		"t": "source.r meta.function-call.r meta.function-call.arguments.r keyword.operator.arithmetic.r",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": "2",
+		"t": "source.r meta.function-call.r meta.function-call.arguments.r constant.numeric.float.decimal.r",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #09885A",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #09885A",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.r meta.function-call.r meta.function-call.arguments.r punctuation.separator.parameters.r",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.r meta.function-call.r meta.function-call.arguments.r",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -463,7 +628,7 @@
 	},
 	{
 		"c": "2.0",
-		"t": "source.r constant.numeric.r",
+		"t": "source.r meta.function-call.r meta.function-call.arguments.r constant.numeric.float.decimal.r",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -474,7 +639,7 @@
 	},
 	{
 		"c": ")",
-		"t": "source.r",
+		"t": "source.r meta.function-call.r punctuation.definition.parameters.r",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -484,8 +649,19 @@
 		}
 	},
 	{
-		"c": "add(",
-		"t": "source.r",
+		"c": "add",
+		"t": "source.r meta.function-call.r variable.function.r",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.r meta.function-call.r punctuation.section.parens.begin.r",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -496,7 +672,7 @@
 	},
 	{
 		"c": "1.0e10",
-		"t": "source.r constant.numeric.r",
+		"t": "source.r meta.function-call.r meta.function-call.arguments.r constant.numeric.float.decimal.r",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -506,8 +682,19 @@
 		}
 	},
 	{
-		"c": ", ",
-		"t": "source.r",
+		"c": ",",
+		"t": "source.r meta.function-call.r meta.function-call.arguments.r punctuation.separator.parameters.r",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.r meta.function-call.r meta.function-call.arguments.r",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -518,7 +705,7 @@
 	},
 	{
 		"c": "2.0e10",
-		"t": "source.r constant.numeric.r",
+		"t": "source.r meta.function-call.r meta.function-call.arguments.r constant.numeric.float.decimal.r",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -529,7 +716,7 @@
 	},
 	{
 		"c": ")",
-		"t": "source.r",
+		"t": "source.r meta.function-call.r punctuation.definition.parameters.r",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -539,7 +726,18 @@
 		}
 	},
 	{
-		"c": "paste(",
+		"c": "paste",
+		"t": "source.r support.function.r",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.function: #DCDCAA"
+		}
+	},
+	{
+		"c": "(",
 		"t": "source.r",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -616,7 +814,18 @@
 		}
 	},
 	{
-		"c": "paste(",
+		"c": "paste",
+		"t": "source.r support.function.r",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.function: #DCDCAA"
+		}
+	},
+	{
+		"c": "(",
 		"t": "source.r",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -693,7 +902,18 @@
 		}
 	},
 	{
-		"c": "paste(",
+		"c": "paste",
+		"t": "source.r support.function.r",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.function: #DCDCAA"
+		}
+	},
+	{
+		"c": "(",
 		"t": "source.r",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
