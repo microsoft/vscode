@@ -69,7 +69,7 @@ export function score(target: string, query: string, cache?: { [id: string]: num
 		}
 
 		// Same case bonus
-		if (target[indexOf] === query[indexOf]) {
+		if (target[indexOf] === query[index]) {
 			score += 1;
 		}
 
