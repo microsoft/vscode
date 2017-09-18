@@ -37,8 +37,9 @@ export abstract class Panel implements IView {
 	private _minimumBodySize: number;
 	private _maximumBodySize: number;
 	private ariaHeaderLabel: string;
+
 	readonly header: HTMLElement;
-	private disposables: IDisposable[] = [];
+	protected disposables: IDisposable[] = [];
 
 	get minimumBodySize(): number {
 		return this._minimumBodySize;
