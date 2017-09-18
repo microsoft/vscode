@@ -199,7 +199,7 @@ export class SplitView implements IDisposable {
 
 	resizeView(index: number, size: number): void {
 		if (index < 0 || index >= this.viewItems.length - 1) {
-			throw new Error('Cant resize view');
+			return;
 		}
 
 		this.resize(index, size - this.viewItems[index].size);
@@ -279,7 +279,7 @@ export class SplitView implements IDisposable {
 			}
 		}
 
-		throw new Error('Sash not found');
+		return 0;
 	}
 
 	dispose(): void {
