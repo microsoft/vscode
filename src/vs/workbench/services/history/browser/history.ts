@@ -740,7 +740,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 
 		const entriesRaw = this.storageService.get(HistoryService.STORAGE_KEY, StorageScope.WORKSPACE);
 		if (entriesRaw) {
-			entries = JSON.parse(entriesRaw);
+			entries = JSON.parse(entriesRaw).filter(entry => !!entry);
 		}
 
 		const registry = Registry.as<IEditorRegistry>(Extensions.Editors);
