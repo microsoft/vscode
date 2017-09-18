@@ -81,6 +81,7 @@ export class TestContextService implements IWorkspaceContextService {
 		this.id = generateUuid();
 		this.options = options || Object.create(null);
 		this._onDidChangeWorkspaceFolders = new Emitter<void>();
+		this._onDidChangeWorkbenchState = new Emitter<WorkbenchState>();
 	}
 
 	public get onDidChangeWorkspaceName(): Event<void> {
