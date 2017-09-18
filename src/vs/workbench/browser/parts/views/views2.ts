@@ -233,6 +233,24 @@ export class PanelViewlet extends Viewlet {
 		this.updateTitleArea();
 	}
 
+	movePanel(from: ViewletPanel, to: ViewletPanel): void {
+		const fromIndex = firstIndex(this.panelItems, item => item.panel === from);
+		const toIndex = firstIndex(this.panelItems, item => item.panel === to);
+
+		if (fromIndex < 0 || fromIndex >= this.panelItems.length) {
+			return;
+		}
+
+		if (toIndex < 0 || toIndex >= this.panelItems.length) {
+			return;
+		}
+
+
+		const [panelItem] = this.panelItems.splice(fromIndex, 1);
+		this.panelItems.splice(toIndex < fromIndex ? toIndex : toIndex - 1, 0, panelItem);
+		this.panelview.movePanel(from, to);
+	}
+
 	private updateViewHeaders(): void {
 		if (this.isSingleView) {
 			this.panelItems[0].panel.headerVisible = false;
