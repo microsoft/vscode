@@ -17,7 +17,7 @@ import paths = require('vs/base/common/paths');
 import uri from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import { IWorkspaceContextService, Workspace, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { EmptyWorkspaceServiceImpl, WorkspaceServiceImpl, WorkspaceService } from 'vs/workbench/services/configuration/node/configuration';
+import { WorkspaceServiceImpl, WorkspaceService } from 'vs/workbench/services/configuration/node/configuration';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { realpath } from 'vs/base/node/pfs';
@@ -111,14 +111,8 @@ function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
 
 function createAndInitializeWorkspaceService(configuration: IWindowConfiguration, environmentService: EnvironmentService, workspacesService: IWorkspacesService): TPromise<WorkspaceService> {
 	return validateWorkspacePath(configuration).then(() => {
-		let workspaceService: WorkspaceServiceImpl | EmptyWorkspaceServiceImpl;
-		if (configuration.workspace || configuration.folderPath) {
-			workspaceService = new WorkspaceServiceImpl(configuration.workspace || configuration.folderPath, environmentService, workspacesService);
-		} else {
-			workspaceService = new EmptyWorkspaceServiceImpl(configuration, environmentService);
-		}
-
-		return workspaceService.initialize().then(() => workspaceService, error => new EmptyWorkspaceServiceImpl(configuration, environmentService));
+		let workspaceService: WorkspaceServiceImpl = new WorkspaceServiceImpl(environmentService, workspacesService);
+		return workspaceService.initialize(configuration.workspace || configuration.folderPath || configuration).then(() => workspaceService, error => workspaceService);
 	});
 }
 

@@ -44,7 +44,7 @@ function createWorkspace(callback: (workspaceDir: string, globalSettingsFile: st
 	});
 }
 
-function setUpFolder(folderName: string): TPromise<{ parentDir: string, workspaceDir: string, workspaceService: WorkspaceService }> {
+function setUpFolder(folderName: string): TPromise<{ parentDir: string, workspaceDir: string, workspaceService: WorkspaceServiceImpl }> {
 	const id = uuid.generateUuid();
 	const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 	const workspaceDir = path.join(parentDir, folderName);
@@ -58,17 +58,17 @@ function setUpFolder(folderName: string): TPromise<{ parentDir: string, workspac
 				return null;
 			}
 			const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
-			const workspaceService = new WorkspaceServiceImpl(workspaceDir, environmentService, null);
-			workspaceService.initialize().then(() => c({ parentDir, workspaceDir, workspaceService }));
+			const workspaceService = new WorkspaceServiceImpl(environmentService, null);
+			workspaceService.initialize(workspaceDir).then(() => c({ parentDir, workspaceDir, workspaceService }));
 		});
 	});
 }
 
-function createService(workspaceDir: string, globalSettingsFile: string): TPromise<WorkspaceService> {
+function createService(workspaceDir: string, globalSettingsFile: string): TPromise<WorkspaceServiceImpl> {
 	const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
-	const service = new WorkspaceServiceImpl(workspaceDir, environmentService, null);
+	const service = new WorkspaceServiceImpl(environmentService, null);
 
-	return service.initialize().then(() => service);
+	return service.initialize(workspaceDir).then(() => service);
 }
 
 suite('WorkspaceContextService - Folder', () => {
@@ -185,7 +185,7 @@ suite('WorkspaceConfigurationService - Node', () => {
 			return createService(workspaceDir, globalSettingsFile).then(service => {
 				fs.writeFileSync(globalSettingsFile, '{ "testworkbench.editor.tabs": true }');
 
-				return service.initialize().then(() => {
+				return service.initialize(workspaceDir).then(() => {
 					service.onDidUpdateConfiguration(event => {
 						const config = service.getConfiguration<{ testworkbench: { editor: { tabs: boolean } } }>();
 						assert.equal(config.testworkbench.editor.tabs, false);

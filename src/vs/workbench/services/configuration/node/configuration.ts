@@ -254,16 +254,6 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		return URI.file(paths.join(workspaceFolder.uri.fsPath, workspaceRelativePath));
 	}
 
-	public initialize(trigger: boolean = true): TPromise<any> {
-		this.resetCaches();
-		return this.updateConfiguration()
-			.then(() => {
-				if (trigger) {
-					this.triggerConfigurationChange();
-				}
-			});
-	}
-
 	public reloadConfiguration(section?: string): TPromise<any> {
 		return TPromise.as(this.getConfiguration(section));
 	}
@@ -323,47 +313,6 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	}
 }
 
-export class EmptyWorkspaceServiceImpl extends WorkspaceService {
-
-	private baseConfigurationService: GlobalConfigurationService<any>;
-
-	constructor(configuration: IWindowConfiguration, environmentService: IEnvironmentService) {
-		super();
-		let id = configuration.backupPath ? URI.from({ path: paths.basename(configuration.backupPath), scheme: 'empty' }).toString() : '';
-		this.workspace = new Workspace(id, '', []);
-		this.baseConfigurationService = this._register(new GlobalConfigurationService(environmentService));
-		this._register(this.baseConfigurationService.onDidUpdateConfiguration(e => this.onBaseConfigurationChanged(e)));
-		this.resetCaches();
-	}
-
-	public reloadConfiguration(section?: string): TPromise<any> {
-		const current = this._configuration;
-		return this.baseConfigurationService.reloadConfiguration()
-			.then(() => this.initialize(false)) // Reinitialize to ensure we are hitting the disk
-			.then(() => {
-				// Check and trigger
-				if (!this._configuration.equals(current)) {
-					this.triggerConfigurationChange();
-				}
-				return super.reloadConfiguration(section);
-			});
-	}
-
-	private onBaseConfigurationChanged({ source, sourceConfig }: IConfigurationServiceEvent): void {
-		if (this._configuration.updateBaseConfiguration(<any>this.baseConfigurationService.configuration())) {
-			this._onDidUpdateConfiguration.fire({ source, sourceConfig });
-		}
-	}
-
-	protected resetCaches(): void {
-		this._configuration = new Configuration(<any>this.baseConfigurationService.configuration(), new ConfigurationModel<any>(), new StrictResourceMap<FolderConfigurationModel<any>>(), null);
-	}
-
-	protected triggerConfigurationChange(): void {
-		this._onDidUpdateConfiguration.fire({ source: ConfigurationSource.User, sourceConfig: this._configuration.user.contents });
-	}
-}
-
 export class WorkspaceServiceImpl extends WorkspaceService {
 
 	public _serviceBrand: any;
@@ -372,34 +321,32 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 	private workspaceConfiguration: WorkspaceConfiguration;
 	private cachedFolderConfigs: StrictResourceMap<FolderConfiguration<any>>;
 
-	constructor(private workspaceIdentifier: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier, private environmentService: IEnvironmentService, private workspacesService: IWorkspacesService, private workspaceSettingsRootFolder: string = WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME) {
+	constructor(private environmentService: IEnvironmentService, private workspacesService: IWorkspacesService, private workspaceSettingsRootFolder: string = WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME) {
 		super();
 		this.workspaceConfiguration = this._register(new WorkspaceConfiguration());
 		this.baseConfigurationService = this._register(new GlobalConfigurationService(environmentService));
+		this._register(this.baseConfigurationService.onDidUpdateConfiguration(e => this.onBaseConfigurationChanged(e)));
 	}
 
 	public getUnsupportedWorkspaceKeys(): string[] {
 		return this.getWorkbenchState() === WorkbenchState.FOLDER ? this._configuration.getFolderConfigurationModel(this.workspace.folders[0].uri).workspaceSettingsConfig.unsupportedKeys : [];
 	}
 
-	public initialize(trigger: boolean = true): TPromise<any> {
-		if (!this.workspace) {
-			return this.initializeWorkspace()
-				.then(() => super.initialize(trigger));
-		}
-
-		if (isWorkspaceIdentifier(this.workspaceIdentifier)) {
-			return this.workspaceConfiguration.load(URI.file(this.workspaceIdentifier.configPath))
-				.then(() => super.initialize(trigger));
-		}
-
-		return super.initialize(trigger);
+	public initialize(arg: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWindowConfiguration): TPromise<any> {
+		return this.initializeWorkspace(arg).then(() => this.initializeConfiguration(true));
 	}
 
 	public reloadConfiguration(section?: string): TPromise<any> {
 		const current = this._configuration;
+		// Reload and reinitialize to ensure we are hitting the disk
 		return this.baseConfigurationService.reloadConfiguration()
-			.then(() => this.initialize(false)) // Reinitialize to ensure we are hitting the disk
+			.then(() => {
+				if (this.workspace.configuration) {
+					return this.workspaceConfiguration.load(this.workspace.configuration)
+						.then(() => this.initializeConfiguration(false));
+				}
+				return this.initializeConfiguration(false);
+			})
 			.then(() => {
 				// Check and trigger
 				if (!this._configuration.equals(current)) {
@@ -419,17 +366,32 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 			.then(changed => changed ? this.triggerConfigurationChange() : void 0); // Trigger event if changed
 	}
 
+	private initializeConfiguration(trigger: boolean = true): TPromise<any> {
+		this.resetCaches();
+		return this.updateConfiguration()
+			.then(() => {
+				if (trigger) {
+					this.triggerConfigurationChange();
+				}
+			});
+	}
+
 	protected resetCaches(): void {
 		this.cachedFolderConfigs = new StrictResourceMap<FolderConfiguration<any>>();
-		this._configuration = new Configuration(<any>this.baseConfigurationService.configuration(), new ConfigurationModel<any>(), new StrictResourceMap<FolderConfigurationModel<any>>(), this.workspace);
+		this._configuration = new Configuration(<any>this.baseConfigurationService.configuration(), new ConfigurationModel<any>(), new StrictResourceMap<FolderConfigurationModel<any>>(), this.getWorkbenchState() !== WorkbenchState.EMPTY ? this.workspace : null); //TODO: @Sandy Avoid passing null
 		this.initCachesForFolders(this.workspace.folders);
 	}
 
-	private initializeWorkspace(): TPromise<void> {
-		return (isWorkspaceIdentifier(this.workspaceIdentifier) ? this.initializeMulitFolderWorkspace(URI.file(this.workspaceIdentifier.configPath)) : this.initializeSingleFolderWorkspace(URI.file(this.workspaceIdentifier)))
-			.then(() => {
-				this._register(this.baseConfigurationService.onDidUpdateConfiguration(e => this.onBaseConfigurationChanged(e)));
-			});
+	private initializeWorkspace(arg: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWindowConfiguration): TPromise<void> {
+		if (isWorkspaceIdentifier(arg)) {
+			return this.initializeMulitFolderWorkspace(arg);
+		}
+
+		if (isSingleFolderWorkspaceIdentifier(arg)) {
+			return this.initializeSingleFolderWorkspace(arg);
+		}
+
+		return this.initializeEmptyWorkspace(arg);
 	}
 
 	// TODO@Sandeep use again once we can change workspace without window reload
@@ -456,8 +418,9 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 	// 	});
 	// }
 
-	private initializeMulitFolderWorkspace(workspaceConfigPath: URI): TPromise<void> {
+	private initializeMulitFolderWorkspace(workspaceIdentifier: IWorkspaceIdentifier): TPromise<void> {
 		this.registerWorkspaceConfigSchema();
+		const workspaceConfigPath = URI.file(workspaceIdentifier.configPath);
 		return this.workspaceConfiguration.load(workspaceConfigPath)
 			.then(() => {
 				const workspaceConfigurationModel = this.workspaceConfiguration.workspaceConfigurationModel;
@@ -465,7 +428,7 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 				if (!workspaceFolders.length) {
 					return TPromise.wrapError<void>(new Error('Invalid workspace configuraton file ' + workspaceConfigPath));
 				}
-				const workspaceId = (this.workspaceIdentifier as IWorkspaceIdentifier).id;
+				const workspaceId = workspaceIdentifier.id;
 				const workspaceName = getWorkspaceLabel({ id: workspaceId, configPath: workspaceConfigPath.fsPath }, this.environmentService);
 				this.workspace = new Workspace(workspaceId, workspaceName, workspaceFolders, workspaceConfigPath);
 				this._register(this.workspaceConfiguration.onDidUpdateConfiguration(() => this.onWorkspaceConfigurationChanged(workspaceConfigPath)));
@@ -514,7 +477,8 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 		}
 	}
 
-	private initializeSingleFolderWorkspace(folderPath: URI): TPromise<void> {
+	private initializeSingleFolderWorkspace(singleFolderWorkspaceIdentifier: ISingleFolderWorkspaceIdentifier): TPromise<void> {
+		const folderPath = URI.file(singleFolderWorkspaceIdentifier);
 		return stat(folderPath.fsPath)
 			.then(workspaceStat => {
 				const ctime = isLinux ? workspaceStat.ino : workspaceStat.birthtime.getTime(); // On Linux, birthtime is ctime, so we cannot use it! We use the ino instead!
@@ -523,6 +487,12 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 				this.workspace = new Workspace(id, paths.basename(folderPath.fsPath), toWorkspaceFolders([{ path: folder.fsPath }]), null, ctime);
 				return TPromise.as(null);
 			});
+	}
+
+	private initializeEmptyWorkspace(configuration: IWindowConfiguration): TPromise<void> {
+		let id = configuration.backupPath ? URI.from({ path: paths.basename(configuration.backupPath), scheme: 'empty' }).toString() : '';
+		this.workspace = new Workspace(id, '', []);
+		return TPromise.as(null);
 	}
 
 	private initCachesForFolders(folders: WorkspaceFolder[]): void {
@@ -604,12 +574,21 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 	}
 
 	private updateWorkspaceConfiguration(compare: boolean): boolean {
-		const workspaceConfiguration = this.getWorkbenchState() === WorkbenchState.WORKSPACE ? this.workspaceConfiguration.workspaceConfigurationModel.workspaceConfiguration : this._configuration.getFolderConfigurationModel(this.workspace.folders[0].uri);
+		const workbennchState = this.getWorkbenchState();
+		if (workbennchState === WorkbenchState.EMPTY) {
+			return false;
+		}
+
+		const workspaceConfiguration = workbennchState === WorkbenchState.WORKSPACE ? this.workspaceConfiguration.workspaceConfigurationModel.workspaceConfiguration : this._configuration.getFolderConfigurationModel(this.workspace.folders[0].uri);
 		return this._configuration.updateWorkspaceConfiguration(workspaceConfiguration, compare);
 	}
 
 	protected triggerConfigurationChange(): void {
-		this._onDidUpdateConfiguration.fire({ source: ConfigurationSource.Workspace, sourceConfig: this._configuration.getFolderConfigurationModel(this.workspace.folders[0].uri).contents });
+		if (this.getWorkbenchState() === WorkbenchState.EMPTY) {
+			this._onDidUpdateConfiguration.fire({ source: ConfigurationSource.User, sourceConfig: this._configuration.user.contents });
+		} else {
+			this._onDidUpdateConfiguration.fire({ source: ConfigurationSource.Workspace, sourceConfig: this._configuration.getFolderConfigurationModel(this.workspace.folders[0].uri).contents });
+		}
 	}
 }
 
