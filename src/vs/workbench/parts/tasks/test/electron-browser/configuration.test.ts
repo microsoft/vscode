@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import URI from 'vs/base/common/uri';
 import * as assert from 'assert';
 import Severity from 'vs/base/common/severity';
 import * as UUID from 'vs/base/common/uuid';
@@ -121,7 +122,7 @@ class CommandConfigurationBuilder {
 			runtime: Tasks.RuntimeType.Process,
 			args: [],
 			options: {
-				cwd: '${workspaceRoot}'
+				cwd: '${workspaceFolder}'
 			},
 			presentation: this.presentationBuilder.result,
 			suppressTaskName: false
@@ -177,7 +178,7 @@ class CustomTaskBuilder {
 		this.commandBuilder = new CommandConfigurationBuilder(this, command);
 		this.result = {
 			_id: name,
-			_source: { kind: Tasks.TaskSourceKind.Workspace, label: 'workspace', config: { element: undefined, index: -1, file: '.vscode/tasks.json' } },
+			_source: { kind: Tasks.TaskSourceKind.Workspace, label: 'workspace', config: { workspaceFolder: { uri: undefined }, element: undefined, index: -1, file: '.vscode/tasks.json' } },
 			_label: name,
 			type: 'custom',
 			identifier: name,
@@ -242,7 +243,7 @@ class ProblemMatcherBuilder {
 			applyTo: ApplyToKind.allDocuments,
 			severity: undefined,
 			fileLocation: FileLocationKind.Relative,
-			filePrefix: '${cwd}',
+			filePrefix: '${workspaceFolder}',
 			pattern: undefined
 		};
 	}
@@ -347,7 +348,7 @@ class PatternBuilder {
 
 function testDefaultProblemMatcher(external: ExternalTaskRunnerConfiguration, resolved: number) {
 	let reporter = new ProblemReporter();
-	let result = parse(external, reporter);
+	let result = parse({ uri: URI.file('/Workspace/folderOne') }, external, reporter);
 	assert.ok(!reporter.receivedMessage);
 	assert.strictEqual(result.custom.length, 1);
 	let task = result.custom[0];
@@ -358,7 +359,7 @@ function testDefaultProblemMatcher(external: ExternalTaskRunnerConfiguration, re
 function testConfiguration(external: ExternalTaskRunnerConfiguration, builder: ConfiguationBuilder): void {
 	builder.done();
 	let reporter = new ProblemReporter();
-	let result = parse(external, reporter);
+	let result = parse({ uri: URI.file('/Workspace/folderOne') }, external, reporter);
 	if (reporter.receivedMessage) {
 		assert.ok(false, reporter.lastMessage);
 	}
@@ -725,7 +726,7 @@ suite('Tasks version 0.1.0', () => {
 			task('tsc', 'tsc').
 			group(Tasks.TaskGroup.Build).
 			command().suppressTaskName(true).
-			options({ cwd: '${workspaceRoot}', env: { key: 'value' } });
+			options({ cwd: '${workspaceFolder}', env: { key: 'value' } });
 		testConfiguration(
 			{
 				version: '0.1.0',
@@ -1588,7 +1589,7 @@ suite('Bugs / regression tests', () => {
 			windows: {
 				command: 'powershell',
 				options: {
-					cwd: '${workspaceRoot}'
+					cwd: '${workspaceFolder}'
 				},
 				tasks: [
 					{
@@ -1611,7 +1612,7 @@ suite('Bugs / regression tests', () => {
 			osx: {
 				command: '/bin/bash',
 				options: {
-					cwd: '${workspaceRoot}'
+					cwd: '${workspaceFolder}'
 				},
 				tasks: [
 					{
@@ -1632,14 +1633,14 @@ suite('Bugs / regression tests', () => {
 			builder.task('composeForDebug', 'powershell').
 				command().suppressTaskName(true).
 				args(['-ExecutionPolicy', 'RemoteSigned', '.\\dockerTask.ps1', '-ComposeForDebug', '-Environment', 'debug']).
-				options({ cwd: '${workspaceRoot}' }).
+				options({ cwd: '${workspaceFolder}' }).
 				presentation().echo(true).reveal(Tasks.RevealKind.Always);
 			testConfiguration(external, builder);
 		} else if (Platform.isMacintosh) {
 			builder.task('composeForDebug', '/bin/bash').
 				command().suppressTaskName(true).
 				args(['-c', './dockerTask.sh composeForDebug debug']).
-				options({ cwd: '${workspaceRoot}' }).
+				options({ cwd: '${workspaceFolder}' }).
 				presentation().reveal(Tasks.RevealKind.Always);
 			testConfiguration(external, builder);
 		}

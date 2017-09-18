@@ -29,7 +29,6 @@
 	"view id": "ID",
 	"view name": "Adı",
 	"view location": "Yeri",
-	"themes": "Temalar ({0})",
 	"JSON Validation": "JSON Doğrulama ({0})",
 	"commands": "Komutlar ({0})",
 	"command name": "Adı",

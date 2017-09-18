@@ -278,8 +278,8 @@
 		"c": "\\'",
 		"t": "text.html.php meta.embedded.block.html source.js meta.embedded.block.php source.php string.quoted.single.php constant.character.escape.php",
 		"r": {
-			"dark_plus": "constant.character.escape: #C586C0",
-			"light_plus": "constant.character.escape: #FF0000",
+			"dark_plus": "constant.character.escape: #D7BA7D",
+			"light_plus": "constant.character.escape: #A31515",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "constant.character: #569CD6"
@@ -377,8 +377,8 @@
 		"c": "\\'",
 		"t": "text.html.php meta.embedded.block.html source.js meta.embedded.block.php source.php string.quoted.single.php constant.character.escape.php",
 		"r": {
-			"dark_plus": "constant.character.escape: #C586C0",
-			"light_plus": "constant.character.escape: #FF0000",
+			"dark_plus": "constant.character.escape: #D7BA7D",
+			"light_plus": "constant.character.escape: #A31515",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "constant.character: #569CD6"

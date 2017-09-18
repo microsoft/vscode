@@ -15,7 +15,7 @@
 	"reuseWindow": "Forçar a abertura de um arquivo ou pasta na última janela ativa",
 	"userDataDir": "Especifica o diretório que os dados do usuário serão mantidos, útil quando estiver rodando como root.",
 	"verbose": "Imprimir a saída detalhada (Implica -- esperar).",
-	"wait": "Aguarde a janela ser fechada antes de retornar.",
+	"wait": "Espere pelos arquivos a serem fechados antes de retornar.",
 	"extensionHomePath": "Defina o caminho raíz para as extensões.",
 	"listExtensions": "Lista de extensões instaladas",
 	"showVersions": "Exibir versões de extensões instaladas, quando estiver usando --list-extension",

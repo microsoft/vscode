@@ -37,7 +37,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 			return TPromise.as(void 0); // we need a workspace to begin with
 		}
 
-		const currentWorkspaceFolders = this.contextService.getWorkspace().folders;
+		const currentWorkspaceFolders = this.contextService.getWorkspace().folders.map(folder => folder.uri);
 		const currentStoredFolders = this.workspaceConfigurationService.getFoldersConfiguration();
 
 		const storedFoldersToAdd: IStoredWorkspaceFolder[] = [];
@@ -66,7 +66,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 			return TPromise.as(void 0); // we need a workspace to begin with
 		}
 
-		const currentWorkspaceFolders = this.contextService.getWorkspace().folders;
+		const currentWorkspaceFolders = this.contextService.getWorkspace().folders.map(folder => folder.uri);
 		const currentStoredFolders = this.workspaceConfigurationService.getFoldersConfiguration();
 
 		const newStoredFolders: IStoredWorkspaceFolder[] = currentStoredFolders.filter((folder, index) => {

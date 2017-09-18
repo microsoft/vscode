@@ -15,7 +15,6 @@
 	"reuseWindow": "在上一活动窗口中强制打开文件或文件夹。",
 	"userDataDir": "指定存放用户数据的目录，此目录在作为根运行时十分有用。",
 	"verbose": "打印详细输出(表示 - 等待)。",
-	"wait": "等窗口关闭后再返回。",
 	"extensionHomePath": "设置扩展的根路径。",
 	"listExtensions": "列出已安装的扩展。",
 	"showVersions": "使用 --list-extension 时，显示已安装扩展的版本。",

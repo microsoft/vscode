@@ -66,6 +66,12 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 				dom.removeClass(this._domNode, 'hidden');
 			});
 		}));
+		this._disposables.push(this._editor.onDidChangeConfiguration(e => {
+			// hide when told to do so
+			if (e.contribInfo && !this._editor.getConfiguration().contribInfo.lightbulbEnabled) {
+				this.hide();
+			}
+		}));
 	}
 
 	dispose(): void {
@@ -124,11 +130,14 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 	}
 
 	private _show(): void {
-		const { fontInfo } = this._editor.getConfiguration();
+		const config = this._editor.getConfiguration();
+		if (!config.contribInfo.lightbulbEnabled) {
+			return;
+		}
 		const { lineNumber } = this._model.position;
 		const model = this._editor.getModel();
 		const indent = model.getIndentLevel(lineNumber);
-		const lineHasSpace = fontInfo.spaceWidth * indent > 22;
+		const lineHasSpace = config.fontInfo.spaceWidth * indent > 22;
 
 		let effectiveLineNumber = lineNumber;
 		if (!lineHasSpace) {

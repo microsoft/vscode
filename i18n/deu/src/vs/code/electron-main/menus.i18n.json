@@ -151,6 +151,10 @@
 	"mZoom": "Zoom",
 	"mBringToFront": "Alle in den Vordergrund",
 	"miSwitchWindow": "Fenster &&wechseln...",
+	"mShowPreviousTab": "Vorherige Registerkarte anzeigen",
+	"mShowNextTab": "Nächste Registerkarte anzeigen",
+	"mMoveTabToNewWindow": "Registerkarte in neues Fenster verschieben",
+	"mMergeAllWindows": "Alle Fenster zusammenführen",
 	"miToggleDevTools": "&&Entwicklertools umschalten",
 	"miAccessibilityOptions": "&&Optionen für erleichterte Bedienung",
 	"miReportIssues": "&&Probleme melden",
@@ -180,6 +184,6 @@
 	"miDownloadingUpdate": "Das Update wird heruntergeladen...",
 	"miInstallingUpdate": "Update wird installiert...",
 	"miCheckForUpdates": "Nach Aktualisierungen suchen...",
-	"aboutDetail": "\nVersion {0}\nCommit {1}\nDatum {2}\nShell {3}\nRenderer {4}\nKnoten {5}\nArchitektur {6}",
+	"aboutDetail": "\nVersion {0}\nCommit {1}\nDatum {2}\nShell {3}\nRenderer {4}\nNode {5}\nArchitektur {6}",
 	"okButton": "OK"
 }

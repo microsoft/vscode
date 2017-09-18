@@ -88,6 +88,7 @@
 	"accessibilitySupport": "Meghatározza, hogy a szerkesztő olyan módban fusson-e, ami optimalizálva van képernyőolvasóval való használathoz.",
 	"links": "Meghatározza, hogy a szerkesztőablak érzékelje-e a hivatkozásokat, és kattinthatóvá tegye-e őket.",
 	"colorDecorators": "Meghatározza, hogy a szerkesztőablakban ki legyenek-e rajzolva a színdekorátorok és színválasztók.",
+	"codeActions": "Engedélyezi a kódműveletek végrehajtásához használható villanykörtét",
 	"sideBySide": "Meghatározza, hogy a differenciaszerkesztő ablakban egymás mellett vagy a sorban jelenjenek meg az eltérések",
 	"ignoreTrimWhitespace": "Meghatározza, hogy a differenciaszerkesztő ablakban megjelenjenek-e a sor elején vagy végén a szóközökben talált különbségek",
 	"renderIndicators": "Meghatározza, hogy a differenciaszerkesztő ablakban megjelenjenek-e a +/- jelzők az hozzáadott/eltávolított változásoknál",

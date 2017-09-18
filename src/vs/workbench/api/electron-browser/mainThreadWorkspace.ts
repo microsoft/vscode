@@ -66,7 +66,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			return undefined;
 		}
 		const query: ISearchQuery = {
-			folderQueries: workspace.folders.map(root => ({ folder: root })),
+			folderQueries: workspace.folders.map(folder => ({ folder: folder.uri })),
 			type: QueryType.File,
 			maxResults,
 			includePattern: { [include]: true },

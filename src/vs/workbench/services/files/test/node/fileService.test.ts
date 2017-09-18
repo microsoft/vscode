@@ -20,7 +20,7 @@ import encodingLib = require('vs/base/node/encoding');
 import utils = require('vs/workbench/services/files/test/node/utils');
 import { onError } from 'vs/base/test/common/utils';
 import { TestContextService, TestTextResourceConfigurationService } from 'vs/workbench/test/workbenchTestServices';
-import { Workspace } from 'vs/platform/workspace/common/workspace';
+import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
 suite('FileService', () => {
@@ -38,7 +38,7 @@ suite('FileService', () => {
 				return onError(error, done);
 			}
 
-			service = new FileService(new TestContextService(new Workspace(testDir, testDir, [uri.file(testDir)])), new TestTextResourceConfigurationService(), new TestConfigurationService(), { disableWatcher: true });
+			service = new FileService(new TestContextService(new Workspace(testDir, testDir, [{ uri: uri.file(testDir), raw: testDir, index: 0, name: '' }])), new TestTextResourceConfigurationService(), new TestConfigurationService(), { disableWatcher: true });
 			done();
 		});
 	});
@@ -57,6 +57,45 @@ suite('FileService', () => {
 		const contents = 'Hello World';
 		const resource = uri.file(path.join(testDir, 'test.txt'));
 		service.createFile(resource, contents).done(s => {
+			assert.equal(s.name, 'test.txt');
+			assert.equal(fs.existsSync(s.resource.fsPath), true);
+			assert.equal(fs.readFileSync(s.resource.fsPath), contents);
+
+			assert.ok(event);
+			assert.equal(event.resource.fsPath, resource.fsPath);
+			assert.equal(event.operation, FileOperation.CREATE);
+			assert.equal(event.target.resource.fsPath, resource.fsPath);
+			toDispose.dispose();
+
+			done();
+		}, error => onError(error, done));
+	});
+
+	test('createFile (does not overwrite by default)', function (done: () => void) {
+		const contents = 'Hello World';
+		const resource = uri.file(path.join(testDir, 'test.txt'));
+
+		fs.writeFileSync(resource.fsPath, ''); // create file
+
+		service.createFile(resource, contents).done(null, error => {
+			assert.ok(error);
+
+			done();
+		});
+	});
+
+	test('createFile (allows to overwrite existing)', function (done: () => void) {
+		let event: FileOperationEvent;
+		const toDispose = service.onAfterOperation(e => {
+			event = e;
+		});
+
+		const contents = 'Hello World';
+		const resource = uri.file(path.join(testDir, 'test.txt'));
+
+		fs.writeFileSync(resource.fsPath, ''); // create file
+
+		service.createFile(resource, contents, { overwrite: true }).done(s => {
 			assert.equal(s.name, 'test.txt');
 			assert.equal(fs.existsSync(s.resource.fsPath), true);
 			assert.equal(fs.readFileSync(s.resource.fsPath), contents);
@@ -745,7 +784,7 @@ suite('FileService', () => {
 
 			const textResourceConfigurationService = new TestTextResourceConfigurationService(configurationService);
 
-			const _service = new FileService(new TestContextService(new Workspace(_testDir, _testDir, [uri.file(_testDir)])), textResourceConfigurationService, configurationService, {
+			const _service = new FileService(new TestContextService(new Workspace(_testDir, _testDir, [aWorkspaceFolder(_testDir, 0)])), textResourceConfigurationService, configurationService, {
 				encodingOverride,
 				disableWatcher: true
 			});
@@ -772,7 +811,7 @@ suite('FileService', () => {
 		const _sourceDir = require.toUrl('./fixtures/service');
 		const resource = uri.file(path.join(testDir, 'index.html'));
 
-		const _service = new FileService(new TestContextService(new Workspace(_testDir, _testDir, [uri.file(_testDir)])), new TestTextResourceConfigurationService(), new TestConfigurationService(), {
+		const _service = new FileService(new TestContextService(new Workspace(_testDir, _testDir, [aWorkspaceFolder(_testDir, 0)])), new TestTextResourceConfigurationService(), new TestConfigurationService(), {
 			disableWatcher: true
 		});
 
@@ -813,4 +852,13 @@ suite('FileService', () => {
 			});
 		});
 	});
+
+	function aWorkspaceFolder(raw: string, index: number, name: string = ''): WorkspaceFolder {
+		return {
+			uri: uri.file(raw),
+			index,
+			raw,
+			name
+		};
+	}
 });

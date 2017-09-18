@@ -8,7 +8,7 @@ import URI from 'vs/base/common/uri';
 import Event, { Emitter } from 'vs/base/common/event';
 import { normalize } from 'vs/base/common/paths';
 import { delta } from 'vs/base/common/arrays';
-import { relative, basename } from 'path';
+import { relative } from 'path';
 import { Workspace } from 'vs/platform/workspace/common/workspace';
 import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -28,26 +28,22 @@ class Workspace2 extends Workspace {
 		return data ? new Workspace2(data) : null;
 	}
 
-	private readonly _folder: vscode.WorkspaceFolder[] = [];
+	private readonly _workspaceFolders: vscode.WorkspaceFolder[] = [];
 	private readonly _structure = new TrieMap<vscode.WorkspaceFolder>(s => s.split('/'));
 
 	private constructor(data: IWorkspaceData) {
 		super(data.id, data.name, data.folders);
 
 		// setup the workspace folder data structure
-		this.folders.forEach((uri, index) => {
-			const folder = {
-				name: basename(uri.fsPath),
-				uri,
-				index
-			};
-			this._folder.push(folder);
-			this._structure.insert(folder.uri.toString(), folder);
+		this.folders.forEach(({ name, uri, index }) => {
+			const workspaceFolder = { name, uri, index };
+			this._workspaceFolders.push(workspaceFolder);
+			this._structure.insert(workspaceFolder.uri.toString(), workspaceFolder);
 		});
 	}
 
 	get workspaceFolders(): vscode.WorkspaceFolder[] {
-		return this._folder.slice(0);
+		return this._workspaceFolders.slice(0);
 	}
 
 	getWorkspaceFolder(uri: URI): vscode.WorkspaceFolder {
@@ -114,7 +110,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		if (folders.length === 0) {
 			return undefined;
 		}
-		return folders[0].fsPath;
+		return folders[0].uri.fsPath;
 	}
 
 	getRelativePath(pathOrUri: string | vscode.Uri, includeWorkspace?: boolean): string {

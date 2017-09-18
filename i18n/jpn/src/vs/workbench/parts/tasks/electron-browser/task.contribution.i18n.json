@@ -19,7 +19,6 @@
 	"manyMarkers": "99+",
 	"runningTasks": "実行中のタスクを表示",
 	"tasks": "タスク",
-	"TaskSystem.noHotSwap": "タスクの実行エンジンを変更するにはウィンドウの再読み込みが必要です",
 	"TaskService.noBuildTask1": "ビルド タスクが定義されていません。tasks.json ファイルでタスクに 'isBuildCommand' というマークを付けてください。",
 	"TaskService.noBuildTask2": "ビルド タスクが定義されていません。tasks.json ファイルでタスクに 'build' グループとしてマークを付けてください。",
 	"TaskService.noTestTask1": "テスト タスクが定義されていません。tasks.json ファイルでタスクに 'isTestCommand' というマークを付けてください。",

@@ -353,7 +353,7 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 
 	private initLaunches(): void {
-		this.launches = this.contextService.getWorkspace().folders.map(folder => this.instantiationService.createInstance(Launch, this, folder));
+		this.launches = this.contextService.getWorkspace().folders.map(folder => this.instantiationService.createInstance(Launch, this, folder.uri));
 		if (this.launches.indexOf(this._selectedLaunch) === -1) {
 			this._selectedLaunch = undefined;
 		}

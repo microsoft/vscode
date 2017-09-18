@@ -177,7 +177,7 @@ export class ExtensionHostMain {
 				}
 
 				const query: ISearchQuery = {
-					folderQueries: this._workspace.folders.map(root => ({ folder: root })),
+					folderQueries: this._workspace.folders.map(folder => ({ folder: folder.uri })),
 					type: QueryType.File,
 					maxResults: 1,
 					includePattern: { [p]: true }
@@ -187,8 +187,8 @@ export class ExtensionHostMain {
 			} else {
 				// find exact path
 				return (async resolve => {
-					for (const { fsPath } of this._workspace.folders) {
-						if (await pfs.exists(join(fsPath, p))) {
+					for (const { uri } of this._workspace.folders) {
+						if (await pfs.exists(join(uri.fsPath, p))) {
 							return p;
 						}
 					}

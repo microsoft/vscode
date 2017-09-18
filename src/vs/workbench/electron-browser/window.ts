@@ -294,7 +294,7 @@ export class ElectronWindow extends Themable {
 
 		// Single folder or no workspace: create workspace and open
 		else {
-			const workspaceFolders: URI[] = [...this.contextService.getWorkspace().folders];
+			const workspaceFolders: URI[] = [...this.contextService.getWorkspace().folders.map(folder => folder.uri)];
 
 			// Fill in remaining ones from request
 			workspaceFolders.push(...request.foldersToAdd.map(folderToAdd => URI.file(folderToAdd.filePath)));

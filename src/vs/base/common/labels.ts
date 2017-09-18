@@ -18,9 +18,9 @@ export interface ILabelProvider {
 }
 
 export interface IWorkspaceFolderProvider {
-	getWorkspaceFolder(resource: URI): URI;
+	getWorkspaceFolder(resource: URI): { uri: URI };
 	getWorkspace(): {
-		folders: URI[];
+		folders: { uri: URI }[];
 	};
 }
 
@@ -43,14 +43,14 @@ export function getPathLabel(resource: URI | string, rootProvider?: IWorkspaceFo
 		const hasMultipleRoots = rootProvider.getWorkspace().folders.length > 1;
 
 		let pathLabel: string;
-		if (isEqual(baseResource.fsPath, resource.fsPath, !platform.isLinux /* ignorecase */)) {
+		if (isEqual(baseResource.uri.fsPath, resource.fsPath, !platform.isLinux /* ignorecase */)) {
 			pathLabel = ''; // no label if pathes are identical
 		} else {
-			pathLabel = normalize(ltrim(resource.fsPath.substr(baseResource.fsPath.length), nativeSep), true);
+			pathLabel = normalize(ltrim(resource.fsPath.substr(baseResource.uri.fsPath.length), nativeSep), true);
 		}
 
 		if (hasMultipleRoots) {
-			const rootName = basename(baseResource.fsPath);
+			const rootName = basename(baseResource.uri.fsPath);
 			pathLabel = pathLabel ? join(rootName, pathLabel) : rootName; // always show root basename if there are multiple
 		}
 

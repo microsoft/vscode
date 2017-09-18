@@ -133,7 +133,7 @@ export class ExplorerView extends CollapsibleView {
 		const titleSpan = $('span').appendTo(titleDiv);
 		const setHeader = () => {
 			const workspace = this.contextService.getWorkspace();
-			const title = workspace.folders.map(folder => labels.getPathLabel(folder.fsPath, void 0, this.environmentService)).join();
+			const title = workspace.folders.map(folder => labels.getPathLabel(folder.uri.fsPath, void 0, this.environmentService)).join();
 			titleSpan.text(this.name).title(title);
 		};
 		this.toDispose.push(this.contextService.onDidChangeWorkspaceName(() => setHeader()));
@@ -737,7 +737,7 @@ export class ExplorerView extends CollapsibleView {
 			if (activeFile) {
 				const workspaceFolder = this.contextService.getWorkspaceFolder(activeFile);
 				if (workspaceFolder) {
-					const found = targetsToResolve.filter(t => t.root.resource.toString() === workspaceFolder.toString()).pop();
+					const found = targetsToResolve.filter(t => t.root.resource.toString() === workspaceFolder.uri.toString()).pop();
 					found.options.resolveTo.push(activeFile);
 				}
 			}
@@ -745,7 +745,7 @@ export class ExplorerView extends CollapsibleView {
 			targetsToExpand.forEach(toExpand => {
 				const workspaceFolder = this.contextService.getWorkspaceFolder(toExpand);
 				if (workspaceFolder) {
-					const found = targetsToResolve.filter(ttr => ttr.resource.toString() === workspaceFolder.toString()).pop();
+					const found = targetsToResolve.filter(ttr => ttr.resource.toString() === workspaceFolder.uri.toString()).pop();
 					found.options.resolveTo.push(toExpand);
 				}
 			});
@@ -855,7 +855,8 @@ export class ExplorerView extends CollapsibleView {
 
 		// Stat needs to be resolved first and then revealed
 		const options: IResolveFileOptions = { resolveTo: [resource] };
-		const rootUri = this.contextService.getWorkspaceFolder(resource) || this.model.roots[0].resource;
+		const workspaceFolder = this.contextService.getWorkspaceFolder(resource);
+		const rootUri = workspaceFolder ? workspaceFolder.uri : this.model.roots[0].resource;
 		return this.fileService.resolveFile(rootUri, options).then(stat => {
 
 			// Convert to model

@@ -14,8 +14,6 @@
 	"files.exclude.boolean": "El patrón global con el que se harán coincidir las rutas de acceso de los archivos. Establézcalo en true o false para habilitarlo o deshabilitarlo.",
 	"files.exclude.when": "Comprobación adicional de los elementos del mismo nivel de un archivo coincidente. Use $(nombreBase) como variable para el nombre de archivo que coincide.",
 	"associations": "Configure asociaciones de archivo para los lenguajes (por ejemplo, \"*.extension\": \"html\"). Estas asociaciones tienen prioridad sobre las asociaciones predeterminadas de los lenguajes instalados.",
-	"encoding": "La codificación del juego de caracteres predeterminada que debe utilizarse al leer y escribir archivos.",
-	"autoGuessEncoding": "Si está opción está habilitada, se intentará adivinar la codificación del juego de caracteres al abrir los archivos",
 	"eol": "Carácter predeterminado de final de línea. Utilice \\n para LF y \\r\\n para CRLF.",
 	"trimTrailingWhitespace": "Si se habilita, se recortará el espacio final cuando se guarde un archivo.",
 	"insertFinalNewline": "Si se habilita, inserte una nueva línea final al final del archivo cuando lo guarde.",
