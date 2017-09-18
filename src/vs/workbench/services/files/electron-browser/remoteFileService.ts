@@ -6,11 +6,10 @@
 
 import URI from 'vs/base/common/uri';
 import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';
-import { IContent, IStreamContent, IFileStat, IResolveContentOptions, IUpdateContentOptions, IResolveFileOptions, IResolveFileResult, FileOperationEvent, FileOperation, IFileSystemProvider, IStat, FileType, IImportResult } from 'vs/platform/files/common/files';
+import { IContent, IStreamContent, IFileStat, IResolveContentOptions, IUpdateContentOptions, IResolveFileOptions, IResolveFileResult, FileOperationEvent, FileOperation, IFileSystemProvider, IStat, FileType, IImportResult, FileChangesEvent } from 'vs/platform/files/common/files';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { basename, join } from 'path';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import * as Ftp from './ftpFileSystemProvider';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -60,7 +59,6 @@ function toIFileStat(provider: IFileSystemProvider, stat: IStat, recurse?: (stat
 	}
 }
 
-
 export function toDeepIFileStat(provider: IFileSystemProvider, stat: IStat, to: URI[]): TPromise<IFileStat> {
 
 	const trie = new TrieMap<true>();
@@ -102,7 +100,6 @@ export class RemoteFileService extends FileService {
 			storageService,
 			textResourceConfigurationService,
 		);
-		this.registerProvider('ftp', new Ftp.FtpFileSystemProvider());
 	}
 
 	registerProvider(authority: string, provider: IFileSystemProvider): IDisposable {
@@ -111,9 +108,9 @@ export class RemoteFileService extends FileService {
 		}
 
 		this._provider.set(authority, provider);
-		const reg = provider.onDidChange(e => {
+		const reg = provider.onDidChange(changes => {
 			// forward change events
-			this._onFileChanges.fire(e);
+			this._onFileChanges.fire(new FileChangesEvent(changes));
 		});
 		return {
 			dispose: () => {
@@ -201,7 +198,7 @@ export class RemoteFileService extends FileService {
 
 		const encoding = this.getEncoding(resource);
 		const stream = decodeStream(encoding);
-		await provider.read(resource, new Progress<Uint8Array>(chunk => stream.write(<Buffer>chunk)));
+		await provider.read(resource, new Progress<Buffer>(chunk => stream.write(chunk)));
 		stream.end();
 
 		return {
@@ -391,10 +388,15 @@ export class RemoteFileService extends FileService {
 		return toIFileStat(provider, stat);
 	}
 
-	// public watchFileChanges(resource: URI): void {
-	// 	throw new Error("Method not implemented.");
-	// }
-	// public unwatchFileChanges(resource: URI): void {
-	// 	throw new Error("Method not implemented.");
-	// }
+	// TODO@Joh - file watching on demand!
+	public watchFileChanges(resource: URI): void {
+		if (!this._provider.has(resource.scheme)) {
+			super.watchFileChanges(resource);
+		}
+	}
+	public unwatchFileChanges(resource: URI): void {
+		if (!this._provider.has(resource.scheme)) {
+			super.unwatchFileChanges(resource);
+		}
+	}
 }

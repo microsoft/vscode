@@ -14,6 +14,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import Event from 'vs/base/common/event';
 import { beginsWithIgnoreCase } from 'vs/base/common/strings';
 import { IProgress } from 'vs/platform/progress/common/progress';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export const IFileService = createDecorator<IFileService>('fileService');
 
@@ -30,6 +31,11 @@ export interface IFileService {
 	 * An event that is fired upon successful completion of a certain file operation.
 	 */
 	onAfterOperation: Event<FileOperationEvent>;
+
+	/**
+	 *
+	 */
+	registerProvider?(authority: string, provider: IFileSystemProvider): IDisposable;
 
 	/**
 	 * Resolve the properties of a file identified by the resource.
@@ -166,7 +172,7 @@ export interface IStat {
 
 export interface IFileSystemProvider {
 
-	onDidChange?: Event<FileChangesEvent>;
+	onDidChange?: Event<IFileChange[]>;
 
 	// more...
 	//
