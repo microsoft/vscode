@@ -10,7 +10,7 @@ import URI from 'vs/base/common/uri';
 import { RunOnceScheduler, wireCancellationToken } from 'vs/base/common/async';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { LinkProviderRegistry, ILink } from 'vs/editor/common/modes';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { OUTPUT_MODE_ID } from 'vs/workbench/parts/output/common/output';
 import { MonacoWebWorker, createWebWorker } from 'vs/editor/common/services/webWorker';
 import { ICreateData, OutputLinkComputer } from 'vs/workbench/parts/output/common/outputLinkComputer';
@@ -23,13 +23,11 @@ export class OutputLinkProvider {
 	private worker: MonacoWebWorker<OutputLinkComputer>;
 	private disposeWorkerScheduler: RunOnceScheduler;
 	private linkProviderRegistration: IDisposable;
-	private workspacesCount: number;
 
 	constructor(
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IModelService private modelService: IModelService
 	) {
-		this.workspacesCount = 0;
 		this.disposeWorkerScheduler = new RunOnceScheduler(() => this.disposeWorker(), OutputLinkProvider.DISPOSE_WORKER_TIME);
 
 		this.registerListeners();
@@ -37,16 +35,14 @@ export class OutputLinkProvider {
 	}
 
 	private registerListeners(): void {
-		this.contextService.onDidChangeWorkbenchState(() => this.updateLinkProviderWorker());
 		this.contextService.onDidChangeWorkspaceFolders(() => this.updateLinkProviderWorker());
 	}
 
 	private updateLinkProviderWorker(): void {
 
-		// We have a workspace
-		if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
-
-			// Register link provider unless done already
+		// Setup link provider depending on folders being opened or not
+		const folders = this.contextService.getWorkspace().folders;
+		if (folders.length > 0) {
 			if (!this.linkProviderRegistration) {
 				this.linkProviderRegistration = LinkProviderRegistry.register({ language: OUTPUT_MODE_ID, scheme: '*' }, {
 					provideLinks: (model, token): Thenable<ILink[]> => {
@@ -54,26 +50,13 @@ export class OutputLinkProvider {
 					}
 				});
 			}
-
-			// Update link provider worker if workspace roots changed
-			const newWorkspacesCount = this.contextService.getWorkspace().folders.length;
-			if (this.workspacesCount !== newWorkspacesCount) {
-				this.workspacesCount = newWorkspacesCount;
-
-				// Next computer will trigger recompute
-				this.disposeWorker();
-				this.disposeWorkerScheduler.cancel();
-			}
+		} else {
+			this.linkProviderRegistration = dispose(this.linkProviderRegistration);
 		}
 
-		// Dispose link provider when no longer having a workspace
-		else if (this.linkProviderRegistration) {
-			this.workspacesCount = 0;
-			dispose(this.linkProviderRegistration);
-			this.linkProviderRegistration = void 0;
-			this.disposeWorker();
-			this.disposeWorkerScheduler.cancel();
-		}
+		// Dispose worker to recreate with folders on next provideLinks request
+		this.disposeWorker();
+		this.disposeWorkerScheduler.cancel();
 	}
 
 	private getOrCreateWorker(): MonacoWebWorker<OutputLinkComputer> {

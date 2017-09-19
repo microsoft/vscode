@@ -135,21 +135,21 @@ export class WindowsService implements IWindowsService, IDisposable {
 		return TPromise.as(null);
 	}
 
-	createAndOpenWorkspace(windowId: number, folders?: string[], path?: string): TPromise<IWorkspaceIdentifier> {
+	createAndEnterWorkspace(windowId: number, folders?: string[], path?: string): TPromise<IWorkspaceIdentifier> {
 		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
 		if (codeWindow) {
-			return this.windowsMainService.createAndOpenWorkspace(codeWindow, folders, path);
+			return this.windowsMainService.createAndEnterWorkspace(codeWindow, folders, path);
 		}
 
 		return TPromise.as(null);
 	}
 
-	saveAndOpenWorkspace(windowId: number, path: string): TPromise<IWorkspaceIdentifier> {
+	saveAndEnterWorkspace(windowId: number, path: string): TPromise<IWorkspaceIdentifier> {
 		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
 		if (codeWindow) {
-			return this.windowsMainService.saveAndOpenWorkspace(codeWindow, path);
+			return this.windowsMainService.saveAndEnterWorkspace(codeWindow, path);
 		}
 
 		return TPromise.as(null);

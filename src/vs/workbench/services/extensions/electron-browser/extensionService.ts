@@ -238,7 +238,7 @@ export class ExtensionService implements IExtensionService {
 	}
 
 	protected _activateByEvent(activationEvent: string): TPromise<void> {
-		if (this._extensionHostProcessFinishedActivateEvents[activationEvent]) {
+		if (this._extensionHostProcessFinishedActivateEvents[activationEvent] || !this._extensionHostProcessProxy) {
 			return NO_OP_VOID_PROMISE;
 		}
 		return this._extensionHostProcessProxy.then((proxy) => {

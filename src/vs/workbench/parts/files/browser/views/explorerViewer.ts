@@ -907,7 +907,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 					const newRoots = [...currentFolders, ...folders];
 
 					// Create and open workspace
-					return this.workspaceEditingService.createAndOpenWorkspace(distinct(newRoots.map(root => root.fsPath)));
+					return this.workspaceEditingService.createAndEnterWorkspace(distinct(newRoots.map(root => root.fsPath)));
 				}
 			}
 

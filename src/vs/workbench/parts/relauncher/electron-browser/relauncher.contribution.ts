@@ -59,7 +59,7 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 
 	private registerListeners(): void {
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(this.configurationService.getConfiguration<IConfiguration>(), true)));
-		this.toDispose.push(this.contextService.onDidChangeWorkbenchState(() => this.handleWorkbenchState()));
+		this.toDispose.push(this.contextService.onDidChangeWorkbenchState(() => setTimeout(() => this.handleWorkbenchState())));
 	}
 
 	private onConfigurationChange(config: IConfiguration, notify: boolean): void {
@@ -105,13 +105,7 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		// React to folder changes when we are in workspace state
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			if (!this.onDidChangeWorkspaceFoldersUnbind) {
-
-				// use a timeout here to prevent event spam because a folder change event
-				// might follow right after and we really only want to react on folder
-				// changes from within the workspace and not during state transition.
-				setTimeout(() => {
-					this.onDidChangeWorkspaceFoldersUnbind = this.contextService.onDidChangeWorkspaceFolders(() => this.onDidChangeWorkspaceFolders());
-				}, 0);
+				this.onDidChangeWorkspaceFoldersUnbind = this.contextService.onDidChangeWorkspaceFolders(() => this.onDidChangeWorkspaceFolders());
 			}
 		}
 

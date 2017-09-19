@@ -56,14 +56,13 @@ export interface IWindowsMainService {
 	onWindowsCountChanged: Event<IWindowsCountChangedEvent>;
 	onWindowClose: Event<number>;
 	onWindowReload: Event<number>;
-	onWindowWorkspaceOpen: Event<number>;
 
 	// methods
 	ready(initialUserEnv: IProcessEnvironment): void;
 	reload(win: ICodeWindow, cli?: ParsedArgs): void;
 	openWorkspace(win?: ICodeWindow): void;
-	createAndOpenWorkspace(win: ICodeWindow, folders?: string[], path?: string): TPromise<IWorkspaceIdentifier>;
-	saveAndOpenWorkspace(win: ICodeWindow, path: string): TPromise<IWorkspaceIdentifier>;
+	createAndEnterWorkspace(win: ICodeWindow, folders?: string[], path?: string): TPromise<IWorkspaceIdentifier>;
+	saveAndEnterWorkspace(win: ICodeWindow, path: string): TPromise<IWorkspaceIdentifier>;
 	closeWorkspace(win: ICodeWindow): void;
 	open(openConfig: IOpenConfiguration): ICodeWindow[];
 	openExtensionDevelopmentHostWindow(openConfig: IOpenConfiguration): void;

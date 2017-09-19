@@ -903,11 +903,11 @@ export class TestWindowService implements IWindowService {
 		return TPromise.as(void 0);
 	}
 
-	createAndOpenWorkspace(folders?: string[], path?: string): TPromise<IWorkspaceIdentifier> {
+	createAndEnterWorkspace(folders?: string[], path?: string): TPromise<IWorkspaceIdentifier> {
 		return TPromise.as(void 0);
 	}
 
-	saveAndOpenWorkspace(path: string): TPromise<IWorkspaceIdentifier> {
+	saveAndEnterWorkspace(path: string): TPromise<IWorkspaceIdentifier> {
 		return TPromise.as(void 0);
 	}
 
@@ -1051,11 +1051,11 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(void 0);
 	}
 
-	createAndOpenWorkspace(windowId: number, folders?: string[], path?: string): TPromise<IWorkspaceIdentifier> {
+	createAndEnterWorkspace(windowId: number, folders?: string[], path?: string): TPromise<IWorkspaceIdentifier> {
 		return TPromise.as(void 0);
 	}
 
-	saveAndOpenWorkspace(windowId: number, path: string): TPromise<IWorkspaceIdentifier> {
+	saveAndEnterWorkspace(windowId: number, path: string): TPromise<IWorkspaceIdentifier> {
 		return TPromise.as(void 0);
 	}
 

@@ -125,9 +125,6 @@ export class WindowsManager implements IWindowsMainService {
 	private _onWindowLoad = new Emitter<number>();
 	onWindowLoad: CommonEvent<number> = this._onWindowLoad.event;
 
-	private _onWindowOpenWorkspace = new Emitter<number>();
-	onWindowWorkspaceOpen: CommonEvent<number> = this._onWindowOpenWorkspace.event;
-
 	private _onActiveWindowChanged = new Emitter<CodeWindow>();
 	onActiveWindowChanged: CommonEvent<CodeWindow> = this._onActiveWindowChanged.event;
 
@@ -1297,24 +1294,23 @@ export class WindowsManager implements IWindowsMainService {
 		});
 	}
 
-	public saveAndOpenWorkspace(win: CodeWindow, path: string): TPromise<IWorkspaceIdentifier> {
-		return this.workspacesManager.saveAndOpenWorkspace(win, path).then(workspace => {
-
-			// Event
-			this._onWindowOpenWorkspace.fire(win.id);
-
-			return workspace;
-		});
+	public saveAndEnterWorkspace(win: CodeWindow, path: string): TPromise<IWorkspaceIdentifier> {
+		return this.workspacesManager.saveAndEnterWorkspace(win, path).then(workspace => this.doEnterWorkspace(win, workspace));
 	}
 
-	public createAndOpenWorkspace(win: CodeWindow, folders?: string[], path?: string): TPromise<IWorkspaceIdentifier> {
-		return this.workspacesManager.createAndOpenWorkspace(win, folders, path).then(workspace => {
+	public createAndEnterWorkspace(win: CodeWindow, folders?: string[], path?: string): TPromise<IWorkspaceIdentifier> {
+		return this.workspacesManager.createAndEnterWorkspace(win, folders, path).then(workspace => this.doEnterWorkspace(win, workspace));
+	}
 
-			// Event
-			this._onWindowOpenWorkspace.fire(win.id);
+	private doEnterWorkspace(win: CodeWindow, workspace: IWorkspaceIdentifier): IWorkspaceIdentifier {
 
-			return workspace;
-		});
+		// Mark as recently opened
+		this.historyService.addRecentlyOpened([workspace], []);
+
+		// Trigger Eevent to indicate load of workspace into window
+		this._onWindowReady.fire(win);
+
+		return workspace;
 	}
 
 	public openWorkspace(win?: CodeWindow): void {
@@ -1652,7 +1648,7 @@ class WorkspacesManager {
 	) {
 	}
 
-	public saveAndOpenWorkspace(window: CodeWindow, path: string): TPromise<IWorkspaceIdentifier> {
+	public saveAndEnterWorkspace(window: CodeWindow, path: string): TPromise<IWorkspaceIdentifier> {
 		if (!window || !window.win || window.readyState !== ReadyState.READY || !window.openedWorkspace || !path || !this.isValidTargetWorkspacePath(window, path)) {
 			return TPromise.as(null); // return early if the window is not ready or disposed or does not have a workspace
 		}
@@ -1660,7 +1656,7 @@ class WorkspacesManager {
 		return this.doSaveAndOpenWorkspace(window, window.openedWorkspace, path);
 	}
 
-	public createAndOpenWorkspace(window: CodeWindow, folders?: string[], path?: string): TPromise<IWorkspaceIdentifier> {
+	public createAndEnterWorkspace(window: CodeWindow, folders?: string[], path?: string): TPromise<IWorkspaceIdentifier> {
 		if (!window || !window.win || window.readyState !== ReadyState.READY || !this.isValidTargetWorkspacePath(window, path)) {
 			return TPromise.as(null); // return early if the window is not ready or disposed
 		}

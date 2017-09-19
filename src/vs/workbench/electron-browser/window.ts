@@ -390,7 +390,7 @@ export class ElectronWindow extends Themable {
 			workspaceFolders.push(...request.foldersToAdd.map(folderToAdd => URI.file(folderToAdd.filePath)));
 
 			// Create workspace and open (ensure no duplicates)
-			this.workspaceEditingService.createAndOpenWorkspace(arrays.distinct(workspaceFolders.map(folder => folder.fsPath), folder => platform.isLinux ? folder : folder.toLowerCase()));
+			this.workspaceEditingService.createAndEnterWorkspace(arrays.distinct(workspaceFolders.map(folder => folder.fsPath), folder => platform.isLinux ? folder : folder.toLowerCase()));
 		}
 	}
 

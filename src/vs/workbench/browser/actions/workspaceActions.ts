@@ -159,7 +159,7 @@ class NewWorkspaceAction extends BaseWorkspacesAction {
 	private createWorkspace(folders: URI[]): TPromise<void> {
 		const workspaceFolders = distinct(folders.map(folder => folder.fsPath), folder => isLinux ? folder : folder.toLowerCase());
 
-		return this.workspaceEditingService.createAndOpenWorkspace(workspaceFolders);
+		return this.workspaceEditingService.createAndEnterWorkspace(workspaceFolders);
 	}
 }
 
@@ -213,10 +213,10 @@ export class SaveWorkspaceAsAction extends BaseWorkspacesAction {
 
 				case WorkbenchState.FOLDER:
 					const workspaceFolders = this.contextService.getWorkspace().folders.map(root => root.uri.fsPath);
-					return this.workspaceEditingService.createAndOpenWorkspace(workspaceFolders, configPath);
+					return this.workspaceEditingService.createAndEnterWorkspace(workspaceFolders, configPath);
 
 				case WorkbenchState.WORKSPACE:
-					return this.workspaceEditingService.saveAndOpenWorkspace(configPath);
+					return this.workspaceEditingService.saveAndEnterWorkspace(configPath);
 			}
 		}
 

@@ -125,32 +125,34 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		});
 	}
 
-	public createAndOpenWorkspace(folders?: string[], path?: string): TPromise<void> {
-		return this.windowService.createAndOpenWorkspace(folders).then(workspace => this.openWorkspace(workspace));
+	public createAndEnterWorkspace(folders?: string[], path?: string): TPromise<void> {
+		return this.doEnterWorkspace(() => this.windowService.createAndEnterWorkspace(folders, path));
 	}
 
-	public saveAndOpenWorkspace(path: string): TPromise<void> {
-		return this.windowService.saveAndOpenWorkspace(path).then(workspace => this.openWorkspace(workspace));
+	public saveAndEnterWorkspace(path: string): TPromise<void> {
+		return this.doEnterWorkspace(() => this.windowService.saveAndEnterWorkspace(path));
 	}
 
-	private openWorkspace(workspace?: IWorkspaceIdentifier): TPromise<void> {
-		if (!workspace) {
-			return void 0; // can happen when the saving/creation failed
-		}
+	private doEnterWorkspace(mainSidePromise: () => TPromise<IWorkspaceIdentifier>): TPromise<void> {
 
-		// Stop the extension host first
+		// Stop the extension host first to give extensions most time to shutdown
 		this.extensionService.stopExtensionHost();
 
-		// Migrate storage and settings
-		return this.migrate(workspace).then(() => {
+		return mainSidePromise().then(workspace => {
+			let enterWorkspacePromise: TPromise<void> = TPromise.as(void 0);
+			if (workspace) {
 
-			// Initialize configuration service
-			const workspaceImpl = this.contextService as WorkspaceService; // TODO@Ben TODO@Sandeep ugly cast
-			return workspaceImpl.initialize(workspace).then(() => {
+				// Migrate storage and settings
+				enterWorkspacePromise = this.migrate(workspace).then(() => {
 
-				// Start extension host again
-				this.extensionService.startExtensionHost();
-			});
+					// Initialize configuration service
+					const workspaceImpl = this.contextService as WorkspaceService; // TODO@Ben TODO@Sandeep ugly cast
+					return workspaceImpl.initialize(workspace);
+				});
+			}
+
+			// Finally bring the extension host back online
+			return enterWorkspacePromise.then(() => this.extensionService.startExtensionHost());
 		});
 	}
 
