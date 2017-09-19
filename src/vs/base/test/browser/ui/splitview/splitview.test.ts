@@ -82,7 +82,7 @@ suite('Splitview', () => {
 		splitview.dispose();
 	});
 
-	test('has views as sashes as children', () => {
+	test('has views and sashes as children', () => {
 		const view1 = new TestView(20, 20);
 		const view2 = new TestView(20, 20);
 		const view3 = new TestView(20, 20);
@@ -92,34 +92,34 @@ suite('Splitview', () => {
 		splitview.addView(view2, 20);
 		splitview.addView(view3, 20);
 
-		let viewQuery = container.querySelectorAll('.monaco-split-view > .split-view-view');
+		let viewQuery = container.querySelectorAll('.monaco-split-view2 > .split-view-view');
 		assert.equal(viewQuery.length, 3, 'split view should have 3 views');
 
-		let sashQuery = container.querySelectorAll('.monaco-split-view > .monaco-sash');
+		let sashQuery = container.querySelectorAll('.monaco-split-view2 > .monaco-sash');
 		assert.equal(sashQuery.length, 2, 'split view should have 2 sashes');
 
 		splitview.removeView(2);
 
-		viewQuery = container.querySelectorAll('.monaco-split-view > .split-view-view');
+		viewQuery = container.querySelectorAll('.monaco-split-view2 > .split-view-view');
 		assert.equal(viewQuery.length, 2, 'split view should have 2 views');
 
-		sashQuery = container.querySelectorAll('.monaco-split-view > .monaco-sash');
+		sashQuery = container.querySelectorAll('.monaco-split-view2 > .monaco-sash');
 		assert.equal(sashQuery.length, 1, 'split view should have 1 sash');
 
 		splitview.removeView(0);
 
-		viewQuery = container.querySelectorAll('.monaco-split-view > .split-view-view');
+		viewQuery = container.querySelectorAll('.monaco-split-view2 > .split-view-view');
 		assert.equal(viewQuery.length, 1, 'split view should have 1 view');
 
-		sashQuery = container.querySelectorAll('.monaco-split-view > .monaco-sash');
+		sashQuery = container.querySelectorAll('.monaco-split-view2 > .monaco-sash');
 		assert.equal(sashQuery.length, 0, 'split view should have no sashes');
 
 		splitview.removeView(0);
 
-		viewQuery = container.querySelectorAll('.monaco-split-view > .split-view-view');
+		viewQuery = container.querySelectorAll('.monaco-split-view2 > .split-view-view');
 		assert.equal(viewQuery.length, 0, 'split view should have no views');
 
-		sashQuery = container.querySelectorAll('.monaco-split-view > .monaco-sash');
+		sashQuery = container.querySelectorAll('.monaco-split-view2 > .monaco-sash');
 		assert.equal(sashQuery.length, 0, 'split view should have no sashes');
 
 		splitview.dispose();
@@ -177,31 +177,6 @@ suite('Splitview', () => {
 		view.dispose();
 	});
 
-	test('respects preferred sizes with structural changes', () => {
-		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view2 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view3 = new TestView(20, Number.POSITIVE_INFINITY);
-		const splitview = new SplitView(container);
-		splitview.layout(200);
-
-		splitview.addView(view1, 20);
-		assert.equal(view1.size, 200, 'view1 is stretched');
-
-		splitview.addView(view2, 20);
-		assert.equal(view1.size, 20, 'view1 size is restored');
-		assert.equal(view2.size, 200 - 20, 'view2 is stretched');
-
-		splitview.addView(view3, 20);
-		assert.equal(view1.size, 20, 'view1 size is restored');
-		assert.equal(view2.size, 20, 'view2 size is restored');
-		assert.equal(view3.size, 160, 'view3 is stretched');
-
-		splitview.dispose();
-		view3.dispose();
-		view2.dispose();
-		view1.dispose();
-	});
-
 	test('can resize views', () => {
 		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
 		const view2 = new TestView(20, Number.POSITIVE_INFINITY);
@@ -213,27 +188,27 @@ suite('Splitview', () => {
 		splitview.addView(view2, 20);
 		splitview.addView(view3, 20);
 
-		assert.equal(view1.size, 20, 'view1 size is the default');
-		assert.equal(view2.size, 20, 'view2 size the the default');
-		assert.equal(view3.size, 160, 'view3 is stretched');
+		assert.equal(view1.size, 160, 'view1 is stretched');
+		assert.equal(view2.size, 20, 'view2 size is 20');
+		assert.equal(view3.size, 20, 'view3 size is 20');
 
 		splitview.resizeView(1, 40);
 
-		assert.equal(view1.size, 20, 'view1 is untouched');
+		assert.equal(view1.size, 140, 'view1 is collapsed');
 		assert.equal(view2.size, 40, 'view2 is stretched');
-		assert.equal(view3.size, 140, 'view3 is collapsed');
+		assert.equal(view3.size, 20, 'view3 stays the same');
 
 		splitview.resizeView(0, 70);
 
-		assert.equal(view1.size, 70, 'view1 is stretched');
-		assert.equal(view2.size, 20, 'view2 is collapsed');
-		assert.equal(view3.size, 110, 'view3 is collapsed');
+		assert.equal(view1.size, 70, 'view1 is collapsed');
+		assert.equal(view2.size, 110, 'view2 is expanded');
+		assert.equal(view3.size, 20, 'view3 stays the same');
 
-		assert.throws(() => splitview.resizeView(2, 20));
+		splitview.resizeView(2, 40);
 
 		assert.equal(view1.size, 70, 'view1 stays the same');
-		assert.equal(view2.size, 20, 'view2 stays the same');
-		assert.equal(view3.size, 110, 'view3 stays the same');
+		assert.equal(view2.size, 90, 'view2 is collapsed');
+		assert.equal(view3.size, 40, 'view3 is stretched');
 
 		splitview.dispose();
 		view3.dispose();
@@ -252,32 +227,33 @@ suite('Splitview', () => {
 		splitview.addView(view2, 20);
 		splitview.addView(view3, 20);
 
-		assert.equal(view1.size, 20, 'view1 size is restored');
-		assert.equal(view2.size, 20, 'view2 size is restored');
+		assert.equal(view1.size, 160, 'view1 is stretched');
+		assert.equal(view2.size, 20, 'view2 size is 20');
+		assert.equal(view3.size, 20, 'view3 size is 20');
+
+		view1.maximumSize = 20;
+
+		assert.equal(view1.size, 20, 'view1 is collapsed');
+		assert.equal(view2.size, 20, 'view2 stays the same');
 		assert.equal(view3.size, 160, 'view3 is stretched');
 
-		view3.maximumSize = 20;
+		view3.maximumSize = 40;
 
 		assert.equal(view1.size, 20, 'view1 stays the same');
-		assert.equal(view2.size, 160, 'view2 is stretched');
-		assert.equal(view3.size, 20, 'view3 is collapsed');
+		assert.equal(view2.size, 140, 'view2 is stretched');
+		assert.equal(view3.size, 40, 'view3 is collapsed');
 
-		view2.maximumSize = 40;
+		view2.maximumSize = 200;
 
-		assert.equal(view1.size, 140, 'view1 is stretched');
-		assert.equal(view2.size, 40, 'view2 is collapsed');
-		assert.equal(view3.size, 20, 'view3 is collapsed');
+		assert.equal(view1.size, 20, 'view1 stays the same');
+		assert.equal(view2.size, 140, 'view2 stays the same');
+		assert.equal(view3.size, 40, 'view3 stays the same');
 
-		view3.maximumSize = 200;
-
-		assert.equal(view1.size, 140, 'view1 stays the same');
-		assert.equal(view2.size, 40, 'view2 stays the same');
-		assert.equal(view3.size, 20, 'view3 stays the same');
-
+		view3.maximumSize = Number.POSITIVE_INFINITY;
 		view3.minimumSize = 100;
 
-		assert.equal(view1.size, 80, 'view1 is collapsed');
-		assert.equal(view2.size, 20, 'view2 stays the same');
+		assert.equal(view1.size, 20, 'view1 is collapsed');
+		assert.equal(view2.size, 80, 'view2 is collapsed');
 		assert.equal(view3.size, 100, 'view3 is stretched');
 
 		splitview.dispose();
