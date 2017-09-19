@@ -37,6 +37,8 @@ export interface IFileService {
 	 */
 	registerProvider?(authority: string, provider: IFileSystemProvider): IDisposable;
 
+	supportResource?(resource: URI): boolean;
+
 	/**
 	 * Resolve the properties of a file identified by the resource.
 	 *

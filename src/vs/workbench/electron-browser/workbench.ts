@@ -554,6 +554,11 @@ export class Workbench implements IPartService {
 		this.toShutdown.push(this.activitybarPart);
 		serviceCollection.set(IActivityBarService, this.activitybarPart);
 
+		// File Service
+		this.fileService = this.instantiationService.createInstance(RemoteFileService);
+		serviceCollection.set(IFileService, this.fileService);
+		this.toDispose.push(this.fileService.onFileChanges(e => this.configurationService.handleWorkspaceFileEvents(e)));
+
 		// Editor service (editor part)
 		this.editorPart = this.instantiationService.createInstance(EditorPart, Identifiers.EDITOR_PART, !this.hasFilesToCreateOpenOrDiff);
 		this.toDispose.push(this.editorPart);
@@ -567,11 +572,6 @@ export class Workbench implements IPartService {
 		this.toDispose.push(this.titlebarPart);
 		this.toShutdown.push(this.titlebarPart);
 		serviceCollection.set(ITitleService, this.titlebarPart);
-
-		// File Service
-		this.fileService = this.instantiationService.createInstance(RemoteFileService);
-		serviceCollection.set(IFileService, this.fileService);
-		this.toDispose.push(this.fileService.onFileChanges(e => this.configurationService.handleWorkspaceFileEvents(e)));
 
 		// History
 		serviceCollection.set(IHistoryService, new SyncDescriptor(HistoryService));

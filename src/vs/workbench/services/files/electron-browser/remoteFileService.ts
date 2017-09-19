@@ -10,7 +10,7 @@ import { IContent, IStreamContent, IFileStat, IResolveContentOptions, IUpdateCon
 import { TPromise } from 'vs/base/common/winjs.base';
 import { basename, join } from 'path';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { groupBy, isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { groupBy, isFalsyOrEmpty, distinct } from 'vs/base/common/arrays';
 import { compare } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
 import { Progress } from 'vs/platform/progress/common/progress';
@@ -77,15 +77,16 @@ export function toDeepIFileStat(provider: IFileSystemProvider, stat: IStat, to: 
 export class RemoteFileService extends FileService {
 
 	private readonly _provider = new Map<string, IFileSystemProvider>();
+	private _supportedSchemes: string[];
 
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
+		@IStorageService private readonly _storageService: IStorageService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IMessageService messageService: IMessageService,
-		@IStorageService storageService: IStorageService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 	) {
 		super(
@@ -94,15 +95,20 @@ export class RemoteFileService extends FileService {
 			environmentService,
 			lifecycleService,
 			messageService,
-			storageService,
+			_storageService,
 			textResourceConfigurationService,
 		);
+
+		this._supportedSchemes = JSON.parse(this._storageService.get('remote_schemes', undefined, '[]'));
 	}
 
 	registerProvider(authority: string, provider: IFileSystemProvider): IDisposable {
 		if (this._provider.has(authority)) {
 			throw new Error();
 		}
+
+		this._supportedSchemes.push(authority);
+		this._storageService.store('remote_schemes', JSON.stringify(distinct(this._supportedSchemes)));
 
 		this._provider.set(authority, provider);
 		const reg = provider.onDidChange(changes => {
@@ -115,6 +121,13 @@ export class RemoteFileService extends FileService {
 				reg.dispose();
 			}
 		};
+	}
+
+	supportResource(resource: URI): boolean {
+		return resource.scheme === Schemas.file
+			|| this._provider.has(resource.scheme)
+			// TODO@remote
+			|| this._supportedSchemes.indexOf(resource.scheme) >= 0;
 	}
 
 	// --- stat
