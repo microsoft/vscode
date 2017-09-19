@@ -104,6 +104,7 @@ export class SplitView implements IDisposable {
 			previousSize = item.size;
 		};
 
+		size = Math.round(size);
 		const explicitSize = size;
 		const item: IViewItem = { view, container, explicitSize, size, layout, disposable };
 		this.viewItems.splice(index, 0, item);
@@ -214,6 +215,7 @@ export class SplitView implements IDisposable {
 			return;
 		}
 
+		size = Math.round(size);
 		this.resize(index, size - this.viewItems[index].size);
 	}
 
