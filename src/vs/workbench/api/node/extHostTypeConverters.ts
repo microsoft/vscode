@@ -448,6 +448,24 @@ export namespace DocumentLink {
 	}
 }
 
+export namespace ColorPresentation {
+	export function to(colorPresentation: modes.IColorPresentation): vscode.ColorPresentation {
+		return {
+			label: colorPresentation.label,
+			textEdit: colorPresentation.textEdit ? TextEdit.to(colorPresentation.textEdit) : undefined,
+			additionalTextEdits: colorPresentation.additionalTextEdits ? colorPresentation.additionalTextEdits.map(value => TextEdit.to(value)) : undefined
+		};
+	}
+
+	export function from(colorPresentation: vscode.ColorPresentation): modes.IColorPresentation {
+		return {
+			label: colorPresentation.label,
+			textEdit: colorPresentation.textEdit ? TextEdit.from(colorPresentation.textEdit) : undefined,
+			additionalTextEdits: colorPresentation.additionalTextEdits ? colorPresentation.additionalTextEdits.map(value => TextEdit.from(value)) : undefined
+		};
+	}
+}
+
 export namespace TextDocumentSaveReason {
 
 	export function to(reason: SaveReason): vscode.TextDocumentSaveReason {

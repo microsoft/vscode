@@ -6,7 +6,7 @@
 
 import * as path from 'path';
 
-import { workspace, languages, ExtensionContext, extensions, Uri, TextDocument, ColorRange, Color, ColorFormat } from 'vscode';
+import { workspace, languages, ExtensionContext, extensions, Uri, TextDocument, ColorInformation, Color, ColorPresentation, TextEdit } from 'vscode';
 import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import { ConfigurationFeature } from 'vscode-languageclient/lib/proposed';
@@ -122,22 +122,29 @@ export function activate(context: ExtensionContext) {
 		};
 		// register color provider
 		context.subscriptions.push(languages.registerColorProvider(documentSelector, {
-			provideDocumentColors(document: TextDocument): Thenable<ColorRange[]> {
+			provideDocumentColors(document: TextDocument): Thenable<ColorInformation[]> {
 				let params = client.code2ProtocolConverter.asDocumentSymbolParams(document);
 				return client.sendRequest(DocumentColorRequest.type, params).then(symbols => {
 					return symbols.map(symbol => {
 						let range = client.protocol2CodeConverter.asRange(symbol.range);
 						let color = new Color(symbol.color.red * 255, symbol.color.green * 255, symbol.color.blue * 255, symbol.color.alpha);
-						return new ColorRange(range, color);
+						return new ColorInformation(range, color);
 					});
 				});
 			},
-			resolveDocumentColor(color: Color, colorFormat: ColorFormat): Thenable<string> | string {
+			provideColorPresentations(colorInfo: ColorInformation): ColorPresentation[] | Thenable<ColorPresentation[]> {
+				let result: ColorPresentation[] = [];
+				let color = colorInfo.color;
+				let label;
+
 				if (color.alpha === 1) {
-					return `#${_toTwoDigitHex(Math.round(color.red * 255))}${_toTwoDigitHex(Math.round(color.green * 255))}${_toTwoDigitHex(Math.round(color.blue * 255))}`;
+					label = `#${_toTwoDigitHex(Math.round(color.red * 255))}${_toTwoDigitHex(Math.round(color.green * 255))}${_toTwoDigitHex(Math.round(color.blue * 255))}`;
 				} else {
-					return `#${_toTwoDigitHex(Math.round(color.red * 255))}${_toTwoDigitHex(Math.round(color.green * 255))}${_toTwoDigitHex(Math.round(color.blue * 255))}${_toTwoDigitHex(Math.round(color.alpha * 255))}`;
+					label = `#${_toTwoDigitHex(Math.round(color.red * 255))}${_toTwoDigitHex(Math.round(color.green * 255))}${_toTwoDigitHex(Math.round(color.blue * 255))}${_toTwoDigitHex(Math.round(color.alpha * 255))}`;
 				}
+
+				result.push({ label: label, textEdit: new TextEdit(colorInfo.range, label) });
+				return result;
 			}
 		}));
 	});
