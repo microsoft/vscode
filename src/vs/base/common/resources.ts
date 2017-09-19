@@ -18,3 +18,9 @@ export function isEqualOrParent(first: uri, second: uri, ignoreCase?: boolean): 
 
 	return false;
 }
+
+export function dirname(resource: uri): uri {
+	return resource.with({
+		path: paths.dirname(resource.path)
+	});
+}

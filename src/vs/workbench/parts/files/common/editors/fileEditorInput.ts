@@ -8,6 +8,7 @@ import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { memoize } from 'vs/base/common/decorators';
 import paths = require('vs/base/common/paths');
+import resources = require('vs/base/common/resources');
 import labels = require('vs/base/common/labels');
 import URI from 'vs/base/common/uri';
 import { EncodingMode, ConfirmResult, EditorInput, IFileEditorInput, ITextEditorModel } from 'vs/workbench/common/editor';
@@ -117,7 +118,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	public getName(): string {
 		if (!this.name) {
-			this.name = paths.basename(this.resource.fsPath);
+			this.name = resources.basenameOrAuthority(this.resource);
 		}
 
 		return this.decorateOrphanedFiles(this.name);
@@ -125,17 +126,18 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	@memoize
 	private get shortDescription(): string {
-		return paths.basename(labels.getPathLabel(paths.dirname(this.resource.path), void 0, this.environmentService));
+
+		return paths.basename(labels.getPathLabel(resources.dirname(this.resource), void 0, this.environmentService));
 	}
 
 	@memoize
 	private get mediumDescription(): string {
-		return labels.getPathLabel(paths.dirname(this.resource.path), this.contextService, this.environmentService);
+		return labels.getPathLabel(resources.dirname(this.resource), this.contextService, this.environmentService);
 	}
 
 	@memoize
 	private get longDescription(): string {
-		return labels.getPathLabel(paths.dirname(this.resource.path), void 0, this.environmentService);
+		return labels.getPathLabel(resources.dirname(this.resource), void 0, this.environmentService);
 	}
 
 	public getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string {

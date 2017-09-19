@@ -11,6 +11,7 @@ import { memoize } from 'vs/base/common/decorators';
 import labels = require('vs/base/common/labels');
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import paths = require('vs/base/common/paths');
+import resources = require('vs/base/common/resources');
 import { EditorInput, IEncodingSupport, EncodingMode, ConfirmResult } from 'vs/workbench/common/editor';
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -87,22 +88,22 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 	}
 
 	public getName(): string {
-		return this.hasAssociatedFilePath ? paths.basename(this.resource.fsPath) : this.resource.fsPath;
+		return this.hasAssociatedFilePath ? resources.basenameOrAuthority(this.resource) : this.resource.path;
 	}
 
 	@memoize
 	private get shortDescription(): string {
-		return paths.basename(labels.getPathLabel(paths.dirname(this.resource.path), void 0, this.environmentService));
+		return paths.basename(labels.getPathLabel(resources.dirname(this.resource), void 0, this.environmentService));
 	}
 
 	@memoize
 	private get mediumDescription(): string {
-		return labels.getPathLabel(paths.dirname(this.resource.path), this.contextService, this.environmentService);
+		return labels.getPathLabel(resources.dirname(this.resource), this.contextService, this.environmentService);
 	}
 
 	@memoize
 	private get longDescription(): string {
-		return labels.getPathLabel(paths.dirname(this.resource.path), void 0, this.environmentService);
+		return labels.getPathLabel(resources.dirname(this.resource), void 0, this.environmentService);
 	}
 
 	public getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string {
