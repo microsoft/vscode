@@ -465,6 +465,15 @@ export namespace Task {
 	export function matches(task: Task, alias: string): boolean {
 		return alias === task._label || alias === task.identifier;
 	}
+
+	export function getQualifiedLabel(task: Task): string {
+		let workspaceFolder = getWorkspaceFolder(task);
+		if (workspaceFolder) {
+			return `${task._label} (${workspaceFolder.name})`;
+		} else {
+			return task._label;
+		}
+	}
 }
 
 
