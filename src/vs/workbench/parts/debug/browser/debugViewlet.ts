@@ -49,8 +49,11 @@ export class DebugViewlet extends PersistentViewsViewlet {
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateTitleArea()));
 	}
 
-	public create(parent: Builder): TPromise<void> {
-		return super.create(parent).then(() => DOM.addClass(this.viewletContainer, 'debug-viewlet'));
+	async create(parent: Builder): TPromise<void> {
+		await super.create(parent);
+
+		const el = parent.getHTMLElement();
+		DOM.addClass(el, 'debug-viewlet');
 	}
 
 	public focus(): void {

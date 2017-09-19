@@ -27,7 +27,7 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import * as DOM from 'vs/base/browser/dom';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
-import { CollapsibleView, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/views';
+import { ViewsViewletPanel, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/views';
 import { FileStat, Model } from 'vs/workbench/parts/files/common/explorerModel';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -45,13 +45,12 @@ import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/th
 import { isLinux } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
-import { ViewSizing } from 'vs/base/browser/ui/splitview/splitview';
 
 export interface IExplorerViewOptions extends IViewletViewOptions {
 	viewletState: FileViewletState;
 }
 
-export class ExplorerView extends CollapsibleView {
+export class ExplorerView extends ViewsViewletPanel {
 
 	public static ID: string = 'workbench.explorer.fileView';
 	private static EXPLORER_FILE_CHANGES_REACT_DELAY = 500; // delay in ms to react to file changes to give our internal events a chance to react first
@@ -84,7 +83,6 @@ export class ExplorerView extends CollapsibleView {
 	private settings: object;
 
 	constructor(
-		initialSize: number,
 		options: IExplorerViewOptions,
 		@IMessageService private messageService: IMessageService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -102,11 +100,10 @@ export class ExplorerView extends CollapsibleView {
 		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
-		super(initialSize, { ...(options as IViewOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section"), sizing: ViewSizing.Flexible }, keybindingService, contextMenuService);
+		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService);
 
 		this.settings = options.viewletSettings;
 		this.viewletState = options.viewletState;
-		this.actionRunner = options.actionRunner;
 		this.autoReveal = true;
 
 		this.explorerRefreshDelayer = new ThrottledDelayer<void>(ExplorerView.EXPLORER_FILE_CHANGES_REFRESH_DELAY);
@@ -128,7 +125,7 @@ export class ExplorerView extends CollapsibleView {
 		return (configuration && configuration.files && configuration.files.exclude) || Object.create(null);
 	}
 
-	public renderHeader(container: HTMLElement): void {
+	protected renderHeader(container: HTMLElement): void {
 		const titleDiv = $('div.title').appendTo(container);
 		const titleSpan = $('span').appendTo(titleDiv);
 		const setHeader = () => {
@@ -157,8 +154,8 @@ export class ExplorerView extends CollapsibleView {
 
 		this.tree = this.createViewer($(this.treeContainer));
 
-		if (this.toolBar) {
-			this.toolBar.setActions(prepareActions(this.getActions()), this.getSecondaryActions())();
+		if (this.toolbar) {
+			this.toolbar.setActions(prepareActions(this.getActions()), this.getSecondaryActions())();
 		}
 
 		const onFileIconThemeChange = (fileIconTheme: IFileIconTheme) => {
@@ -272,7 +269,9 @@ export class ExplorerView extends CollapsibleView {
 		}
 	}
 
-	public focusBody(): void {
+	public focus(): void {
+		super.focus();
+
 		let keepFocus = false;
 
 		// Make sure the current selected element is revealed
@@ -940,13 +939,5 @@ export class ExplorerView extends CollapsibleView {
 		}
 
 		super.shutdown();
-	}
-
-	public dispose(): void {
-		if (this.toolBar) {
-			this.toolBar.dispose();
-		}
-
-		super.dispose();
 	}
 }

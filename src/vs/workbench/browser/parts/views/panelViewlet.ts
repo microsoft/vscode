@@ -50,8 +50,8 @@ export abstract class ViewletPanel extends Panel {
 	private _onDidFocus = new Emitter<void>();
 	readonly onDidFocus: Event<void> = this._onDidFocus.event;
 
-	private actionRunner: IActionRunner;
-	private toolbar: ToolBar;
+	protected actionRunner: IActionRunner;
+	protected toolbar: ToolBar;
 
 	constructor(
 		readonly title: string,
@@ -253,6 +253,7 @@ export class PanelViewlet extends Viewlet {
 
 	private updateViewHeaders(): void {
 		if (this.isSingleView()) {
+			this.panelItems[0].panel.setExpanded(true);
 			this.panelItems[0].panel.headerVisible = false;
 		} else {
 			this.panelItems.forEach(i => i.panel.headerVisible = true);

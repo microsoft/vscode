@@ -6,7 +6,6 @@
 import Event, { Emitter } from 'vs/base/common/event';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ITreeViewDataProvider } from 'vs/workbench/common/views';
-import { IViewConstructorSignature } from 'vs/workbench/browser/parts/views/views';
 
 export class ViewLocation {
 
@@ -39,7 +38,8 @@ export interface IViewDescriptor {
 
 	readonly location: ViewLocation;
 
-	readonly ctor: IViewConstructorSignature;
+	// TODO do we really need this?!
+	readonly ctor: any;
 
 	readonly when?: ContextKeyExpr;
 

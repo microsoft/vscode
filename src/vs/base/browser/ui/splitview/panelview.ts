@@ -34,7 +34,7 @@ export abstract class Panel implements IView {
 
 	private static HEADER_SIZE = 22;
 
-	private _expanded: boolean;
+	protected _expanded: boolean;
 	private _headerVisible = true;
 	private _onDidChange = new Emitter<void>();
 	private _minimumBodySize: number;
@@ -77,7 +77,7 @@ export abstract class Panel implements IView {
 
 	get minimumSize(): number {
 		const headerSize = this.headerSize;
-		const expanded = !this.headerVisible || this.expanded;
+		const expanded = !this.headerVisible || this.isExpanded();
 		const minimumBodySize = expanded ? this._minimumBodySize : 0;
 
 		return headerSize + minimumBodySize;
@@ -85,7 +85,7 @@ export abstract class Panel implements IView {
 
 	get maximumSize(): number {
 		const headerSize = this.headerSize;
-		const expanded = !this.headerVisible || this.expanded;
+		const expanded = !this.headerVisible || this.isExpanded();
 		const maximumBodySize = expanded ? this._maximumBodySize : 0;
 
 		return headerSize + maximumBodySize;
@@ -101,11 +101,11 @@ export abstract class Panel implements IView {
 		this.header = $('.panel-header');
 	}
 
-	get expanded(): boolean {
+	isExpanded(): boolean {
 		return this._expanded;
 	}
 
-	set expanded(expanded: boolean) {
+	setExpanded(expanded: boolean): void {
 		if (this._expanded === !!expanded) {
 			return;
 		}
@@ -148,16 +148,16 @@ export abstract class Panel implements IView {
 			.map(e => new StandardKeyboardEvent(e));
 
 		onHeaderKeyDown.filter(e => e.keyCode === KeyCode.Enter || e.keyCode === KeyCode.Space)
-			.event(() => this.expanded = !this.expanded, null, this.disposables);
+			.event(() => this.setExpanded(!this.isExpanded()), null, this.disposables);
 
 		onHeaderKeyDown.filter(e => e.keyCode === KeyCode.LeftArrow)
-			.event(() => this.expanded = false, null, this.disposables);
+			.event(() => this.setExpanded(false), null, this.disposables);
 
 		onHeaderKeyDown.filter(e => e.keyCode === KeyCode.RightArrow)
-			.event(() => this.expanded = true, null, this.disposables);
+			.event(() => this.setExpanded(true), null, this.disposables);
 
 		domEvent(this.header, 'click')
-			(() => this.expanded = !this.expanded, null, this.disposables);
+			(() => this.setExpanded(!this.isExpanded()), null, this.disposables);
 
 		// TODO@Joao move this down to panelview
 		// onHeaderKeyDown.filter(e => e.keyCode === KeyCode.UpArrow)
@@ -182,8 +182,8 @@ export abstract class Panel implements IView {
 		this._dropBackground = styles.dropBackground;
 	}
 
-	private updateHeader(): void {
-		const expanded = !this.headerVisible || this.expanded;
+	protected updateHeader(): void {
+		const expanded = !this.headerVisible || this.isExpanded();
 
 		this.header.style.height = `${this.headerSize}px`;
 		this.header.style.lineHeight = `${this.headerSize}px`;

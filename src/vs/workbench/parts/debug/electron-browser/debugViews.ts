@@ -15,9 +15,8 @@ import { IAction } from 'vs/base/common/actions';
 import { prepareActions } from 'vs/workbench/browser/actions';
 import { IHighlightEvent, ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
-import { CollapsibleState, ViewSizing } from 'vs/base/browser/ui/splitview/splitview';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
-import { CollapsibleView, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/views';
+import { ViewsViewletPanel, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/views';
 import { IDebugService, State, IBreakpoint, IExpression, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED } from 'vs/workbench/parts/debug/common/debug';
 import { Expression, Variable, ExceptionBreakpoint, FunctionBreakpoint, Thread, StackFrame, Breakpoint, ThreadAndProcessIds } from 'vs/workbench/parts/debug/common/debugModel';
 import * as viewer from 'vs/workbench/parts/debug/electron-browser/debugViewer';
@@ -42,7 +41,7 @@ function renderViewTree(container: HTMLElement): HTMLElement {
 const $ = builder.$;
 const twistiePixels = 20;
 
-export class VariablesView extends CollapsibleView {
+export class VariablesView extends ViewsViewletPanel {
 
 	private static MEMENTO = 'variablesview.memento';
 	private onFocusStackFrameScheduler: RunOnceScheduler;
@@ -50,7 +49,6 @@ export class VariablesView extends CollapsibleView {
 	private settings: any;
 
 	constructor(
-		initialSize: number,
 		private options: IViewletViewOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@ITelemetryService private telemetryService: ITelemetryService,
@@ -61,7 +59,7 @@ export class VariablesView extends CollapsibleView {
 		@IListService private listService: IListService,
 		@IThemeService private themeService: IThemeService
 	) {
-		super(initialSize, { ...(options as IViewOptions), sizing: ViewSizing.Flexible, ariaHeaderLabel: nls.localize('variablesSection', "Variables Section") }, keybindingService, contextMenuService);
+		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('variablesSection', "Variables Section") }, keybindingService, contextMenuService);
 
 		this.settings = options.viewletSettings;
 		this.variablesFocusedContext = CONTEXT_VARIABLES_FOCUSED.bindTo(contextKeyService);
@@ -84,11 +82,11 @@ export class VariablesView extends CollapsibleView {
 		}, 400);
 	}
 
-	public renderHeader(container: HTMLElement): void {
+	protected renderHeader(container: HTMLElement): void {
+		super.renderHeader(container);
+
 		const titleDiv = $('div.title').appendTo(container);
 		$('span').text(this.options.name).appendTo(titleDiv);
-
-		super.renderHeader(container);
 	}
 
 	public renderBody(container: HTMLElement): void {
@@ -114,7 +112,7 @@ export class VariablesView extends CollapsibleView {
 		this.tree.setInput(viewModel);
 
 		const collapseAction = this.instantiationService.createInstance(CollapseAction, this.tree, false, 'explorer-action collapse-explorer');
-		this.toolBar.setActions(prepareActions([collapseAction]))();
+		this.toolbar.setActions(prepareActions([collapseAction]))();
 
 		this.toDispose.push(viewModel.onDidFocusStackFrame(sf => {
 			// Refresh the tree immediately if it is not visible.
@@ -146,12 +144,12 @@ export class VariablesView extends CollapsibleView {
 	}
 
 	public shutdown(): void {
-		this.settings[VariablesView.MEMENTO] = (this.state === CollapsibleState.COLLAPSED);
+		this.settings[VariablesView.MEMENTO] = !this.isExpanded();
 		super.shutdown();
 	}
 }
 
-export class WatchExpressionsView extends CollapsibleView {
+export class WatchExpressionsView extends ViewsViewletPanel {
 
 	private static MEMENTO = 'watchexpressionsview.memento';
 	private onWatchExpressionsUpdatedScheduler: RunOnceScheduler;
@@ -160,7 +158,6 @@ export class WatchExpressionsView extends CollapsibleView {
 	private settings: any;
 
 	constructor(
-		size: number,
 		private options: IViewletViewOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IDebugService private debugService: IDebugService,
@@ -170,13 +167,13 @@ export class WatchExpressionsView extends CollapsibleView {
 		@IListService private listService: IListService,
 		@IThemeService private themeService: IThemeService
 	) {
-		super(size, { ...(options as IViewOptions), ariaHeaderLabel: nls.localize('expressionsSection', "Expressions Section"), sizing: ViewSizing.Flexible }, keybindingService, contextMenuService);
+		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('expressionsSection', "Expressions Section") }, keybindingService, contextMenuService);
 		this.settings = options.viewletSettings;
 
 		this.toDispose.push(this.debugService.getModel().onDidChangeWatchExpressions(we => {
 			// only expand when a new watch expression is added.
 			if (we instanceof Expression) {
-				this.expand();
+				this.setExpanded(true);
 			}
 		}));
 		this.watchExpressionsFocusedContext = CONTEXT_WATCH_EXPRESSIONS_FOCUSED.bindTo(contextKeyService);
@@ -188,11 +185,11 @@ export class WatchExpressionsView extends CollapsibleView {
 		}, 50);
 	}
 
-	public renderHeader(container: HTMLElement): void {
+	protected renderHeader(container: HTMLElement): void {
+		super.renderHeader(container);
+
 		const titleDiv = $('div.title').appendTo(container);
 		$('span').text(this.options.name).appendTo(titleDiv);
-
-		super.renderHeader(container);
 	}
 
 	public renderBody(container: HTMLElement): void {
@@ -220,7 +217,7 @@ export class WatchExpressionsView extends CollapsibleView {
 		const addWatchExpressionAction = this.instantiationService.createInstance(AddWatchExpressionAction, AddWatchExpressionAction.ID, AddWatchExpressionAction.LABEL);
 		const collapseAction = this.instantiationService.createInstance(CollapseAction, this.tree, true, 'explorer-action collapse-explorer');
 		const removeAllWatchExpressionsAction = this.instantiationService.createInstance(RemoveAllWatchExpressionsAction, RemoveAllWatchExpressionsAction.ID, RemoveAllWatchExpressionsAction.LABEL);
-		this.toolBar.setActions(prepareActions([addWatchExpressionAction, collapseAction, removeAllWatchExpressionsAction]))();
+		this.toolbar.setActions(prepareActions([addWatchExpressionAction, collapseAction, removeAllWatchExpressionsAction]))();
 
 		this.toDispose.push(this.debugService.getModel().onDidChangeWatchExpressions(we => {
 			if (!this.onWatchExpressionsUpdatedScheduler.isScheduled()) {
@@ -246,12 +243,12 @@ export class WatchExpressionsView extends CollapsibleView {
 	}
 
 	public shutdown(): void {
-		this.settings[WatchExpressionsView.MEMENTO] = (this.state === CollapsibleState.COLLAPSED);
+		this.settings[WatchExpressionsView.MEMENTO] = !this.isExpanded();
 		super.shutdown();
 	}
 }
 
-export class CallStackView extends CollapsibleView {
+export class CallStackView extends ViewsViewletPanel {
 
 	private static MEMENTO = 'callstackview.memento';
 	private pauseMessage: builder.Builder;
@@ -260,7 +257,6 @@ export class CallStackView extends CollapsibleView {
 	private settings: any;
 
 	constructor(
-		size: number,
 		private options: IViewletViewOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@ITelemetryService private telemetryService: ITelemetryService,
@@ -270,7 +266,7 @@ export class CallStackView extends CollapsibleView {
 		@IListService private listService: IListService,
 		@IThemeService private themeService: IThemeService
 	) {
-		super(size, { ...(options as IViewOptions), ariaHeaderLabel: nls.localize('callstackSection', "Call Stack Section"), sizing: ViewSizing.Flexible }, keybindingService, contextMenuService);
+		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('callstackSection', "Call Stack Section") }, keybindingService, contextMenuService);
 		this.settings = options.viewletSettings;
 
 		// Create scheduler to prevent unnecessary flashing of tree when reacting to changes
@@ -301,14 +297,14 @@ export class CallStackView extends CollapsibleView {
 		}, 50);
 	}
 
-	public renderHeader(container: HTMLElement): void {
+	protected renderHeader(container: HTMLElement): void {
+		super.renderHeader(container);
+
 		const title = $('div.debug-call-stack-title').appendTo(container);
 		$('span.title').text(this.options.name).appendTo(title);
 		this.pauseMessage = $('span.pause-message').appendTo(title);
 		this.pauseMessage.hide();
 		this.pauseMessageLabel = $('span.label').appendTo(this.pauseMessage);
-
-		super.renderHeader(container);
 	}
 
 	public renderBody(container: HTMLElement): void {
@@ -386,12 +382,12 @@ export class CallStackView extends CollapsibleView {
 	}
 
 	public shutdown(): void {
-		this.settings[CallStackView.MEMENTO] = (this.state === CollapsibleState.COLLAPSED);
+		this.settings[CallStackView.MEMENTO] = !this.isExpanded();
 		super.shutdown();
 	}
 }
 
-export class BreakpointsView extends CollapsibleView {
+export class BreakpointsView extends ViewsViewletPanel {
 
 	private static MAX_VISIBLE_FILES = 9;
 	private static MEMENTO = 'breakopintsview.memento';
@@ -399,7 +395,6 @@ export class BreakpointsView extends CollapsibleView {
 	private settings: any;
 
 	constructor(
-		size: number,
 		private options: IViewletViewOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IDebugService private debugService: IDebugService,
@@ -409,11 +404,9 @@ export class BreakpointsView extends CollapsibleView {
 		@IListService private listService: IListService,
 		@IThemeService private themeService: IThemeService
 	) {
-		super(size, {
+		super({
 			...(options as IViewOptions),
-			ariaHeaderLabel: nls.localize('breakpointsSection', "Breakpoints Section"),
-			sizing: ViewSizing.Fixed,
-			initialBodySize: BreakpointsView.getExpandedBodySize(debugService.getModel().getBreakpoints().length + debugService.getModel().getFunctionBreakpoints().length + debugService.getModel().getExceptionBreakpoints().length)
+			ariaHeaderLabel: nls.localize('breakpointsSection', "Breakpoints Section")
 		}, keybindingService, contextMenuService);
 
 		this.settings = options.viewletSettings;
@@ -421,11 +414,11 @@ export class BreakpointsView extends CollapsibleView {
 		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.onBreakpointsChange()));
 	}
 
-	public renderHeader(container: HTMLElement): void {
+	protected renderHeader(container: HTMLElement): void {
+		super.renderHeader(container);
+
 		const titleDiv = $('div.title').appendTo(container);
 		$('span').text(this.options.name).appendTo(titleDiv);
-
-		super.renderHeader(container);
 	}
 
 	public renderBody(container: HTMLElement): void {
@@ -514,8 +507,9 @@ export class BreakpointsView extends CollapsibleView {
 
 	private onBreakpointsChange(): void {
 		const model = this.debugService.getModel();
-		this.setBodySize(BreakpointsView.getExpandedBodySize(
-			model.getBreakpoints().length + model.getExceptionBreakpoints().length + model.getFunctionBreakpoints().length));
+
+		const bodySize = BreakpointsView.getExpandedBodySize(model.getBreakpoints().length + model.getExceptionBreakpoints().length + model.getFunctionBreakpoints().length);
+		this.minimumBodySize = this.maximumBodySize = bodySize;
 
 		if (this.tree) {
 			this.tree.refresh();
@@ -527,7 +521,7 @@ export class BreakpointsView extends CollapsibleView {
 	}
 
 	public shutdown(): void {
-		this.settings[BreakpointsView.MEMENTO] = (this.state === CollapsibleState.COLLAPSED);
+		this.settings[BreakpointsView.MEMENTO] = !this.isExpanded();
 		super.shutdown();
 	}
 }
