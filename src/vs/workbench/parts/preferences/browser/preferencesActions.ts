@@ -119,10 +119,11 @@ export class OpenFolderSettingsAction extends Action {
 		super(id, label);
 		this.update();
 		this.workspaceContextService.onDidChangeWorkbenchState(() => this.update(), this, this.disposables);
+		this.workspaceContextService.onDidChangeWorkspaceFolders(() => this.update(), this, this.disposables);
 	}
 
 	private update(): void {
-		this.enabled = this.workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE;
+		this.enabled = this.workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE && this.workspaceContextService.getWorkspace().folders.length > 0;
 	}
 
 	public run(): TPromise<any> {
