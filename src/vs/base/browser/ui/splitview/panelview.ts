@@ -35,7 +35,7 @@ export abstract class Panel implements IView {
 	private static HEADER_SIZE = 22;
 
 	private _expanded: boolean;
-	private _headerVisible: boolean;
+	private _headerVisible = true;
 	private _onDidChange = new Emitter<void>();
 	private _minimumBodySize: number;
 	private _maximumBodySize: number;
@@ -357,6 +357,16 @@ export class PanelView implements IDisposable {
 		this.panelItems.splice(toIndex < fromIndex ? toIndex : toIndex - 1, 0, panelItem);
 
 		this.splitview.moveView(fromIndex, toIndex);
+	}
+
+	resizePanel(panel: Panel, size: number): void {
+		const index = firstIndex(this.panelItems, item => item.panel === panel);
+
+		if (index === -1) {
+			return;
+		}
+
+		this.splitview.resizeView(index, size);
 	}
 
 	layout(size: number): void {
