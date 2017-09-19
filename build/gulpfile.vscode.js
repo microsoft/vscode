@@ -458,9 +458,19 @@ gulp.task('upload-vscode-configuration', ['generate-vscode-configuration'], () =
 			account: process.env.AZURE_STORAGE_ACCOUNT,
 			key: process.env.AZURE_STORAGE_ACCESS_KEY,
 			container: 'configuration',
-			prefix: `${packageJson.version}/${commit}/`
+			prefix: `${versionStringToNumber(packageJson.version)}/${commit}/`
 		}));
 });
+
+function versionStringToNumber(versionStr) {
+	const semverRegex = /(\d+)\.(\d+)\.(\d+)/;
+	const match = versionStr.match(semverRegex);
+	if (!match) {
+		return 0;
+	}
+
+	return parseInt(match[1], 10) * 10000 + parseInt(match[2], 10) * 100 + parseInt(match[3], 10);
+}
 
 gulp.task('generate-vscode-configuration', () => {
 	return new Promise((resolve, reject) => {
