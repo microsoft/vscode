@@ -82,13 +82,6 @@ export class VariablesView extends ViewsViewletPanel {
 		}, 400);
 	}
 
-	protected renderHeader(container: HTMLElement): void {
-		super.renderHeader(container);
-
-		const titleDiv = $('div.title').appendTo(container);
-		$('span').text(this.options.name).appendTo(titleDiv);
-	}
-
 	public renderBody(container: HTMLElement): void {
 		dom.addClass(container, 'debug-variables');
 		this.treeContainer = renderViewTree(container);
@@ -183,13 +176,6 @@ export class WatchExpressionsView extends ViewsViewletPanel {
 				return this.toReveal instanceof Expression ? this.tree.reveal(this.toReveal) : TPromise.as(true);
 			}, errors.onUnexpectedError);
 		}, 50);
-	}
-
-	protected renderHeader(container: HTMLElement): void {
-		super.renderHeader(container);
-
-		const titleDiv = $('div.title').appendTo(container);
-		$('span').text(this.options.name).appendTo(titleDiv);
 	}
 
 	public renderBody(container: HTMLElement): void {
@@ -297,11 +283,9 @@ export class CallStackView extends ViewsViewletPanel {
 		}, 50);
 	}
 
-	protected renderHeader(container: HTMLElement): void {
-		super.renderHeader(container);
-
-		const title = $('div.debug-call-stack-title').appendTo(container);
-		$('span.title').text(this.options.name).appendTo(title);
+	protected renderHeaderTitle(container: HTMLElement): void {
+		const title = $('.title.debug-call-stack-title').appendTo(container);
+		$('span').text(this.options.name).appendTo(title);
 		this.pauseMessage = $('span.pause-message').appendTo(title);
 		this.pauseMessage.hide();
 		this.pauseMessageLabel = $('span.label').appendTo(this.pauseMessage);
@@ -412,13 +396,6 @@ export class BreakpointsView extends ViewsViewletPanel {
 		this.settings = options.viewletSettings;
 		this.breakpointsFocusedContext = CONTEXT_BREAKPOINTS_FOCUSED.bindTo(contextKeyService);
 		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.onBreakpointsChange()));
-	}
-
-	protected renderHeader(container: HTMLElement): void {
-		super.renderHeader(container);
-
-		const titleDiv = $('div.title').appendTo(container);
-		$('span').text(this.options.name).appendTo(titleDiv);
 	}
 
 	public renderBody(container: HTMLElement): void {
