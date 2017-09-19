@@ -418,7 +418,7 @@ function scmResourceIdentityProvider(r: ISCMResourceGroup | ISCMResource): strin
 
 export class RepositoryPanel extends ViewletPanel {
 
-	private cachedHeight: number | undefined;
+	private cachedHeight: number | undefined = undefined;
 	private inputBoxContainer: HTMLElement;
 	private inputBox: InputBox;
 	private listContainer: HTMLElement;
@@ -531,7 +531,7 @@ export class RepositoryPanel extends ViewletPanel {
 	}
 
 	layoutBody(height: number = this.cachedHeight): void {
-		if (!height === undefined) {
+		if (height === undefined) {
 			return;
 		}
 
@@ -698,7 +698,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 		@IStorageService storageService: IStorageService,
 		@IExtensionService extensionService: IExtensionService
 	) {
-		super(VIEWLET_ID, { showHeaderInTitleWhenSingleView: false }, telemetryService, themeService);
+		super(VIEWLET_ID, { showHeaderInTitleWhenSingleView: true }, telemetryService, themeService);
 
 		this.menus = instantiationService.createInstance(SCMMenus, undefined);
 		this.menus.onDidChangeTitle(this.updateTitleArea, this, this.disposables);
