@@ -175,7 +175,7 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 		};
 	}
 
-	create(parent: Builder): TPromise<void> {
+	async create(parent: Builder): TPromise<void> {
 		parent.addClass('extensions-viewlet');
 		this.root = parent.getHTMLElement();
 
@@ -204,14 +204,14 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 
 		this.onSearchChange = mapEvent(onSearchInput, e => e.target.value);
 
-		return this.extensionManagementService.getInstalled(LocalExtensionType.User)
-			.then(installed => {
-				if (installed.length === 0) {
-					this.searchBox.value = '@sort:installs';
-					this.searchExtensionsContextKey.set(true);
-				}
-				return super.create(new Builder(this.extensionsBox));
-			});
+		await super.create(new Builder(this.extensionsBox));
+
+		const installed = await this.extensionManagementService.getInstalled(LocalExtensionType.User);
+
+		if (installed.length === 0) {
+			this.searchBox.value = '@sort:installs';
+			this.searchExtensionsContextKey.set(true);
+		}
 	}
 
 	public updateStyles(): void {
