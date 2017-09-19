@@ -331,7 +331,11 @@ export class DebugService implements debug.IDebugService {
 				if (this.customTelemetryService && this.telemetryService.isOptedIn) {
 					this.customTelemetryService.publicLog(event.body.output, event.body.data);
 				}
-			} else if (event.body.variablesReference) {
+
+				return;
+			}
+
+			if (event.body.variablesReference) {
 				const container = new ExpressionContainer(process, event.body.variablesReference, generateUuid());
 				container.getChildren().then(children => {
 					children.forEach(child => {
