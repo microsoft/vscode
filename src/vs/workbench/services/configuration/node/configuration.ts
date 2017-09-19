@@ -438,7 +438,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 			this._onDidChangeWorkspaceName.fire();
 		}
 
-		if (!equals(this.workspace.folders, currentFolders, (folder1, folder2) => folder1.uri.fsPath === folder2.uri.fsPath)) {
+		if (!equals(this.workspace.folders, currentFolders, (folder1, folder2) => folder1.uri.toString() === folder2.uri.toString())) {
 			this._onDidChangeWorkspaceFolders.fire();
 		}
 	}
@@ -487,7 +487,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	private onWorkspaceConfigurationChanged(): void {
 		if (this.workspace && this.workspace.configuration) {
 			let configuredFolders = toWorkspaceFolders(this.workspaceConfiguration.workspaceConfigurationModel.folders, URI.file(paths.dirname(this.workspace.configuration.fsPath)));
-			const foldersChanged = !equals(this.workspace.folders, configuredFolders, (folder1, folder2) => folder1.uri.fsPath === folder2.uri.fsPath);
+			const foldersChanged = !equals(this.workspace.folders, configuredFolders, (folder1, folder2) => folder1.uri.toString() === folder2.uri.toString());
 			if (foldersChanged) { // TODO@Sandeep be smarter here about detecting changes
 				this.workspace.folders = configuredFolders;
 				this.onFoldersChanged()
@@ -841,7 +841,7 @@ export class Configuration<T> extends BaseConfiguration<T> {
 	}
 
 	deleteFolderConfiguration(folder: URI): boolean {
-		if (this._workspace && this._workspace.folders.length > 0 && this._workspace.folders[0].uri.fsPath === folder.fsPath) {
+		if (this._workspace && this._workspace.folders.length > 0 && this._workspace.folders[0].uri.toString() === folder.toString()) {
 			// Do not remove workspace configuration
 			return false;
 		}

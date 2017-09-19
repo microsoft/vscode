@@ -791,7 +791,7 @@ abstract class AbstractSettingsEditorContribution extends Disposable {
 
 	private _hasAssociatedPreferencesModelChanged(associatedPreferencesModelUri: URI): TPromise<boolean> {
 		return this.preferencesRendererCreationPromise.then(preferencesRenderer => {
-			return !(preferencesRenderer && preferencesRenderer.associatedPreferencesModel && preferencesRenderer.associatedPreferencesModel.uri.fsPath === associatedPreferencesModelUri.fsPath);
+			return !(preferencesRenderer && preferencesRenderer.associatedPreferencesModel && preferencesRenderer.associatedPreferencesModel.uri.toString() === associatedPreferencesModelUri.toString());
 		});
 	}
 

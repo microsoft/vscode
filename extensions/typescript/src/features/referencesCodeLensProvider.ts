@@ -53,7 +53,7 @@ export default class TypeScriptReferencesCodeLensProvider extends TypeScriptBase
 							reference.end.line - 1, reference.end.offset - 1)))
 				.filter(location =>
 					// Exclude original definition from references
-					!(location.uri.fsPath === codeLens.document.fsPath &&
+					!(location.uri.toString() === codeLens.document.toString() &&
 						location.range.start.isEqual(codeLens.range.start)));
 
 			codeLens.command = {
