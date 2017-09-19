@@ -14,7 +14,7 @@ import { IAction } from 'vs/base/common/actions';
 import { FileKind } from 'vs/platform/files/common/files';
 
 export interface IFilePickOpenEntry extends IPickOpenEntry {
-	resource: uri;
+	resource?: uri;
 	fileKind?: FileKind;
 }
 
