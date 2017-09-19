@@ -7,6 +7,8 @@
 
 const gulp = require('gulp');
 const fs = require('fs');
+const os = require('os');
+const cp = require('child_process');
 const path = require('path');
 const es = require('event-stream');
 const azure = require('gulp-azure-storage');
@@ -442,4 +444,53 @@ gulp.task('upload-vscode-sourcemaps', ['minify-vscode'], () => {
 			container: 'sourcemaps',
 			prefix: commit + '/'
 		}));
+});
+
+const allConfigDetailsPath = path.join(os.tmpdir(), 'configuration.json');
+gulp.task('upload-vscode-configuration', ['generate-vscode-configuration'], () => {
+	if (!fs.existsSync(allConfigDetailsPath)) {
+		console.error(`configuration file at ${allConfigDetailsPath} does not exist`);
+		return;
+	}
+
+	return gulp.src(allConfigDetailsPath)
+		.pipe(azure.upload({
+			account: process.env.AZURE_STORAGE_ACCOUNT,
+			key: process.env.AZURE_STORAGE_ACCESS_KEY,
+			container: 'configuration',
+			prefix: `${packageJson.version}/${commit}/`
+		}));
+});
+
+gulp.task('generate-vscode-configuration', () => {
+	return new Promise((resolve, reject) => {
+		const buildDir = process.env['AGENT_BUILDDIRECTORY'];
+		if (!buildDir) {
+			return reject(new Error('$AGENT_BUILDDIRECTORY not set'));
+		}
+
+		const appPath = path.join(buildDir, 'VSCode-darwin/Visual\\ Studio\\ Code\\ -\\ Insiders.app/Contents/Resources/app/bin/code');
+		const codeProc = cp.exec(`${appPath} --export-default-configuration='${allConfigDetailsPath}' --wait`);
+
+		const timer = setTimeout(() => {
+			codeProc.kill();
+			reject(new Error('export-default-configuration process timed out'));
+		}, 10 * 1000);
+
+		codeProc.stdout.on('data', d => console.log(d.toString()));
+		codeProc.stderr.on('data', d => console.log(d.toString()));
+
+		codeProc.on('exit', () => {
+			clearTimeout(timer);
+			resolve();
+		});
+
+		codeProc.on('error', err => {
+			clearTimeout(timer);
+			reject(err);
+		});
+	}).catch(e => {
+		// Don't fail the build
+		console.error(e.toString());
+	});
 });

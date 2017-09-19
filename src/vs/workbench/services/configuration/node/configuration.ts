@@ -15,7 +15,7 @@ import * as errors from 'vs/base/common/errors';
 import * as collections from 'vs/base/common/collections';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { readFile, stat } from 'vs/base/node/pfs';
+import { readFile, stat, writeFile } from 'vs/base/node/pfs';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import * as extfs from 'vs/base/node/extfs';
 import { IWorkspaceContextService, IWorkspace, Workspace, WorkbenchState, WorkspaceFolder, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
@@ -36,6 +36,10 @@ import { createHash } from 'crypto';
 import { getWorkspaceLabel, IWorkspacesService, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import product from 'vs/platform/node/product';
+import pkg from 'vs/platform/node/package';
 
 interface IStat {
 	resource: URI;
@@ -868,5 +872,90 @@ export class Configuration<T> extends BaseConfiguration<T> {
 		}
 
 		return true;
+	}
+}
+
+interface IExportedConfigurationNode {
+	name: string;
+	description: string;
+	default: any;
+	type: string | string[];
+	enum?: any[];
+	enumDescriptions?: string[];
+}
+
+interface IConfigurationExport {
+	settings: IExportedConfigurationNode[];
+	buildTime: number;
+	commit: string;
+	version: string;
+}
+
+export class DefaultConfigurationExportHelper {
+
+	constructor(
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IExtensionService private extensionService: IExtensionService,
+		@ICommandService private commandService: ICommandService) {
+		if (environmentService.args['export-default-configuration']) {
+			this.writeConfigModelAndQuit(environmentService.args['export-default-configuration']);
+		}
+	}
+
+	private writeConfigModelAndQuit(targetPath: string): TPromise<void> {
+		return this.extensionService.onReady()
+			.then(() => this.writeConfigModel(targetPath))
+			.then(() => this.commandService.executeCommand('workbench.action.quit'))
+			.then(() => { });
+	}
+
+	private writeConfigModel(targetPath: string): TPromise<void> {
+		const config = this.getConfigModel();
+
+		const resultString = JSON.stringify(config, undefined, '  ');
+		return writeFile(targetPath, resultString);
+	}
+
+	private getConfigModel(): IConfigurationExport {
+		const configurations = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurations().slice();
+		const settings: IExportedConfigurationNode[] = [];
+		const processConfig = (config: IConfigurationNode) => {
+			if (config.properties) {
+				for (let name in config.properties) {
+					const prop = config.properties[name];
+					const propDetails: IExportedConfigurationNode = {
+						name,
+						description: prop.description,
+						default: prop.default,
+						type: prop.type
+					};
+
+					if (prop.enum) {
+						propDetails.enum = prop.enum;
+					}
+
+					if (prop.enumDescriptions) {
+						propDetails.enumDescriptions = prop.enumDescriptions;
+					}
+
+					settings.push(propDetails);
+				}
+			}
+
+			if (config.allOf) {
+				config.allOf.forEach(processConfig);
+			}
+		};
+
+		configurations.forEach(processConfig);
+
+		const result: IConfigurationExport = {
+			settings: settings.sort((a, b) => a.name.localeCompare(b.name)),
+			buildTime: Date.now(),
+			commit: product.commit,
+			version: pkg.version
+		};
+
+		return result;
 	}
 }

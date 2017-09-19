@@ -46,7 +46,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { ContextMenuService } from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
 import { WorkbenchKeybindingService } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { WorkspaceService } from 'vs/workbench/services/configuration/node/configuration';
+import { WorkspaceService, DefaultConfigurationExportHelper } from 'vs/workbench/services/configuration/node/configuration';
 import { IConfigurationEditingService } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { ConfigurationEditingService } from 'vs/workbench/services/configuration/node/configurationEditingService';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
@@ -622,6 +622,8 @@ export class Workbench implements IPartService {
 		Registry.as<IActionBarRegistry>(ActionBarExtensions.Actionbar).setInstantiationService(this.instantiationService);
 		Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).setInstantiationService(this.instantiationService);
 		Registry.as<IEditorRegistry>(EditorExtensions.Editors).setInstantiationService(this.instantiationService);
+
+		this.instantiationService.createInstance(DefaultConfigurationExportHelper);
 	}
 
 	private initSettings(): void {
