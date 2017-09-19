@@ -348,9 +348,10 @@ export class SettingsTargetsWidget extends Widget {
 			});
 		}
 
-		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
+		const workspaceFolders = this.workspaceContextService.getWorkspace().folders;
+		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE && workspaceFolders.length > 0) {
 			actions.push(new Separator());
-			actions.push(...this.workspaceContextService.getWorkspace().folders.map((folder, index) => {
+			actions.push(...workspaceFolders.map((folder, index) => {
 				return <IAction>{
 					id: 'folderSettingsTarget' + index,
 					label: getSettingsTargetName(ConfigurationTarget.FOLDER, folder.uri, this.workspaceContextService),
