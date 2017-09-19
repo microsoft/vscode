@@ -31,6 +31,7 @@ import { MainContext, ExtHostContext } from 'vs/workbench/api/node/extHost.proto
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import * as vscode from 'vscode';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 
 const defaultSelector = { scheme: 'far' };
 const model: EditorCommon.IModel = EditorModel.createFromString(
@@ -115,7 +116,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		commands = new ExtHostCommands(threadService, heapService);
 		threadService.set(ExtHostContext.ExtHostCommands, commands);
 		threadService.setTestInstance(MainContext.MainThreadCommands, inst.createInstance(MainThreadCommands, threadService));
-		ExtHostApiCommands.register(commands);
+		ExtHostApiCommands.register(commands, new ExtHostWorkspace(threadService, null));
 
 		const diagnostics = new ExtHostDiagnostics(threadService);
 		threadService.set(ExtHostContext.ExtHostDiagnostics, diagnostics);

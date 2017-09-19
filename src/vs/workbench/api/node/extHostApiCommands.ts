@@ -16,18 +16,22 @@ import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { IWorkspaceSymbolProvider } from 'vs/workbench/parts/search/common/search';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 
 export class ExtHostApiCommands {
 
-	static register(commands: ExtHostCommands) {
-		return new ExtHostApiCommands(commands).registerCommands();
+	static register(commands: ExtHostCommands, workspace: ExtHostWorkspace) {
+		return new ExtHostApiCommands(commands, workspace).registerCommands();
 	}
 
 	private _commands: ExtHostCommands;
+	private _workspace: ExtHostWorkspace;
 	private _disposables: IDisposable[] = [];
 
-	private constructor(commands: ExtHostCommands) {
+	private constructor(commands: ExtHostCommands, workspace: ExtHostWorkspace) {
 		this._commands = commands;
+		this._workspace = workspace;
 	}
 
 	registerCommands() {
@@ -241,8 +245,14 @@ export class ExtHostApiCommands {
 				]
 			});
 
-		this._register('vscode.pickWorkspace', (options?: vscode.QuickPickOptions) => {
-			return this._commands.executeCommand('_workbench.pickWorkspace', [options]);
+		this._register('vscode.pickWorkspaceFolder', (options?: vscode.QuickPickOptions) => {
+			return this._commands.executeCommand('_workbench.pickWorkspace', [options]).then((folder: WorkspaceFolder) => {
+				if (!folder) {
+					return folder;
+				}
+
+				return this._workspace.getWorkspaceFolders().filter(folder => folder.uri.toString() === folder.uri.toString())[0];
+			});
 		}, {
 				description: 'Shows a picker to pick a workspace folder. Can be undefined if no folder was picked or no folder is opened in the window.',
 				args: [

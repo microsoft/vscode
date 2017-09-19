@@ -134,4 +134,12 @@ suite('commands namespace tests', () => {
 
 		return Promise.all([a, b, c, d]);
 	});
+
+	test('api-command: vscode.pickWorkspaceFolder', function () {
+		return commands.executeCommand('vscode.pickWorkspaceFolder').then(workspace => {
+			assert.ok(true);
+		}, error => {
+			assert.ok(false)
+		});
+	});
 });
