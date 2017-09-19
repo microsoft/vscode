@@ -252,7 +252,7 @@ export class DebugService implements debug.IDebugService {
 			aria.alert(nls.localize('debuggingPaused', "Debugging paused, reason {0}, {1} {2}", thread.stoppedDetails.reason, stackFrameToFocus.source ? stackFrameToFocus.source.name : '', stackFrameToFocus.range.startLineNumber));
 		}
 
-		return stackFrameToFocus.openInEditor(this.editorService);
+		return stackFrameToFocus.openInEditor(this.editorService, true);
 	}
 
 	private registerSessionListeners(process: Process, session: RawDebugSession): void {
