@@ -11,7 +11,7 @@ import Event, { Emitter, chain } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { $, append, addClass, removeClass, toggleClass } from 'vs/base/browser/dom';
+import { $, append, addClass, removeClass, toggleClass, trackFocus } from 'vs/base/browser/dom';
 import { firstIndex } from 'vs/base/common/arrays';
 import { Color, RGBA } from 'vs/base/common/color';
 import { SplitView, IView } from './splitview2';
@@ -137,6 +137,11 @@ export abstract class Panel implements IView {
 		this.header.setAttribute('role', 'toolbar');
 		this.header.setAttribute('aria-label', this.ariaHeaderLabel);
 		this.renderHeader(this.header);
+
+		const focusTracker = trackFocus(this.header);
+		focusTracker.addFocusListener(() => addClass(this.header, 'focused'));
+		focusTracker.addBlurListener(() => removeClass(this.header, 'focused'));
+
 		this.updateHeader();
 
 		const onHeaderKeyDown = chain(domEvent(this.header, 'keydown'))
