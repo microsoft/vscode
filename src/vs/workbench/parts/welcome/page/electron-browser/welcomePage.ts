@@ -371,7 +371,7 @@ class WelcomePage {
 					if (!extension) {
 						return false;
 					}
-					return this.extensionManagementService.installFromGallery(extension, false)
+					return this.extensionManagementService.installFromGallery(extension)
 						.then(() => {
 							// TODO: Do this as part of the install to avoid multiple events.
 							return this.extensionEnablementService.setEnablement(extensionSuggestion.id, false);
