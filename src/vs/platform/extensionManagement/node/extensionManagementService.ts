@@ -294,14 +294,26 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	}
 
 	uninstall(extension: ILocalExtension, force = false): TPromise<void> {
-		return this.removeOutdatedExtensions().then(() => {
-			return this.scanUserExtensions().then(installed => {
-				const promises = installed
-					.filter(e => e.manifest.publisher === extension.manifest.publisher && e.manifest.name === extension.manifest.name)
-					.map(e => this.checkForDependenciesAndUninstall(e, installed, force));
-				return TPromise.join(promises);
-			});
-		}).then(() => { /* drop resolved value */ });
+		return this.removeOutdatedExtensions()
+			.then(() =>
+				this.scanUserExtensions()
+					.then(installed => {
+						const promises = installed
+							.filter(e => e.manifest.publisher === extension.manifest.publisher && e.manifest.name === extension.manifest.name)
+							.map(e => this.checkForDependenciesAndUninstall(e, installed, force));
+						return TPromise.join(promises).then(null, errors => TPromise.wrapError(this.joinErrors(errors)));
+					}))
+			.then(() => { /* drop resolved value */ });
+	}
+
+	private joinErrors(errors: (Error | string)[]): Error {
+		if (errors.length === 1) {
+			return errors[0] instanceof Error ? <Error>errors[0] : new Error(<string>errors[0]);
+		}
+
+		return errors.reduce<Error>((previousValue: Error, currentValue: Error | string) => {
+			return new Error(`${previousValue.message}\n${currentValue instanceof Error ? currentValue.message : currentValue}`);
+		}, new Error(''));
 	}
 
 	private checkForDependenciesAndUninstall(extension: ILocalExtension, installed: ILocalExtension[], force: boolean): TPromise<void> {
