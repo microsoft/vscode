@@ -250,7 +250,7 @@ export interface IExtensionManagementService {
 	onDidUninstallExtension: Event<DidUninstallExtensionEvent>;
 
 	install(zipPath: string): TPromise<void>;
-	installFromGallery(extension: IGalleryExtension, promptToInstallDependencies?: boolean): TPromise<void>;
+	installFromGallery(extension: IGalleryExtension): TPromise<void>;
 	uninstall(extension: ILocalExtension, force?: boolean): TPromise<void>;
 	getInstalled(type?: LocalExtensionType): TPromise<ILocalExtension[]>;
 }

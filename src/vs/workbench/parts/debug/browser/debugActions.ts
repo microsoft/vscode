@@ -126,7 +126,7 @@ export class StartAction extends AbstractDebugAction {
 
 	public run(): TPromise<any> {
 		const launch = this.debugService.getConfigurationManager().selectedLaunch;
-		return this.debugService.startDebugging(launch ? launch.workspace.uri : undefined, undefined, this.isNoDebug());
+		return this.debugService.startDebugging(launch ? launch.workspace : undefined, undefined, this.isNoDebug());
 	}
 
 	protected isNoDebug(): boolean {
@@ -145,7 +145,7 @@ export class StartAction extends AbstractDebugAction {
 		if (this.contextService && this.contextService.getWorkbenchState() === WorkbenchState.EMPTY && processes.length > 0) {
 			return false;
 		}
-		if (processes.some(p => p.getName(false) === selectedName && (!launch || p.session.root.toString() === launch.workspace.uri.toString()))) {
+		if (processes.some(p => p.getName(false) === selectedName && (!launch || p.session.root.uri.toString() === launch.workspace.uri.toString()))) {
 			return false;
 		}
 		const compound = launch && launch.getCompound(selectedName);

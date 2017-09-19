@@ -121,7 +121,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		});
 	}
 
-	installFromGallery(extension: IGalleryExtension, promptToInstallDependencies: boolean = true): TPromise<void> {
+	installFromGallery(extension: IGalleryExtension): TPromise<void> {
 		const id = getLocalExtensionIdFromGallery(extension, extension.version);
 
 		return this.isObsolete(id).then(isObsolete => {
@@ -129,7 +129,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 				return TPromise.wrapError<void>(new Error(nls.localize('restartCode', "Please restart Code before reinstalling {0}.", extension.displayName || extension.name)));
 			}
 			this._onInstallExtension.fire({ id, gallery: extension });
-			return this.installCompatibleVersion(extension, true, promptToInstallDependencies)
+			return this.installCompatibleVersion(extension, true)
 				.then(
 				local => this._onDidInstallExtension.fire({ id, local, gallery: extension }),
 				error => {
@@ -140,31 +140,10 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		});
 	}
 
-	private installCompatibleVersion(extension: IGalleryExtension, installDependencies: boolean, promptToInstallDependencies: boolean): TPromise<ILocalExtension> {
+	private installCompatibleVersion(extension: IGalleryExtension, installDependencies: boolean): TPromise<ILocalExtension> {
 		return this.galleryService.loadCompatibleVersion(extension)
 			.then(compatibleVersion => this.getDependenciesToInstall(extension, installDependencies)
-				.then(dependencies => {
-					if (!dependencies.length) {
-						return this.downloadAndInstall(compatibleVersion);
-					}
-					if (promptToInstallDependencies) {
-						const message = nls.localize('installDependeciesConfirmation', "Installing '{0}' also installs its dependencies. Would you like to continue?", extension.displayName);
-						const options = [
-							nls.localize('install', "Yes"),
-							nls.localize('doNotInstall', "No")
-						];
-						return this.choiceService.choose(Severity.Info, message, options, 1, true)
-							.then(value => {
-								if (value === 0) {
-									return this.installWithDependencies(compatibleVersion);
-								}
-								return TPromise.wrapError<ILocalExtension>(errors.canceled());
-							}, error => TPromise.wrapError<ILocalExtension>(errors.canceled()));
-					} else {
-						return this.installWithDependencies(compatibleVersion);
-					}
-				})
-			);
+				.then(dependencies => dependencies.length ? this.installWithDependencies(compatibleVersion) : this.downloadAndInstall(compatibleVersion)));
 	}
 
 	private getDependenciesToInstall(extension: IGalleryExtension, checkDependecies: boolean): TPromise<string[]> {
@@ -202,7 +181,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		}
 		return this.downloadAndInstall(extension)
 			.then(localExtension => {
-				return TPromise.join(dependecies.map((dep) => this.installCompatibleVersion(dep, false, false)))
+				return TPromise.join(dependecies.map((dep) => this.installCompatibleVersion(dep, false)))
 					.then(installedLocalExtensions => {
 						for (const installedLocalExtension of installedLocalExtensions) {
 							const gallery = this.getGalleryExtensionForLocalExtension(dependecies, installedLocalExtension);
@@ -294,14 +273,26 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	}
 
 	uninstall(extension: ILocalExtension, force = false): TPromise<void> {
-		return this.removeOutdatedExtensions().then(() => {
-			return this.scanUserExtensions().then(installed => {
-				const promises = installed
-					.filter(e => e.manifest.publisher === extension.manifest.publisher && e.manifest.name === extension.manifest.name)
-					.map(e => this.checkForDependenciesAndUninstall(e, installed, force));
-				return TPromise.join(promises);
-			});
-		}).then(() => { /* drop resolved value */ });
+		return this.removeOutdatedExtensions()
+			.then(() =>
+				this.scanUserExtensions()
+					.then(installed => {
+						const promises = installed
+							.filter(e => e.manifest.publisher === extension.manifest.publisher && e.manifest.name === extension.manifest.name)
+							.map(e => this.checkForDependenciesAndUninstall(e, installed, force));
+						return TPromise.join(promises).then(null, errors => TPromise.wrapError(this.joinErrors(errors)));
+					}))
+			.then(() => { /* drop resolved value */ });
+	}
+
+	private joinErrors(errors: (Error | string)[]): Error {
+		if (errors.length === 1) {
+			return errors[0] instanceof Error ? <Error>errors[0] : new Error(<string>errors[0]);
+		}
+
+		return errors.reduce<Error>((previousValue: Error, currentValue: Error | string) => {
+			return new Error(`${previousValue.message}\n${currentValue instanceof Error ? currentValue.message : currentValue}`);
+		}, new Error(''));
 	}
 
 	private checkForDependenciesAndUninstall(extension: ILocalExtension, installed: ILocalExtension[], force: boolean): TPromise<void> {

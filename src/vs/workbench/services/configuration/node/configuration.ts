@@ -555,7 +555,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		if (this.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this._onDidUpdateConfiguration.fire({ source: ConfigurationSource.User, sourceConfig: this._configuration.user.contents });
 		} else {
-			this._onDidUpdateConfiguration.fire({ source: ConfigurationSource.Workspace, sourceConfig: this._configuration.getFolderConfigurationModel(this.workspace.folders[0].uri).contents });
+			this._onDidUpdateConfiguration.fire({ source: ConfigurationSource.Workspace, sourceConfig: this.workspace.folders.length ? this._configuration.getFolderConfigurationModel(this.workspace.folders[0].uri).contents : void 0 }); // TODO@Sandeep debt?
 		}
 	}
 

@@ -348,8 +348,12 @@ namespace Tasks {
 			label: typeof task.source === 'string' ? task.source : extension.name,
 			extension: extension.id,
 			scope: scope,
-			workspaceFolder: workspaceFolder ? { uri: workspaceFolder.uri as URI } : undefined
+			workspaceFolder: undefined
 		};
+		// We can't transfer a workspace folder object from the extension host to main since they differ
+		// in shape and we don't have backwards converting function. So transfer the URI and resolve the
+		// workspace folder on the main side.
+		(source as any).__workspaceFolder = workspaceFolder ? workspaceFolder.uri as URI : undefined;
 		let label = nls.localize('task.label', '{0}: {1}', source.label, task.name);
 		let key = (task as types.Task).definitionKey;
 		let kind = (task as types.Task).definition;

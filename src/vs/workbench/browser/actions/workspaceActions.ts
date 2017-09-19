@@ -15,15 +15,18 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import URI from 'vs/base/common/uri';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { WORKSPACE_FILTER } from 'vs/platform/workspaces/common/workspaces';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isLinux } from 'vs/base/common/platform';
 import { dirname } from 'vs/base/common/paths';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { isParent } from 'vs/platform/files/common/files';
+import { mnemonicButtonLabel, getPathLabel } from 'vs/base/common/labels';
+import { isParent, FileKind } from 'vs/platform/files/common/files';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IQuickOpenService, IFilePickOpenEntry, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 export class OpenFolderAction extends Action {
 
@@ -283,3 +286,64 @@ export class OpenWorkspaceConfigFileAction extends Action {
 		return this.editorService.openEditor({ resource: this.workspaceContextService.getWorkspace().configuration });
 	}
 }
+
+export const PICK_WORKSPACE_COMMAND = '_workbench.pickWorkspace';
+
+CommandsRegistry.registerCommand(PICK_WORKSPACE_COMMAND, function (accessor: ServicesAccessor, args?: [IPickOptions, CancellationToken]) {
+	const contextService = accessor.get(IWorkspaceContextService);
+	const quickOpenService = accessor.get(IQuickOpenService);
+	const environmentService = accessor.get(IEnvironmentService);
+
+	const folders = contextService.getWorkspace().folders;
+	if (!folders.length) {
+		return void 0;
+	}
+
+	const folderPicks = folders.map(folder => {
+		return {
+			label: folder.name,
+			description: getPathLabel(dirname(folder.uri.fsPath), void 0, environmentService),
+			folder,
+			resource: folder.uri,
+			fileKind: FileKind.ROOT_FOLDER
+		} as IFilePickOpenEntry;
+	});
+
+	let options: IPickOptions;
+	if (args) {
+		options = args[0];
+	}
+
+	if (!options) {
+		options = Object.create(null);
+	}
+
+	if (!options.autoFocus) {
+		options.autoFocus = { autoFocusFirstEntry: true };
+	}
+
+	if (!options.placeHolder) {
+		options.placeHolder = nls.localize('workspaceFolderPickerPlaceholder', "Select workspace folder");
+	}
+
+	if (typeof options.matchOnDescription !== 'boolean') {
+		options.matchOnDescription = true;
+	}
+
+	let token: CancellationToken;
+	if (args) {
+		token = args[1];
+	}
+
+	if (!token) {
+		token = CancellationToken.None;
+	}
+
+	return quickOpenService.pick(folderPicks, options, token).then(pick => {
+		if (!pick) {
+			return void 0;
+		}
+
+		return folders[folderPicks.indexOf(pick)];
+	});
+});

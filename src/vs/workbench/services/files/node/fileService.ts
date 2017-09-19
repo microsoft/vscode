@@ -146,12 +146,13 @@ export class FileService implements IFileService {
 		}
 
 		// Return if not aplicable
-		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY || this.options.disableWatcher) {
+		const workbenchState = this.contextService.getWorkbenchState();
+		if (workbenchState === WorkbenchState.EMPTY || this.options.disableWatcher) {
 			return;
 		}
 
 		// new watcher: use it if setting tells us so or we run in multi-root environment
-		if (this.options.useExperimentalFileWatcher || this.contextService.getWorkspace().folders.length > 1) {
+		if (this.options.useExperimentalFileWatcher || workbenchState === WorkbenchState.WORKSPACE) {
 			this.activeWorkspaceChangeWatcher = toDisposable(this.setupNsfwWorkspaceWatching().startWatching());
 		}
 
