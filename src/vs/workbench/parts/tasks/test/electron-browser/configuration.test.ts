@@ -12,9 +12,17 @@ import * as UUID from 'vs/base/common/uuid';
 import * as Platform from 'vs/base/common/platform';
 import { ValidationStatus } from 'vs/base/common/parsers';
 import { ProblemMatcher, FileLocationKind, ProblemPattern, ApplyToKind } from 'vs/platform/markers/common/problemMatcher';
+import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 import * as Tasks from 'vs/workbench/parts/tasks/common/tasks';
 import { parse, ParseResult, IProblemReporter, ExternalTaskRunnerConfiguration, CustomTask } from 'vs/workbench/parts/tasks/node/taskConfiguration';
+
+const workspaceFolder: WorkspaceFolder = {
+	uri: URI.file('/workspace/folderOne'),
+	name: 'folderOne',
+	index: 0,
+	raw: { path: '../folderOne', name: 'folderOne' }
+};
 
 class ProblemReporter implements IProblemReporter {
 
@@ -178,7 +186,7 @@ class CustomTaskBuilder {
 		this.commandBuilder = new CommandConfigurationBuilder(this, command);
 		this.result = {
 			_id: name,
-			_source: { kind: Tasks.TaskSourceKind.Workspace, label: 'workspace', config: { workspaceFolder: { uri: undefined }, element: undefined, index: -1, file: '.vscode/tasks.json' } },
+			_source: { kind: Tasks.TaskSourceKind.Workspace, label: 'workspace', config: { workspaceFolder: workspaceFolder, element: undefined, index: -1, file: '.vscode/tasks.json' } },
 			_label: name,
 			type: 'custom',
 			identifier: name,
@@ -348,7 +356,7 @@ class PatternBuilder {
 
 function testDefaultProblemMatcher(external: ExternalTaskRunnerConfiguration, resolved: number) {
 	let reporter = new ProblemReporter();
-	let result = parse({ uri: URI.file('/Workspace/folderOne') }, external, reporter);
+	let result = parse(workspaceFolder, external, reporter);
 	assert.ok(!reporter.receivedMessage);
 	assert.strictEqual(result.custom.length, 1);
 	let task = result.custom[0];
@@ -359,7 +367,7 @@ function testDefaultProblemMatcher(external: ExternalTaskRunnerConfiguration, re
 function testConfiguration(external: ExternalTaskRunnerConfiguration, builder: ConfiguationBuilder): void {
 	builder.done();
 	let reporter = new ProblemReporter();
-	let result = parse({ uri: URI.file('/Workspace/folderOne') }, external, reporter);
+	let result = parse(workspaceFolder, external, reporter);
 	if (reporter.receivedMessage) {
 		assert.ok(false, reporter.lastMessage);
 	}

@@ -11,6 +11,7 @@ import * as Objects from 'vs/base/common/objects';
 
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ProblemMatcher } from 'vs/platform/markers/common/problemMatcher';
+import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 export interface ShellConfiguration {
 	/**
@@ -229,10 +230,6 @@ export namespace TaskSourceKind {
 	export const Composite: 'composite' = 'composite';
 }
 
-export interface WorkspaceFolder {
-	uri: URI;
-}
-
 export interface TaskSourceConfigElement {
 	workspaceFolder: WorkspaceFolder;
 	file: string;
@@ -255,6 +252,10 @@ export interface ExtensionTaskSource {
 	readonly workspaceFolder: WorkspaceFolder | undefined;
 }
 
+export interface ExtensionTaskSourceTransfer {
+	__workspaceFolder: URI;
+}
+
 export interface CompositeTaskSource {
 	readonly kind: 'composite';
 	readonly label: string;
@@ -265,6 +266,11 @@ export type TaskSource = WorkspaceTaskSource | ExtensionTaskSource | CompositeTa
 export interface TaskIdentifier {
 	_key: string;
 	type: string;
+}
+
+export interface TaskDependency {
+	workspaceFolder: WorkspaceFolder;
+	task: string;
 }
 
 export interface ConfigurationProperties {
@@ -307,7 +313,7 @@ export interface ConfigurationProperties {
 	/**
 	 * The other tasks this task depends on.
 	 */
-	dependsOn?: string[];
+	dependsOn?: TaskDependency[];
 
 	/**
 	 * The problem watchers to use for this task
@@ -455,6 +461,10 @@ export namespace Task {
 			return 'unknown';
 		}
 	}
+
+	export function matches(task: Task, alias: string): boolean {
+		return alias === task._label || alias === task.identifier;
+	}
 }
 
 
@@ -481,4 +491,37 @@ export interface TaskDefinition {
 	taskType: string;
 	required: string[];
 	properties: IJSONSchemaMap;
+}
+
+export class TaskSorter {
+
+	private _order: Map<string, number> = new Map();
+
+	constructor(workspaceFolders: WorkspaceFolder[]) {
+		for (let i = 0; i < workspaceFolders.length; i++) {
+			this._order.set(workspaceFolders[i].uri.toString(), i);
+		}
+	}
+
+	public compare(a: Task, b: Task): number {
+		let aw = Task.getWorkspaceFolder(a);
+		let bw = Task.getWorkspaceFolder(b);
+		if (aw && bw) {
+			let ai = this._order.get(aw.uri.toString());
+			ai = ai === void 0 ? 0 : ai + 1;
+			let bi = this._order.get(bw.uri.toString());
+			bi = bi === void 0 ? 0 : bi + 1;
+			if (ai === bi) {
+				return a._label.localeCompare(b._label);
+			} else {
+				return ai - bi;
+			}
+		} else if (!aw && bw) {
+			return -1;
+		} else if (aw && !bw) {
+			return +1;
+		} else {
+			return 0;
+		}
+	}
 }
