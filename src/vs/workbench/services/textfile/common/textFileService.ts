@@ -407,6 +407,7 @@ export abstract class TextFileService implements ITextFileService {
 		const filesToSave: URI[] = [];
 		const untitledToSave: URI[] = [];
 		toSave.forEach(s => {
+			// TODO@remote
 			// if (s.scheme === Schemas.file) {
 			// 	filesToSave.push(s);
 			// } else

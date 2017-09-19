@@ -36,6 +36,7 @@ class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorMo
 			return this.textFileService.models.loadOrCreate(resource);
 		}
 		if (!this.providers[resource.scheme]) {
+			// TODO@remote
 			return this.textFileService.models.loadOrCreate(resource);
 		}
 		return this.resolveTextModelContent(key).then(() => this.instantiationService.createInstance(ResourceEditorModel, resource));
