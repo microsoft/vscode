@@ -272,10 +272,8 @@ export class SaveParticipant implements ISaveParticipant {
 					  {
 						 "${prefix}": "Success-",
 						 "${classification}": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-					  }
-				   ],
-				   "${wildcard}": [
-					  {
+					  },
+				      {
 						 "${prefix}": "Failure-",
 						 "${classification}": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 					  }
