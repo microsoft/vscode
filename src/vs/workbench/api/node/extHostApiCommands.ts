@@ -240,6 +240,15 @@ export class ExtHostApiCommands {
 					{ name: 'column', description: '(optional) Column in which to open', constraint: v => v === void 0 || typeof v === 'number' }
 				]
 			});
+
+		this._register('vscode.pickWorkspace', (options?: vscode.QuickPickOptions) => {
+			return this._commands.executeCommand('_workbench.pickWorkspace', [options]);
+		}, {
+				description: 'Shows a picker to pick a workspace folder. Can be undefined if no folder was picked or no folder is opened in the window.',
+				args: [
+					{ name: 'options', description: '(optional) Options for the workspace folder picker.', constraint: v => typeof v === 'object' || typeof v === 'undefined' }
+				]
+			});
 	}
 
 	// --- command impl
