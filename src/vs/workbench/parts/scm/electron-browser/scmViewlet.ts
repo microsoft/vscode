@@ -789,7 +789,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 	}
 
 	getActions(): IAction[] {
-		if (this.isSingleView) {
+		if (this.isSingleView && this.repositories.length === 1) {
 			const [panel] = this.repositoryPanels;
 			return panel.getActions();
 		}
@@ -800,7 +800,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 	getSecondaryActions(): IAction[] {
 		let result: IAction[];
 
-		if (this.isSingleView) {
+		if (this.isSingleView && this.repositories.length === 1) {
 			const [panel] = this.repositoryPanels;
 
 			result = [
