@@ -84,12 +84,12 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		this.structuralTreeRefreshScheduler = new RunOnceScheduler(() => this.structuralTreeUpdate(), this.structuralRefreshDelay);
 	}
 
-	public renderHeader(container: HTMLElement): void {
-		const titleDiv = dom.append(container, $('.title'));
-		const titleSpan = dom.append(titleDiv, $('span'));
-		titleSpan.textContent = this.name;
+	protected renderHeaderTitle(container: HTMLElement): void {
+		const title = dom.append(container, $('.title'));
+		title.textContent = this.name;
 
-		this.dirtyCountElement = dom.append(titleDiv, $('.monaco-count-badge'));
+		const count = dom.append(container, $('.count'));
+		this.dirtyCountElement = dom.append(count, $('.monaco-count-badge'));
 
 		this.toDispose.push((attachStylerCallback(this.themeService, { badgeBackground, badgeForeground, contrastBorder }, colors => {
 			const background = colors.badgeBackground ? colors.badgeBackground.toString() : null;
@@ -105,8 +105,6 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		})));
 
 		this.updateDirtyIndicator();
-
-		super.renderHeader(container);
 	}
 
 	public getActions(): IAction[] {

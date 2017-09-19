@@ -126,17 +126,19 @@ export class ExplorerView extends ViewsViewletPanel {
 	}
 
 	protected renderHeader(container: HTMLElement): void {
-		const titleDiv = $('div.title').appendTo(container);
-		const titleSpan = $('span').appendTo(titleDiv);
+		super.renderHeader(container);
+
+		const titleElement = container.querySelector('.title') as HTMLElement;
 		const setHeader = () => {
 			const workspace = this.contextService.getWorkspace();
-			const title = workspace.folders.map(folder => labels.getPathLabel(folder.uri.fsPath, void 0, this.environmentService)).join();
-			titleSpan.text(this.name).title(title);
-		};
-		this.toDispose.push(this.contextService.onDidChangeWorkspaceName(() => setHeader()));
-		setHeader();
 
-		super.renderHeader(container);
+			const title = workspace.folders.map(folder => labels.getPathLabel(folder.uri.fsPath, void 0, this.environmentService)).join();
+			titleElement.textContent = this.name;
+			titleElement.title = title;
+		};
+
+		this.toDispose.push(this.contextService.onDidChangeWorkspaceName(setHeader));
+		setHeader();
 	}
 
 	public get name(): string {

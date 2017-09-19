@@ -407,9 +407,11 @@ export class ViewsViewlet extends PanelViewlet {
 		const toCreate: ViewsViewletPanel[] = [];
 
 		if (toAdd.length || toRemove.length) {
-			for (const view of this.viewsViewletPanels) {
+			const panels = [...this.viewsViewletPanels];
+
+			for (const view of panels) {
 				let viewState = this.viewsStates.get(view.id);
-				if (!viewState || typeof viewState.size === 'undefined' /* || view.size !== viewState.size */ || !view.isExpanded() !== viewState.collapsed) {
+				if (!viewState || typeof viewState.size === 'undefined' || !view.isExpanded() !== viewState.collapsed) {
 					viewState = this.updateViewStateSize(view);
 					this.viewsStates.set(view.id, viewState);
 				}
@@ -419,7 +421,7 @@ export class ViewsViewlet extends PanelViewlet {
 				for (const viewDescriptor of toRemove) {
 					let view = this.getView(viewDescriptor.id);
 					this.removePanel(view);
-					// this.splitView.removeView(view);
+					this.viewsViewletPanels.splice(this.viewsViewletPanels.indexOf(view), 1);
 				}
 			}
 
@@ -437,7 +439,7 @@ export class ViewsViewlet extends PanelViewlet {
 				toCreate.push(view);
 
 				this.addPanel(view, 200, index);
-				// this.splitView.addView(view, index);
+				this.viewsViewletPanels.splice(index, 0, view);
 			}
 
 			return TPromise.join(toCreate.map(view => view.create()))
@@ -480,10 +482,6 @@ export class ViewsViewlet extends PanelViewlet {
 				}));
 			}
 		}
-
-		// if (this.dimension) {
-		// 	this.layoutViews();
-		// }
 
 		return this.setVisible(this.isVisible());
 	}
@@ -565,11 +563,9 @@ export class ViewsViewlet extends PanelViewlet {
 	}
 
 	protected createViewState(view: ViewsViewletPanel): IViewState {
-		// const collapsed = !view.isExpanded();
-		// const size = collapsed && view instanceof ViewsViewletPanel ? view.previousSize : view.size;
 		return {
 			collapsed: !view.isExpanded(),
-			size: undefined,/*, size && size > 0 ? size : void 0 */
+			size: undefined,
 			isHidden: false,
 			order: this.viewsViewletPanels.indexOf(view)
 		};
