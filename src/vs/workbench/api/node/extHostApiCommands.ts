@@ -246,7 +246,7 @@ export class ExtHostApiCommands {
 			});
 
 		this._register('vscode.pickWorkspaceFolder', (options?: vscode.QuickPickOptions) => {
-			return this._commands.executeCommand('_workbench.pickWorkspace', [options]).then((folder: WorkspaceFolder) => {
+			return this._commands.executeCommand('_workbench.pickWorkspaceFolder', [options]).then((folder: WorkspaceFolder) => {
 				if (!folder) {
 					return folder;
 				}
