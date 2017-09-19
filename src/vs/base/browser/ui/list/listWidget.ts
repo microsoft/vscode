@@ -398,7 +398,7 @@ class MouseController<T> implements IDisposable {
 		if (isSelectionRangeChangeEvent(e) && reference !== undefined) {
 			const min = Math.min(reference, focus);
 			const max = Math.max(reference, focus);
-			const rangeSelection = range(max + 1, min);
+			const rangeSelection = range(min, max + 1);
 			const selection = this.list.getSelection();
 			const contiguousRange = getContiguousRangeContaining(disjunction(selection, [reference]), reference);
 

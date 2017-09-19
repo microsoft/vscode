@@ -268,6 +268,10 @@ export class Sash extends EventEmitter {
 		this.isDisabled = true;
 	}
 
+	get enabled(): boolean {
+		return !this.isDisabled;
+	}
+
 	public dispose(): void {
 		if (this.$e) {
 			this.$e.destroy();

@@ -179,7 +179,13 @@ export class InputBox extends Widget {
 			});
 		}
 
-		setTimeout(() => this.updateMirror(), 0);
+		setTimeout(() => {
+			if (!this.input) {
+				return;
+			}
+
+			this.updateMirror();
+		}, 0);
 
 		// Support actions
 		if (this.options.actions) {
