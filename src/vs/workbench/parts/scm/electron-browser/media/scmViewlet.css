@@ -19,7 +19,7 @@
 }
 
 .scm-viewlet:not(.empty) .empty-message,
-.scm-viewlet.empty .monaco-split-view{
+.scm-viewlet.empty .monaco-panel-view {
 	display: none;
 }
 
