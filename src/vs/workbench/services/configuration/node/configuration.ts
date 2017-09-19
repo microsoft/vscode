@@ -217,6 +217,10 @@ contributionRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 					path: {
 						type: 'string',
 						description: nls.localize('workspaceConfig.folder.description', "A file path. e.g. `/root/folderA` or `./folderA` for a relative path that will be resolved against the location of the workspace file.")
+					},
+					name: {
+						type: 'string',
+						description: nls.localize('workspaceConfig.name.description', "An optional name for the folder. ")
 					}
 				}
 			}
