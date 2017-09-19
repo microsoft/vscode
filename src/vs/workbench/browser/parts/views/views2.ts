@@ -129,11 +129,6 @@ export class PanelViewlet extends Viewlet {
 	private panelItems: IViewletPanelItem[] = [];
 	private panelview: PanelView;
 
-	// TODO@Joao make this into method so people can override it
-	protected get isSingleView(): boolean {
-		return this.options.showHeaderInTitleWhenSingleView && this.panelItems.length === 1;
-	}
-
 	protected get length(): number {
 		return this.panelItems.length;
 	}
@@ -157,7 +152,7 @@ export class PanelViewlet extends Viewlet {
 	getTitle(): string {
 		let title = Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlet(this.getId()).name;
 
-		if (this.isSingleView) {
+		if (this.isSingleView()) {
 			title += ': ' + this.panelItems[0].panel.title;
 		}
 
@@ -165,7 +160,7 @@ export class PanelViewlet extends Viewlet {
 	}
 
 	getActions(): IAction[] {
-		if (this.isSingleView) {
+		if (this.isSingleView()) {
 			return this.panelItems[0].panel.getActions();
 		}
 
@@ -173,7 +168,7 @@ export class PanelViewlet extends Viewlet {
 	}
 
 	getSecondaryActions(): IAction[] {
-		if (this.isSingleView) {
+		if (this.isSingleView()) {
 			return this.panelItems[0].panel.getSecondaryActions();
 		}
 
@@ -257,11 +252,15 @@ export class PanelViewlet extends Viewlet {
 	}
 
 	private updateViewHeaders(): void {
-		if (this.isSingleView) {
+		if (this.isSingleView()) {
 			this.panelItems[0].panel.headerVisible = false;
 		} else {
 			this.panelItems.forEach(i => i.panel.headerVisible = true);
 		}
+	}
+
+	protected isSingleView(): boolean {
+		return this.options.showHeaderInTitleWhenSingleView && this.panelItems.length === 1;
 	}
 
 	dispose(): void {
