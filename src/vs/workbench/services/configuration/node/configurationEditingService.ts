@@ -342,7 +342,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 				}
 			}
 
-			if (target === ConfigurationTarget.FOLDER && this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
+			if (target === ConfigurationTarget.FOLDER) {
 				if (resource) {
 					const folder = this.contextService.getWorkspaceFolder(resource);
 					if (folder) {
