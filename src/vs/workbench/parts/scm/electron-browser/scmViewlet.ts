@@ -74,6 +74,8 @@ export interface IViewModel {
 	addRepositoryPanel(panel: RepositoryPanel, size: number, index?: number): void;
 	removeRepositoryPanel(panel: RepositoryPanel): void;
 	moveRepositoryPanel(from: RepositoryPanel, to: RepositoryPanel): void;
+	resizeRepositoryPanel(panel: RepositoryPanel, size: number): void;
+
 	isRepositoryVisible(repository: ISCMRepository): boolean;
 	toggleRepositoryVisibility(repository: ISCMRepository, visible: boolean);
 }
@@ -237,9 +239,9 @@ class MainPanel extends ViewletPanel {
 		this.list.splice(this.list.length, 0, [repository]);
 		this.updateBodySize();
 
-		// if (this.repositories.length === 1) {
-		this.list.setSelection(this.repositories.map((_, i) => i));
-		// }
+		if (this.repositories.length === 1) {
+			this.list.setSelection([0]);
+		}
 	}
 
 	private onDidRemoveRepository(repository: ISCMRepository): void {
@@ -270,11 +272,16 @@ class MainPanel extends ViewletPanel {
 			.map(r => this.instantiationService.createInstance(RepositoryPanel, r));
 
 		// Add new selected panels
+		newRepositoryPanels.forEach(panel => this.viewModel.addRepositoryPanel(panel, panel.minimumSize));
+		this.repositoryPanels = [...repositoryPanels, ...newRepositoryPanels];
+
+		// Resize all panels equally
 		const height = typeof this.viewModel.height === 'number' ? this.viewModel.height : 1000;
 		const size = (height - this.minimumSize) / e.elements.length;
-		newRepositoryPanels.forEach(panel => this.viewModel.addRepositoryPanel(panel, size));
 
-		this.repositoryPanels = [...repositoryPanels, ...newRepositoryPanels];
+		for (const panel of this.repositoryPanels) {
+			this.viewModel.resizeRepositoryPanel(panel, size);
+		}
 	}
 
 	private updateBodySize(): void {
@@ -428,37 +435,6 @@ class ProviderListDelegate implements IDelegate<ISCMResourceGroup | ISCMResource
 		return isSCMResource(element) ? ResourceRenderer.TEMPLATE_ID : ResourceGroupRenderer.TEMPLATE_ID;
 	}
 }
-
-// class ProviderViewDescriptor implements IViewDescriptor {
-
-// 	// This ID magic needs to happen in order to preserve
-// 	// good splitview state when reloading the workbench
-// 	static idCount = 0;
-// 	static freeIds: string[] = [];
-
-// 	readonly id: string;
-
-// 	get repository(): ISCMRepository { return this._repository; }
-// 	get name(): string {
-// 		return this._repository.provider.rootUri
-// 			? `${basename(this._repository.provider.rootUri.fsPath)} (${this._repository.provider.label})`
-// 			: this._repository.provider.label;
-// 	}
-// 	get ctor(): any { return null; }
-// 	get location(): ViewLocation { return ViewLocation.SCM; }
-
-// 	constructor(private _repository: ISCMRepository) {
-// 		if (ProviderViewDescriptor.freeIds.length > 0) {
-// 			this.id = ProviderViewDescriptor.freeIds.shift();
-// 		} else {
-// 			this.id = `scm${ProviderViewDescriptor.idCount++}`;
-// 		}
-// 	}
-
-// 	dispose(): void {
-// 		ProviderViewDescriptor.freeIds.push(this.id);
-// 	}
-// }
 
 function scmResourceIdentityProvider(r: ISCMResourceGroup | ISCMResource): string {
 	if (isSCMResource(r)) {
@@ -758,32 +734,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 
 		this.mainPanel = this.instantiationService.createInstance(MainPanel, this);
 		this.addPanel(this.mainPanel, this.mainPanel.minimumSize);
-
-		// this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
-		// this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
-		// this.scmService.repositories.forEach(p => this.onDidAddRepository(p));
-
-		// ViewsRegistry.registerViews([new ProvidersViewDescriptor()]);
 	}
-
-	// private onDidAddRepository(repository: ISCMRepository): void {
-	// 	const viewDescriptor = new ProviderViewDescriptor(repository);
-	// 	this.repositoryToViewDescriptor.set(repository.provider.id, viewDescriptor);
-
-	// 	ViewsRegistry.registerViews([viewDescriptor]);
-	// 	toggleClass(this.getContainer().getHTMLElement(), 'empty', this.views.length === 0);
-	// 	this.updateTitleArea();
-	// }
-
-	// private onDidRemoveRepository(repository: ISCMRepository): void {
-	// 	const viewDescriptor = this.repositoryToViewDescriptor.get(repository.provider.id);
-	// 	this.repositoryToViewDescriptor.delete(repository.provider.id);
-	// 	viewDescriptor.dispose();
-
-	// 	ViewsRegistry.deregisterViews([viewDescriptor.id], ViewLocation.SCM);
-	// 	toggleClass(this.getContainer().getHTMLElement(), 'empty', this.views.length === 0);
-	// 	this.updateTitleArea();
-	// }
 
 	isRepositoryVisible(repository: ISCMRepository): boolean {
 		// const view = this.repositoryToViewDescriptor.get(repository.provider.id);
@@ -854,7 +805,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 		this._height = dimension.height;
 	}
 
-	addRepositoryPanel(panel: RepositoryPanel, size: number, index: number = this.length): void {
+	addRepositoryPanel(panel: RepositoryPanel, size: number, index: number = this.length - 1): void {
 		this.addPanel(panel, size, index + 1);
 	}
 
@@ -864,6 +815,10 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 
 	moveRepositoryPanel(from: RepositoryPanel, to: RepositoryPanel): void {
 		this.movePanel(from, to);
+	}
+
+	resizeRepositoryPanel(panel: RepositoryPanel, size: number): void {
+		this.resizePanel(panel, size);
 	}
 
 	dispose(): void {

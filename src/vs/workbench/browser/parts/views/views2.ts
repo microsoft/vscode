@@ -251,6 +251,10 @@ export class PanelViewlet extends Viewlet {
 		this.panelview.movePanel(from, to);
 	}
 
+	resizePanel(panel: ViewletPanel, size: number): void {
+		this.panelview.resizePanel(panel, size);
+	}
+
 	private updateViewHeaders(): void {
 		if (this.isSingleView) {
 			this.panelItems[0].panel.headerVisible = false;
