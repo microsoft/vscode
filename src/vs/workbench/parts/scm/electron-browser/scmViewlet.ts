@@ -75,9 +75,6 @@ export interface IViewModel {
 	removeRepositoryPanel(panel: RepositoryPanel): void;
 	moveRepositoryPanel(from: RepositoryPanel, to: RepositoryPanel): void;
 	resizeRepositoryPanel(panel: RepositoryPanel, size: number): void;
-
-	isRepositoryVisible(repository: ISCMRepository): boolean;
-	toggleRepositoryVisibility(repository: ISCMRepository, visible: boolean);
 }
 
 class ProvidersListDelegate implements IDelegate<ISCMRepository> {
@@ -89,15 +86,6 @@ class ProvidersListDelegate implements IDelegate<ISCMRepository> {
 	getTemplateId(element: ISCMRepository): string {
 		return 'provider';
 	}
-}
-
-interface RepositoryTemplateData {
-	checkbox: HTMLInputElement;
-	title: HTMLElement;
-	type: HTMLElement;
-	actionBar: ActionBar;
-	disposable: IDisposable;
-	templateDisposable: IDisposable;
 }
 
 class StatusBarAction extends Action {
@@ -128,6 +116,14 @@ class StatusBarActionItem extends ActionItem {
 	}
 }
 
+interface RepositoryTemplateData {
+	title: HTMLElement;
+	type: HTMLElement;
+	actionBar: ActionBar;
+	disposable: IDisposable;
+	templateDisposable: IDisposable;
+}
+
 class ProviderRenderer implements IRenderer<ISCMRepository, RepositoryTemplateData> {
 
 	readonly templateId = 'provider';
@@ -139,7 +135,6 @@ class ProviderRenderer implements IRenderer<ISCMRepository, RepositoryTemplateDa
 
 	renderTemplate(container: HTMLElement): RepositoryTemplateData {
 		const provider = append(container, $('.scm-provider'));
-		const checkbox = append(provider, $('input', { type: 'checkbox', checked: 'true' })) as HTMLInputElement;
 		const name = append(provider, $('.name'));
 		const title = append(name, $('span.title'));
 		const type = append(name, $('span.type'));
@@ -147,7 +142,7 @@ class ProviderRenderer implements IRenderer<ISCMRepository, RepositoryTemplateDa
 		const disposable = EmptyDisposable;
 		const templateDisposable = combinedDisposable([actionBar]);
 
-		return { checkbox, title, type, actionBar, disposable, templateDisposable };
+		return { title, type, actionBar, disposable, templateDisposable };
 	}
 
 	renderElement(repository: ISCMRepository, index: number, templateData: RepositoryTemplateData): void {
@@ -161,10 +156,6 @@ class ProviderRenderer implements IRenderer<ISCMRepository, RepositoryTemplateDa
 			templateData.title.textContent = repository.provider.label;
 			templateData.type.textContent = '';
 		}
-
-		templateData.checkbox.checked = this.viewModel.isRepositoryVisible(repository);
-		const onClick = domEvent(templateData.checkbox, 'change');
-		disposables.push(onClick(() => this.viewModel.toggleRepositoryVisibility(repository, templateData.checkbox.checked)));
 
 		// const disposables = commands.map(c => this.statusbarService.addEntry({
 		// 	text: c.title,
@@ -734,17 +725,6 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 
 		this.mainPanel = this.instantiationService.createInstance(MainPanel, this);
 		this.addPanel(this.mainPanel, this.mainPanel.minimumSize);
-	}
-
-	isRepositoryVisible(repository: ISCMRepository): boolean {
-		// const view = this.repositoryToViewDescriptor.get(repository.provider.id);
-		// return !!this.getView(view.id);
-		return true;
-	}
-
-	toggleRepositoryVisibility(repository: ISCMRepository, visible: boolean): void {
-		// const view = this.repositoryToViewDescriptor.get(repository.provider.id);
-		// this.toggleViewVisibility(view.id, visible);
 	}
 
 	getOptimalWidth(): number {
