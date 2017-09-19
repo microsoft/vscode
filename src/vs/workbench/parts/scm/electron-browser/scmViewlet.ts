@@ -8,16 +8,16 @@
 import 'vs/css!./media/scmViewlet';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { chain } from 'vs/base/common/event';
+import Event, { Emitter, chain } from 'vs/base/common/event';
 import { basename } from 'vs/base/common/paths';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IDisposable, dispose, combinedDisposable, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, combinedDisposable, empty as EmptyDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Builder, Dimension } from 'vs/base/browser/builder';
 import { PanelViewlet, ViewletPanel } from 'vs/workbench/browser/parts/views/views2';
-import { append, $, toggleClass, trackFocus } from 'vs/base/browser/dom';
+import { append, $, addClass, toggleClass, trackFocus } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
-import { IDelegate, IRenderer, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
+import { IDelegate, IRenderer, IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { VIEWLET_ID } from 'vs/workbench/parts/scm/common/scm';
 import { FileLabel } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
@@ -68,13 +68,15 @@ class SCMMenuItemActionItem extends MenuItemActionItem {
 	}
 }
 
-export interface IViewModel {
-	readonly height: number | undefined;
+export interface ISpliceEvent<T> {
+	index: number;
+	deleteCount: number;
+	elements: T[];
+}
 
-	addRepositoryPanel(panel: RepositoryPanel, size: number, index?: number): void;
-	removeRepositoryPanel(panel: RepositoryPanel): void;
-	moveRepositoryPanel(from: RepositoryPanel, to: RepositoryPanel): void;
-	resizeRepositoryPanel(panel: RepositoryPanel, size: number): void;
+export interface IViewModel {
+	readonly repositories: ISCMRepository[];
+	readonly onDidSplice: Event<ISpliceEvent<ISCMRepository>>;
 }
 
 class ProvidersListDelegate implements IDelegate<ISCMRepository> {
@@ -131,7 +133,6 @@ class ProviderRenderer implements IRenderer<ISCMRepository, RepositoryTemplateDa
 	readonly templateId = 'provider';
 
 	constructor(
-		protected viewModel: IViewModel,
 		@ICommandService protected commandService: ICommandService,
 		@IThemeService protected themeService: IThemeService
 	) { }
@@ -205,8 +206,9 @@ class ProviderRenderer implements IRenderer<ISCMRepository, RepositoryTemplateDa
 class MainPanel extends ViewletPanel {
 
 	private list: List<ISCMRepository>;
-	private repositories: ISCMRepository[] = [];
-	private repositoryPanels: RepositoryPanel[] = [];
+
+	private _onSelectionChange = new Emitter<ISCMRepository[]>();
+	readonly onSelectionChange: Event<ISCMRepository[]> = this._onSelectionChange.event;
 
 	constructor(
 		protected viewModel: IViewModel,
@@ -220,9 +222,21 @@ class MainPanel extends ViewletPanel {
 		this.updateBodySize();
 	}
 
+	private splice(index: number, deleteCount: number, repositories: ISCMRepository[] = []): void {
+		const wasEmpty = this.list.length === 0;
+
+		this.list.splice(index, deleteCount, repositories);
+		this.updateBodySize();
+
+		// Automatically select the first one
+		if (wasEmpty && this.list.length > 0) {
+			this.list.setSelection([0]);
+		}
+	}
+
 	protected renderBody(container: HTMLElement): void {
 		const delegate = new ProvidersListDelegate();
-		const renderer = this.instantiationService.createInstance(ProviderRenderer, this.viewModel);
+		const renderer = this.instantiationService.createInstance(ProviderRenderer);
 
 		this.list = new List<ISCMRepository>(container, delegate, [renderer], {
 			identityProvider: repository => repository.provider.id
@@ -230,69 +244,17 @@ class MainPanel extends ViewletPanel {
 
 		this.disposables.push(this.list);
 		this.disposables.push(attachListStyler(this.list, this.themeService));
-		this.list.onSelectionChange(this.onSelectionChange, this, this.disposables);
-
-		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
-		this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
-		this.scmService.repositories.forEach(r => this.onDidAddRepository(r));
+		this.list.onSelectionChange(e => this._onSelectionChange.fire(e.elements), null, this.disposables);
+		this.viewModel.onDidSplice(({ index, deleteCount, elements }) => this.splice(index, deleteCount, elements), null, this.disposables);
+		this.splice(0, 0, this.viewModel.repositories);
 	}
 
 	protected layoutBody(size: number): void {
 		this.list.layout(size);
 	}
 
-	private onDidAddRepository(repository: ISCMRepository): void {
-		this.repositories.push(repository);
-		this.list.splice(this.list.length, 0, [repository]);
-		this.updateBodySize();
-
-		if (this.repositories.length === 1) {
-			this.list.setSelection([0]);
-		}
-	}
-
-	private onDidRemoveRepository(repository: ISCMRepository): void {
-		const index = this.repositories.indexOf(repository);
-
-		if (index === -1) {
-			return;
-		}
-
-		this.repositories.splice(index, 1);
-		this.list.splice(index, 1);
-		this.updateBodySize();
-	}
-
-	private onSelectionChange(e: IListEvent<ISCMRepository>): void {
-		// Remove unselected panels
-		this.repositoryPanels
-			.filter(p => e.elements.every(r => p.repository !== r))
-			.forEach(panel => this.viewModel.removeRepositoryPanel(panel));
-
-		// Collect panels still selected
-		const repositoryPanels = this.repositoryPanels
-			.filter(p => e.elements.some(r => p.repository === r));
-
-		// Collect new selected panels
-		const newRepositoryPanels = e.elements
-			.filter(r => this.repositoryPanels.every(p => p.repository !== r))
-			.map(r => this.instantiationService.createInstance(RepositoryPanel, r));
-
-		// Add new selected panels
-		newRepositoryPanels.forEach(panel => this.viewModel.addRepositoryPanel(panel, panel.minimumSize));
-		this.repositoryPanels = [...repositoryPanels, ...newRepositoryPanels];
-
-		// Resize all panels equally
-		const height = typeof this.viewModel.height === 'number' ? this.viewModel.height : 1000;
-		const size = (height - this.minimumSize) / e.elements.length;
-
-		for (const panel of this.repositoryPanels) {
-			this.viewModel.resizeRepositoryPanel(panel, size);
-		}
-	}
-
 	private updateBodySize(): void {
-		const size = Math.min(5, this.repositories.length) * 22;
+		const size = Math.min(5, this.viewModel.repositories.length) * 22;
 		this.minimumBodySize = size;
 		this.maximumBodySize = size;
 	}
@@ -702,12 +664,21 @@ class InstallAdditionalSCMProvidersAction extends Action {
 
 export class SCMViewlet extends PanelViewlet implements IViewModel {
 
+	private el: HTMLElement;
 	private menus: SCMMenus;
-	private mainPanel: MainPanel;
+	private mainPanel: MainPanel | null = null;
+	private mainPanelDisposable: IDisposable = EmptyDisposable;
+	private _repositories: ISCMRepository[] = [];
+	private repositoryPanels: RepositoryPanel[] = [];
 	private disposables: IDisposable[] = [];
+
+	private _onDidSplice = new Emitter<ISpliceEvent<ISCMRepository>>();
+	readonly onDidSplice: Event<ISpliceEvent<ISCMRepository>> = this._onDidSplice.event;
 
 	private _height: number | undefined = undefined;
 	get height(): number | undefined { return this._height; }
+
+	get repositories(): ISCMRepository[] { return this._repositories; }
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -736,11 +707,70 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 	async create(parent: Builder): TPromise<void> {
 		await super.create(parent);
 
-		parent.addClass('scm-viewlet'/* , 'empty' */);
-		// append(parent.getHTMLElement(), $('div.empty-message', null, localize('no open repo', "There are no source control providers active.")));
+		this.el = parent.getHTMLElement();
+		addClass(this.el, 'scm-viewlet');
+		addClass(this.el, 'empty');
+		append(parent.getHTMLElement(), $('div.empty-message', null, localize('no open repo', "There are no active source control providers.")));
 
-		this.mainPanel = this.instantiationService.createInstance(MainPanel, this);
-		this.addPanel(this.mainPanel, this.mainPanel.minimumSize);
+		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
+		this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
+		this.scmService.repositories.forEach(r => this.onDidAddRepository(r));
+		this.onDidChangeRepositories();
+	}
+
+	private onDidAddRepository(repository: ISCMRepository): void {
+		this.onDidChangeRepositories();
+
+		const index = this._repositories.length;
+		this._repositories.push(repository);
+		this._onDidSplice.fire({ index, deleteCount: 0, elements: [repository] });
+
+		if (!this.mainPanel) {
+			this.onSelectionChange(this.repositories);
+		}
+	}
+
+	private onDidRemoveRepository(repository: ISCMRepository): void {
+		this.onDidChangeRepositories();
+
+		const index = this._repositories.indexOf(repository);
+
+		if (index === -1) {
+			return;
+		}
+
+		this._repositories.splice(index, 1);
+		this._onDidSplice.fire({ index, deleteCount: 1, elements: [] });
+
+		if (!this.mainPanel) {
+			this.onSelectionChange(this.repositories);
+		}
+	}
+
+	private onDidChangeRepositories(): void {
+		toggleClass(this.el, 'empty', this.scmService.repositories.length === 0);
+
+		const shouldMainPanelBeVisible = this.scmService.repositories.length > 1;
+
+		if (!!this.mainPanel === shouldMainPanelBeVisible) {
+			return;
+		}
+
+		if (shouldMainPanelBeVisible) {
+			this.mainPanel = this.instantiationService.createInstance(MainPanel, this);
+			const selectionChangeDisposable = this.mainPanel.onSelectionChange(this.onSelectionChange, this);
+			this.addPanel(this.mainPanel, this.mainPanel.minimumSize, 0);
+
+			this.mainPanelDisposable = toDisposable(() => {
+				this.removePanel(this.mainPanel);
+				selectionChangeDisposable.dispose();
+				this.mainPanel.dispose();
+			});
+		} else {
+			this.mainPanelDisposable.dispose();
+			this.mainPanelDisposable = EmptyDisposable;
+			this.mainPanel = null;
+		}
 	}
 
 	getOptimalWidth(): number {
@@ -817,8 +847,38 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 		this.resizePanel(panel, size);
 	}
 
+	private onSelectionChange(repositories: ISCMRepository[]): void {
+		// Remove unselected panels
+		this.repositoryPanels
+			.filter(p => repositories.every(r => p.repository !== r))
+			.forEach(panel => this.removeRepositoryPanel(panel));
+
+		// Collect panels still selected
+		const repositoryPanels = this.repositoryPanels
+			.filter(p => repositories.some(r => p.repository === r));
+
+		// Collect new selected panels
+		const newRepositoryPanels = repositories
+			.filter(r => this.repositoryPanels.every(p => p.repository !== r))
+			.map(r => this.instantiationService.createInstance(RepositoryPanel, r));
+
+		// Add new selected panels
+		newRepositoryPanels.forEach(panel => this.addRepositoryPanel(panel, panel.minimumSize));
+		this.repositoryPanels = [...repositoryPanels, ...newRepositoryPanels];
+
+		// Resize all panels equally
+		const height = typeof this.height === 'number' ? this.height : 1000;
+		const mainPanelHeight = this.mainPanel ? this.mainPanel.minimumSize : 0;
+		const size = (height - mainPanelHeight) / repositories.length;
+
+		for (const panel of this.repositoryPanels) {
+			this.resizeRepositoryPanel(panel, size);
+		}
+	}
+
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
+		this.mainPanelDisposable.dispose();
 		super.dispose();
 	}
 }
