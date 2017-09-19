@@ -779,20 +779,20 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 
 	getTitle(): string {
 		const title = localize('source control', "Source Control");
-		// const views = ViewsRegistry.getViews(ViewLocation.SCM);
 
-		// if (views.length === 1) {
-		// 	const view = views[0];
-		// 	return localize('viewletTitle', "{0}: {1}", title, view.name);
-		// } else {
-		return title;
-		// }
+		if (this.repositories.length === 1) {
+			const [repository] = this.repositories;
+			return localize('viewletTitle', "{0}: {1}", title, repository.provider.label);
+		} else {
+			return title;
+		}
 	}
 
 	getActions(): IAction[] {
-		// if (this.isSingleView) {
-		// 	return this.views[0].getActions();
-		// }
+		if (this.isSingleView) {
+			const [panel] = this.repositoryPanels;
+			return panel.getActions();
+		}
 
 		return this.menus.getTitleActions();
 	}
@@ -800,18 +800,20 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 	getSecondaryActions(): IAction[] {
 		let result: IAction[];
 
-		// if (this.isSingleView) {
-		// 	result = [
-		// 		...this.views[0].getSecondaryActions(),
-		// 		new Separator()
-		// 	];
-		// } else {
-		result = this.menus.getTitleSecondaryActions();
+		if (this.isSingleView) {
+			const [panel] = this.repositoryPanels;
 
-		if (result.length > 0) {
-			result.push(new Separator());
+			result = [
+				...panel.getSecondaryActions(),
+				new Separator()
+			];
+		} else {
+			result = this.menus.getTitleSecondaryActions();
+
+			if (result.length > 0) {
+				result.push(new Separator());
+			}
 		}
-		// }
 
 		result.push(this.instantiationService.createInstance(InstallAdditionalSCMProvidersAction));
 
@@ -831,27 +833,11 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 		this._height = dimension.height;
 	}
 
-	addRepositoryPanel(panel: RepositoryPanel, size: number, index: number = this.length - 1): void {
-		this.addPanel(panel, size, index + 1);
-	}
-
-	removeRepositoryPanel(panel: RepositoryPanel): void {
-		this.removePanel(panel);
-	}
-
-	moveRepositoryPanel(from: RepositoryPanel, to: RepositoryPanel): void {
-		this.movePanel(from, to);
-	}
-
-	resizeRepositoryPanel(panel: RepositoryPanel, size: number): void {
-		this.resizePanel(panel, size);
-	}
-
 	private onSelectionChange(repositories: ISCMRepository[]): void {
 		// Remove unselected panels
 		this.repositoryPanels
 			.filter(p => repositories.every(r => p.repository !== r))
-			.forEach(panel => this.removeRepositoryPanel(panel));
+			.forEach(panel => this.removePanel(panel));
 
 		// Collect panels still selected
 		const repositoryPanels = this.repositoryPanels
@@ -863,8 +849,11 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 			.map(r => this.instantiationService.createInstance(RepositoryPanel, r));
 
 		// Add new selected panels
-		newRepositoryPanels.forEach(panel => this.addRepositoryPanel(panel, panel.minimumSize));
 		this.repositoryPanels = [...repositoryPanels, ...newRepositoryPanels];
+		newRepositoryPanels.forEach(panel => {
+			this.addPanel(panel, panel.minimumSize, this.length);
+			panel.repository.focus();
+		});
 
 		// Resize all panels equally
 		const height = typeof this.height === 'number' ? this.height : 1000;
@@ -872,7 +861,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 		const size = (height - mainPanelHeight) / repositories.length;
 
 		for (const panel of this.repositoryPanels) {
-			this.resizeRepositoryPanel(panel, size);
+			this.resizePanel(panel, size);
 		}
 	}
 
