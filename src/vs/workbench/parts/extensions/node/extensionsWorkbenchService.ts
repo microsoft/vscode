@@ -20,7 +20,7 @@ import { IPager, mapPager, singlePagePager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions, IExtensionManifest,
-	InstallExtensionEvent, DidInstallExtensionEvent, LocalExtensionType, DidUninstallExtensionEvent, IExtensionEnablementService, IExtensionTipsService
+	InstallExtensionEvent, DidInstallExtensionEvent, LocalExtensionType, DidUninstallExtensionEvent, IExtensionEnablementService, IExtensionTipsService, ErrorCode
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionIdFromLocal, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -725,7 +725,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			}
 			if (extension.gallery) {
 				// Report telemetry only for gallery extensions
-				this.reportTelemetry(installing, !error);
+				this.reportTelemetry(installing, error);
 			}
 		}
 		this._onChange.fire();
@@ -759,7 +759,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		}
 
 		if (!error) {
-			this.reportTelemetry(uninstalling, true);
+			this.reportTelemetry(uninstalling);
 		}
 
 		this._onChange.fire();
@@ -789,12 +789,12 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		return local ? ExtensionState.Installed : ExtensionState.Uninstalled;
 	}
 
-	private reportTelemetry(active: IActiveExtension, success: boolean): void {
+	private reportTelemetry(active: IActiveExtension, errorcode?: ErrorCode): void {
 		const data = active.extension.telemetryData;
 		const duration = new Date().getTime() - active.start.getTime();
 		const eventName = toTelemetryEventName(active.operation);
 
-		this.telemetryService.publicLog(eventName, assign(data, { success, duration }));
+		this.telemetryService.publicLog(eventName, assign(data, { success: !errorcode, duration, errorcode }));
 	}
 
 	private onError(err: any): void {
