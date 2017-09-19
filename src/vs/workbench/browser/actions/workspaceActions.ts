@@ -287,9 +287,9 @@ export class OpenWorkspaceConfigFileAction extends Action {
 	}
 }
 
-export const PICK_WORKSPACE_COMMAND = '_workbench.pickWorkspace';
+export const PICK_WORKSPACE_FOLDER_COMMAND = '_workbench.pickWorkspaceFolder';
 
-CommandsRegistry.registerCommand(PICK_WORKSPACE_COMMAND, function (accessor: ServicesAccessor, args?: [IPickOptions, CancellationToken]) {
+CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND, function (accessor: ServicesAccessor, args?: [IPickOptions, CancellationToken]) {
 	const contextService = accessor.get(IWorkspaceContextService);
 	const quickOpenService = accessor.get(IQuickOpenService);
 	const environmentService = accessor.get(IEnvironmentService);
