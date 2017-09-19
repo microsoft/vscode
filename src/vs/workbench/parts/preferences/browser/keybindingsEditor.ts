@@ -541,7 +541,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	}
 
 	private reportKeybindingAction(action: string, command: string, keybinding: ResolvedKeybinding | string): void {
-		// GDPR__TODO need to move off dynamic event names and properties as they cannot be registered statically
+		// __GDPR__TODO need to move off dynamic event names and properties as they cannot be registered statically
 		this.telemetryService.publicLog(action, { command, keybinding: keybinding ? (typeof keybinding === 'string' ? keybinding : keybinding.getUserSettingsLabel()) : '' });
 	}
 
