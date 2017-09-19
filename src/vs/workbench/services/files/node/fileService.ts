@@ -25,7 +25,7 @@ import uri from 'vs/base/common/uri';
 import nls = require('vs/nls');
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 
 import pfs = require('vs/base/node/pfs');
 import encoding = require('vs/base/node/encoding');
@@ -90,7 +90,6 @@ export class FileService implements IFileService {
 	private undeliveredRawFileChangesEvents: IRawFileChange[];
 
 	private activeWorkspaceChangeWatcher: IDisposable;
-	private currentWorkspaceFoldersCount: number;
 
 	constructor(
 		private contextService: IWorkspaceContextService,
@@ -101,7 +100,6 @@ export class FileService implements IFileService {
 		this.toDispose = [];
 		this.options = options || Object.create(null);
 		this.tmpPath = this.options.tmpDir || os.tmpdir();
-		this.currentWorkspaceFoldersCount = contextService.getWorkspace().folders.length;
 
 		this._onFileChanges = new Emitter<FileChangesEvent>();
 		this.toDispose.push(this._onFileChanges);
@@ -113,36 +111,17 @@ export class FileService implements IFileService {
 			this.options.errorLogger = console.error;
 		}
 
-		if (this.currentWorkspaceFoldersCount > 0 && !this.options.disableWatcher) {
-			this.setupWorkspaceWatching();
-		}
-
 		this.activeFileChangesWatchers = new ResourceMap<fs.FSWatcher>();
 		this.fileChangesWatchDelayer = new ThrottledDelayer<void>(FileService.FS_EVENT_DELAY);
 		this.undeliveredRawFileChangesEvents = [];
+
+		this.setupWorkspaceWatching();
 
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.contextService.onDidChangeWorkspaceFolders(() => this.onDidChangeWorkspaceFolders()));
-	}
-
-	private onDidChangeWorkspaceFolders(): void {
-		const newFoldersCount = this.contextService.getWorkspace().folders.length;
-
-		let restartWorkspaceWatcher = false;
-		if (this.currentWorkspaceFoldersCount <= 1 && newFoldersCount > 1) {
-			restartWorkspaceWatcher = true; // transition: from 1 or 0 folders to 2+
-		} else if (this.currentWorkspaceFoldersCount > 1 && newFoldersCount <= 1) {
-			restartWorkspaceWatcher = true; // transition: from 2+ folders to 1 or 0
-		}
-
-		if (restartWorkspaceWatcher) {
-			this.setupWorkspaceWatching();
-		}
-
-		this.currentWorkspaceFoldersCount = newFoldersCount;
+		this.toDispose.push(this.contextService.onDidChangeWorkbenchState(() => this.setupWorkspaceWatching()));
 	}
 
 	public get onFileChanges(): Event<FileChangesEvent> {
@@ -164,6 +143,11 @@ export class FileService implements IFileService {
 		// dispose old if any
 		if (this.activeWorkspaceChangeWatcher) {
 			this.activeWorkspaceChangeWatcher.dispose();
+		}
+
+		// Return if not aplicable
+		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY || this.options.disableWatcher) {
+			return;
 		}
 
 		// new watcher: use it if setting tells us so or we run in multi-root environment

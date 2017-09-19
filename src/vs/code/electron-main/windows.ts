@@ -19,7 +19,7 @@ import { IPathWithLineAndColumn, parseLineAndColumnAware } from 'vs/code/node/pa
 import { ILifecycleService, UnloadReason, IWindowUnloadEvent } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IWindowSettings, OpenContext, IPath, IWindowConfiguration, INativeOpenDialogOptions, ReadyState, IPathsToWaitFor } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, OpenContext, IPath, IWindowConfiguration, INativeOpenDialogOptions, ReadyState, IPathsToWaitFor, IEnterWorkspaceResult } from 'vs/platform/windows/common/windows';
 import { getLastActiveWindow, findBestWindowOrFolderForFile, findWindowOnWorkspace, findWindowOnExtensionDevelopmentPath, findWindowOnWorkspaceOrFolderPath } from 'vs/code/node/windowsFinder';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/node/product';
@@ -1294,19 +1294,28 @@ export class WindowsManager implements IWindowsMainService {
 		});
 	}
 
-	public saveAndOpenWorkspace(win: CodeWindow, path: string): TPromise<void> {
-		return this.workspacesManager.saveAndOpenWorkspace(win, path);
+	public saveAndEnterWorkspace(win: CodeWindow, path: string): TPromise<IEnterWorkspaceResult> {
+		return this.workspacesManager.saveAndEnterWorkspace(win, path).then(result => this.doEnterWorkspace(win, result));
 	}
 
-	public createAndOpenWorkspace(win: CodeWindow, folders?: string[], path?: string): TPromise<void> {
-		return this.workspacesManager.createAndOpenWorkspace(win, folders, path);
+	public createAndEnterWorkspace(win: CodeWindow, folders?: string[], path?: string): TPromise<IEnterWorkspaceResult> {
+		return this.workspacesManager.createAndEnterWorkspace(win, folders, path).then(result => this.doEnterWorkspace(win, result));
+	}
+
+	private doEnterWorkspace(win: CodeWindow, result: IEnterWorkspaceResult): IEnterWorkspaceResult {
+
+		// Mark as recently opened
+		this.historyService.addRecentlyOpened([result.workspace], []);
+
+		// Trigger Eevent to indicate load of workspace into window
+		this._onWindowReady.fire(win);
+
+		return result;
 	}
 
 	public openWorkspace(win?: CodeWindow): void {
 		this.workspacesManager.openWorkspace(win);
 	}
-
-
 
 	private onBeforeWindowUnload(e: IWindowUnloadEvent): void {
 		const windowClosing = (e.reason === UnloadReason.CLOSE);
@@ -1639,7 +1648,7 @@ class WorkspacesManager {
 	) {
 	}
 
-	public saveAndOpenWorkspace(window: CodeWindow, path: string): TPromise<void> {
+	public saveAndEnterWorkspace(window: CodeWindow, path: string): TPromise<IEnterWorkspaceResult> {
 		if (!window || !window.win || window.readyState !== ReadyState.READY || !window.openedWorkspace || !path || !this.isValidTargetWorkspacePath(window, path)) {
 			return TPromise.as(null); // return early if the window is not ready or disposed or does not have a workspace
 		}
@@ -1647,7 +1656,7 @@ class WorkspacesManager {
 		return this.doSaveAndOpenWorkspace(window, window.openedWorkspace, path);
 	}
 
-	public createAndOpenWorkspace(window: CodeWindow, folders?: string[], path?: string): TPromise<void> {
+	public createAndEnterWorkspace(window: CodeWindow, folders?: string[], path?: string): TPromise<IEnterWorkspaceResult> {
 		if (!window || !window.win || window.readyState !== ReadyState.READY || !this.isValidTargetWorkspacePath(window, path)) {
 			return TPromise.as(null); // return early if the window is not ready or disposed
 		}
@@ -1690,7 +1699,7 @@ class WorkspacesManager {
 		return true; // OK
 	}
 
-	private doSaveAndOpenWorkspace(window: CodeWindow, workspace: IWorkspaceIdentifier, path?: string): TPromise<void> {
+	private doSaveAndOpenWorkspace(window: CodeWindow, workspace: IWorkspaceIdentifier, path?: string): TPromise<IEnterWorkspaceResult> {
 		let savePromise: TPromise<IWorkspaceIdentifier>;
 		if (path) {
 			savePromise = this.workspacesService.saveWorkspace(workspace, path);
@@ -1701,26 +1710,18 @@ class WorkspacesManager {
 		return savePromise.then(workspace => {
 			window.focus();
 
-			// Only open workspace when the window has not vetoed this
-			return this.lifecycleService.unload(window, UnloadReason.RELOAD, workspace).done(veto => {
-				if (!veto) {
+			// Register window for backups and migrate current backups over
+			let backupPath: string;
+			if (!window.config.extensionDevelopmentPath) {
+				backupPath = this.backupService.registerWorkspaceBackupSync(workspace, window.config.backupPath);
+			}
 
-					// Register window for backups and migrate current backups over
-					let backupPath: string;
-					if (window.config && !window.config.extensionDevelopmentPath) {
-						backupPath = this.backupService.registerWorkspaceBackupSync(workspace, window.config.backupPath);
-					}
+			// Update window configuration properly based on transition to workspace
+			window.config.folderPath = void 0;
+			window.config.workspace = workspace;
+			window.config.backupPath = backupPath;
 
-					// Craft a new window configuration to use for the transition
-					const configuration: IWindowConfiguration = mixin({}, window.config);
-					configuration.folderPath = void 0;
-					configuration.workspace = workspace;
-					configuration.backupPath = backupPath;
-
-					// Reload
-					window.reload(configuration);
-				}
-			});
+			return { workspace, backupPath };
 		});
 	}
 

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import uri from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/paths';
 import * as types from 'vs/base/common/types';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -14,13 +13,14 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { toResource } from 'vs/workbench/common/editor';
 
 export class ConfigurationResolverService implements IConfigurationResolverService {
 	_serviceBrand: any;
 	private _execPath: string;
-	private _workspaceRoot: string;
+	private _lastWorkspaceFolder: WorkspaceFolder;
 
 	constructor(
 		envVariables: { [key: string]: string },
@@ -40,11 +40,19 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 	}
 
 	private get cwd(): string {
-		return this.workspaceRoot;
+		if (this.workspaceRoot) {
+			return this.workspaceRoot;
+		} else {
+			return process.cwd();
+		}
 	}
 
 	private get workspaceRoot(): string {
-		return this._workspaceRoot;
+		return this._lastWorkspaceFolder ? this._lastWorkspaceFolder.uri.fsPath : undefined;
+	}
+
+	private get workspaceFolder(): string {
+		return this.workspaceRoot;
 	}
 
 	private get workspaceRootFolderName(): string {
@@ -101,37 +109,43 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 		return paths.normalize(fileResource.fsPath, true);
 	}
 
-	public resolve(root: uri, value: string): string;
-	public resolve(root: uri, value: string[]): string[];
-	public resolve(root: uri, value: IStringDictionary<string>): IStringDictionary<string>;
-	public resolve(root: uri, value: any): any {
-		this._workspaceRoot = root.fsPath.toString();
-		if (types.isString(value)) {
-			return this.resolveString(root, value);
-		} else if (types.isArray(value)) {
-			return this.resolveArray(root, value);
-		} else if (types.isObject(value)) {
-			return this.resolveLiteral(root, value);
+	public resolve(root: WorkspaceFolder, value: string): string;
+	public resolve(root: WorkspaceFolder, value: string[]): string[];
+	public resolve(root: WorkspaceFolder, value: IStringDictionary<string>): IStringDictionary<string>;
+	public resolve(root: WorkspaceFolder, value: any): any {
+		try {
+			this._lastWorkspaceFolder = root;
+			if (types.isString(value)) {
+				return this.resolveString(root, value);
+			} else if (types.isArray(value)) {
+				return this.resolveArray(root, value);
+			} else if (types.isObject(value)) {
+				return this.resolveLiteral(root, value);
+			}
+			return value;
+		} finally {
+			this._lastWorkspaceFolder = undefined;
 		}
-
-		return value;
 	}
 
-	public resolveAny<T>(root: uri, value: T): T;
-	public resolveAny<T>(root: uri, value: any): any {
-		this._workspaceRoot = root.fsPath.toString();
-		if (types.isString(value)) {
-			return this.resolveString(root, value);
-		} else if (types.isArray(value)) {
-			return this.resolveAnyArray(root, value);
-		} else if (types.isObject(value)) {
-			return this.resolveAnyLiteral(root, value);
+	public resolveAny<T>(root: WorkspaceFolder, value: T): T;
+	public resolveAny<T>(root: WorkspaceFolder, value: any): any {
+		try {
+			this._lastWorkspaceFolder = root;
+			if (types.isString(value)) {
+				return this.resolveString(root, value);
+			} else if (types.isArray(value)) {
+				return this.resolveAnyArray(root, value);
+			} else if (types.isObject(value)) {
+				return this.resolveAnyLiteral(root, value);
+			}
+			return value;
+		} finally {
+			this._lastWorkspaceFolder = undefined;
 		}
-
-		return value;
 	}
 
-	private resolveString(root: uri, value: string): string {
+	private resolveString(root: WorkspaceFolder, value: string): string {
 		let regexp = /\$\{(.*?)\}/g;
 		const originalValue = value;
 		const resolvedString = value.replace(regexp, (match: string, name: string) => {
@@ -146,7 +160,7 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 		return this.resolveConfigVariable(root, resolvedString, originalValue);
 	}
 
-	private resolveConfigVariable(root: uri, value: string, originalValue: string): string {
+	private resolveConfigVariable(root: WorkspaceFolder, value: string, originalValue: string): string {
 		const replacer = (match: string, name: string) => {
 			let config = this.configurationService.getConfiguration<any>();
 			let newValue: any;
@@ -177,7 +191,7 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 		return value.replace(/\$\{config:(.+?)\}/g, replacer);
 	}
 
-	private resolveLiteral(root: uri, values: IStringDictionary<string | IStringDictionary<string> | string[]>): IStringDictionary<string | IStringDictionary<string> | string[]> {
+	private resolveLiteral(root: WorkspaceFolder, values: IStringDictionary<string | IStringDictionary<string> | string[]>): IStringDictionary<string | IStringDictionary<string> | string[]> {
 		let result: IStringDictionary<string | IStringDictionary<string> | string[]> = Object.create(null);
 		Object.keys(values).forEach(key => {
 			let value = values[key];
@@ -186,8 +200,8 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 		return result;
 	}
 
-	private resolveAnyLiteral<T>(root: uri, values: T): T;
-	private resolveAnyLiteral<T>(root: uri, values: any): any {
+	private resolveAnyLiteral<T>(root: WorkspaceFolder, values: T): T;
+	private resolveAnyLiteral<T>(root: WorkspaceFolder, values: any): any {
 		let result: IStringDictionary<string | IStringDictionary<string> | string[]> = Object.create(null);
 		Object.keys(values).forEach(key => {
 			let value = values[key];
@@ -196,12 +210,12 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 		return result;
 	}
 
-	private resolveArray(root: uri, value: string[]): string[] {
+	private resolveArray(root: WorkspaceFolder, value: string[]): string[] {
 		return value.map(s => this.resolveString(root, s));
 	}
 
-	private resolveAnyArray<T>(root: uri, value: T[]): T[];
-	private resolveAnyArray(root: uri, value: any[]): any[] {
+	private resolveAnyArray<T>(root: WorkspaceFolder, value: T[]): T[];
+	private resolveAnyArray(root: WorkspaceFolder, value: any[]): any[] {
 		return value.map(s => this.resolveAny(root, s));
 	}
 

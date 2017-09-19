@@ -214,19 +214,19 @@ export class QueryBuilder {
 
 		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.FOLDER) { // TODO: @Sandy Try checking workspace folders length instead.
 			return [paths.normalize(
-				paths.join(this.workspaceContextService.getWorkspace().folders[0].fsPath, searchPath))];
+				paths.join(this.workspaceContextService.getWorkspace().folders[0].uri.fsPath, searchPath))];
 		} else if (searchPath === './') {
 			return []; // ./ or ./**/foo makes sense for single-folder but not multi-folder workspaces
 		} else {
 			const relativeSearchPathMatch = searchPath.match(/\.[\/\\]([^\/\\]+)([\/\\].+)?/);
 			if (relativeSearchPathMatch) {
 				const searchPathRoot = relativeSearchPathMatch[1];
-				const matchingRoots = this.workspaceContextService.getWorkspace().folders.filter(folder => paths.basename(folder.fsPath) === searchPathRoot);
+				const matchingRoots = this.workspaceContextService.getWorkspace().folders.filter(folder => paths.basename(folder.uri.fsPath) === searchPathRoot);
 				if (matchingRoots.length) {
 					return matchingRoots.map(root => {
 						return relativeSearchPathMatch[2] ?
-							paths.normalize(paths.join(root.fsPath, relativeSearchPathMatch[2])) :
-							root.fsPath;
+							paths.normalize(paths.join(root.uri.fsPath, relativeSearchPathMatch[2])) :
+							root.uri.fsPath;
 					});
 				} else {
 					// No root folder with name

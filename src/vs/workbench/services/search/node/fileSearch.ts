@@ -230,7 +230,7 @@ export class FileWalker {
 			cmd = this.spawnFindCmd(folderQuery);
 		}
 
-		this.collectStdout(cmd, 'utf8', (err: Error, stdout?: string, last?: boolean) => {
+		this.collectStdout(cmd, 'utf8', useRipgrep, (err: Error, stdout?: string, last?: boolean) => {
 			if (err) {
 				done(err);
 				return;
@@ -354,9 +354,9 @@ export class FileWalker {
 	/**
 	 * Public for testing.
 	 */
-	public readStdout(cmd: childProcess.ChildProcess, encoding: string, cb: (err: Error, stdout?: string) => void): void {
+	public readStdout(cmd: childProcess.ChildProcess, encoding: string, isRipgrep: boolean, cb: (err: Error, stdout?: string) => void): void {
 		let all = '';
-		this.collectStdout(cmd, encoding, (err: Error, stdout?: string, last?: boolean) => {
+		this.collectStdout(cmd, encoding, isRipgrep, (err: Error, stdout?: string, last?: boolean) => {
 			if (err) {
 				cb(err);
 				return;
@@ -369,7 +369,7 @@ export class FileWalker {
 		});
 	}
 
-	private collectStdout(cmd: childProcess.ChildProcess, encoding: string, cb: (err: Error, stdout?: string, last?: boolean) => void): void {
+	private collectStdout(cmd: childProcess.ChildProcess, encoding: string, isRipgrep: boolean, cb: (err: Error, stdout?: string, last?: boolean) => void): void {
 		let done = (err: Error, stdout?: string, last?: boolean) => {
 			if (err || last) {
 				done = () => { };
@@ -386,7 +386,8 @@ export class FileWalker {
 		});
 
 		cmd.on('close', (code: number) => {
-			if (code !== 0) {
+			// ripgrep returns code=1 when no results are found
+			if (code !== 0 && ((isRipgrep && stderr.length) || !isRipgrep)) {
 				done(new Error(`command failed with error code ${code}: ${this.decodeData(stderr, encoding)}`));
 			} else {
 				done(null, '', true);

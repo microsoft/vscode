@@ -14,8 +14,6 @@
 	"files.exclude.boolean": "Modèle Glob auquel les chemins de fichiers doivent correspondre. Affectez la valeur true ou false pour activer ou désactiver le modèle.",
 	"files.exclude.when": "Vérification supplémentaire des frères d'un fichier correspondant. Utilisez $(basename) comme variable pour le nom de fichier correspondant.",
 	"associations": "Configurez les associations entre les fichiers et les langages (par exemple, \"*.extension\": \"html\"). Celles-ci ont priorité sur les associations par défaut des langages installés.",
-	"encoding": "Encodage du jeu de caractères par défaut à utiliser durant la lecture et l'écriture des fichiers.",
-	"autoGuessEncoding": "Quand cette option est activée, tente de deviner l'encodage du jeu de caractères à l'ouverture des fichiers",
 	"eol": "Caractère de fin de ligne par défaut. Utilisez \\n pour LF et \\r\\n pour CRLF.",
 	"trimTrailingWhitespace": "Si l'option est activée, l'espace blanc de fin est supprimé au moment de l'enregistrement d'un fichier.",
 	"insertFinalNewline": "Quand l'option est activée, une nouvelle ligne finale est insérée à la fin du fichier au moment de son enregistrement.",

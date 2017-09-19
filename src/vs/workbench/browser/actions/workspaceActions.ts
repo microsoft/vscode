@@ -9,14 +9,14 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import nls = require('vs/nls');
 import { distinct } from 'vs/base/common/arrays';
-import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import URI from 'vs/base/common/uri';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspacesService, WORKSPACE_FILTER } from 'vs/platform/workspaces/common/workspaces';
+import { WORKSPACE_FILTER } from 'vs/platform/workspaces/common/workspaces';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isLinux } from 'vs/base/common/platform';
@@ -77,7 +77,7 @@ export abstract class BaseWorkspacesAction extends Action {
 		let defaultPath: string;
 		const workspace = this.contextService.getWorkspace();
 		if (workspace.folders.length > 0) {
-			defaultPath = dirname(workspace.folders[0].fsPath); // pick the parent of the first root by default
+			defaultPath = dirname(workspace.folders[0].uri.fsPath); // pick the parent of the first root by default
 		}
 
 		return this.windowService.showOpenDialog({
@@ -108,16 +108,25 @@ export class AddRootFolderAction extends BaseWorkspacesAction {
 	}
 
 	public run(): TPromise<any> {
+		let addFoldersPromise: TPromise<void>;
+
+		// Workspace
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			const folders = super.pickFolders(mnemonicButtonLabel(nls.localize({ key: 'add', comment: ['&& denotes a mnemonic'] }, "&&Add")), nls.localize('addFolderToWorkspaceTitle', "Add Folder to Workspace"));
 			if (!folders || !folders.length) {
 				return TPromise.as(null);
 			}
-			return this.workspaceEditingService.addFolders(folders.map(folder => URI.file(folder))).then(() => {
-				return this.viewletService.openViewlet(this.viewletService.getDefaultViewletId(), true);
-			});
+
+			addFoldersPromise = this.workspaceEditingService.addFolders(folders.map(folder => URI.file(folder)));
 		}
-		return this.instantiationService.createInstance(NewWorkspaceAction, NewWorkspaceAction.ID, NewWorkspaceAction.LABEL, this.contextService.getWorkspace().folders).run();
+
+		// Empty or Folder
+		else {
+			addFoldersPromise = this.instantiationService.createInstance(NewWorkspaceAction, NewWorkspaceAction.ID, NewWorkspaceAction.LABEL, this.contextService.getWorkspace().folders.map(folder => folder.uri)).run();
+		}
+
+		// Add and show Files Explorer viewlet
+		return addFoldersPromise.then(() => this.viewletService.openViewlet(this.viewletService.getDefaultViewletId(), true));
 	}
 }
 
@@ -133,8 +142,7 @@ class NewWorkspaceAction extends BaseWorkspacesAction {
 		@IWindowService windowService: IWindowService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IWorkspacesService protected workspacesService: IWorkspacesService,
-		@IWindowsService protected windowsService: IWindowsService,
+		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService
 	) {
 		super(id, label, windowService, environmentService, contextService);
 	}
@@ -151,7 +159,7 @@ class NewWorkspaceAction extends BaseWorkspacesAction {
 	private createWorkspace(folders: URI[]): TPromise<void> {
 		const workspaceFolders = distinct(folders.map(folder => folder.fsPath), folder => isLinux ? folder : folder.toLowerCase());
 
-		return this.windowService.createAndOpenWorkspace(workspaceFolders);
+		return this.workspaceEditingService.createAndEnterWorkspace(workspaceFolders);
 	}
 }
 
@@ -185,9 +193,8 @@ export class SaveWorkspaceAsAction extends BaseWorkspacesAction {
 		@IWindowService windowService: IWindowService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IWorkspacesService protected workspacesService: IWorkspacesService,
-		@IWindowsService private windowsService: IWindowsService,
-		@IMessageService private messageService: IMessageService
+		@IMessageService private messageService: IMessageService,
+		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService
 	) {
 		super(id, label, windowService, environmentService, contextService);
 	}
@@ -196,6 +203,7 @@ export class SaveWorkspaceAsAction extends BaseWorkspacesAction {
 		const workspaceState = this.contextService.getWorkbenchState();
 		if (workspaceState === WorkbenchState.EMPTY) {
 			this.messageService.show(Severity.Info, nls.localize('saveEmptyWorkspaceNotSupported', "Please open a workspace first to save."));
+
 			return TPromise.as(null);
 		}
 
@@ -204,11 +212,11 @@ export class SaveWorkspaceAsAction extends BaseWorkspacesAction {
 			switch (workspaceState) {
 
 				case WorkbenchState.FOLDER:
-					const workspaceFolders = this.contextService.getWorkspace().folders.map(root => root.fsPath);
-					return this.windowService.createAndOpenWorkspace(workspaceFolders, configPath);
+					const workspaceFolders = this.contextService.getWorkspace().folders.map(root => root.uri.fsPath);
+					return this.workspaceEditingService.createAndEnterWorkspace(workspaceFolders, configPath);
 
 				case WorkbenchState.WORKSPACE:
-					return this.windowService.saveAndOpenWorkspace(configPath);
+					return this.workspaceEditingService.saveAndEnterWorkspace(configPath);
 			}
 		}
 
@@ -221,7 +229,7 @@ export class SaveWorkspaceAsAction extends BaseWorkspacesAction {
 		if (workspace.configuration && !this.isUntitledWorkspace(workspace.configuration.fsPath)) {
 			defaultPath = workspace.configuration.fsPath;
 		} else if (workspace.folders.length > 0) {
-			defaultPath = dirname(workspace.folders[0].fsPath); // pick the parent of the first root by default
+			defaultPath = dirname(workspace.folders[0].uri.fsPath); // pick the parent of the first root by default
 		}
 
 		return this.windowService.showSaveDialog({

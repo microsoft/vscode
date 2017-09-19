@@ -157,7 +157,7 @@ export class WorkspaceStats {
 		tags['workspace.roots'] = isEmpty ? 0 : workspace.folders.length;
 		tags['workspace.empty'] = isEmpty;
 
-		const folders = !isEmpty ? workspace.folders : this.environmentService.appQuality !== 'stable' && this.findFolders(configuration);
+		const folders = !isEmpty ? workspace.folders.map(folder => folder.uri) : this.environmentService.appQuality !== 'stable' && this.findFolders(configuration);
 		if (folders && folders.length && this.fileService) {
 			return this.fileService.resolveFiles(folders.map(resource => ({ resource }))).then(results => {
 				const names = (<IFileStat[]>[]).concat(...results.map(result => result.success ? (result.stat.children || []) : [])).map(c => c.name);
@@ -324,8 +324,8 @@ export class WorkspaceStats {
 	}
 
 	public reportCloudStats(): void {
-		const uris = this.contextService.getWorkspace().folders;
-		if (uris && uris.length && this.fileService) {
+		const uris = this.contextService.getWorkspace().folders.map(folder => folder.uri);
+		if (uris.length && this.fileService) {
 			this.reportRemoteDomains(uris);
 			this.reportRemotes(uris);
 			this.reportAzure(uris);

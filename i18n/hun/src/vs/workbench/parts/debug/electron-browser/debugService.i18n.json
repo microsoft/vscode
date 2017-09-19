@@ -12,6 +12,8 @@
 	"breakpointRemoved": "Töréspont eltávoíltva, {0}. sor, fájl: {1}",
 	"compoundMustHaveConfigurations": "A kombinációk \"configurations\" tulajdonságát be kell állítani több konfiguráció elindításához.",
 	"configMissing": "A(z) '{0}' konfiguráció hiányzik a 'launch.json'-ból.",
+	"debugRequestNotSupported": "A beállított hibakeresési kérés ('{0}') nem támogatott",
+	"debugRequesMissing": "A hibakeresési kéréshez hiányzik a kiválasztott indítási konfiguráció.",
 	"debugTypeNotSupported": "A megadott hibakeresési típus ('{0}') nem támogatott.",
 	"debugTypeMissing": "A kiválasztott indítási konfigurációnak hiányzik a 'type' tulajdonsága.",
 	"preLaunchTaskErrors": "Buildelési hibák léptek fel a(z) '{0}' preLaunchTask futása közben.",

@@ -24,7 +24,7 @@ import { BinaryResourceDiffEditor } from 'vs/workbench/browser/parts/editor/bina
 import { ChangeEncodingAction, ChangeEOLAction, ChangeModeAction, EditorStatus } from 'vs/workbench/browser/parts/editor/editorStatus';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor } from 'vs/workbench/browser/actions';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import {
@@ -39,6 +39,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { getQuickNavigateHandler, inQuickOpenContext } from 'vs/workbench/browser/parts/quickopen/quickopen';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { isMacintosh } from 'vs/base/common/platform';
 
 // Register String Editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -402,3 +403,16 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 // Editor Commands
 editorCommands.setup();
+
+// Touch Bar
+if (isMacintosh) {
+	MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
+		command: { id: NavigateBackwardsAction.ID, title: NavigateBackwardsAction.LABEL, iconPath: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/back-tb.png')).fsPath },
+		group: 'navigation'
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
+		command: { id: NavigateForwardAction.ID, title: NavigateForwardAction.LABEL, iconPath: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/forward-tb.png')).fsPath },
+		group: 'navigation'
+	});
+}

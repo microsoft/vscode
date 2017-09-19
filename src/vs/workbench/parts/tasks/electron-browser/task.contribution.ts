@@ -76,7 +76,7 @@ import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 
 import { ITaskSystem, ITaskResolver, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TaskSystemEvents, TaskTerminateResponse } from 'vs/workbench/parts/tasks/common/taskSystem';
-import { Task, CustomTask, ConfiguringTask, ContributedTask, CompositeTask, TaskSet, TaskGroup, ExecutionEngine, JsonSchemaVersion, TaskSourceKind, TaskIdentifier } from 'vs/workbench/parts/tasks/common/tasks';
+import { Task, CustomTask, ConfiguringTask, ContributedTask, CompositeTask, TaskSet, TaskGroup, ExecutionEngine, JsonSchemaVersion, TaskSourceKind, TaskIdentifier, WorkspaceFolder } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService, TaskServiceEvents, ITaskProvider, TaskEvent, RunOptions, CustomizationProperties } from 'vs/workbench/parts/tasks/common/taskService';
 import { templates as taskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
 
@@ -119,7 +119,7 @@ abstract class OpenTaskConfigurationAction extends Action {
 		}
 		let sideBySide = !!(event && (event.ctrlKey || event.metaKey));
 		let configFileCreated = false;
-		return this.fileService.resolveFile(this.contextService.toResource('.vscode/tasks.json')).then((success) => { // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
+		return this.fileService.resolveFile(this.contextService.toResource('.vscode/tasks.json', this.contextService.getWorkspace().folders[0])).then((success) => { // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
 
 			return success;
 		}, (err: any) => {
@@ -170,7 +170,7 @@ abstract class OpenTaskConfigurationAction extends Action {
 						content = content.replace(/(\n)(\t+)/g, (_, s1, s2) => s1 + strings.repeat(' ', s2.length * editorConfig.editor.tabSize));
 					}
 					configFileCreated = true;
-					return this.fileService.createFile(this.contextService.toResource('.vscode/tasks.json'), content).then((result) => {
+					return this.fileService.createFile(this.contextService.toResource('.vscode/tasks.json', this.contextService.getWorkspace().folders[0]), content).then((result) => {
 						this.telemetryService.publicLog(TaskService.TemplateTelemetryEventName, {
 							templateId: selection.id,
 							autoDetect: selection.autoDetect
@@ -301,7 +301,7 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(this.contextService.onDidChangeWorkspaceFolders(() => this.updateStyles()));
+		this.toUnbind.push(this.contextService.onDidChangeWorkbenchState(() => this.updateStyles()));
 	}
 
 	protected updateStyles(): void {
@@ -618,7 +618,12 @@ interface WorkspaceTaskResult {
 	hasErrors: boolean;
 }
 
-interface WorkspaceConfigurationResult {
+interface WorkspaceFolderTaskResult extends WorkspaceTaskResult {
+	workspaceFolder: WorkspaceFolder;
+}
+
+interface WorkspaceFolderConfigurationResult {
+	workspaceFolder: WorkspaceFolder;
 	config: TaskConfig.ExternalTaskRunnerConfiguration;
 	hasErrors: boolean;
 }
@@ -657,9 +662,12 @@ class TaskService extends EventEmitter implements ITaskService {
 	private quickOpenService: IQuickOpenService;
 
 	private _configHasErrors: boolean;
+	private _schemaVersion: JsonSchemaVersion;
+	private _executionEngine: ExecutionEngine;
+	private _workspaceFolders: WorkspaceFolder[];
 	private _providers: Map<number, ITaskProvider>;
 
-	private _workspaceTasksPromise: TPromise<WorkspaceTaskResult>;
+	private _workspaceTasksPromise: TPromise<Map<string, WorkspaceFolderTaskResult>>;
 
 	private _taskSystem: ITaskSystem;
 	private _taskSystemListeners: IDisposable[];
@@ -711,22 +719,14 @@ class TaskService extends EventEmitter implements ITaskService {
 			if (!this._taskSystem && !this._workspaceTasksPromise) {
 				return;
 			}
-			this.updateWorkspaceTasks();
-			if (!this._taskSystem) {
-				return;
-			}
-			let currentExecutionEngine = this._taskSystem instanceof TerminalTaskSystem
-				? ExecutionEngine.Terminal
-				: this._taskSystem instanceof ProcessTaskSystem
-					? ExecutionEngine.Process
-					: ExecutionEngine._default;
-			if (currentExecutionEngine !== this.getExecutionEngine()) {
+			let folderSetup = this.computeWorkspaceFolders();
+			if (this._executionEngine !== folderSetup[1] && this._taskSystem && this._taskSystem.getActiveTasks().length > 0) {
 				this.messageService.show(
 					Severity.Info,
 					{
 						message: nls.localize(
 							'TaskSystem.noHotSwap',
-							'Changing the task execution engine requires to reload the Window'
+							'Changing the task execution engine with an active task running requires to reload the Window'
 						),
 						actions: [
 							new ReloadWindowAction(ReloadWindowAction.ID, ReloadWindowAction.LABEL, this._windowServive),
@@ -734,8 +734,17 @@ class TaskService extends EventEmitter implements ITaskService {
 						]
 					}
 				);
+				return;
 			}
+			this._workspaceFolders = folderSetup[0];
+			this._executionEngine = folderSetup[1];
+			this._schemaVersion = folderSetup[2];
+			this.updateWorkspaceTasks();
 		});
+		let folderSetup = this.computeWorkspaceFolders();
+		this._workspaceFolders = folderSetup[0];
+		this._executionEngine = folderSetup[1];
+		this._schemaVersion = folderSetup[2];
 		lifecycleService.onWillShutdown(event => event.veto(this.beforeShutdown()));
 		this.registerCommands();
 	}
@@ -814,20 +823,14 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	public getTask(identifier: string): TPromise<Task> {
-		return this.getTaskSets().then((sets) => {
-			let resolver = this.createResolver(sets);
+		return this.getAllTasks().then((tasks) => {
+			let resolver = this.createResolver(tasks);
 			return resolver.resolve(identifier);
 		});
 	}
 
 	public tasks(): TPromise<Task[]> {
-		return this.getTaskSets().then((sets) => {
-			let result: Task[] = [];
-			for (let set of sets) {
-				result.push(...set.tasks);
-			}
-			return result;
-		});
+		return this.getAllTasks();
 	};
 
 	public isActive(): TPromise<boolean> {
@@ -881,10 +884,10 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	public build(): TPromise<ITaskSummary> {
-		return this.getTaskSets().then((values) => {
-			let runnable = this.createRunnableTask(values, TaskGroup.Build);
+		return this.getAllTasks().then((tasks) => {
+			let runnable = this.createRunnableTask(tasks, TaskGroup.Build);
 			if (!runnable || !runnable.task) {
-				if (this.getJsonSchemaVersion() === JsonSchemaVersion.V0_1_0) {
+				if (this._schemaVersion === JsonSchemaVersion.V0_1_0) {
 					throw new TaskError(Severity.Info, nls.localize('TaskService.noBuildTask1', 'No build task defined. Mark a task with \'isBuildCommand\' in the tasks.json file.'), TaskErrors.NoBuildTask);
 				} else {
 					throw new TaskError(Severity.Info, nls.localize('TaskService.noBuildTask2', 'No build task defined. Mark a task with as a \'build\' group in the tasks.json file.'), TaskErrors.NoBuildTask);
@@ -906,10 +909,10 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	public runTest(): TPromise<ITaskSummary> {
-		return this.getTaskSets().then((values) => {
-			let runnable = this.createRunnableTask(values, TaskGroup.Test);
+		return this.getAllTasks().then((tasks) => {
+			let runnable = this.createRunnableTask(tasks, TaskGroup.Test);
 			if (!runnable || !runnable.task) {
-				if (this.getJsonSchemaVersion() === JsonSchemaVersion.V0_1_0) {
+				if (this._schemaVersion === JsonSchemaVersion.V0_1_0) {
 					throw new TaskError(Severity.Info, nls.localize('TaskService.noTestTask1', 'No test task defined. Mark a task with \'isTestCommand\' in the tasks.json file.'), TaskErrors.NoTestTask);
 				} else {
 					throw new TaskError(Severity.Info, nls.localize('TaskService.noTestTask2', 'No test task defined. Mark a task with as a \'test\' group in the tasks.json file.'), TaskErrors.NoTestTask);
@@ -923,8 +926,8 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	public run(task: string | Task, options?: RunOptions): TPromise<ITaskSummary> {
-		return this.getTaskSets().then((values) => {
-			let resolver = this.createResolver(values);
+		return this.getAllTasks().then((tasks) => {
+			let resolver = this.createResolver(tasks);
 			let requested: string;
 			let toExecute: Task;
 			if (Types.isString(task)) {
@@ -955,7 +958,7 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	private shouldAttachProblemMatcher(task: Task): boolean {
-		if (!this.canCustomize()) {
+		if (!this.canCustomize(task)) {
 			return false;
 		}
 		if (task.group !== void 0 && task.group !== TaskGroup.Build) {
@@ -1016,7 +1019,7 @@ class TaskService extends EventEmitter implements ITaskService {
 						this.customize(task, { problemMatcher: [] }, true);
 						return task;
 					} else if (selected.matcher) {
-						let newTask = Objects.deepClone(task);
+						let newTask = Task.clone(task);
 						let matcherReference = `$${selected.matcher.name}`;
 						newTask.problemMatchers = [matcherReference];
 						this.customize(task, { problemMatcher: [matcherReference] }, true);
@@ -1033,25 +1036,40 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	public getTasksForGroup(group: string): TPromise<Task[]> {
-		return this.getTaskSets().then((values) => {
+		return this.getAllTasks().then((tasks) => {
 			let result: Task[] = [];
-			for (let value of values) {
-				for (let task of value.tasks) {
-					if (task.group === group) {
-						result.push(task);
-					}
+			for (let task of tasks) {
+				if (task.group === group) {
+					result.push(task);
 				}
 			}
 			return result;
 		});
 	}
 
-	public canCustomize(): boolean {
-		return this.getJsonSchemaVersion() === JsonSchemaVersion.V2_0_0;
+	public hasMultipleFolders(): boolean {
+		return this._workspaceFolders && this._workspaceFolders.length > 1;
+	}
+
+	public canCustomize(task: Task): boolean {
+		if (this._schemaVersion !== JsonSchemaVersion.V2_0_0) {
+			return false;
+		}
+		if (CustomTask.is(task)) {
+			return true;
+		}
+		if (ContributedTask.is(task)) {
+			return !!Task.getWorkspaceFolder(task);
+		}
+		return false;
 	}
 
 	public customize(task: ContributedTask | CustomTask, properties?: CustomizationProperties, openConfig?: boolean): TPromise<void> {
-		let configuration = this.getConfiguration();
+		let workspaceFolder = Task.getWorkspaceFolder(task);
+		if (!workspaceFolder) {
+			return TPromise.as<void>(undefined);
+		}
+		let configuration = this.getConfiguration(workspaceFolder);
 		if (configuration.hasParseErrors) {
 			this.messageService.show(Severity.Warning, nls.localize('customizeParseErrors', 'The current task configuration has errors. Please fix the errors first before customizing a task.'));
 			return TPromise.as<void>(undefined);
@@ -1105,7 +1123,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			if (editorConfig.editor.insertSpaces) {
 				content = content.replace(/(\n)(\t+)/g, (_, s1, s2) => s1 + strings.repeat(' ', s2.length * editorConfig.editor.tabSize));
 			}
-			promise = this.fileService.createFile(this.contextService.toResource('.vscode/tasks.json'), content).then(() => { }); // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
+			promise = this.fileService.createFile(this.contextService.toResource('.vscode/tasks.json', this.contextService.getWorkspace().folders[0]), content).then(() => { }); // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
 		} else {
 			let value: IConfigurationValue = { key: undefined, value: undefined };
 			// We have a global task configuration
@@ -1114,12 +1132,12 @@ class TaskService extends EventEmitter implements ITaskService {
 					fileConfig.problemMatcher = properties.problemMatcher;
 					value.key = 'tasks.problemMatchers';
 					value.value = fileConfig.problemMatcher;
-					promise = this.configurationEditingService.writeConfiguration(ConfigurationTarget.WORKSPACE, value);
+					promise = this.writeConfiguration(workspaceFolder, value);
 				} else if (properties.group !== void 0) {
 					fileConfig.group = properties.group;
 					value.key = 'tasks.group';
 					value.value = fileConfig.group;
-					promise = this.configurationEditingService.writeConfiguration(ConfigurationTarget.WORKSPACE, value);
+					promise = this.writeConfiguration(workspaceFolder, value);
 				}
 			} else {
 				if (!Array.isArray(fileConfig.tasks)) {
@@ -1132,7 +1150,7 @@ class TaskService extends EventEmitter implements ITaskService {
 				} else {
 					fileConfig.tasks[index] = toCustomize;
 				}
-				promise = this.configurationEditingService.writeConfiguration(ConfigurationTarget.WORKSPACE, value);
+				promise = this.writeConfiguration(workspaceFolder, value);
 			}
 		};
 		if (!promise) {
@@ -1144,7 +1162,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			};
 			this.telemetryService.publicLog(TaskService.CustomizationTelemetryEventName, event);
 			if (openConfig) {
-				let resource = this.contextService.toResource('.vscode/tasks.json'); // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
+				let resource = this.contextService.toResource('.vscode/tasks.json', this.contextService.getWorkspace().folders[0]); // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
 				this.editorService.openEditor({
 					resource: resource,
 					options: {
@@ -1156,8 +1174,19 @@ class TaskService extends EventEmitter implements ITaskService {
 		});
 	}
 
+	private writeConfiguration(workspaceFolder: WorkspaceFolder, value: IConfigurationValue): TPromise<void, any> {
+		if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
+			return this.configurationEditingService.writeConfiguration(ConfigurationTarget.WORKSPACE, value);
+		} else if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
+			return this.configurationEditingService.writeConfiguration(ConfigurationTarget.FOLDER, value, { scopes: { resource: workspaceFolder.uri } });
+		} else {
+			return undefined;
+		}
+	}
+
 	public openConfig(task: CustomTask): TPromise<void> {
-		let resource = this.contextService.toResource(task._source.config.file);
+		// @ToDo need to adopt since this is not working anymore
+		let resource = this.contextService.toResource(task._source.config.file, this.contextService.getWorkspace().folders[0]);
 		return this.editorService.openEditor({
 			resource: resource,
 			options: {
@@ -1167,26 +1196,24 @@ class TaskService extends EventEmitter implements ITaskService {
 		}, false).then(() => undefined);
 	}
 
-	private createRunnableTask(sets: TaskSet[], group: TaskGroup): { task: Task; resolver: ITaskResolver } {
+	private createRunnableTask(tasks: Task[], group: TaskGroup): { task: Task; resolver: ITaskResolver } {
 		let idMap: IStringDictionary<Task> = Object.create(null);
 		let labelMap: IStringDictionary<Task> = Object.create(null);
 		let identifierMap: IStringDictionary<Task> = Object.create(null);
 
 		let workspaceTasks: Task[] = [];
 		let extensionTasks: Task[] = [];
-		sets.forEach((set) => {
-			set.tasks.forEach((task) => {
-				idMap[task._id] = task;
-				labelMap[task._label] = task;
-				identifierMap[task.identifier] = task;
-				if (group && task.group === group) {
-					if (task._source.kind === TaskSourceKind.Workspace) {
-						workspaceTasks.push(task);
-					} else {
-						extensionTasks.push(task);
-					}
+		tasks.forEach((task) => {
+			idMap[task._id] = task;
+			labelMap[task._label] = task;
+			identifierMap[task.identifier] = task;
+			if (group && task.group === group) {
+				if (task._source.kind === TaskSourceKind.Workspace) {
+					workspaceTasks.push(task);
+				} else {
+					extensionTasks.push(task);
 				}
-			});
+			}
 		});
 		let resolver: ITaskResolver = {
 			resolve: (id: string) => {
@@ -1222,15 +1249,13 @@ class TaskService extends EventEmitter implements ITaskService {
 		}
 	}
 
-	private createResolver(sets: TaskSet[]): ITaskResolver {
+	private createResolver(tasks: Task[]): ITaskResolver {
 		let labelMap: IStringDictionary<Task> = Object.create(null);
 		let identifierMap: IStringDictionary<Task> = Object.create(null);
 
-		sets.forEach((set) => {
-			set.tasks.forEach((task) => {
-				labelMap[task._label] = task;
-				identifierMap[task.identifier] = task;
-			});
+		tasks.forEach((task) => {
+			labelMap[task._label] = task;
+			identifierMap[task.identifier] = task;
 		});
 		return {
 			resolve: (id: string) => {
@@ -1299,8 +1324,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (this._taskSystem) {
 			return this._taskSystem;
 		}
-		let engine = this.getExecutionEngine();
-		if (engine === ExecutionEngine.Terminal) {
+		if (this._executionEngine === ExecutionEngine.Terminal) {
 			this._taskSystem = new TerminalTaskSystem(
 				this.terminalService, this.outputService, this.markerService,
 				this.modelService, this.configurationResolverService, this.telemetryService,
@@ -1322,7 +1346,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		return this._taskSystem;
 	}
 
-	private getTaskSets(): TPromise<TaskSet[]> {
+	private getAllTasks(): TPromise<Task[]> {
 		return this.extensionService.activateByEvent('onCommand:workbench.action.tasks.runTask').then(() => {
 			return new TPromise<TaskSet[]>((resolve, reject) => {
 				let result: TaskSet[] = [];
@@ -1340,7 +1364,7 @@ class TaskService extends EventEmitter implements ITaskService {
 						resolve(result);
 					}
 				};
-				if (this.getJsonSchemaVersion() === JsonSchemaVersion.V2_0_0 && this._providers.size > 0) {
+				if (this._schemaVersion === JsonSchemaVersion.V2_0_0 && this._providers.size > 0) {
 					this._providers.forEach((provider) => {
 						counter++;
 						provider.provideTasks().done(done, error);
@@ -1349,57 +1373,95 @@ class TaskService extends EventEmitter implements ITaskService {
 					resolve(result);
 				}
 			});
-		}).then((result) => {
-			return this.getWorkspaceTasks().then((workspaceTaskResult) => {
-				let workspaceTasksToDelete: Task[] = [];
-				let configurations = workspaceTaskResult.configurations;
-				let legacyTaskConfigurations = workspaceTaskResult.set ? this.getLegacyTaskConfigurations(workspaceTaskResult.set) : undefined;
-				if (configurations || legacyTaskConfigurations) {
-					for (let set of result) {
-						for (let i = 0; i < set.tasks.length; i++) {
-							let task = set.tasks[i];
-							if (!ContributedTask.is(task)) {
-								continue;
-							}
-							if (configurations) {
-								let configuringTask = configurations.byIdentifier[task.defines._key];
-								if (configuringTask) {
-									set.tasks[i] = TaskConfig.createCustomTask(task, configuringTask);
+		}).then((contributedTaskSets) => {
+			let result: Task[] = [];
+			let contributedTasks: Map<string, Task[]> = new Map();
+			for (let set of contributedTaskSets) {
+				for (let task of set.tasks) {
+					if (!ContributedTask.is(task)) {
+						continue;
+					}
+					let workspaceFolder = task._source.workspaceFolder;
+					if (workspaceFolder) {
+						let values = contributedTasks.get(workspaceFolder.uri.toString());
+						if (!values) {
+							values = [task];
+							contributedTasks.set(workspaceFolder.uri.toString(), values);
+						} else {
+							values.push(task);
+						}
+					} else {
+						result.push(task);
+					}
+				}
+			}
+			return this.getWorkspaceTasks().then((customTasks) => {
+				customTasks.forEach((folderTasks, key) => {
+					let contributed = contributedTasks.get(key);
+					if (!folderTasks.set) {
+						if (contributed) {
+							result.push(...contributed);
+						}
+						return;
+					}
+
+					if (!contributed) {
+						result.push(...folderTasks.set.tasks);
+					} else {
+						let configurations = folderTasks.configurations;
+						let legacyTaskConfigurations = folderTasks.set ? this.getLegacyTaskConfigurations(folderTasks.set) : undefined;
+						let customTasksToDelete: Task[] = [];
+						if (configurations || legacyTaskConfigurations) {
+							for (let task of contributed) {
+								if (!ContributedTask.is(task)) {
 									continue;
 								}
-							}
-							if (legacyTaskConfigurations) {
-								let configuringTask = legacyTaskConfigurations[task.defines._key];
-								if (configuringTask) {
-									set.tasks[i] = TaskConfig.createCustomTask(task, configuringTask);
-									workspaceTasksToDelete.push(configuringTask);
-									set.tasks[i] = configuringTask;
-									continue;
+								if (configurations) {
+									let configuringTask = configurations.byIdentifier[task.defines._key];
+									if (configuringTask) {
+										result.push(TaskConfig.createCustomTask(task, configuringTask));
+									} else {
+										result.push(task);
+									}
+								} else if (legacyTaskConfigurations) {
+									let configuringTask = legacyTaskConfigurations[task.defines._key];
+									if (configuringTask) {
+										result.push(TaskConfig.createCustomTask(task, configuringTask));
+										customTasksToDelete.push(configuringTask);
+									} else {
+										result.push(task);
+									}
+								} else {
+									result.push(task);
 								}
 							}
+							if (customTasksToDelete.length > 0) {
+								let toDelete = customTasksToDelete.reduce<IStringDictionary<boolean>>((map, task) => {
+									map[task._id] = true;
+									return map;
+								}, Object.create(null));
+								for (let task of folderTasks.set.tasks) {
+									if (toDelete[task._id]) {
+										continue;
+									}
+									result.push(task);
+								}
+							} else {
+								result.push(...folderTasks.set.tasks);
+							}
+						} else {
+							result.push(...folderTasks.set.tasks);
+							result.push(...contributed);
 						}
 					}
-				}
-				if (workspaceTaskResult.set) {
-					if (workspaceTasksToDelete.length > 0) {
-						let tasks = workspaceTaskResult.set.tasks;
-						let newSet: TaskSet = {
-							extension: workspaceTaskResult.set.extension,
-							tasks: []
-						};
-						let toDelete = workspaceTasksToDelete.reduce<IStringDictionary<boolean>>((map, task) => {
-							map[task._id] = true;
-							return map;
-						}, Object.create(null));
-						newSet.tasks = tasks.filter(task => !toDelete[task._id]);
-						result.push(newSet);
-					} else {
-						result.push(workspaceTaskResult.set);
-					}
-				}
+				});
 				return result;
 			}, () => {
 				// If we can't read the tasks.json file provide at least the contributed tasks
+				let result: Task[] = [];
+				for (let set of contributedTaskSets) {
+					result.push(...set.tasks);
+				}
 				return result;
 			});
 		});
@@ -1431,7 +1493,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		return result;
 	}
 
-	private getWorkspaceTasks(): TPromise<WorkspaceTaskResult> {
+	private getWorkspaceTasks(): TPromise<Map<string, WorkspaceFolderTaskResult>> {
 		if (this._workspaceTasksPromise) {
 			return this._workspaceTasksPromise;
 		}
@@ -1441,113 +1503,162 @@ class TaskService extends EventEmitter implements ITaskService {
 
 	private updateWorkspaceTasks(): void {
 		this._workspaceTasksPromise = this.computeWorkspaceTasks().then(value => {
-			this._configHasErrors = value.hasErrors;
-			if (this._taskSystem instanceof ProcessTaskSystem) {
-				this._taskSystem.hasErrors(this._configHasErrors);
+			if (this._executionEngine === ExecutionEngine.Process && this._taskSystem instanceof ProcessTaskSystem) {
+				// We can only have a process engine if we have one folder.
+				value.forEach((value) => {
+					this._configHasErrors = value.hasErrors;
+					(this._taskSystem as ProcessTaskSystem).hasErrors(this._configHasErrors);
+				});
 			}
 			return value;
 		});
 	}
 
-	private computeWorkspaceTasks(): TPromise<WorkspaceTaskResult> {
-		let configPromise: TPromise<WorkspaceConfigurationResult>;
-		{
-			let { config, hasParseErrors } = this.getConfiguration();
-			if (hasParseErrors) {
-				return TPromise.as({ set: undefined, hasErrors: true, configurations: undefined });
+	private computeWorkspaceTasks(): TPromise<Map<string, WorkspaceFolderTaskResult>> {
+		if (this._workspaceFolders.length === 0) {
+			return TPromise.as(new Map<string, WorkspaceFolderTaskResult>());
+		} else {
+			let promises: TPromise<WorkspaceFolderTaskResult>[] = [];
+			for (let folder of this._workspaceFolders) {
+				promises.push(this.computeWorkspaceFolderTasks(folder).then((value) => value, () => undefined));
 			}
-			let engine = ExecutionEngine._default;
-			if (config) {
-				engine = TaskConfig.ExecutionEngine.from(config);
-				if (engine === ExecutionEngine.Process) {
-					if (this.hasDetectorSupport(config)) {
-						configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService, config).detect(true).then((value): WorkspaceConfigurationResult => {
-							let hasErrors = this.printStderr(value.stderr);
-							let detectedConfig = value.config;
-							if (!detectedConfig) {
-								return { config, hasErrors };
-							}
-							let result: TaskConfig.ExternalTaskRunnerConfiguration = Objects.clone(config);
-							let configuredTasks: IStringDictionary<TaskConfig.CustomTask> = Object.create(null);
-							if (!result.tasks) {
-								if (detectedConfig.tasks) {
-									result.tasks = detectedConfig.tasks;
-								}
-							} else {
-								result.tasks.forEach(task => configuredTasks[task.taskName] = task);
-								detectedConfig.tasks.forEach((task) => {
-									if (!configuredTasks[task.taskName]) {
-										result.tasks.push(task);
-									}
-								});
-							}
-							return { config: result, hasErrors };
-						});
-					} else {
-						configPromise = TPromise.as({ config, hasErrors: false });
+			return TPromise.join(promises).then((values) => {
+				let result = new Map<string, WorkspaceFolderTaskResult>();
+				for (let value of values) {
+					if (value) {
+						result.set(value.workspaceFolder.uri.toString(), value);
 					}
-				} else {
-					configPromise = TPromise.as({ config, hasErrors: false });
 				}
+				return result;
+			});
+		}
+	}
+
+	private computeWorkspaceFolderTasks(workspaceFolder: WorkspaceFolder): TPromise<WorkspaceFolderTaskResult> {
+		return (this._executionEngine === ExecutionEngine.Process
+			? this.computeLegacyConfiguration(workspaceFolder)
+			: this.computeConfiguration(workspaceFolder)).
+			then((workspaceFolderConfiguration) => {
+				if (!workspaceFolderConfiguration || !workspaceFolderConfiguration.config || workspaceFolderConfiguration.hasErrors) {
+					return TPromise.as({ workspaceFolder, set: undefined, configurations: undefined, hasErrors: workspaceFolderConfiguration ? workspaceFolderConfiguration.hasErrors : false });
+				}
+				return ProblemMatcherRegistry.onReady().then((): WorkspaceFolderTaskResult => {
+					let problemReporter = new ProblemReporter(this._outputChannel);
+					let parseResult = TaskConfig.parse(workspaceFolder, workspaceFolderConfiguration.config, problemReporter);
+					let hasErrors = false;
+					if (!parseResult.validationStatus.isOK()) {
+						hasErrors = true;
+						this.showOutput();
+					}
+					if (problemReporter.status.isFatal()) {
+						problemReporter.fatal(nls.localize('TaskSystem.configurationErrors', 'Error: the provided task configuration has validation errors and can\'t not be used. Please correct the errors first.'));
+						return { workspaceFolder, set: undefined, configurations: undefined, hasErrors };
+					}
+					let customizedTasks: { byIdentifier: IStringDictionary<ConfiguringTask>; };
+					if (parseResult.configured && parseResult.configured.length > 0) {
+						customizedTasks = {
+							byIdentifier: Object.create(null)
+						};
+						for (let task of parseResult.configured) {
+							customizedTasks.byIdentifier[task.configures._key] = task;
+						}
+					}
+					return { workspaceFolder, set: { tasks: parseResult.custom }, configurations: customizedTasks, hasErrors };
+				});
+			});
+	}
+
+	private computeConfiguration(workspaceFolder: WorkspaceFolder): TPromise<WorkspaceFolderConfigurationResult> {
+		let { config, hasParseErrors } = this.getConfiguration(workspaceFolder);
+		return TPromise.as<WorkspaceFolderConfigurationResult>({ workspaceFolder, config, hasErrors: hasParseErrors });
+	}
+
+	private computeLegacyConfiguration(workspaceFolder: WorkspaceFolder): TPromise<WorkspaceFolderConfigurationResult> {
+		let { config, hasParseErrors } = this.getConfiguration(workspaceFolder);
+		if (hasParseErrors) {
+			return TPromise.as({ workspaceFolder: workspaceFolder, hasErrors: true, config: undefined });
+		}
+		if (config) {
+			if (this.hasDetectorSupport(config)) {
+				return new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService, config).detect(true).then((value): WorkspaceFolderConfigurationResult => {
+					let hasErrors = this.printStderr(value.stderr);
+					let detectedConfig = value.config;
+					if (!detectedConfig) {
+						return { workspaceFolder, config, hasErrors };
+					}
+					let result: TaskConfig.ExternalTaskRunnerConfiguration = Objects.clone(config);
+					let configuredTasks: IStringDictionary<TaskConfig.CustomTask> = Object.create(null);
+					if (!result.tasks) {
+						if (detectedConfig.tasks) {
+							result.tasks = detectedConfig.tasks;
+						}
+					} else {
+						result.tasks.forEach(task => configuredTasks[task.taskName] = task);
+						detectedConfig.tasks.forEach((task) => {
+							if (!configuredTasks[task.taskName]) {
+								result.tasks.push(task);
+							}
+						});
+					}
+					return { workspaceFolder, config: result, hasErrors };
+				});
 			} else {
-				if (engine === ExecutionEngine.Terminal) {
-					configPromise = TPromise.as({ config, hasErrors: false });
+				return TPromise.as({ workspaceFolder, config, hasErrors: false });
+			}
+		} else {
+			return new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService).detect(true).then((value) => {
+				let hasErrors = this.printStderr(value.stderr);
+				return { workspaceFolder, config: value.config, hasErrors };
+			});
+		}
+	}
+
+	private computeWorkspaceFolders(): [WorkspaceFolder[], ExecutionEngine, JsonSchemaVersion] {
+		let workspaceFolders: WorkspaceFolder[] = [];
+		let executionEngine = ExecutionEngine.Terminal;
+		let schemaVersion = JsonSchemaVersion.V2_0_0;
+
+		if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
+			let workspaceFolder: WorkspaceFolder = { uri: this.contextService.getWorkspace().folders[0].uri };
+			workspaceFolders.push(workspaceFolder);
+			executionEngine = this.computeExecutionEngine(workspaceFolder);
+			schemaVersion = this.computeJsonSchemaVersion(workspaceFolder);
+		} else if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
+			for (let folder of this.contextService.getWorkspace().folders) {
+				let workspaceFolder = { uri: folder.uri };
+				if (schemaVersion === this.computeJsonSchemaVersion(workspaceFolder)) {
+					workspaceFolders.push(workspaceFolder);
 				} else {
-					configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService).detect(true).then((value) => {
-						let hasErrors = this.printStderr(value.stderr);
-						return { config: value.config, hasErrors };
-					});
+					this._outputChannel.append(nls.localize(
+						'taskService.ignoreingFolder',
+						'Ignoring task configurations for workspace folder {0}. Multi root folder support requires that all folders use task version 2.0.',
+						folder.uri.fsPath));
 				}
 			}
 		}
-		return configPromise.then((resolved) => {
-			return ProblemMatcherRegistry.onReady().then((): WorkspaceTaskResult => {
-				if (!resolved || !resolved.config) {
-					return { set: undefined, configurations: undefined, hasErrors: resolved !== void 0 ? resolved.hasErrors : false };
-				}
-				let problemReporter = new ProblemReporter(this._outputChannel);
-				let parseResult = TaskConfig.parse(resolved.config, problemReporter);
-				let hasErrors = false;
-				if (!parseResult.validationStatus.isOK()) {
-					hasErrors = true;
-					this.showOutput();
-				}
-				if (problemReporter.status.isFatal()) {
-					problemReporter.fatal(nls.localize('TaskSystem.configurationErrors', 'Error: the provided task configuration has validation errors and can\'t not be used. Please correct the errors first.'));
-					return { set: undefined, configurations: undefined, hasErrors };
-				}
-				let customizedTasks: { byIdentifier: IStringDictionary<ConfiguringTask>; };
-				if (parseResult.configured && parseResult.configured.length > 0) {
-					customizedTasks = {
-						byIdentifier: Object.create(null)
-					};
-					for (let task of parseResult.configured) {
-						customizedTasks.byIdentifier[task.configures._key] = task;
-					}
-				}
-				return { set: { tasks: parseResult.custom }, configurations: customizedTasks, hasErrors };
-			});
-		});
+		return [workspaceFolders, executionEngine, schemaVersion];
 	}
 
-	private getExecutionEngine(): ExecutionEngine {
-		let { config } = this.getConfiguration();
+	private computeExecutionEngine(workspaceFolder: WorkspaceFolder): ExecutionEngine {
+		let { config } = this.getConfiguration(workspaceFolder);
 		if (!config) {
 			return ExecutionEngine._default;
 		}
 		return TaskConfig.ExecutionEngine.from(config);
 	}
 
-	private getJsonSchemaVersion(): JsonSchemaVersion {
-		let { config } = this.getConfiguration();
+	private computeJsonSchemaVersion(workspaceFolder: WorkspaceFolder): JsonSchemaVersion {
+		let { config } = this.getConfiguration(workspaceFolder);
 		if (!config) {
 			return JsonSchemaVersion.V2_0_0;
 		}
 		return TaskConfig.JsonSchemaVersion.from(config);
 	}
 
-	private getConfiguration(): { config: TaskConfig.ExternalTaskRunnerConfiguration; hasParseErrors: boolean } {
-		let result = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? this.configurationService.getConfiguration<TaskConfig.ExternalTaskRunnerConfiguration>('tasks', { resource: this.contextService.getWorkspace().folders[0] }) : undefined;
+	private getConfiguration(workspaceFolder: WorkspaceFolder): { config: TaskConfig.ExternalTaskRunnerConfiguration; hasParseErrors: boolean } {
+		let result = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY
+			? this.configurationService.getConfiguration<TaskConfig.ExternalTaskRunnerConfiguration>('tasks', { resource: workspaceFolder.uri })
+			: undefined;
 		if (!result) {
 			return { config: undefined, hasParseErrors: false };
 		}
@@ -1585,7 +1696,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (this._taskSystem) {
 			return this._taskSystem instanceof TerminalTaskSystem;
 		}
-		return this.getExecutionEngine() === ExecutionEngine.Terminal;
+		return this._executionEngine === ExecutionEngine.Terminal;
 	}
 
 	private hasDetectorSupport(config: TaskConfig.ExternalTaskRunnerConfiguration): boolean {
@@ -1797,7 +1908,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (!this.canRunCommand()) {
 			return;
 		}
-		if (this.getJsonSchemaVersion() === JsonSchemaVersion.V0_1_0) {
+		if (this._schemaVersion === JsonSchemaVersion.V0_1_0) {
 			this.build();
 			return;
 		}
@@ -1840,7 +1951,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (!this.canRunCommand()) {
 			return;
 		}
-		if (this.getJsonSchemaVersion() === JsonSchemaVersion.V0_1_0) {
+		if (this._schemaVersion === JsonSchemaVersion.V0_1_0) {
 			this.runTest();
 			return;
 		}
@@ -1946,7 +2057,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (!this.canRunCommand()) {
 			return;
 		}
-		if (this.getJsonSchemaVersion() === JsonSchemaVersion.V2_0_0) {
+		if (this._schemaVersion === JsonSchemaVersion.V2_0_0) {
 			this.tasks().then((tasks => {
 				if (tasks.length === 0) {
 					this.configureBuildTask().run();
@@ -1981,7 +2092,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (!this.canRunCommand()) {
 			return;
 		}
-		if (this.getJsonSchemaVersion() === JsonSchemaVersion.V2_0_0) {
+		if (this._schemaVersion === JsonSchemaVersion.V2_0_0) {
 			this.tasks().then((tasks => {
 				if (tasks.length === 0) {
 					this.configureAction().run();

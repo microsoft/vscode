@@ -194,13 +194,19 @@ export function whenDeleted(path: string): TPromise<void> {
 
 	// Complete when wait marker file is deleted
 	return new TPromise<void>(c => {
+		let running = false;
 		const interval = setInterval(() => {
-			fs.exists(path, exists => {
-				if (!exists) {
-					clearInterval(interval);
-					c(null);
-				}
-			});
+			if (!running) {
+				running = true;
+				fs.exists(path, exists => {
+					running = false;
+
+					if (!exists) {
+						clearInterval(interval);
+						c(null);
+					}
+				});
+			}
 		}, 1000);
 	});
 }

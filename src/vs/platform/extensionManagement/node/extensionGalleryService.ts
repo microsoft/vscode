@@ -336,6 +336,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			text = text.trim();
 
 			if (text) {
+				text = text.length < 200 ? text : text.substring(0, 200);
 				query = query.withFilter(FilterType.SearchText, text);
 			}
 

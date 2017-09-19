@@ -6,7 +6,7 @@
 
 import * as path from 'path';
 
-import { languages, ExtensionContext, IndentAction, Position, TextDocument, Color, ColorRange, ColorFormat } from 'vscode';
+import { languages, ExtensionContext, IndentAction, Position, TextDocument, Color, ColorInformation, ColorPresentation, TextEdit } from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, TextDocumentPositionParams } from 'vscode-languageclient';
 import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 import { activateTagClosing } from './tagClosing';
@@ -77,38 +77,45 @@ export function activate(context: ExtensionContext) {
 	toDispose.push(disposable);
 	client.onReady().then(() => {
 		disposable = languages.registerColorProvider(documentSelector, {
-			provideDocumentColors(document: TextDocument): Thenable<ColorRange[]> {
+			provideDocumentColors(document: TextDocument): Thenable<ColorInformation[]> {
 				let params = client.code2ProtocolConverter.asDocumentSymbolParams(document);
 				return client.sendRequest(DocumentColorRequest.type, params).then(symbols => {
 					return symbols.map(symbol => {
 						let range = client.protocol2CodeConverter.asRange(symbol.range);
 						let color = new Color(symbol.color.red * 255, symbol.color.green * 255, symbol.color.blue * 255, symbol.color.alpha);
-						return new ColorRange(range, color);
+						return new ColorInformation(range, color);
 					});
 				});
 			},
-			resolveDocumentColor(color: Color, colorFormat: ColorFormat): Thenable<string> | string {
-				switch (colorFormat) {
-					case ColorFormat.RGB:
-						if (color.alpha === 1) {
-							return `rgb(${Math.round(color.red * 255)}, ${Math.round(color.green * 255)}, ${Math.round(color.blue * 255)})`;
-						} else {
-							return `rgba(${Math.round(color.red * 255)}, ${Math.round(color.green * 255)}, ${Math.round(color.blue * 255)}, ${color.alpha})`;
-						}
-					case ColorFormat.HEX:
-						if (color.alpha === 1) {
-							return `#${_toTwoDigitHex(Math.round(color.red * 255))}${_toTwoDigitHex(Math.round(color.green * 255))}${_toTwoDigitHex(Math.round(color.blue * 255))}`;
-						} else {
-							return `#${_toTwoDigitHex(Math.round(color.red * 255))}${_toTwoDigitHex(Math.round(color.green * 255))}${_toTwoDigitHex(Math.round(color.blue * 255))}${_toTwoDigitHex(Math.round(color.alpha * 255))}`;
-						}
-					case ColorFormat.HSL:
-						const hsl = convert.rgb.hsl(Math.round(color.red * 255), Math.round(color.green * 255), Math.round(color.blue * 255));
-						if (color.alpha === 1) {
-							return `hsl(${hsl[0]}, ${hsl[1]}%, ${hsl[2]}%)`;
-						} else {
-							return `hsla(${hsl[0]}, ${hsl[1]}%, ${hsl[2]}%, ${color.alpha})`;
-						}
+			provideColorPresentations(colorInfo: ColorInformation): ColorPresentation[] | Thenable<ColorPresentation[]> {
+				let result: ColorPresentation[] = [];
+				let color = colorInfo.color;
+				let label;
+				if (color.alpha === 1) {
+					label = `rgb(${Math.round(color.red * 255)}, ${Math.round(color.green * 255)}, ${Math.round(color.blue * 255)})`;
+				} else {
+					label = `rgba(${Math.round(color.red * 255)}, ${Math.round(color.green * 255)}, ${Math.round(color.blue * 255)}, ${color.alpha})`;
 				}
+
+				result.push({ label: label, textEdit: new TextEdit(colorInfo.range, label) });
+
+				if (color.alpha === 1) {
+					label = `#${_toTwoDigitHex(Math.round(color.red * 255))}${_toTwoDigitHex(Math.round(color.green * 255))}${_toTwoDigitHex(Math.round(color.blue * 255))}`;
+				} else {
+					label = `#${_toTwoDigitHex(Math.round(color.red * 255))}${_toTwoDigitHex(Math.round(color.green * 255))}${_toTwoDigitHex(Math.round(color.blue * 255))}${_toTwoDigitHex(Math.round(color.alpha * 255))}`;
+				}
+
+				result.push({ label: label, textEdit: new TextEdit(colorInfo.range, label) });
+
+				const hsl = convert.rgb.hsl(Math.round(color.red * 255), Math.round(color.green * 255), Math.round(color.blue * 255));
+				if (color.alpha === 1) {
+					label = `hsl(${hsl[0]}, ${hsl[1]}%, ${hsl[2]}%)`;
+				} else {
+					label = `hsla(${hsl[0]}, ${hsl[1]}%, ${hsl[2]}%, ${color.alpha})`;
+				}
+
+				result.push({ label: label, textEdit: new TextEdit(colorInfo.range, label) });
+				return result;
 			}
 		});
 		toDispose.push(disposable);

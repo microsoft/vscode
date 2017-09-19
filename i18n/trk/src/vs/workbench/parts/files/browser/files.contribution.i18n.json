@@ -14,8 +14,6 @@
 	"files.exclude.boolean": "Dosya yollarının eşleştirileceği glob deseni. Deseni etkinleştirmek veya devre dışı bırakmak için true veya false olarak ayarlayın.",
 	"files.exclude.when": "Eşleşen bir dosyanın eşdüzey dosyalarında ek denetim. Eşleşen dosya adı için değişken olarak $(basename) kullanın.",
 	"associations": "Dillerle dosya ilişkilendirmelerini yapılandırın (ör. \"*.uzanti\": \"html\"). Bunların, kurulu olan dillerin varsayılan ilişkilendirmeleri karşısında önceliği vardır.",
-	"encoding": "Dosyalar okunurken ve yazılırken kullanılacak varsayılan karakter kümesi kodlaması.",
-	"autoGuessEncoding": "Etkinleştirildiğinde, dosyaları açarken karakter kümesini tahmin etmeye çalışır",
 	"eol": "Varsayılan satır sonu karakteri. LF için \\n ve CRLF için \\r\\n kullan.",
 	"trimTrailingWhitespace": "Etkinleştirildiğinde, bir dosyayı kaydettiğinizde sondaki boşluk kırpılır.",
 	"insertFinalNewline": "Etkinleştirildiğinde, bir dosyayı kaydederken dosya sonuna bir boş satır ekler.",

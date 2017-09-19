@@ -14,8 +14,6 @@
 	"files.exclude.boolean": "要符合檔案路徑的 Glob 模式。設為 True 或 False 可啟用或停用模式。",
 	"files.exclude.when": "在相符檔案同層級上額外的檢查。請使用 $(basename) 作為相符檔案名稱的變數。",
 	"associations": "將檔案關聯設定為語言 (例如 \"*.extension\": \"html\")。這些語言優先於已安裝語言的預設關聯。",
-	"encoding": "讀取與寫入檔案時要使用的預設字元集編碼。",
-	"autoGuessEncoding": "如有啟用，將會在開啟檔案時，嘗試猜測字元集編碼",
 	"eol": "預設結尾斷行字元.LF使用 \\n , CRLF使用\\r\\n  ",
 	"trimTrailingWhitespace": "若啟用，將在儲存檔案時修剪尾端空白。",
 	"insertFinalNewline": "啟用時，請在儲存檔案時在其結尾插入最後一個新行。",

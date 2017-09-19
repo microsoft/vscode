@@ -6,7 +6,6 @@
 {
 	"commitMessage": "Message (press {0} to commit)",
 	"installAdditionalSCMProviders": "Установить дополнительных поставщиков SCM...",
-	"no open repo": "Отсутствуют активные системы управления версиями.",
 	"source control": "Система управления версиями",
 	"viewletTitle": "{0}: {1}"
 }

@@ -738,7 +738,6 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		DocumentHighlightKind: modes.DocumentHighlightKind,
 		CompletionItemKind: CompletionItemKind,
 		SymbolKind: modes.SymbolKind,
-		IndentAction: IndentAction,
-		ColorFormat: modes.ColorFormat
+		IndentAction: IndentAction
 	};
 }

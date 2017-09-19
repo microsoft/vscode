@@ -6,7 +6,6 @@
 {
 	"commitMessage": "Mesaj (commit'lemek için {0} tuşlarına basın)",
 	"installAdditionalSCMProviders": "Ek SCM Sağlayıcıları Yükle...",
-	"no open repo": "Aktif kaynak kontrolü yok.",
 	"source control": "Kaynak Kontrolü",
 	"viewletTitle": "{0}: {1}"
 }

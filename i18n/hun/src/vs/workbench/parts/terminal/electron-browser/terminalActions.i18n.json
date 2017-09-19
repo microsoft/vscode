@@ -39,5 +39,5 @@
 	"workbench.action.terminal.hideFindWidget": "Keresőmodul elrejtése",
 	"nextTerminalFindTerm": "Következő keresési kifejezés megjelenítése",
 	"previousTerminalFindTerm": "Előző keresési kifejezés megjelenítése",
-	"quickOpenTerm": "Terminál: Aktív terminál váltása"
+	"quickOpenTerm": "Aktív terminál váltása"
 }

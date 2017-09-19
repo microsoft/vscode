@@ -25,7 +25,6 @@ export class ScreenCapturer {
 			return;
 		}
 
-		const image = await this.application.browserWindow.capturePage();
 		const screenshotPath = path.join(
 			SCREENSHOTS_DIR,
 			sanitize(this.suiteName),
@@ -33,6 +32,7 @@ export class ScreenCapturer {
 			`${ScreenCapturer.counter++}-${sanitize(name)}.png`
 		);
 
+		const image = await this.application.browserWindow.capturePage();
 		await new Promise((c, e) => mkdirp(path.dirname(screenshotPath), err => err ? e(err) : c()));
 		await new Promise((c, e) => fs.writeFile(screenshotPath, image, err => err ? e(err) : c()));
 	}

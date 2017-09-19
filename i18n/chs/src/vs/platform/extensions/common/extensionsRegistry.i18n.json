@@ -16,7 +16,6 @@
 	"vscode.extension.activationEvents": "VS Code 扩展的激活事件。",
 	"vscode.extension.activationEvents.onLanguage": "在打开被解析为指定语言的文件时发出的激活事件。",
 	"vscode.extension.activationEvents.onCommand": "在调用指定命令时发出的激活事件。",
-	"vscode.extension.activationEvents.onDebug": "在指定类型的调试会话开始时发出的激活事件。",
 	"vscode.extension.activationEvents.workspaceContains": "在打开至少包含一个匹配指定 glob 模式的文件的文件夹时发出的激活事件。",
 	"vscode.extension.activationEvents.onView": "在指定视图被展开时发出的激活事件。",
 	"vscode.extension.activationEvents.star": "在 VS Code 启动时发出的激活事件。为确保良好的最终用户体验，请仅在其他激活事件组合不适用于你的情况时，才在扩展中使用此事件。",

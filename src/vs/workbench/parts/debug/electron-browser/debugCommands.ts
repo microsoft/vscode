@@ -34,7 +34,7 @@ export function registerCommands(): void {
 
 			if (!folderUri) {
 				const selectedLaunch = debugService.getConfigurationManager().selectedLaunch;
-				folderUri = selectedLaunch ? selectedLaunch.workspaceUri : undefined;
+				folderUri = selectedLaunch ? selectedLaunch.workspace.uri : undefined;
 			}
 
 			if (typeof configurationOrName === 'string') {
@@ -208,7 +208,7 @@ export function registerCommands(): void {
 				accessor.get(IMessageService).show(severity.Info, nls.localize('noFolderDebugConfig', "Please first open a folder in order to do advanced debug configuration."));
 				return TPromise.as(null);
 			}
-			const launch = manager.getLaunches().filter(l => l.workspaceUri.toString() === workspaceUri).pop() || manager.selectedLaunch;
+			const launch = manager.getLaunches().filter(l => l.workspace.uri.toString() === workspaceUri).pop() || manager.selectedLaunch;
 
 			return launch.openConfigFile(false).done(editor => {
 				if (editor) {

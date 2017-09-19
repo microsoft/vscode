@@ -52,7 +52,7 @@ export class FileWatcher {
 		const service = new WatcherChannelClient(channel);
 
 		// Start watching
-		const basePath: string = normalize(this.contextService.getWorkspace().folders[0].fsPath);
+		const basePath: string = normalize(this.contextService.getWorkspace().folders[0].uri.fsPath);
 		service.watch({ basePath: basePath, ignored: this.ignored, verboseLogging: this.verboseLogging }).then(null, err => {
 			if (!this.isDisposed && !(err instanceof Error && err.name === 'Canceled' && err.message === 'Canceled')) {
 				return TPromise.wrapError(err); // the service lib uses the promise cancel error to indicate the process died, we do not want to bubble this up

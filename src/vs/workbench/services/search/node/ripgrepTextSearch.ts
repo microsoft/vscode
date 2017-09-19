@@ -403,6 +403,10 @@ function globExprsToRgGlobs(patterns: glob.IExpression, folder?: string, exclude
 				return;
 			}
 
+			if (!key) {
+				return;
+			}
+
 			const value = patterns[key];
 			key = trimTrailingSlash(folder ? getAbsoluteGlob(folder, key) : key);
 

@@ -79,7 +79,7 @@ describe('Statusbar', () => {
 
 		await app.workbench.quickopen.waitForQuickOpenOpened();
 
-		app.workbench.quickopen.selectQuickOpenElement(1);
+		await app.workbench.quickopen.selectQuickOpenElement(1);
 		await app.workbench.statusbar.waitForEOL('CRLF');
 	});
 });

@@ -21,7 +21,7 @@ import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import glob = require('vs/base/common/glob');
 import { FileLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ContributableActionProvider } from 'vs/workbench/browser/actions';
 import { IFilesConfiguration, SortOrder } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -572,11 +572,12 @@ export class FileSorter implements ISorter {
 		// Do not sort roots
 		if (statA.isRoot) {
 			if (statB.isRoot) {
-				const ws = this.contextService.getWorkspace();
-				return ws.folders.indexOf(statA.resource) - ws.folders.indexOf(statB.resource);
+				return this.contextService.getWorkspaceFolder(statA.resource).index - this.contextService.getWorkspaceFolder(statB.resource).index;
 			}
+
 			return -1;
 		}
+
 		if (statB.isRoot) {
 			return 1;
 		}
@@ -608,6 +609,9 @@ export class FileSorter implements ISorter {
 				}
 
 				break;
+
+			case 'mixed':
+				break; // not sorting when "mixed" is on
 
 			default: /* 'default', 'modified' */
 				if (statA.isDirectory && !statB.isDirectory) {
@@ -646,6 +650,10 @@ export class FileSorter implements ISorter {
 				return comparers.compareFileNames(statA.name, statB.name);
 		}
 	}
+
+	public dispose(): void {
+		this.toDispose = dispose(this.toDispose);
+	}
 }
 
 // Explorer Filter
@@ -654,22 +662,28 @@ export class FileFilter implements IFilter {
 	private static MAX_SIBLINGS_FILTER_THRESHOLD = 2000;
 
 	private hiddenExpressionPerRoot: Map<string, glob.IExpression>;
+	private workspaceFolderChangeListener: IDisposable;
 
 	constructor(
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		this.hiddenExpressionPerRoot = new Map<string, glob.IExpression>();
-		this.contextService.onDidChangeWorkspaceFolders(() => this.updateConfiguration());
+
+		this.registerListeners();
+	}
+
+	public registerListeners(): void {
+		this.workspaceFolderChangeListener = this.contextService.onDidChangeWorkspaceFolders(() => this.updateConfiguration());
 	}
 
 	public updateConfiguration(): boolean {
 		let needsRefresh = false;
 		this.contextService.getWorkspace().folders.forEach(folder => {
-			const configuration = this.configurationService.getConfiguration<IFilesConfiguration>(undefined, { resource: folder });
+			const configuration = this.configurationService.getConfiguration<IFilesConfiguration>(undefined, { resource: folder.uri });
 			const excludesConfig = (configuration && configuration.files && configuration.files.exclude) || Object.create(null);
-			needsRefresh = needsRefresh || !objects.equals(this.hiddenExpressionPerRoot.get(folder.toString()), excludesConfig);
-			this.hiddenExpressionPerRoot.set(folder.toString(), objects.clone(excludesConfig)); // do not keep the config, as it gets mutated under our hoods
+			needsRefresh = needsRefresh || !objects.equals(this.hiddenExpressionPerRoot.get(folder.uri.toString()), excludesConfig);
+			this.hiddenExpressionPerRoot.set(folder.uri.toString(), objects.clone(excludesConfig)); // do not keep the config, as it gets mutated under our hoods
 		});
 
 		return needsRefresh;
@@ -698,6 +712,10 @@ export class FileFilter implements IFilter {
 		}
 
 		return true;
+	}
+
+	public dispose(): void {
+		this.workspaceFolderChangeListener = dispose(this.workspaceFolderChangeListener);
 	}
 }
 
@@ -843,7 +861,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 				return fromDesktop || isCopy ? DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY(true) : DRAG_OVER_ACCEPT_BUBBLE_DOWN(true);
 			}
 
-			if (this.contextService.getWorkspace().folders.every(r => r.toString() !== target.resource.toString())) {
+			if (this.contextService.getWorkspace().folders.every(folder => folder.uri.toString() !== target.resource.toString())) {
 				return fromDesktop || isCopy ? DRAG_OVER_ACCEPT_BUBBLE_UP_COPY : DRAG_OVER_ACCEPT_BUBBLE_UP;
 			}
 		}
@@ -899,10 +917,11 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 				});
 
 				if (result) {
-					const currentFolders = this.contextService.getWorkspace().folders;
+					const currentFolders = this.contextService.getWorkspace().folders.map(folder => folder.uri);
 					const newRoots = [...currentFolders, ...folders];
 
-					return this.windowService.createAndOpenWorkspace(distinct(newRoots.map(root => root.fsPath)));
+					// Create and open workspace
+					return this.workspaceEditingService.createAndEnterWorkspace(distinct(newRoots.map(root => root.fsPath)));
 				}
 			}
 

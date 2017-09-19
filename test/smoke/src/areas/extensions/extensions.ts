@@ -33,7 +33,11 @@ export class Extensions extends Viewlet {
 
 	public async installExtension(name: string): Promise<boolean> {
 		await this.searchForExtension(name);
-		await this.spectron.client.waitAndClick(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[aria-label="${name}"] .extension li[class='action-item'] .extension-action.install`);
+
+		// we might want to wait for a while longer since the Marketplace can be slow
+		// a minute should do
+		await this.spectron.client.waitFor(() => this.spectron.client.click(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[aria-label="${name}"] .extension li[class='action-item'] .extension-action.install`), void 0, 'waiting for install button', 600);
+
 		await this.spectron.client.waitForElement(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[aria-label="${name}"] .extension li[class='action-item'] .extension-action.reload`);
 		return true;
 	}

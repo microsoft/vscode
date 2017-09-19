@@ -353,10 +353,10 @@ export class SettingsTargetsWidget extends Widget {
 			actions.push(...this.workspaceContextService.getWorkspace().folders.map((folder, index) => {
 				return <IAction>{
 					id: 'folderSettingsTarget' + index,
-					label: getSettingsTargetName(ConfigurationTarget.FOLDER, folder, this.workspaceContextService),
-					checked: this.uri.fsPath === folder.fsPath,
+					label: getSettingsTargetName(ConfigurationTarget.FOLDER, folder.uri, this.workspaceContextService),
+					checked: this.uri.fsPath === folder.uri.fsPath,
 					enabled: true,
-					run: () => this.onTargetClicked(folder)
+					run: () => this.onTargetClicked(folder.uri)
 				};
 			}));
 		}

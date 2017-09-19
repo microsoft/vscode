@@ -1180,13 +1180,13 @@ export class ProblemMatcherParser extends Parser {
 		let kind: FileLocationKind;
 		if (Types.isUndefined(description.fileLocation)) {
 			fileLocation = FileLocationKind.Relative;
-			filePrefix = '${cwd}';
+			filePrefix = '${workspaceFolder}';
 		} else if (Types.isString(description.fileLocation)) {
 			kind = FileLocationKind.fromString(<string>description.fileLocation);
 			if (kind) {
 				fileLocation = kind;
 				if (kind === FileLocationKind.Relative) {
-					filePrefix = '${cwd}';
+					filePrefix = '${workspaceFolder}';
 				}
 			}
 		} else if (Types.isStringArray(description.fileLocation)) {
@@ -1601,7 +1601,7 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 			owner: 'typescript',
 			applyTo: ApplyToKind.closedDocuments,
 			fileLocation: FileLocationKind.Relative,
-			filePrefix: '${cwd}',
+			filePrefix: '${workspaceFolder}',
 			pattern: ProblemPatternRegistry.get('gulp-tsc')
 		});
 
@@ -1629,7 +1629,7 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 			owner: 'eslint',
 			applyTo: ApplyToKind.allDocuments,
 			fileLocation: FileLocationKind.Relative,
-			filePrefix: '${cwd}',
+			filePrefix: '${workspaceFolder}',
 			pattern: ProblemPatternRegistry.get('eslint-compact')
 		});
 
@@ -1648,7 +1648,7 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 			owner: 'go',
 			applyTo: ApplyToKind.allDocuments,
 			fileLocation: FileLocationKind.Relative,
-			filePrefix: '${cwd}',
+			filePrefix: '${workspaceFolder}',
 			pattern: ProblemPatternRegistry.get('go')
 		});
 	}

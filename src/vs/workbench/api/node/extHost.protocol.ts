@@ -26,7 +26,6 @@ import { IProgressOptions, IProgressStep } from 'vs/platform/progress/common/pro
 
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
-import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
 import { ITextSource } from 'vs/editor/common/model/textSource';
 
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
@@ -48,6 +47,7 @@ import { ITreeItem } from 'vs/workbench/common/views';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { SerializedError } from 'vs/base/common/errors';
+import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -64,7 +64,7 @@ export interface IEnvironment {
 export interface IWorkspaceData {
 	id: string;
 	name: string;
-	folders: URI[];
+	folders: WorkspaceFolder[];
 }
 
 export interface IInitData {
@@ -188,6 +188,16 @@ export interface ITextDocumentShowOptions {
 	selection?: IRange;
 }
 
+export interface IWorkspaceResourceEdit {
+	resource: URI;
+	modelVersionId?: number;
+	edits: {
+		range?: IRange;
+		newText: string;
+		newEol?: editorCommon.EndOfLineSequence;
+	}[];
+}
+
 export interface MainThreadEditorsShape extends IDisposable {
 	$tryShowTextDocument(resource: URI, options: ITextDocumentShowOptions): TPromise<string>;
 	$registerTextEditorDecorationType(key: string, options: editorCommon.IDecorationRenderOptions): void;
@@ -199,6 +209,7 @@ export interface MainThreadEditorsShape extends IDisposable {
 	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): TPromise<any>;
 	$trySetSelections(id: string, selections: ISelection[]): TPromise<any>;
 	$tryApplyEdits(id: string, modelVersionId: number, edits: editorCommon.ISingleEditOperation[], opts: IApplyEditsOptions): TPromise<boolean>;
+	$tryApplyWorkspaceEdit(workspaceResourceEdits: IWorkspaceResourceEdit[]): TPromise<boolean>;
 	$tryInsertSnippet(id: string, template: string, selections: IRange[], opts: IUndoStopOptions): TPromise<any>;
 	$getDiffInformation(id: string): TPromise<editorCommon.ILineChange[]>;
 }
@@ -300,7 +311,6 @@ export interface MainThreadWorkspaceShape extends IDisposable {
 	$startSearch(include: string, exclude: string, maxResults: number, requestId: number): Thenable<URI[]>;
 	$cancelSearch(requestId: number): Thenable<boolean>;
 	$saveAll(includeUntitled?: boolean): Thenable<boolean>;
-	$applyWorkspaceEdit(edits: IResourceEdit[]): TPromise<boolean>;
 
 	$registerFileSystemProvider(handle: number, authority: string): void;
 	$unregisterFileSystemProvider(handle: number): void;
@@ -538,7 +548,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideDocumentLinks(handle: number, resource: URI): TPromise<modes.ILink[]>;
 	$resolveDocumentLink(handle: number, link: modes.ILink): TPromise<modes.ILink>;
 	$provideDocumentColors(handle: number, resource: URI): TPromise<IRawColorInfo[]>;
-	$resolveDocumentColor(handle: number, color: modes.IColor, colorFormat: modes.ColorFormat): TPromise<string>;
+	$provideColorPresentations(handle: number, colorInfo: IRawColorInfo): TPromise<modes.IColorPresentation[]>;
 }
 
 export interface ExtHostQuickOpenShape {

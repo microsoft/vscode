@@ -11,16 +11,20 @@ const UNKNOWN_SOURCE_LABEL = nls.localize('unknownSource', "Unknown Source");
 
 export class Source {
 
-	public uri: uri;
+	public readonly uri: uri;
 	public available: boolean;
 
-	constructor(public raw: DebugProtocol.Source) {
+	constructor(public readonly raw: DebugProtocol.Source, sessionId: string) {
 		if (!raw) {
 			this.raw = { name: UNKNOWN_SOURCE_LABEL };
 		}
-		const path = this.raw.path || this.raw.name;
 		this.available = this.raw.name !== UNKNOWN_SOURCE_LABEL;
-		this.uri = this.raw.sourceReference > 0 ? uri.parse(`${DEBUG_SCHEME}:${path}`) : uri.file(path);
+		const path = this.raw.path || this.raw.name;
+		if (this.raw.sourceReference > 0) {
+			this.uri = uri.parse(`${DEBUG_SCHEME}:${encodeURIComponent(path)}?session=${encodeURIComponent(sessionId)}&ref=${this.raw.sourceReference}`);
+		} else {
+			this.uri = uri.file(path);	// path should better be absolute!
+		}
 	}
 
 	public get name() {
@@ -40,6 +44,6 @@ export class Source {
 	}
 
 	public get inMemory() {
-		return this.uri.toString().indexOf(`${DEBUG_SCHEME}:`) === 0;
+		return this.uri.scheme === DEBUG_SCHEME;
 	}
 }

@@ -118,13 +118,15 @@ export class StartAction extends AbstractDebugAction {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		super(id, label, 'debug-action start', debugService, keybindingService);
-		this.debugService.getConfigurationManager().onDidSelectConfiguration(() => this.updateEnablement());
-		this.debugService.getModel().onDidChangeCallStack(() => this.updateEnablement());
+
+		this.toDispose.push(this.debugService.getConfigurationManager().onDidSelectConfiguration(() => this.updateEnablement()));
+		this.toDispose.push(this.debugService.getModel().onDidChangeCallStack(() => this.updateEnablement()));
+		this.toDispose.push(this.contextService.onDidChangeWorkbenchState(() => this.updateEnablement()));
 	}
 
 	public run(): TPromise<any> {
 		const launch = this.debugService.getConfigurationManager().selectedLaunch;
-		return this.debugService.startDebugging(launch ? launch.workspaceUri : undefined, undefined, this.isNoDebug());
+		return this.debugService.startDebugging(launch ? launch.workspace.uri : undefined, undefined, this.isNoDebug());
 	}
 
 	protected isNoDebug(): boolean {
@@ -143,7 +145,7 @@ export class StartAction extends AbstractDebugAction {
 		if (this.contextService && this.contextService.getWorkbenchState() === WorkbenchState.EMPTY && processes.length > 0) {
 			return false;
 		}
-		if (processes.some(p => p.getName(false) === selectedName && (!launch || p.session.root.toString() === launch.workspaceUri.toString()))) {
+		if (processes.some(p => p.getName(false) === selectedName && (!launch || p.session.root.toString() === launch.workspace.uri.toString()))) {
 			return false;
 		}
 		const compound = launch && launch.getCompound(selectedName);

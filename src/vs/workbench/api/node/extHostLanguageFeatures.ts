@@ -729,8 +729,19 @@ class ColorProviderAdapter {
 		});
 	}
 
-	resolveColor(color: modes.IColor, colorFormat: modes.ColorFormat): TPromise<string> {
-		return asWinJsPromise(token => this._provider.resolveDocumentColor(color, colorFormat));
+	provideColorPresentations(rawColorInfo: IRawColorInfo): TPromise<modes.IColorPresentation[]> {
+		let colorInfo: vscode.ColorInformation = {
+			range: TypeConverters.toRange(rawColorInfo.range),
+			color: {
+				red: rawColorInfo.color[0],
+				green: rawColorInfo.color[1],
+				blue: rawColorInfo.color[2],
+				alpha: rawColorInfo.color[3]
+			}
+		};
+		return asWinJsPromise(token => this._provider.provideColorPresentations(colorInfo, token)).then(value => {
+			return value.map(v => TypeConverters.ColorPresentation.from(v));
+		});
 	}
 }
 
@@ -1042,8 +1053,8 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._withAdapter(handle, ColorProviderAdapter, adapter => adapter.provideColors(resource));
 	}
 
-	$resolveDocumentColor(handle: number, color: modes.IColor, colorFormat: modes.ColorFormat): TPromise<string> {
-		return this._withAdapter(handle, ColorProviderAdapter, adapter => adapter.resolveColor(color, colorFormat));
+	$provideColorPresentations(handle: number, colorInfo: IRawColorInfo): TPromise<modes.IColorPresentation[]> {
+		return this._withAdapter(handle, ColorProviderAdapter, adapter => adapter.provideColorPresentations(colorInfo));
 	}
 
 	// --- configuration

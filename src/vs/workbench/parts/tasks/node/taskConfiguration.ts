@@ -561,6 +561,7 @@ function _freeze<T>(this: void, target: T, properties: MetaData<T, any>[]): Read
 }
 
 interface ParseContext {
+	workspaceFolder: Tasks.WorkspaceFolder;
 	problemReporter: IProblemReporter;
 	namedProblemMatchers: IStringDictionary<NamedProblemMatcher>;
 	uuidMap: UUIDMap;
@@ -616,7 +617,7 @@ namespace ShellConfiguration {
 namespace CommandOptions {
 
 	const properties: MetaData<Tasks.CommandOptions, Tasks.ShellConfiguration>[] = [{ property: 'cwd' }, { property: 'env' }, { property: 'shell', type: ShellConfiguration }];
-	const defaults: CommandOptions = { cwd: '${workspaceRoot}' };
+	const defaults: CommandOptions = { cwd: '${workspaceFolder}' };
 
 	export function from(this: void, options: CommandOptions, context: ParseContext): Tasks.CommandOptions {
 		let result: Tasks.CommandOptions = {};
@@ -1160,6 +1161,7 @@ namespace ConfiguringTask {
 		}
 		let taskIdentifier = TaskIdentifier.from(identifier);
 		let configElement: Tasks.TaskSourceConfigElement = {
+			workspaceFolder: context.workspaceFolder,
 			file: '.vscode\\tasks.json',
 			index,
 			element: external
@@ -1220,7 +1222,7 @@ namespace CustomTask {
 		let result: Tasks.CustomTask = {
 			type: 'custom',
 			_id: context.uuidMap.getUUID(taskName),
-			_source: Objects.assign({}, source, { config: { index, element: external, file: '.vscode\\tasks.json' } }),
+			_source: Objects.assign({}, source, { config: { index, element: external, file: '.vscode\\tasks.json', workspaceFolder: context.workspaceFolder } }),
 			_label: taskName,
 			name: taskName,
 			identifier: taskName,
@@ -1678,10 +1680,12 @@ class UUIDMap {
 
 class ConfigurationParser {
 
+	private workspaceFolder: Tasks.WorkspaceFolder;
 	private problemReporter: IProblemReporter;
 	private uuidMap: UUIDMap;
 
-	constructor(problemReporter: IProblemReporter, uuidMap: UUIDMap) {
+	constructor(workspaceFolder: Tasks.WorkspaceFolder, problemReporter: IProblemReporter, uuidMap: UUIDMap) {
+		this.workspaceFolder = workspaceFolder;
 		this.problemReporter = problemReporter;
 		this.uuidMap = uuidMap;
 	}
@@ -1693,6 +1697,7 @@ class ConfigurationParser {
 			this.problemReporter.clearOutput();
 		}
 		let context: ParseContext = {
+			workspaceFolder: this.workspaceFolder,
 			problemReporter: this.problemReporter,
 			uuidMap: this.uuidMap,
 			namedProblemMatchers: undefined,
@@ -1751,7 +1756,7 @@ class ConfigurationParser {
 			let isBackground = fileConfig.isBackground ? !!fileConfig.isBackground : fileConfig.isWatching ? !!fileConfig.isWatching : undefined;
 			let task: Tasks.CustomTask = {
 				_id: context.uuidMap.getUUID(globals.command.name),
-				_source: Objects.assign({}, source, { config: { index: -1, element: fileConfig } }),
+				_source: Objects.assign({}, source, { config: { index: -1, element: fileConfig, workspaceFolder: context.workspaceFolder } }),
 				_label: globals.command.name,
 				type: 'custom',
 				name: globals.command.name,
@@ -1783,11 +1788,16 @@ class ConfigurationParser {
 	}
 }
 
-let uuidMap: UUIDMap = new UUIDMap();
-export function parse(configuration: ExternalTaskRunnerConfiguration, logger: IProblemReporter): ParseResult {
+let uuidMaps: Map<string, UUIDMap> = new Map();
+export function parse(workspaceFolder: Tasks.WorkspaceFolder, configuration: ExternalTaskRunnerConfiguration, logger: IProblemReporter): ParseResult {
+	let uuidMap = uuidMaps.get(workspaceFolder.uri.toString());
+	if (!uuidMap) {
+		uuidMap = new UUIDMap();
+		uuidMaps.set(workspaceFolder.uri.toString(), uuidMap);
+	}
 	try {
 		uuidMap.start();
-		return (new ConfigurationParser(logger, uuidMap)).run(configuration);
+		return (new ConfigurationParser(workspaceFolder, logger, uuidMap)).run(configuration);
 	} finally {
 		uuidMap.finish();
 	}
@@ -1799,35 +1809,6 @@ export function createCustomTask(contributedTask: Tasks.ContributedTask, configu
 
 export function getTaskIdentifier(value: TaskIdentifier): Tasks.TaskIdentifier {
 	return TaskIdentifier.from(value);
-}
-
-export function findTaskIndex(fileConfig: ExternalTaskRunnerConfiguration, task: Tasks.Task): number {
-	if (!fileConfig || !fileConfig.tasks) {
-		return undefined;
-	}
-	if (fileConfig.tasks.length === 0) {
-		return -1;
-	}
-	let localMap = new UUIDMap(uuidMap);
-	let context: ParseContext = {
-		problemReporter: this.problemReporter,
-		uuidMap: localMap,
-		namedProblemMatchers: undefined,
-		engine: ExecutionEngine.from(fileConfig),
-		schemaVersion: JsonSchemaVersion.from(fileConfig)
-	};
-	try {
-		localMap.start();
-		let tasks = TaskParser.quickParse(fileConfig.tasks, context);
-		for (let i = 0; i < tasks.length; i++) {
-			if (task._id === tasks[i]._id) {
-				return i;
-			}
-		}
-		return -1;
-	} finally {
-		localMap.finish();
-	}
 }
 
 /*

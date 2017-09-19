@@ -6,15 +6,15 @@
 
 import * as path from 'path';
 
-import { workspace, languages, ExtensionContext, extensions, Uri, TextDocument, ColorRange, Color, ColorFormat } from 'vscode';
+import { workspace, languages, ExtensionContext, extensions, Uri, TextDocument, ColorInformation, Color, ColorPresentation, TextEdit } from 'vscode';
 import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import { ConfigurationFeature } from 'vscode-languageclient/lib/proposed';
-
 import { DocumentColorRequest } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
 
 
 import * as nls from 'vscode-nls';
+import { hash } from './utils/hash';
 let localize = nls.loadMessageBundle();
 
 namespace VSCodeContentRequest {
@@ -122,22 +122,29 @@ export function activate(context: ExtensionContext) {
 		};
 		// register color provider
 		context.subscriptions.push(languages.registerColorProvider(documentSelector, {
-			provideDocumentColors(document: TextDocument): Thenable<ColorRange[]> {
+			provideDocumentColors(document: TextDocument): Thenable<ColorInformation[]> {
 				let params = client.code2ProtocolConverter.asDocumentSymbolParams(document);
 				return client.sendRequest(DocumentColorRequest.type, params).then(symbols => {
 					return symbols.map(symbol => {
 						let range = client.protocol2CodeConverter.asRange(symbol.range);
 						let color = new Color(symbol.color.red * 255, symbol.color.green * 255, symbol.color.blue * 255, symbol.color.alpha);
-						return new ColorRange(range, color);
+						return new ColorInformation(range, color);
 					});
 				});
 			},
-			resolveDocumentColor(color: Color, colorFormat: ColorFormat): Thenable<string> | string {
+			provideColorPresentations(colorInfo: ColorInformation): ColorPresentation[] | Thenable<ColorPresentation[]> {
+				let result: ColorPresentation[] = [];
+				let color = colorInfo.color;
+				let label;
+
 				if (color.alpha === 1) {
-					return `#${_toTwoDigitHex(Math.round(color.red * 255))}${_toTwoDigitHex(Math.round(color.green * 255))}${_toTwoDigitHex(Math.round(color.blue * 255))}`;
+					label = `#${_toTwoDigitHex(Math.round(color.red * 255))}${_toTwoDigitHex(Math.round(color.green * 255))}${_toTwoDigitHex(Math.round(color.blue * 255))}`;
 				} else {
-					return `#${_toTwoDigitHex(Math.round(color.red * 255))}${_toTwoDigitHex(Math.round(color.green * 255))}${_toTwoDigitHex(Math.round(color.blue * 255))}${_toTwoDigitHex(Math.round(color.alpha * 255))}`;
+					label = `#${_toTwoDigitHex(Math.round(color.red * 255))}${_toTwoDigitHex(Math.round(color.green * 255))}${_toTwoDigitHex(Math.round(color.blue * 255))}${_toTwoDigitHex(Math.round(color.alpha * 255))}`;
 				}
+
+				result.push({ label: label, textEdit: new TextEdit(colorInfo.range, label) });
+				return result;
 			}
 		}));
 	});
@@ -192,8 +199,6 @@ function getSettings(): Settings {
 	let httpSettings = workspace.getConfiguration('http');
 	let jsonSettings = workspace.getConfiguration('json');
 
-	let schemas = [];
-
 	let settings: Settings = {
 		http: {
 			proxy: httpSettings.get('proxy'),
@@ -201,39 +206,67 @@ function getSettings(): Settings {
 		},
 		json: {
 			format: jsonSettings.get('format'),
-			schemas: schemas,
+			schemas: [],
 		}
 	};
-	let settingsSchemas = jsonSettings.get('schemas');
-	if (Array.isArray(settingsSchemas)) {
-		schemas.push(...settingsSchemas);
-	}
+	let schemaSettingsById: { [schemaId: string]: JSONSchemaSettings } = Object.create(null);
+	let collectSchemaSettings = (schemaSettings: JSONSchemaSettings[], rootPath?: string, fileMatchPrefix?: string) => {
+		for (let setting of schemaSettings) {
+			let url = getSchemaId(setting, rootPath);
+			if (!url) {
+				continue;
+			}
+			let schemaSetting = schemaSettingsById[url];
+			if (!schemaSetting) {
+				schemaSetting = schemaSettingsById[url] = { url, fileMatch: [] };
+				settings.json.schemas.push(schemaSetting);
+			}
+			let fileMatches = setting.fileMatch;
+			if (Array.isArray(fileMatches)) {
+				if (fileMatchPrefix) {
+					fileMatches = fileMatches.map(m => fileMatchPrefix + m);
+				}
+				schemaSetting.fileMatch.push(...fileMatches);
+			}
+			if (setting.schema) {
+				schemaSetting.schema = setting.schema;
+			}
+		}
+	};
 
+	// merge global and folder settings. Qualify all file matches with the folder path.
+	let globalSettings = jsonSettings.get<JSONSchemaSettings[]>('schemas');
+	if (Array.isArray(globalSettings)) {
+		collectSchemaSettings(globalSettings, workspace.rootPath);
+	}
 	let folders = workspace.workspaceFolders;
 	if (folders) {
-		folders.forEach(folder => {
-			let jsonConfig = workspace.getConfiguration('json', folder.uri);
-			let schemaConfigInfo = jsonConfig.inspect<JSONSchemaSettings[]>('schemas');
+		for (let folder of folders) {
+			let folderUri = folder.uri;
+			let schemaConfigInfo = workspace.getConfiguration('json', folderUri).inspect<JSONSchemaSettings[]>('schemas');
 			let folderSchemas = schemaConfigInfo.workspaceFolderValue;
 			if (Array.isArray(folderSchemas)) {
-				folderSchemas.forEach(schema => {
-					let url = schema.url;
-					if (!url && schema.schema) {
-						url = schema.schema.id;
-					}
-					if (url && url[0] === '.') {
-						url = Uri.file(path.normalize(path.join(folder.uri.fsPath, url))).toString();
-					}
-					let fileMatch = schema.fileMatch;
-					if (fileMatch) {
-						fileMatch = fileMatch.map(m => folder.uri.toString() + '*' + m);
-					}
-					schemas.push({ url, fileMatch, schema: schema.schema });
-				});
+				let folderPath = folderUri.toString();
+				if (folderPath[folderPath.length - 1] !== '/') {
+					folderPath = folderPath + '/';
+				}
+				collectSchemaSettings(folderSchemas, folderUri.fsPath, folderPath + '*');
 			};
-		});
+		};
 	}
 	return settings;
+}
+
+function getSchemaId(schema: JSONSchemaSettings, rootPath?: string) {
+	let url = schema.url;
+	if (!url) {
+		if (schema.schema) {
+			url = schema.schema.id || `vscode://schemas/custom/${encodeURIComponent(hash(schema.schema).toString(16))}`;
+		}
+	} else if (rootPath && (url[0] === '.' || url[0] === '/')) {
+		url = Uri.file(path.normalize(path.join(rootPath, url))).toString();
+	}
+	return url;
 }
 
 function getPackageInfo(context: ExtensionContext): IPackageInfo {

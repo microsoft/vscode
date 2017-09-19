@@ -6,6 +6,7 @@
 {
 	"showTriggerActions": "Szimbólum megkeresése a munkaterületen...",
 	"name": "Keresés",
+	"search": "Keresés",
 	"showSearchViewlet": "Keresés megjelenítése",
 	"view": "Nézet",
 	"findInFiles": "Keresés a fájlokban",

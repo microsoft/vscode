@@ -6,6 +6,7 @@
 {
 	"showTriggerActions": "작업 영역에서 기호로 이동...",
 	"name": "검색",
+	"search": "검색",
 	"showSearchViewlet": "검색 표시",
 	"view": "보기",
 	"findInFiles": "파일에서 찾기",

@@ -6,7 +6,6 @@
 {
 	"commitMessage": "Message (press {0} to commit)",
 	"installAdditionalSCMProviders": "その他の SCM プロバイダーをインストール...",
-	"no open repo": "有効なソース管理がありません。",
 	"source control": "ソース管理",
 	"viewletTitle": "{0}: {1}"
 }

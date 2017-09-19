@@ -348,13 +348,36 @@ export class DebugService implements debug.IDebugService {
 		this.toDisposeOnSessionEnd.get(session.getId()).push(session.onDidBreakpoint(event => {
 			const id = event.body && event.body.breakpoint ? event.body.breakpoint.id : undefined;
 			const breakpoint = this.model.getBreakpoints().filter(bp => bp.idFromAdapter === id).pop();
-			if (breakpoint) {
-				if (!breakpoint.column) {
-					event.body.breakpoint.column = undefined;
+			const functionBreakpoint = this.model.getFunctionBreakpoints().filter(bp => bp.idFromAdapter === id).pop();
+
+			if (event.body.reason === 'new' && event.body.breakpoint.source) {
+				const source = process.getSource(event.body.breakpoint.source);
+				this.model.addBreakpoints(source.uri, [{
+					column: event.body.breakpoint.column,
+					enabled: true,
+					lineNumber: event.body.breakpoint.line
+				}]);
+				const newBreakpoint = this.model.getBreakpoints().filter(bp => bp.idFromAdapter === event.body.breakpoint.id).pop();
+				this.model.updateBreakpoints({ [newBreakpoint.getId()]: event.body.breakpoint });
+			}
+
+			if (event.body.reason === 'removed') {
+				if (breakpoint) {
+					this.model.removeBreakpoints([breakpoint]);
 				}
-				this.model.updateBreakpoints({ [breakpoint.getId()]: event.body.breakpoint });
-			} else {
-				const functionBreakpoint = this.model.getFunctionBreakpoints().filter(bp => bp.idFromAdapter === id).pop();
+				if (functionBreakpoint) {
+					this.model.removeFunctionBreakpoints(functionBreakpoint.getId());
+				}
+			}
+
+			// For compatibilty reasons check if wrong reason and source not present
+			if (event.body.reason === 'changed' || (event.body.reason === 'new' && !event.body.breakpoint.source)) {
+				if (breakpoint) {
+					if (!breakpoint.column) {
+						event.body.breakpoint.column = undefined;
+					}
+					this.model.updateBreakpoints({ [breakpoint.getId()]: event.body.breakpoint });
+				}
 				if (functionBreakpoint) {
 					this.model.updateFunctionBreakpoints({ [functionBreakpoint.getId()]: event.body.breakpoint });
 				}
@@ -363,8 +386,7 @@ export class DebugService implements debug.IDebugService {
 
 		this.toDisposeOnSessionEnd.get(session.getId()).push(session.onDidExitAdapter(event => {
 			// 'Run without debugging' mode VSCode must terminate the extension host. More details: #3905
-			const process = this.viewModel.focusedProcess;
-			if (process && session && process.getId() === session.getId() && strings.equalsIgnoreCase(process.configuration.type, 'extensionhost') && this.sessionStates.get(session.getId()) === debug.State.Running &&
+			if (strings.equalsIgnoreCase(process.configuration.type, 'extensionhost') && this.sessionStates.get(session.getId()) === debug.State.Running &&
 				process && this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && process.configuration.noDebug) {
 				this.broadcastService.broadcast({
 					channel: EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL,
@@ -608,7 +630,7 @@ export class DebugService implements debug.IDebugService {
 				}
 				this.launchJsonChanged = false;
 				const manager = this.getConfigurationManager();
-				const launch = root ? manager.getLaunches().filter(l => l.workspaceUri.toString() === root.toString()).pop() : undefined;
+				const launch = root ? manager.getLaunches().filter(l => l.workspace.uri.toString() === root.toString()).pop() : undefined;
 
 				let config: debug.IConfig, compound: debug.ICompound;
 				if (!configOrName) {
@@ -658,14 +680,14 @@ export class DebugService implements debug.IDebugService {
 						config.noDebug = true;
 					}
 
-					return this.configurationManager.resolveDebugConfiguration(launch ? launch.workspaceUri : undefined, type, config).then(config => {
+					return this.configurationManager.resolveDebugConfiguration(launch ? launch.workspace.uri : undefined, type, config).then(config => {
 
 						// a falsy config indicates an aborted launch
 						if (config) {
 
 							// deprecated code: use DebugConfigurationProvider instead of startSessionCommand
 							if (commandAndType && commandAndType.command) {
-								return this.commandService.executeCommand(commandAndType.command, config, launch ? launch.workspaceUri : undefined).then((result: StartSessionResult) => {
+								return this.commandService.executeCommand(commandAndType.command, config, launch ? launch.workspace.uri : undefined).then((result: StartSessionResult) => {
 									if (launch) {
 										if (result && result.status === 'initialConfiguration') {
 											return launch.openConfigFile(false, commandAndType.type);

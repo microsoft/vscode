@@ -26,7 +26,6 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 
 export class DebugViewlet extends PersistentViewsViewlet {
 
-	private actions: IAction[];
 	private startDebugActionItem: StartDebugActionItem;
 	private progressRunner: IProgressRunner;
 
@@ -47,6 +46,7 @@ export class DebugViewlet extends PersistentViewsViewlet {
 		this.progressRunner = null;
 
 		this._register(this.debugService.onDidChangeState(state => this.onDebugServiceStateChange(state)));
+		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateTitleArea()));
 	}
 
 	public create(parent: Builder): TPromise<void> {
@@ -62,16 +62,13 @@ export class DebugViewlet extends PersistentViewsViewlet {
 	}
 
 	public getActions(): IAction[] {
-		if (!this.actions) {
-			this.actions = [];
-			this.actions.push(this.instantiationService.createInstance(StartAction, StartAction.ID, StartAction.LABEL));
-			if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
-				this.actions.push(this.instantiationService.createInstance(ConfigureAction, ConfigureAction.ID, ConfigureAction.LABEL));
-			}
-			this.actions.push(this._register(this.instantiationService.createInstance(ToggleReplAction, ToggleReplAction.ID, ToggleReplAction.LABEL)));
+		const actions = [];
+		actions.push(this.instantiationService.createInstance(StartAction, StartAction.ID, StartAction.LABEL));
+		if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
+			actions.push(this.instantiationService.createInstance(ConfigureAction, ConfigureAction.ID, ConfigureAction.LABEL));
 		}
-
-		return this.actions;
+		actions.push(this._register(this.instantiationService.createInstance(ToggleReplAction, ToggleReplAction.ID, ToggleReplAction.LABEL)));
+		return actions;
 	}
 
 	public getSecondaryActions(): IAction[] {

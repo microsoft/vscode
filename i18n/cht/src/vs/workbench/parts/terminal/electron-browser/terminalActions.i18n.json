@@ -38,6 +38,5 @@
 	"workbench.action.terminal.focusFindWidget": "焦點尋找小工具",
 	"workbench.action.terminal.hideFindWidget": "隱藏尋找小工具",
 	"nextTerminalFindTerm": "顯示下一個尋找字詞",
-	"previousTerminalFindTerm": "顯示上一個尋找字詞",
-	"quickOpenTerm": "終端機: 切換使用中的終端機"
+	"previousTerminalFindTerm": "顯示上一個尋找字詞"
 }

@@ -10,6 +10,7 @@
 	"welcomePage.newFile": "Új fájl",
 	"welcomePage.openFolder": "Mappa megnyitása...",
 	"welcomePage.cloneGitRepository": "Git forráskódtár klónozása...",
+	"welcomePage.addWorkspaceFolder": "Mappa hozzáadása a munkaterülethez...",
 	"welcomePage.recent": "Legutóbbi",
 	"welcomePage.moreRecent": "Tovább...",
 	"welcomePage.noRecentFolders": "Nincsenek megnyitott mappák",
@@ -35,8 +36,6 @@
 	"welcomePage.showCommandsDescription": "Parancsok gyors listázása és keresése a parancskatalógusban ({0})",
 	"welcomePage.interfaceOverview": "Felhasználói felület áttekintése",
 	"welcomePage.interfaceOverviewDescription": "Fedvény, ami vizuálisan bemutatja a felhasználói felület legfőbb részeit.",
-	"welcomePage.deployToAzure": "Alkalmazások telepítése a felhőbe",
-	"welcomePage.deployToAzureDescription": "Tudja meg, hogyan telepítheti Node-alkalmazásait az Azure App Service-re",
 	"welcomePage.interactivePlayground": "Interaktív játszótér",
 	"welcomePage.interactivePlaygroundDescription": "Próbálja ki a szerkesztő funkcióit egy rövid bemutató keretében!"
 }
