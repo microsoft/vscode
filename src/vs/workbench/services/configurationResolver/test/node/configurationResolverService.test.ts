@@ -42,9 +42,9 @@ suite('Configuration Resolver Service', () => {
 
 	test('substitute one', () => {
 		if (platform.isWindows) {
-			assert.strictEqual(configurationResolverService.resolve(workspace, 'abc ${workspaceRoot} xyz'), 'abc \\VSCode\\workspaceLocation xyz');
+			assert.strictEqual(configurationResolverService.resolve(workspace, 'abc ${workspaceFolder} xyz'), 'abc \\VSCode\\workspaceLocation xyz');
 		} else {
-			assert.strictEqual(configurationResolverService.resolve(workspace, 'abc ${workspaceRoot} xyz'), 'abc /VSCode/workspaceLocation xyz');
+			assert.strictEqual(configurationResolverService.resolve(workspace, 'abc ${workspaceFolder} xyz'), 'abc /VSCode/workspaceLocation xyz');
 		}
 	});
 
@@ -58,25 +58,25 @@ suite('Configuration Resolver Service', () => {
 
 	test('substitute many', () => {
 		if (platform.isWindows) {
-			assert.strictEqual(configurationResolverService.resolve(workspace, '${workspaceRoot} - ${workspaceRoot}'), '\\VSCode\\workspaceLocation - \\VSCode\\workspaceLocation');
+			assert.strictEqual(configurationResolverService.resolve(workspace, '${workspaceFolder} - ${workspaceFolder}'), '\\VSCode\\workspaceLocation - \\VSCode\\workspaceLocation');
 		} else {
-			assert.strictEqual(configurationResolverService.resolve(workspace, '${workspaceRoot} - ${workspaceRoot}'), '/VSCode/workspaceLocation - /VSCode/workspaceLocation');
+			assert.strictEqual(configurationResolverService.resolve(workspace, '${workspaceFolder} - ${workspaceFolder}'), '/VSCode/workspaceLocation - /VSCode/workspaceLocation');
 		}
 	});
 
 	test('substitute one env variable', () => {
 		if (platform.isWindows) {
-			assert.strictEqual(configurationResolverService.resolve(workspace, 'abc ${workspaceRoot} ${env:key1} xyz'), 'abc \\VSCode\\workspaceLocation Value for Key1 xyz');
+			assert.strictEqual(configurationResolverService.resolve(workspace, 'abc ${workspaceFolder} ${env:key1} xyz'), 'abc \\VSCode\\workspaceLocation Value for Key1 xyz');
 		} else {
-			assert.strictEqual(configurationResolverService.resolve(workspace, 'abc ${workspaceRoot} ${env:key1} xyz'), 'abc /VSCode/workspaceLocation Value for Key1 xyz');
+			assert.strictEqual(configurationResolverService.resolve(workspace, 'abc ${workspaceFolder} ${env:key1} xyz'), 'abc /VSCode/workspaceLocation Value for Key1 xyz');
 		}
 	});
 
 	test('substitute many env variable', () => {
 		if (platform.isWindows) {
-			assert.strictEqual(configurationResolverService.resolve(workspace, '${workspaceRoot} - ${workspaceRoot} ${env:key1} - ${env:key2}'), '\\VSCode\\workspaceLocation - \\VSCode\\workspaceLocation Value for Key1 - Value for Key2');
+			assert.strictEqual(configurationResolverService.resolve(workspace, '${workspaceFolder} - ${workspaceFolder} ${env:key1} - ${env:key2}'), '\\VSCode\\workspaceLocation - \\VSCode\\workspaceLocation Value for Key1 - Value for Key2');
 		} else {
-			assert.strictEqual(configurationResolverService.resolve(workspace, '${workspaceRoot} - ${workspaceRoot} ${env:key1} - ${env:key2}'), '/VSCode/workspaceLocation - /VSCode/workspaceLocation Value for Key1 - Value for Key2');
+			assert.strictEqual(configurationResolverService.resolve(workspace, '${workspaceFolder} - ${workspaceFolder} ${env:key1} - ${env:key2}'), '/VSCode/workspaceLocation - /VSCode/workspaceLocation Value for Key1 - Value for Key2');
 		}
 	});
 
@@ -118,7 +118,7 @@ suite('Configuration Resolver Service', () => {
 		let configurationService: IConfigurationService;
 		configurationService = new MockConfigurationService({
 			editor: {
-				fontFamily: 'foo ${workspaceRoot} ${config:terminal.integrated.fontFamily}'
+				fontFamily: 'foo ${workspaceFolder} ${config:terminal.integrated.fontFamily}'
 			},
 			terminal: {
 				integrated: {
@@ -139,7 +139,7 @@ suite('Configuration Resolver Service', () => {
 		let configurationService: IConfigurationService;
 		configurationService = new MockConfigurationService({
 			editor: {
-				fontFamily: 'foo ${workspaceRoot} ${config:terminal.integrated.fontFamily} ${config:editor.fontFamily}'
+				fontFamily: 'foo ${workspaceFolder} ${config:terminal.integrated.fontFamily} ${config:editor.fontFamily}'
 			},
 			terminal: {
 				integrated: {
@@ -171,9 +171,9 @@ suite('Configuration Resolver Service', () => {
 
 		let service = new ConfigurationResolverService(envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService);
 		if (platform.isWindows) {
-			assert.strictEqual(service.resolve(workspace, 'abc ${config:editor.fontFamily} ${workspaceRoot} ${env:key1} xyz'), 'abc foo \\VSCode\\workspaceLocation Value for Key1 xyz');
+			assert.strictEqual(service.resolve(workspace, 'abc ${config:editor.fontFamily} ${workspaceFolder} ${env:key1} xyz'), 'abc foo \\VSCode\\workspaceLocation Value for Key1 xyz');
 		} else {
-			assert.strictEqual(service.resolve(workspace, 'abc ${config:editor.fontFamily} ${workspaceRoot} ${env:key1} xyz'), 'abc foo /VSCode/workspaceLocation Value for Key1 xyz');
+			assert.strictEqual(service.resolve(workspace, 'abc ${config:editor.fontFamily} ${workspaceFolder} ${env:key1} xyz'), 'abc foo /VSCode/workspaceLocation Value for Key1 xyz');
 		}
 	});
 
@@ -192,9 +192,9 @@ suite('Configuration Resolver Service', () => {
 
 		let service = new ConfigurationResolverService(envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService);
 		if (platform.isWindows) {
-			assert.strictEqual(service.resolve(workspace, '${config:editor.fontFamily} ${config:terminal.integrated.fontFamily} ${workspaceRoot} - ${workspaceRoot} ${env:key1} - ${env:key2}'), 'foo bar \\VSCode\\workspaceLocation - \\VSCode\\workspaceLocation Value for Key1 - Value for Key2');
+			assert.strictEqual(service.resolve(workspace, '${config:editor.fontFamily} ${config:terminal.integrated.fontFamily} ${workspaceFolder} - ${workspaceFolder} ${env:key1} - ${env:key2}'), 'foo bar \\VSCode\\workspaceLocation - \\VSCode\\workspaceLocation Value for Key1 - Value for Key2');
 		} else {
-			assert.strictEqual(service.resolve(workspace, '${config:editor.fontFamily} ${config:terminal.integrated.fontFamily} ${workspaceRoot} - ${workspaceRoot} ${env:key1} - ${env:key2}'), 'foo bar /VSCode/workspaceLocation - /VSCode/workspaceLocation Value for Key1 - Value for Key2');
+			assert.strictEqual(service.resolve(workspace, '${config:editor.fontFamily} ${config:terminal.integrated.fontFamily} ${workspaceFolder} - ${workspaceFolder} ${env:key1} - ${env:key2}'), 'foo bar /VSCode/workspaceLocation - /VSCode/workspaceLocation Value for Key1 - Value for Key2');
 		}
 	});
 

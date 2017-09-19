@@ -118,7 +118,7 @@ namespace FileLocation {
 			case types.FileLocationKind.Absolute:
 				return { kind: Problems.FileLocationKind.Absolute };
 			case types.FileLocationKind.Relative:
-				return { kind: Problems.FileLocationKind.Relative, prefix: '${workspaceRoot}' };
+				return { kind: Problems.FileLocationKind.Relative, prefix: '${workspaceFolder}' };
 		}
 		return { kind: Problems.FileLocationKind.Auto };
 	}

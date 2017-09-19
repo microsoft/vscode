@@ -55,9 +55,9 @@ describe('Debug', () => {
 		assert.equal(json.configurations[0].request, 'launch');
 		assert.equal(json.configurations[0].type, 'node');
 		if (process.platform === 'win32') {
-			assert.equal(json.configurations[0].program, '${workspaceRoot}\\bin\\www');
+			assert.equal(json.configurations[0].program, '${workspaceFolder}\\bin\\www');
 		} else {
-			assert.equal(json.configurations[0].program, '${workspaceRoot}/bin/www');
+			assert.equal(json.configurations[0].program, '${workspaceFolder}/bin/www');
 		}
 	});
 
