@@ -64,7 +64,6 @@ interface ISearchWithRange {
 	  ]
    }
  */
-// GDPR__TODO joined seems to be recursive
 interface ITimerEventData {
 	searchLength: number;
 	unsortedResultDuration: number;

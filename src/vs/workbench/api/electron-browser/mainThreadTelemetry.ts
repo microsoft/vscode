@@ -30,7 +30,6 @@ export class MainThreadTelemetry implements MainThreadTelemetryShape {
 			  "pluginHostTelemetry" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		   }
 		 */
-
 		data[MainThreadTelemetry._name] = true;
 		this._telemetryService.publicLog(eventName, data);
 	}

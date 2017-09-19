@@ -153,7 +153,7 @@ export default class ErrorTelemetry {
 				  "column": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 			   }
 			 */
-			// GDPR__TODO more properties are missing
+			// __GDPR__TODO more properties are missing
 			this._telemetryService.publicLog('UnhandledError', error);
 		}
 		this._buffer.length = 0;
