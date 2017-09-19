@@ -5,10 +5,11 @@
 'use strict';
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import uri from 'vs/base/common/uri';
 import { IDebugService, IConfig, IDebugConfigurationProvider } from 'vs/workbench/parts/debug/common/debug';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext, IExtHostContext } from '../node/extHost.protocol';
-import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadDebugService)
@@ -19,7 +20,8 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IDebugService private debugService: IDebugService
+		@IDebugService private debugService: IDebugService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 	) {
 		this._proxy = extHostContext.get(ExtHostContext.ExtHostDebugService);
 		this._toDispose = [];
@@ -69,7 +71,8 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 		return TPromise.as<void>(undefined);
 	}
 
-	public $startDebugging(folder: WorkspaceFolder, nameOrConfiguration: string | IConfig): TPromise<boolean> {
+	public $startDebugging(folderUri: uri | undefined, nameOrConfiguration: string | IConfig): TPromise<boolean> {
+		const folder = folderUri ? this.contextService.getWorkspace().folders.filter(wf => wf.uri.toString() === folderUri.toString()).pop() : undefined;
 		return this.debugService.startDebugging(folder, nameOrConfiguration).then(x => {
 			return true;
 		}, err => {
@@ -77,10 +80,12 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 		});
 	}
 
-	public $startDebugSession(folder: WorkspaceFolder, configuration: IConfig): TPromise<DebugSessionUUID> {
+	public $startDebugSession(folderUri: uri | undefined, configuration: IConfig): TPromise<DebugSessionUUID> {
 		if (configuration.request !== 'launch' && configuration.request !== 'attach') {
 			return TPromise.wrapError(new Error(`only 'launch' or 'attach' allowed for 'request' attribute`));
 		}
+
+		const folder = folderUri ? this.contextService.getWorkspace().folders.filter(wf => wf.uri.toString() === folderUri.toString()).pop() : undefined;
 		return this.debugService.createProcess(folder, configuration).then(process => {
 			if (process) {
 				return <DebugSessionUUID>process.getId();

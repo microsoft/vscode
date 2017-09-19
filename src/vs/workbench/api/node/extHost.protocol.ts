@@ -382,8 +382,8 @@ export type DebugSessionUUID = string;
 export interface MainThreadDebugServiceShape extends IDisposable {
 	$registerDebugConfigurationProvider(type: string, hasProvideMethod: boolean, hasResolveMethod: boolean, handle: number): TPromise<any>;
 	$unregisterDebugConfigurationProvider(handle: number): TPromise<any>;
-	$startDebugging(folder: WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration): TPromise<boolean>;
-	$startDebugSession(folder: WorkspaceFolder | undefined, config: vscode.DebugConfiguration): TPromise<DebugSessionUUID>;
+	$startDebugging(folder: URI | undefined, nameOrConfig: string | vscode.DebugConfiguration): TPromise<boolean>;
+	$startDebugSession(folder: URI | undefined, config: vscode.DebugConfiguration): TPromise<DebugSessionUUID>;
 	$customDebugAdapterRequest(id: DebugSessionUUID, command: string, args: any): TPromise<any>;
 }
 
