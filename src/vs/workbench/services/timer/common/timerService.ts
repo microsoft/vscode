@@ -37,7 +37,6 @@ export interface IMemoryInfo {
 	  "timers.ellapsedEditorRestore" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 	  "timers.ellapsedWorkbench" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 	  "timers.ellapsedTimersToTimersComputed" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "timers2" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 	  "platform" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 	  "release" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 	  "arch" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
@@ -50,7 +49,13 @@ export interface IMemoryInfo {
 	  "hasAccessibilitySupport" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 	  "isVMLikelyhood" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 	  "emptyWorkbench" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "loadavg" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+	  "loadavg" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "${wildcard}": [
+		 {
+			"${prefix}": "timers2.",
+			"${classification}": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+		 }
+	  ]
    }
  */
 export interface IStartupMetrics {
@@ -68,7 +73,6 @@ export interface IStartupMetrics {
 		ellapsedWorkbench: number;
 		ellapsedTimersToTimersComputed: number;
 	};
-	// GDPR__TODO: Dynamic property set with timer2, cannot be declared in the registry
 	timers2: { [name: string]: number };
 	platform: string;
 	release: string;
