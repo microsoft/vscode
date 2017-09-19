@@ -7,11 +7,10 @@
 
 import Event, { filterEvent, mapEvent, any } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IWindowService, IWindowsService, INativeOpenDialogOptions } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult } from 'vs/platform/windows/common/windows';
 import { remote } from 'electron';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ICommandAction } from 'vs/platform/actions/common/actions';
-import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 export class WindowService implements IWindowService {
 
@@ -70,11 +69,11 @@ export class WindowService implements IWindowService {
 		return this.windowsService.openWorkspace(this.windowId);
 	}
 
-	createAndEnterWorkspace(folders?: string[], path?: string): TPromise<IWorkspaceIdentifier> {
+	createAndEnterWorkspace(folders?: string[], path?: string): TPromise<IEnterWorkspaceResult> {
 		return this.windowsService.createAndEnterWorkspace(this.windowId, folders, path);
 	}
 
-	saveAndEnterWorkspace(path: string): TPromise<IWorkspaceIdentifier> {
+	saveAndEnterWorkspace(path: string): TPromise<IEnterWorkspaceResult> {
 		return this.windowsService.saveAndEnterWorkspace(this.windowId, path);
 	}
 

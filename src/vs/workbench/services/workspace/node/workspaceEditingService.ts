@@ -9,7 +9,7 @@ import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService, IEnterWorkspaceResult } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IWorkspacesService, IStoredWorkspaceFolder, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
@@ -24,6 +24,8 @@ import { StorageService } from 'vs/platform/storage/common/storageService';
 import { ConfigurationScope, IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { BackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
 
 export class WorkspaceEditingService implements IWorkspaceEditingService {
 
@@ -38,7 +40,8 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		@IWorkspacesService private workspacesService: IWorkspacesService,
 		@IWorkspaceConfigurationService private workspaceConfigurationService: IWorkspaceConfigurationService,
 		@IStorageService private storageService: IStorageService,
-		@IExtensionService private extensionService: IExtensionService
+		@IExtensionService private extensionService: IExtensionService,
+		@IBackupFileService private backupFileService: IBackupFileService
 	) {
 	}
 
@@ -133,21 +136,25 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		return this.doEnterWorkspace(() => this.windowService.saveAndEnterWorkspace(path));
 	}
 
-	private doEnterWorkspace(mainSidePromise: () => TPromise<IWorkspaceIdentifier>): TPromise<void> {
+	private doEnterWorkspace(mainSidePromise: () => TPromise<IEnterWorkspaceResult>): TPromise<void> {
 
 		// Stop the extension host first to give extensions most time to shutdown
 		this.extensionService.stopExtensionHost();
 
-		return mainSidePromise().then(workspace => {
+		return mainSidePromise().then(result => {
 			let enterWorkspacePromise: TPromise<void> = TPromise.as(void 0);
-			if (workspace) {
+			if (result) {
 
 				// Migrate storage and settings
-				enterWorkspacePromise = this.migrate(workspace).then(() => {
+				enterWorkspacePromise = this.migrate(result.workspace).then(() => {
 
-					// Initialize configuration service
+					// Reinitialize backup service
+					const backupFileService = this.backupFileService as BackupFileService; // TODO@Ben ugly cast
+					backupFileService.initialize(result.backupPath);
+
+					// Reinitialize configuration service
 					const workspaceImpl = this.contextService as WorkspaceService; // TODO@Ben TODO@Sandeep ugly cast
-					return workspaceImpl.initialize(workspace);
+					return workspaceImpl.initialize(result.workspace);
 				});
 			}
 

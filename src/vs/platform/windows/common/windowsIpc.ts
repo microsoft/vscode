@@ -8,7 +8,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { buffer } from 'vs/base/common/event';
 import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
-import { IWindowsService, INativeOpenDialogOptions } from './windows';
+import { IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult } from './windows';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ICommandAction } from 'vs/platform/actions/common/actions';
@@ -24,8 +24,8 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'toggleDevTools', arg: number): TPromise<void>;
 	call(command: 'closeWorkspace', arg: number): TPromise<void>;
 	call(command: 'openWorkspace', arg: number): TPromise<void>;
-	call(command: 'createAndEnterWorkspace', arg: [number, string[], string]): TPromise<IWorkspaceIdentifier>;
-	call(command: 'saveAndEnterWorkspace', arg: [number, string]): TPromise<IWorkspaceIdentifier>;
+	call(command: 'createAndEnterWorkspace', arg: [number, string[], string]): TPromise<IEnterWorkspaceResult>;
+	call(command: 'saveAndEnterWorkspace', arg: [number, string]): TPromise<IEnterWorkspaceResult>;
 	call(command: 'toggleFullScreen', arg: number): TPromise<void>;
 	call(command: 'setRepresentedFilename', arg: [number, string]): TPromise<void>;
 	call(command: 'addRecentlyOpened', arg: string[]): TPromise<void>;
@@ -174,11 +174,11 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('openWorkspace', windowId);
 	}
 
-	createAndEnterWorkspace(windowId: number, folders?: string[], path?: string): TPromise<IWorkspaceIdentifier> {
+	createAndEnterWorkspace(windowId: number, folders?: string[], path?: string): TPromise<IEnterWorkspaceResult> {
 		return this.channel.call('createAndEnterWorkspace', [windowId, folders, path]);
 	}
 
-	saveAndEnterWorkspace(windowId: number, path: string): TPromise<IWorkspaceIdentifier> {
+	saveAndEnterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult> {
 		return this.channel.call('saveAndEnterWorkspace', [windowId, path]);
 	}
 

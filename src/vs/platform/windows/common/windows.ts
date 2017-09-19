@@ -27,6 +27,11 @@ export interface INativeOpenDialogOptions {
 	telemetryExtraData?: ITelemetryData;
 }
 
+export interface IEnterWorkspaceResult {
+	workspace: IWorkspaceIdentifier;
+	backupPath: string;
+}
+
 export interface IWindowsService {
 
 	_serviceBrand: any;
@@ -43,8 +48,8 @@ export interface IWindowsService {
 	toggleDevTools(windowId: number): TPromise<void>;
 	closeWorkspace(windowId: number): TPromise<void>;
 	openWorkspace(windowId: number): TPromise<void>;
-	createAndEnterWorkspace(windowId: number, folders?: string[], path?: string): TPromise<IWorkspaceIdentifier>;
-	saveAndEnterWorkspace(windowId: number, path: string): TPromise<IWorkspaceIdentifier>;
+	createAndEnterWorkspace(windowId: number, folders?: string[], path?: string): TPromise<IEnterWorkspaceResult>;
+	saveAndEnterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult>;
 	toggleFullScreen(windowId: number): TPromise<void>;
 	setRepresentedFilename(windowId: number, fileName: string): TPromise<void>;
 	addRecentlyOpened(files: string[]): TPromise<void>;
@@ -111,8 +116,8 @@ export interface IWindowService {
 	closeWorkspace(): TPromise<void>;
 	openWorkspace(): TPromise<void>;
 	updateTouchBar(items: ICommandAction[][]): TPromise<void>;
-	createAndEnterWorkspace(folders?: string[], path?: string): TPromise<IWorkspaceIdentifier>;
-	saveAndEnterWorkspace(path: string): TPromise<IWorkspaceIdentifier>;
+	createAndEnterWorkspace(folders?: string[], path?: string): TPromise<IEnterWorkspaceResult>;
+	saveAndEnterWorkspace(path: string): TPromise<IEnterWorkspaceResult>;
 	toggleFullScreen(): TPromise<void>;
 	setRepresentedFilename(fileName: string): TPromise<void>;
 	getRecentlyOpened(): TPromise<IRecentlyOpened>;
