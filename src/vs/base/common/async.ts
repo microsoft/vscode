@@ -182,6 +182,7 @@ export class Delayer<T> {
 	private completionPromise: Promise;
 	private onSuccess: ValueCallback;
 	private task: ITask<T>;
+	protected result: T;
 
 	constructor(public defaultDelay: number) {
 		this.timeout = null;
@@ -205,7 +206,8 @@ export class Delayer<T> {
 				const task = this.task;
 				this.task = null;
 
-				return task();
+				this.result = task();
+				return this.result;
 			});
 		}
 
@@ -257,6 +259,14 @@ export class ThrottledDelayer<T> extends Delayer<TPromise<T>> {
 
 	trigger(promiseFactory: ITask<TPromise<T>>, delay?: number): Promise {
 		return super.trigger(() => this.throttler.queue(promiseFactory), delay);
+	}
+
+	cancel(): void {
+		super.cancel();
+		if (this.result) {
+			this.result.cancel();
+			this.result = undefined;
+		}
 	}
 }
 
