@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Node, HtmlNode, Rule } from 'EmmetNode';
+import { Node, HtmlNode, Rule, Property } from 'EmmetNode';
 import { getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, validate, getEmmetConfiguration } from './util';
 import { getExpandOptions, extractAbbreviation, extractAbbreviationFromText, isStyleSheet, isAbbreviationValid, getEmmetMode, expandAbbreviation } from 'vscode-emmet-helper';
 
@@ -149,8 +149,8 @@ export function expandEmmetAbbreviation(args): Thenable<boolean> {
 			return;
 		}
 
-		let currentNode = getNode(rootNode, position);
-		if (!isValidLocationForEmmetAbbreviation(currentNode, syntax, position)) {
+		let currentNode = getNode(rootNode, position, true);
+		if (!isValidLocationForEmmetAbbreviation(currentNode, syntax, position, abbreviation)) {
 			return;
 		}
 
@@ -182,13 +182,21 @@ function fallbackTab(): Thenable<boolean> {
  * @param syntax syntax of the abbreviation
  * @param position position to validate
  */
-export function isValidLocationForEmmetAbbreviation(currentNode: Node, syntax: string, position: vscode.Position): boolean {
+export function isValidLocationForEmmetAbbreviation(currentNode: Node, syntax: string, position: vscode.Position, abbreviation: string): boolean {
 	// Continue validation only if the file was parse-able and the currentNode has been found
 	if (!currentNode) {
 		return true;
 	}
 
 	if (isStyleSheet(syntax)) {
+
+		// CSS Emmet snippets are for property-value or in case of colors, just value
+		if (currentNode.type === 'property' && (<Property>currentNode).value) {
+			if (position.isBefore((<Property>currentNode).valueToken.start)) {
+				return false;
+			}
+			return /^#\d+$/.test(abbreviation);
+		}
 
 		// If current node is a rule or at-rule, then perform additional checks to ensure
 		// emmet suggestions are not provided in the rule selector
