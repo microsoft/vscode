@@ -272,7 +272,6 @@ class MainPanel extends ViewletPanel {
 		// Add new selected panels
 		const height = typeof this.viewModel.height === 'number' ? this.viewModel.height : 1000;
 		const size = (height - this.minimumSize) / e.elements.length;
-		console.log(this.viewModel.height, height, this.minimumBodySize, e.elements.length, size);
 		newRepositoryPanels.forEach(panel => this.viewModel.addRepositoryPanel(panel, size));
 
 		this.repositoryPanels = [...repositoryPanels, ...newRepositoryPanels];
