@@ -50,7 +50,8 @@ class Extension implements IExtension {
 		private galleryService: IExtensionGalleryService,
 		private stateProvider: IExtensionStateProvider,
 		public local: ILocalExtension,
-		public gallery: IGalleryExtension = null
+		public gallery: IGalleryExtension,
+		private telemetryService: ITelemetryService
 	) { }
 
 	get type(): LocalExtensionType {
@@ -181,7 +182,10 @@ class Extension implements IExtension {
 
 	getReadme(): TPromise<string> {
 		if (this.gallery) {
-			return this.galleryService.getReadme(this.gallery);
+			if (this.gallery.assets.readme) {
+				return this.galleryService.getReadme(this.gallery);
+			}
+			this.telemetryService.publicLog('extensions:NotFoundReadMe', this.telemetryData); // TODO: Sandy - check for such extensions
 		}
 
 		if (this.local && this.local.readmeUrl) {
@@ -372,7 +376,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			const globallyDisabledExtensions = this.extensionEnablementService.getGloballyDisabledExtensions();
 			const workspaceDisabledExtensions = this.extensionEnablementService.getWorkspaceDisabledExtensions();
 			this.installed = result.map(local => {
-				const extension = installedById[local.id] || new Extension(this.galleryService, this.stateProvider, local);
+				const extension = installedById[local.id] || new Extension(this.galleryService, this.stateProvider, local, null, this.telemetryService);
 				extension.local = local;
 				extension.disabledGlobally = globallyDisabledExtensions.indexOf(extension.id) !== -1;
 				extension.disabledForWorkspace = workspaceDisabledExtensions.indexOf(extension.id) !== -1;
@@ -432,7 +436,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return installed;
 		}
 
-		return new Extension(this.galleryService, this.stateProvider, null, gallery);
+		return new Extension(this.galleryService, this.stateProvider, null, gallery, this.telemetryService);
 	}
 
 	private syncLocalWithGalleryExtension(local: Extension, gallery: IGalleryExtension) {
@@ -687,7 +691,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		let extension = this.installed.filter(e => e.id === gallery.id)[0];
 
 		if (!extension) {
-			extension = new Extension(this.galleryService, this.stateProvider, null, gallery);
+			extension = new Extension(this.galleryService, this.stateProvider, null, gallery, this.telemetryService);
 		}
 
 		extension.gallery = gallery;
@@ -702,7 +706,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	private onDidInstallExtension(event: DidInstallExtensionEvent): void {
 		const { local, zipPath, error, gallery } = event;
 		const installing = gallery ? this.installing.filter(e => e.extension.id === gallery.id)[0] : null;
-		const extension: Extension = installing ? installing.extension : zipPath ? new Extension(this.galleryService, this.stateProvider, null) : null;
+		const extension: Extension = installing ? installing.extension : zipPath ? new Extension(this.galleryService, this.stateProvider, null, null, this.telemetryService) : null;
 		if (extension) {
 			this.installing = installing ? this.installing.filter(e => e !== installing) : this.installing;
 
