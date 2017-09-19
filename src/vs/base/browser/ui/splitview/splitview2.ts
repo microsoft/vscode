@@ -95,15 +95,9 @@ export class SplitView implements IDisposable {
 			? size => item.container.style.height = `${item.size}px`
 			: size => item.container.style.width = `${item.size}px`;
 
-		let previousSize: number | undefined = undefined;
 		const layout = () => {
-			if (item.size === previousSize) {
-				return;
-			}
-
 			layoutContainer(item.size);
 			item.view.layout(item.size, this.orientation);
-			previousSize = item.size;
 		};
 
 		size = Math.round(size);
