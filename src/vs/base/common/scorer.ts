@@ -39,6 +39,9 @@ export function score(target: string, query: string, cache?: { [id: string]: num
 	if (!target || !query) {
 		return 0; // return early if target or query are undefined
 	}
+	if (target.length < query.length) {
+		return 0; // impossible for query to be contained in target
+	}
 
 	const hash = target + query;
 	const cached = cache && cache[hash];
@@ -69,7 +72,7 @@ export function score(target: string, query: string, cache?: { [id: string]: num
 		}
 
 		// Same case bonus
-		if (target[indexOf] === query[indexOf]) {
+		if (target[indexOf] === query[index]) {
 			score += 1;
 		}
 
