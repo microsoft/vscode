@@ -286,7 +286,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			.then(() => this.hasDependencies(extension, installed) ? this.promptForDependenciesAndUninstall(extension, installed, force) : this.promptAndUninstall(extension, installed, force))
 			.then(() => this.postUninstallExtension(extension),
 			error => {
-				this.postUninstallExtension(extension, error);
+				this.postUninstallExtension(extension, ErrorCode.LOCAL);
 				return TPromise.wrapError(error);
 			});
 	}
@@ -402,7 +402,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			.then(() => this.uninstallExtension(extension.id))
 			.then(() => this.postUninstallExtension(extension),
 			error => {
-				this.postUninstallExtension(extension, error);
+				this.postUninstallExtension(extension, ErrorCode.LOCAL);
 				return TPromise.wrapError(error);
 			});
 	}
@@ -421,7 +421,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			.then(() => this.unsetObsolete(id));
 	}
 
-	private async postUninstallExtension(extension: ILocalExtension, error?: any): TPromise<void> {
+	private async postUninstallExtension(extension: ILocalExtension, error?: ErrorCode): TPromise<void> {
 		if (!error) {
 			await this.galleryService.reportStatistic(extension.manifest.publisher, extension.manifest.name, extension.manifest.version, StatisticType.Uninstall);
 		}

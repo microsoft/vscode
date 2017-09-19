@@ -244,7 +244,7 @@ export interface DidInstallExtensionEvent {
 
 export interface DidUninstallExtensionEvent {
 	id: string;
-	error?: Error;
+	error?: ErrorCode;
 }
 
 export interface IExtensionManagementService {
