@@ -129,13 +129,21 @@ export class Workspace implements IWorkspace {
 	private _folders: WorkspaceFolder[];
 
 	constructor(
-		public readonly id: string,
-		private _name: string,
-		folders: WorkspaceFolder[],
+		private _id: string,
+		private _name: string = '',
+		folders: WorkspaceFolder[] = [],
 		private _configuration: URI = null,
-		public readonly ctime?: number
+		private _ctime?: number
 	) {
 		this.folders = folders;
+	}
+
+	public update(workspace: Workspace) {
+		this._id = workspace.id;
+		this._name = workspace.name;
+		this._configuration = workspace.configuration;
+		this._ctime = workspace.ctime;
+		this.folders = workspace.folders;
 	}
 
 	public get folders(): WorkspaceFolder[] {
@@ -145,6 +153,14 @@ export class Workspace implements IWorkspace {
 	public set folders(folders: WorkspaceFolder[]) {
 		this._folders = folders;
 		this.updateFoldersMap();
+	}
+
+	public get id(): string {
+		return this._id;
+	}
+
+	public get ctime(): number {
+		return this._ctime;
 	}
 
 	public get name(): string {

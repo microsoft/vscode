@@ -680,28 +680,31 @@ export interface IColor {
 }
 
 /**
- * Represents a color format
+ * String representations for a color
  */
-export enum ColorFormat {
-	RGB = 0,
-	HEX = 1,
-	HSL = 2
-}
-
-/**
- * A color formatter.
- * @internal
- */
-export interface IColorFormatter {
-	readonly supportsTransparency: boolean;
-	readonly colorFormat: ColorFormat;
-	format(color: Color): string;
+export interface IColorPresentation {
+	/**
+	 * The label of this color presentation. It will be shown on the color
+	 * picker header. By default this is also the text that is inserted when selecting
+	 * this color presentation.
+	 */
+	label: string;
+	/**
+	 * An [edit](#TextEdit) which is applied to a document when selecting
+	 * this presentation for the color.
+	 */
+	textEdit?: TextEdit;
+	/**
+	 * An optional array of additional [text edits](#TextEdit) that are applied when
+	 * selecting this color presentation.
+	 */
+	additionalTextEdits?: TextEdit[];
 }
 
 /**
  * A color range is a range in a text model which represents a color.
  */
-export interface IColorRange {
+export interface IColorInformation {
 
 	/**
 	 * The range within the model.
@@ -721,11 +724,11 @@ export interface DocumentColorProvider {
 	/**
 	 * Provides the color ranges for a specific model.
 	 */
-	provideColorRanges(model: editorCommon.IReadOnlyModel, token: CancellationToken): IColorRange[] | Thenable<IColorRange[]>;
+	provideDocumentColors(model: editorCommon.IReadOnlyModel, token: CancellationToken): IColorInformation[] | Thenable<IColorInformation[]>;
 	/**
-	 * Provide the string representation for a color.
+	 * Provide the string representations for a color.
 	 */
-	resolveColor(color: IColor, colorFormat: ColorFormat, token: CancellationToken): string | Thenable<string>;
+	provideColorPresentations(colorInfo: IColorInformation, token: CancellationToken): IColorPresentation[] | Thenable<IColorPresentation[]>;
 }
 
 export interface IResourceEdit {

@@ -21,7 +21,7 @@ import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import glob = require('vs/base/common/glob');
 import { FileLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ContributableActionProvider } from 'vs/workbench/browser/actions';
 import { IFilesConfiguration, SortOrder } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -574,8 +574,10 @@ export class FileSorter implements ISorter {
 			if (statB.isRoot) {
 				return this.contextService.getWorkspaceFolder(statA.resource).index - this.contextService.getWorkspaceFolder(statB.resource).index;
 			}
+
 			return -1;
 		}
+
 		if (statB.isRoot) {
 			return 1;
 		}
@@ -607,6 +609,9 @@ export class FileSorter implements ISorter {
 				}
 
 				break;
+
+			case 'mixed':
+				break; // not sorting when "mixed" is on
 
 			default: /* 'default', 'modified' */
 				if (statA.isDirectory && !statB.isDirectory) {
@@ -645,6 +650,10 @@ export class FileSorter implements ISorter {
 				return comparers.compareFileNames(statA.name, statB.name);
 		}
 	}
+
+	public dispose(): void {
+		this.toDispose = dispose(this.toDispose);
+	}
 }
 
 // Explorer Filter
@@ -653,13 +662,19 @@ export class FileFilter implements IFilter {
 	private static MAX_SIBLINGS_FILTER_THRESHOLD = 2000;
 
 	private hiddenExpressionPerRoot: Map<string, glob.IExpression>;
+	private workspaceFolderChangeListener: IDisposable;
 
 	constructor(
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		this.hiddenExpressionPerRoot = new Map<string, glob.IExpression>();
-		this.contextService.onDidChangeWorkspaceFolders(() => this.updateConfiguration());
+
+		this.registerListeners();
+	}
+
+	public registerListeners(): void {
+		this.workspaceFolderChangeListener = this.contextService.onDidChangeWorkspaceFolders(() => this.updateConfiguration());
 	}
 
 	public updateConfiguration(): boolean {
@@ -697,6 +712,10 @@ export class FileFilter implements IFilter {
 		}
 
 		return true;
+	}
+
+	public dispose(): void {
+		this.workspaceFolderChangeListener = dispose(this.workspaceFolderChangeListener);
 	}
 }
 
@@ -901,7 +920,8 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 					const currentFolders = this.contextService.getWorkspace().folders.map(folder => folder.uri);
 					const newRoots = [...currentFolders, ...folders];
 
-					return this.windowService.createAndOpenWorkspace(distinct(newRoots.map(root => root.fsPath)));
+					// Create and open workspace
+					return this.workspaceEditingService.createAndEnterWorkspace(distinct(newRoots.map(root => root.fsPath)));
 				}
 			}
 

@@ -106,6 +106,7 @@ export class WatermarkContribution implements IWorkbenchContribution {
 	private toDispose: IDisposable[] = [];
 	private watermark: Builder;
 	private enabled: boolean;
+	private workbenchState: WorkbenchState;
 
 	constructor(
 		@ILifecycleService lifecycleService: ILifecycleService,
@@ -115,6 +116,8 @@ export class WatermarkContribution implements IWorkbenchContribution {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
+		this.workbenchState = contextService.getWorkbenchState();
+
 		lifecycleService.onShutdown(this.dispose, this);
 		this.partService.joinCreation().then(() => {
 			this.enabled = this.configurationService.lookup<boolean>('workbench.tips.enabled').value;
@@ -122,7 +125,7 @@ export class WatermarkContribution implements IWorkbenchContribution {
 				this.create();
 			}
 		});
-		this.configurationService.onDidUpdateConfiguration(e => {
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => {
 			const enabled = this.configurationService.lookup<boolean>('workbench.tips.enabled').value;
 			if (enabled !== this.enabled) {
 				this.enabled = enabled;
@@ -132,7 +135,15 @@ export class WatermarkContribution implements IWorkbenchContribution {
 					this.destroy();
 				}
 			}
-		});
+		}));
+		this.toDispose.push(this.contextService.onDidChangeWorkbenchState(e => {
+			const previousWorkbenchState = this.workbenchState;
+			this.workbenchState = this.contextService.getWorkbenchState();
+
+			if (this.enabled && this.workbenchState !== previousWorkbenchState) {
+				this.recreate();
+			}
+		}));
 	}
 
 	public getId() {
@@ -147,7 +158,7 @@ export class WatermarkContribution implements IWorkbenchContribution {
 			.div({ 'class': 'watermark' });
 		const box = $(this.watermark)
 			.div({ 'class': 'watermark-box' });
-		const folder = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY;
+		const folder = this.workbenchState !== WorkbenchState.EMPTY;
 		const selected = folder ? folderEntries : noFolderEntries
 			.filter(entry => !('mac' in entry) || entry.mac === isMacintosh);
 		const update = () => {
@@ -187,6 +198,11 @@ export class WatermarkContribution implements IWorkbenchContribution {
 			this.partService.getContainer(Parts.EDITOR_PART).classList.remove('has-watermark');
 			this.dispose();
 		}
+	}
+
+	private recreate(): void {
+		this.destroy();
+		this.create();
 	}
 
 	public dispose(): void {

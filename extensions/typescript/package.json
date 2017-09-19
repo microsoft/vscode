@@ -77,7 +77,8 @@
         "path": "./syntaxes/TypeScriptReact.tmLanguage.json",
         "embeddedLanguages": {
           "meta.tag.tsx": "jsx-tags",
-          "meta.tag.without-attributes.tsx": "jsx-tags"
+          "meta.tag.without-attributes.tsx": "jsx-tags",
+          "meta.embedded.expression.tsx": "typescriptreact"
         }
       }
     ],

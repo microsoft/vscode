@@ -16,7 +16,7 @@ import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 // 	"name": "Stacks Tests",
 // 	"type": "node",
 // 	"request": "launch",
-// 	"program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
+// 	"program": "${workspaceFolder}/node_modules/mocha/bin/_mocha",
 // 	"stopOnEntry": false,
 // 	"args": [
 // 		"--timeout",

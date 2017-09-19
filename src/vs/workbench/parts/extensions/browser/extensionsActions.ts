@@ -9,9 +9,9 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, Action } from 'vs/base/common/actions';
 import { Throttler } from 'vs/base/common/async';
 import * as DOM from 'vs/base/browser/dom';
-import severity from 'vs/base/common/severity';
 import paths = require('vs/base/common/paths');
 import Event from 'vs/base/common/event';
+import * as json from 'vs/base/common/json';
 import { ActionItem, IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -25,7 +25,7 @@ import { ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Query } from 'vs/workbench/parts/extensions/common/extensionQuery';
-import { IFileService } from 'vs/platform/files/common/files';
+import { IFileService, IContent } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IExtensionService, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -35,6 +35,10 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, registerColor, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { Color } from 'vs/base/common/color';
+import { IPickOpenEntry, IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
+import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
+import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 
 export class InstallAction extends Action {
 
@@ -1252,7 +1256,93 @@ export class ChangeSortAction extends Action {
 	}
 }
 
-export class ConfigureWorkspaceRecommendedExtensionsAction extends Action {
+interface IExtensionsContent {
+	recommendations: string[];
+}
+
+export abstract class AbstractConfigureRecommendedExtensionsAction extends Action {
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
+		@IFileService private fileService: IFileService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IJSONEditingService private jsonEditingService: IJSONEditingService,
+		@ITextModelService private textModelResolverService: ITextModelService
+	) {
+		super(id, label, null);
+	}
+
+	protected openExtensionsFile(extensionsFileResource: URI): TPromise<any> {
+		return this.getOrCreateExtensionsFile(extensionsFileResource)
+			.then(({ created }) => {
+				return this.editorService.openEditor({
+					resource: extensionsFileResource,
+					options: {
+						forceOpen: true,
+						pinned: created
+					},
+				});
+			}, error => TPromise.wrapError(new Error(localize('OpenExtensionsFile.failed', "Unable to create 'extensions.json' file inside the '.vscode' folder ({0}).", error))));
+	}
+
+	protected openWorkspaceConfigurationFile(workspaceConfigurationFile: URI): TPromise<any> {
+		return this.getOrUpdateWorkspaceConfigurationFile(workspaceConfigurationFile)
+			.then(content => this.getSelectionPosition(content))
+			.then(selection => this.editorService.openEditor({
+				resource: workspaceConfigurationFile,
+				options: {
+					forceOpen: true,
+					selection
+				}
+			}));
+	}
+
+	private getOrUpdateWorkspaceConfigurationFile(workspaceConfigurationFile: URI): TPromise<IContent> {
+		return this.fileService.resolveContent(workspaceConfigurationFile)
+			.then(content => {
+				const workspaceRecommendations = <IExtensionsContent>json.parse(content.value)['extensions'];
+				if (!workspaceRecommendations || !workspaceRecommendations.recommendations) {
+					return this.jsonEditingService.write(workspaceConfigurationFile, { key: 'extensions', value: { recommendations: [] } }, true)
+						.then(() => this.fileService.resolveContent(workspaceConfigurationFile));
+				}
+				return content;
+			});
+	}
+
+	private getSelectionPosition(content: IContent): TPromise<ITextEditorSelection> {
+		const tree = json.parseTree(content.value);
+		const node = json.findNodeAtLocation(tree, ['extensions', 'recommendations']);
+		if (node && node.parent.children[1]) {
+			const offset = node.parent.children[1].offset;
+			return this.textModelResolverService.createModelReference(content.resource)
+				.then(reference => {
+					const position = reference.object.textEditorModel.getPositionAt(offset);
+					reference.dispose();
+					return <ITextEditorSelection>{
+						startLineNumber: position.lineNumber,
+						startColumn: position.column,
+						endLineNumber: position.lineNumber,
+						endColumn: position.column,
+					};
+				});
+		}
+		return TPromise.as(null);
+	}
+
+	private getOrCreateExtensionsFile(extensionsFileResource: URI): TPromise<{ created: boolean, extensionsFileResource: URI }> {
+		return this.fileService.resolveContent(extensionsFileResource).then(content => {
+			return { created: false, extensionsFileResource };
+		}, err => {
+			return this.fileService.updateContent(extensionsFileResource, ExtensionsConfigurationInitialContent).then(() => {
+				return { created: true, extensionsFileResource };
+			});
+		});
+	}
+}
+
+export class ConfigureWorkspaceRecommendedExtensionsAction extends AbstractConfigureRecommendedExtensionsAction {
 
 	static ID = 'workbench.extensions.action.configureWorkspaceRecommendedExtensions';
 	static LABEL = localize('configureWorkspaceRecommendedExtensions', "Configure Recommended Extensions (Workspace)");
@@ -1262,13 +1352,13 @@ export class ConfigureWorkspaceRecommendedExtensionsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IFileService private fileService: IFileService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IExtensionsWorkbenchService private extensionsService: IExtensionsWorkbenchService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IMessageService private messageService: IMessageService
+		@IFileService fileService: IFileService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IJSONEditingService jsonEditingService: IJSONEditingService,
+		@ITextModelService textModelResolverService: ITextModelService
 	) {
-		super(id, label, null);
+		super(id, label, contextService, fileService, editorService, jsonEditingService, textModelResolverService);
 		this.contextService.onDidChangeWorkbenchState(() => this.update(), this, this.disposables);
 		this.update();
 	}
@@ -1278,36 +1368,60 @@ export class ConfigureWorkspaceRecommendedExtensionsAction extends Action {
 	}
 
 	public run(event: any): TPromise<any> {
-		return this.openExtensionsFile();
-	}
-
-	private openExtensionsFile(): TPromise<any> {
-		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			this.messageService.show(severity.Info, localize('ConfigureWorkspaceRecommendations.noWorkspace', 'Recommendations are only available on a workspace folder.'));
-			return TPromise.as(undefined);
+		const workspace = this.contextService.getWorkspace();
+		if (workspace.configuration) {
+			return this.openWorkspaceConfigurationFile(workspace.configuration);
 		}
-
-		return this.getOrCreateExtensionsFile().then(value => {
-			return this.editorService.openEditor({
-				resource: value.extensionsFileResource,
-				options: {
-					forceOpen: true,
-					pinned: value.created
-				},
-			});
-		}, (error) => TPromise.wrapError(new Error(localize('OpenExtensionsFile.failed', "Unable to create 'extensions.json' file inside the '.vscode' folder ({0}).", error))));
+		return this.openExtensionsFile(this.contextService.toResource(paths.join('.vscode', 'extensions.json'), workspace.folders[0]));
 	}
 
-	private getOrCreateExtensionsFile(): TPromise<{ created: boolean, extensionsFileResource: URI }> {
-		const extensionsFileResource = URI.file(paths.join(this.contextService.getWorkspace().folders[0].uri.fsPath, '.vscode', 'extensions.json')); // TODO@Sandeep (https://github.com/Microsoft/vscode/issues/29242)
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
+		super.dispose();
+	}
+}
 
-		return this.fileService.resolveContent(extensionsFileResource).then(content => {
-			return { created: false, extensionsFileResource };
-		}, err => {
-			return this.fileService.updateContent(extensionsFileResource, ExtensionsConfigurationInitialContent).then(() => {
-				return { created: true, extensionsFileResource };
-			});
+export class ConfigureWorkspaceFolderRecommendedExtensionsAction extends AbstractConfigureRecommendedExtensionsAction {
+
+	static ID = 'workbench.extensions.action.configureWorkspaceFolderRecommendedExtensions';
+	static LABEL = localize('configureWorkspaceFolderRecommendedExtensions', "Configure Recommended Extensions (Workspace Folder)");
+
+	private disposables: IDisposable[] = [];
+
+	constructor(
+		id: string,
+		label: string,
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IFileService fileService: IFileService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IJSONEditingService jsonEditingService: IJSONEditingService,
+		@ITextModelService textModelResolverService: ITextModelService
+	) {
+		super(id, label, contextService, fileService, editorService, jsonEditingService, textModelResolverService);
+		this.contextService.onDidChangeWorkspaceFolders(() => this.update(), this, this.disposables);
+		this.update();
+	}
+
+	private update(): void {
+		this.enabled = this.contextService.getWorkspace().folders.length > 0;
+	}
+
+	public run(): TPromise<any> {
+		const picks: IPickOpenEntry[] = this.contextService.getWorkspace().folders.map((folder, index) => {
+			return <IPickOpenEntry>{
+				label: folder.name,
+				id: `${index}`
+			};
 		});
+
+		return this.quickOpenService.pick(picks, { placeHolder: localize('pickFolder', "Select Workspace Folder") })
+			.then(pick => {
+				if (pick) {
+					return this.openExtensionsFile(this.contextService.toResource(paths.join('.vscode', 'extensions.json'), this.contextService.getWorkspace().folders[parseInt(pick.id)]));
+				}
+				return undefined;
+			});
 	}
 
 	dispose(): void {

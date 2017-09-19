@@ -14,19 +14,14 @@ export class Source {
 	public readonly uri: uri;
 	public available: boolean;
 
-	constructor(public readonly raw: DebugProtocol.Source, sessionId?: string) {
+	constructor(public readonly raw: DebugProtocol.Source, sessionId: string) {
 		if (!raw) {
 			this.raw = { name: UNKNOWN_SOURCE_LABEL };
 		}
 		this.available = this.raw.name !== UNKNOWN_SOURCE_LABEL;
 		const path = this.raw.path || this.raw.name;
 		if (this.raw.sourceReference > 0) {
-			let debugUri = `${DEBUG_SCHEME}:${encodeURIComponent(path)}?`;
-			if (sessionId) {
-				debugUri += `session=${encodeURIComponent(sessionId)}&`;
-			}
-			debugUri += `ref=${this.raw.sourceReference}`;
-			this.uri = uri.parse(debugUri);
+			this.uri = uri.parse(`${DEBUG_SCHEME}:${encodeURIComponent(path)}?session=${encodeURIComponent(sessionId)}&ref=${this.raw.sourceReference}`);
 		} else {
 			this.uri = uri.file(path);	// path should better be absolute!
 		}

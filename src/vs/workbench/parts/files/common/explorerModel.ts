@@ -13,6 +13,7 @@ import { IFileStat, isParent } from 'vs/platform/files/common/files';
 import { IEditorInput } from 'vs/platform/editor/common/editor';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEditorGroup, toResource } from 'vs/workbench/common/editor';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export enum StatType {
 	FILE,
@@ -23,10 +24,16 @@ export enum StatType {
 export class Model {
 
 	private _roots: FileStat[];
+	private _listener: IDisposable;
 
 	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
-		const setRoots = () => this._roots = this.contextService.getWorkspace().folders.map(folder => new FileStat(folder.uri, undefined));
-		this.contextService.onDidChangeWorkspaceFolders(() => setRoots());
+		const setRoots = () => this._roots = this.contextService.getWorkspace().folders.map(folder => {
+			const root = new FileStat(folder.uri, undefined);
+			root.name = folder.name;
+
+			return root;
+		});
+		this._listener = this.contextService.onDidChangeWorkspaceFolders(() => setRoots());
 		setRoots();
 	}
 
@@ -58,6 +65,10 @@ export class Model {
 		}
 
 		return null;
+	}
+
+	public dispose(): void {
+		this._listener = dispose(this._listener);
 	}
 }
 

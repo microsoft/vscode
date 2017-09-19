@@ -1055,7 +1055,7 @@ export class Color {
 
 export type IColorFormat = string | { opaque: string, transparent: string };
 
-export class ColorRange {
+export class ColorInformation {
 	range: Range;
 
 	color: Color;
@@ -1070,6 +1070,12 @@ export class ColorRange {
 		this.range = range;
 		this.color = color;
 	}
+}
+
+export class ColorPresentation {
+	label: string;
+	textEdit?: TextEdit;
+	additionalTextEdits?: TextEdit[];
 }
 
 export enum ColorFormat {

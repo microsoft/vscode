@@ -5,7 +5,6 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import * as Paths from 'vs/base/common/paths';
 import * as Filters from 'vs/base/common/filters';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action, IAction } from 'vs/base/common/actions';
@@ -38,7 +37,7 @@ export class TaskEntry extends Model.QuickOpenEntry {
 		if (!workspaceFolder) {
 			return null;
 		}
-		return `(${Paths.basename(workspaceFolder.uri.fsPath)})`;
+		return `(${workspaceFolder.name})`;
 	}
 
 	public getAriaLabel(): string {
@@ -115,12 +114,13 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 					}
 				}
 			}
+			const sorter = this.taskService.createSorter();
 			let hasRecentlyUsed: boolean = recent.length > 0;
 			this.fillEntries(entries, input, recent, nls.localize('recentlyUsed', 'recently used tasks'));
-			configured = configured.sort((a, b) => a._label.localeCompare(b._label));
+			configured = configured.sort((a, b) => sorter.compare(a, b));
 			let hasConfigured = configured.length > 0;
 			this.fillEntries(entries, input, configured, nls.localize('configured', 'configured tasks'), hasRecentlyUsed);
-			detected = detected.sort((a, b) => a._label.localeCompare(b._label));
+			detected = detected.sort((a, b) => sorter.compare(a, b));
 			this.fillEntries(entries, input, detected, nls.localize('detected', 'detected tasks'), hasRecentlyUsed || hasConfigured);
 			return new Model.QuickOpenModel(entries, new ContributableActionProvider());
 		});
@@ -158,7 +158,7 @@ class CustomizeTaskAction extends Action {
 	private static ID = 'workbench.action.tasks.customizeTask';
 	private static LABEL = nls.localize('customizeTask', "Configure Task");
 
-	constructor(private taskService: ITaskService, private quickOpenService: IQuickOpenService, private task: CustomTask | ContributedTask) {
+	constructor(private taskService: ITaskService, private quickOpenService: IQuickOpenService) {
 		super(CustomizeTaskAction.ID, CustomizeTaskAction.LABEL);
 		this.updateClass();
 	}
@@ -167,23 +167,36 @@ class CustomizeTaskAction extends Action {
 		this.class = 'quick-open-task-configure';
 	}
 
-	public run(context: any): TPromise<any> {
-		if (ContributedTask.is(this.task)) {
-			return this.taskService.customize(this.task, undefined, true).then(() => {
+	public run(element: any): TPromise<any> {
+		let task = this.getTask(element);
+		if (ContributedTask.is(task)) {
+			return this.taskService.customize(task, undefined, true).then(() => {
 				this.quickOpenService.close();
 			});
 		} else {
-			return this.taskService.openConfig(this.task).then(() => {
+			return this.taskService.openConfig(task).then(() => {
 				this.quickOpenService.close();
 			});
 		}
+	}
+
+	private getTask(element: any): CustomTask | ContributedTask {
+		if (element instanceof TaskEntry) {
+			return element.task;
+		} else if (element instanceof TaskGroupEntry) {
+			return (element.getEntry() as TaskEntry).task;
+		}
+		return undefined;
 	}
 }
 
 export class QuickOpenActionContributor extends ActionBarContributor {
 
+	private action: CustomizeTaskAction;
+
 	constructor( @ITaskService private taskService: ITaskService, @IQuickOpenService private quickOpenService: IQuickOpenService) {
 		super();
+		this.action = new CustomizeTaskAction(taskService, quickOpenService);
 	}
 
 	public hasActions(context: any): boolean {
@@ -196,7 +209,7 @@ export class QuickOpenActionContributor extends ActionBarContributor {
 		let actions: Action[] = [];
 		let task = this.getTask(context);
 		if (task && ContributedTask.is(task) || CustomTask.is(task)) {
-			actions.push(new CustomizeTaskAction(this.taskService, this.quickOpenService, task));
+			actions.push(this.action);
 		}
 		return actions;
 	}

@@ -27,9 +27,9 @@
 	"lcov.watch": [
 		{
 			"pattern": "**/*.test.js",
-			"command": "${workspaceRoot}/scripts/test.sh --coverage --run ${file}",
+			"command": "${workspaceFolder}/scripts/test.sh --coverage --run ${file}",
 			"windows": {
-				"command": "${workspaceRoot}\\scripts\\test.bat --coverage --run ${file}"
+				"command": "${workspaceFolder}\\scripts\\test.bat --coverage --run ${file}"
 			}
 		}
 	]

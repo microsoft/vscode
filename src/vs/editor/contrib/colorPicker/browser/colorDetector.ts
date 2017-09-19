@@ -149,10 +149,10 @@ export class ColorDetector implements IEditorContribution {
 	private updateDecorations(colorDatas: IColorData[]): void {
 		const decorations = colorDatas.map(c => ({
 			range: {
-				startLineNumber: c.colorRange.range.startLineNumber,
-				startColumn: c.colorRange.range.startColumn,
-				endLineNumber: c.colorRange.range.endLineNumber,
-				endColumn: c.colorRange.range.endColumn
+				startLineNumber: c.colorInfo.range.startLineNumber,
+				startColumn: c.colorInfo.range.startColumn,
+				endLineNumber: c.colorInfo.range.endLineNumber,
+				endColumn: c.colorInfo.range.endColumn
 			},
 			options: {}
 		}));
@@ -163,12 +163,12 @@ export class ColorDetector implements IEditorContribution {
 		this._decorationsIds.forEach((id, i) => this._colorDatas.set(id, colorDatas[i]));
 	}
 
-	private updateColorDecorators(colorInfos: IColorData[]): void {
+	private updateColorDecorators(colorData: IColorData[]): void {
 		let decorations = [];
 		let newDecorationsTypes: { [key: string]: boolean } = {};
 
-		for (let i = 0; i < colorInfos.length && decorations.length < MAX_DECORATORS; i++) {
-			const { red, green, blue, alpha } = colorInfos[i].colorRange.color;
+		for (let i = 0; i < colorData.length && decorations.length < MAX_DECORATORS; i++) {
+			const { red, green, blue, alpha } = colorData[i].colorInfo.color;
 			const rgba = new RGBA(Math.round(red * 255), Math.round(green * 255), Math.round(blue * 255), alpha);
 			let subKey = hash(rgba).toString(16);
 			let color = `rgba(${rgba.r}, ${rgba.g}, ${rgba.b}, ${rgba.a})`;
@@ -195,10 +195,10 @@ export class ColorDetector implements IEditorContribution {
 			newDecorationsTypes[key] = true;
 			decorations.push({
 				range: {
-					startLineNumber: colorInfos[i].colorRange.range.startLineNumber,
-					startColumn: colorInfos[i].colorRange.range.startColumn,
-					endLineNumber: colorInfos[i].colorRange.range.endLineNumber,
-					endColumn: colorInfos[i].colorRange.range.endColumn
+					startLineNumber: colorData[i].colorInfo.range.startLineNumber,
+					startColumn: colorData[i].colorInfo.range.startColumn,
+					endLineNumber: colorData[i].colorInfo.range.endLineNumber,
+					endColumn: colorData[i].colorInfo.range.endColumn
 				},
 				options: this._codeEditorService.resolveDecorationOptions(key, true)
 			});

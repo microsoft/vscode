@@ -30,6 +30,7 @@ namespace schema {
 	export function parseMenuId(value: string): MenuId {
 		switch (value) {
 			case 'commandPalette': return MenuId.CommandPalette;
+			case 'touchBar': return MenuId.TouchBarContext;
 			case 'editor/title': return MenuId.EditorTitle;
 			case 'editor/context': return MenuId.EditorContext;
 			case 'explorer/context': return MenuId.ExplorerContext;
@@ -101,6 +102,11 @@ namespace schema {
 		properties: {
 			'commandPalette': {
 				description: localize('menus.commandPalette', "The Command Palette"),
+				type: 'array',
+				items: menuItem
+			},
+			'touchBar': {
+				description: localize('menus.touchBar', "The touch bar (macOS only)"),
 				type: 'array',
 				items: menuItem
 			},
@@ -278,20 +284,23 @@ ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.I
 
 		let { icon, category, title, command } = userFriendlyCommand;
 		let iconClass: string;
+		let iconPath: string;
 		if (icon) {
 			iconClass = ids.nextId();
 			if (typeof icon === 'string') {
-				const path = join(extension.description.extensionFolderPath, icon);
-				createCSSRule(`.icon.${iconClass}`, `background-image: url("${URI.file(path).toString()}")`);
+				iconPath = join(extension.description.extensionFolderPath, icon);
+				createCSSRule(`.icon.${iconClass}`, `background-image: url("${URI.file(iconPath).toString()}")`);
 			} else {
 				const light = join(extension.description.extensionFolderPath, icon.light);
 				const dark = join(extension.description.extensionFolderPath, icon.dark);
 				createCSSRule(`.icon.${iconClass}`, `background-image: url("${URI.file(light).toString()}")`);
 				createCSSRule(`.vs-dark .icon.${iconClass}, .hc-black .icon.${iconClass}`, `background-image: url("${URI.file(dark).toString()}")`);
+
+				iconPath = join(extension.description.extensionFolderPath, icon.dark);
 			}
 		}
 
-		if (MenuRegistry.addCommand({ id: command, title, category, iconClass })) {
+		if (MenuRegistry.addCommand({ id: command, title, category, iconClass, iconPath })) {
 			extension.collector.info(localize('dup', "Command `{0}` appears multiple times in the `commands` section.", userFriendlyCommand.command));
 		}
 	}

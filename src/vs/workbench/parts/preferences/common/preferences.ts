@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import * as paths from 'vs/base/common/paths';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -108,7 +107,7 @@ export function getSettingsTargetName(target: ConfigurationTarget, resource: URI
 			return localize('workspaceSettingsTarget', "Workspace Settings");
 		case ConfigurationTarget.FOLDER:
 			const folder = workspaceContextService.getWorkspaceFolder(resource);
-			return folder ? paths.basename(folder.uri.fsPath) : '';
+			return folder ? folder.name : '';
 	}
 }
 

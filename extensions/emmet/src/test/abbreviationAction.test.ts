@@ -211,6 +211,29 @@ suite('Tests for Expand Abbreviations (CSS)', () => {
 			});
 		});
 	});
+
+	test('Invalid locations for abbreviations in css', () => {
+		const scssContentsNoExpand = `
+m10
+		.boo {
+			margin: 10px;
+			.hoo {
+				background:
+			}
+		}		
+		`
+
+		return withRandomFileEditor(scssContentsNoExpand, 'scss', (editor, doc) => {
+			editor.selections = [
+				new Selection(1, 3, 1, 3), // outside rule
+				new Selection(5, 15, 5, 15) // in the value part of property value				
+			];
+			return expandEmmetAbbreviation(null).then(() => {
+				assert.equal(editor.document.getText(), scssContentsNoExpand);
+				return Promise.resolve();
+			});
+		});
+	});
 });
 
 suite('Tests for Wrap with Abbreviations', () => {

@@ -24,6 +24,7 @@ export interface ICommandAction {
 	title: string | ILocalizedString;
 	category?: string | ILocalizedString;
 	iconClass?: string;
+	iconPath?: string;
 }
 
 export interface IMenuItem {
@@ -52,6 +53,7 @@ export class MenuId {
 	static readonly CommandPalette = new MenuId('14');
 	static readonly ViewTitle = new MenuId('15');
 	static readonly ViewItemContext = new MenuId('16');
+	static readonly TouchBarContext = new MenuId('17');
 
 	constructor(private _id: string) {
 

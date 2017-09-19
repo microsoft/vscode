@@ -20,6 +20,8 @@ import {
 	isNamedProblemMatcher, ProblemMatcherRegistry
 } from 'vs/platform/markers/common/problemMatcher';
 
+import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+
 import * as Tasks from '../common/tasks';
 import { TaskDefinitionRegistry } from '../common/taskDefinitionRegistry';
 
@@ -561,7 +563,7 @@ function _freeze<T>(this: void, target: T, properties: MetaData<T, any>[]): Read
 }
 
 interface ParseContext {
-	workspaceFolder: Tasks.WorkspaceFolder;
+	workspaceFolder: WorkspaceFolder;
 	problemReporter: IProblemReporter;
 	namedProblemMatchers: IStringDictionary<NamedProblemMatcher>;
 	uuidMap: UUIDMap;
@@ -1088,9 +1090,9 @@ namespace ConfigurationProperties {
 		}
 		if (external.dependsOn !== void 0) {
 			if (Types.isString(external.dependsOn)) {
-				result.dependsOn = [external.dependsOn];
+				result.dependsOn = [{ workspaceFolder: context.workspaceFolder, task: external.dependsOn }];
 			} else if (Types.isStringArray(external.dependsOn)) {
-				result.dependsOn = external.dependsOn.slice();
+				result.dependsOn = external.dependsOn.map((task) => { return { workspaceFolder: context.workspaceFolder, task: task }; });
 			}
 		}
 		if (includePresentation && (external.presentation !== void 0 || (external as LegacyCommandProperties).terminal !== void 0)) {
@@ -1680,11 +1682,11 @@ class UUIDMap {
 
 class ConfigurationParser {
 
-	private workspaceFolder: Tasks.WorkspaceFolder;
+	private workspaceFolder: WorkspaceFolder;
 	private problemReporter: IProblemReporter;
 	private uuidMap: UUIDMap;
 
-	constructor(workspaceFolder: Tasks.WorkspaceFolder, problemReporter: IProblemReporter, uuidMap: UUIDMap) {
+	constructor(workspaceFolder: WorkspaceFolder, problemReporter: IProblemReporter, uuidMap: UUIDMap) {
 		this.workspaceFolder = workspaceFolder;
 		this.problemReporter = problemReporter;
 		this.uuidMap = uuidMap;
@@ -1789,7 +1791,7 @@ class ConfigurationParser {
 }
 
 let uuidMaps: Map<string, UUIDMap> = new Map();
-export function parse(workspaceFolder: Tasks.WorkspaceFolder, configuration: ExternalTaskRunnerConfiguration, logger: IProblemReporter): ParseResult {
+export function parse(workspaceFolder: WorkspaceFolder, configuration: ExternalTaskRunnerConfiguration, logger: IProblemReporter): ParseResult {
 	let uuidMap = uuidMaps.get(workspaceFolder.uri.toString());
 	if (!uuidMap) {
 		uuidMap = new UUIDMap();

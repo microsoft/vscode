@@ -37,6 +37,7 @@ export class LinkDetector {
 	 * If no links were detected, returns the original string.
 	 */
 	public handleLinks(text: string): HTMLElement | string {
+		const workspaceFolder = this.contextService.getWorkspace().folders[0];
 		let linkContainer: HTMLElement;
 
 		for (let pattern of LinkDetector.FILE_LOCATION_PATTERNS) {
@@ -46,7 +47,6 @@ export class LinkDetector {
 			let match = pattern.exec(text);
 			while (match !== null) {
 				let resource: uri = null;
-				const workspaceFolder = this.contextService.getWorkspace().folders[0];
 				if (workspaceFolder) {
 					try {
 						resource = (match && !strings.startsWith(match[0], 'http'))

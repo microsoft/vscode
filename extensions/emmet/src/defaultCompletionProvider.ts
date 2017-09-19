@@ -95,7 +95,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 			return;
 		}
 
-		let currentNode = getNode(rootNode, position);
+		let currentNode = getNode(rootNode, position, true);
 
 		if (!isStyleSheet(syntax)) {
 			const currentHtmlNode = <HtmlNode>currentNode;
@@ -111,7 +111,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 			}
 		}
 
-		if (!isValidLocationForEmmetAbbreviation(currentNode, syntax, position)) {
+		if (!isValidLocationForEmmetAbbreviation(currentNode, syntax, position, document.getText(document.getWordRangeAtPosition(position)))) {
 			return;
 		}
 		return syntax;

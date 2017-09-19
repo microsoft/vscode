@@ -245,8 +245,8 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 	private executeTask(startedTasks: IStringDictionary<TPromise<ITaskSummary>>, task: Task, resolver: ITaskResolver, trigger: string): TPromise<ITaskSummary> {
 		let promises: TPromise<ITaskSummary>[] = [];
 		if (task.dependsOn) {
-			task.dependsOn.forEach((identifier) => {
-				let task = resolver.resolve(identifier);
+			task.dependsOn.forEach((dependency) => {
+				let task = resolver.resolve(dependency.workspaceFolder, dependency.task);
 				if (task) {
 					let promise = startedTasks[task._id];
 					if (!promise) {
@@ -254,6 +254,9 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 						startedTasks[task._id] = promise;
 					}
 					promises.push(promise);
+				} else {
+					this.log(nls.localize('dependencyFailed', 'Couldn\'t resolve dependent task \'{0}\' in workspace folder \'{1}\'', dependency.task, dependency.workspaceFolder.name));
+					this.showOutput();
 				}
 			});
 		}
@@ -646,7 +649,8 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 	}
 
 	private resolveVariable(task: CustomTask | ContributedTask, value: string): string {
-		return this.configurationResolverService.resolve(Task.getWorkspaceFolder(task).uri, value);
+		// TODO@Dirk Task.getWorkspaceFolder should return a WorkspaceFolder that is defined in workspace.ts
+		return this.configurationResolverService.resolve(<any>Task.getWorkspaceFolder(task), value);
 	}
 
 	private resolveOptions(task: CustomTask | ContributedTask, options: CommandOptions): CommandOptions {

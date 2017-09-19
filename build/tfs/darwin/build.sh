@@ -39,3 +39,6 @@ step "Run integration tests" \
 
 step "Publish release" \
 	./build/tfs/darwin/release.sh
+
+step "Generate and upload configuration.json" \
+	npm run gulp -- upload-vscode-configuration

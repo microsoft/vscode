@@ -105,6 +105,14 @@ export class ExtensionService implements IExtensionService {
 		this._startExtensionHostProcess(Object.keys(this._allRequestedActivateEvents));
 	}
 
+	public startExtensionHost(): void {
+		this._startExtensionHostProcess(Object.keys(this._allRequestedActivateEvents));
+	}
+
+	public stopExtensionHost(): void {
+		this._stopExtensionHostProcess();
+	}
+
 	private _stopExtensionHostProcess(): void {
 		this._extensionHostProcessFinishedActivateEvents = Object.create(null);
 		this._extensionHostProcessActivationTimes = Object.create(null);
@@ -230,7 +238,7 @@ export class ExtensionService implements IExtensionService {
 	}
 
 	protected _activateByEvent(activationEvent: string): TPromise<void> {
-		if (this._extensionHostProcessFinishedActivateEvents[activationEvent]) {
+		if (this._extensionHostProcessFinishedActivateEvents[activationEvent] || !this._extensionHostProcessProxy) {
 			return NO_OP_VOID_PROMISE;
 		}
 		return this._extensionHostProcessProxy.then((proxy) => {

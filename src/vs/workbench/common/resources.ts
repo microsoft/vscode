@@ -90,16 +90,8 @@ export class ResourceGlobMatcher {
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(() => this.onConfigurationChanged()));
-		this.toUnbind.push(this.contextService.onDidChangeWorkspaceFolders(() => this.onDidChangeWorkspaceFolders()));
-	}
-
-	private onConfigurationChanged(): void {
-		this.updateExcludes(true);
-	}
-
-	private onDidChangeWorkspaceFolders(): void {
-		this.updateExcludes(true);
+		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(() => this.updateExcludes(true)));
+		this.toUnbind.push(this.contextService.onDidChangeWorkspaceFolders(() => this.updateExcludes(true)));
 	}
 
 	private updateExcludes(fromEvent: boolean): void {

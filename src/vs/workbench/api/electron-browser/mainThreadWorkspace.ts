@@ -8,13 +8,9 @@ import { isPromiseCanceledError } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import { ISearchService, QueryType, ISearchQuery } from 'vs/platform/search/common/search';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { ICommonCodeEditor, isCommonCodeEditor } from 'vs/editor/common/editorCommon';
-import { bulkEdit, IResourceEdit } from 'vs/editor/common/services/bulkEdit';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { MainThreadWorkspaceShape, ExtHostWorkspaceShape, ExtHostContext, MainContext, IExtHostContext } from '../node/extHost.protocol';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
@@ -32,13 +28,11 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		@ISearchService private readonly _searchService: ISearchService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
-		@IWorkbenchEditorService private readonly _editorService: IWorkbenchEditorService,
-		@ITextModelService private readonly _textModelResolverService: ITextModelService,
 		@IExperimentService private _experimentService: IExperimentService,
 		@IFileService private readonly _fileService: IFileService
 	) {
 		this._proxy = extHostContext.get(ExtHostContext.ExtHostWorkspace);
-		this._contextService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspace, this, this._toDispose);
+		this._contextService.onDidChangeWorkbenchState(this._onDidChangeWorkspaceState, this, this._toDispose);
 	}
 
 	dispose(): void {
@@ -52,7 +46,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	// --- workspace ---
 
-	private _onDidChangeWorkspace(): void {
+	private _onDidChangeWorkspaceState(): void {
 		this._proxy.$acceptWorkspaceData(this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : this._contextService.getWorkspace());
 	}
 
@@ -105,21 +99,6 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		return this._textFileService.saveAll(includeUntitled).then(result => {
 			return result.results.every(each => each.success === true);
 		});
-	}
-
-	$applyWorkspaceEdit(edits: IResourceEdit[]): TPromise<boolean> {
-
-		let codeEditor: ICommonCodeEditor;
-		let editor = this._editorService.getActiveEditor();
-		if (editor) {
-			let candidate = editor.getControl();
-			if (isCommonCodeEditor(candidate)) {
-				codeEditor = candidate;
-			}
-		}
-
-		return bulkEdit(this._textModelResolverService, codeEditor, edits, this._fileService)
-			.then(() => true);
 	}
 }
 

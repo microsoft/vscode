@@ -4,22 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ColorProviderRegistry, DocumentColorProvider, IColorRange, IColor, ColorFormat } from 'vs/editor/common/modes';
+import { ColorProviderRegistry, DocumentColorProvider, IColorInformation, IColorPresentation } from 'vs/editor/common/modes';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { IReadOnlyModel } from 'vs/editor/common/editorCommon';
 
 export interface IColorData {
-	colorRange: IColorRange;
+	colorInfo: IColorInformation;
 	provider: DocumentColorProvider;
 }
 
 export function getColors(model: IReadOnlyModel): TPromise<IColorData[]> {
 	const colors: IColorData[] = [];
 	const providers = ColorProviderRegistry.ordered(model).reverse();
-	const promises = providers.map(provider => asWinJsPromise(token => provider.provideColorRanges(model, token)).then(result => {
+	const promises = providers.map(provider => asWinJsPromise(token => provider.provideDocumentColors(model, token)).then(result => {
 		if (Array.isArray(result)) {
-			for (let colorRange of result) {
-				colors.push({ colorRange, provider });
+			for (let colorInfo of result) {
+				colors.push({ colorInfo, provider });
 			}
 		}
 	}));
@@ -27,6 +27,6 @@ export function getColors(model: IReadOnlyModel): TPromise<IColorData[]> {
 	return TPromise.join(promises).then(() => colors);
 }
 
-export function resolveColor(color: IColor, colorFormat: ColorFormat, provider: DocumentColorProvider): TPromise<string> {
-	return asWinJsPromise(token => provider.resolveColor(color, colorFormat, token));
+export function getColorPresentations(colorInfo: IColorInformation, provider: DocumentColorProvider): TPromise<IColorPresentation[]> {
+	return asWinJsPromise(token => provider.provideColorPresentations(colorInfo, token));
 }

@@ -67,7 +67,8 @@
         "path": "./syntaxes/JavaScript.tmLanguage.json",
         "embeddedLanguages": {
           "meta.tag.js": "jsx-tags",
-          "meta.tag.without-attributes.js": "jsx-tags"
+          "meta.tag.without-attributes.js": "jsx-tags",
+          "meta.embedded.expression.js": "javascriptreact"
         }
       },
       {
@@ -76,7 +77,8 @@
         "path": "./syntaxes/JavaScript.tmLanguage.json",
         "embeddedLanguages": {
           "meta.tag.js": "jsx-tags",
-          "meta.tag.without-attributes.js": "jsx-tags"
+          "meta.tag.without-attributes.js": "jsx-tags",
+          "meta.embedded.expression.js": "javascript"
         }
       },
       {

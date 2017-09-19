@@ -19,7 +19,7 @@ import { parseArgs } from 'vs/platform/environment/node/argv';
 import extfs = require('vs/base/node/extfs');
 import uuid = require('vs/base/common/uuid');
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { WorkspaceServiceImpl, WorkspaceService } from 'vs/workbench/services/configuration/node/configuration';
+import { WorkspaceService } from 'vs/workbench/services/configuration/node/configuration';
 import { FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 
@@ -58,22 +58,22 @@ function setUpFolder(folderName: string): TPromise<{ parentDir: string, workspac
 				return null;
 			}
 			const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
-			const workspaceService = new WorkspaceServiceImpl(workspaceDir, environmentService, null);
-			workspaceService.initialize().then(() => c({ parentDir, workspaceDir, workspaceService }));
+			const workspaceService = new WorkspaceService(environmentService, null);
+			workspaceService.initialize(workspaceDir).then(() => c({ parentDir, workspaceDir, workspaceService }));
 		});
 	});
 }
 
 function createService(workspaceDir: string, globalSettingsFile: string): TPromise<WorkspaceService> {
 	const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
-	const service = new WorkspaceServiceImpl(workspaceDir, environmentService, null);
+	const service = new WorkspaceService(environmentService, null);
 
-	return service.initialize().then(() => service);
+	return service.initialize(workspaceDir).then(() => service);
 }
 
 suite('WorkspaceContextService - Folder', () => {
 
-	let workspaceName = `testWorkspace${uuid.generateUuid}`, parentResource: string, workspaceResource: string, workspaceContextService: IWorkspaceContextService;
+	let workspaceName = `testWorkspace${uuid.generateUuid()}`, parentResource: string, workspaceResource: string, workspaceContextService: IWorkspaceContextService;
 
 	setup(() => {
 		return setUpFolder(workspaceName)
@@ -97,10 +97,10 @@ suite('WorkspaceContextService - Folder', () => {
 		const actual = workspaceContextService.getWorkspace();
 
 		assert.equal(actual.folders.length, 1);
-		assert.equal(actual.folders[0].uri.fsPath, workspaceResource);
+		assert.equal(actual.folders[0].uri.fsPath, URI.file(workspaceResource).fsPath);
 		assert.equal(actual.folders[0].name, workspaceName);
 		assert.equal(actual.folders[0].index, 0);
-		assert.equal(actual.folders[0].raw.path, workspaceResource);
+		assert.equal(actual.folders[0].raw.path.toLowerCase(), workspaceResource.toLowerCase());
 		assert.ok(!actual.configuration);
 	});
 
@@ -185,7 +185,7 @@ suite('WorkspaceConfigurationService - Node', () => {
 			return createService(workspaceDir, globalSettingsFile).then(service => {
 				fs.writeFileSync(globalSettingsFile, '{ "testworkbench.editor.tabs": true }');
 
-				return service.initialize().then(() => {
+				return service.initialize(workspaceDir).then(() => {
 					service.onDidUpdateConfiguration(event => {
 						const config = service.getConfiguration<{ testworkbench: { editor: { tabs: boolean } } }>();
 						assert.equal(config.testworkbench.editor.tabs, false);

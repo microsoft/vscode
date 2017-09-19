@@ -24,6 +24,8 @@ import { Panel } from 'vs/workbench/browser/panel';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
+import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
+import { TERMINAL_BACKGROUND_COLOR } from 'vs/workbench/parts/terminal/electron-browser/terminalColorRegistry';
 
 export class TerminalPanel extends Panel {
 
@@ -272,11 +274,9 @@ export class TerminalPanel extends Panel {
 
 		let css = '';
 
-		// TODO: Reinstate, see #28397
-		// const selectionColor = theme.getColor(TERMINAL_SELECTION_BACKGROUND_COLOR);
-		// if (selectionColor) {
-		// 	css += `.monaco-workbench .panel.integrated-terminal .xterm .xterm-selection div { background-color: ${selectionColor}; }`;
-		// }
+		const backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || theme.getColor(PANEL_BACKGROUND);
+		this._terminalContainer.style.backgroundColor = backgroundColor ? backgroundColor.toString() : '';
+
 		// Borrow the editor's hover background for now
 		let hoverBackground = theme.getColor(editorHoverBackground);
 		if (hoverBackground) {

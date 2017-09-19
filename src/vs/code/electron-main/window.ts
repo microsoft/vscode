@@ -11,7 +11,7 @@ import { stopProfiling } from 'vs/base/node/profiler';
 import nls = require('vs/nls');
 import URI from 'vs/base/common/uri';
 import { IStorageService } from 'vs/platform/storage/node/storage';
-import { shell, screen, BrowserWindow, systemPreferences, app } from 'electron';
+import { shell, screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -26,6 +26,7 @@ import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspaceIdentifier, IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
+import { ICommandAction } from 'vs/platform/actions/common/actions';
 
 export interface IWindowState {
 	width?: number;
@@ -855,6 +856,51 @@ export class CodeWindow implements ICodeWindow {
 
 	public send(channel: string, ...args: any[]): void {
 		this._win.webContents.send(channel, ...args);
+	}
+
+	public updateTouchBar(items: ICommandAction[][]): void {
+		if (!isMacintosh) {
+			return; // only supported on macOS
+		}
+
+		const groups: (Electron.TouchBarGroup | Electron.TouchBarSpacer)[] = [];
+
+		items.forEach(itemGroup => {
+			if (itemGroup.length) {
+
+				// Group Segments
+				const groupSegments = itemGroup.map(item => {
+					let icon: Electron.NativeImage;
+					if (item.iconPath) {
+						icon = nativeImage.createFromPath(item.iconPath);
+						if (icon.isEmpty()) {
+							icon = void 0;
+						}
+					}
+
+					return {
+						label: !icon ? item.title as string : void 0,
+						icon
+					};
+				});
+
+				// Group Touch Bar
+				const groupTouchBar = new TouchBar.TouchBarSegmentedControl({
+					segments: groupSegments,
+					mode: 'buttons',
+					segmentStyle: 'automatic',
+					change: (selectedIndex) => {
+						this.sendWhenReady('vscode:runAction', itemGroup[selectedIndex].id);
+					}
+				});
+
+				// Push and add small space between groups
+				groups.push(groupTouchBar);
+				groups.push(new TouchBar.TouchBarSpacer({ size: 'small' }));
+			}
+		});
+
+		this._win.setTouchBar(new TouchBar({ items: groups }));
 	}
 
 	public dispose(): void {

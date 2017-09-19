@@ -211,19 +211,37 @@ export class FileLabel extends ResourceLabel {
 	}
 
 	public setFile(resource: uri, options?: IFileLabelOptions): void {
+		let name: string;
+		if (options && options.hideLabel) {
+			name = void 0;
+		} else if (options && options.fileKind === FileKind.ROOT_FOLDER) {
+			const workspaceFolder = this.contextService.getWorkspaceFolder(resource);
+			name = workspaceFolder.name;
+		} else {
+			name = paths.basename(resource.fsPath);
+		}
+
+
 		const hidePath = (options && options.hidePath) || (resource.scheme === Schemas.untitled && !this.untitledEditorService.hasAssociatedFilePath(resource));
-		const rootProvider: IWorkspaceFolderProvider = (options && options.root) ? {
-			getWorkspaceFolder(): { uri: uri } { return { uri: options.root }; },
-			getWorkspace(): { folders: { uri: uri }[]; } { return { folders: [{ uri: options.root }] }; },
-		} : this.contextService;
+		if (!hidePath) {
+			let rootProvider: IWorkspaceFolderProvider;
+			if (options && options.root) {
+				rootProvider = {
+					getWorkspaceFolder(): { uri } { return { uri: options.root }; },
+					getWorkspace(): { folders: { uri: uri }[]; } { return { folders: [{ uri: options.root }] }; },
+				};
+			} else {
+				rootProvider = this.contextService;
+			}
 
-		const description = resource.scheme === 'file' || resource.scheme === 'untitled' ? getPathLabel(paths.dirname(resource.fsPath), rootProvider, this.environmentService) : resource.authority;
+			const description = resource.scheme === 'file' || resource.scheme === 'untitled' ? getPathLabel(paths.dirname(resource.fsPath), rootProvider, this.environmentService) : resource.authority;
 
-		this.setLabel({
-			resource,
-			name: (options && options.hideLabel) ? void 0 : resources.basenameOrAuthority(resource),
-			description: !hidePath ? description : void 0
-		}, options);
+			this.setLabel({
+				resource,
+				name: (options && options.hideLabel) ? void 0 : resources.basenameOrAuthority(resource),
+				description: !hidePath ? description : void 0
+			}, options);
+		}
 	}
 }
 

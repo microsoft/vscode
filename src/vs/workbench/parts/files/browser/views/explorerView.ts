@@ -374,7 +374,10 @@ export class ExplorerView extends CollapsibleView {
 
 	@memoize
 	private get model(): Model {
-		return this.instantiationService.createInstance(Model);
+		const model = this.instantiationService.createInstance(Model);
+		this.toDispose.push(model);
+
+		return model;
 	}
 
 	public createViewer(container: Builder): ITree {
@@ -382,7 +385,9 @@ export class ExplorerView extends CollapsibleView {
 		const renderer = this.instantiationService.createInstance(FileRenderer, this.viewletState);
 		const controller = this.instantiationService.createInstance(FileController, this.viewletState);
 		const sorter = this.instantiationService.createInstance(FileSorter);
+		this.toDispose.push(sorter);
 		this.filter = this.instantiationService.createInstance(FileFilter);
+		this.toDispose.push(this.filter);
 		const dnd = this.instantiationService.createInstance(FileDragAndDrop);
 		const accessibilityProvider = this.instantiationService.createInstance(FileAccessibilityProvider);
 

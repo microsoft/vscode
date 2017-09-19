@@ -103,6 +103,8 @@ export class SearchViewlet extends Viewlet {
 	private selectCurrentMatchEmitter: Emitter<string>;
 	private delayedRefresh: Delayer<void>;
 
+	private searchWithoutFolderMessageBuilder: Builder;
+
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IFileService private fileService: IFileService,
@@ -141,12 +143,19 @@ export class SearchViewlet extends Viewlet {
 
 		this.toUnbind.push(this.fileService.onFileChanges(e => this.onFilesChanged(e)));
 		this.toUnbind.push(this.untitledEditorService.onDidChangeDirty(e => this.onUntitledDidChangeDirty(e)));
+		this.toUnbind.push(this.contextService.onDidChangeWorkbenchState(() => this.onDidChangeWorkbenchState()));
 
 		this.selectCurrentMatchEmitter = new Emitter<string>();
 		debounceEvent(this.selectCurrentMatchEmitter.event, (l, e) => e, 100, /*leading=*/true)
 			(() => this.selectCurrentMatch());
 
 		this.delayedRefresh = new Delayer<void>(250);
+	}
+
+	private onDidChangeWorkbenchState(): void {
+		if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.searchWithoutFolderMessageBuilder) {
+			this.searchWithoutFolderMessageBuilder.hide();
+		}
 	}
 
 	public create(parent: Builder): TPromise<void> {
@@ -458,6 +467,8 @@ export class SearchViewlet extends Viewlet {
 	}
 
 	private clearMessage(): Builder {
+		this.searchWithoutFolderMessageBuilder = void 0;
+
 		return this.messages.empty().show()
 			.asContainer().div({ 'class': 'message' })
 			.asContainer();
@@ -468,8 +479,12 @@ export class SearchViewlet extends Viewlet {
 			this.results = div;
 			this.results.addClass('show-file-icons');
 
-			let dataSource = new SearchDataSource(this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE);
+			let dataSource = this.instantiationService.createInstance(SearchDataSource);
+			this.toUnbind.push(dataSource);
+
 			let renderer = this.instantiationService.createInstance(SearchRenderer, this.getActionRunner(), this);
+			this.toUnbind.push(renderer);
+
 			let dnd = new SimpleFileResourceDragAndDrop(obj => obj instanceof FileMatch ? obj.resource() : void 0);
 
 			this.tree = new Tree(div.getHTMLElement(), {
@@ -1271,7 +1286,9 @@ export class SearchViewlet extends Viewlet {
 	}
 
 	private searchWithoutFolderMessage(div: Builder): void {
-		$(div).p({ text: nls.localize('searchWithoutFolder', "You have not yet opened a folder. Only open files are currently searched - ") })
+		this.searchWithoutFolderMessageBuilder = $(div);
+
+		this.searchWithoutFolderMessageBuilder.p({ text: nls.localize('searchWithoutFolder', "You have not yet opened a folder. Only open files are currently searched - ") })
 			.asContainer().a({
 				'class': ['pointer', 'prominent'],
 				'tabindex': '0',
