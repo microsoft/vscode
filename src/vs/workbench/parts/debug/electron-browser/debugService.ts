@@ -23,7 +23,6 @@ import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
@@ -352,8 +351,7 @@ export class DebugService implements debug.IDebugService {
 			const functionBreakpoint = this.model.getFunctionBreakpoints().filter(bp => bp.idFromAdapter === id).pop();
 
 			if (event.body.reason === 'new' && event.body.breakpoint.source) {
-				// TODO@Isidor this source should be fetched from a central place
-				const source = new Source(event.body.breakpoint.source, session.getId());
+				const source = process.getSource(event.body.breakpoint.source);
 				this.model.addBreakpoints(source.uri, [{
 					column: event.body.breakpoint.column,
 					enabled: true,
@@ -388,8 +386,7 @@ export class DebugService implements debug.IDebugService {
 
 		this.toDisposeOnSessionEnd.get(session.getId()).push(session.onDidExitAdapter(event => {
 			// 'Run without debugging' mode VSCode must terminate the extension host. More details: #3905
-			const process = this.viewModel.focusedProcess;
-			if (process && session && process.getId() === session.getId() && strings.equalsIgnoreCase(process.configuration.type, 'extensionhost') && this.sessionStates.get(session.getId()) === debug.State.Running &&
+			if (strings.equalsIgnoreCase(process.configuration.type, 'extensionhost') && this.sessionStates.get(session.getId()) === debug.State.Running &&
 				process && this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && process.configuration.noDebug) {
 				this.broadcastService.broadcast({
 					channel: EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL,

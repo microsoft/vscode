@@ -129,6 +129,7 @@ export interface IProcess extends ITreeElement {
 	state: ProcessState;
 	getThread(threadId: number): IThread;
 	getAllThreads(): IThread[];
+	getSource(raw: DebugProtocol.Source): Source;
 	completions(frameId: number, text: string, position: Position, overwriteBefore: number): TPromise<ISuggestion[]>;
 }
 

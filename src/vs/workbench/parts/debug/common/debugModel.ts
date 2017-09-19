@@ -459,12 +459,7 @@ export class Thread implements IThread {
 			}
 
 			return response.body.stackFrames.map((rsf, index) => {
-				let source = new Source(rsf.source, this.process.getId());
-				if (this.process.sources.has(source.uri.toString())) {
-					source = this.process.sources.get(source.uri.toString());
-				} else {
-					this.process.sources.set(source.uri.toString(), source);
-				}
+				const source = this.process.getSource(rsf.source);
 
 				return new StackFrame(this, rsf.id, source, rsf.name, rsf.presentationHint, new Range(
 					rsf.line,
@@ -567,6 +562,17 @@ export class Process implements IProcess {
 		}
 
 		return this.configuration.type === 'attach' ? ProcessState.ATTACH : ProcessState.LAUNCH;
+	}
+
+	public getSource(raw: DebugProtocol.Source): Source {
+		let source = new Source(raw, this.getId());
+		if (this.sources.has(source.uri.toString())) {
+			source = this.sources.get(source.uri.toString());
+		} else {
+			this.sources.set(source.uri.toString(), source);
+		}
+
+		return source;
 	}
 
 	public getThread(threadId: number): Thread {
