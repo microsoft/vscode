@@ -119,6 +119,8 @@ class StatusBarActionItem extends ActionItem {
 interface RepositoryTemplateData {
 	title: HTMLElement;
 	type: HTMLElement;
+	countContainer: HTMLElement;
+	count: CountBadge;
 	actionBar: ActionBar;
 	disposable: IDisposable;
 	templateDisposable: IDisposable;
@@ -130,7 +132,8 @@ class ProviderRenderer implements IRenderer<ISCMRepository, RepositoryTemplateDa
 
 	constructor(
 		protected viewModel: IViewModel,
-		@ICommandService protected commandService: ICommandService
+		@ICommandService protected commandService: ICommandService,
+		@IThemeService protected themeService: IThemeService
 	) { }
 
 	renderTemplate(container: HTMLElement): RepositoryTemplateData {
@@ -138,11 +141,17 @@ class ProviderRenderer implements IRenderer<ISCMRepository, RepositoryTemplateDa
 		const name = append(provider, $('.name'));
 		const title = append(name, $('span.title'));
 		const type = append(name, $('span.type'));
+		const countContainer = append(provider, $('.count'));
+
+		append(provider, $('.spacer'));
+
+		const count = new CountBadge(countContainer);
+		const badgeStyler = attachBadgeStyler(count, this.themeService);
 		const actionBar = new ActionBar(provider, { actionItemProvider: a => new StatusBarActionItem(a as StatusBarAction) });
 		const disposable = EmptyDisposable;
-		const templateDisposable = combinedDisposable([actionBar]);
+		const templateDisposable = combinedDisposable([actionBar, badgeStyler]);
 
-		return { title, type, actionBar, disposable, templateDisposable };
+		return { title, type, countContainer, count, actionBar, disposable, templateDisposable };
 	}
 
 	renderElement(repository: ISCMRepository, index: number, templateData: RepositoryTemplateData): void {
@@ -168,17 +177,21 @@ class ProviderRenderer implements IRenderer<ISCMRepository, RepositoryTemplateDa
 		const disposeActions = () => dispose(actions);
 		disposables.push({ dispose: disposeActions });
 
-		const updateActions = () => {
+		const update = () => {
 			disposeActions();
 
 			const commands = repository.provider.statusBarCommands || [];
 			actions.splice(0, actions.length, ...commands.map(c => new StatusBarAction(c, this.commandService)));
 			templateData.actionBar.clear();
 			templateData.actionBar.push(actions);
+
+			const count = repository.provider.count || 0;
+			toggleClass(templateData.countContainer, 'hidden', count === 0);
+			templateData.count.setCount(repository.provider.count);
 		};
 
-		repository.provider.onDidChange(updateActions, null, disposables);
-		updateActions();
+		repository.provider.onDidChange(update, null, disposables);
+		update();
 
 		templateData.disposable = combinedDisposable(disposables);
 	}
@@ -200,7 +213,8 @@ class MainPanel extends ViewletPanel {
 		@IKeybindingService protected keybindingService: IKeybindingService,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@ISCMService protected scmService: ISCMService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IThemeService private themeService: IThemeService
 	) {
 		super(localize('scm providers', "Source Control Providers"), {}, keybindingService, contextMenuService);
 		this.updateBodySize();
@@ -214,6 +228,8 @@ class MainPanel extends ViewletPanel {
 			identityProvider: repository => repository.provider.id
 		});
 
+		this.disposables.push(this.list);
+		this.disposables.push(attachListStyler(this.list, this.themeService));
 		this.list.onSelectionChange(this.onSelectionChange, this, this.disposables);
 
 		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
