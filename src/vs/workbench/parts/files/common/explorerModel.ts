@@ -27,7 +27,12 @@ export class Model {
 	private _listener: IDisposable;
 
 	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
-		const setRoots = () => this._roots = this.contextService.getWorkspace().folders.map(folder => new FileStat(folder.uri, undefined));
+		const setRoots = () => this._roots = this.contextService.getWorkspace().folders.map(folder => {
+			const root = new FileStat(folder.uri, undefined);
+			root.name = folder.name;
+
+			return root;
+		});
 		this._listener = this.contextService.onDidChangeWorkspaceFolders(() => setRoots());
 		setRoots();
 	}
