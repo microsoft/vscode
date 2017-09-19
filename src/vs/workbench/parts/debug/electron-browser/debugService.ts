@@ -23,6 +23,7 @@ import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
@@ -348,13 +349,37 @@ export class DebugService implements debug.IDebugService {
 		this.toDisposeOnSessionEnd.get(session.getId()).push(session.onDidBreakpoint(event => {
 			const id = event.body && event.body.breakpoint ? event.body.breakpoint.id : undefined;
 			const breakpoint = this.model.getBreakpoints().filter(bp => bp.idFromAdapter === id).pop();
-			if (breakpoint) {
-				if (!breakpoint.column) {
-					event.body.breakpoint.column = undefined;
+			const functionBreakpoint = this.model.getFunctionBreakpoints().filter(bp => bp.idFromAdapter === id).pop();
+
+			if (event.body.reason === 'new' && event.body.breakpoint.source) {
+				// TODO@Isidor this source should be fetched from a central place
+				const source = new Source(event.body.breakpoint.source, session.getId());
+				this.model.addBreakpoints(source.uri, [{
+					column: event.body.breakpoint.column,
+					enabled: true,
+					lineNumber: event.body.breakpoint.line
+				}]);
+				const newBreakpoint = this.model.getBreakpoints().filter(bp => bp.idFromAdapter === event.body.breakpoint.id).pop();
+				this.model.updateBreakpoints({ [newBreakpoint.getId()]: event.body.breakpoint });
+			}
+
+			if (event.body.reason === 'removed') {
+				if (breakpoint) {
+					this.model.removeBreakpoints([breakpoint]);
 				}
-				this.model.updateBreakpoints({ [breakpoint.getId()]: event.body.breakpoint });
-			} else {
-				const functionBreakpoint = this.model.getFunctionBreakpoints().filter(bp => bp.idFromAdapter === id).pop();
+				if (functionBreakpoint) {
+					this.model.removeFunctionBreakpoints(functionBreakpoint.getId());
+				}
+			}
+
+			// For compatibilty reasons check if wrong reason and source not present
+			if (event.body.reason === 'changed' || (event.body.reason === 'new' && !event.body.breakpoint.source)) {
+				if (breakpoint) {
+					if (!breakpoint.column) {
+						event.body.breakpoint.column = undefined;
+					}
+					this.model.updateBreakpoints({ [breakpoint.getId()]: event.body.breakpoint });
+				}
 				if (functionBreakpoint) {
 					this.model.updateFunctionBreakpoints({ [functionBreakpoint.getId()]: event.body.breakpoint });
 				}
