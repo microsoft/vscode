@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IDebugService, IConfig, IDebugConfigurationProvider } from 'vs/workbench/parts/debug/common/debug';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext, IExtHostContext } from '../node/extHost.protocol';
+import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadDebugService)
@@ -69,19 +69,19 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 		return TPromise.as<void>(undefined);
 	}
 
-	public $startDebugging(folderUri: URI | undefined, nameOrConfiguration: string | IConfig): TPromise<boolean> {
-		return this.debugService.startDebugging(folderUri, nameOrConfiguration).then(x => {
+	public $startDebugging(folder: WorkspaceFolder, nameOrConfiguration: string | IConfig): TPromise<boolean> {
+		return this.debugService.startDebugging(folder, nameOrConfiguration).then(x => {
 			return true;
 		}, err => {
 			return TPromise.wrapError(err && err.message ? err.message : 'cannot start debugging');
 		});
 	}
 
-	public $startDebugSession(folderUri: URI | undefined, configuration: IConfig): TPromise<DebugSessionUUID> {
+	public $startDebugSession(folder: WorkspaceFolder, configuration: IConfig): TPromise<DebugSessionUUID> {
 		if (configuration.request !== 'launch' && configuration.request !== 'attach') {
 			return TPromise.wrapError(new Error(`only 'launch' or 'attach' allowed for 'request' attribute`));
 		}
-		return this.debugService.createProcess(folderUri, configuration).then(process => {
+		return this.debugService.createProcess(folder, configuration).then(process => {
 			if (process) {
 				return <DebugSessionUUID>process.getId();
 			}

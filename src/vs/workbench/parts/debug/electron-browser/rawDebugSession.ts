@@ -6,7 +6,6 @@
 import nls = require('vs/nls');
 import cp = require('child_process');
 import net = require('net');
-import uri from 'vs/base/common/uri';
 import Event, { Emitter } from 'vs/base/common/event';
 import platform = require('vs/base/common/platform');
 import objects = require('vs/base/common/objects');
@@ -23,6 +22,7 @@ import debug = require('vs/workbench/parts/debug/common/debug');
 import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { V8Protocol } from 'vs/workbench/parts/debug/node/v8Protocol';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
+import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ExtensionsChannelId } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { TerminalSupport } from 'vs/workbench/parts/debug/electron-browser/terminalSupport';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -71,7 +71,7 @@ export class RawDebugSession extends V8Protocol implements debug.ISession {
 		private debugServerPort: number,
 		private adapter: Adapter,
 		private customTelemetryService: ITelemetryService,
-		public root: uri,
+		public root: WorkspaceFolder,
 		@IMessageService private messageService: IMessageService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IOutputService private outputService: IOutputService,

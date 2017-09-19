@@ -553,7 +553,7 @@ export class Process implements IProcess {
 	}
 
 	public getName(includeRoot: boolean): string {
-		return includeRoot ? `${this.configuration.name} (${paths.basename(this.session.root.fsPath)})` : this.configuration.name;
+		return includeRoot ? `${this.configuration.name} (${paths.basename(this.session.root.uri.fsPath)})` : this.configuration.name;
 	}
 
 	public get state(): ProcessState {

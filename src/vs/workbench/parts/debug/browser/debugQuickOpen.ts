@@ -33,7 +33,7 @@ class DebugEntry extends Model.QuickOpenEntry {
 		}
 		// Run selected debug configuration
 		this.debugService.getConfigurationManager().selectConfiguration(this.launch, this.configurationName);
-		this.debugService.startDebugging(this.launch.workspace.uri).done(undefined, errors.onUnexpectedError);
+		this.debugService.startDebugging(this.launch.workspace).done(undefined, errors.onUnexpectedError);
 
 		return true;
 	}
