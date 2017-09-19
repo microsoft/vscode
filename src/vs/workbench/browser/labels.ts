@@ -223,8 +223,8 @@ export class FileLabel extends ResourceLabel {
 
 
 		const hidePath = (options && options.hidePath) || (resource.scheme === Schemas.untitled && !this.untitledEditorService.hasAssociatedFilePath(resource));
+		let rootProvider: IWorkspaceFolderProvider;
 		if (!hidePath) {
-			let rootProvider: IWorkspaceFolderProvider;
 			if (options && options.root) {
 				rootProvider = {
 					getWorkspaceFolder(): { uri } { return { uri: options.root }; },
@@ -233,15 +233,15 @@ export class FileLabel extends ResourceLabel {
 			} else {
 				rootProvider = this.contextService;
 			}
-
-			const description = resource.scheme === 'file' || resource.scheme === 'untitled' ? getPathLabel(paths.dirname(resource.fsPath), rootProvider, this.environmentService) : resource.authority;
-
-			this.setLabel({
-				resource,
-				name: (options && options.hideLabel) ? void 0 : resources.basenameOrAuthority(resource),
-				description: !hidePath ? description : void 0
-			}, options);
 		}
+
+		const description = resource.scheme === 'file' || resource.scheme === 'untitled' ? getPathLabel(paths.dirname(resource.fsPath), rootProvider, this.environmentService) : resource.authority;
+
+		this.setLabel({
+			resource,
+			name: (options && options.hideLabel) ? void 0 : resources.basenameOrAuthority(resource),
+			description: !hidePath ? description : void 0
+		}, options);
 	}
 }
 
