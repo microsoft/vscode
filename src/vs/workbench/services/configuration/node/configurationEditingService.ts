@@ -7,7 +7,6 @@
 
 import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
-import * as paths from 'vs/base/common/paths';
 import URI from 'vs/base/common/uri';
 import * as json from 'vs/base/common/json';
 import * as encoding from 'vs/base/node/encoding';
@@ -329,28 +328,29 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 			return URI.file(this.environmentService.appSettingsPath);
 		}
 
-
-		if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
+		const workbenchState = this.contextService.getWorkbenchState();
+		if (workbenchState !== WorkbenchState.EMPTY) {
 
 			const workspace = this.contextService.getWorkspace();
 
 			if (target === ConfigurationTarget.WORKSPACE) {
-				return workspace.configuration || this.toResource(relativePath, workspace.folders[0].uri);
+				if (workbenchState === WorkbenchState.WORKSPACE) {
+					return workspace.configuration;
+				}
+				if (workbenchState === WorkbenchState.FOLDER) {
+					return this.contextService.toResource(relativePath, workspace.folders[0]);
+				}
 			}
 
 			if (target === ConfigurationTarget.FOLDER && this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 				if (resource) {
 					const folder = this.contextService.getWorkspaceFolder(resource);
 					if (folder) {
-						return this.toResource(relativePath, folder.uri);
+						return this.contextService.toResource(relativePath, folder);
 					}
 				}
 			}
 		}
 		return null;
-	}
-
-	private toResource(relativePath: string, folder: URI): URI {
-		return URI.file(paths.join(folder.fsPath, relativePath));
 	}
 }
