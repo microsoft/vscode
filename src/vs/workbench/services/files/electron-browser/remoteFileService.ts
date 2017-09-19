@@ -10,17 +10,8 @@ import { IContent, IStreamContent, IFileStat, IResolveContentOptions, IUpdateCon
 import { TPromise } from 'vs/base/common/winjs.base';
 import { basename, join } from 'path';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { IMessageService } from 'vs/platform/message/common/message';
-import { IStorageService } from 'vs/platform/storage/common/storage';
 import { groupBy, isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { compare } from 'vs/base/common/strings';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { decodeStream, encode } from 'vs/base/node/encoding';
 import { TrieMap } from 'vs/base/common/map';
@@ -77,30 +68,6 @@ export function toDeepIFileStat(provider: IFileSystemProvider, stat: IStat, to: 
 export class RemoteFileService extends FileService {
 
 	private readonly _provider = new Map<string, IFileSystemProvider>();
-
-	constructor(
-		@IConfigurationService configurationService: IConfigurationService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@ILifecycleService lifecycleService: ILifecycleService,
-		@IMessageService messageService: IMessageService,
-		@IStorageService storageService: IStorageService,
-		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService
-	) {
-		super(
-			configurationService,
-			contextService,
-			editorService,
-			environmentService,
-			editorGroupService,
-			lifecycleService,
-			messageService,
-			storageService,
-			textResourceConfigurationService,
-		);
-	}
 
 	registerProvider(authority: string, provider: IFileSystemProvider): IDisposable {
 		if (this._provider.has(authority)) {
