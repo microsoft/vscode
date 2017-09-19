@@ -268,9 +268,20 @@ export class SaveParticipant implements ISaveParticipant {
 		return sequence(promiseFactory).then(() => {
 			/* __GDPR__
 			   "saveParticipantStats" : {
+				   "${wildcard}": [
+					  {
+						 "${prefix}": "Success-",
+						 "${classification}": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+					  }
+				   ],
+				   "${wildcard}": [
+					  {
+						 "${prefix}": "Failure-",
+						 "${classification}": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+					  }
+				   ]
 			   }
 			 */
-			// GDPR__TODO: We need to move off dynamic property names as we can't declare them statically in the registry.
 			this._telemetryService.publicLog('saveParticipantStats', stats);
 		});
 	}
