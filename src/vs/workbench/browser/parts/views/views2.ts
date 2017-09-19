@@ -129,6 +129,7 @@ export class PanelViewlet extends Viewlet {
 	private panelItems: IViewletPanelItem[] = [];
 	private panelview: PanelView;
 
+	// TODO@Joao make this into method so people can override it
 	protected get isSingleView(): boolean {
 		return this.options.showHeaderInTitleWhenSingleView && this.panelItems.length === 1;
 	}
