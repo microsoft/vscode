@@ -13,6 +13,8 @@ import { isLinux } from 'vs/base/common/platform';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 import { beginsWithIgnoreCase } from 'vs/base/common/strings';
+import { IProgress } from 'vs/platform/progress/common/progress';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export const IFileService = createDecorator<IFileService>('fileService');
 
@@ -29,6 +31,13 @@ export interface IFileService {
 	 * An event that is fired upon successful completion of a certain file operation.
 	 */
 	onAfterOperation: Event<FileOperationEvent>;
+
+	/**
+	 *
+	 */
+	registerProvider?(authority: string, provider: IFileSystemProvider): IDisposable;
+
+	supportResource?(resource: URI): boolean;
 
 	/**
 	 * Resolve the properties of a file identified by the resource.
@@ -149,6 +158,37 @@ export interface IFileService {
 	 */
 	dispose(): void;
 }
+
+
+export enum FileType {
+	File = 0,
+	Dir = 1,
+	Symlink = 2
+}
+export interface IStat {
+	resource: URI;
+	mtime: number;
+	size: number;
+	type: FileType;
+}
+
+export interface IFileSystemProvider {
+
+	onDidChange?: Event<IFileChange[]>;
+
+	// more...
+	//
+	utimes(resource: URI, mtime: number): TPromise<IStat>;
+	stat(resource: URI): TPromise<IStat>;
+	read(resource: URI, progress: IProgress<Uint8Array>): TPromise<void>;
+	write(resource: URI, content: Uint8Array): TPromise<void>;
+	unlink(resource: URI): TPromise<void>;
+	rename(resource: URI, target: URI): TPromise<void>;
+	mkdir(resource: URI): TPromise<void>;
+	readdir(resource: URI): TPromise<IStat[]>;
+	rmdir(resource: URI): TPromise<void>;
+}
+
 
 export enum FileOperation {
 	CREATE,

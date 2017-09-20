@@ -10,15 +10,10 @@ import { normalize } from 'vs/base/common/paths';
 import { delta } from 'vs/base/common/arrays';
 import { relative } from 'path';
 import { Workspace } from 'vs/platform/workspace/common/workspace';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkspaceData, ExtHostWorkspaceShape, MainContext, MainThreadWorkspaceShape, IMainContext } from './extHost.protocol';
 import * as vscode from 'vscode';
 import { compare } from 'vs/base/common/strings';
-import { asWinJsPromise } from 'vs/base/common/async';
-import { Disposable } from 'vs/workbench/api/node/extHostTypes';
 import { TrieMap } from 'vs/base/common/map';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Progress } from 'vs/platform/progress/common/progress';
 
 class Workspace2 extends Workspace {
 
@@ -178,53 +173,5 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 
 	saveAll(includeUntitled?: boolean): Thenable<boolean> {
 		return this._proxy.$saveAll(includeUntitled);
-	}
-
-	// --- EXPERIMENT: workspace resolver
-
-
-	private _handlePool = 0;
-	private readonly _fsProvider = new Map<number, vscode.FileSystemProvider>();
-	private readonly _searchSession = new Map<number, CancellationTokenSource>();
-
-	registerFileSystemProvider(authority: string, provider: vscode.FileSystemProvider): vscode.Disposable {
-		const handle = ++this._handlePool;
-		this._fsProvider.set(handle, provider);
-		const reg = provider.onDidChange(e => this._proxy.$onFileSystemChange(handle, <URI>e));
-		this._proxy.$registerFileSystemProvider(handle, authority);
-		return new Disposable(() => {
-			this._fsProvider.delete(handle);
-			reg.dispose();
-		});
-	}
-
-	$resolveFile(handle: number, resource: URI): TPromise<string> {
-		const provider = this._fsProvider.get(handle);
-		return asWinJsPromise(token => provider.resolveContents(resource));
-	}
-
-	$storeFile(handle: number, resource: URI, content: string): TPromise<any> {
-		const provider = this._fsProvider.get(handle);
-		return asWinJsPromise(token => provider.writeContents(resource, content));
-	}
-
-	$startSearch(handle: number, session: number, query: string): void {
-		const provider = this._fsProvider.get(handle);
-		const source = new CancellationTokenSource();
-		const progress = new Progress<any>(chunk => this._proxy.$updateSearchSession(session, chunk));
-
-		this._searchSession.set(session, source);
-		TPromise.wrap(provider.findFiles(query, progress, source.token)).then(() => {
-			this._proxy.$finishSearchSession(session);
-		}, err => {
-			this._proxy.$finishSearchSession(session, err);
-		});
-	}
-
-	$cancelSearch(handle: number, session: number): void {
-		if (this._searchSession.has(session)) {
-			this._searchSession.get(session).cancel();
-			this._searchSession.delete(session);
-		}
 	}
 }

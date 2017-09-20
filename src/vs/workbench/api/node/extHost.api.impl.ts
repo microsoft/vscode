@@ -53,6 +53,8 @@ import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 import { ExtHostThreadService } from 'vs/workbench/services/thread/node/extHostThreadService';
 import { ProxyIdentifier } from 'vs/workbench/services/thread/common/threadService';
 import { ExtHostDialogs } from 'vs/workbench/api/node/extHostDialogs';
+import { ExtHostFileSystem } from 'vs/workbench/api/node/extHostFileSystem';
+import { FileChangeType, FileType } from 'vs/platform/files/common/files';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription): typeof vscode;
@@ -93,6 +95,7 @@ export function createApiFactory(
 	const extHostConfiguration = threadService.set(ExtHostContext.ExtHostConfiguration, new ExtHostConfiguration(threadService.get(MainContext.MainThreadConfiguration), extHostWorkspace, initData.configuration));
 	const extHostDiagnostics = threadService.set(ExtHostContext.ExtHostDiagnostics, new ExtHostDiagnostics(threadService));
 	const languageFeatures = threadService.set(ExtHostContext.ExtHostLanguageFeatures, new ExtHostLanguageFeatures(threadService, extHostDocuments, extHostCommands, extHostHeapService, extHostDiagnostics));
+	const extHostFileSystem = threadService.set(ExtHostContext.ExtHostFileSystem, new ExtHostFileSystem(threadService));
 	const extHostFileSystemEvent = threadService.set(ExtHostContext.ExtHostFileSystemEventService, new ExtHostFileSystemEventService());
 	const extHostQuickOpen = threadService.set(ExtHostContext.ExtHostQuickOpen, new ExtHostQuickOpen(threadService, extHostWorkspace, extHostCommands));
 	const extHostTerminalService = threadService.set(ExtHostContext.ExtHostTerminalService, new ExtHostTerminalService(threadService));
@@ -480,7 +483,7 @@ export function createApiFactory(
 				return extHostTask.registerTaskProvider(extension, provider);
 			},
 			registerFileSystemProvider: proposedApiFunction(extension, (authority, provider) => {
-				return extHostWorkspace.registerFileSystemProvider(authority, provider);
+				return extHostFileSystem.registerFileSystemProvider(authority, provider);
 			})
 		};
 
@@ -604,7 +607,11 @@ export function createApiFactory(
 			ShellExecution: extHostTypes.ShellExecution,
 			TaskScope: extHostTypes.TaskScope,
 			Task: extHostTypes.Task,
-			ConfigurationTarget: extHostTypes.ConfigurationTarget
+			ConfigurationTarget: extHostTypes.ConfigurationTarget,
+
+			// TODO@JOH
+			FileChangeType: <any>FileChangeType,
+			FileType: <any>FileType
 		};
 		if (extension.enableProposedApi && extension.isBuiltin) {
 			api['credentials'] = credentials;

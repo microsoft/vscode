@@ -7,9 +7,11 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { suggestFilename } from 'vs/base/common/mime';
+import { memoize } from 'vs/base/common/decorators';
 import labels = require('vs/base/common/labels');
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import paths = require('vs/base/common/paths');
+import resources = require('vs/base/common/resources');
 import { EditorInput, IEncodingSupport, EncodingMode, ConfirmResult } from 'vs/workbench/common/editor';
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -36,14 +38,6 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 	private _onDidModelChangeEncoding: Emitter<void>;
 
 	private toUnbind: IDisposable[];
-
-	private shortDescription: string;
-	private mediumDescription: string;
-	private longDescription: string;
-
-	private shortTitle: string;
-	private mediumTitle: string;
-	private longTitle: string;
 
 	constructor(
 		private resource: URI,
@@ -94,7 +88,22 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 	}
 
 	public getName(): string {
-		return this.hasAssociatedFilePath ? paths.basename(this.resource.fsPath) : this.resource.fsPath;
+		return this.hasAssociatedFilePath ? resources.basenameOrAuthority(this.resource) : this.resource.path;
+	}
+
+	@memoize
+	private get shortDescription(): string {
+		return paths.basename(labels.getPathLabel(resources.dirname(this.resource), void 0, this.environmentService));
+	}
+
+	@memoize
+	private get mediumDescription(): string {
+		return labels.getPathLabel(resources.dirname(this.resource), this.contextService, this.environmentService);
+	}
+
+	@memoize
+	private get longDescription(): string {
+		return labels.getPathLabel(resources.dirname(this.resource), void 0, this.environmentService);
 	}
 
 	public getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string {
@@ -105,18 +114,33 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		let description: string;
 		switch (verbosity) {
 			case Verbosity.SHORT:
-				description = this.shortDescription ? this.shortDescription : (this.shortDescription = paths.basename(labels.getPathLabel(paths.dirname(this.resource.fsPath), void 0, this.environmentService)));
+				description = this.shortDescription;
 				break;
 			case Verbosity.LONG:
-				description = this.longDescription ? this.longDescription : (this.longDescription = labels.getPathLabel(paths.dirname(this.resource.fsPath), void 0, this.environmentService));
+				description = this.longDescription;
 				break;
 			case Verbosity.MEDIUM:
 			default:
-				description = this.mediumDescription ? this.mediumDescription : (this.mediumDescription = labels.getPathLabel(paths.dirname(this.resource.fsPath), this.contextService, this.environmentService));
+				description = this.mediumDescription;
 				break;
 		}
 
 		return description;
+	}
+
+	@memoize
+	private get shortTitle(): string {
+		return this.getName();
+	}
+
+	@memoize
+	private get mediumTitle(): string {
+		return labels.getPathLabel(this.resource, this.contextService, this.environmentService);
+	}
+
+	@memoize
+	private get longTitle(): string {
+		return labels.getPathLabel(this.resource, void 0, this.environmentService);
 	}
 
 	public getTitle(verbosity: Verbosity): string {
@@ -127,13 +151,13 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		let title: string;
 		switch (verbosity) {
 			case Verbosity.SHORT:
-				title = this.shortTitle ? this.shortTitle : (this.shortTitle = this.getName());
+				title = this.shortTitle;
 				break;
 			case Verbosity.MEDIUM:
-				title = this.mediumTitle ? this.mediumTitle : (this.mediumTitle = labels.getPathLabel(this.resource, this.contextService, this.environmentService));
+				title = this.mediumTitle;
 				break;
 			case Verbosity.LONG:
-				title = this.longTitle ? this.longTitle : (this.longTitle = labels.getPathLabel(this.resource, void 0, this.environmentService));
+				title = this.longTitle;
 				break;
 		}
 

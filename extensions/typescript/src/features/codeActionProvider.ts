@@ -121,7 +121,7 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 
 		let firstEdit: TextEdit | undefined = undefined;
 		for (const [uri, edits] of workspaceEdit.entries()) {
-			if (uri.fsPath === source.uri.fsPath) {
+			if (uri.toString() === source.uri.toString()) {
 				firstEdit = edits[0];
 				break;
 			}

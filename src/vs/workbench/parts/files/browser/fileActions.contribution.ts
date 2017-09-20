@@ -166,17 +166,16 @@ class ExplorerViewersActionContributor extends ActionBarContributor {
 
 	public getSecondaryActions(context: any): IAction[] {
 		const actions: IAction[] = [];
+		const fileResource = explorerItemToFileResource(context.element);
+		const resource = fileResource.resource;
 
-		if (this.hasSecondaryActions(context)) {
-			const fileResource = explorerItemToFileResource(context.element);
-			const resource = fileResource.resource;
-
-			// Reveal file in OS native explorer
+		// Reveal file in OS native explorer
+		if (resource.scheme === 'file') {
 			actions.push(this.instantiationService.createInstance(RevealInOSAction, resource));
-
-			// Copy Path
-			actions.push(this.instantiationService.createInstance(CopyPathAction, resource));
 		}
+
+		// Copy Path
+		actions.push(this.instantiationService.createInstance(CopyPathAction, resource));
 
 		return actions;
 	}

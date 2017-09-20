@@ -47,7 +47,7 @@ export default class TypeScriptReferencesCodeLensProvider extends TypeScriptBase
 					new Location(this.client.asUrl(reference.file), tsTextSpanToVsRange(reference)))
 				.filter(location =>
 					// Exclude original definition from references
-					!(location.uri.fsPath === codeLens.document.fsPath &&
+					!(location.uri.toString() === codeLens.document.toString() &&
 						location.range.start.isEqual(codeLens.range.start)));
 
 			codeLens.command = {

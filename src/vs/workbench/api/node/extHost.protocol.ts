@@ -48,6 +48,7 @@ import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { SerializedError } from 'vs/base/common/errors';
 import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IStat, IFileChange } from 'vs/platform/files/common/files';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -311,12 +312,15 @@ export interface MainThreadWorkspaceShape extends IDisposable {
 	$startSearch(include: string, exclude: string, maxResults: number, requestId: number): Thenable<URI[]>;
 	$cancelSearch(requestId: number): Thenable<boolean>;
 	$saveAll(includeUntitled?: boolean): Thenable<boolean>;
+}
 
-	$registerFileSystemProvider(handle: number, authority: string): void;
+export interface MainThreadFileSystemShape extends IDisposable {
+	$registerFileSystemProvider(handle: number, scheme: string): void;
 	$unregisterFileSystemProvider(handle: number): void;
-	$onFileSystemChange(handle: number, resource: URI): void;
-	$updateSearchSession(session: number, data): void;
-	$finishSearchSession(session: number, err?: any): void;
+
+	$onDidAddFileSystemRoot(root: URI): void;
+	$onFileSystemChange(handle: number, resource: IFileChange[]): void;
+	$reportFileChunk(handle: number, resource: URI, chunk: number[] | null): void;
 }
 
 export interface MainThreadTaskShape extends IDisposable {
@@ -470,11 +474,18 @@ export interface ExtHostTreeViewsShape {
 
 export interface ExtHostWorkspaceShape {
 	$acceptWorkspaceData(workspace: IWorkspaceData): void;
+}
 
-	$resolveFile(handle: number, resource: URI): TPromise<string>;
-	$storeFile(handle: number, resource: URI, content: string): TPromise<any>;
-	$startSearch(handle: number, session: number, query: string): void;
-	$cancelSearch(handle: number, session: number): void;
+export interface ExtHostFileSystemShape {
+	$utimes(handle: number, resource: URI, mtime: number): TPromise<IStat>;
+	$stat(handle: number, resource: URI): TPromise<IStat>;
+	$read(handle: number, resource: URI): TPromise<void>;
+	$write(handle: number, resource: URI, content: number[]): TPromise<void>;
+	$unlink(handle: number, resource: URI): TPromise<void>;
+	$rename(handle: number, resource: URI, target: URI): TPromise<void>;
+	$mkdir(handle: number, resource: URI): TPromise<void>;
+	$readdir(handle: number, resource: URI): TPromise<IStat[]>;
+	$rmdir(handle: number, resource: URI): TPromise<void>;
 }
 
 export interface ExtHostExtensionServiceShape {
@@ -611,6 +622,7 @@ export const MainContext = {
 	MainThreadTelemetry: createMainId<MainThreadTelemetryShape>('MainThreadTelemetry'),
 	MainThreadTerminalService: createMainId<MainThreadTerminalServiceShape>('MainThreadTerminalService'),
 	MainThreadWorkspace: createMainId<MainThreadWorkspaceShape>('MainThreadWorkspace'),
+	MainThreadFileSystem: createMainId<MainThreadFileSystemShape>('MainThreadFileSystem'),
 	MainThreadExtensionService: createMainId<MainThreadExtensionServiceShape>('MainThreadExtensionService'),
 	MainThreadSCM: createMainId<MainThreadSCMShape>('MainThreadSCM'),
 	MainThreadTask: createMainId<MainThreadTaskShape>('MainThreadTask'),
@@ -629,6 +641,7 @@ export const ExtHostContext = {
 	ExtHostDocumentSaveParticipant: createExtId<ExtHostDocumentSaveParticipantShape>('ExtHostDocumentSaveParticipant'),
 	ExtHostEditors: createExtId<ExtHostEditorsShape>('ExtHostEditors'),
 	ExtHostTreeViews: createExtId<ExtHostTreeViewsShape>('ExtHostTreeViews'),
+	ExtHostFileSystem: createExtId<ExtHostFileSystemShape>('ExtHostFileSystem'),
 	ExtHostFileSystemEventService: createExtId<ExtHostFileSystemEventServiceShape>('ExtHostFileSystemEventService'),
 	ExtHostHeapService: createExtId<ExtHostHeapServiceShape>('ExtHostHeapMonitor'),
 	ExtHostLanguageFeatures: createExtId<ExtHostLanguageFeaturesShape>('ExtHostLanguageFeatures'),

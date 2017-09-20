@@ -101,7 +101,7 @@ export class GitContentProvider {
 
 		Object.keys(this.cache).forEach(key => {
 			const row = this.cache[key];
-			const isOpen = window.visibleTextEditors.some(e => e.document.uri.fsPath === row.uri.fsPath);
+			const isOpen = window.visibleTextEditors.some(e => e.document.toString() === row.uri.toString());
 
 			if (isOpen || now - row.timestamp < THREE_MINUTES) {
 				cache[row.uri.toString()] = row;

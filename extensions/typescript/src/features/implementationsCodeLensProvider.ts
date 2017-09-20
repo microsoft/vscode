@@ -53,7 +53,7 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 								reference.start.line, 0)))
 				// Exclude original from implementations
 				.filter(location =>
-					!(location.uri.fsPath === codeLens.document.fsPath &&
+					!(location.uri.toString() === codeLens.document.toString() &&
 						location.range.start.line === codeLens.range.start.line &&
 						location.range.start.character === codeLens.range.start.character));
 

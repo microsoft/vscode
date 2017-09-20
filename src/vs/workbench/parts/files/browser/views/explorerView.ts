@@ -10,8 +10,8 @@ import { Builder, $ } from 'vs/base/browser/builder';
 import URI from 'vs/base/common/uri';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import errors = require('vs/base/common/errors');
-import labels = require('vs/base/common/labels');
 import paths = require('vs/base/common/paths');
+import resources = require('vs/base/common/resources');
 import glob = require('vs/base/common/glob');
 import { Action, IAction } from 'vs/base/common/actions';
 import { prepareActions } from 'vs/workbench/browser/actions';
@@ -133,7 +133,7 @@ export class ExplorerView extends CollapsibleView {
 		const titleSpan = $('span').appendTo(titleDiv);
 		const setHeader = () => {
 			const workspace = this.contextService.getWorkspace();
-			const title = workspace.folders.map(folder => labels.getPathLabel(folder.uri.fsPath, void 0, this.environmentService)).join();
+			const title = workspace.folders.map(folder => folder.name).join();
 			titleSpan.text(this.name).title(title);
 		};
 		this.toDispose.push(this.contextService.onDidChangeWorkspaceName(() => setHeader()));
@@ -460,7 +460,7 @@ export class ExplorerView extends CollapsibleView {
 		// Add
 		if (e.operation === FileOperation.CREATE || e.operation === FileOperation.IMPORT || e.operation === FileOperation.COPY) {
 			const addedElement = e.target;
-			const parentResource = URI.file(paths.dirname(addedElement.resource.fsPath));
+			const parentResource = resources.dirname(addedElement.resource);
 			const parents = this.model.findAll(parentResource);
 
 			if (parents.length) {
@@ -495,8 +495,8 @@ export class ExplorerView extends CollapsibleView {
 			const oldResource = e.resource;
 			const newElement = e.target;
 
-			const oldParentResource = URI.file(paths.dirname(oldResource.fsPath));
-			const newParentResource = URI.file(paths.dirname(newElement.resource.fsPath));
+			const oldParentResource = resources.dirname(oldResource);
+			const newParentResource = resources.dirname(newElement.resource);
 
 			// Only update focus if renamed/moved element is selected
 			let restoreFocus = false;
@@ -770,7 +770,7 @@ export class ExplorerView extends CollapsibleView {
 
 				return FileStat.create({
 					resource: targetsToResolve[index].resource,
-					name: paths.basename(targetsToResolve[index].resource.fsPath),
+					name: resources.basenameOrAuthority(targetsToResolve[index].resource),
 					mtime: 0,
 					etag: undefined,
 					isDirectory: true,
@@ -806,7 +806,7 @@ export class ExplorerView extends CollapsibleView {
 				// Drop those path which are parents of the current one
 				for (let i = resolvedDirectories.length - 1; i >= 0; i--) {
 					const resource = resolvedDirectories[i];
-					if (paths.isEqualOrParent(stat.resource.fsPath, resource.fsPath, !isLinux /* ignorecase */)) {
+					if (resources.isEqualOrParent(stat.resource, resource, !isLinux /* ignorecase */)) {
 						resolvedDirectories.splice(i);
 					}
 				}

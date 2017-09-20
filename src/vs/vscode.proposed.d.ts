@@ -50,17 +50,48 @@ declare module 'vscode' {
 		ignoreFocusOut?: boolean;
 	}
 
+	export enum FileChangeType {
+		Updated = 0,
+		Added = 1,
+		Deleted = 2
+	}
+
+	export interface FileChange {
+		type: FileChangeType;
+		resource: Uri;
+	}
+
+	export enum FileType {
+		File = 0,
+		Dir = 1,
+		Symlink = 2
+	}
+
+	export interface FileStat {
+		resource: Uri;
+		mtime: number;
+		size: number;
+		type: FileType;
+	}
+
 	// todo@joh discover files etc
 	export interface FileSystemProvider {
-		// todo@joh -> added, deleted, renamed, changed
-		onDidChange: Event<Uri>;
 
-		resolveContents(resource: Uri): string | Thenable<string>;
-		writeContents(resource: Uri, contents: string): void | Thenable<void>;
+		onDidChange?: Event<FileChange[]>;
 
-		// -- search
-		// todo@joh - extract into its own provider?
-		findFiles(query: string, progress: Progress<Uri>, token?: CancellationToken): Thenable<void>;
+		root: Uri;
+
+		// more...
+		//
+		utimes(resource: Uri, mtime: number): Thenable<FileStat>;
+		stat(resource: Uri): Thenable<FileStat>;
+		read(resource: Uri, progress: Progress<Uint8Array>): Thenable<void>;
+		write(resource: Uri, content: Uint8Array): Thenable<void>;
+		unlink(resource: Uri): Thenable<void>;
+		rename(resource: Uri, target: Uri): Thenable<void>;
+		mkdir(resource: Uri): Thenable<void>;
+		readdir(resource: Uri): Thenable<FileStat[]>;
+		rmdir(resource: Uri): Thenable<void>;
 	}
 
 	export namespace workspace {

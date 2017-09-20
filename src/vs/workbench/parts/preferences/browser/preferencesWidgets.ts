@@ -332,7 +332,7 @@ export class SettingsTargetsWidget extends Widget {
 		actions.push(<IAction>{
 			id: 'userSettingsTarget',
 			label: getSettingsTargetName(ConfigurationTarget.USER, userSettingsResource, this.workspaceContextService),
-			checked: this.uri.fsPath === userSettingsResource.fsPath,
+			checked: this.uri.toString() === userSettingsResource.toString(),
 			enabled: true,
 			run: () => this.onTargetClicked(userSettingsResource)
 		});
@@ -342,7 +342,7 @@ export class SettingsTargetsWidget extends Widget {
 			actions.push(<IAction>{
 				id: 'workspaceSettingsTarget',
 				label: getSettingsTargetName(ConfigurationTarget.WORKSPACE, workspaceSettingsResource, this.workspaceContextService),
-				checked: this.uri.fsPath === workspaceSettingsResource.fsPath,
+				checked: this.uri.toString() === workspaceSettingsResource.toString(),
 				enabled: true,
 				run: () => this.onTargetClicked(workspaceSettingsResource)
 			});
@@ -355,7 +355,7 @@ export class SettingsTargetsWidget extends Widget {
 				return <IAction>{
 					id: 'folderSettingsTarget' + index,
 					label: getSettingsTargetName(ConfigurationTarget.FOLDER, folder.uri, this.workspaceContextService),
-					checked: this.uri.fsPath === folder.uri.fsPath,
+					checked: this.uri.toString() === folder.uri.toString(),
 					enabled: true,
 					run: () => this.onTargetClicked(folder.uri)
 				};
@@ -366,7 +366,7 @@ export class SettingsTargetsWidget extends Widget {
 	}
 
 	private onTargetClicked(target: URI): void {
-		if (this.uri.fsPath === target.fsPath) {
+		if (this.uri.toString() === target.toString()) {
 			return;
 		}
 		this._onDidTargetChange.fire(target);

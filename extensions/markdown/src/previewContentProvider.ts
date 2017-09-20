@@ -205,7 +205,7 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 
 		let initialLine: number | undefined = undefined;
 		const editor = vscode.window.activeTextEditor;
-		if (editor && editor.document.uri.fsPath === sourceUri.fsPath) {
+		if (editor && editor.document.uri.toString() === sourceUri.toString()) {
 			initialLine = editor.selection.active.line;
 		}
 
