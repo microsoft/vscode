@@ -6,7 +6,6 @@
 'use strict';
 
 import uri from 'vs/base/common/uri';
-import paths = require('vs/base/common/paths');
 import resources = require('vs/base/common/resources');
 import { IconLabel, IIconLabelOptions, IIconLabelCreationOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
@@ -222,14 +221,14 @@ export class FileLabel extends ResourceLabel {
 			}
 
 			if (!name) {
-				name = paths.basename(resource.fsPath);
+				name = resources.basenameOrAuthority(resource);
 			}
 		}
 
-
+		let description: string;
 		const hidePath = (options && options.hidePath) || (resource.scheme === Schemas.untitled && !this.untitledEditorService.hasAssociatedFilePath(resource));
-		let rootProvider: IWorkspaceFolderProvider;
 		if (!hidePath) {
+			let rootProvider: IWorkspaceFolderProvider;
 			if (options && options.root) {
 				rootProvider = {
 					getWorkspaceFolder(): { uri } { return { uri: options.root }; },
@@ -238,13 +237,11 @@ export class FileLabel extends ResourceLabel {
 			} else {
 				rootProvider = this.contextService;
 			}
+
+			description = getPathLabel(resources.dirname(resource), rootProvider, this.environmentService);
 		}
 
-		this.setLabel({
-			resource,
-			name: (options && options.hideLabel) ? void 0 : resources.basenameOrAuthority(resource),
-			description: !hidePath ? getPathLabel(resources.dirname(resource), rootProvider, this.environmentService) : void 0
-		}, options);
+		this.setLabel({ resource, name, description }, options);
 	}
 }
 
