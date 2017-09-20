@@ -17,6 +17,8 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
 import * as htmlContent from 'vs/base/common/htmlContent';
+import { IRelativePattern } from 'vs/base/common/glob';
+import { LanguageSelector } from 'vs/editor/common/modes/languageSelector';
 
 export interface PositionLike {
 	line: number;
@@ -513,4 +515,30 @@ export namespace ProgressLocation {
 		}
 		return undefined;
 	}
+}
+
+export function toLanguageSelector(arg1: vscode.DocumentSelector): LanguageSelector {
+	if (typeof arg1 === 'string') {
+		return arg1;
+	}
+
+	if (!arg1) {
+		return undefined;
+	}
+
+	if (Array.isArray(arg1)) {
+		const selectors = arg1;
+		return selectors.map(selector => toLanguageSelector(selector)) as LanguageSelector;
+	}
+
+	const selector = arg1;
+
+	if (typeof selector.pattern === 'string' || !selector.pattern) {
+		return selector as LanguageSelector;
+	}
+
+	return {
+		base: selector.pattern.base.uri,
+		pattern: selector.pattern.pattern
+	} as IRelativePattern;
 }

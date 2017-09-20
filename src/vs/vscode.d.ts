@@ -1607,7 +1607,12 @@ declare module 'vscode' {
 		/**
 		 * A glob pattern, like `*.{ts,js}`.
 		 */
-		pattern?: string;
+		pattern?: string | WorkspacePattern;
+	}
+
+	export interface WorkspacePattern {
+		base: WorkspaceFolder;
+		pattern: string;
 	}
 
 	/**
