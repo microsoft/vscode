@@ -194,7 +194,11 @@ export class ExplorerView extends CollapsibleView {
 		this.onConfigurationUpdated(configuration);
 
 		// Load and Fill Viewer
-		return this.doRefresh().then(() => {
+		let targetsToExpand = [];
+		if (this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES]) {
+			targetsToExpand = this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES].map((e: string) => URI.parse(e));
+		}
+		return this.doRefresh(targetsToExpand).then(() => {
 
 			// When the explorer viewer is loaded, listen to changes to the editor input
 			this.toDispose.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
@@ -680,7 +684,7 @@ export class ExplorerView extends CollapsibleView {
 		if (this.isVisible()) {
 			this.explorerRefreshDelayer.trigger(() => {
 				if (!this.explorerViewer.getHighlight()) {
-					return this.doRefresh(newRoots);
+					return this.doRefresh(newRoots.map(r => r.uri));
 				}
 
 				return TPromise.as(null);
@@ -722,18 +726,12 @@ export class ExplorerView extends CollapsibleView {
 		});
 	}
 
-	private doRefresh(newRoots: WorkspaceFolder[] = []): TPromise<void> {
+	private doRefresh(targetsToExpand: URI[] = []): TPromise<void> {
 		const targetsToResolve: { root: FileStat, resource: URI, options: { resolveTo: URI[] } }[] = [];
 		this.model.roots.forEach(root => {
 			const rootAndTargets = { root, resource: root.resource, options: { resolveTo: [] } };
 			targetsToResolve.push(rootAndTargets);
 		});
-
-		let targetsToExpand: URI[] = [];
-		if (this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES]) {
-			targetsToExpand = this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES].map((e: string) => URI.parse(e));
-		}
-		targetsToExpand.push(...newRoots.map(r => r.uri));
 
 		// First time refresh: Receive target through active editor input or selection and also include settings from previous session
 		if (!this.isCreated) {
