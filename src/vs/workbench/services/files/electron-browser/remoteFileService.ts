@@ -177,8 +177,7 @@ export class RemoteFileService extends FileService {
 			if (group[0].resource.scheme === Schemas.file) {
 				promises.push(super.resolveFiles(group));
 			} else {
-				await this._extensionService.onReady();
-				const provider = this._provider.get(group[0].resource.scheme);
+				const provider = await this._withProvider(group[0].resource);
 				if (provider) {
 					promises.push(this._doResolveFiles(provider, group));
 				}
