@@ -16,7 +16,7 @@ import { ConfigurationModel } from 'vs/platform/configuration/common/configurati
 import { TestThreadService } from './testThreadService';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
+import { IRawFileWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 
 suite('ExtHostConfiguration', function () {
 
@@ -405,7 +405,7 @@ suite('ExtHostConfiguration', function () {
 			.then(() => assert.ok(false), err => { /* expecting rejection */ });
 	});
 
-	function aWorkspaceFolder(raw: IStoredWorkspaceFolder, index: number, name: string = ''): WorkspaceFolder {
+	function aWorkspaceFolder(raw: IRawFileWorkspaceFolder, index: number, name: string = ''): WorkspaceFolder {
 		return {
 			uri: URI.file(raw.path),
 			index,

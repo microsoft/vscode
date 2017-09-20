@@ -12,7 +12,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { IProgress } from 'vs/platform/progress/common/progress';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 
 @extHostNamedCustomer(MainContext.MainThreadFileSystem)
 export class MainThreadFileSystem implements MainThreadFileSystemShape {
@@ -24,7 +24,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	constructor(
 		extHostContext: IExtHostContext,
 		@IFileService private readonly _fileService: IFileService,
-		@IWorkspaceContextService private readonly _workspaceEditService: IWorkspaceContextService
+		@IWorkspaceEditingService private readonly _workspaceEditService: IWorkspaceEditingService
 	) {
 		this._proxy = extHostContext.get(ExtHostContext.ExtHostFileSystem);
 	}
@@ -43,16 +43,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	}
 
 	$onDidAddFileSystemRoot(uri: URI): void {
-		const folders = this._workspaceEditService.getWorkspace().folders.slice(0);
-		folders.push({
-			uri,
-			name: uri.authority,
-			index: folders.length,
-			raw: null
-		});
-		(<any>this._workspaceEditService.getWorkspace()).folders = folders;
-		(<any>this._workspaceEditService).onFoldersChanged();
-		(<any>this._workspaceEditService)._onDidChangeWorkspaceFolders.fire(null);
+		this._workspaceEditService.addFolders([uri]);
 	}
 
 	$onFileSystemChange(handle: number, changes: IFileChange[]): void {

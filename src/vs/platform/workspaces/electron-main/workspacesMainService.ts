@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { IWorkspacesMainService, IWorkspaceIdentifier, IStoredWorkspace, WORKSPACE_EXTENSION, IWorkspaceSavedEvent, UNTITLED_WORKSPACE_NAME, IResolvedWorkspace } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesMainService, IWorkspaceIdentifier, IStoredWorkspace, WORKSPACE_EXTENSION, IWorkspaceSavedEvent, UNTITLED_WORKSPACE_NAME, IResolvedWorkspace, isIRawFileWorkspaceFolder, isIStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { isParent } from 'vs/platform/files/common/files';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -77,7 +77,7 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 
 			// relative paths get resolved against the workspace location
 			workspace.folders.forEach(folder => {
-				if (!isAbsolute(folder.path)) {
+				if (isIRawFileWorkspaceFolder(folder) && !isAbsolute(folder.path)) {
 					folder.path = resolve(dirname(path), folder.path);
 				}
 			});
@@ -106,7 +106,7 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 
 		// Filter out folders which do not have a path set
 		if (Array.isArray(storedWorkspace.folders)) {
-			storedWorkspace.folders = storedWorkspace.folders.filter(folder => !!folder.path);
+			storedWorkspace.folders = storedWorkspace.folders.filter(folder => isIStoredWorkspaceFolder(folder));
 		}
 
 		// Validate
@@ -200,11 +200,13 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 			// is a parent of the location of the workspace file itself. Otherwise keep
 			// using absolute paths.
 			storedWorkspace.folders.forEach(folder => {
-				if (!isAbsolute(folder.path)) {
-					folder.path = resolve(sourceConfigFolder, folder.path); // relative paths get resolved against the workspace location
+				if (isIRawFileWorkspaceFolder(folder)) {
+					if (!isAbsolute(folder.path)) {
+						folder.path = resolve(sourceConfigFolder, folder.path); // relative paths get resolved against the workspace location
+					}
+					folder.path = massageFolderPathForWorkspace(folder.path, targetConfigFolder, storedWorkspace.folders);
 				}
 
-				folder.path = massageFolderPathForWorkspace(folder.path, targetConfigFolder, storedWorkspace.folders);
 			});
 
 			// Preserve as much of the existing workspace as possible by using jsonEdit

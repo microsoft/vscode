@@ -22,6 +22,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'v
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configuration';
 import { FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IRawFileWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -100,7 +101,7 @@ suite('WorkspaceContextService - Folder', () => {
 		assert.equal(actual.folders[0].uri.fsPath, URI.file(workspaceResource).fsPath);
 		assert.equal(actual.folders[0].name, workspaceName);
 		assert.equal(actual.folders[0].index, 0);
-		assert.equal(actual.folders[0].raw.path.toLowerCase(), workspaceResource.toLowerCase());
+		assert.equal((<IRawFileWorkspaceFolder>actual.folders[0].raw).path.toLowerCase(), workspaceResource.toLowerCase());
 		assert.ok(!actual.configuration);
 	});
 
