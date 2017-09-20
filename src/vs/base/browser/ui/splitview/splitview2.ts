@@ -161,6 +161,13 @@ export class SplitView implements IDisposable {
 
 		const viewItem = this.viewItems.splice(from, 1)[0];
 		this.viewItems.splice(to, 0, viewItem);
+
+		if (to + 1 < this.viewItems.length) {
+			this.el.insertBefore(viewItem.container, this.viewItems[to + 1].container);
+		} else {
+			this.el.appendChild(viewItem.container);
+		}
+
 		this.layoutViews();
 	}
 

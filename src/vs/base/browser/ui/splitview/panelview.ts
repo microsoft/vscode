@@ -40,12 +40,18 @@ export abstract class Panel implements IView {
 	private _minimumBodySize: number;
 	private _maximumBodySize: number;
 	private ariaHeaderLabel: string;
+	private styles: IPanelStyles | undefined = undefined;
 
+	private el: HTMLElement;
 	private header: HTMLElement;
 	protected disposables: IDisposable[] = [];
 
-	get draggable(): HTMLElement {
+	get draggableElement(): HTMLElement {
 		return this.header;
+	}
+
+	get dropTargetElement(): HTMLElement {
+		return this.el;
 	}
 
 	private _dropBackground: Color | undefined;
@@ -98,7 +104,6 @@ export abstract class Panel implements IView {
 		this.ariaHeaderLabel = options.ariaHeaderLabel || '';
 		this._minimumBodySize = typeof options.minimumBodySize === 'number' ? options.minimumBodySize : 120;
 		this._maximumBodySize = typeof options.maximumBodySize === 'number' ? options.maximumBodySize : Number.POSITIVE_INFINITY;
-		this.header = $('.panel-header');
 	}
 
 	isExpanded(): boolean {
@@ -130,9 +135,10 @@ export abstract class Panel implements IView {
 	}
 
 	render(container: HTMLElement): void {
-		const panel = append(container, $('.panel'));
+		this.el = append(container, $('.panel'));
 
-		append(panel, this.header);
+		this.header = $('.panel-header');
+		append(this.el, this.header);
 		this.header.setAttribute('tabindex', '0');
 		this.header.setAttribute('role', 'toolbar');
 		this.header.setAttribute('aria-label', this.ariaHeaderLabel);
@@ -166,7 +172,7 @@ export abstract class Panel implements IView {
 		// onHeaderKeyDown.filter(e => e.keyCode === KeyCode.DownArrow)
 		// 	.event(focusNext, this, this.disposables);
 
-		const body = append(panel, $('.panel-body'));
+		const body = append(this.el, $('.panel-body'));
 		this.renderBody(body);
 	}
 
@@ -176,10 +182,13 @@ export abstract class Panel implements IView {
 	}
 
 	style(styles: IPanelStyles): void {
-		this.header.style.color = styles.headerForeground ? styles.headerForeground.toString() : null;
-		this.header.style.backgroundColor = styles.headerBackground ? styles.headerBackground.toString() : null;
-		this.header.style.borderTop = styles.headerHighContrastBorder ? `1px solid ${styles.headerHighContrastBorder}` : null;
-		this._dropBackground = styles.dropBackground;
+		this.styles = styles;
+
+		if (!this.header) {
+			return;
+		}
+
+		this.updateHeader();
 	}
 
 	protected updateHeader(): void {
@@ -190,6 +199,11 @@ export abstract class Panel implements IView {
 		toggleClass(this.header, 'hidden', !this.headerVisible);
 		toggleClass(this.header, 'expanded', expanded);
 		this.header.setAttribute('aria-expanded', String(expanded));
+
+		this.header.style.color = this.styles.headerForeground ? this.styles.headerForeground.toString() : null;
+		this.header.style.backgroundColor = this.styles.headerBackground ? this.styles.headerBackground.toString() : null;
+		this.header.style.borderTop = this.styles.headerHighContrastBorder ? `1px solid ${this.styles.headerHighContrastBorder}` : null;
+		this._dropBackground = this.styles.dropBackground;
 	}
 
 	protected abstract renderHeader(container: HTMLElement): void;
@@ -217,17 +231,18 @@ class PanelDraggable implements IDisposable {
 	readonly onDidDrop = this._onDidDrop.event;
 
 	constructor(private panel: Panel, private context: IDndContext) {
-		domEvent(panel.draggable, 'dragstart')(this.onDragStart, this, this.disposables);
-		domEvent(panel.draggable, 'dragenter')(this.onDragEnter, this, this.disposables);
-		domEvent(panel.draggable, 'dragleave')(this.onDragLeave, this, this.disposables);
-		domEvent(panel.draggable, 'dragend')(this.onDragEnd, this, this.disposables);
-		domEvent(panel.draggable, 'drop')(this.onDrop, this, this.disposables);
+		panel.draggableElement.draggable = true;
+		domEvent(panel.draggableElement, 'dragstart')(this.onDragStart, this, this.disposables);
+		domEvent(panel.dropTargetElement, 'dragenter')(this.onDragEnter, this, this.disposables);
+		domEvent(panel.dropTargetElement, 'dragleave')(this.onDragLeave, this, this.disposables);
+		domEvent(panel.dropTargetElement, 'dragend')(this.onDragEnd, this, this.disposables);
+		domEvent(panel.dropTargetElement, 'drop')(this.onDrop, this, this.disposables);
 	}
 
 	private onDragStart(e: DragEvent): void {
 		e.dataTransfer.effectAllowed = 'move';
 
-		const dragImage = append(document.body, $('.monaco-panel-drag-image', {}, this.panel.draggable.textContent));
+		const dragImage = append(document.body, $('.monaco-panel-drag-image', {}, this.panel.draggableElement.textContent));
 		e.dataTransfer.setDragImage(dragImage, -10, -10);
 		setTimeout(() => document.body.removeChild(dragImage), 0);
 
@@ -240,7 +255,7 @@ class PanelDraggable implements IDisposable {
 		}
 
 		this.dragOverCounter++;
-		this.renderHeader();
+		this.render();
 	}
 
 	private onDragLeave(e: DragEvent): void {
@@ -251,7 +266,7 @@ class PanelDraggable implements IDisposable {
 		this.dragOverCounter--;
 
 		if (this.dragOverCounter === 0) {
-			this.renderHeader();
+			this.render();
 		}
 	}
 
@@ -261,7 +276,7 @@ class PanelDraggable implements IDisposable {
 		}
 
 		this.dragOverCounter = 0;
-		this.renderHeader();
+		this.render();
 		this.context.draggable = null;
 	}
 
@@ -271,7 +286,7 @@ class PanelDraggable implements IDisposable {
 		}
 
 		this.dragOverCounter = 0;
-		this.renderHeader();
+		this.render();
 
 		if (this.context.draggable !== this) {
 			this._onDidDrop.fire({ from: this.context.draggable.panel, to: this.panel });
@@ -280,14 +295,14 @@ class PanelDraggable implements IDisposable {
 		this.context.draggable = null;
 	}
 
-	private renderHeader(): void {
+	private render(): void {
 		let backgroundColor: string = null;
 
 		if (this.dragOverCounter > 0) {
 			backgroundColor = (this.panel.dropBackground || PanelDraggable.DefaultDragOverBackgroundColor).toString();
 		}
 
-		this.panel.draggable.style.backgroundColor = backgroundColor;
+		this.panel.dropTargetElement.style.backgroundColor = backgroundColor;
 	}
 
 	dispose(): void {
@@ -326,16 +341,15 @@ export class PanelView implements IDisposable {
 		const disposables: IDisposable[] = [];
 		panel.onDidChange(this.setupAnimation, this, disposables);
 
+		const panelItem = { panel, disposable: combinedDisposable(disposables) };
+		this.panelItems.splice(index, 0, panelItem);
+		this.splitview.addView(panel, size, index);
+
 		if (this.dnd) {
 			const draggable = new PanelDraggable(panel, this.dndContext);
 			disposables.push(draggable);
 			draggable.onDidDrop(this._onDidDrop.fire, this._onDidDrop, disposables);
 		}
-
-		const panelItem = { panel, disposable: combinedDisposable(disposables) };
-
-		this.panelItems.splice(index, 0, panelItem);
-		this.splitview.addView(panel, size, index);
 	}
 
 	removePanel(panel: Panel): void {
@@ -359,7 +373,7 @@ export class PanelView implements IDisposable {
 		}
 
 		const [panelItem] = this.panelItems.splice(fromIndex, 1);
-		this.panelItems.splice(toIndex < fromIndex ? toIndex : toIndex - 1, 0, panelItem);
+		this.panelItems.splice(toIndex, 0, panelItem);
 
 		this.splitview.moveView(fromIndex, toIndex);
 	}

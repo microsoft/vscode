@@ -23,7 +23,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { PanelView, IPanelOptions, Panel } from 'vs/base/browser/ui/splitview/panelview';
+import { PanelView, IPanelViewOptions, IPanelOptions, Panel } from 'vs/base/browser/ui/splitview/panelview';
 
 export interface IPanelColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
@@ -114,7 +114,7 @@ export abstract class ViewletPanel extends Panel {
 	}
 }
 
-export interface IViewsViewletOptions {
+export interface IViewsViewletOptions extends IPanelViewOptions {
 	showHeaderInTitleWhenSingleView: boolean;
 }
 
@@ -135,7 +135,7 @@ export class PanelViewlet extends Viewlet {
 
 	constructor(
 		id: string,
-		private options: Partial<IViewsViewletOptions>,
+		private options: IViewsViewletOptions,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService
 	) {
@@ -146,7 +146,8 @@ export class PanelViewlet extends Viewlet {
 		super.create(parent);
 
 		const container = parent.getHTMLElement();
-		this.panelview = this._register(new PanelView(container));
+		this.panelview = this._register(new PanelView(container, this.options));
+		this.panelview.onDidDrop(({ from, to }) => this.movePanel(from as ViewletPanel, to as ViewletPanel));
 	}
 
 	getTitle(): string {
@@ -243,7 +244,8 @@ export class PanelViewlet extends Viewlet {
 
 
 		const [panelItem] = this.panelItems.splice(fromIndex, 1);
-		this.panelItems.splice(toIndex < fromIndex ? toIndex : toIndex - 1, 0, panelItem);
+		this.panelItems.splice(toIndex, 0, panelItem);
+
 		this.panelview.movePanel(from, to);
 	}
 

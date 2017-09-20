@@ -259,7 +259,7 @@ export class ViewsViewlet extends PanelViewlet {
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@IExtensionService protected extensionService: IExtensionService
 	) {
-		super(id, { showHeaderInTitleWhenSingleView }, telemetryService, themeService);
+		super(id, { showHeaderInTitleWhenSingleView, dnd: true }, telemetryService, themeService);
 
 		this.viewletSettings = this.getMemento(storageService, Scope.WORKSPACE);
 	}
@@ -473,7 +473,7 @@ export class ViewsViewlet extends PanelViewlet {
 			const view = this.getView(viewDescriptor.id);
 
 			if (view) {
-				this.viewHeaderContextMenuListeners.push(DOM.addDisposableListener(view.draggable, DOM.EventType.CONTEXT_MENU, e => {
+				this.viewHeaderContextMenuListeners.push(DOM.addDisposableListener(view.draggableElement, DOM.EventType.CONTEXT_MENU, e => {
 					e.stopPropagation();
 					e.preventDefault();
 					if (viewDescriptor.canToggleVisibility) {
