@@ -62,7 +62,7 @@ function findWindowOnFilePath<W extends ISimpleWindow>(windows: W[], filePath: s
 	for (let i = 0; i < workspaceWindows.length; i++) {
 		const window = workspaceWindows[i];
 		const resolvedWorkspace = workspaceResolver(window.openedWorkspace);
-		if (resolvedWorkspace && resolvedWorkspace.folders.some(folder => paths.isEqualOrParent(filePath, folder.path, !platform.isLinux /* ignorecase */))) {
+		if (resolvedWorkspace && resolvedWorkspace.folders.some(folder => paths.isEqualOrParent(filePath, folder.uri.fsPath, !platform.isLinux /* ignorecase */))) {
 			return window;
 		}
 	}

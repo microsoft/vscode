@@ -13,7 +13,7 @@ import { basename } from 'vs/base/common/paths';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose, combinedDisposable, empty as EmptyDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Builder, Dimension } from 'vs/base/browser/builder';
-import { PanelViewlet, ViewletPanel } from 'vs/workbench/browser/parts/views/views2';
+import { PanelViewlet, ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { append, $, addClass, toggleClass, trackFocus } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
@@ -789,7 +789,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 	}
 
 	getActions(): IAction[] {
-		if (this.isSingleView && this.repositories.length === 1) {
+		if (this.isSingleView()) {
 			const [panel] = this.repositoryPanels;
 			return panel.getActions();
 		}
@@ -800,7 +800,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 	getSecondaryActions(): IAction[] {
 		let result: IAction[];
 
-		if (this.isSingleView && this.repositories.length === 1) {
+		if (this.isSingleView()) {
 			const [panel] = this.repositoryPanels;
 
 			result = [
@@ -863,6 +863,10 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 		for (const panel of this.repositoryPanels) {
 			this.resizePanel(panel, size);
 		}
+	}
+
+	protected isSingleView(): boolean {
+		return super.isSingleView() && this.repositories.length === 1;
 	}
 
 	dispose(): void {

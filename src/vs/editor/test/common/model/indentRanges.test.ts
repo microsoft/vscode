@@ -16,9 +16,9 @@ export interface IndentRange {
 }
 
 suite('Indentation Folding', () => {
-	function assertRanges(lines: string[], expected: IndentRange[]): void {
+	function assertRanges(lines: string[], expected: IndentRange[], offside): void {
 		let model = Model.createFromString(lines.join('\n'));
-		let actual = computeRanges(model);
+		let actual = computeRanges(model, offside);
 		actual.sort((r1, r2) => r1.startLineNumber - r2.startLineNumber);
 		assert.deepEqual(actual, expected);
 		model.dispose();
@@ -29,40 +29,48 @@ suite('Indentation Folding', () => {
 	}
 
 	test('Fold one level', () => {
-		assertRanges([
+		let range = [
 			'A',
 			'  A',
 			'  A',
 			'  A'
-		], [r(1, 4, 0)]);
+		];
+		assertRanges(range, [r(1, 4, 0)], true);
+		assertRanges(range, [r(1, 4, 0)], false);
 	});
 
 	test('Fold two levels', () => {
-		assertRanges([
+		let range = [
 			'A',
 			'  A',
 			'  A',
 			'    A',
 			'    A'
-		], [r(1, 5, 0), r(3, 5, 2)]);
+		];
+		assertRanges(range, [r(1, 5, 0), r(3, 5, 2)], true);
+		assertRanges(range, [r(1, 5, 0), r(3, 5, 2)], false);
 	});
 
 	test('Fold three levels', () => {
-		assertRanges([
+		let range = [
 			'A',
 			'  A',
 			'    A',
 			'      A',
 			'A'
-		], [r(1, 4, 0), r(2, 4, 2), r(3, 4, 4)]);
+		];
+		assertRanges(range, [r(1, 4, 0), r(2, 4, 2), r(3, 4, 4)], true);
+		assertRanges(range, [r(1, 4, 0), r(2, 4, 2), r(3, 4, 4)], false);
 	});
 
 	test('Fold decreasing indent', () => {
-		assertRanges([
+		let range = [
 			'    A',
 			'  A',
 			'A'
-		], []);
+		];
+		assertRanges(range, [], true);
+		assertRanges(range, [], false);
 	});
 
 	test('Fold Java', () => {
@@ -80,7 +88,7 @@ suite('Indentation Folding', () => {
 		/*11*/	'interface B {',
 		/*12*/	'  void bar();',
 		/*13*/	'}',
-		], [r(1, 9, 0), r(2, 4, 2), r(7, 8, 2), r(11, 12, 0)]);
+		], [r(1, 9, 0), r(2, 4, 2), r(7, 8, 2), r(11, 12, 0)], false);
 	});
 
 	test('Fold Javadoc', () => {
@@ -92,9 +100,9 @@ suite('Indentation Folding', () => {
 		/* 5*/	'  void foo() {',
 		/* 6*/	'  }',
 		/* 7*/	'}',
-		], [r(1, 3, 0), r(4, 6, 0)]);
+		], [r(1, 3, 0), r(4, 6, 0)], false);
 	});
-	test('Fold Whitespace', () => {
+	test('Fold Whitespace Java', () => {
 		assertRanges([
 		/* 1*/	'class A {',
 		/* 2*/	'',
@@ -104,7 +112,20 @@ suite('Indentation Folding', () => {
 		/* 6*/	'  }',
 		/* 7*/	'      ',
 		/* 8*/	'}',
-		], [r(1, 7, 0), r(3, 5, 2)]);
+		], [r(1, 7, 0), r(3, 5, 2)], false);
+	});
+
+	test('Fold Whitespace Python', () => {
+		assertRanges([
+		/* 1*/	'def a:',
+		/* 2*/	'  pass',
+		/* 3*/	'   ',
+		/* 4*/	'  def b:',
+		/* 5*/	'    pass',
+		/* 6*/	'  ',
+		/* 7*/	'      ',
+		/* 8*/	'def c: # since there was a deintent here'
+		], [r(1, 5, 0), r(4, 5, 2)], true);
 	});
 
 	test('Fold Tabs', () => {
@@ -117,6 +138,6 @@ suite('Indentation Folding', () => {
 		/* 6*/	'  \t}',
 		/* 7*/	'      ',
 		/* 8*/	'}',
-		], [r(1, 7, 0), r(3, 5, 4)]);
+		], [r(1, 7, 0), r(3, 5, 4)], false);
 	});
 });

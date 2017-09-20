@@ -11,9 +11,10 @@ import { Action } from 'vs/base/common/actions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IQuickOpenService, IPickOpenEntry, IFilePickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
-import { IPreferencesService, getSettingsTargetName } from 'vs/workbench/parts/preferences/common/preferences';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
+import { IWorkspaceContextService, WorkbenchState, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { PICK_WORKSPACE_FOLDER_COMMAND } from 'vs/workbench/browser/actions/workspaceActions';
 
 export class OpenGlobalSettingsAction extends Action {
 
@@ -114,7 +115,7 @@ export class OpenFolderSettingsAction extends Action {
 		label: string,
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService
+		@ICommandService private commandService: ICommandService
 	) {
 		super(id, label);
 		this.update();
@@ -127,21 +128,13 @@ export class OpenFolderSettingsAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		const picks: IPickOpenEntry[] = this.workspaceContextService.getWorkspace().folders.map((folder, index) => {
-			return <IPickOpenEntry>{
-				label: getSettingsTargetName(ConfigurationTarget.FOLDER, folder.uri, this.workspaceContextService),
-				id: `${index}`
-			};
-		});
-
-		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickFolder', "Select Folder") })
-			.then(pick => {
-				if (pick) {
-					return this.preferencesService.openFolderSettings(this.workspaceContextService.getWorkspace().folders[parseInt(pick.id)].uri);
+		return this.commandService.executeCommand<WorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND)
+			.then(workspaceFolder => {
+				if (workspaceFolder) {
+					return this.preferencesService.openFolderSettings(workspaceFolder.uri);
 				}
-				return undefined;
+				return null;
 			});
-
 	}
 
 	public dispose(): void {

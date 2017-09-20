@@ -1820,7 +1820,7 @@ class WorkspacesManager {
 			} else {
 				const resolvedWorkspace = this.workspacesService.resolveWorkspaceSync(workspace.configPath);
 				if (resolvedWorkspace && resolvedWorkspace.folders.length > 0) {
-					defaultPath = dirname(resolvedWorkspace.folders[0].path);
+					defaultPath = dirname(resolvedWorkspace.folders[0].uri.fsPath);
 				}
 			}
 		}

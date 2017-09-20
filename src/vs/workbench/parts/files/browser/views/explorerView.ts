@@ -32,7 +32,7 @@ import { FileStat, Model } from 'vs/workbench/parts/files/common/explorerModel';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -166,7 +166,7 @@ export class ExplorerView extends CollapsibleView {
 		};
 
 		this.toDispose.push(this.themeService.onDidFileIconThemeChange(onFileIconThemeChange));
-		this.toDispose.push(this.contextService.onDidChangeWorkspaceFolders(() => this.refreshFromEvent()));
+		this.toDispose.push(this.contextService.onDidChangeWorkspaceFolders((e) => this.refreshFromEvent(e.added)));
 		onFileIconThemeChange(this.themeService.getFileIconTheme());
 	}
 
@@ -194,7 +194,11 @@ export class ExplorerView extends CollapsibleView {
 		this.onConfigurationUpdated(configuration);
 
 		// Load and Fill Viewer
-		return this.doRefresh().then(() => {
+		let targetsToExpand = [];
+		if (this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES]) {
+			targetsToExpand = this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES].map((e: string) => URI.parse(e));
+		}
+		return this.doRefresh(targetsToExpand).then(() => {
 
 			// When the explorer viewer is loaded, listen to changes to the editor input
 			this.toDispose.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
@@ -676,11 +680,11 @@ export class ExplorerView extends CollapsibleView {
 		}));
 	}
 
-	private refreshFromEvent(): void {
+	private refreshFromEvent(newRoots: WorkspaceFolder[] = []): void {
 		if (this.isVisible()) {
 			this.explorerRefreshDelayer.trigger(() => {
 				if (!this.explorerViewer.getHighlight()) {
-					return this.doRefresh();
+					return this.doRefresh(newRoots.map(r => r.uri));
 				}
 
 				return TPromise.as(null);
@@ -722,19 +726,12 @@ export class ExplorerView extends CollapsibleView {
 		});
 	}
 
-	private doRefresh(): TPromise<void> {
+	private doRefresh(targetsToExpand: URI[] = []): TPromise<void> {
 		const targetsToResolve: { root: FileStat, resource: URI, options: { resolveTo: URI[] } }[] = [];
 		this.model.roots.forEach(root => {
 			const rootAndTargets = { root, resource: root.resource, options: { resolveTo: [] } };
 			targetsToResolve.push(rootAndTargets);
 		});
-
-		let targetsToExpand: URI[] = [];
-		if (this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES]) {
-			targetsToExpand = this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES].map((e: string) => URI.parse(e));
-		} else if (this.model.roots.length === 1) {
-			targetsToExpand = this.model.roots.map(root => root.resource); // always expand if there is just one root
-		}
 
 		// First time refresh: Receive target through active editor input or selection and also include settings from previous session
 		if (!this.isCreated) {
@@ -783,16 +780,11 @@ export class ExplorerView extends CollapsibleView {
 			// Subsequent refresh: Merge stat into our local model and refresh tree
 			modelStats.forEach((modelStat, index) => FileStat.mergeLocalWithDisk(modelStat, this.model.roots[index]));
 
-			let input = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? this.model.roots[0] : this.model;
+			const input = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? this.model.roots[0] : this.model;
+			const statsToExpand = this.explorerViewer.getExpandedElements().concat(targetsToExpand.map(target => this.model.findClosest(target)));
 			if (input === this.explorerViewer.getInput()) {
-				return this.explorerViewer.refresh();
+				return this.explorerViewer.refresh().then(() => this.explorerViewer.expandAll(statsToExpand));
 			}
-
-			// Preserve expanded elements if tree input changed.
-			// If it is a brand new tree just expand elements from memento
-			const expanded = this.explorerViewer.getExpandedElements();
-			const statsToExpand = expanded.length ? [this.model.roots[0]].concat(expanded) :
-				targetsToExpand.map(expand => this.model.findClosest(expand));
 
 			// Display roots only when multi folder workspace
 			// Make sure to expand all folders that where expanded in the previous session

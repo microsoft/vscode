@@ -14,6 +14,7 @@ import { isLinux } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import Event from 'vs/base/common/event';
 import { tildify, getPathLabel } from 'vs/base/common/labels';
+import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 export const IWorkspacesMainService = createDecorator<IWorkspacesMainService>('workspacesMainService');
 export const IWorkspacesService = createDecorator<IWorkspacesService>('workspacesService');
@@ -37,11 +38,9 @@ export interface IStoredWorkspaceFolder {
 	name?: string;
 }
 
-export interface IStoredWorkspace {
-	folders: IStoredWorkspaceFolder[];
+export interface IResolvedWorkspace extends IWorkspaceIdentifier {
+	folders: WorkspaceFolder[];
 }
-
-export interface IResolvedWorkspace extends IWorkspaceIdentifier, IStoredWorkspace { }
 
 export interface IWorkspaceSavedEvent {
 	workspace: IWorkspaceIdentifier;

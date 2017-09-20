@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { IWorkspacesMainService, IWorkspaceIdentifier, IStoredWorkspace, WORKSPACE_EXTENSION, IWorkspaceSavedEvent, UNTITLED_WORKSPACE_NAME, IResolvedWorkspace } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesMainService, IWorkspaceIdentifier, WORKSPACE_EXTENSION, IWorkspaceSavedEvent, UNTITLED_WORKSPACE_NAME, IResolvedWorkspace, IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { isParent } from 'vs/platform/files/common/files';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -23,6 +23,11 @@ import * as json from 'vs/base/common/json';
 import * as jsonEdit from 'vs/base/common/jsonEdit';
 import { applyEdit } from 'vs/base/common/jsonFormatter';
 import { massageFolderPathForWorkspace } from 'vs/platform/workspaces/node/workspaces';
+import { toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
+
+export interface IStoredWorkspace {
+	folders: IStoredWorkspaceFolder[];
+}
 
 export class WorkspacesMainService implements IWorkspacesMainService {
 
@@ -85,7 +90,7 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 			return {
 				id: this.getWorkspaceId(path),
 				configPath: path,
-				folders: workspace.folders
+				folders: toWorkspaceFolders(workspace.folders)
 			};
 		} catch (error) {
 			this.logService.log(error.toString());

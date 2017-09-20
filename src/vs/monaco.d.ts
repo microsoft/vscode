@@ -1788,6 +1788,11 @@ declare module monaco.editor {
 		 */
 		onDidChangeLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable;
 		/**
+		 * An event emitted when the language configuration associated with the model has changed.
+		 * @event
+		 */
+		onDidChangeLanguageConfiguration(listener: (e: IModelLanguageConfigurationChangedEvent) => void): IDisposable;
+		/**
 		 * An event emitted right before disposing the model.
 		 * @event
 		 */
@@ -2186,6 +2191,11 @@ declare module monaco.editor {
 		 */
 		onDidChangeModelLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable;
 		/**
+		 * An event emitted when the language configuration of the current model has changed.
+		 * @event
+		 */
+		onDidChangeModelLanguageConfiguration(listener: (e: IModelLanguageConfigurationChangedEvent) => void): IDisposable;
+		/**
 		 * An event emitted when the options of the current model has changed.
 		 * @event
 		 */
@@ -2417,6 +2427,12 @@ declare module monaco.editor {
 		 * New language
 		 */
 		readonly newLanguage: string;
+	}
+
+	/**
+	 * An event describing that the language configuration associated with a model has changed.
+	 */
+	export interface IModelLanguageConfigurationChangedEvent {
 	}
 
 	export interface IModelContentChange {
@@ -4295,6 +4311,10 @@ declare module monaco.languages {
 		 */
 		surroundingPairs?: IAutoClosingPair[];
 		/**
+		 * The language's folding rules.
+		 */
+		folding?: FoldingRules;
+		/**
 		 * **Deprecated** Do not use.
 		 *
 		 * @deprecated Will be replaced by a better API soon.
@@ -4322,6 +4342,21 @@ declare module monaco.languages {
 		 * If a line matches this pattern, then its indentation should not be changed and it should not be evaluated against the other rules.
 		 */
 		unIndentedLinePattern?: RegExp;
+	}
+
+	/**
+	 * Describes folding rules for a language.
+	 */
+	export interface FoldingRules {
+		indendationBasedFolding?: {
+			/**
+			 * Used by the indentation based strategy to decide wheter empty lines belong to the previous or the next block.
+			 * A language adheres to the off-side rule if blocks in that language are expressed by their indentation.
+			 * See [wikipedia](https://en.wikipedia.org/wiki/Off-side_rule) for more information.
+			 * If not set, `false` is used and empty lines belong to the previous block.
+			 */
+			offSide: boolean;
+		};
 	}
 
 	/**

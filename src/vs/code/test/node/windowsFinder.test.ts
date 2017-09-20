@@ -9,6 +9,7 @@ import path = require('path');
 import { findBestWindowOrFolderForFile, ISimpleWindow, IBestWindowOrFolderOptions } from 'vs/code/node/windowsFinder';
 import { OpenContext } from 'vs/platform/windows/common/windows';
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 
 const fixturesFolder = require.toUrl('./fixtures');
 
@@ -24,7 +25,7 @@ function options(custom?: Partial<IBestWindowOrFolderOptions<ISimpleWindow>>): I
 		reuseWindow: false,
 		context: OpenContext.CLI,
 		codeSettingsFolder: '_vscode',
-		workspaceResolver: workspace => { return workspace === testWorkspace ? { id: testWorkspace.id, configPath: workspace.configPath, folders: [{ path: path.join(fixturesFolder, 'vscode_workspace_1_folder') }, { path: path.join(fixturesFolder, 'vscode_workspace_2_folder') }] } : null; },
+		workspaceResolver: workspace => { return workspace === testWorkspace ? { id: testWorkspace.id, configPath: workspace.configPath, folders: toWorkspaceFolders([{ path: path.join(fixturesFolder, 'vscode_workspace_1_folder') }, { path: path.join(fixturesFolder, 'vscode_workspace_2_folder') }]) } : null; },
 		...custom
 	};
 }
