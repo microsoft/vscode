@@ -30,7 +30,7 @@ import { ConfigurationService as GlobalConfigurationService } from 'vs/platform/
 import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
-import { IConfigurationNode, IConfigurationRegistry, Extensions, editorConfigurationSchemaId, IDefaultConfigurationExtension, validateProperty, ConfigurationScope, schemaId } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationNode, IConfigurationRegistry, Extensions, editorConfigurationSchemaId, IDefaultConfigurationExtension, validateProperty, ConfigurationScope, settingsSchema, resourceSettingsSchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { createHash } from 'crypto';
 import { getWorkspaceLabel, IWorkspacesService, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
@@ -39,6 +39,11 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
+
+const defaultSettingsSchemaId = 'vscode://schemas/settings/default';
+const userSettingsSchemaId = 'vscode://schemas/settings/user';
+const workspaceSettingsSchemaId = 'vscode://schemas/settings/workspace';
+const folderSettingsSchemaId = 'vscode://schemas/settings/folder';
 
 interface IStat {
 	resource: URI;
@@ -243,7 +248,7 @@ contributionRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 			type: 'object',
 			default: {},
 			description: nls.localize('workspaceConfig.settings.description', "Workspace settings"),
-			$ref: schemaId
+			$ref: workspaceSettingsSchemaId
 		},
 		'extensions': {
 			type: 'object',
@@ -284,6 +289,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 
 		this.baseConfigurationService = this._register(new GlobalConfigurationService(environmentService));
 		this._register(this.baseConfigurationService.onDidUpdateConfiguration(e => this.onBaseConfigurationChanged(e)));
+		this._register(configurationRegistry.onDidRegisterConfiguration(e => this.registerConfigurationSchemas()));
 	}
 
 	public getWorkspace(): Workspace {
@@ -468,6 +474,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	}
 
 	private initializeConfiguration(trigger: boolean = true): TPromise<any> {
+		this.registerConfigurationSchemas();
 		this.resetCaches();
 		return this.updateConfiguration()
 			.then(() => {
@@ -495,6 +502,22 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 			.then(configuration => this.updateFolderConfiguration(folder, configuration, true)))])
 			.then(changed => changed.reduce((result, value) => result || value, false))
 			.then(changed => this.updateWorkspaceConfiguration(true) || changed);
+	}
+
+	private registerConfigurationSchemas(): void {
+		if (this.workspace) {
+
+			contributionRegistry.registerSchema(defaultSettingsSchemaId, settingsSchema);
+			contributionRegistry.registerSchema(userSettingsSchemaId, settingsSchema);
+
+			if (WorkbenchState.WORKSPACE === this.getWorkbenchState()) {
+				contributionRegistry.registerSchema(workspaceSettingsSchemaId, settingsSchema);
+				contributionRegistry.registerSchema(folderSettingsSchemaId, resourceSettingsSchema);
+			} else {
+				contributionRegistry.registerSchema(workspaceSettingsSchemaId, settingsSchema);
+				contributionRegistry.registerSchema(folderSettingsSchemaId, settingsSchema);
+			}
+		}
 	}
 
 	private onBaseConfigurationChanged({ source, sourceConfig }: IConfigurationServiceEvent): void {

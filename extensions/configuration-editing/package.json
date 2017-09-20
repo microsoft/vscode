@@ -33,19 +33,11 @@
       },
       {
         "fileMatch": "vscode://defaultsettings/settings.json",
-        "url": "vscode://schemas/settings"
-      },
-      {
-        "fileMatch": "vscode://defaultsettings/resourceSettings.json",
-        "url": "vscode://schemas/settings/resource"
-      },
-      {
-        "fileMatch": "vscode://settings/workspaceSettings.json",
-        "url": "vscode://schemas/settings"
+        "url": "vscode://schemas/settings/default"
       },
       {
         "fileMatch": "%APP_SETTINGS_HOME%/settings.json",
-        "url": "vscode://schemas/settings"
+        "url": "vscode://schemas/settings/user"
       },
       {
         "fileMatch": "%APP_WORKSPACES_HOME%/*/workspace.json",
@@ -61,7 +53,7 @@
       },
       {
         "fileMatch": "/.vscode/settings.json",
-        "url": "vscode://schemas/settings"
+        "url": "vscode://schemas/settings/folder"
       },
       {
         "fileMatch": "/.vscode/launch.json",

@@ -11,6 +11,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import types = require('vs/base/common/types');
 import * as strings from 'vs/base/common/strings';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
+import { clone } from 'vs/base/common/objects';
 
 export const Extensions = {
 	Configuration: 'base.contributions.configuration'
@@ -81,33 +82,28 @@ export interface IDefaultConfigurationExtension {
 	defaults: { [key: string]: {} };
 }
 
-export const schemaId = 'vscode://schemas/settings';
+export const settingsSchema: IJSONSchema = { properties: {}, patternProperties: {}, additionalProperties: false, errorMessage: 'Unknown configuration setting' };
+export const resourceSettingsSchema: IJSONSchema = { properties: {}, patternProperties: {}, additionalProperties: false, errorMessage: 'Unknown configuration setting' };
+
 export const editorConfigurationSchemaId = 'vscode://schemas/settings/editor';
-export const resourceConfigurationSchemaId = 'vscode://schemas/settings/resource';
 const contributionRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 
 class ConfigurationRegistry implements IConfigurationRegistry {
 	private configurationContributors: IConfigurationNode[];
 	private configurationProperties: { [qualifiedKey: string]: IJSONSchema };
-	private configurationSchema: IJSONSchema;
 	private editorConfigurationSchema: IJSONSchema;
-	private resourceConfigurationSchema: IJSONSchema;
 	private _onDidRegisterConfiguration: Emitter<IConfigurationRegistry>;
 	private overrideIdentifiers: string[] = [];
 	private overridePropertyPattern: string;
 
 	constructor() {
 		this.configurationContributors = [];
-		this.configurationSchema = { properties: {}, patternProperties: {}, additionalProperties: false, errorMessage: 'Unknown configuration setting' };
 		this.editorConfigurationSchema = { properties: {}, patternProperties: {}, additionalProperties: false, errorMessage: 'Unknown editor configuration setting' };
-		this.resourceConfigurationSchema = { properties: {}, patternProperties: {}, additionalProperties: false, errorMessage: 'Not a resource configuration setting' };
 		this._onDidRegisterConfiguration = new Emitter<IConfigurationRegistry>();
 		this.configurationProperties = {};
 		this.computeOverridePropertyPattern();
 
-		contributionRegistry.registerSchema(schemaId, this.configurationSchema);
 		contributionRegistry.registerSchema(editorConfigurationSchemaId, this.editorConfigurationSchema);
-		contributionRegistry.registerSchema(resourceConfigurationSchemaId, this.resourceConfigurationSchema);
 	}
 
 	public get onDidRegisterConfiguration() {
@@ -208,12 +204,15 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	}
 
 	private registerJSONConfiguration(configuration: IConfigurationNode) {
-		let configurationSchema = this.configurationSchema;
 		function register(configuration: IConfigurationNode) {
 			let properties = configuration.properties;
 			if (properties) {
 				for (let key in properties) {
-					configurationSchema.properties[key] = properties[key];
+					settingsSchema.properties[key] = properties[key];
+					resourceSettingsSchema.properties[key] = clone(properties[key]);
+					if (properties[key].scope !== ConfigurationScope.RESOURCE) {
+						resourceSettingsSchema.properties[key].doNotSuggest = true;
+					}
 				}
 			}
 			let subNodes = configuration.allOf;
@@ -222,19 +221,17 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 			}
 		};
 		register(configuration);
-		contributionRegistry.registerSchema(schemaId, configurationSchema);
 	}
 
 	private updateSchemaForOverrideSettingsConfiguration(configuration: IConfigurationNode): void {
 		if (configuration.id !== SETTINGS_OVERRRIDE_NODE_ID) {
 			this.update(configuration);
 			contributionRegistry.registerSchema(editorConfigurationSchemaId, this.editorConfigurationSchema);
-			contributionRegistry.registerSchema(resourceConfigurationSchemaId, this.resourceConfigurationSchema);
 		}
 	}
 
 	private updateOverridePropertyPatternKey(): void {
-		let patternProperties: IJSONSchema = this.configurationSchema.patternProperties[this.overridePropertyPattern];
+		let patternProperties: IJSONSchema = settingsSchema.patternProperties[this.overridePropertyPattern];
 		if (!patternProperties) {
 			patternProperties = {
 				type: 'object',
@@ -243,10 +240,11 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 				$ref: editorConfigurationSchemaId
 			};
 		}
-		delete this.configurationSchema.patternProperties[this.overridePropertyPattern];
+		delete settingsSchema.patternProperties[this.overridePropertyPattern];
 		this.computeOverridePropertyPattern();
-		this.configurationSchema.patternProperties[this.overridePropertyPattern] = patternProperties;
-		contributionRegistry.registerSchema(schemaId, this.configurationSchema);
+
+		settingsSchema.patternProperties[this.overridePropertyPattern] = patternProperties;
+		resourceSettingsSchema.patternProperties[this.overridePropertyPattern] = patternProperties;
 	}
 
 	private update(configuration: IConfigurationNode): void {
@@ -255,11 +253,6 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 			for (let key in properties) {
 				if (properties[key].overridable) {
 					this.editorConfigurationSchema.properties[key] = this.getConfigurationProperties()[key];
-				}
-				switch (properties[key].scope) {
-					case ConfigurationScope.RESOURCE:
-						this.resourceConfigurationSchema.properties[key] = this.getConfigurationProperties()[key];
-						break;
 				}
 			}
 		}
