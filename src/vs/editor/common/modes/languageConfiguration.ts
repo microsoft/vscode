@@ -61,6 +61,12 @@ export interface LanguageConfiguration {
 	 * settings will be used.
 	 */
 	surroundingPairs?: IAutoClosingPair[];
+
+	/**
+	 * The language's folding rules.
+	 */
+	folding?: FoldingRules;
+
 	/**
 	 * **Deprecated** Do not use.
 	 *
@@ -89,7 +95,24 @@ export interface IndentationRule {
 	 * If a line matches this pattern, then its indentation should not be changed and it should not be evaluated against the other rules.
 	 */
 	unIndentedLinePattern?: RegExp;
+
 }
+
+/**
+ * Describes folding rules for a language.
+ */
+export interface FoldingRules {
+	indendationBasedFolding?: {
+		/**
+		 * Used by the indentation based strategy to decide wheter empty lines belong to the previous or the next block.
+		 * A language adheres to the off-side rule if blocks in that language are expressed by their indentation.
+		 * See [wikipedia](https://en.wikipedia.org/wiki/Off-side_rule) for more information.
+		 * If not set, `false` is used and empty lines belong to the previous block.
+		 */
+		offSide: boolean;
+	};
+}
+
 
 /**
  * Describes a rule to be evaluated when pressing Enter.

@@ -18,7 +18,7 @@ import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from 'vs/editor/common
 import { createScopedLineTokens } from 'vs/editor/common/modes/supports';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Range } from 'vs/editor/common/core/range';
-import { IndentAction, EnterAction, IAutoClosingPair, LanguageConfiguration, IndentationRule } from 'vs/editor/common/modes/languageConfiguration';
+import { IndentAction, EnterAction, IAutoClosingPair, LanguageConfiguration, IndentationRule, FoldingRules } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageIdentifier, LanguageId } from 'vs/editor/common/modes';
 
 /**
@@ -55,6 +55,7 @@ export class RichEditSupport {
 	public readonly indentRulesSupport: IndentRulesSupport;
 	public readonly brackets: RichEditBrackets;
 	public readonly indentationRules: IndentationRule;
+	public readonly foldingRules: FoldingRules;
 
 	constructor(languageIdentifier: LanguageIdentifier, previous: RichEditSupport, rawConf: LanguageConfiguration) {
 
@@ -82,6 +83,8 @@ export class RichEditSupport {
 		if (this._conf.indentationRules) {
 			this.indentRulesSupport = new IndentRulesSupport(this._conf.indentationRules);
 		}
+
+		this.foldingRules = this._conf.folding || {};
 	}
 
 	private static _mergeConf(prev: LanguageConfiguration, current: LanguageConfiguration): LanguageConfiguration {
@@ -93,6 +96,7 @@ export class RichEditSupport {
 			onEnterRules: (prev ? current.onEnterRules || prev.onEnterRules : current.onEnterRules),
 			autoClosingPairs: (prev ? current.autoClosingPairs || prev.autoClosingPairs : current.autoClosingPairs),
 			surroundingPairs: (prev ? current.surroundingPairs || prev.surroundingPairs : current.surroundingPairs),
+			folding: (prev ? current.folding || prev.folding : current.folding),
 			__electricCharacterSupport: (prev ? current.__electricCharacterSupport || prev.__electricCharacterSupport : current.__electricCharacterSupport),
 		};
 	}
@@ -272,9 +276,15 @@ export class LanguageConfigurationRegistryImpl {
 		return ensureValidWordDefinition(value.wordDefinition || null);
 	}
 
+	public getFoldingRules(languageId: LanguageId): FoldingRules {
+		let value = this._getRichEditSupport(languageId);
+		if (!value) {
+			return {};
+		}
+		return value.foldingRules;
+	}
 
-
-	// beigin Indent Rules
+	// begin Indent Rules
 
 	public getIndentRulesSupport(languageId: LanguageId): IndentRulesSupport {
 		let value = this._getRichEditSupport(languageId);

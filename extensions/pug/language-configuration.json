@@ -20,5 +20,10 @@
 		["(", ")"],
 		["'", "'"],
 		["\"", "\""]
-	]
+	],
+	"folding": {
+		"indendationBasedFolding": {
+			"offSide": true
+		}
+	}
 }

@@ -6,6 +6,7 @@
 'use strict';
 
 import { ITokenizedModel } from 'vs/editor/common/editorCommon';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export class IndentRange {
 	_indentRangeBrand: void;
@@ -32,17 +33,23 @@ export class IndentRange {
 export function computeRanges(model: ITokenizedModel, minimumRangeSize: number = 1): IndentRange[] {
 
 	let result: IndentRange[] = [];
+	let foldingRules = LanguageConfigurationRegistry.getFoldingRules(model.getLanguageIdentifier().id);
+	let offSide = foldingRules && foldingRules.indendationBasedFolding && foldingRules.indendationBasedFolding.offSide;
 
 	let previousRegions: { indent: number, line: number }[] = [];
 	previousRegions.push({ indent: -1, line: model.getLineCount() + 1 }); // sentinel, to make sure there's at least one entry
 
 	for (let line = model.getLineCount(); line > 0; line--) {
 		let indent = model.getIndentLevel(line);
+		let previous = previousRegions[previousRegions.length - 1];
 		if (indent === -1) {
+			if (offSide) {
+				// for offSide languages, empty lines are associated to the next block
+				previous.line = line;
+			}
 			continue; // only whitespace
 		}
 
-		let previous = previousRegions[previousRegions.length - 1];
 
 		if (previous.indent > indent) {
 			// discard all regions with larger indent

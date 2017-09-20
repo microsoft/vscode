@@ -237,6 +237,9 @@ export class FoldingController implements IFoldingController {
 		this.localToDispose.push(this.contentChangedScheduler);
 		this.localToDispose.push(this.cursorChangedScheduler);
 
+		this.localToDispose.push(model.onDidChangeLanguageConfiguration(e => {
+			this.contentChangedScheduler.schedule();
+		}));
 		this.localToDispose.push(this.editor.onDidChangeModelContent(e => this.contentChangedScheduler.schedule()));
 		this.localToDispose.push(this.editor.onDidChangeCursorPosition((e) => {
 

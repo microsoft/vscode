@@ -37,5 +37,10 @@
 		["(", ")"],
 		["[", "]"],
 		["`", "`"]
-	]
+	],
+	"folding": {
+		"indendationBasedFolding": {
+			"offSide": true
+		}
+	}
 }
