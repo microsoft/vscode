@@ -32,7 +32,8 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		@IFileService private readonly _fileService: IFileService
 	) {
 		this._proxy = extHostContext.get(ExtHostContext.ExtHostWorkspace);
-		this._contextService.onDidChangeWorkbenchState(this._onDidChangeWorkspaceState, this, this._toDispose);
+		this._contextService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspace, this, this._toDispose);
+		this._contextService.onDidChangeWorkbenchState(this._onDidChangeWorkspace, this, this._toDispose);
 	}
 
 	dispose(): void {
@@ -46,7 +47,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	// --- workspace ---
 
-	private _onDidChangeWorkspaceState(): void {
+	private _onDidChangeWorkspace(): void {
 		this._proxy.$acceptWorkspaceData(this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : this._contextService.getWorkspace());
 	}
 
