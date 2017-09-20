@@ -26,7 +26,8 @@ import { IExtensionsConfiguration, ConfigurationKey } from 'vs/workbench/parts/e
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import * as fs from 'fs';
+import * as pfs from 'vs/base/node/pfs';
+import * as os from 'os';
 import { flatten, distinct } from 'vs/base/common/arrays';
 
 interface IExtensionsContent {
@@ -68,6 +69,10 @@ export class ExtensionTipsService implements IExtensionTipsService {
 
 		this._suggestTips();
 		this._suggestWorkspaceRecommendations();
+
+		// Executable based recommendations carry out a lot of file stats, so run them after 10 secs
+		// So that the startup is not affected
+		setTimeout(() => this._suggestBasedOnExecutables(this._exeBasedRecommendations), 10000);
 	}
 
 	getWorkspaceRecommendations(): TPromise<string[]> {
@@ -104,7 +109,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		const fileBased = Object.keys(this._fileBasedRecommendations)
 			.filter(recommendation => allRecomendations.indexOf(recommendation) !== -1);
 
-		const exeBased = distinct(this._suggestBasedOnExecutables());
+		const exeBased = distinct(this._exeBasedRecommendations);
 
 		this.telemetryService.publicLog('extensionRecommendations:unfiltered', { fileBased, exeBased });
 
@@ -331,42 +336,38 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		});
 	}
 
-	private _suggestBasedOnExecutables(): string[] {
-		if (!process.env.PATH || this._exeBasedRecommendations.length > 0) {
-			return this._exeBasedRecommendations;
-		}
-
-		let envpaths = process.env.PATH.split(process.platform === 'win32' ? ';' : ':');
+	private _suggestBasedOnExecutables(recommendations: string[]): void {
+		const homeDir = os.homedir();
 		let foundExecutables: Set<string> = new Set<string>();
+
+		let findExecutable = (exeName, path) => {
+			return pfs.fileExists(path).then(exists => {
+				if (!foundExecutables.has(exeName)) {
+					foundExecutables.add(exeName);
+					recommendations.push(...product.exeBasedExtensionTips[exeName]['recommendations']);
+				}
+			});
+		};
 
 		// Loop through recommended extensions
 		forEach(product.exeBasedExtensionTips, entry => {
-			let executables = entry.value.split(',');
+			if (typeof entry.value !== 'object' || !Array.isArray(entry.value['recommendations'])) {
+				return;
+			}
 
-			// Loop through executables that would result in recommending current extension
-			for (let i = 0; i < executables.length; i++) {
-				if (!foundExecutables.has(executables[i])) {
-
-					// Loop through paths in PATH to find current executable
-					for (let pathEntry of envpaths) {
-						let fullPath = paths.join(pathEntry, executables[i]);
-						if (process.platform === 'win32') {
-							fullPath += '.exe';
-						}
-						if (fs.existsSync(fullPath)) {
-							foundExecutables.add(executables[i]);
-							break;
-						}
-					}
+			let exeName = entry.key;
+			if (process.platform === 'win32') {
+				let windowsPath = entry.value['windowsPath'];
+				if (!windowsPath || typeof windowsPath !== 'string') {
+					return;
 				}
-				if (foundExecutables.has(executables[i])) {
-					this._exeBasedRecommendations.push(entry.key);
-					break;
-				}
+				windowsPath = windowsPath.replace('%USERPROFILE%', process.env['USERPROFILE']);
+				findExecutable(exeName, windowsPath);
+			} else {
+				findExecutable(exeName, paths.join('/usr/local/bin', exeName));
+				findExecutable(exeName, paths.join(homeDir, exeName));
 			}
 		});
-
-		return this._exeBasedRecommendations;
 	}
 
 	private setIgnoreRecommendationsConfig(configVal: boolean) {
