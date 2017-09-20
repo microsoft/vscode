@@ -169,7 +169,7 @@ export class CommandCenter {
 		const opts: TextDocumentShowOptions = {
 			preserveFocus,
 			preview,
-			viewColumn: window.activeTextEditor && window.activeTextEditor.viewColumn || ViewColumn.One
+			viewColumn: ViewColumn.Active
 		};
 
 		const activeTextEditor = window.activeTextEditor;
@@ -365,7 +365,7 @@ export class CommandCenter {
 			const opts: TextDocumentShowOptions = {
 				preserveFocus,
 				preview: preview,
-				viewColumn: activeTextEditor && activeTextEditor.viewColumn || ViewColumn.One
+				viewColumn: ViewColumn.Active
 			};
 
 			if (activeTextEditor && activeTextEditor.document.uri.fsPath === uri.fsPath) {
