@@ -3311,6 +3311,7 @@ declare module 'vscode' {
 	 * used to show editors side by side.
 	 */
 	export enum ViewColumn {
+		Active = -1,
 		One = 1,
 		Two = 2,
 		Three = 3

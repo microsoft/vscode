@@ -115,6 +115,8 @@ export function fromViewColumn(column?: vscode.ViewColumn): EditorPosition {
 		editorColumn = EditorPosition.TWO;
 	} else if (column === <number>types.ViewColumn.Three) {
 		editorColumn = EditorPosition.THREE;
+	} else if (column === <number>types.ViewColumn.Active) {
+		editorColumn = undefined;
 	}
 	return editorColumn;
 }
