@@ -9,6 +9,7 @@ import * as PConst from '../protocol.const';
 
 import { TypeScriptBaseCodeLensProvider, ReferencesCodeLens } from './baseCodeLensProvider';
 import { ITypescriptServiceClient } from '../typescriptService';
+import { textSpanToRange } from '../utils/convert';
 
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
@@ -50,9 +51,7 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 					// Only take first line on implementation: https://github.com/Microsoft/vscode/issues/23924
 					new Location(this.client.asUrl(reference.file),
 						reference.start.line === reference.end.line
-							? new Range(
-								reference.start.line - 1, reference.start.offset - 1,
-								reference.end.line - 1, reference.end.offset - 1)
+							? textSpanToRange(reference)
 							: new Range(
 								reference.start.line - 1, reference.start.offset - 1,
 								reference.start.line, 0)))

@@ -7,6 +7,7 @@ import { CodeActionProvider, TextDocument, Range, CancellationToken, CodeActionC
 
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
+import { textSpanToRange } from '../utils/convert';
 
 interface NumberSet {
 	[key: number]: boolean;
@@ -112,9 +113,7 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 		for (const change of action.changes) {
 			for (const textChange of change.textChanges) {
 				workspaceEdit.replace(this.client.asUrl(change.fileName),
-					new Range(
-						textChange.start.line - 1, textChange.start.offset - 1,
-						textChange.end.line - 1, textChange.end.offset - 1),
+					textSpanToRange(textChange),
 					textChange.newText);
 			}
 		}

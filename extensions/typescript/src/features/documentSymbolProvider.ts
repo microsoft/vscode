@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DocumentSymbolProvider, SymbolInformation, SymbolKind, TextDocument, Range, Location, CancellationToken, Uri } from 'vscode';
+import { DocumentSymbolProvider, SymbolInformation, SymbolKind, TextDocument, Location, CancellationToken, Uri } from 'vscode';
 
 import * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
 import { ITypescriptServiceClient } from '../typescriptService';
+import { textSpanToRange } from '../utils/convert';
 
 const outlineTypeTable: { [kind: string]: SymbolKind } = Object.create(null);
 outlineTypeTable[PConst.Kind.module] = SymbolKind.Module;
@@ -25,9 +26,6 @@ outlineTypeTable[PConst.Kind.variable] = SymbolKind.Variable;
 outlineTypeTable[PConst.Kind.function] = SymbolKind.Function;
 outlineTypeTable[PConst.Kind.localFunction] = SymbolKind.Function;
 
-function textSpan2Range(value: Proto.TextSpan): Range {
-	return new Range(value.start.line - 1, value.start.offset - 1, value.end.line - 1, value.end.offset - 1);
-}
 
 export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolProvider {
 	public constructor(
@@ -73,7 +71,7 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 			let result = new SymbolInformation(item.text,
 				outlineTypeTable[item.kind as string] || SymbolKind.Variable,
 				containerLabel ? containerLabel : '',
-				new Location(resource, textSpan2Range(item.spans[0])));
+				new Location(resource, textSpanToRange(item.spans[0])));
 			foldingMap[key] = result;
 			bucket.push(result);
 		}
@@ -88,7 +86,7 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 		const result = new SymbolInformation(item.text,
 			outlineTypeTable[item.kind as string] || SymbolKind.Variable,
 			containerLabel ? containerLabel : '',
-			new Location(resource, textSpan2Range(item.spans[0]))
+			new Location(resource, textSpanToRange(item.spans[0]))
 		);
 		if (item.childItems && item.childItems.length > 0) {
 			for (const child of item.childItems) {

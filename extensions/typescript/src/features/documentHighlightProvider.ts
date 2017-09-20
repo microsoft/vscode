@@ -7,6 +7,7 @@ import { DocumentHighlightProvider, DocumentHighlight, DocumentHighlightKind, Te
 
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
+import { textSpanToRange } from '../utils/convert';
 
 
 export default class TypeScriptDocumentHighlightProvider implements DocumentHighlightProvider {
@@ -37,10 +38,10 @@ export default class TypeScriptDocumentHighlightProvider implements DocumentHigh
 						return [];
 					}
 				}
-				return data.map((item) => {
-					return new DocumentHighlight(new Range(item.start.line - 1, item.start.offset - 1, item.end.line - 1, item.end.offset - 1),
-						item.isWriteAccess ? DocumentHighlightKind.Write : DocumentHighlightKind.Read);
-				});
+				return data.map(item =>
+					new DocumentHighlight(
+						textSpanToRange(item),
+						item.isWriteAccess ? DocumentHighlightKind.Write : DocumentHighlightKind.Read));
 			}
 			return [];
 		}, () => {

@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RenameProvider, WorkspaceEdit, TextDocument, Position, Range, CancellationToken } from 'vscode';
+import { RenameProvider, WorkspaceEdit, TextDocument, Position, CancellationToken } from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
+import { textSpanToRange } from '../utils/convert';
 
 export default class TypeScriptRenameProvider implements RenameProvider {
 	public constructor(
@@ -49,9 +50,7 @@ export default class TypeScriptRenameProvider implements RenameProvider {
 					continue;
 				}
 				for (const textSpan of spanGroup.locs) {
-					result.replace(resource,
-						new Range(textSpan.start.line - 1, textSpan.start.offset - 1, textSpan.end.line - 1, textSpan.end.offset - 1),
-						newName);
+					result.replace(resource, textSpanToRange(textSpan), newName);
 				}
 			}
 			return result;

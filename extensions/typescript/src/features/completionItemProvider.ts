@@ -11,6 +11,7 @@ import TypingsStatus from '../utils/typingsStatus';
 import * as PConst from '../protocol.const';
 import { CompletionEntry, CompletionsRequestArgs, CompletionDetailsRequestArgs, CompletionEntryDetails, FileLocationRequestArgs } from '../protocol';
 import * as Previewer from './previewer';
+import { textSpanToRange } from '../utils/convert';
 
 import * as nls from 'vscode-nls';
 let localize = nls.loadMessageBundle();
@@ -32,7 +33,7 @@ class MyCompletionItem extends CompletionItem {
 			let span: protocol.TextSpan = entry.replacementSpan;
 			// The indexing for the range returned by the server uses 1-based indexing.
 			// We convert to 0-based indexing.
-			this.textEdit = TextEdit.replace(new Range(span.start.line - 1, span.start.offset - 1, span.end.line - 1, span.end.offset - 1), entry.name);
+			this.textEdit = TextEdit.replace(textSpanToRange(span), entry.name);
 		} else {
 			// Try getting longer, prefix based range for completions that span words
 			const wordRange = document.getWordRangeAtPosition(position);

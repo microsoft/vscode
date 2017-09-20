@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TextDocument, Position, Range, CancellationToken, Location } from 'vscode';
+import { TextDocument, Position, CancellationToken, Location } from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
+import { textSpanToRange } from '../utils/convert';
 
 export default class TypeScriptDefinitionProviderBase {
 	constructor(
@@ -37,7 +38,7 @@ export default class TypeScriptDefinitionProviderBase {
 				if (resource === null) {
 					return null;
 				} else {
-					return new Location(resource, new Range(location.start.line - 1, location.start.offset - 1, location.end.line - 1, location.end.offset - 1));
+					return new Location(resource, textSpanToRange(location));
 				}
 			}).filter(x => x !== null) as Location[];
 		}, () => {

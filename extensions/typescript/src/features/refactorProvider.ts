@@ -9,6 +9,7 @@ import { CodeActionProvider, TextDocument, Range, CancellationToken, CodeActionC
 
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
+import { textSpanToRange } from '../utils/convert';
 
 
 export default class TypeScriptRefactorProvider implements CodeActionProvider {
@@ -85,9 +86,7 @@ export default class TypeScriptRefactorProvider implements CodeActionProvider {
 		for (const edit of edits) {
 			for (const textChange of edit.textChanges) {
 				workspaceEdit.replace(this.client.asUrl(edit.fileName),
-					new Range(
-						textChange.start.line - 1, textChange.start.offset - 1,
-						textChange.end.line - 1, textChange.end.offset - 1),
+					textSpanToRange(textChange),
 					textChange.newText);
 			}
 		}

@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { HoverProvider, Hover, TextDocument, Position, Range, CancellationToken } from 'vscode';
+import { HoverProvider, Hover, TextDocument, Position, CancellationToken } from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
 import { tagsMarkdownPreview } from './previewer';
+import { textSpanToRange } from '../utils/convert';
 
 export default class TypeScriptHoverProvider implements HoverProvider {
 
@@ -31,7 +32,7 @@ export default class TypeScriptHoverProvider implements HoverProvider {
 				const data = response.body;
 				return new Hover(
 					TypeScriptHoverProvider.getContents(data),
-					new Range(data.start.line - 1, data.start.offset - 1, data.end.line - 1, data.end.offset - 1));
+					textSpanToRange(data));
 			}
 		} catch (e) {
 			// noop

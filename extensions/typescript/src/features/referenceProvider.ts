@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ReferenceProvider, Location, TextDocument, Position, Range, CancellationToken } from 'vscode';
+import { ReferenceProvider, Location, TextDocument, Position, CancellationToken } from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
+import { textSpanToRange } from '../utils/convert';
 
 export default class TypeScriptReferenceSupport implements ReferenceProvider {
 	public constructor(
@@ -35,9 +36,7 @@ export default class TypeScriptReferenceSupport implements ReferenceProvider {
 					continue;
 				}
 				const url = this.client.asUrl(ref.file);
-				const location = new Location(
-					url,
-					new Range(ref.start.line - 1, ref.start.offset - 1, ref.end.line - 1, ref.end.offset - 1));
+				const location = new Location(url, textSpanToRange(ref));
 				result.push(location);
 			}
 			return result;

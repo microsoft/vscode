@@ -9,6 +9,7 @@ import * as PConst from '../protocol.const';
 
 import { TypeScriptBaseCodeLensProvider, ReferencesCodeLens } from './baseCodeLensProvider';
 import { ITypescriptServiceClient } from '../typescriptService';
+import { textSpanToRange } from '../utils/convert';
 
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
@@ -47,10 +48,7 @@ export default class TypeScriptReferencesCodeLensProvider extends TypeScriptBase
 
 			const locations = response.body.refs
 				.map(reference =>
-					new Location(this.client.asUrl(reference.file),
-						new Range(
-							reference.start.line - 1, reference.start.offset - 1,
-							reference.end.line - 1, reference.end.offset - 1)))
+					new Location(this.client.asUrl(reference.file), textSpanToRange(reference)))
 				.filter(location =>
 					// Exclude original definition from references
 					!(location.uri.fsPath === codeLens.document.fsPath &&
