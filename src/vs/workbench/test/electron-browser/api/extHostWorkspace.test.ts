@@ -11,7 +11,7 @@ import { basename } from 'path';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { TestThreadService } from './testThreadService';
 import { normalize } from 'vs/base/common/paths';
-import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 suite('ExtHostWorkspace', function () {
 
@@ -195,7 +195,7 @@ suite('ExtHostWorkspace', function () {
 		sub.dispose();
 	});
 
-	function aWorkspaceFolder(uri: URI, index: number, name: string = ''): WorkspaceFolder {
+	function aWorkspaceFolder(uri: URI, index: number, name: string = ''): IWorkspaceFolder {
 		return {
 			uri,
 			index,

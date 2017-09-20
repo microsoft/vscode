@@ -11,7 +11,7 @@ import * as Objects from 'vs/base/common/objects';
 
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ProblemMatcher } from 'vs/platform/markers/common/problemMatcher';
-import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 export interface ShellConfiguration {
 	/**
@@ -231,7 +231,7 @@ export namespace TaskSourceKind {
 }
 
 export interface TaskSourceConfigElement {
-	workspaceFolder: WorkspaceFolder;
+	workspaceFolder: IWorkspaceFolder;
 	file: string;
 	index: number;
 	element: any;
@@ -249,7 +249,7 @@ export interface ExtensionTaskSource {
 	readonly label: string;
 	readonly extension: string;
 	readonly scope: TaskScope;
-	readonly workspaceFolder: WorkspaceFolder | undefined;
+	readonly workspaceFolder: IWorkspaceFolder | undefined;
 }
 
 export interface ExtensionTaskSourceTransfer {
@@ -269,7 +269,7 @@ export interface TaskIdentifier {
 }
 
 export interface TaskDependency {
-	workspaceFolder: WorkspaceFolder;
+	workspaceFolder: IWorkspaceFolder;
 	task: string;
 }
 
@@ -432,7 +432,7 @@ export namespace Task {
 		}
 	}
 
-	export function getWorkspaceFolder(task: Task): WorkspaceFolder | undefined {
+	export function getWorkspaceFolder(task: Task): IWorkspaceFolder | undefined {
 		if (CustomTask.is(task)) {
 			return task._source.config.workspaceFolder;
 		} else if (ContributedTask.is(task)) {
@@ -506,7 +506,7 @@ export class TaskSorter {
 
 	private _order: Map<string, number> = new Map();
 
-	constructor(workspaceFolders: WorkspaceFolder[]) {
+	constructor(workspaceFolders: IWorkspaceFolder[]) {
 		for (let i = 0; i < workspaceFolders.length; i++) {
 			this._order.set(workspaceFolders[i].uri.toString(), i);
 		}

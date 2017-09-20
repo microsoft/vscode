@@ -22,9 +22,9 @@ export enum WorkbenchState {
 }
 
 export interface IWorkspaceFoldersChangeEvent {
-	added: WorkspaceFolder[];
-	removed: WorkspaceFolder[];
-	changed: WorkspaceFolder[];
+	added: IWorkspaceFolder[];
+	removed: IWorkspaceFolder[];
+	changed: IWorkspaceFolder[];
 }
 
 export interface IWorkspaceContextService {
@@ -64,7 +64,7 @@ export interface IWorkspaceContextService {
 	 * Returns the folder for the given resource from the workspace.
 	 * Can be null if there is no workspace or the resource is not inside the workspace.
 	 */
-	getWorkspaceFolder(resource: URI): WorkspaceFolder;
+	getWorkspaceFolder(resource: URI): IWorkspaceFolder;
 
 	/**
 	 * Return `true` if the current workspace has the given identifier otherwise `false`.
@@ -79,7 +79,7 @@ export interface IWorkspaceContextService {
 	/**
 	 * Given a workspace relative path and workspace folder, returns the resource with the absolute path.
 	 */
-	toResource: (workspaceRelativePath: string, workspaceFolder: WorkspaceFolder) => URI;
+	toResource: (workspaceRelativePath: string, workspaceFolder: IWorkspaceFolder) => URI;
 }
 
 export interface IWorkspace {
@@ -97,7 +97,7 @@ export interface IWorkspace {
 	/**
 	 * Folders in the workspace.
 	 */
-	readonly folders: WorkspaceFolder[];
+	readonly folders: IWorkspaceFolder[];
 
 	/**
 	 * the location of the workspace configuration
@@ -105,7 +105,7 @@ export interface IWorkspace {
 	readonly configuration?: URI;
 }
 
-export interface WorkspaceFolder {
+export interface IWorkspaceFolder {
 
 	/**
 	 * The associated URI for this workspace folder.
@@ -131,13 +131,13 @@ export interface WorkspaceFolder {
 
 export class Workspace implements IWorkspace {
 
-	private _foldersMap: TrieMap<WorkspaceFolder> = new TrieMap<WorkspaceFolder>();
-	private _folders: WorkspaceFolder[];
+	private _foldersMap: TrieMap<IWorkspaceFolder> = new TrieMap<IWorkspaceFolder>();
+	private _folders: IWorkspaceFolder[];
 
 	constructor(
 		private _id: string,
 		private _name: string = '',
-		folders: WorkspaceFolder[] = [],
+		folders: IWorkspaceFolder[] = [],
 		private _configuration: URI = null,
 		private _ctime?: number
 	) {
@@ -152,11 +152,11 @@ export class Workspace implements IWorkspace {
 		this.folders = workspace.folders;
 	}
 
-	public get folders(): WorkspaceFolder[] {
+	public get folders(): IWorkspaceFolder[] {
 		return this._folders;
 	}
 
-	public set folders(folders: WorkspaceFolder[]) {
+	public set folders(folders: IWorkspaceFolder[]) {
 		this._folders = folders;
 		this.updateFoldersMap();
 	}
@@ -185,7 +185,7 @@ export class Workspace implements IWorkspace {
 		this._configuration = configuration;
 	}
 
-	public getFolder(resource: URI): WorkspaceFolder {
+	public getFolder(resource: URI): IWorkspaceFolder {
 		if (!resource) {
 			return null;
 		}
@@ -194,7 +194,7 @@ export class Workspace implements IWorkspace {
 	}
 
 	private updateFoldersMap(): void {
-		this._foldersMap = new TrieMap<WorkspaceFolder>();
+		this._foldersMap = new TrieMap<IWorkspaceFolder>();
 		for (const folder of this.folders) {
 			this._foldersMap.insert(folder.uri.toString(), folder);
 		}
@@ -205,13 +205,13 @@ export class Workspace implements IWorkspace {
 	}
 }
 
-export function toWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], relativeTo?: URI): WorkspaceFolder[] {
+export function toWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], relativeTo?: URI): IWorkspaceFolder[] {
 	let workspaceFolders = parseWorkspaceFolders(configuredFolders, relativeTo);
 	return ensureUnique(coalesce(workspaceFolders))
 		.map(({ uri, raw, name }, index) => ({ uri, raw, name: name || paths.basename(uri.fsPath), index }));
 }
 
-function parseWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], relativeTo: URI): WorkspaceFolder[] {
+function parseWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], relativeTo: URI): IWorkspaceFolder[] {
 	return configuredFolders.map((configuredFolder, index) => {
 		const uri = toUri(configuredFolder.path, relativeTo);
 		if (!uri) {
@@ -233,6 +233,6 @@ function toUri(path: string, relativeTo: URI): URI {
 	return null;
 }
 
-function ensureUnique(folders: WorkspaceFolder[]): WorkspaceFolder[] {
+function ensureUnique(folders: IWorkspaceFolder[]): IWorkspaceFolder[] {
 	return distinct(folders, folder => isLinux ? folder.uri.fsPath : folder.uri.fsPath.toLowerCase());
 }

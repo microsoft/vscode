@@ -12,7 +12,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IQuickOpenService, IPickOpenEntry, IFilePickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
-import { IWorkspaceContextService, WorkbenchState, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { PICK_WORKSPACE_FOLDER_COMMAND } from 'vs/workbench/browser/actions/workspaceActions';
 
@@ -128,7 +128,7 @@ export class OpenFolderSettingsAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		return this.commandService.executeCommand<WorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND)
+		return this.commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND)
 			.then(workspaceFolder => {
 				if (workspaceFolder) {
 					return this.preferencesService.openFolderSettings(workspaceFolder.uri);

@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { Workspace, WorkspaceFolder, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
+import { Workspace, IWorkspaceFolder, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import URI from 'vs/base/common/uri';
 
 suite('Workspace', () => {
@@ -191,7 +191,7 @@ suite('Workspace', () => {
 		assert.equal(actual[2].name, 'test1');
 	});
 
-	function aWorkspaceFolder(uri: URI, index: number = 0): WorkspaceFolder {
+	function aWorkspaceFolder(uri: URI, index: number = 0): IWorkspaceFolder {
 		return {
 			uri, raw: { path: uri.fsPath }, index, name: ''
 		};

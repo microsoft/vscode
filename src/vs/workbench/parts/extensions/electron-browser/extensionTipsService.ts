@@ -19,7 +19,7 @@ import { IChoiceService, IMessageService } from 'vs/platform/message/common/mess
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import Severity from 'vs/base/common/severity';
-import { IWorkspaceContextService, WorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { Schemas } from 'vs/base/common/network';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IExtensionsConfiguration, ConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
@@ -84,7 +84,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		return TPromise.as([]);
 	}
 
-	private resolveWorkspaceFolderRecommendations(workspaceFolder: WorkspaceFolder): TPromise<string[]> {
+	private resolveWorkspaceFolderRecommendations(workspaceFolder: IWorkspaceFolder): TPromise<string[]> {
 		return this.fileService.resolveContent(this.contextService.toResource(paths.join('.vscode', 'extensions.json'), workspaceFolder))
 			.then(content => this.processWorkspaceRecommendations(json.parse(content.value, [])), err => []);
 	}

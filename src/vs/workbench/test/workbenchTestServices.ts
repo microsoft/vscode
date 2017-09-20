@@ -27,7 +27,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IEditorInput, IEditorOptions, Position, Direction, IEditor, IResourceInput, ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IMessageService, IConfirmation } from 'vs/platform/message/common/message';
-import { IWorkspaceContextService, IWorkspace as IWorkbenchWorkspace, WorkbenchState, WorkspaceFolder, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspace as IWorkbenchWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { ILifecycleService, ShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { EditorStacksModel } from 'vs/workbench/common/editor/editorStacksModel';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -97,7 +97,7 @@ export class TestContextService implements IWorkspaceContextService {
 		return this._onDidChangeWorkbenchState.event;
 	}
 
-	public getFolders(): WorkspaceFolder[] {
+	public getFolders(): IWorkspaceFolder[] {
 		return this.workspace ? this.workspace.folders : [];
 	}
 
@@ -115,7 +115,7 @@ export class TestContextService implements IWorkspaceContextService {
 		return this.workspace;
 	}
 
-	public getWorkspaceFolder(resource: URI): WorkspaceFolder {
+	public getWorkspaceFolder(resource: URI): IWorkspaceFolder {
 		return this.isInsideWorkspace(resource) ? this.workspace.folders[0] : null;
 	}
 

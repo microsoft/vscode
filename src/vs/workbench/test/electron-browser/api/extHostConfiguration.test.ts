@@ -15,7 +15,7 @@ import { ConfigurationTarget, ConfigurationEditingErrorCode, ConfigurationEditin
 import { ConfigurationModel } from 'vs/platform/configuration/common/configuration';
 import { TestThreadService } from './testThreadService';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
-import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 
 suite('ExtHostConfiguration', function () {
@@ -405,7 +405,7 @@ suite('ExtHostConfiguration', function () {
 			.then(() => assert.ok(false), err => { /* expecting rejection */ });
 	});
 
-	function aWorkspaceFolder(raw: IStoredWorkspaceFolder, index: number, name: string = ''): WorkspaceFolder {
+	function aWorkspaceFolder(raw: IStoredWorkspaceFolder, index: number, name: string = ''): IWorkspaceFolder {
 		return {
 			uri: URI.file(raw.path),
 			index,

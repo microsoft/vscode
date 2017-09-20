@@ -20,7 +20,7 @@ import encodingLib = require('vs/base/node/encoding');
 import utils = require('vs/workbench/services/files/test/node/utils');
 import { onError } from 'vs/base/test/common/utils';
 import { TestContextService, TestTextResourceConfigurationService } from 'vs/workbench/test/workbenchTestServices';
-import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { Workspace, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
 suite('FileService', () => {
@@ -853,7 +853,7 @@ suite('FileService', () => {
 		});
 	});
 
-	function aWorkspaceFolder(path: string, index: number, name: string = ''): WorkspaceFolder {
+	function aWorkspaceFolder(path: string, index: number, name: string = ''): IWorkspaceFolder {
 		return {
 			uri: uri.file(path),
 			index,

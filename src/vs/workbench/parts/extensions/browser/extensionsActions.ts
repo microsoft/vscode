@@ -26,7 +26,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Query } from 'vs/workbench/parts/extensions/common/extensionQuery';
 import { IFileService, IContent } from 'vs/platform/files/common/files';
-import { IWorkspaceContextService, WorkbenchState, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IExtensionService, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import URI from 'vs/base/common/uri';
@@ -1410,7 +1410,7 @@ export class ConfigureWorkspaceFolderRecommendedExtensionsAction extends Abstrac
 	}
 
 	public run(): TPromise<any> {
-		return this.commandService.executeCommand<WorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND)
+		return this.commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND)
 			.then(workspaceFolder => {
 				if (workspaceFolder) {
 					return this.openExtensionsFile(this.contextService.toResource(paths.join('.vscode', 'extensions.json'), workspaceFolder));

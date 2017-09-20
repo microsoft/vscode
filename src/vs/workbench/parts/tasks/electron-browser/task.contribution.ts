@@ -66,7 +66,7 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IConfigurationEditingService, ConfigurationTarget, IConfigurationValue } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IWorkspaceContextService, WorkbenchState, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IOutputService, IOutputChannelRegistry, Extensions as OutputExt, IOutputChannel } from 'vs/workbench/parts/output/common/output';
@@ -618,11 +618,11 @@ interface WorkspaceTaskResult {
 }
 
 interface WorkspaceFolderTaskResult extends WorkspaceTaskResult {
-	workspaceFolder: WorkspaceFolder;
+	workspaceFolder: IWorkspaceFolder;
 }
 
 interface WorkspaceFolderConfigurationResult {
-	workspaceFolder: WorkspaceFolder;
+	workspaceFolder: IWorkspaceFolder;
 	config: TaskConfig.ExternalTaskRunnerConfiguration;
 	hasErrors: boolean;
 }
@@ -641,7 +641,7 @@ class TaskMap {
 		this._store.forEach(callback);
 	}
 
-	public get(workspaceFolder: WorkspaceFolder | string): Task[] {
+	public get(workspaceFolder: IWorkspaceFolder | string): Task[] {
 		let result: Task[] = Types.isString(workspaceFolder) ? this._store.get(workspaceFolder) : this._store.get(workspaceFolder.uri.toString());
 		if (!result) {
 			result = [];
@@ -650,11 +650,11 @@ class TaskMap {
 		return result;
 	}
 
-	public has(workspaceFolder: WorkspaceFolder): boolean {
+	public has(workspaceFolder: IWorkspaceFolder): boolean {
 		return this._store.has(workspaceFolder.uri.toString());
 	}
 
-	public add(workspaceFolder: WorkspaceFolder | string, ...task: Task[]): void {
+	public add(workspaceFolder: IWorkspaceFolder | string, ...task: Task[]): void {
 		let values = Types.isString(workspaceFolder) ? this._store.get(workspaceFolder) : this._store.get(workspaceFolder.uri.toString());
 		if (!values) {
 			values = [];
@@ -702,7 +702,7 @@ class TaskService extends EventEmitter implements ITaskService {
 	private _configHasErrors: boolean;
 	private _schemaVersion: JsonSchemaVersion;
 	private _executionEngine: ExecutionEngine;
-	private _workspaceFolders: WorkspaceFolder[];
+	private _workspaceFolders: IWorkspaceFolder[];
 	private _providers: Map<number, ITaskProvider>;
 
 	private _workspaceTasksPromise: TPromise<Map<string, WorkspaceFolderTaskResult>>;
@@ -860,7 +860,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		return this._providers.delete(handle);
 	}
 
-	public getTask(folder: WorkspaceFolder | string, alias: string): TPromise<Task> {
+	public getTask(folder: IWorkspaceFolder | string, alias: string): TPromise<Task> {
 		return this.getGroupedTasks().then((map) => {
 			let values = map.get(folder);
 			if (!values) {
@@ -1217,7 +1217,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		});
 	}
 
-	private writeConfiguration(workspaceFolder: WorkspaceFolder, value: IConfigurationValue): TPromise<void, any> {
+	private writeConfiguration(workspaceFolder: IWorkspaceFolder, value: IConfigurationValue): TPromise<void, any> {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 			return this.configurationEditingService.writeConfiguration(ConfigurationTarget.WORKSPACE, value);
 		} else if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
@@ -1272,7 +1272,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			}
 		});
 		let resolver: ITaskResolver = {
-			resolve: (workspaceFolder: WorkspaceFolder, alias: string) => {
+			resolve: (workspaceFolder: IWorkspaceFolder, alias: string) => {
 				let data = resolverData.get(workspaceFolder.uri.toString());
 				if (!data) {
 					return undefined;
@@ -1328,7 +1328,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			}
 		});
 		return {
-			resolve: (workspaceFolder: WorkspaceFolder, alias: string) => {
+			resolve: (workspaceFolder: IWorkspaceFolder, alias: string) => {
 				let data = resolverData.get(workspaceFolder.uri.toString());
 				if (!data) {
 					return undefined;
@@ -1599,7 +1599,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		}
 	}
 
-	private computeWorkspaceFolderTasks(workspaceFolder: WorkspaceFolder): TPromise<WorkspaceFolderTaskResult> {
+	private computeWorkspaceFolderTasks(workspaceFolder: IWorkspaceFolder): TPromise<WorkspaceFolderTaskResult> {
 		return (this._executionEngine === ExecutionEngine.Process
 			? this.computeLegacyConfiguration(workspaceFolder)
 			: this.computeConfiguration(workspaceFolder)).
@@ -1633,12 +1633,12 @@ class TaskService extends EventEmitter implements ITaskService {
 			});
 	}
 
-	private computeConfiguration(workspaceFolder: WorkspaceFolder): TPromise<WorkspaceFolderConfigurationResult> {
+	private computeConfiguration(workspaceFolder: IWorkspaceFolder): TPromise<WorkspaceFolderConfigurationResult> {
 		let { config, hasParseErrors } = this.getConfiguration(workspaceFolder);
 		return TPromise.as<WorkspaceFolderConfigurationResult>({ workspaceFolder, config, hasErrors: hasParseErrors });
 	}
 
-	private computeLegacyConfiguration(workspaceFolder: WorkspaceFolder): TPromise<WorkspaceFolderConfigurationResult> {
+	private computeLegacyConfiguration(workspaceFolder: IWorkspaceFolder): TPromise<WorkspaceFolderConfigurationResult> {
 		let { config, hasParseErrors } = this.getConfiguration(workspaceFolder);
 		if (hasParseErrors) {
 			return TPromise.as({ workspaceFolder: workspaceFolder, hasErrors: true, config: undefined });
@@ -1678,13 +1678,13 @@ class TaskService extends EventEmitter implements ITaskService {
 		}
 	}
 
-	private computeWorkspaceFolders(): [WorkspaceFolder[], ExecutionEngine, JsonSchemaVersion] {
-		let workspaceFolders: WorkspaceFolder[] = [];
+	private computeWorkspaceFolders(): [IWorkspaceFolder[], ExecutionEngine, JsonSchemaVersion] {
+		let workspaceFolders: IWorkspaceFolder[] = [];
 		let executionEngine = ExecutionEngine.Terminal;
 		let schemaVersion = JsonSchemaVersion.V2_0_0;
 
 		if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
-			let workspaceFolder: WorkspaceFolder = this.contextService.getWorkspace().folders[0];
+			let workspaceFolder: IWorkspaceFolder = this.contextService.getWorkspace().folders[0];
 			workspaceFolders.push(workspaceFolder);
 			executionEngine = this.computeExecutionEngine(workspaceFolder);
 			schemaVersion = this.computeJsonSchemaVersion(workspaceFolder);
@@ -1703,7 +1703,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		return [workspaceFolders, executionEngine, schemaVersion];
 	}
 
-	private computeExecutionEngine(workspaceFolder: WorkspaceFolder): ExecutionEngine {
+	private computeExecutionEngine(workspaceFolder: IWorkspaceFolder): ExecutionEngine {
 		let { config } = this.getConfiguration(workspaceFolder);
 		if (!config) {
 			return ExecutionEngine._default;
@@ -1711,7 +1711,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		return TaskConfig.ExecutionEngine.from(config);
 	}
 
-	private computeJsonSchemaVersion(workspaceFolder: WorkspaceFolder): JsonSchemaVersion {
+	private computeJsonSchemaVersion(workspaceFolder: IWorkspaceFolder): JsonSchemaVersion {
 		let { config } = this.getConfiguration(workspaceFolder);
 		if (!config) {
 			return JsonSchemaVersion.V2_0_0;
@@ -1719,7 +1719,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		return TaskConfig.JsonSchemaVersion.from(config);
 	}
 
-	private getConfiguration(workspaceFolder: WorkspaceFolder): { config: TaskConfig.ExternalTaskRunnerConfiguration; hasParseErrors: boolean } {
+	private getConfiguration(workspaceFolder: IWorkspaceFolder): { config: TaskConfig.ExternalTaskRunnerConfiguration; hasParseErrors: boolean } {
 		let result = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY
 			? this.configurationService.getConfiguration<TaskConfig.ExternalTaskRunnerConfiguration>('tasks', { resource: workspaceFolder.uri })
 			: undefined;
