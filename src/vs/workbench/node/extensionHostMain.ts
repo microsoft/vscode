@@ -18,6 +18,7 @@ import { DiskSearch } from 'vs/workbench/services/search/node/searchService';
 import { IInitData, IEnvironment, IWorkspaceData, MainContext } from 'vs/workbench/api/node/extHost.protocol';
 import * as errors from 'vs/base/common/errors';
 import * as watchdog from 'native-watchdog';
+import * as glob from 'vs/base/common/glob';
 
 // const nativeExit = process.exit.bind(process);
 process.exit = function () {
@@ -149,64 +150,87 @@ export class ExtensionHostMain {
 			return TPromise.as(null);
 		}
 
-		const desiredFilesMap: {
-			[filename: string]: boolean;
-		} = {};
+		return TPromise.join(
+			this._extensionService.getAllExtensionDescriptions().map((desc) => {
+				return this.handleWorkspaceContainsEagerExtension(desc);
+			})
+		).then(() => { });
+	}
 
-		this._extensionService.getAllExtensionDescriptions().forEach((desc) => {
-			let activationEvents = desc.activationEvents;
-			if (!activationEvents) {
-				return;
-			}
+	private handleWorkspaceContainsEagerExtension(desc: IExtensionDescription): TPromise<void> {
+		let activationEvents = desc.activationEvents;
+		if (!activationEvents) {
+			return TPromise.as(void 0);
+		}
 
-			for (let i = 0; i < activationEvents.length; i++) {
-				if (/^workspaceContains:/.test(activationEvents[i])) {
-					let fileName = activationEvents[i].substr('workspaceContains:'.length);
-					desiredFilesMap[fileName] = true;
+		const fileNames: string[] = [];
+		const globPatterns: string[] = [];
+
+		for (let i = 0; i < activationEvents.length; i++) {
+			if (/^workspaceContains:/.test(activationEvents[i])) {
+				let fileNameOrGlob = activationEvents[i].substr('workspaceContains:'.length);
+				if (fileNameOrGlob.indexOf('*') >= 0 || fileNameOrGlob.indexOf('?') >= 0) {
+					globPatterns.push(fileNameOrGlob);
+				} else {
+					fileNames.push(fileNameOrGlob);
 				}
 			}
-		});
+		}
 
-		const matchingPatterns = Object.keys(desiredFilesMap).map(p => {
-			// TODO: This is a bit hacky -- maybe this should be implemented by using something like
-			// `workspaceGlob` or something along those lines?
-			if (p.indexOf('*') > -1 || p.indexOf('?') > -1) {
-				if (!this._diskSearch) {
-					// Shut down this search process after 1s
-					this._diskSearch = new DiskSearch(false, 1000);
-				}
+		if (fileNames.length === 0 && globPatterns.length === 0) {
+			return TPromise.as(void 0);
+		}
 
-				const query: ISearchQuery = {
-					folderQueries: this._workspace.folders.map(folder => ({ folder: folder.uri })),
-					type: QueryType.File,
-					maxResults: 1,
-					includePattern: { [p]: true }
-				};
+		let fileNamePromise = TPromise.join(fileNames.map((fileName) => this.activateIfFileName(desc.id, fileName))).then(() => { });
+		let globPatternPromise = this.activateIfGlobPatterns(desc.id, globPatterns);
 
-				return this._diskSearch.search(query).then(result => result.results.length ? p : undefined);
-			} else {
-				// find exact path
-				return (async resolve => {
-					for (const { uri } of this._workspace.folders) {
-						if (await pfs.exists(join(uri.fsPath, p))) {
-							return p;
-						}
-					}
-					return undefined;
-				})();
+		return TPromise.join([fileNamePromise, globPatternPromise]).then(() => { });
+	}
+
+	private async activateIfFileName(extensionId: string, fileName: string): TPromise<void> {
+		// find exact path
+
+		for (const { uri } of this._workspace.folders) {
+			if (await pfs.exists(join(uri.fsPath, fileName))) {
+				// the file was found
+				return (
+					this._extensionService.activateById(extensionId, true)
+						.done(null, err => console.error(err))
+				);
 			}
+		}
+
+		return undefined;
+	}
+
+	private async activateIfGlobPatterns(extensionId: string, globPatterns: string[]): TPromise<void> {
+		if (!this._diskSearch) {
+			// Shut down this search process after 1s
+			this._diskSearch = new DiskSearch(false, 1000);
+		}
+
+		let includes: glob.IExpression = {};
+		globPatterns.forEach((globPattern) => {
+			includes[globPattern] = true;
 		});
 
-		return TPromise.join(matchingPatterns).then(patterns => {
-			patterns
-				.filter(p => p !== undefined)
-				.forEach(p => {
-					const activationEvent = `workspaceContains:${p}`;
+		const query: ISearchQuery = {
+			folderQueries: this._workspace.folders.map(folder => ({ folder: folder.uri })),
+			type: QueryType.File,
+			maxResults: 1,
+			includePattern: includes
+		};
 
-					this._extensionService.activateByEvent(activationEvent, true)
-						.done(null, err => console.error(err));
-				});
-		});
+		let result = await this._diskSearch.search(query);
+		if (result.results.length > 0) {
+			// a file was found matching one of the glob patterns
+			return (
+				this._extensionService.activateById(extensionId, true)
+					.done(null, err => console.error(err))
+			);
+		}
+
+		return TPromise.as(void 0);
 	}
 
 	private handleExtensionTests(): TPromise<void> {
