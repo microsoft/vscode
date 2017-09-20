@@ -349,6 +349,18 @@ suite('window namespace tests', () => {
 		return Promise.all([a, b]);
 	});
 
+	test('showWorkspaceFolderPick', function () {
+		const p = (<any>window).showWorkspaceFolderPick(undefined);
+
+		return commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem').then(() => {
+			return p.then(workspace => {
+				assert.ok(true);
+			}, error => {
+				assert.ok(false);
+			});
+		});
+	});
+
 	test('Default value for showInput Box accepted even if fails validateInput, #33691', function () {
 		const result = window.showInputBox({
 			validateInput: (value: string) => {
