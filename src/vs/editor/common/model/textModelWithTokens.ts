@@ -71,6 +71,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	private _lastState: IState;
 
 	private _indentRanges: IndentRange[];
+	private _languageRegistryListener: IDisposable;
 
 	private _revalidateTokensTimeout: number;
 
@@ -98,12 +99,20 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 		this._revalidateTokensTimeout = -1;
 
+		this._languageRegistryListener = LanguageConfigurationRegistry.onDidChange((e) => {
+			if (e.languageIdentifier.id === this._languageIdentifier.id) {
+				this._resetIndentRanges();
+				this._emitModelLanguageConfigurationEvent({});
+			}
+		});
+
 		this._resetTokenizationState();
 		this._resetIndentRanges();
 	}
 
 	public dispose(): void {
 		this._tokenizationListener.dispose();
+		this._languageRegistryListener.dispose();
 		this._clearTimers();
 		this._lastState = null;
 
@@ -239,6 +248,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			}]
 		});
 		this._emitModelModeChangedEvent(e);
+		this._emitModelLanguageConfigurationEvent({});
 	}
 
 	public getLanguageIdAtPosition(_lineNumber: number, _column: number): LanguageId {
@@ -401,6 +411,12 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	private emitModelTokensChangedEvent(e: textModelEvents.IModelTokensChangedEvent): void {
 		if (!this._isDisposing) {
 			this._eventEmitter.emit(textModelEvents.TextModelEventType.ModelTokensChanged, e);
+		}
+	}
+
+	private _emitModelLanguageConfigurationEvent(e: textModelEvents.IModelLanguageConfigurationChangedEvent): void {
+		if (!this._isDisposing) {
+			this._eventEmitter.emit(textModelEvents.TextModelEventType.ModelLanguageConfigurationChanged, e);
 		}
 	}
 

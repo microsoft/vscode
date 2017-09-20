@@ -49,6 +49,9 @@ export class ViewEventHandler extends Disposable {
 	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
 		return false;
 	}
+	public onLanguageConfigurationChanged(e: viewEvents.ViewLanguageConfigurationEvent): boolean {
+		return false;
+	}
 	public onLineMappingChanged(e: viewEvents.ViewLineMappingChangedEvent): boolean {
 		return false;
 	}
@@ -121,6 +124,12 @@ export class ViewEventHandler extends Disposable {
 					}
 					break;
 
+				case viewEvents.ViewEventType.ViewLanguageConfigurationChanged:
+					if (this.onLanguageConfigurationChanged(e)) {
+						shouldRender = true;
+					}
+					break;
+
 				case viewEvents.ViewEventType.ViewLineMappingChanged:
 					if (this.onLineMappingChanged(e)) {
 						shouldRender = true;
@@ -174,7 +183,6 @@ export class ViewEventHandler extends Disposable {
 						shouldRender = true;
 					}
 					break;
-
 
 				case viewEvents.ViewEventType.ViewThemeChanged:
 					if (this.onThemeChanged(e)) {

@@ -261,6 +261,10 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 					// That's ok, a model tokens changed event will follow shortly
 					break;
 				}
+				case textModelEvents.TextModelEventType.ModelLanguageConfigurationChanged: {
+					eventsCollector.emit(new viewEvents.ViewLanguageConfigurationEvent());
+					break;
+				}
 				case textModelEvents.TextModelEventType.ModelContentChanged: {
 					// Ignore
 					break;

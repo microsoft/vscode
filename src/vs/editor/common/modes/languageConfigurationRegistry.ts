@@ -143,12 +143,16 @@ export class RichEditSupport {
 	}
 }
 
+export class LanguageConfigurationChangeEvent {
+	languageIdentifier: LanguageIdentifier;
+}
+
 export class LanguageConfigurationRegistryImpl {
 
 	private _entries: RichEditSupport[];
 
-	private _onDidChange: Emitter<void> = new Emitter<void>();
-	public onDidChange: Event<void> = this._onDidChange.event;
+	private _onDidChange: Emitter<LanguageConfigurationChangeEvent> = new Emitter<LanguageConfigurationChangeEvent>();
+	public onDidChange: Event<LanguageConfigurationChangeEvent> = this._onDidChange.event;
 
 	constructor() {
 		this._entries = [];
@@ -158,12 +162,12 @@ export class LanguageConfigurationRegistryImpl {
 		let previous = this._getRichEditSupport(languageIdentifier.id);
 		let current = new RichEditSupport(languageIdentifier, previous, configuration);
 		this._entries[languageIdentifier.id] = current;
-		this._onDidChange.fire(void 0);
+		this._onDidChange.fire({ languageIdentifier });
 		return {
 			dispose: () => {
 				if (this._entries[languageIdentifier.id] === current) {
 					this._entries[languageIdentifier.id] = previous;
-					this._onDidChange.fire(void 0);
+					this._onDidChange.fire({ languageIdentifier });
 				}
 			}
 		};
