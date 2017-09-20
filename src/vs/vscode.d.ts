@@ -1605,7 +1605,8 @@ declare module 'vscode' {
 		scheme?: string;
 
 		/**
-		 * A glob pattern, like `*.{ts,js}`.
+		 * Either a glob pattern, like `**∕*.{ts,js}` or a [workspace pattern](#WorkspacePattern) that can be relative
+		 * and matches on the path of the provided workspace.
 		 */
 		pattern?: string | WorkspacePattern;
 	}
