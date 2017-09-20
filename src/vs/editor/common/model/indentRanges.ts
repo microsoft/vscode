@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { IModel } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/editorCommon';
 
 export class IndentRange {
 	_indentRangeBrand: void;
@@ -29,7 +29,7 @@ export class IndentRange {
 	}
 }
 
-export function computeRanges(model: IModel, offSide: boolean, minimumRangeSize: number = 1): IndentRange[] {
+export function computeRanges(model: ITextModel, offSide: boolean, minimumRangeSize: number = 1): IndentRange[] {
 
 	let result: IndentRange[] = [];
 
