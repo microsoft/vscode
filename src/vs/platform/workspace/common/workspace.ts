@@ -219,7 +219,7 @@ export class WorkspaceFolder implements IWorkspaceFolder {
 		return URI.file(paths.join(this.uri.fsPath, relativePath));
 	}
 
-	public toJSON(): IWorkspaceFolderData {
+	toJSON(): IWorkspaceFolderData {
 		return { uri: this.uri, name: this.name, index: this.index };
 	}
 }
