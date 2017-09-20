@@ -261,8 +261,8 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 			if (this.telemetryService) {
 				/* __GDPR__
 				   "workbenchActionExecuted" : {
-					  "id" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					  "from": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					  "id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					  "from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				   }
 				 */
 				this.telemetryService.publicLog('workbenchActionExecuted', { id: e.action.id, from: 'editorPart' });

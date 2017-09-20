@@ -70,8 +70,8 @@ export class KeymapExtensions implements IWorkbenchContribution {
 	private promptForDisablingOtherKeymaps(newKeymap: IExtensionStatus, oldKeymaps: IExtensionStatus[]): TPromise<void> {
 		/* __GDPR__FRAGMENT__
 		   "KeyMapsData" : {
-			  "newKeymap" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "oldKeymaps": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			  "newKeymap" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "oldKeymaps": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		   }
 		 */
 		const telemetryData: { [key: string]: any; } = {
@@ -98,7 +98,7 @@ export class KeymapExtensions implements IWorkbenchContribution {
 				telemetryData['confirmed'] = confirmed;
 				/* __GDPR__
 				   "disableOtherKeymaps" : {
-					  "confirmed" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					  "confirmed" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					  "${include}": [
 						 "${KeyMapsData}"
 					  ]
@@ -185,7 +185,7 @@ export class BetterMergeDisabled implements IWorkbenchContribution {
 						new Action('uninstall', localize('uninstall', "Uninstall"), null, true, () => {
 							/* __GDPR__
 							   "betterMergeUninstall" : {
-								  "outcome" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+								  "outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 							   }
 							 */
 							telemetryService.publicLog('betterMergeUninstall', {
@@ -199,7 +199,7 @@ export class BetterMergeDisabled implements IWorkbenchContribution {
 						new Action('later', localize('later', "Later"), null, true, () => {
 							/* __GDPR__
 							   "betterMergeUninstall" : {
-								  "outcome" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+								  "outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 							   }
 							 */
 							telemetryService.publicLog('betterMergeUninstall', {

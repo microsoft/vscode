@@ -147,8 +147,8 @@ export function createApiFactory(
 				this._seen.add(apiName);
 				/* __GDPR__
 				   "apiUsage" : {
-					  "name" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					  "extension": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					  "name" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					  "extension": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					  "${include}": [
 						 "${MainThreadData}"
 					  ]
@@ -505,9 +505,9 @@ export function createApiFactory(
 			createSourceControl(id: string, label: string, rootUri?: vscode.Uri) {
 				/* __GDPR__
 				   "registerSCMProvider" : {
-					  "extensionId" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					  "providerId": { "endPoint": "none", "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-					  "providerLabel": { "endPoint": "none", "classification": "PublicPersonalData", "purpose": "FeatureInsight" },
+					  "extensionId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					  "providerId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+					  "providerLabel": { "classification": "PublicPersonalData", "purpose": "FeatureInsight" },
 					  "${include}": [
 						 "${MainThreadData}"
 					  ]

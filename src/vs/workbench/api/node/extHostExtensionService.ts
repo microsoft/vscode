@@ -389,15 +389,15 @@ function loadCommonJSModule<T>(modulePath: string, activationTimesBuilder: Exten
 function getTelemetryActivationEvent(extensionDescription: IExtensionDescription): any {
 	/* __GDPR__FRAGMENT__
 	   "TelemetryActivationEvent" : {
-		   "id": { "endPoint": "none", "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-		   "name": { "endPoint": "none", "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-		   "publisherDisplayName": { "endPoint": "none", "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-		   "activationEvents": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		   "isBuiltin": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		   "id": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+		   "name": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+		   "publisherDisplayName": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+		   "activationEvents": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		   "isBuiltin": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		   "${wildcard}": [
 			   {
 			      "${prefix}": "contribution.",
-			      "${classification}": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			      "${classification}": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			   }
 			]
 	   }

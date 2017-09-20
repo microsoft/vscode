@@ -72,12 +72,12 @@ export enum QueryType {
 }
 /* __GDPR__FRAGMENT__
    "IPatternInfo" : {
-	  "pattern" : { "endPoint": "none", "classification": "CustomerContent", "purpose": "FeatureInsight" },
-	  "isRegExp": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-	  "isWordMatch": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-	  "wordSeparators": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-	  "isMultiline": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-	  "isCaseSensitive": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	  "pattern" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+	  "isRegExp": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+	  "isWordMatch": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+	  "wordSeparators": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+	  "isMultiline": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+	  "isCaseSensitive": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
    }
  */
 export interface IPatternInfo {

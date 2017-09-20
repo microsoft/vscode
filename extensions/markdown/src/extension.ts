@@ -262,8 +262,8 @@ function showPreview(cspArbiter: ExtensionContentSecurityPolicyArbiter, uri?: vs
 	if (telemetryReporter) {
 		/* __GDPR__
 		   "openPreview" : {
-			  "where" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "how": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			  "where" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "how": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		   }
 		 */
 		telemetryReporter.sendTelemetryEvent('openPreview', {

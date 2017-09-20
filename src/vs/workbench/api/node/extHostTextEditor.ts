@@ -597,8 +597,8 @@ export class ExtHostTextEditor2 extends ExtHostTextEditor {
 						if (extension) {
 							/* __GDPR__
 							   "usesCommandLink" : {
-								  "extension" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								  "from": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+								  "extension" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+								  "from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 								  "${include}": [
 									 "${MainThreadData}"
 								  ]

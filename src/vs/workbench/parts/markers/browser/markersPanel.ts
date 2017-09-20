@@ -150,7 +150,7 @@ export class MarkersPanel extends Panel {
 			const marker: Marker = element;
 			/* __GDPR__
 			   "problems.marker.opened" : {
-				  "source" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				  "source" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			   }
 			 */
 			this.telemetryService.publicLog('problems.marker.opened', { source: marker.marker.source });

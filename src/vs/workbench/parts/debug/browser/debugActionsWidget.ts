@@ -104,8 +104,8 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 			if (this.telemetryService) {
 				/* __GDPR__
 				   "workbenchActionExecuted" : {
-					  "id" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					  "from": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					  "id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					  "from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				   }
 				 */
 				this.telemetryService.publicLog('workbenchActionExecuted', { id: e.action.id, from: 'debugActionsWidget' });
@@ -149,7 +149,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 		this.storageService.store(DEBUG_ACTIONS_WIDGET_POSITION_KEY, position, StorageScope.WORKSPACE);
 		/* __GDPR__
 		   "debug.actionswidgetposition" : {
-			  "position" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			  "position" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		   }
 		 */
 		this.telemetryService.publicLog(DEBUG_ACTIONS_WIDGET_POSITION_KEY, { position });

@@ -145,12 +145,12 @@ export default class ErrorTelemetry {
 		for (let error of this._buffer) {
 			/* __GDPR__
 			   "UnhandledError" : {
-				  "message" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				  "name": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				  "stack": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				  "id": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				  "line": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				  "column": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+				  "message" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				  "name": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				  "stack": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				  "id": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				  "line": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				  "column": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 			   }
 			 */
 			// __GDPR__TODO more properties are missing

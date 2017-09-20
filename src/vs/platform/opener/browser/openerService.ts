@@ -32,7 +32,7 @@ export class OpenerService implements IOpenerService {
 
 		/* __GDPR__
 		   "openerService" : {
-			  "scheme" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			  "scheme" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		   }
 		 */
 		this._telemetryService.publicLog('openerService', { scheme: resource.scheme });

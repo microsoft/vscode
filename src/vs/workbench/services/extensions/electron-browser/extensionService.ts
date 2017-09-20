@@ -302,8 +302,8 @@ export class ExtensionService implements IExtensionService {
 
 			/* __GDPR__
 			   "extensionsScanned" : {
-				  "totalCount" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				  "disabledCount": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+				  "totalCount" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				  "disabledCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 			   }
 			 */
 			this._telemetryService.publicLog('extensionsScanned', {
@@ -355,10 +355,10 @@ export class ExtensionService implements IExtensionService {
 			const { type, extensionId, extensionPointId, message } = msg;
 			/* __GDPR__
 			   "extensionsMessage" : {
-				  "type" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				  "extensionId": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				  "extensionPointId": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				  "message": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+				  "type" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				  "extensionId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				  "extensionPointId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				  "message": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 			   }
 			 */
 			this._telemetryService.publicLog('extensionsMessage', {

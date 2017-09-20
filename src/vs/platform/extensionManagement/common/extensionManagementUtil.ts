@@ -65,13 +65,13 @@ export function getLocalExtensionTelemetryData(extension: ILocalExtension): any 
 
 /* __GDPR__FRAGMENT__
    "GalleryExtensionTelemetryData" : {
-	  "id" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-	  "name": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-	  "galleryId": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-	  "publisherId": { "endPoint": "none", "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-	  "publisherName": { "endPoint": "none", "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-	  "publisherDisplayName": { "endPoint": "none", "classification": "PublicPersonalData", "purpose": "FeatureInsight" },
-	  "dependencies": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+	  "id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+	  "name": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+	  "galleryId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+	  "publisherId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+	  "publisherName": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+	  "publisherDisplayName": { "classification": "PublicPersonalData", "purpose": "FeatureInsight" },
+	  "dependencies": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 	  "${include}": [
 		 "${GalleryExtensionTelemetryData2}"
 	  ]

@@ -146,30 +146,30 @@ export class WorkspaceStats {
 
 	/* __GDPR__FRAGMENT__
 	   "WorkspaceTags" : {
-		  "workbench.filesToOpen" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		  "workbench.filesToCreate" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		  "workbench.filesToDiff" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		  "workspace.roots" : { "endPoint": "none", "classification": "CustomerContent", "purpose": "FeatureInsight" },
-		  "workspace.empty" : { "endPoint": "none", "classification": "CustomerContent", "purpose": "FeatureInsight" },
-		  "workspace.grunt" : { "endPoint": "none", "classification": "CustomerContent", "purpose": "FeatureInsight" },
-		  "workspace.gulp" : { "endPoint": "none", "classification": "CustomerContent", "purpose": "FeatureInsight" },
-		  "workspace.jake" : { "endPoint": "none", "classification": "CustomerContent", "purpose": "FeatureInsight" },
-		  "workspace.tsconfig" : { "endPoint": "none", "classification": "CustomerContent", "purpose": "FeatureInsight" },
-		  "workspace.jsconfig" : { "endPoint": "none", "classification": "CustomerContent", "purpose": "FeatureInsight" },
-		  "workspace.config.xml" : { "endPoint": "none", "classification": "CustomerContent", "purpose": "FeatureInsight" },
-		  "workspace.vsc.extension" : { "endPoint": "none", "classification": "CustomerContent", "purpose": "FeatureInsight" },
-		  "workspace.ASP5" : { "endPoint": "none", "classification": "CustomerContent", "purpose": "FeatureInsight" },
-		  "workspace.sln" : { "endPoint": "none", "classification": "CustomerContent", "purpose": "FeatureInsight" },
-		  "workspace.unity" : { "endPoint": "none", "classification": "CustomerContent", "purpose": "FeatureInsight" },
-		  "workspace.npm" : { "endPoint": "none", "classification": "CustomerContent", "purpose": "FeatureInsight" },
-		  "workspace.bower" : { "endPoint": "none", "classification": "CustomerContent", "purpose": "FeatureInsight" },
-		  "workspace.yeoman.code.ext" : { "endPoint": "none", "classification": "CustomerContent", "purpose": "FeatureInsight" },
-		  "workspace.cordova.high" : { "endPoint": "none", "classification": "CustomerContent", "purpose": "FeatureInsight" },
-		  "workspace.cordova.low" : { "endPoint": "none", "classification": "CustomerContent", "purpose": "FeatureInsight" },
-		  "workspace.xamarin.android" : { "endPoint": "none", "classification": "CustomerContent", "purpose": "FeatureInsight" },
-		  "workspace.xamarin.ios" : { "endPoint": "none", "classification": "CustomerContent", "purpose": "FeatureInsight" },
-		  "workspace.android.cpp" : { "endPoint": "none", "classification": "CustomerContent", "purpose": "FeatureInsight" },
-		  "workspace.reactNative" : { "endPoint": "none", "classification": "CustomerContent", "purpose": "FeatureInsight" }
+		  "workbench.filesToOpen" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		  "workbench.filesToCreate" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		  "workbench.filesToDiff" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		  "workspace.roots" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+		  "workspace.empty" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+		  "workspace.grunt" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+		  "workspace.gulp" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+		  "workspace.jake" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+		  "workspace.tsconfig" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+		  "workspace.jsconfig" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+		  "workspace.config.xml" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+		  "workspace.vsc.extension" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+		  "workspace.ASP5" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+		  "workspace.sln" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+		  "workspace.unity" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+		  "workspace.npm" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+		  "workspace.bower" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+		  "workspace.yeoman.code.ext" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+		  "workspace.cordova.high" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+		  "workspace.cordova.low" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+		  "workspace.xamarin.android" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+		  "workspace.xamarin.ios" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+		  "workspace.android.cpp" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+		  "workspace.reactNative" : { "classification": "CustomerContent", "purpose": "FeatureInsight" }
 	   }
 	 */
 	private getWorkspaceTags(configuration: IWindowConfiguration): TPromise<Tags> {
@@ -298,7 +298,7 @@ export class WorkspaceStats {
 			set.forEach(item => list.push(item));
 			/* __GDPR__
 			   "workspace.remotes" : {
-				  "domains" : { "endPoint": "none", "classification": "CustomerContent", "purpose": "FeatureInsight" }
+				  "domains" : { "classification": "CustomerContent", "purpose": "FeatureInsight" }
 			   }
 			 */
 			this.telemetryService.publicLog('workspace.remotes', { domains: list.sort() });
@@ -316,7 +316,7 @@ export class WorkspaceStats {
 		})).then(hashedRemotes => {
 			/* __GDPR__
 			   "workspace.hashedRemotes" : {
-				  "remotes" : { "endPoint": "none", "classification": "CustomerContent", "purpose": "FeatureInsight" }
+				  "remotes" : { "classification": "CustomerContent", "purpose": "FeatureInsight" }
 			   }
 			 */
 			this.telemetryService.publicLog('workspace.hashedRemotes', { remotes: hashedRemotes });
@@ -325,7 +325,7 @@ export class WorkspaceStats {
 
 	/* __GDPR__FRAGMENT__
 	   "AzureTags" : {
-		  "node" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		  "node" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	   }
 	 */
 	private reportAzureNode(workspaceUris: URI[], tags: Tags): TPromise<Tags> {
@@ -351,7 +351,7 @@ export class WorkspaceStats {
 
 	/* __GDPR__FRAGMENT__
 	   "AzureTags" : {
-		  "java" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		  "java" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	   }
 	 */
 	private reportAzureJava(workspaceUris: URI[], tags: Tags): TPromise<Tags> {

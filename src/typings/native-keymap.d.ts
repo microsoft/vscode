@@ -44,9 +44,9 @@ declare module 'native-keymap' {
 
 	/* __GDPR__FRAGMENT__
 	   "IKeyboardLayoutInfo" : {
-		  "name" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		  "id": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		  "text": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		  "name" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		  "id": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		  "text": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	   }
 	 */
 	export interface IWindowsKeyboardLayoutInfo {
@@ -57,11 +57,11 @@ declare module 'native-keymap' {
 
 	/* __GDPR__FRAGMENT__
 	   "IKeyboardLayoutInfo" : {
-		  "model" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		  "layout": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		  "variant": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		  "options": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		  "rules": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		  "model" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		  "layout": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		  "variant": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		  "options": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		  "rules": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	   }
 	 */
 	export interface ILinuxKeyboardLayoutInfo {
@@ -74,8 +74,8 @@ declare module 'native-keymap' {
 
 	/* __GDPR__FRAGMENT__
 	   "IKeyboardLayoutInfo" : {
-		  "id" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		  "lang": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		  "id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		  "lang": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	   }
 	 */
 	export interface IMacKeyboardLayoutInfo {

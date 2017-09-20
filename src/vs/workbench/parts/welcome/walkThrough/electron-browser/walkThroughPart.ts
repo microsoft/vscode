@@ -180,9 +180,9 @@ export class WalkThroughPart extends BaseEditor {
 						let scrollTarget = this.content.querySelector(node.hash);
 						/* __GDPR__
 						   "revealInDocument" : {
-							  "hash" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							  "broken": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-							  "from": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+							  "hash" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							  "broken": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+							  "from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 						   }
 						 */
 						this.telemetryService.publicLog('revealInDocument', {
@@ -218,8 +218,8 @@ export class WalkThroughPart extends BaseEditor {
 		if (uri.scheme === 'http' || uri.scheme === 'https') {
 			/* __GDPR__
 			   "openExternal" : {
-				  "uri" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				  "from": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				  "uri" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				  "from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			   }
 			 */
 			this.telemetryService.publicLog('openExternal', {
@@ -356,8 +356,8 @@ export class WalkThroughPart extends BaseEditor {
 					const options = this.getEditorOptions(snippet.textEditorModel.getModeId());
 					/* __GDPR__FRAGMENT__
 					   "EditorTelemetryData" : {
-						  "target" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						  "snippet": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						  "target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						  "snippet": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 					   }
 					 */
 					const telemetryData = {
@@ -410,9 +410,9 @@ export class WalkThroughPart extends BaseEditor {
 					this.contentDisposables.push(once(editor.onMouseDown)(() => {
 						/* __GDPR__
 						   "walkThroughSnippetInteraction" : {
-							  "from" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							  "type": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							  "snippet": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+							  "from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							  "type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							  "snippet": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 						   }
 						 */
 						this.telemetryService.publicLog('walkThroughSnippetInteraction', {
@@ -424,9 +424,9 @@ export class WalkThroughPart extends BaseEditor {
 					this.contentDisposables.push(once(editor.onKeyDown)(() => {
 						/* __GDPR__
 						   "walkThroughSnippetInteraction" : {
-							  "from" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							  "type": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							  "snippet": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+							  "from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							  "type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							  "snippet": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 						   }
 						 */
 						this.telemetryService.publicLog('walkThroughSnippetInteraction', {
@@ -438,9 +438,9 @@ export class WalkThroughPart extends BaseEditor {
 					this.contentDisposables.push(once(editor.onDidChangeModelContent)(() => {
 						/* __GDPR__
 						   "walkThroughSnippetInteraction" : {
-							  "from" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							  "type": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							  "snippet": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+							  "from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							  "type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							  "snippet": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 						   }
 						 */
 						this.telemetryService.publicLog('walkThroughSnippetInteraction', {

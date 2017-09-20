@@ -412,7 +412,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 			/* __GDPR__
 			   "customKeybindingsChanged" : {
-				  "keyCount" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				  "keyCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			   }
 			 */
 			this.telemetryService.publicLog('customKeybindingsChanged', {

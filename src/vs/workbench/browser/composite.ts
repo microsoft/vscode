@@ -110,7 +110,7 @@ export abstract class Composite extends Component implements IComposite {
 				const eventName: string = 'compositeOpen';
 				/* __GDPR__
 				   "compositeOpen" : {
-					  "composite" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					  "composite" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				   }
 				 */
 				this._telemetryService.publicLog(eventName, { composite: this.getId() });
@@ -128,8 +128,8 @@ export abstract class Composite extends Component implements IComposite {
 				this._telemetryData.composite = this.getId();
 				/* __GDPR__
 				   "compositeShown" : {
-					  "timeSpent" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-					  "composite": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					  "timeSpent" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+					  "composite": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				   }
 				 */
 				this._telemetryService.publicLog(eventName, this._telemetryData);

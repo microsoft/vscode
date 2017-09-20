@@ -34,32 +34,32 @@ interface ISearchWithRange {
 
 /* __GDPR__FRAGMENT__
    "ITimerEventData" : {
-	  "searchLength" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "unsortedResultDuration": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "sortedResultDuration": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "resultCount": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "symbols.fromCache": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "files.fromCache": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "files.unsortedResultDuration": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "files.sortedResultDuration": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "files.resultCount": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "files.traversal": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "files.errors": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "files.fileWalkStartDuration": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "files.fileWalkResultDuration": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "files.directoriesWalked": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "files.filesWalked": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "files.cmdForkStartTime": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "files.cmdForkResultTime": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "files.cmdResultCount": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "files.cacheLookupStartDuration": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "files.cacheFilterStartDuration": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "files.cacheLookupResultDuration": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "files.cacheEntryCount": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "searchLength" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "unsortedResultDuration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "sortedResultDuration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "resultCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "symbols.fromCache": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.fromCache": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.unsortedResultDuration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.sortedResultDuration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.resultCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.traversal": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.errors": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.fileWalkStartDuration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.fileWalkResultDuration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.directoriesWalked": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.filesWalked": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.cmdForkStartTime": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.cmdForkResultTime": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.cmdResultCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.cacheLookupStartDuration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.cacheFilterStartDuration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.cacheLookupResultDuration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.cacheEntryCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 	  "${wildcard}": [
 		 {
 			"${prefix}": "files.joined",
-			"${classification}": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+			"${classification}": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 		 }
 	  ]
    }
@@ -243,7 +243,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 					/* __GDPR__
 					   "openAnything" : {
-						  "duration" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+						  "duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 						  "${include}": [
 							 "${ITimerEventData}"
 						  ]

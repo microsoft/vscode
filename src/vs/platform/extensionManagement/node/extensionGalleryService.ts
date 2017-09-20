@@ -265,9 +265,9 @@ function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUr
 		},
 		/* __GDPR__FRAGMENT__
 		   "GalleryExtensionTelemetryData2" : {
-			  "index" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "searchText": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "querySource": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			  "index" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "searchText": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "querySource": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		   }
 		 */
 		telemetryData: {
@@ -320,8 +320,8 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 
 		/* __GDPR__
 		   "galleryService:query" : {
-			  "type" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "text": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			  "type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "text": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		   }
 		 */
 		this.telemetryService.publicLog('galleryService:query', { type, text });
@@ -441,7 +441,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			const startTime = new Date().getTime();
 			/* __GDPR__
 			   "galleryService:downloadVSIX" : {
-				  "duration": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				  "duration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 				  "${include}": [
 					 "${GalleryExtensionTelemetryData}"
 				  ]
@@ -589,16 +589,16 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 				const message = getErrorMessage(err);
 				/* __GDPR__
 				   "galleryService:requestError" : {
-					  "url" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					  "cdn": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					  "message": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					  "url" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					  "cdn": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					  "message": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				   }
 				 */
 				this.telemetryService.publicLog('galleryService:requestError', { url, cdn: true, message });
 				/* __GDPR__
 				   "galleryService:cdnFallback" : {
-					  "url" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					  "message": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					  "url" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					  "message": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				   }
 				 */
 				this.telemetryService.publicLog('galleryService:cdnFallback', { url, message });
@@ -612,9 +612,9 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 					const message = getErrorMessage(err);
 					/* __GDPR__
 					   "galleryService:requestError" : {
-						  "url" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						  "cdn": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						  "message": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						  "url" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						  "cdn": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						  "message": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 					   }
 					 */
 					this.telemetryService.publicLog('galleryService:requestError', { url: fallbackUrl, cdn: false, message });

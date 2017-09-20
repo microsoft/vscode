@@ -325,8 +325,8 @@ export class PreferencesEditor extends BaseEditor {
 			this.latestEmptyFilters = [];
 			/* __GDPR__
 			   "defaultSettings.filter" : {
-				  "filter": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				  "emptyFilters" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				  "filter": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				  "emptyFilters" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			   }
 			 */
 			this.telemetryService.publicLog('defaultSettings.filter', data);

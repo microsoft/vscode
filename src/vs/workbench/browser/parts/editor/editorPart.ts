@@ -342,7 +342,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		if (position !== Position.ONE) {
 			/* __GDPR__
 			   "workbenchSideEditorOpened" : {
-				  "position" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				  "position" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			   }
 			 */
 			this.telemetryService.publicLog('workbenchSideEditorOpened', { position: position });

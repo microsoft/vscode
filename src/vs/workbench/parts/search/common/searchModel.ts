@@ -570,7 +570,7 @@ export class SearchResult extends Disposable {
 		const onDone = stopwatch(fromPromise(promise));
 		/* __GDPR__
 		   "replaceAll.started" : {
-			  "duration" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+			  "duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 		   }
 		 */
 		onDone(duration => this.telemetryService.publicLog('replaceAll.started', { duration }));
@@ -732,7 +732,7 @@ export class SearchModel extends Disposable {
 		const onFirstRenderStopwatch = stopwatch(onFirstRender);
 		/* __GDPR__
 		   "searchResultsFirstRender" : {
-			  "duration" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+			  "duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 		   }
 		 */
 		onFirstRenderStopwatch(duration => this.telemetryService.publicLog('searchResultsFirstRender', { duration }));
@@ -742,7 +742,7 @@ export class SearchModel extends Disposable {
 
 		/* __GDPR__
 		   "searchResultsFinished" : {
-			  "duration" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+			  "duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 		   }
 		 */
 		onDoneStopwatch(duration => this.telemetryService.publicLog('searchResultsFinished', { duration }));
@@ -771,11 +771,11 @@ export class SearchModel extends Disposable {
 		delete options.pattern;
 		/* __GDPR__
 		   "searchresultsShown" : {
-			  "count" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "fileCount": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "fileCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			  "options": { "${inline}": [ "${IPatternInfo}" ] },
-			  "duration": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-			  "useRipgrep": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			  "duration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+			  "useRipgrep": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		   }
 		 */
 		this.telemetryService.publicLog('searchResultsShown', {

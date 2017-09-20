@@ -19,9 +19,9 @@ export interface ICompletionItem extends ISuggestionItem {
 
 /* __GDPR__FRAGMENT__
    "ICompletionStats" : {
-	  "suggestionCount" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-	  "snippetCount": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-	  "textCount": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	  "suggestionCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+	  "snippetCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+	  "textCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
    }
  */
 // __GDPR__TODO: This is an extensible structure which can not be statically declared.

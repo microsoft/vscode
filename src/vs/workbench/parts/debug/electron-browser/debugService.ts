@@ -915,13 +915,13 @@ export class DebugService implements debug.IDebugService {
 
 				/* __GDPR__
 				   "debugSessionStart" : {
-					  "type": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					  "breakpointCount": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					  "exceptionBreakpoints": { "endPoint": "none", "classification": "CustomerContent", "purpose": "FeatureInsight" },
-					  "watchExpressionsCount": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					  "extensionName": { "endPoint": "none", "classification": "PublicPersonalData", "purpose": "FeatureInsight" },
-					  "isBuiltin": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					  "launchJsonExists": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					  "type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					  "breakpointCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					  "exceptionBreakpoints": { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+					  "watchExpressionsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					  "extensionName": { "classification": "PublicPersonalData", "purpose": "FeatureInsight" },
+					  "isBuiltin": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					  "launchJsonExists": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				   }
 				 */
 				return this.telemetryService.publicLog('debugSessionStart', {
@@ -942,8 +942,8 @@ export class DebugService implements debug.IDebugService {
 				const errorMessage = error instanceof Error ? error.message : error;
 				/* __GDPR__
 				   "debugMisconfiguration" : {
-					  "type" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					  "error": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					  "type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					  "error": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				   }
 				 */
 				this.telemetryService.publicLog('debugMisconfiguration', { type: configuration ? configuration.type : undefined, error: errorMessage });
@@ -1062,11 +1062,11 @@ export class DebugService implements debug.IDebugService {
 		const process = this.model.getProcesses().filter(p => p.getId() === session.getId()).pop();
 		/* __GDPR__
 		   "debugSessionStop" : {
-			  "type" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "success": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "sessionLengthInSeconds": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "breakpointCount": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "watchExpressionsCount": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			  "type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "success": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "sessionLengthInSeconds": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "breakpointCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "watchExpressionsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		   }
 		 */
 		this.telemetryService.publicLog('debugSessionStop', {
