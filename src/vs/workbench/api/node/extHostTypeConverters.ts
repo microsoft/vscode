@@ -158,7 +158,7 @@ export namespace MarkdownString {
 	}
 
 	function isCodeblock(thing: any): thing is Codeblock {
-		return typeof thing === 'object'
+		return thing && typeof thing === 'object'
 			&& typeof (<Codeblock>thing).language === 'string'
 			&& typeof (<Codeblock>thing).value === 'string';
 	}
