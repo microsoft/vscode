@@ -6,9 +6,10 @@
 import { Position, Range, CompletionItemProvider, CompletionItemKind, TextDocument, CancellationToken, CompletionItem, window, Uri, ProviderResult, TextEditor, SnippetString, workspace } from 'vscode';
 
 import { ITypescriptServiceClient } from '../typescriptService';
-import { FileLocationRequestArgs, DocCommandTemplateResponse } from '../protocol';
+import { DocCommandTemplateResponse } from '../protocol';
 
 import * as nls from 'vscode-nls';
+import { positionToFileLocation } from '../utils/convert';
 const localize = nls.loadMessageBundle();
 
 const configurationNamespace = 'jsDocCompletion';
@@ -118,11 +119,7 @@ export class TryCompleteJsDocCommand {
 	}
 
 	private tryInsertJsDocFromTemplate(editor: TextEditor, file: string, position: Position): Promise<boolean> {
-		const args: FileLocationRequestArgs = {
-			file: file,
-			line: position.line + 1,
-			offset: position.character + 1
-		};
+		const args = positionToFileLocation(file, position);
 		return Promise.race([
 			this.lazyClient().execute('docCommentTemplate', args),
 			new Promise((_, reject) => setTimeout(reject, 250))

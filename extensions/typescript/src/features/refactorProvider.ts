@@ -9,7 +9,7 @@ import { CodeActionProvider, TextDocument, Range, CancellationToken, CodeActionC
 
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
-import { textSpanToRange } from '../utils/convert';
+import { textSpanToRange, rangeToFileRange } from '../utils/convert';
 
 
 export default class TypeScriptRefactorProvider implements CodeActionProvider {
@@ -43,14 +43,7 @@ export default class TypeScriptRefactorProvider implements CodeActionProvider {
 			return [];
 		}
 
-		const args: Proto.GetApplicableRefactorsRequestArgs = {
-			file: file,
-			startLine: range.start.line + 1,
-			startOffset: range.start.character + 1,
-			endLine: range.end.line + 1,
-			endOffset: range.end.character + 1
-		};
-
+		const args: Proto.GetApplicableRefactorsRequestArgs = rangeToFileRange(file, range);
 		try {
 			const response = await this.client.execute('getApplicableRefactors', args, token);
 			if (!response || !response.body) {
@@ -107,13 +100,9 @@ export default class TypeScriptRefactorProvider implements CodeActionProvider {
 
 	private async doRefactoring(file: string, refactor: string, action: string, range: Range): Promise<boolean> {
 		const args: Proto.GetEditsForRefactorRequestArgs = {
-			file,
+			...rangeToFileRange(file, range),
 			refactor,
-			action,
-			startLine: range.start.line + 1,
-			startOffset: range.start.character + 1,
-			endLine: range.end.line + 1,
-			endOffset: range.end.character + 1
+			action
 		};
 
 		const response = await this.client.execute('getEditsForRefactor', args);

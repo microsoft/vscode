@@ -7,7 +7,7 @@ import { CodeActionProvider, TextDocument, Range, CancellationToken, CodeActionC
 
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
-import { textSpanToRange } from '../utils/convert';
+import { textSpanToRange, rangeToFileRange } from '../utils/convert';
 
 interface NumberSet {
 	[key: number]: boolean;
@@ -68,11 +68,7 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 			formattingOptions: formattingOptions
 		};
 		const args: Proto.CodeFixRequestArgs = {
-			file: file,
-			startLine: range.start.line + 1,
-			endLine: range.end.line + 1,
-			startOffset: range.start.character + 1,
-			endOffset: range.end.character + 1,
+			...rangeToFileRange(file, range),
 			errorCodes: Array.from(supportedActions)
 		};
 		const response = await this.client.execute('getCodeFixes', args, token);

@@ -5,9 +5,8 @@
 
 import { ReferenceProvider, Location, TextDocument, Position, CancellationToken } from 'vscode';
 
-import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
-import { textSpanToRange } from '../utils/convert';
+import { textSpanToRange, positionToFileLocation } from '../utils/convert';
 
 export default class TypeScriptReferenceSupport implements ReferenceProvider {
 	public constructor(
@@ -18,11 +17,7 @@ export default class TypeScriptReferenceSupport implements ReferenceProvider {
 		if (!filepath) {
 			return Promise.resolve<Location[]>([]);
 		}
-		const args: Proto.FileLocationRequestArgs = {
-			file: filepath,
-			line: position.line + 1,
-			offset: position.character + 1
-		};
+		const args = positionToFileLocation(filepath, position);
 		const apiVersion = this.client.apiVersion;
 		return this.client.execute('references', args, token).then((msg) => {
 			const result: Location[] = [];

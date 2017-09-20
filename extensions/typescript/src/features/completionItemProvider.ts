@@ -9,9 +9,9 @@ import { ITypescriptServiceClient } from '../typescriptService';
 import TypingsStatus from '../utils/typingsStatus';
 
 import * as PConst from '../protocol.const';
-import { CompletionEntry, CompletionsRequestArgs, CompletionDetailsRequestArgs, CompletionEntryDetails, FileLocationRequestArgs } from '../protocol';
+import { CompletionEntry, CompletionsRequestArgs, CompletionDetailsRequestArgs, CompletionEntryDetails } from '../protocol';
 import * as Previewer from './previewer';
-import { textSpanToRange } from '../utils/convert';
+import { textSpanToRange, positionToFileLocation } from '../utils/convert';
 
 import * as nls from 'vscode-nls';
 let localize = nls.loadMessageBundle();
@@ -175,12 +175,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 		if (!file) {
 			return Promise.resolve<CompletionItem[]>([]);
 		}
-		const args: CompletionsRequestArgs = {
-			file: file,
-			line: position.line + 1,
-			offset: position.character + 1
-		};
-
+		const args: CompletionsRequestArgs = positionToFileLocation(file, position);
 		return this.client.execute('completions', args, token).then((msg) => {
 			// This info has to come from the tsserver. See https://github.com/Microsoft/TypeScript/issues/2831
 			// let isMemberCompletion = false;
@@ -270,11 +265,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 	}
 
 	private isValidFunctionCompletionContext(filepath: string, position: Position): Promise<boolean> {
-		const args: FileLocationRequestArgs = {
-			file: filepath,
-			line: position.line + 1,
-			offset: position.character + 1
-		};
+		const args = positionToFileLocation(filepath, position);
 		// Workaround for https://github.com/Microsoft/TypeScript/issues/12677
 		// Don't complete function calls inside of destructive assigments or imports
 		return this.client.execute('quickinfo', args).then(infoResponse => {

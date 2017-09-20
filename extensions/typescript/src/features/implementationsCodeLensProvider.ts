@@ -9,7 +9,7 @@ import * as PConst from '../protocol.const';
 
 import { TypeScriptBaseCodeLensProvider, ReferencesCodeLens } from './baseCodeLensProvider';
 import { ITypescriptServiceClient } from '../typescriptService';
-import { textSpanToRange } from '../utils/convert';
+import { textSpanToRange, positionToFileLocation } from '../utils/convert';
 
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
@@ -36,11 +36,7 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 
 	resolveCodeLens(inputCodeLens: CodeLens, token: CancellationToken): Promise<CodeLens> {
 		const codeLens = inputCodeLens as ReferencesCodeLens;
-		const args: Proto.FileLocationRequestArgs = {
-			file: codeLens.file,
-			line: codeLens.range.start.line + 1,
-			offset: codeLens.range.start.character + 1
-		};
+		const args = positionToFileLocation(codeLens.file, codeLens.range.start);
 		return this.client.execute('implementation', args, token).then(response => {
 			if (!response || !response.body) {
 				throw codeLens;
