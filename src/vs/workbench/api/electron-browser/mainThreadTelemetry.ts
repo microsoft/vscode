@@ -27,7 +27,7 @@ export class MainThreadTelemetry implements MainThreadTelemetryShape {
 	$publicLog(eventName: string, data: any = Object.create(null)): void {
 		/* __GDPR__FRAGMENT__
 		   "MainThreadData" : {
-			  "pluginHostTelemetry" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			  "pluginHostTelemetry" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		   }
 		 */
 		data[MainThreadTelemetry._name] = true;

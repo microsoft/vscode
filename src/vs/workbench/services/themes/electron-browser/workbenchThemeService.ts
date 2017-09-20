@@ -644,11 +644,11 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			if (!this.themeExtensionsActivated.get(key)) {
 				/* __GDPR__
 				   "activatePlugin" : {
-					  "id" : { "endPoint": "none", "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-					  "name": { "endPoint": "none", "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-					  "isBuiltin": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					  "publisherDisplayName": { "endPoint": "none", "classification": "PublicPersonalData", "purpose": "FeatureInsight" },
-					  "themeId": { "endPoint": "none", "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+					  "id" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+					  "name": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+					  "isBuiltin": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					  "publisherDisplayName": { "classification": "PublicPersonalData", "purpose": "FeatureInsight" },
+					  "themeId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
 				   }
 				 */
 				this.telemetryService.publicLog('activatePlugin', {

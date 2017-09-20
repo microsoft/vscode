@@ -388,7 +388,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 						window.showErrorMessage(localize('serverCouldNotBeStarted', 'TypeScript language server couldn\'t be started. Error message is: {0}', err.message || err));
 						/* __GDPR__
 						   "error" : {
-							  "message": { "endPoint": "none", "classification": "CustomerContent", "purpose": "PerformanceAndHealth" }
+							  "message": { "classification": "CustomerContent", "purpose": "PerformanceAndHealth" }
 						   }
 						 */
 						this.logTelemetry('error', { message: err.message });
@@ -414,7 +414,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 							this.error(`TSServer exited with code: ${code}`);
 							/* __GDPR__
 							   "tsserver.exitWithCode" : {
-								  "code" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+								  "code" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 							   }
 							 */
 							this.logTelemetry('tsserver.exitWithCode', { code: code });
@@ -853,9 +853,9 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		}
 		/* __GDPR__
 		   "typingsInstalled" : {
-			  "installedPackages" : { "endPoint": "none", "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-			  "installSuccess": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-			  "typingsInstallerVersion": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+			  "installedPackages" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+			  "installSuccess": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+			  "typingsInstallerVersion": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 		   }
 		 */
 		// GDPR__COMMENT: Other events are defined by TypeScript.

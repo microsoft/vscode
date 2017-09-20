@@ -266,7 +266,7 @@ export class CommandCenter {
 		if (!url) {
 			/* __GDPR__
 			   "clone" : {
-				  "outcome" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				  "outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			   }
 			 */
 			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'no_URL' });
@@ -285,7 +285,7 @@ export class CommandCenter {
 		if (!parentPath) {
 			/* __GDPR__
 			   "clone" : {
-				  "outcome" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				  "outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			   }
 			 */
 			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'no_directory' });
@@ -307,8 +307,8 @@ export class CommandCenter {
 			const openFolder = result === open;
 			/* __GDPR__
 			   "clone" : {
-				  "outcome" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				  "openFolder": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+				  "outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				  "openFolder": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 			   }
 			 */
 			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'success' }, { openFolder: openFolder ? 1 : 0 });
@@ -319,14 +319,14 @@ export class CommandCenter {
 			if (/already exists and is not an empty directory/.test(err && err.stderr || '')) {
 				/* __GDPR__
 				   "clone" : {
-					  "outcome" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					  "outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				   }
 				 */
 				this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'directory_not_empty' });
 			} else {
 				/* __GDPR__
 				   "clone" : {
-					  "outcome" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					  "outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				   }
 				 */
 				this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'error' });
@@ -1343,7 +1343,7 @@ export class CommandCenter {
 
 			/* __GDPR__
 			   "git.command" : {
-				  "command" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				  "command" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			   }
 			 */
 			this.telemetryReporter.sendTelemetryEvent('git.command', { command: id });

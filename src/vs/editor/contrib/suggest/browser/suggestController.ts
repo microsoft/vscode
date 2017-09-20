@@ -199,7 +199,7 @@ export class SuggestController implements IEditorContribution {
 			this._alertCompletionItem(item);
 			/* __GDPR__
 			   "suggestSnippetInsert" : {
-				  "suggestionType" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				  "suggestionType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				  "${include}": [
 					 "${EditorTelemetryData}"
 				  ]

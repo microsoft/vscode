@@ -295,7 +295,7 @@ export class CodeApplication {
 			const channel = getDelayedChannel<ITelemetryAppenderChannel>(this.sharedProcessClient.then(c => c.getChannel('telemetryAppender')));
 			const appender = new TelemetryAppenderClient(channel);
 			const commonProperties = resolveCommonProperties(product.commit, pkg.version, this.environmentService.installSource)
-				// __GDPR__COMMON__ "common.machineId" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				// __GDPR__COMMON__ "common.machineId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				.then(result => Object.defineProperty(result, 'common.machineId', {
 					get: () => this.storageService.getItem(machineIdStorageKey),
 					enumerable: true

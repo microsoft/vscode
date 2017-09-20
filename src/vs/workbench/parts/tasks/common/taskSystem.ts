@@ -38,12 +38,12 @@ export class TaskError {
 
 /* __GDPR__FRAGMENT__
    "TelemetryEvent" : {
-		"trigger" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"runner": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"taskKind": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"command": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"success": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"exitCode": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		"trigger" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		"runner": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		"taskKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		"command": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		"success": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		"exitCode": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 }
  */
 export interface TelemetryEvent {

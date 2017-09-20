@@ -95,7 +95,7 @@ export class WalkThroughInput extends EditorInput {
 		descriptor['resource'] = telemetryURIDescriptor(this.options.resource);
 		/* __GDPR__FRAGMENT__
 		   "EditorTelemetryDescriptor" : {
-			  "target" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			  "resource": { "${inline}": [ "${URIDescriptor}" ] }
 		   }
 		 */
@@ -173,7 +173,7 @@ export class WalkThroughInput extends EditorInput {
 			this.resolveTime = Date.now();
 			/* __GDPR__
 			   "resolvingInput" : {
-				  "target" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				  "target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			   }
 			 */
 			this.telemetryService.publicLog('resolvingInput', {
@@ -186,11 +186,11 @@ export class WalkThroughInput extends EditorInput {
 		if (this.resolveTime) {
 			/* __GDPR__
 			   "disposingInput" : {
-				  "target" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				  "timeSpent": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				  "reason": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				  "maxTopScroll": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				  "maxBottomScroll": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				  "target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				  "timeSpent": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				  "reason": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				  "maxTopScroll": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				  "maxBottomScroll": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			   }
 			 */
 			this.telemetryService.publicLog('disposingInput', {

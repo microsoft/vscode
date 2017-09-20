@@ -143,9 +143,9 @@ export class FilterInputBoxActionItem extends BaseActionItem {
 		data['infos'] = this.markersPanel.markersModel.filterOptions.filterInfos;
 		/* __GDPR__
 		   "problems.filter" : {
-			  "errors" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "warnings": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "infos": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			  "errors" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "warnings": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "infos": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		   }
 		 */
 		this.telemetryService.publicLog('problems.filter', data);

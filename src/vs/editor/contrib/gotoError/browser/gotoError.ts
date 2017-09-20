@@ -408,7 +408,7 @@ class MarkerNavigationAction extends EditorAction {
 		let model = controller.getOrCreateModel();
 		/* __GDPR__
 		   "zoneWidgetShown" : {
-			  "mode" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "mode" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			  "${include}": [
 				 "${EditorTelemetryData}"
 			  ]

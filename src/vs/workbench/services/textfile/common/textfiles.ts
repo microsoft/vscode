@@ -102,9 +102,9 @@ export interface IResult {
 
 /* __GDPR__FRAGMENT__
    "IAutoSaveConfiguration" : {
-	  "autoSaveDelay" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-	  "autoSaveFocusChange": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-	  "autoSaveApplicationChange": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	  "autoSaveDelay" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+	  "autoSaveFocusChange": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+	  "autoSaveApplicationChange": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
    }
  */
 export interface IAutoSaveConfiguration {

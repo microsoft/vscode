@@ -166,7 +166,7 @@ export class UpdateService implements IUpdateService {
 				this.state = State.Idle;
 				/* __GDPR__
 				   "update:notAvailable" : {
-					  "explicit" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					  "explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				   }
 				 */
 				this.telemetryService.publicLog('update:notAvailable', { explicit });
@@ -184,9 +184,9 @@ export class UpdateService implements IUpdateService {
 				this.state = State.UpdateAvailable;
 				/* __GDPR__
 				   "update:available" : {
-					  "explicit" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					  "version": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					  "currentVersion": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					  "explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					  "version": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					  "currentVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				   }
 				 */
 				this.telemetryService.publicLog('update:available', { explicit, version: update.version, currentVersion: product.commit });
@@ -203,7 +203,7 @@ export class UpdateService implements IUpdateService {
 				this.state = State.UpdateDownloaded;
 				/* __GDPR__
 				   "update:downloaded" : {
-					  "version" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					  "version" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				   }
 				 */
 				this.telemetryService.publicLog('update:downloaded', { version: update.version });

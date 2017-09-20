@@ -147,8 +147,8 @@ export class ElectronWindow extends Themable {
 			this.commandService.executeCommand(request.id, ...args).done(_ => {
 				/* __GDPR__
 				   "commandExecuted" : {
-					  "id" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					  "from": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					  "id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					  "from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				   }
 				 */
 				this.telemetryService.publicLog('commandExecuted', { id: request.id, from: request.from });

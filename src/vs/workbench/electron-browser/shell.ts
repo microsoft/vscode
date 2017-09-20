@@ -201,24 +201,24 @@ export class WorkbenchShell {
 		const { filesToOpen, filesToCreate, filesToDiff } = this.configuration;
 		/* __GDPR__
 		   "workspaceLoad" : {
-			  "userAgent" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "windowSize.innerHeight": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "windowSize.innerWidth": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "windowSize.outerHeight": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "windowSize.outerWidth": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "emptyWorkbench": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "workbench.filesToOpen": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "workbench.filesToCreate": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "workbench.filesToDiff": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "customKeybindingsCount": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "theme": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "language": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "BusinessInsight" },
+			  "userAgent" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "windowSize.innerHeight": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "windowSize.innerWidth": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "windowSize.outerHeight": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "windowSize.outerWidth": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "emptyWorkbench": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "workbench.filesToOpen": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "workbench.filesToCreate": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "workbench.filesToDiff": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "customKeybindingsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "theme": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "language": { "classification": "SystemMetaData", "purpose": "BusinessInsight" },
 			  "experiments": { "${inline}": [ "${IExperiments}" ] },
-			  "pinnedViewlets": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "restoredViewlet": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "restoredEditors": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "pinnedViewlets": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "startupKind": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			  "pinnedViewlets": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "restoredViewlet": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "restoredEditors": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "pinnedViewlets": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "startupKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		   }
 		 */
 		this.telemetryService.publicLog('workspaceLoad', {

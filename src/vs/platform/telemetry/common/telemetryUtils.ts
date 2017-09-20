@@ -68,9 +68,9 @@ export function anonymize(input: string): string {
 
 /* __GDPR__FRAGMENT__
    "URIDescriptor" : {
-	  "mimeType" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-	  "ext": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-	  "path": { "endPoint": "none", "classification": "CustomerContent", "purpose": "FeatureInsight" }
+	  "mimeType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+	  "ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+	  "path": { "classification": "CustomerContent", "purpose": "FeatureInsight" }
    }
  */
 export interface URIDescriptor {
@@ -189,8 +189,8 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
 		if (event.source !== ConfigurationSource.Default) {
 			/* __GDPR__
 			   "updateConfiguration" : {
-				  "configurationSource" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				  "configurationKeys": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				  "configurationSource" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				  "configurationKeys": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			   }
 			 */
 			telemetryService.publicLog('updateConfiguration', {
@@ -199,8 +199,8 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
 			});
 			/* __GDPR__
 			   "updateConfigurationValues" : {
-				  "configurationSource" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				  "configurationValues": { "endPoint": "none", "classification": "CustomerContent", "purpose": "FeatureInsight" }
+				  "configurationSource" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				  "configurationValues": { "classification": "CustomerContent", "purpose": "FeatureInsight" }
 			   }
 			 */
 			telemetryService.publicLog('updateConfigurationValues', {
@@ -215,7 +215,7 @@ export function lifecycleTelemetry(telemetryService: ITelemetryService, lifecycl
 	return lifecycleService.onShutdown(event => {
 		/* __GDPR__
 		   "shutdown" : {
-			  "reason" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			  "reason" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		   }
 		 */
 		telemetryService.publicLog('shutdown', { reason: ShutdownReason[event] });
@@ -227,7 +227,7 @@ export function keybindingsTelemetry(telemetryService: ITelemetryService, keybin
 		if (event.source === KeybindingSource.User && event.keybindings) {
 			/* __GDPR__
 			   "updateKeybindings" : {
-				   "bindings": { "endPoint": "none", "classification": "CustomerContent", "purpose": "FeatureInsight" }
+				   "bindings": { "classification": "CustomerContent", "purpose": "FeatureInsight" }
 			   }
 			 */
 			telemetryService.publicLog('updateKeybindings', {

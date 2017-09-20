@@ -14,19 +14,19 @@ export const machineIdIpcChannel = 'vscode:machineId';
 export function resolveCommonProperties(commit: string, version: string, source: string): TPromise<{ [name: string]: string; }> {
 	const result: { [name: string]: string; } = Object.create(null);
 
-	// __GDPR__COMMON__ "sessionID" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	// __GDPR__COMMON__ "sessionID" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['sessionID'] = uuid.generateUuid() + Date.now();
-	// __GDPR__COMMON__ "commitHash" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	// __GDPR__COMMON__ "commitHash" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['commitHash'] = commit;
-	// __GDPR__COMMON__ "version" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	// __GDPR__COMMON__ "version" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['version'] = version;
-	// __GDPR__COMMON__ "common.osVersion" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	// __GDPR__COMMON__ "common.osVersion" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['common.osVersion'] = os.release();
-	// __GDPR__COMMON__ "common.platfrom" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	// __GDPR__COMMON__ "common.platfrom" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['common.platform'] = Platform.Platform[Platform.platform];
-	// __GDPR__COMMON__ "common.nodePlatform" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	// __GDPR__COMMON__ "common.nodePlatform" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['common.nodePlatform'] = process.platform;
-	// __GDPR__COMMON__ "common.nodeArch" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	// __GDPR__COMMON__ "common.nodeArch" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['common.nodeArch'] = process.arch;
 	result['common.source'] = source;
 
@@ -34,17 +34,17 @@ export function resolveCommonProperties(commit: string, version: string, source:
 	let seq = 0;
 	const startTime = Date.now();
 	Object.defineProperties(result, {
-		// __GDPR__COMMON__ "timestamp" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		// __GDPR__COMMON__ "timestamp" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		'timestamp': {
 			get: () => new Date(),
 			enumerable: true
 		},
-		// __GDPR__COMMON__ "common.timesincesessionstart" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		// __GDPR__COMMON__ "common.timesincesessionstart" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		'common.timesincesessionstart': {
 			get: () => Date.now() - startTime,
 			enumerable: true
 		},
-		// __GDPR__COMMON__ "common.sequence" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		// __GDPR__COMMON__ "common.sequence" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		'common.sequence': {
 			get: () => seq++,
 			enumerable: true

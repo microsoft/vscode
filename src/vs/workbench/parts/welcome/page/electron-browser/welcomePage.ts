@@ -325,8 +325,8 @@ class WelcomePage {
 				a.addEventListener('click', e => {
 					/* __GDPR__
 					   "workbenchActionExecuted" : {
-						  "id" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						  "from": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						  "id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						  "from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 					   }
 					 */
 					this.telemetryService.publicLog('workbenchActionExecuted', {
@@ -410,8 +410,8 @@ class WelcomePage {
 	private installExtension(extensionSuggestion: ExtensionSuggestion, strings: Strings): void {
 		/* __GDPR__FRAGMENT__
 		   "WelcomePageInstall-1" : {
-			  "from" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "extensionId": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			  "from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "extensionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		   }
 		 */
 		this.telemetryService.publicLog(strings.installEvent, {
@@ -423,9 +423,9 @@ class WelcomePage {
 			if (installedExtension && installedExtension.globallyEnabled) {
 				/* __GDPR__FRAGMENT__
 				   "WelcomePageInstalled-1" : {
-					  "from" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					  "extensionId": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					  "outcome": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					  "from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					  "extensionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					  "outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				   }
 				 */
 				this.telemetryService.publicLog(strings.installedEvent, {
@@ -472,9 +472,9 @@ class WelcomePage {
 											.then(() => {
 												/* __GDPR__FRAGMENT__
 												   "WelcomePageInstalled-2" : {
-													  "from" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-													  "extensionId": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-													  "outcome": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+													  "from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+													  "extensionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+													  "outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 												   }
 												 */
 												this.telemetryService.publicLog(strings.installedEvent, {
@@ -487,9 +487,9 @@ class WelcomePage {
 									} else {
 										/* __GDPR__FRAGMENT__
 										   "WelcomePageInstalled-3" : {
-											  "from" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-											  "extensionId": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-											  "outcome": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+											  "from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+											  "extensionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+											  "outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 										   }
 										 */
 										this.telemetryService.publicLog(strings.installedEvent, {
@@ -504,10 +504,10 @@ class WelcomePage {
 							}).then(null, err => {
 								/* __GDPR__FRAGMENT__
 								   "WelcomePageInstalled-4" : {
-									  "from" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-									  "extensionId": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-									  "outcome": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-									  "error": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+									  "from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+									  "extensionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+									  "outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+									  "error": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 								   }
 								 */
 								this.telemetryService.publicLog(strings.installedEvent, {
@@ -523,8 +523,8 @@ class WelcomePage {
 					new Action('details', localize('details', "Details"), null, true, () => {
 						/* __GDPR__FRAGMENT__
 						   "WelcomePageDetails-1" : {
-							  "from" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							  "extensionId": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+							  "from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							  "extensionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 						   }
 						 */
 						this.telemetryService.publicLog(strings.detailsEvent, {
@@ -539,9 +539,9 @@ class WelcomePage {
 					new Action('cancel', localize('cancel', "Cancel"), null, true, () => {
 						/* __GDPR__FRAGMENT__
 						   "WelcomePageInstalled-5" : {
-							  "from" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							  "extensionId": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							  "outcome": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+							  "from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							  "extensionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							  "outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 						   }
 						 */
 						this.telemetryService.publicLog(strings.installedEvent, {
@@ -556,10 +556,10 @@ class WelcomePage {
 		}).then(null, err => {
 			/* __GDPR__FRAGMENT__
 			   "WelcomePageInstalled-6" : {
-				  "from" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				  "extensionId": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				  "outcome": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				  "error": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+				  "from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				  "extensionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				  "outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				  "error": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 			   }
 			 */
 			this.telemetryService.publicLog(strings.installedEvent, {

@@ -220,9 +220,9 @@ export abstract class TextFileService implements ITextFileService {
 			// Telemetry
 			/* __GDPR__
 			   "hotExit:triggered" : {
-				  "reason" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				  "windowCount": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				  "fileCount": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				  "reason" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				  "windowCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				  "fileCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			   }
 			 */
 			this.telemetryService.publicLog('hotExit:triggered', { reason, windowCount, fileCount: dirtyToBackup.length });

@@ -295,8 +295,8 @@ class StatusBarEntryItem implements IStatusbarItem {
 			if (action.enabled) {
 				/* __GDPR__
 				   "workbenchActionExecuted" : {
-					  "id" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					  "from": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					  "id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					  "from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				   }
 				 */
 				this.telemetryService.publicLog('workbenchActionExecuted', { id: action.id, from: 'status bar' });

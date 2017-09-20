@@ -142,7 +142,7 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 		// check how often this is used
 		/* __GDPR__
 		   "api.deprecated" : {
-			  "function" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			  "function" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		   }
 		 */
 		this._telemetryService.publicLog('api.deprecated', { function: 'TextEditor.show' });
@@ -162,7 +162,7 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 		// check how often this is used
 		/* __GDPR__
 		   "api.deprecated" : {
-			  "function" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			  "function" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		   }
 		 */
 		this._telemetryService.publicLog('api.deprecated', { function: 'TextEditor.hide' });

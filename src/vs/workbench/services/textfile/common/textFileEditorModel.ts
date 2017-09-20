@@ -369,9 +369,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Telemetry
 		/* __GDPR__
 		   "fileGet" : {
-			  "mimeType" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "ext": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "path": { "endPoint": "none", "classification": "CustomerContent", "purpose": "FeatureInsight" }
+			  "mimeType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "path": { "classification": "CustomerContent", "purpose": "FeatureInsight" }
 		   }
 		 */
 		this.telemetryService.publicLog('fileGet', { mimeType: guessMimeTypes(this.resource.fsPath).join(', '), ext: paths.extname(this.resource.fsPath), path: anonymize(this.resource.fsPath) });
@@ -712,8 +712,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				} else {
 					/* __GDPR__
 					   "filePUT" : {
-						  "mimeType" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						  "ext": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						  "mimeType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						  "ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 					   }
 					 */
 					this.telemetryService.publicLog('filePUT', { mimeType: guessMimeTypes(this.resource.fsPath).join(', '), ext: paths.extname(this.lastResolvedDiskStat.resource.fsPath) });

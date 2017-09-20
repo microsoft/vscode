@@ -109,7 +109,7 @@ function main(server: Server, initData: ISharedProcessInitData): void {
 			const config: ITelemetryServiceConfig = {
 				appender,
 				commonProperties: resolveCommonProperties(product.commit, pkg.version, installSource)
-					// __GDPR__COMMON__ "common.machineId" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					// __GDPR__COMMON__ "common.machineId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 					.then(result => Object.defineProperty(result, 'common.machineId', {
 						get: () => storageService.get(machineIdStorageKey),
 						enumerable: true

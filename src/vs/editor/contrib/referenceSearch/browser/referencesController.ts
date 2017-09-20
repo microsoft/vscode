@@ -163,8 +163,8 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 				dispose: () => {
 					/* __GDPR__
 					   "zoneWidgetShown" : {
-						  "mode" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						  "elapsedTime": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						  "mode" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						  "elapsedTime": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 					   }
 					 */
 					this._telemetryService.publicLog('zoneWidgetShown', {
@@ -199,8 +199,8 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 
 		/* __GDPR__
 		   "findReferences" : {
-			  "durarion" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-			  "mode": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			  "durarion" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+			  "mode": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		   }
 		 */
 		onDone(duration => this._telemetryService.publicLog('findReferences', {

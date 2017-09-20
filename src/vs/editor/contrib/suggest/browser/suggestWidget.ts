@@ -730,7 +730,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			stats['wasAutomaticallyTriggered'] = !!isAuto;
 			/* __GDPR__
 			   "suggestWidget" : {
-				  "wasAutomaticallyTriggered" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				  "wasAutomaticallyTriggered" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				  "${include}": [
 					 "${ICompletionStats}",
 					 "${EditorTelemetryData}"

@@ -110,7 +110,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 	public updatePreference(key: string, value: any, source: ISetting): void {
 		/* __GDPR__
 		   "defaultSettingsActions.copySetting" : {
-			  "userConfigurationKeys" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			  "userConfigurationKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		   }
 		 */
 		this.telemetryService.publicLog('defaultSettingsActions.copySetting', { userConfigurationKeys: [key] });

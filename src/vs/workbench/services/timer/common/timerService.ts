@@ -10,10 +10,10 @@ export const ITimerService = createDecorator<ITimerService>('timerService');
 
 /* __GDPR__FRAGMENT__
    "IMemoryInfo" : {
-	  "workingSetSize" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "peakWorkingSetSize": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "privateBytes": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "sharedBytes": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+	  "workingSetSize" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "peakWorkingSetSize": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "privateBytes": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "sharedBytes": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
    }
  */
 export interface IMemoryInfo {
@@ -25,35 +25,35 @@ export interface IMemoryInfo {
 
 /* __GDPR__FRAGMENT__
    "IStartupMetrics" : {
-	  "version" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "ellapsed" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "timers.ellapsedAppReady" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "timers.ellapsedWindowLoad" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "timers.ellapsedWindowLoadToRequire" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "timers.ellapsedExtensions" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "timers.ellapsedExtensionsReady" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "timers.ellapsedRequire" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "timers.ellapsedViewletRestore" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "timers.ellapsedEditorRestore" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "timers.ellapsedWorkbench" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "timers.ellapsedTimersToTimersComputed" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "platform" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "release" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "arch" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "totalmem" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "version" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "ellapsed" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "timers.ellapsedAppReady" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "timers.ellapsedWindowLoad" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "timers.ellapsedWindowLoadToRequire" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "timers.ellapsedExtensions" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "timers.ellapsedExtensionsReady" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "timers.ellapsedRequire" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "timers.ellapsedViewletRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "timers.ellapsedEditorRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "timers.ellapsedWorkbench" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "timers.ellapsedTimersToTimersComputed" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "platform" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "release" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "arch" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "totalmem" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 	  "meminfo" : { "${inline}": [ "${IMemoryInfo}" ] },
-	  "cpus.count" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "cpus.speed" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "cpus.model" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "initialStartup" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "hasAccessibilitySupport" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "isVMLikelyhood" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "emptyWorkbench" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "loadavg" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "cpus.count" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "cpus.speed" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "cpus.model" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "initialStartup" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "hasAccessibilitySupport" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "isVMLikelyhood" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "emptyWorkbench" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "loadavg" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 	  "${wildcard}": [
 		 {
 			"${prefix}": "timers2.",
-			"${classification}": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+			"${classification}": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 		 }
 	  ]
    }

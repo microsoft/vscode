@@ -10,7 +10,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 
 /* __GDPR__FRAGMENT__
    "IExperiments" : {
-	  "deployToAzureQuickLink" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	  "deployToAzureQuickLink" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
    }
  */
 export interface IExperiments {
