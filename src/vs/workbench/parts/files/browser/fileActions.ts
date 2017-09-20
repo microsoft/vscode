@@ -1210,7 +1210,7 @@ export class GlobalCompareResourcesAction extends Action {
 				}
 
 				label = paths.basename(resource.fsPath);
-				description = resource.scheme === 'file' ? labels.getPathLabel(paths.dirname(resource.fsPath), this.contextService, this.environmentService) : void 0;
+				description = labels.getPathLabel(resources.dirname(resource), this.contextService, this.environmentService);
 
 				return <IHistoryPickEntry>{ input, resource, label, description };
 			}).filter(p => !!p);

@@ -190,13 +190,13 @@ export class Workspace implements IWorkspace {
 			return null;
 		}
 
-		return this._foldersMap.findSubstr(resource.scheme === 'file' ? resource.fsPath : resource.authority);
+		return this._foldersMap.findSubstr(resource.toString());
 	}
 
 	private updateFoldersMap(): void {
 		this._foldersMap = new TrieMap<WorkspaceFolder>();
 		for (const folder of this.folders) {
-			this._foldersMap.insert(folder.uri.scheme === 'file' ? folder.uri.fsPath : folder.uri.authority, folder);
+			this._foldersMap.insert(folder.uri.toString(), folder);
 		}
 	}
 
