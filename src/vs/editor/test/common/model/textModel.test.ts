@@ -914,7 +914,7 @@ suite('TextModel.getLineIndentGuide', () => {
 			[1, '     '],
 			[1, '     return 1;'],
 			[1, '  }'],
-			[1, '      '],
+			[0, '      '],
 			[0, '}'],
 		]);
 	});
@@ -927,7 +927,7 @@ suite('TextModel.getLineIndentGuide', () => {
 			[2, '\t \t//hello'],
 			[2, '\t    return 2;'],
 			[1, '  \t}'],
-			[1, '      '],
+			[0, '      '],
 			[0, '}'],
 		]);
 	});
