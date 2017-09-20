@@ -65,7 +65,7 @@ export function activate(context: ExtensionContext) {
 				return client.sendRequest(DocumentColorRequest.type, params).then(symbols => {
 					return symbols.map(symbol => {
 						let range = client.protocol2CodeConverter.asRange(symbol.range);
-						let color = new Color(symbol.color.red * 255, symbol.color.green * 255, symbol.color.blue * 255, symbol.color.alpha);
+						let color = new Color(symbol.color.red, symbol.color.green, symbol.color.blue, symbol.color.alpha);
 						return new ColorInformation(range, color);
 					});
 				});

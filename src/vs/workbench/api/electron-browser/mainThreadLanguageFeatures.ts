@@ -292,9 +292,9 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 						return documentColors.map(documentColor => {
 							const [red, green, blue, alpha] = documentColor.color;
 							const color = {
-								red: red / 255.0,
-								green: green / 255.0,
-								blue: blue / 255.0,
+								red: red,
+								green: green,
+								blue: blue,
 								alpha
 							};
 
