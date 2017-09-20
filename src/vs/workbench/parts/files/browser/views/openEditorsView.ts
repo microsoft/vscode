@@ -91,7 +91,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		const count = dom.append(container, $('.count'));
 		this.dirtyCountElement = dom.append(count, $('.monaco-count-badge'));
 
-		this.toDispose.push((attachStylerCallback(this.themeService, { badgeBackground, badgeForeground, contrastBorder }, colors => {
+		this.disposables.push((attachStylerCallback(this.themeService, { badgeBackground, badgeForeground, contrastBorder }, colors => {
 			const background = colors.badgeBackground ? colors.badgeBackground.toString() : null;
 			const foreground = colors.badgeForeground ? colors.badgeForeground.toString() : null;
 			const border = colors.contrastBorder ? colors.contrastBorder.toString() : null;
@@ -142,20 +142,20 @@ export class OpenEditorsView extends ViewsViewletPanel {
 			});
 
 		// Theme styler
-		this.toDispose.push(attachListStyler(this.tree, this.themeService));
+		this.disposables.push(attachListStyler(this.tree, this.themeService));
 
 		// Register to list service
-		this.toDispose.push(this.listService.register(this.tree, [this.explorerFocusedContext, this.openEditorsFocusedContext]));
+		this.disposables.push(this.listService.register(this.tree, [this.explorerFocusedContext, this.openEditorsFocusedContext]));
 
 		// Open when selecting via keyboard
-		this.toDispose.push(this.tree.addListener('selection', event => {
+		this.disposables.push(this.tree.addListener('selection', event => {
 			if (event && event.payload && event.payload.origin === 'keyboard') {
 				controller.openEditor(this.tree.getFocus(), { pinned: false, sideBySide: false, preserveFocus: false });
 			}
 		}));
 
 		// Prevent collapsing of editor groups
-		this.toDispose.push(this.tree.addListener('item:collapsed', (event: IItemCollapseEvent) => {
+		this.disposables.push(this.tree.addListener('item:collapsed', (event: IItemCollapseEvent) => {
 			if (event.item && event.item.getElement() instanceof EditorGroup) {
 				setTimeout(() => this.tree.expand(event.item.getElement())); // unwind from callback
 			}
@@ -180,20 +180,20 @@ export class OpenEditorsView extends ViewsViewletPanel {
 	private registerListeners(): void {
 
 		// update on model changes
-		this.toDispose.push(this.model.onModelChanged(e => this.onEditorStacksModelChanged(e)));
+		this.disposables.push(this.model.onModelChanged(e => this.onEditorStacksModelChanged(e)));
 
 		// Also handle configuration updates
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IFilesConfiguration>())));
+		this.disposables.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IFilesConfiguration>())));
 
 		// Handle dirty counter
-		this.toDispose.push(this.untitledEditorService.onDidChangeDirty(e => this.updateDirtyIndicator()));
-		this.toDispose.push(this.textFileService.models.onModelsDirty(e => this.updateDirtyIndicator()));
-		this.toDispose.push(this.textFileService.models.onModelsSaved(e => this.updateDirtyIndicator()));
-		this.toDispose.push(this.textFileService.models.onModelsSaveError(e => this.updateDirtyIndicator()));
-		this.toDispose.push(this.textFileService.models.onModelsReverted(e => this.updateDirtyIndicator()));
+		this.disposables.push(this.untitledEditorService.onDidChangeDirty(e => this.updateDirtyIndicator()));
+		this.disposables.push(this.textFileService.models.onModelsDirty(e => this.updateDirtyIndicator()));
+		this.disposables.push(this.textFileService.models.onModelsSaved(e => this.updateDirtyIndicator()));
+		this.disposables.push(this.textFileService.models.onModelsSaveError(e => this.updateDirtyIndicator()));
+		this.disposables.push(this.textFileService.models.onModelsReverted(e => this.updateDirtyIndicator()));
 
 		// We are not updating the tree while the viewlet is not visible. Thus refresh when viewlet becomes visible #6702
-		this.toDispose.push(this.viewletService.onDidViewletOpen(viewlet => {
+		this.disposables.push(this.viewletService.onDidViewletOpen(viewlet => {
 			if (viewlet.getId() === VIEWLET_ID) {
 				this.fullRefreshNeeded = true;
 				this.structuralTreeUpdate();

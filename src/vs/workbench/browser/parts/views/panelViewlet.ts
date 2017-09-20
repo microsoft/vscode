@@ -242,7 +242,6 @@ export class PanelViewlet extends Viewlet {
 			return;
 		}
 
-
 		const [panelItem] = this.panelItems.splice(fromIndex, 1);
 		this.panelItems.splice(toIndex, 0, panelItem);
 
@@ -251,6 +250,10 @@ export class PanelViewlet extends Viewlet {
 
 	resizePanel(panel: ViewletPanel, size: number): void {
 		this.panelview.resizePanel(panel, size);
+	}
+
+	getPanelSize(panel: ViewletPanel): number {
+		return this.panelview.getPanelSize(panel);
 	}
 
 	private updateViewHeaders(): void {

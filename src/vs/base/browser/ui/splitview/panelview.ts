@@ -388,6 +388,16 @@ export class PanelView implements IDisposable {
 		this.splitview.resizeView(index, size);
 	}
 
+	getPanelSize(panel: Panel): number {
+		const index = firstIndex(this.panelItems, item => item.panel === panel);
+
+		if (index === -1) {
+			return -1;
+		}
+
+		return this.splitview.getViewSize(index);
+	}
+
 	layout(size: number): void {
 		this.splitview.layout(size);
 	}

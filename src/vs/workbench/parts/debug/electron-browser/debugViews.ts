@@ -97,8 +97,8 @@ export class VariablesView extends ViewsViewletPanel {
 				keyboardSupport: false
 			});
 
-		this.toDispose.push(attachListStyler(this.tree, this.themeService));
-		this.toDispose.push(this.listService.register(this.tree, [this.variablesFocusedContext]));
+		this.disposables.push(attachListStyler(this.tree, this.themeService));
+		this.disposables.push(this.listService.register(this.tree, [this.variablesFocusedContext]));
 
 		const viewModel = this.debugService.getViewModel();
 
@@ -107,7 +107,7 @@ export class VariablesView extends ViewsViewletPanel {
 		const collapseAction = this.instantiationService.createInstance(CollapseAction, this.tree, false, 'explorer-action collapse-explorer');
 		this.toolbar.setActions(prepareActions([collapseAction]))();
 
-		this.toDispose.push(viewModel.onDidFocusStackFrame(sf => {
+		this.disposables.push(viewModel.onDidFocusStackFrame(sf => {
 			// Refresh the tree immediately if it is not visible.
 			// Otherwise postpone the refresh until user stops stepping.
 			if (!this.tree.getContentHeight() || sf.explicit) {
@@ -116,11 +116,11 @@ export class VariablesView extends ViewsViewletPanel {
 				this.onFocusStackFrameScheduler.schedule();
 			}
 		}));
-		this.toDispose.push(this.debugService.onDidChangeState(state => {
+		this.disposables.push(this.debugService.onDidChangeState(state => {
 			collapseAction.enabled = state === State.Running || state === State.Stopped;
 		}));
 
-		this.toDispose.push(this.debugService.getViewModel().onDidSelectExpression(expression => {
+		this.disposables.push(this.debugService.getViewModel().onDidSelectExpression(expression => {
 			if (!expression || !(expression instanceof Variable)) {
 				return;
 			}
@@ -163,7 +163,7 @@ export class WatchExpressionsView extends ViewsViewletPanel {
 		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('expressionsSection', "Expressions Section") }, keybindingService, contextMenuService);
 		this.settings = options.viewletSettings;
 
-		this.toDispose.push(this.debugService.getModel().onDidChangeWatchExpressions(we => {
+		this.disposables.push(this.debugService.getModel().onDidChangeWatchExpressions(we => {
 			// only expand when a new watch expression is added.
 			if (we instanceof Expression) {
 				this.setExpanded(true);
@@ -195,8 +195,8 @@ export class WatchExpressionsView extends ViewsViewletPanel {
 				keyboardSupport: false
 			});
 
-		this.toDispose.push(attachListStyler(this.tree, this.themeService));
-		this.toDispose.push(this.listService.register(this.tree, [this.watchExpressionsFocusedContext]));
+		this.disposables.push(attachListStyler(this.tree, this.themeService));
+		this.disposables.push(this.listService.register(this.tree, [this.watchExpressionsFocusedContext]));
 
 		this.tree.setInput(this.debugService.getModel());
 
@@ -205,14 +205,14 @@ export class WatchExpressionsView extends ViewsViewletPanel {
 		const removeAllWatchExpressionsAction = this.instantiationService.createInstance(RemoveAllWatchExpressionsAction, RemoveAllWatchExpressionsAction.ID, RemoveAllWatchExpressionsAction.LABEL);
 		this.toolbar.setActions(prepareActions([addWatchExpressionAction, collapseAction, removeAllWatchExpressionsAction]))();
 
-		this.toDispose.push(this.debugService.getModel().onDidChangeWatchExpressions(we => {
+		this.disposables.push(this.debugService.getModel().onDidChangeWatchExpressions(we => {
 			if (!this.onWatchExpressionsUpdatedScheduler.isScheduled()) {
 				this.onWatchExpressionsUpdatedScheduler.schedule();
 			}
 			this.toReveal = we;
 		}));
 
-		this.toDispose.push(this.debugService.getViewModel().onDidSelectExpression(expression => {
+		this.disposables.push(this.debugService.getViewModel().onDidSelectExpression(expression => {
 			if (!expression || !(expression instanceof Expression)) {
 				return;
 			}
@@ -308,10 +308,10 @@ export class CallStackView extends ViewsViewletPanel {
 				keyboardSupport: false
 			});
 
-		this.toDispose.push(attachListStyler(this.tree, this.themeService));
-		this.toDispose.push(this.listService.register(this.tree));
+		this.disposables.push(attachListStyler(this.tree, this.themeService));
+		this.disposables.push(this.listService.register(this.tree));
 
-		this.toDispose.push(this.tree.addListener('selection', event => {
+		this.disposables.push(this.tree.addListener('selection', event => {
 			if (event && event.payload && event.payload.origin === 'keyboard') {
 				const element = this.tree.getFocus();
 				if (element instanceof ThreadAndProcessIds) {
@@ -322,12 +322,12 @@ export class CallStackView extends ViewsViewletPanel {
 			}
 		}));
 
-		this.toDispose.push(this.debugService.getModel().onDidChangeCallStack(() => {
+		this.disposables.push(this.debugService.getModel().onDidChangeCallStack(() => {
 			if (!this.onCallStackChangeScheduler.isScheduled()) {
 				this.onCallStackChangeScheduler.schedule();
 			}
 		}));
-		this.toDispose.push(this.debugService.getViewModel().onDidFocusStackFrame(() =>
+		this.disposables.push(this.debugService.getViewModel().onDidFocusStackFrame(() =>
 			this.updateTreeSelection().done(undefined, errors.onUnexpectedError)));
 
 		// Schedule the update of the call stack tree if the viewlet is opened after a session started #14684
@@ -393,9 +393,10 @@ export class BreakpointsView extends ViewsViewletPanel {
 			ariaHeaderLabel: nls.localize('breakpointsSection', "Breakpoints Section")
 		}, keybindingService, contextMenuService);
 
+		this.minimumBodySize = this.maximumBodySize = 0;
 		this.settings = options.viewletSettings;
 		this.breakpointsFocusedContext = CONTEXT_BREAKPOINTS_FOCUSED.bindTo(contextKeyService);
-		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.onBreakpointsChange()));
+		this.disposables.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.onBreakpointsChange()));
 	}
 
 	public renderBody(container: HTMLElement): void {
@@ -442,10 +443,10 @@ export class BreakpointsView extends ViewsViewletPanel {
 				keyboardSupport: false
 			});
 
-		this.toDispose.push(attachListStyler(this.tree, this.themeService));
-		this.toDispose.push(this.listService.register(this.tree, [this.breakpointsFocusedContext]));
+		this.disposables.push(attachListStyler(this.tree, this.themeService));
+		this.disposables.push(this.listService.register(this.tree, [this.breakpointsFocusedContext]));
 
-		this.toDispose.push(this.tree.addListener('selection', event => {
+		this.disposables.push(this.tree.addListener('selection', event => {
 			if (event && event.payload && event.payload.origin === 'keyboard') {
 				const element = this.tree.getFocus();
 				if (element instanceof Breakpoint) {
@@ -458,7 +459,7 @@ export class BreakpointsView extends ViewsViewletPanel {
 
 		this.tree.setInput(debugModel);
 
-		this.toDispose.push(this.debugService.getViewModel().onDidSelectFunctionBreakpoint(fbp => {
+		this.disposables.push(this.debugService.getViewModel().onDidSelectFunctionBreakpoint(fbp => {
 			if (!fbp || !(fbp instanceof FunctionBreakpoint)) {
 				return;
 			}

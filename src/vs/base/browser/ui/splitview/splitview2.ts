@@ -249,6 +249,14 @@ export class SplitView implements IDisposable {
 		}
 	}
 
+	getViewSize(index: number): number {
+		if (index < 0 || index >= this.viewItems.length) {
+			return -1;
+		}
+
+		return this.viewItems[index].size;
+	}
+
 	private resize(index: number, delta: number, sizes = this.viewItems.map(i => i.size)): void {
 		if (index < 0 || index >= this.viewItems.length) {
 			return;

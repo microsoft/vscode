@@ -13,6 +13,7 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
+import { firstIndex } from 'vs/base/common/arrays';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -32,43 +33,20 @@ export interface IViewOptions extends IPanelOptions {
 	id: string;
 	name: string;
 	actionRunner: IActionRunner;
-	collapsed: boolean;
 }
 
 export interface IViewConstructorSignature<T extends ViewsViewletPanel> {
 	new(options: IViewOptions, ...services: { _serviceBrand: any; }[]): T;
 }
 
-// export interface IViewletView extends IThemable {
-// 	id: string;
-// 	name: string;
-// 	// getHeaderElement(): HTMLElement;
-// 	// setVisible(visible: boolean): TPromise<void>;
-// 	// isVisible(): boolean;
-// 	getActions(): IAction[];
-// 	getSecondaryActions(): IAction[];
-// 	getActionItem(action: IAction): IActionItem;
-// 	getActionsContext(): any;
-// 	// showHeader(): boolean;
-// 	// hideHeader(): boolean;
-// 	// focusBody(): void;
-// 	// isExpanded(): boolean;
-// 	// expand(): void;
-// 	// collapse(): void;
-// 	// getOptimalWidth(): number;
-
-// 	// TODO@joao this should not be part of this
-// 	create(): TPromise<void>;
-// 	shutdown(): void;
-// }
-
 export abstract class ViewsViewletPanel extends ViewletPanel {
 
 	readonly id: string;
 	readonly name: string;
 	protected treeContainer: HTMLElement;
+
+	// TODO@sandeep why is tree here? isn't this coming only from TreeView
 	protected tree: ITree;
-	protected toDispose: IDisposable[];
 	protected isDisposed: boolean;
 	private _isVisible: boolean;
 	private dragHandler: DelayedDragHandler;
@@ -79,17 +57,10 @@ export abstract class ViewsViewletPanel extends ViewletPanel {
 		protected contextMenuService: IContextMenuService
 	) {
 		super(options.name, options, keybindingService, contextMenuService);
-		// {
-		// 	ariaHeaderLabel: options.ariaHeaderLabel,
-
-		// 	// sizing: options.sizing,
-		// 	// bodySize: options.initialBodySize ? options.initialBodySize : 4 * 22,
-		// 	// initialState: options.collapsed ? CollapsibleState.COLLAPSED : CollapsibleState.EXPANDED,
-		// });
 
 		this.id = options.id;
 		this.name = options.name;
-		this.toDispose = [];
+		this._expanded = options.expanded;
 	}
 
 	setExpanded(expanded: boolean): void {
@@ -187,7 +158,6 @@ export abstract class ViewsViewletPanel extends ViewletPanel {
 			this.dragHandler.dispose();
 		}
 
-		this.toDispose = dispose(this.toDispose);
 		super.dispose();
 	}
 
@@ -267,14 +237,6 @@ export class ViewsViewlet extends PanelViewlet {
 	async create(parent: Builder): TPromise<void> {
 		super.create(parent);
 
-		// TODO
-		// this._register(this.splitView.onDidOrderChange(() => {
-		// 	const views = this.viewPanelItems;
-		// 	for (let order = 0; order < views.length; order++) {
-		// 		this.viewsStates.get(views[order].id).order = order;
-		// 	}
-		// }));
-
 		this._register(ViewsRegistry.onViewsRegistered(this.onViewsRegistered, this));
 		this._register(ViewsRegistry.onViewsDeregistered(this.onViewsDeregistered, this));
 		this._register(this.contextKeyService.onDidChangeContext(keys => this.onContextChanged(keys)));
@@ -308,8 +270,20 @@ export class ViewsViewlet extends PanelViewlet {
 			.then(() => void 0);
 	}
 
+	private didLayout = false;
+
 	layout(dimension: Dimension): void {
 		super.layout(dimension);
+
+		if (!this.didLayout) {
+			this.didLayout = true;
+
+			for (const panel of this.viewsViewletPanels) {
+				const viewState = this.viewsStates.get(panel.id);
+				const size = viewState ? viewState.size : 200;
+				this.resizePanel(panel, size);
+			}
+		}
 
 		for (const view of this.viewsViewletPanels) {
 			let viewState = this.updateViewStateSize(view);
@@ -433,12 +407,12 @@ export class ViewsViewlet extends PanelViewlet {
 						id: viewDescriptor.id,
 						name: viewDescriptor.name,
 						actionRunner: this.getActionRunner(),
-						collapsed: viewState ? viewState.collapsed : void 0,
+						expanded: !(viewState ? viewState.collapsed : void 0),
 						viewletSettings: this.viewletSettings
 					});
 				toCreate.push(view);
 
-				this.addPanel(view, 200, index);
+				this.addPanel(view, viewState ? viewState.size : 200, index);
 				this.viewsViewletPanels.splice(index, 0, view);
 			}
 
@@ -448,6 +422,28 @@ export class ViewsViewlet extends PanelViewlet {
 		}
 
 		return TPromise.as([]);
+	}
+
+	movePanel(from: ViewletPanel, to: ViewletPanel): void {
+		const fromIndex = firstIndex(this.viewsViewletPanels, panel => panel === from);
+		const toIndex = firstIndex(this.viewsViewletPanels, panel => panel === to);
+
+		if (fromIndex < 0 || fromIndex >= this.viewsViewletPanels.length) {
+			return;
+		}
+
+		if (toIndex < 0 || toIndex >= this.viewsViewletPanels.length) {
+			return;
+		}
+
+		super.movePanel(from, to);
+
+		const [panel] = this.viewsViewletPanels.splice(fromIndex, 1);
+		this.viewsViewletPanels.splice(toIndex, 0, panel);
+
+		for (let order = 0; order < this.viewsViewletPanels.length; order++) {
+			this.viewsStates.get(this.viewsViewletPanels[order].id).order = order;
+		}
 	}
 
 	protected getDefaultViewSize(): number | undefined {
@@ -565,7 +561,7 @@ export class ViewsViewlet extends PanelViewlet {
 	protected createViewState(view: ViewsViewletPanel): IViewState {
 		return {
 			collapsed: !view.isExpanded(),
-			size: undefined,
+			size: this.getPanelSize(view),
 			isHidden: false,
 			order: this.viewsViewletPanels.indexOf(view)
 		};
@@ -602,9 +598,9 @@ export class PersistentViewsViewlet extends ViewsViewlet {
 		const registeredViewDescriptors = this.getViewDescriptorsFromRegistry();
 		this.viewsStates.forEach((viewState, id) => {
 			const view = this.getView(id);
+
 			if (view) {
-				viewState = this.createViewState(view);
-				viewsStates[id] = { size: viewState.size, collapsed: viewState.collapsed, isHidden: viewState.isHidden, order: viewState.order };
+				viewsStates[id] = this.createViewState(view);
 			} else {
 				const viewDescriptor = registeredViewDescriptors.filter(v => v.id === id)[0];
 				if (viewDescriptor) {

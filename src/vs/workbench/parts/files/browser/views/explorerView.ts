@@ -137,7 +137,7 @@ export class ExplorerView extends ViewsViewletPanel {
 			titleElement.title = title;
 		};
 
-		this.toDispose.push(this.contextService.onDidChangeWorkspaceName(setHeader));
+		this.disposables.push(this.contextService.onDidChangeWorkspaceName(setHeader));
 		setHeader();
 	}
 
@@ -164,8 +164,8 @@ export class ExplorerView extends ViewsViewletPanel {
 			DOM.toggleClass(this.treeContainer, 'align-icons-and-twisties', fileIconTheme.hasFileIcons && !fileIconTheme.hasFolderIcons);
 		};
 
-		this.toDispose.push(this.themeService.onDidFileIconThemeChange(onFileIconThemeChange));
-		this.toDispose.push(this.contextService.onDidChangeWorkspaceFolders(() => this.refreshFromEvent()));
+		this.disposables.push(this.themeService.onDidFileIconThemeChange(onFileIconThemeChange));
+		this.disposables.push(this.contextService.onDidChangeWorkspaceFolders(() => this.refreshFromEvent()));
 		onFileIconThemeChange(this.themeService.getFileIconTheme());
 	}
 
@@ -196,10 +196,10 @@ export class ExplorerView extends ViewsViewletPanel {
 		return this.doRefresh().then(() => {
 
 			// When the explorer viewer is loaded, listen to changes to the editor input
-			this.toDispose.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
+			this.disposables.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
 
 			// Also handle configuration updates
-			this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IFilesConfiguration>(), true)));
+			this.disposables.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IFilesConfiguration>(), true)));
 		});
 	}
 
@@ -376,7 +376,7 @@ export class ExplorerView extends ViewsViewletPanel {
 	@memoize
 	private get model(): Model {
 		const model = this.instantiationService.createInstance(Model);
-		this.toDispose.push(model);
+		this.disposables.push(model);
 
 		return model;
 	}
@@ -386,9 +386,9 @@ export class ExplorerView extends ViewsViewletPanel {
 		const renderer = this.instantiationService.createInstance(FileRenderer, this.viewletState);
 		const controller = this.instantiationService.createInstance(FileController, this.viewletState);
 		const sorter = this.instantiationService.createInstance(FileSorter);
-		this.toDispose.push(sorter);
+		this.disposables.push(sorter);
 		this.filter = this.instantiationService.createInstance(FileFilter);
-		this.toDispose.push(this.filter);
+		this.disposables.push(this.filter);
 		const dnd = this.instantiationService.createInstance(FileDragAndDrop);
 		const accessibilityProvider = this.instantiationService.createInstance(FileAccessibilityProvider);
 
@@ -409,23 +409,23 @@ export class ExplorerView extends ViewsViewletPanel {
 			});
 
 		// Theme styler
-		this.toDispose.push(attachListStyler(this.explorerViewer, this.themeService));
+		this.disposables.push(attachListStyler(this.explorerViewer, this.themeService));
 
 		// Register to list service
-		this.toDispose.push(this.listService.register(this.explorerViewer, [this.explorerFocusedContext, this.filesExplorerFocusedContext]));
+		this.disposables.push(this.listService.register(this.explorerViewer, [this.explorerFocusedContext, this.filesExplorerFocusedContext]));
 
 		// Update Viewer based on File Change Events
-		this.toDispose.push(this.fileService.onAfterOperation(e => this.onFileOperation(e)));
-		this.toDispose.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
+		this.disposables.push(this.fileService.onAfterOperation(e => this.onFileOperation(e)));
+		this.disposables.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
 
 		// Update resource context based on focused element
-		this.toDispose.push(this.explorerViewer.addListener('focus', (e: { focus: FileStat }) => {
+		this.disposables.push(this.explorerViewer.addListener('focus', (e: { focus: FileStat }) => {
 			this.resourceContext.set(e.focus && e.focus.resource);
 			this.folderContext.set(e.focus && e.focus.isDirectory);
 		}));
 
 		// Open when selecting via keyboard
-		this.toDispose.push(this.explorerViewer.addListener('selection', event => {
+		this.disposables.push(this.explorerViewer.addListener('selection', event => {
 			if (event && event.payload && event.payload.origin === 'keyboard') {
 				const element = this.tree.getSelection();
 

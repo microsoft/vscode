@@ -67,7 +67,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IProgressService private progressService: IProgressService
 	) {
-		super({ ...(options as IViewOptions), ariaHeaderLabel: options.name, collapsed: !!options.collapsed }, keybindingService, contextMenuService);
+		super({ ...(options as IViewOptions), ariaHeaderLabel: options.name }, keybindingService, contextMenuService);
 	}
 
 	renderHeader(container: HTMLElement): void {

@@ -52,12 +52,12 @@ export class TreeView extends ViewsViewletPanel {
 		@IExtensionService private extensionService: IExtensionService,
 		@ICommandService private commandService: ICommandService
 	) {
-		super({ ...(options as IViewOptions), ariaHeaderLabel: options.name, collapsed: options.collapsed === void 0 ? true : options.collapsed }, keybindingService, contextMenuService);
+		super({ ...(options as IViewOptions), ariaHeaderLabel: options.name }, keybindingService, contextMenuService);
 		this.menus = this.instantiationService.createInstance(Menus, this.id);
 		this.viewFocusContext = this.contextKeyService.createKey<boolean>(this.id, void 0);
 		this.menus.onDidChangeTitle(() => this.updateActions(), this, this.disposables);
 		this.themeService.onThemeChange(() => this.tree.refresh() /* soft refresh */, this, this.disposables);
-		if (!options.collapsed) {
+		if (options.expanded) {
 			this.activate();
 		}
 	}
@@ -104,8 +104,8 @@ export class TreeView extends ViewsViewletPanel {
 				keyboardSupport: false
 			});
 
-		this.toDispose.push(attachListStyler(tree, this.themeService));
-		this.toDispose.push(this.listService.register(tree, [this.viewFocusContext]));
+		this.disposables.push(attachListStyler(tree, this.themeService));
+		this.disposables.push(this.listService.register(tree, [this.viewFocusContext]));
 		tree.addListener('selection', (event: any) => this.onSelection());
 		return tree;
 	}
