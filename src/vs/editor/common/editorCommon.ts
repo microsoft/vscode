@@ -585,20 +585,6 @@ export interface ITextModel {
 	 */
 	getLineContent(lineNumber: number): string;
 
-	/**
-	 * @internal
-	 */
-	getIndentLevel(lineNumber: number): number;
-
-	/**
-	 * @internal
-	 */
-	getIndentRanges(): IndentRange[];
-
-	/**
-	 * @internal
-	 */
-	getLineIndentGuide(lineNumber: number): number;
 
 	/**
 	 * Get the text for all lines.
@@ -912,6 +898,21 @@ export interface ITokenizedModel extends ITextModel {
 	 * @internal
 	 */
 	matchBracket(position: IPosition): [Range, Range];
+
+	/**
+	 * @internal
+	 */
+	getIndentLevel(lineNumber: number): number;
+
+	/**
+	 * @internal
+	 */
+	getIndentRanges(): IndentRange[];
+
+	/**
+	 * @internal
+	 */
+	getLineIndentGuide(lineNumber: number): number;
 }
 
 /**

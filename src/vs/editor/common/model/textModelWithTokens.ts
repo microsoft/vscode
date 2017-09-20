@@ -22,6 +22,7 @@ import { getWordAtText } from 'vs/editor/common/model/wordHelper';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { ITextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
+import { IndentRange, computeRanges } from 'vs/editor/common/model/indentRanges';
 
 class ModelTokensChangedEventBuilder {
 
@@ -69,6 +70,8 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	private _invalidLineStartIndex: number;
 	private _lastState: IState;
 
+	private _indentRanges: IndentRange[];
+
 	private _revalidateTokensTimeout: number;
 
 	constructor(rawTextSource: IRawTextSource, creationOptions: editorCommon.ITextModelCreationOptions, languageIdentifier: LanguageIdentifier) {
@@ -96,6 +99,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		this._revalidateTokensTimeout = -1;
 
 		this._resetTokenizationState();
+		this._resetIndentRanges();
 	}
 
 	public dispose(): void {
@@ -114,6 +118,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		super._resetValue(newValue);
 		// Cancel tokenization, clear all tokens and begin tokenizing
 		this._resetTokenizationState();
+		this._resetIndentRanges();
 	}
 
 	protected _resetTokenizationState(): void {
@@ -225,6 +230,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 		// Cancel tokenization, clear all tokens and begin tokenizing
 		this._resetTokenizationState();
+		this._resetIndentRanges();
 
 		this.emitModelTokensChangedEvent({
 			ranges: [{
@@ -813,5 +819,64 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			close: data.close,
 			isOpen: modeBrackets.textIsOpenBracket[text]
 		};
+	}
+
+	protected _resetIndentRanges(): void {
+		this._indentRanges = null;
+	}
+
+	private _getIndentRanges(): IndentRange[] {
+		if (!this._indentRanges) {
+			this._indentRanges = computeRanges(this);
+		}
+		return this._indentRanges;
+	}
+
+	public getIndentRanges(): IndentRange[] {
+		this._assertNotDisposed();
+		let indentRanges = this._getIndentRanges();
+		return IndentRange.deepCloneArr(indentRanges);
+	}
+
+	public getLineIndentGuide(lineNumber: number): number {
+		this._assertNotDisposed();
+		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
+			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
+		}
+
+		let indentRanges = this._getIndentRanges();
+
+		for (let i = indentRanges.length - 1; i >= 0; i--) {
+			let rng = indentRanges[i];
+
+			if (rng.startLineNumber === lineNumber) {
+				return this._toValidLineIndentGuide(lineNumber, Math.ceil(rng.indent / this._options.tabSize));
+			}
+			if (rng.startLineNumber < lineNumber && lineNumber <= rng.endLineNumber) {
+				return this._toValidLineIndentGuide(lineNumber, 1 + Math.floor(rng.indent / this._options.tabSize));
+			}
+			if (rng.endLineNumber + 1 === lineNumber) {
+				let bestIndent = rng.indent;
+				while (i > 0) {
+					i--;
+					rng = indentRanges[i];
+					if (rng.endLineNumber + 1 === lineNumber) {
+						bestIndent = rng.indent;
+					}
+				}
+				return this._toValidLineIndentGuide(lineNumber, Math.ceil(bestIndent / this._options.tabSize));
+			}
+		}
+
+		return 0;
+	}
+
+	private _toValidLineIndentGuide(lineNumber: number, indentGuide: number): number {
+		let lineIndentLevel = this._lines[lineNumber - 1].getIndentLevel();
+		if (lineIndentLevel === -1) {
+			return indentGuide;
+		}
+		let maxIndentGuide = Math.ceil(lineIndentLevel / this._options.tabSize);
+		return Math.min(maxIndentGuide, indentGuide);
 	}
 }

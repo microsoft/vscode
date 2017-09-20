@@ -13,7 +13,6 @@ import { ModelLine, IModelLine, MinimalModelLine } from 'vs/editor/common/model/
 import { guessIndentation } from 'vs/editor/common/model/indentationGuesser';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { IndentRange, computeRanges } from 'vs/editor/common/model/indentRanges';
 import { TextModelSearch, SearchParams } from 'vs/editor/common/model/textModelSearch';
 import { TextSource, ITextSource, IRawTextSource, RawTextSource } from 'vs/editor/common/model/textSource';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -85,7 +84,6 @@ export class TextModel implements editorCommon.ITextModel {
 	protected _isDisposing: boolean;
 	protected _options: editorCommon.TextModelResolvedOptions;
 	protected _lineStarts: PrefixSumComputer;
-	private _indentRanges: IndentRange[];
 
 	private _versionId: number;
 	/**
@@ -513,65 +511,6 @@ export class TextModel implements editorCommon.ITextModel {
 		return this._lines[lineNumber - 1].getIndentLevel();
 	}
 
-	protected _resetIndentRanges(): void {
-		this._indentRanges = null;
-	}
-
-	private _getIndentRanges(): IndentRange[] {
-		if (!this._indentRanges) {
-			this._indentRanges = computeRanges(this);
-		}
-		return this._indentRanges;
-	}
-
-	public getIndentRanges(): IndentRange[] {
-		this._assertNotDisposed();
-		let indentRanges = this._getIndentRanges();
-		return IndentRange.deepCloneArr(indentRanges);
-	}
-
-	private _toValidLineIndentGuide(lineNumber: number, indentGuide: number): number {
-		let lineIndentLevel = this._lines[lineNumber - 1].getIndentLevel();
-		if (lineIndentLevel === -1) {
-			return indentGuide;
-		}
-		let maxIndentGuide = Math.ceil(lineIndentLevel / this._options.tabSize);
-		return Math.min(maxIndentGuide, indentGuide);
-	}
-
-	public getLineIndentGuide(lineNumber: number): number {
-		this._assertNotDisposed();
-		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
-			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
-		}
-
-		let indentRanges = this._getIndentRanges();
-
-		for (let i = indentRanges.length - 1; i >= 0; i--) {
-			let rng = indentRanges[i];
-
-			if (rng.startLineNumber === lineNumber) {
-				return this._toValidLineIndentGuide(lineNumber, Math.ceil(rng.indent / this._options.tabSize));
-			}
-			if (rng.startLineNumber < lineNumber && lineNumber <= rng.endLineNumber) {
-				return this._toValidLineIndentGuide(lineNumber, 1 + Math.floor(rng.indent / this._options.tabSize));
-			}
-			if (rng.endLineNumber + 1 === lineNumber) {
-				let bestIndent = rng.indent;
-				while (i > 0) {
-					i--;
-					rng = indentRanges[i];
-					if (rng.endLineNumber + 1 === lineNumber) {
-						bestIndent = rng.indent;
-					}
-				}
-				return this._toValidLineIndentGuide(lineNumber, Math.ceil(bestIndent / this._options.tabSize));
-			}
-		}
-
-		return 0;
-	}
-
 	public getLinesContent(): string[] {
 		this._assertNotDisposed();
 		var r: string[] = [];
@@ -785,7 +724,6 @@ export class TextModel implements editorCommon.ITextModel {
 		this._EOL = textSource.EOL;
 		this._lines = modelLines;
 		this._lineStarts = null;
-		this._resetIndentRanges();
 	}
 
 	private _getEndOfLine(eol: editorCommon.EndOfLinePreference): string {
