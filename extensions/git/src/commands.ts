@@ -1236,6 +1236,21 @@ export class CommandCenter {
 		await repository.ignore(uris);
 	}
 
+	@command('git.stashIncludeUntracked', { repository: true })
+	async stashIncludeUntracked(repository: Repository): Promise<void> {
+		if (repository.workingTreeGroup.resourceStates.length === 0) {
+			window.showInformationMessage(localize('no changes stash', "There are no changes to stash."));
+			return;
+		}
+
+		const message = await this.getStashMessage();
+
+		if (typeof message === 'undefined') {
+			return;
+		}
+		await repository.createStash(message, true);
+	}
+
 	@command('git.stash', { repository: true })
 	async stash(repository: Repository): Promise<void> {
 		if (repository.workingTreeGroup.resourceStates.length === 0) {
@@ -1243,16 +1258,20 @@ export class CommandCenter {
 			return;
 		}
 
-		const message = await window.showInputBox({
-			prompt: localize('provide stash message', "Optionally provide a stash message"),
-			placeHolder: localize('stash message', "Stash message")
-		});
+		const message = await this.getStashMessage();
 
 		if (typeof message === 'undefined') {
 			return;
 		}
 
 		await repository.createStash(message);
+	}
+
+	private async getStashMessage(): Promise<string | undefined> {
+		return await window.showInputBox({
+			prompt: localize('provide stash message', "Optionally provide a stash message"),
+			placeHolder: localize('stash message', "Stash message")
+		});
 	}
 
 	@command('git.stashPop', { repository: true })
