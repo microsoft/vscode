@@ -99,15 +99,9 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	}
 
 	private doSetFolders(folders: IStoredWorkspaceFolder[]): TPromise<void> {
-		if (folders.length) {
-			const workspace = this.contextService.getWorkspace();
+		const workspace = this.contextService.getWorkspace();
 
-			return this.jsonEditingService.write(workspace.configuration, { key: 'folders', value: folders }, true);
-		} else {
-			// TODO: Sandeep - Removing all folders?
-		}
-
-		return TPromise.as(void 0);
+		return this.jsonEditingService.write(workspace.configuration, { key: 'folders', value: folders }, true);
 	}
 
 	private isSupported(): boolean {

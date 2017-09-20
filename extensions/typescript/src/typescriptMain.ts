@@ -33,6 +33,7 @@ import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
 import VersionStatus from './utils/versionStatus';
 import { getContributedTypeScriptServerPlugins, TypeScriptServerPlugin } from './utils/plugins';
 import { openOrCreateConfigFile, isImplicitProjectConfigFile } from './utils/tsconfig';
+import { tsLocationToVsPosition } from './utils/convert';
 
 interface LanguageDescription {
 	id: string;
@@ -681,7 +682,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 		const result: Diagnostic[] = [];
 		for (let diagnostic of diagnostics) {
 			const { start, end, text } = diagnostic;
-			const range = new Range(start.line - 1, start.offset - 1, end.line - 1, end.offset - 1);
+			const range = new Range(tsLocationToVsPosition(start), tsLocationToVsPosition(end));
 			const converted = new Diagnostic(range, text);
 			converted.severity = this.getDiagnosticSeverity(diagnostic);
 			converted.source = diagnostic.source || source;

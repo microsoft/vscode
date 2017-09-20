@@ -115,6 +115,8 @@ export function fromViewColumn(column?: vscode.ViewColumn): EditorPosition {
 		editorColumn = EditorPosition.TWO;
 	} else if (column === <number>types.ViewColumn.Three) {
 		editorColumn = EditorPosition.THREE;
+	} else if (column === <number>types.ViewColumn.Active) {
+		editorColumn = undefined;
 	}
 	return editorColumn;
 }
@@ -156,7 +158,7 @@ export namespace MarkdownString {
 	}
 
 	function isCodeblock(thing: any): thing is Codeblock {
-		return typeof thing === 'object'
+		return thing && typeof thing === 'object'
 			&& typeof (<Codeblock>thing).language === 'string'
 			&& typeof (<Codeblock>thing).value === 'string';
 	}

@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/usr/bin/env bash -e
 # This is a VERY basic script for Create/Delete operations on repos and packages
 # 
 cmd=$1

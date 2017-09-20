@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ReferenceProvider, Location, TextDocument, Position, Range, CancellationToken } from 'vscode';
+import { ReferenceProvider, Location, TextDocument, Position, CancellationToken } from 'vscode';
 
-import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
+import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/convert';
 
 export default class TypeScriptReferenceSupport implements ReferenceProvider {
 	public constructor(
@@ -17,11 +17,7 @@ export default class TypeScriptReferenceSupport implements ReferenceProvider {
 		if (!filepath) {
 			return Promise.resolve<Location[]>([]);
 		}
-		const args: Proto.FileLocationRequestArgs = {
-			file: filepath,
-			line: position.line + 1,
-			offset: position.character + 1
-		};
+		const args = vsPositionToTsFileLocation(filepath, position);
 		const apiVersion = this.client.apiVersion;
 		return this.client.execute('references', args, token).then((msg) => {
 			const result: Location[] = [];
@@ -35,9 +31,7 @@ export default class TypeScriptReferenceSupport implements ReferenceProvider {
 					continue;
 				}
 				const url = this.client.asUrl(ref.file);
-				const location = new Location(
-					url,
-					new Range(ref.start.line - 1, ref.start.offset - 1, ref.end.line - 1, ref.end.offset - 1));
+				const location = new Location(url, tsTextSpanToVsRange(ref));
 				result.push(location);
 			}
 			return result;

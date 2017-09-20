@@ -479,8 +479,10 @@ gulp.task('generate-vscode-configuration', () => {
 			return reject(new Error('$AGENT_BUILDDIRECTORY not set'));
 		}
 
+		const userDataDir = path.join(os.tmpdir(), 'tmpuserdata');
+		const extensionsDir = path.join(os.tmpdir(), 'tmpextdir');
 		const appPath = path.join(buildDir, 'VSCode-darwin/Visual\\ Studio\\ Code\\ -\\ Insiders.app/Contents/Resources/app/bin/code');
-		const codeProc = cp.exec(`${appPath} --export-default-configuration='${allConfigDetailsPath}' --wait`);
+		const codeProc = cp.exec(`${appPath} --export-default-configuration='${allConfigDetailsPath}' --wait --user-data-dir='${userDataDir}' --extensions-dir='${extensionsDir}'`);
 
 		const timer = setTimeout(() => {
 			codeProc.kill();
