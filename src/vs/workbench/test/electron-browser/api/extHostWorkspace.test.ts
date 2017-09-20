@@ -11,7 +11,7 @@ import { basename } from 'path';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { TestThreadService } from './testThreadService';
 import { normalize } from 'vs/base/common/paths';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceFolderData } from 'vs/platform/workspace/common/workspace';
 
 suite('ExtHostWorkspace', function () {
 
@@ -26,7 +26,7 @@ suite('ExtHostWorkspace', function () {
 
 	test('asRelativePath', function () {
 
-		const ws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', folders: [aWorkspaceFolder(URI.file('/Coding/Applications/NewsWoWBot'), 0)], name: 'Test' });
+		const ws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', folders: [aWorkspaceFolderData(URI.file('/Coding/Applications/NewsWoWBot'), 0)], name: 'Test' });
 
 		assertAsRelativePath(ws, '/Coding/Applications/NewsWoWBot/bernd/das/brot', 'bernd/das/brot');
 		assertAsRelativePath(ws, '/Apps/DartPubCache/hosted/pub.dartlang.org/convert-2.0.1/lib/src/hex.dart',
@@ -40,7 +40,7 @@ suite('ExtHostWorkspace', function () {
 	test('asRelativePath, same paths, #11402', function () {
 		const root = '/home/aeschli/workspaces/samples/docker';
 		const input = '/home/aeschli/workspaces/samples/docker';
-		const ws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', folders: [aWorkspaceFolder(URI.file(root), 0)], name: 'Test' });
+		const ws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' });
 
 		assertAsRelativePath(ws, (input), input);
 
@@ -55,14 +55,14 @@ suite('ExtHostWorkspace', function () {
 	});
 
 	test('asRelativePath, multiple folders', function () {
-		const ws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', folders: [aWorkspaceFolder(URI.file('/Coding/One'), 0), aWorkspaceFolder(URI.file('/Coding/Two'), 1)], name: 'Test' });
+		const ws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', folders: [aWorkspaceFolderData(URI.file('/Coding/One'), 0), aWorkspaceFolderData(URI.file('/Coding/Two'), 1)], name: 'Test' });
 		assertAsRelativePath(ws, '/Coding/One/file.txt', 'One/file.txt');
 		assertAsRelativePath(ws, '/Coding/Two/files/out.txt', 'Two/files/out.txt');
 		assertAsRelativePath(ws, '/Coding/Two2/files/out.txt', '/Coding/Two2/files/out.txt');
 	});
 
 	test('slightly inconsistent behaviour of asRelativePath and getWorkspaceFolder, #31553', function () {
-		const mrws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', folders: [aWorkspaceFolder(URI.file('/Coding/One'), 0), aWorkspaceFolder(URI.file('/Coding/Two'), 1)], name: 'Test' });
+		const mrws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', folders: [aWorkspaceFolderData(URI.file('/Coding/One'), 0), aWorkspaceFolderData(URI.file('/Coding/Two'), 1)], name: 'Test' });
 
 		assertAsRelativePath(mrws, '/Coding/One/file.txt', 'One/file.txt');
 		assertAsRelativePath(mrws, '/Coding/One/file.txt', 'One/file.txt', true);
@@ -74,7 +74,7 @@ suite('ExtHostWorkspace', function () {
 		assertAsRelativePath(mrws, '/Coding/Two2/files/out.txt', '/Coding/Two2/files/out.txt', true);
 		assertAsRelativePath(mrws, '/Coding/Two2/files/out.txt', '/Coding/Two2/files/out.txt', false);
 
-		const srws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', folders: [aWorkspaceFolder(URI.file('/Coding/One'), 0)], name: 'Test' });
+		const srws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', folders: [aWorkspaceFolderData(URI.file('/Coding/One'), 0)], name: 'Test' });
 		assertAsRelativePath(srws, '/Coding/One/file.txt', 'file.txt');
 		assertAsRelativePath(srws, '/Coding/One/file.txt', 'file.txt', false);
 		assertAsRelativePath(srws, '/Coding/One/file.txt', 'One/file.txt', true);
@@ -93,15 +93,15 @@ suite('ExtHostWorkspace', function () {
 		ws = new ExtHostWorkspace(new TestThreadService(), undefined);
 		assert.equal(ws.getPath(), undefined);
 
-		ws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', name: 'Test', folders: [aWorkspaceFolder(URI.file('Folder'), 0), aWorkspaceFolder(URI.file('Another/Folder'), 1)] });
+		ws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.file('Folder'), 0), aWorkspaceFolderData(URI.file('Another/Folder'), 1)] });
 		assert.equal(ws.getPath().replace(/\\/g, '/'), '/Folder');
 
-		ws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', name: 'Test', folders: [aWorkspaceFolder(URI.file('/Folder'), 0)] });
+		ws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.file('/Folder'), 0)] });
 		assert.equal(ws.getPath().replace(/\\/g, '/'), '/Folder');
 	});
 
 	test('WorkspaceFolder has name and index', function () {
-		const ws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', folders: [aWorkspaceFolder(URI.file('/Coding/One'), 0), aWorkspaceFolder(URI.file('/Coding/Two'), 1)], name: 'Test' });
+		const ws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', folders: [aWorkspaceFolderData(URI.file('/Coding/One'), 0), aWorkspaceFolderData(URI.file('/Coding/Two'), 1)], name: 'Test' });
 
 		const [one, two] = ws.getWorkspaceFolders();
 
@@ -112,7 +112,7 @@ suite('ExtHostWorkspace', function () {
 	});
 
 	test('getContainingWorkspaceFolder', function () {
-		const ws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', name: 'Test', folders: [aWorkspaceFolder(URI.file('/Coding/One'), 0), aWorkspaceFolder(URI.file('/Coding/Two'), 1), aWorkspaceFolder(URI.file('/Coding/Two/Nested'), 2)] });
+		const ws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.file('/Coding/One'), 0), aWorkspaceFolderData(URI.file('/Coding/Two'), 1), aWorkspaceFolderData(URI.file('/Coding/Two/Nested'), 2)] });
 
 		let folder = ws.getWorkspaceFolder(URI.file('/foo/bar'));
 		assert.equal(folder, undefined);
@@ -157,7 +157,7 @@ suite('ExtHostWorkspace', function () {
 			assert.equal(e.added.length, 1);
 			assert.equal(e.added[0].uri.toString(), 'foo:bar');
 		});
-		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolder(URI.parse('foo:bar'), 0)] });
+		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar'), 0)] });
 		sub.dispose();
 
 		sub = ws.onDidChangeWorkspace(e => {
@@ -165,7 +165,7 @@ suite('ExtHostWorkspace', function () {
 			assert.equal(e.added.length, 1);
 			assert.equal(e.added[0].uri.toString(), 'foo:bar2');
 		});
-		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolder(URI.parse('foo:bar'), 0), aWorkspaceFolder(URI.parse('foo:bar2'), 1)] });
+		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar'), 0), aWorkspaceFolderData(URI.parse('foo:bar2'), 1)] });
 		sub.dispose();
 
 		sub = ws.onDidChangeWorkspace(e => {
@@ -176,7 +176,7 @@ suite('ExtHostWorkspace', function () {
 			assert.equal(e.added.length, 1);
 			assert.equal(e.added[0].uri.toString(), 'foo:bar3');
 		});
-		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolder(URI.parse('foo:bar3'), 0)] });
+		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar3'), 0)] });
 		sub.dispose();
 
 	});
@@ -195,13 +195,10 @@ suite('ExtHostWorkspace', function () {
 		sub.dispose();
 	});
 
-	function aWorkspaceFolder(uri: URI, index: number, name: string = ''): IWorkspaceFolder {
+	function aWorkspaceFolderData(uri: URI, index: number, name: string = ''): IWorkspaceFolderData {
 		return {
 			uri,
 			index,
-			raw: {
-				path: uri.toString()
-			},
 			name: name || basename(uri.path)
 		};
 	}

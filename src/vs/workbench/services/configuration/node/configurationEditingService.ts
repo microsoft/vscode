@@ -338,7 +338,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 					return workspace.configuration;
 				}
 				if (workbenchState === WorkbenchState.FOLDER) {
-					return this.contextService.toResource(relativePath, workspace.folders[0]);
+					return workspace.folders[0].toResource(relativePath);
 				}
 			}
 
@@ -346,7 +346,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 				if (resource) {
 					const folder = this.contextService.getWorkspaceFolder(resource);
 					if (folder) {
-						return this.contextService.toResource(relativePath, folder);
+						return folder.toResource(relativePath);
 					}
 				}
 			}

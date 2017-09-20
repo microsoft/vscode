@@ -9,7 +9,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { normalize } from 'vs/base/common/paths';
 import { delta } from 'vs/base/common/arrays';
 import { relative } from 'path';
-import { Workspace } from 'vs/platform/workspace/common/workspace';
+import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceData, ExtHostWorkspaceShape, MainContext, MainThreadWorkspaceShape, IMainContext } from './extHost.protocol';
 import * as vscode from 'vscode';
 import { compare } from 'vs/base/common/strings';
@@ -25,7 +25,7 @@ class Workspace2 extends Workspace {
 	private readonly _structure = new TrieMap<vscode.WorkspaceFolder>(s => s.split('/'));
 
 	private constructor(data: IWorkspaceData) {
-		super(data.id, data.name, data.folders);
+		super(data.id, data.name, data.folders.map(folder => new WorkspaceFolder(folder)));
 
 		// setup the workspace folder data structure
 		this.folders.forEach(({ name, uri, index }) => {

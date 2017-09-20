@@ -50,7 +50,7 @@ export class LinkDetector {
 				if (workspaceFolder) {
 					try {
 						resource = (match && !strings.startsWith(match[0], 'http'))
-							&& (match[2] || strings.startsWith(match[1], '/') ? uri.file(match[1]) : this.contextService.toResource(match[1], workspaceFolder)); // TODO@Michel TODO@Isidor (https://github.com/Microsoft/vscode/issues/29190)
+							&& (match[2] || strings.startsWith(match[1], '/') ? uri.file(match[1]) : workspaceFolder.toResource(match[1])); // TODO@Michel TODO@Isidor (https://github.com/Microsoft/vscode/issues/29190)
 					} catch (e) { }
 				}
 

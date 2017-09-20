@@ -15,8 +15,7 @@ import { ConfigurationTarget, ConfigurationEditingErrorCode, ConfigurationEditin
 import { ConfigurationModel } from 'vs/platform/configuration/common/configuration';
 import { TestThreadService } from './testThreadService';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceFolder, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 suite('ExtHostConfiguration', function () {
 
@@ -133,7 +132,7 @@ suite('ExtHostConfiguration', function () {
 			new class extends mock<MainThreadConfigurationShape>() { },
 			new ExtHostWorkspace(new TestThreadService(), {
 				'id': 'foo',
-				'folders': [aWorkspaceFolder({ path: 'foo' }, 0)],
+				'folders': [aWorkspaceFolder(URI.file('foo'), 0)],
 				'name': 'foo'
 			}),
 			{
@@ -205,7 +204,7 @@ suite('ExtHostConfiguration', function () {
 			new class extends mock<MainThreadConfigurationShape>() { },
 			new ExtHostWorkspace(new TestThreadService(), {
 				'id': 'foo',
-				'folders': [aWorkspaceFolder({ path: firstRoot.path }, 0), aWorkspaceFolder({ path: secondRoot.path }, 1)],
+				'folders': [aWorkspaceFolder(firstRoot, 0), aWorkspaceFolder(secondRoot, 1)],
 				'name': 'foo'
 			}),
 			{
@@ -405,12 +404,7 @@ suite('ExtHostConfiguration', function () {
 			.then(() => assert.ok(false), err => { /* expecting rejection */ });
 	});
 
-	function aWorkspaceFolder(raw: IStoredWorkspaceFolder, index: number, name: string = ''): IWorkspaceFolder {
-		return {
-			uri: URI.file(raw.path),
-			index,
-			raw,
-			name
-		};
+	function aWorkspaceFolder(uri: URI, index: number, name: string = ''): IWorkspaceFolder {
+		return new WorkspaceFolder({ uri, name, index });
 	}
 });

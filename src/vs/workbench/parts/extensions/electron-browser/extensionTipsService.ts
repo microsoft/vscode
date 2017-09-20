@@ -85,7 +85,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 	}
 
 	private resolveWorkspaceFolderRecommendations(workspaceFolder: IWorkspaceFolder): TPromise<string[]> {
-		return this.fileService.resolveContent(this.contextService.toResource(paths.join('.vscode', 'extensions.json'), workspaceFolder))
+		return this.fileService.resolveContent(workspaceFolder.toResource(paths.join('.vscode', 'extensions.json')))
 			.then(content => this.processWorkspaceRecommendations(json.parse(content.value, [])), err => []);
 	}
 

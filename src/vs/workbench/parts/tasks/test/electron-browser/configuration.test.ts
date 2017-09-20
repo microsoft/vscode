@@ -12,17 +12,16 @@ import * as UUID from 'vs/base/common/uuid';
 import * as Platform from 'vs/base/common/platform';
 import { ValidationStatus } from 'vs/base/common/parsers';
 import { ProblemMatcher, FileLocationKind, ProblemPattern, ApplyToKind } from 'vs/platform/markers/common/problemMatcher';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceFolder, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 import * as Tasks from 'vs/workbench/parts/tasks/common/tasks';
 import { parse, ParseResult, IProblemReporter, ExternalTaskRunnerConfiguration, CustomTask } from 'vs/workbench/parts/tasks/node/taskConfiguration';
 
-const workspaceFolder: IWorkspaceFolder = {
+const workspaceFolder: IWorkspaceFolder = new WorkspaceFolder({
 	uri: URI.file('/workspace/folderOne'),
 	name: 'folderOne',
-	index: 0,
-	raw: { path: '../folderOne', name: 'folderOne' }
-};
+	index: 0
+});
 
 class ProblemReporter implements IProblemReporter {
 

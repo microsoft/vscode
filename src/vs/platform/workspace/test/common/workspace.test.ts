@@ -6,14 +6,14 @@
 'use strict';
 
 import * as assert from 'assert';
-import { Workspace, IWorkspaceFolder, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
+import { Workspace, toWorkspaceFolders, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import URI from 'vs/base/common/uri';
 
 suite('Workspace', () => {
 
 	test('getFolder returns the folder with given uri', () => {
-		const expected = aWorkspaceFolder(URI.file('/src/test'));
-		let testObject = new Workspace('', '', [aWorkspaceFolder(URI.file('/src/main')), expected, aWorkspaceFolder(URI.file('/src/code'))]);
+		const expected = new WorkspaceFolder({ uri: URI.file('/src/test'), name: '', index: 2 });
+		let testObject = new Workspace('', '', [new WorkspaceFolder({ uri: URI.file('/src/main'), name: '', index: 0 }), expected, new WorkspaceFolder({ uri: URI.file('/src/code'), name: '', index: 2 })]);
 
 		const actual = testObject.getFolder(expected.uri);
 
@@ -21,8 +21,8 @@ suite('Workspace', () => {
 	});
 
 	test('getFolder returns the folder if the uri is sub', () => {
-		const expected = aWorkspaceFolder(URI.file('/src/test'));
-		let testObject = new Workspace('', '', [expected, aWorkspaceFolder(URI.file('/src/main')), aWorkspaceFolder(URI.file('/src/code'))]);
+		const expected = new WorkspaceFolder({ uri: URI.file('/src/test'), name: '', index: 0 });
+		let testObject = new Workspace('', '', [expected, new WorkspaceFolder({ uri: URI.file('/src/main'), name: '', index: 1 }), new WorkspaceFolder({ uri: URI.file('/src/code'), name: '', index: 2 })]);
 
 		const actual = testObject.getFolder(URI.file('/src/test/a'));
 
@@ -30,8 +30,8 @@ suite('Workspace', () => {
 	});
 
 	test('getFolder returns the closest folder if the uri is sub', () => {
-		const expected = aWorkspaceFolder(URI.file('/src/test'));
-		let testObject = new Workspace('', '', [aWorkspaceFolder(URI.file('/src/code')), aWorkspaceFolder(URI.file('/src')), expected]);
+		const expected = new WorkspaceFolder({ uri: URI.file('/src/test'), name: '', index: 2 });
+		let testObject = new Workspace('', '', [new WorkspaceFolder({ uri: URI.file('/src/main'), name: '', index: 0 }), new WorkspaceFolder({ uri: URI.file('/src/code'), name: '', index: 1 }), expected]);
 
 		const actual = testObject.getFolder(URI.file('/src/test/a'));
 
@@ -39,7 +39,7 @@ suite('Workspace', () => {
 	});
 
 	test('getFolder returns null if the uri is not sub', () => {
-		let testObject = new Workspace('', '', [aWorkspaceFolder(URI.file('/src/code')), aWorkspaceFolder(URI.file('/src/test'))]);
+		let testObject = new Workspace('', '', [new WorkspaceFolder({ uri: URI.file('/src/test'), name: '', index: 0 }), new WorkspaceFolder({ uri: URI.file('/src/code'), name: '', index: 1 })]);
 
 		const actual = testObject.getFolder(URI.file('/src/main/a'));
 
@@ -190,11 +190,4 @@ suite('Workspace', () => {
 		assert.equal(actual[2].index, 2);
 		assert.equal(actual[2].name, 'test1');
 	});
-
-	function aWorkspaceFolder(uri: URI, index: number = 0): IWorkspaceFolder {
-		return {
-			uri, raw: { path: uri.fsPath }, index, name: ''
-		};
-	}
-
 });

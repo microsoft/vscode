@@ -30,7 +30,7 @@ suite('Configuration Resolver Service', () => {
 			uri: uri.parse('file:///VSCode/workspaceLocation'),
 			name: 'hey',
 			index: 0,
-			raw: undefined
+			toResource: () => null
 		};
 		configurationResolverService = new ConfigurationResolverService(envVariables, editorService, TestEnvironmentService, new TestConfigurationService(), mockCommandService);
 	});

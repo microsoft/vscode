@@ -33,7 +33,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 	constructor(
 		@IJSONEditingService private jsonEditingService: IJSONEditingService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IWorkspaceContextService private contextService: WorkspaceService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWindowsService private windowsService: IWindowsService,
 		@IWindowService private windowService: IWindowService,
