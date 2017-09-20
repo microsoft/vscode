@@ -5,8 +5,7 @@
 
 'use strict';
 
-import { ITokenizedModel } from 'vs/editor/common/editorCommon';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { IModel } from 'vs/editor/common/editorCommon';
 
 export class IndentRange {
 	_indentRangeBrand: void;
@@ -30,11 +29,9 @@ export class IndentRange {
 	}
 }
 
-export function computeRanges(model: ITokenizedModel, minimumRangeSize: number = 1): IndentRange[] {
+export function computeRanges(model: IModel, offSide: boolean, minimumRangeSize: number = 1): IndentRange[] {
 
 	let result: IndentRange[] = [];
-	let foldingRules = LanguageConfigurationRegistry.getFoldingRules(model.getLanguageIdentifier().id);
-	let offSide = foldingRules && foldingRules.indendationBasedFolding && foldingRules.indendationBasedFolding.offSide;
 
 	let previousRegions: { indent: number, line: number }[] = [];
 	previousRegions.push({ indent: -1, line: model.getLineCount() + 1 }); // sentinel, to make sure there's at least one entry
