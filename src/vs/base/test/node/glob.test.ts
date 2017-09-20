@@ -7,6 +7,7 @@
 import * as assert from 'assert';
 import * as path from 'path';
 import glob = require('vs/base/common/glob');
+import URI from 'vs/base/common/uri';
 
 suite('Glob', () => {
 
@@ -883,5 +884,36 @@ suite('Glob', () => {
 
 		// Later expressions take precedence
 		assert.deepEqual(glob.mergeExpressions({ 'a': true, 'b': false, 'c': true }, { 'a': false, 'b': true }), { 'a': false, 'b': true, 'c': true });
+	});
+
+	test('relative pattern', function () {
+		let p: glob.IRelativePattern = { base: URI.file('/DNXConsoleApp'), pattern: '**/*.cs' };
+
+		assert(glob.match(p, '/DNXConsoleApp/Program.cs'));
+		assert(glob.match(p, '/DNXConsoleApp/foo/Program.cs'));
+		assert(!glob.match(p, '/DNXConsoleApp/foo/Program.ts'));
+		assert(!glob.match(p, '/other/DNXConsoleApp/foo/Program.ts'));
+
+		p = { base: URI.file('C:\\DNXConsoleApp'), pattern: '**/*.cs' };
+		assert(glob.match(p, 'C:\\DNXConsoleApp\\Program.cs'));
+		assert(glob.match(p, 'C:\\DNXConsoleApp\\foo\\Program.cs'));
+		assert(!glob.match(p, 'C:\\DNXConsoleApp\\foo\\Program.ts'));
+		assert(!glob.match(p, 'C:\\other\\DNXConsoleApp\\foo\\Program.ts'));
+
+		assert(glob.match(p, 'C:/DNXConsoleApp/Program.cs'));
+		assert(glob.match(p, 'C:/DNXConsoleApp/foo/Program.cs'));
+		assert(!glob.match(p, 'C:/DNXConsoleApp/foo/Program.ts'));
+		assert(!glob.match(p, 'C:/other/DNXConsoleApp/foo/Program.ts'));
+
+		p = { base: URI.file('C:/DNXConsoleApp'), pattern: '**/*.cs' };
+		assert(glob.match(p, 'C:\\DNXConsoleApp\\Program.cs'));
+		assert(glob.match(p, 'C:\\DNXConsoleApp\\foo\\Program.cs'));
+		assert(!glob.match(p, 'C:\\DNXConsoleApp\\foo\\Program.ts'));
+		assert(!glob.match(p, 'C:\\other\\DNXConsoleApp\\foo\\Program.ts'));
+
+		assert(glob.match(p, 'C:/DNXConsoleApp/Program.cs'));
+		assert(glob.match(p, 'C:/DNXConsoleApp/foo/Program.cs'));
+		assert(!glob.match(p, 'C:/DNXConsoleApp/foo/Program.ts'));
+		assert(!glob.match(p, 'C:/other/DNXConsoleApp/foo/Program.ts'));
 	});
 });

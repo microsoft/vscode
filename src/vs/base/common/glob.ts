@@ -11,9 +11,15 @@ import paths = require('vs/base/common/paths');
 import { BoundedMap } from 'vs/base/common/map';
 import { CharCode } from 'vs/base/common/charCode';
 import { TPromise } from 'vs/base/common/winjs.base';
+import URI from 'vs/base/common/uri';
 
 export interface IExpression {
 	[pattern: string]: boolean | SiblingClause | any;
+}
+
+export interface IRelativePattern {
+	base: URI;
+	pattern: string;
 }
 
 export function getEmptyExpression(): IExpression {
@@ -28,6 +34,7 @@ export interface SiblingClause {
 	when: string;
 }
 
+const GLOBSTAR = '**';
 const PATH_REGEX = '[/\\\\]';		// any slash or backslash
 const NO_PATH_REGEX = '[^/\\\\]';	// any non-slash and non-backslash
 const ALL_FORWARD_SLASHES = /\//g;
@@ -106,7 +113,7 @@ function parseRegExp(pattern: string): string {
 	let segments = splitGlobAware(pattern, '/');
 
 	// Special case where we only have globstars
-	if (segments.every(s => s === '**')) {
+	if (segments.every(s => s === GLOBSTAR)) {
 		regEx = '.*';
 	}
 
@@ -116,7 +123,7 @@ function parseRegExp(pattern: string): string {
 		segments.forEach((segment, index) => {
 
 			// Globstar is special
-			if (segment === '**') {
+			if (segment === GLOBSTAR) {
 
 				// if we have more than one globstar after another, just ignore it
 				if (!previousSegmentWasGlobStar) {
@@ -207,7 +214,7 @@ function parseRegExp(pattern: string): string {
 			}
 
 			// Tail: Add the slash we had split on if there is more to come and the next one is not a globstar
-			if (index < segments.length - 1 && segments[index + 1] !== '**') {
+			if (index < segments.length - 1 && segments[index + 1] !== GLOBSTAR) {
 				regEx += PATH_REGEX;
 			}
 
@@ -264,9 +271,21 @@ const NULL = function (): string {
 	return null;
 };
 
-function parsePattern(pattern: string, options: IGlobOptions): ParsedStringPattern {
-	if (!pattern) {
+function parsePattern(arg1: string | IRelativePattern, options: IGlobOptions): ParsedStringPattern {
+	if (!arg1) {
 		return NULL;
+	}
+
+	// Handle IRelativePattern
+	let pattern: string;
+	if (typeof arg1 !== 'string') {
+		pattern = arg1.pattern;
+
+		if (pattern.indexOf(GLOBSTAR) !== 0) {
+			pattern = paths.join(GLOBSTAR, pattern); // add globstar to convert relative to absolute pattern
+		}
+	} else {
+		pattern = arg1;
 	}
 
 	// Whitespace trimming
@@ -276,7 +295,7 @@ function parsePattern(pattern: string, options: IGlobOptions): ParsedStringPatte
 	const patternKey = `${pattern}_${!!options.trimForExclusions}`;
 	let parsedPattern = CACHE.get(patternKey);
 	if (parsedPattern) {
-		return parsedPattern;
+		return wrapRelativePattern(parsedPattern, pattern);
 	}
 
 	// Check for Trivias
@@ -304,7 +323,21 @@ function parsePattern(pattern: string, options: IGlobOptions): ParsedStringPatte
 	// Cache
 	CACHE.set(patternKey, parsedPattern);
 
-	return parsedPattern;
+	return wrapRelativePattern(parsedPattern, pattern);
+}
+
+function wrapRelativePattern(parsedPattern: ParsedStringPattern, arg2: string | IRelativePattern): ParsedStringPattern {
+	if (typeof arg2 === 'string') {
+		return parsedPattern;
+	}
+
+	return function (path, basename) {
+		if (!paths.isEqualOrParent(path, arg2.base.fsPath)) {
+			return null;
+		}
+
+		return parsedPattern(path, basename);
+	};
 }
 
 function trimForExclusions(pattern: string, options: IGlobOptions): string {
@@ -395,9 +428,9 @@ function toRegExp(pattern: string): ParsedStringPattern {
  * - simple brace expansion ({js,ts} => js or ts)
  * - character ranges (using [...])
  */
-export function match(pattern: string, path: string): boolean;
+export function match(pattern: string | IRelativePattern, path: string): boolean;
 export function match(expression: IExpression, path: string, siblingsFn?: () => string[]): string /* the matching pattern */;
-export function match(arg1: string | IExpression, path: string, siblingsFn?: () => string[]): any {
+export function match(arg1: string | IExpression | IRelativePattern, path: string, siblingsFn?: () => string[]): any {
 	if (!arg1 || !path) {
 		return false;
 	}
@@ -415,14 +448,14 @@ export function match(arg1: string | IExpression, path: string, siblingsFn?: () 
  */
 export function parse(pattern: string, options?: IGlobOptions): ParsedPattern;
 export function parse(expression: IExpression, options?: IGlobOptions): ParsedExpression;
-export function parse(arg1: string | IExpression, options: IGlobOptions = {}): any {
+export function parse(arg1: string | IExpression | IRelativePattern, options: IGlobOptions = {}): any {
 	if (!arg1) {
 		return FALSE;
 	}
 
 	// Glob with String
-	if (typeof arg1 === 'string') {
-		const parsedPattern = parsePattern(arg1, options);
+	if (typeof arg1 === 'string' || (arg1 as IRelativePattern).base) {
+		const parsedPattern = parsePattern(arg1 as string | IRelativePattern, options);
 		if (parsedPattern === NULL) {
 			return FALSE;
 		}
