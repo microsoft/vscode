@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
+import { IStoredWorkspaceFolder, isRawFileWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import { isAbsolute, relative } from 'path';
 import { isEqualOrParent, normalize } from 'vs/base/common/paths';
@@ -56,7 +56,7 @@ function shouldUseSlashForPath(storedFolders: IStoredWorkspaceFolder[]): boolean
 	let useSlashesForPath = !isWindows;
 	if (isWindows) {
 		storedFolders.forEach(folder => {
-			if (!useSlashesForPath && folder.path.indexOf(SLASH) >= 0) {
+			if (isRawFileWorkspaceFolder(folder) && !useSlashesForPath && folder.path.indexOf(SLASH) >= 0) {
 				useSlashesForPath = true;
 			}
 		});

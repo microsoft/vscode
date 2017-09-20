@@ -9,7 +9,7 @@ import * as paths from 'vs/base/common/paths';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { TrieMap } from 'vs/base/common/map';
 import Event from 'vs/base/common/event';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, IStoredWorkspaceFolder, isRawFileWorkspaceFolder, isRawUriWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { coalesce, distinct } from 'vs/base/common/arrays';
 import { isLinux } from 'vs/base/common/platform';
 
@@ -232,7 +232,17 @@ export function toWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], 
 
 function parseWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], relativeTo: URI): WorkspaceFolder[] {
 	return configuredFolders.map((configuredFolder, index) => {
-		const uri = toUri(configuredFolder.path, relativeTo);
+		let uri: URI;
+		if (isRawFileWorkspaceFolder(configuredFolder)) {
+			uri = toUri(configuredFolder.path, relativeTo);
+		} else if (isRawUriWorkspaceFolder(configuredFolder)) {
+			try {
+				uri = URI.parse(configuredFolder.uri);
+			} catch (e) {
+				console.warn(e);
+				// ignore
+			}
+		}
 		if (!uri) {
 			return void 0;
 		}

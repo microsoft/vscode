@@ -33,13 +33,42 @@ export interface IWorkspaceIdentifier {
 	configPath: string;
 }
 
-export interface IStoredWorkspaceFolder {
+export function isStoredWorkspaceFolder(thing: any): thing is IStoredWorkspaceFolder {
+	return isRawFileWorkspaceFolder(thing) || isRawUriWorkspaceFolder(thing);
+}
+
+export function isRawFileWorkspaceFolder(thing: any): thing is IRawFileWorkspaceFolder {
+	return thing
+		&& typeof thing === 'object'
+		&& typeof thing.path === 'string'
+		&& (!thing.name || typeof thing.name === 'string');
+}
+
+export function isRawUriWorkspaceFolder(thing: any): thing is IRawUriWorkspaceFolder {
+	return thing
+		&& typeof thing === 'object'
+		&& typeof thing.uri === 'string'
+		&& (!thing.name || typeof thing.name === 'string');
+}
+
+export interface IRawFileWorkspaceFolder {
 	path: string;
 	name?: string;
 }
 
+export interface IRawUriWorkspaceFolder {
+	uri: string;
+	name?: string;
+}
+
+export type IStoredWorkspaceFolder = IRawFileWorkspaceFolder | IRawUriWorkspaceFolder;
+
 export interface IResolvedWorkspace extends IWorkspaceIdentifier {
 	folders: IWorkspaceFolder[];
+}
+
+export interface IStoredWorkspace {
+	folders: IStoredWorkspaceFolder[];
 }
 
 export interface IWorkspaceSavedEvent {
