@@ -210,14 +210,19 @@ export class FileLabel extends ResourceLabel {
 	}
 
 	public setFile(resource: uri, options?: IFileLabelOptions): void {
+		const hideLabel = options && options.hideLabel;
 		let name: string;
-		if (options && options.hideLabel) {
-			name = void 0;
-		} else if (options && options.fileKind === FileKind.ROOT_FOLDER) {
-			const workspaceFolder = this.contextService.getWorkspaceFolder(resource);
-			name = workspaceFolder.name;
-		} else {
-			name = paths.basename(resource.fsPath);
+		if (!hideLabel) {
+			if (options && options.fileKind === FileKind.ROOT_FOLDER) {
+				const workspaceFolder = this.contextService.getWorkspaceFolder(resource);
+				if (workspaceFolder) {
+					name = workspaceFolder.name;
+				}
+			}
+
+			if (!name) {
+				name = paths.basename(resource.fsPath);
+			}
 		}
 
 		let description: string;
