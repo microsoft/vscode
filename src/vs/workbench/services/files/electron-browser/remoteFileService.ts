@@ -15,7 +15,7 @@ import { compare } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { decodeStream, encode } from 'vs/base/node/encoding';
-import { TrieMap } from 'vs/base/common/map';
+import { StringTrieMap } from 'vs/base/common/map';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -61,7 +61,7 @@ function toIFileStat(provider: IFileSystemProvider, stat: IStat, recurse?: (stat
 
 export function toDeepIFileStat(provider: IFileSystemProvider, stat: IStat, to: URI[]): TPromise<IFileStat> {
 
-	const trie = new TrieMap<true>();
+	const trie = new StringTrieMap<true>();
 	trie.insert(stat.resource.toString(), true);
 
 	if (!isFalsyOrEmpty(to)) {

@@ -5,7 +5,7 @@
 'use strict';
 
 import { Emitter } from 'vs/base/common/event';
-import { TrieMap } from 'vs/base/common/map';
+import { StringTrieMap } from 'vs/base/common/map';
 import { score } from 'vs/editor/common/modes/languageSelector';
 import * as Platform from 'vs/base/common/platform';
 import * as errors from 'vs/base/common/errors';
@@ -652,7 +652,7 @@ export function initializeExtensionApi(extensionService: ExtHostExtensionService
 	return extensionService.getExtensionPathIndex().then(trie => defineAPI(apiFactory, trie));
 }
 
-function defineAPI(factory: IExtensionApiFactory, extensionPaths: TrieMap<IExtensionDescription>): void {
+function defineAPI(factory: IExtensionApiFactory, extensionPaths: StringTrieMap<IExtensionDescription>): void {
 
 	// each extension is meant to get its own api implementation
 	const extApiImpl = new Map<string, typeof vscode>();

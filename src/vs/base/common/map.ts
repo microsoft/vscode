@@ -227,22 +227,16 @@ class Node<E> {
 	readonly children = new Map<string, Node<E>>();
 }
 
-/**
- * A trie map that allows for fast look up when keys are substrings
- * to the actual search keys (dir/subdir-problem).
- */
-export class TrieMap<E> {
+export class TrieMap<K, V> {
 
-	static PathSplitter = (s: string) => s.split(/[\\/]/).filter(s => !!s);
+	private readonly _splitter: (key: K) => string[];
+	private _root = new Node<V>();
 
-	private readonly _splitter: (s: string) => string[];
-	private _root = new Node<E>();
-
-	constructor(splitter: (s: string) => string[] = TrieMap.PathSplitter) {
-		this._splitter = s => splitter(s).filter(s => Boolean(s));
+	constructor(splitter: (key: K) => string[]) {
+		this._splitter = key => splitter(key).filter(part => Boolean(part));
 	}
 
-	insert(path: string, element: E): void {
+	insert(path: K, element: V): void {
 		const parts = this._splitter(path);
 		let i = 0;
 
@@ -258,9 +252,9 @@ export class TrieMap<E> {
 		}
 
 		// create new nodes
-		let newNode: Node<E>;
+		let newNode: Node<V>;
 		for (; i < parts.length; i++) {
-			newNode = new Node<E>();
+			newNode = new Node<V>();
 			node.children.set(parts[i], newNode);
 			node = newNode;
 		}
@@ -268,11 +262,11 @@ export class TrieMap<E> {
 		node.element = element;
 	}
 
-	lookUp(path: string): E {
+	lookUp(path: K): V {
 		const parts = this._splitter(path);
 
 		let { children } = this._root;
-		let node: Node<E>;
+		let node: Node<V>;
 		for (const part of parts) {
 			node = children.get(part);
 			if (!node) {
@@ -284,10 +278,10 @@ export class TrieMap<E> {
 		return node.element;
 	}
 
-	findSubstr(path: string): E {
+	findSubstr(path: K): V {
 		const parts = this._splitter(path);
 
-		let lastNode: Node<E>;
+		let lastNode: Node<V>;
 		let { children } = this._root;
 		for (const part of parts) {
 			const node = children.get(part);
@@ -308,11 +302,11 @@ export class TrieMap<E> {
 		return undefined;
 	}
 
-	findSuperstr(path: string): TrieMap<E> {
+	findSuperstr(path: K): TrieMap<K, V> {
 		const parts = this._splitter(path);
 
 		let { children } = this._root;
-		let node: Node<E>;
+		let node: Node<V>;
 		for (const part of parts) {
 			node = children.get(part);
 			if (!node) {
@@ -321,9 +315,23 @@ export class TrieMap<E> {
 			children = node.children;
 		}
 
-		const result = new TrieMap<E>(this._splitter);
+		const result = new TrieMap<K, V>(this._splitter);
 		result._root = node;
 		return result;
+	}
+}
+
+
+/**
+ * A trie map that allows for fast look up when keys are substrings
+ * to the actual search keys (dir/subdir-problem).
+ */
+export class StringTrieMap<E> extends TrieMap<string, E> {
+
+	static PathSplitter = (s: string) => s.split(/[\\/]/).filter(s => !!s);
+
+	constructor(splitter = StringTrieMap.PathSplitter) {
+		super(splitter);
 	}
 }
 
