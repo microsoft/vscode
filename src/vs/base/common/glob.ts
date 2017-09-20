@@ -35,6 +35,7 @@ export interface SiblingClause {
 }
 
 const GLOBSTAR = '**';
+const GLOB_SPLIT = '/';
 const PATH_REGEX = '[/\\\\]';		// any slash or backslash
 const NO_PATH_REGEX = '[^/\\\\]';	// any non-slash and non-backslash
 const ALL_FORWARD_SLASHES = /\//g;
@@ -110,7 +111,7 @@ function parseRegExp(pattern: string): string {
 	let regEx = '';
 
 	// Split up into segments for each slash found
-	let segments = splitGlobAware(pattern, '/');
+	let segments = splitGlobAware(pattern, GLOB_SPLIT);
 
 	// Special case where we only have globstars
 	if (segments.every(s => s === GLOBSTAR)) {
@@ -281,8 +282,9 @@ function parsePattern(arg1: string | IRelativePattern, options: IGlobOptions): P
 	if (typeof arg1 !== 'string') {
 		pattern = arg1.pattern;
 
+		// convert relative to absolute pattern unless it already uses GLOBSTAR
 		if (pattern.indexOf(GLOBSTAR) !== 0) {
-			pattern = paths.join(GLOBSTAR, pattern); // add globstar to convert relative to absolute pattern
+			pattern = GLOBSTAR + GLOB_SPLIT + strings.ltrim(pattern, GLOB_SPLIT);
 		}
 	} else {
 		pattern = arg1;
