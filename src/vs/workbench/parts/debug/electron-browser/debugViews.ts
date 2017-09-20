@@ -16,7 +16,7 @@ import { prepareActions } from 'vs/workbench/browser/actions';
 import { IHighlightEvent, ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
-import { ViewsViewletPanel, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/views';
+import { ViewsViewletPanel, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDebugService, State, IBreakpoint, IExpression, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED } from 'vs/workbench/parts/debug/common/debug';
 import { Expression, Variable, ExceptionBreakpoint, FunctionBreakpoint, Thread, StackFrame, Breakpoint, ThreadAndProcessIds } from 'vs/workbench/parts/debug/common/debugModel';
 import * as viewer from 'vs/workbench/parts/debug/electron-browser/debugViewer';

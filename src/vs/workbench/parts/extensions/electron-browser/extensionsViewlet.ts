@@ -46,7 +46,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { inputForeground, inputBackground, inputBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ViewsRegistry, ViewLocation, IViewDescriptor } from 'vs/workbench/browser/parts/views/viewsRegistry';
-import { PersistentViewsViewlet, ViewsViewletPanel } from 'vs/workbench/browser/parts/views/views';
+import { PersistentViewsViewlet, ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService, ContextKeyExpr, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';

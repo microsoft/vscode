@@ -9,7 +9,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction } from 'vs/base/common/actions';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { PersistentViewsViewlet } from 'vs/workbench/browser/parts/views/views';
+import { PersistentViewsViewlet } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDebugService, VIEWLET_ID, State } from 'vs/workbench/parts/debug/common/debug';
 import { StartAction, ToggleReplAction, ConfigureAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { StartDebugActionItem } from 'vs/workbench/parts/debug/browser/debugActionItems';

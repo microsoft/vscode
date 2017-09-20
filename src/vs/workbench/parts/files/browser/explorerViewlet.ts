@@ -12,7 +12,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as DOM from 'vs/base/browser/dom';
 import { Builder } from 'vs/base/browser/builder';
 import { VIEWLET_ID, ExplorerViewletVisibleContext, IFilesConfiguration, OpenEditorsVisibleContext, OpenEditorsVisibleCondition } from 'vs/workbench/parts/files/common/files';
-import { PersistentViewsViewlet, ViewsViewletPanel, IViewletViewOptions } from 'vs/workbench/browser/parts/views/views';
+import { PersistentViewsViewlet, ViewsViewletPanel, IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationEditingService } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { ActionRunner, FileViewletState } from 'vs/workbench/parts/files/browser/views/explorerViewer';

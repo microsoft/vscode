@@ -31,7 +31,7 @@ import { IListService } from 'vs/platform/list/browser/listService';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachListStyler, attachBadgeStyler } from 'vs/platform/theme/common/styler';
-import { ViewsViewletPanel, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/views';
+import { ViewsViewletPanel, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { OpenGlobalSettingsAction } from 'vs/workbench/parts/preferences/browser/preferencesActions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
