@@ -235,12 +235,10 @@ export class FileLabel extends ResourceLabel {
 			}
 		}
 
-		const description = resource.scheme === 'file' || resource.scheme === 'untitled' ? getPathLabel(paths.dirname(resource.fsPath), rootProvider, this.environmentService) : resource.authority;
-
 		this.setLabel({
 			resource,
 			name: (options && options.hideLabel) ? void 0 : resources.basenameOrAuthority(resource),
-			description: !hidePath ? description : void 0
+			description: !hidePath ? getPathLabel(resources.dirname(resource), rootProvider, this.environmentService) : void 0
 		}, options);
 	}
 }
