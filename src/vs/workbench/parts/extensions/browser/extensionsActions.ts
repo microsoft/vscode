@@ -1368,11 +1368,13 @@ export class ConfigureWorkspaceRecommendedExtensionsAction extends AbstractConfi
 	}
 
 	public run(event: any): TPromise<any> {
-		const workspace = this.contextService.getWorkspace();
-		if (workspace.configuration) {
-			return this.openWorkspaceConfigurationFile(workspace.configuration);
+		switch (this.contextService.getWorkbenchState()) {
+			case WorkbenchState.FOLDER:
+				return this.openExtensionsFile(this.contextService.toResource(paths.join('.vscode', 'extensions.json'), this.contextService.getWorkspace().folders[0]));
+			case WorkbenchState.WORKSPACE:
+				return this.openWorkspaceConfigurationFile(this.contextService.getWorkspace().configuration);
 		}
-		return this.openExtensionsFile(this.contextService.toResource(paths.join('.vscode', 'extensions.json'), workspace.folders[0]));
+		return TPromise.as(null);
 	}
 
 	dispose(): void {
