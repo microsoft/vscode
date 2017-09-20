@@ -672,20 +672,30 @@ export class GlobalActivityActionItem extends ActivityActionItem {
 		// Context menus are triggered on mouse down so that an item can be picked
 		// and executed with releasing the mouse over it
 		this.$container.on(DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
-			DOM.EventHelper.stop(e, true);
-
-			const event = new StandardMouseEvent(e);
-			this.showContextMenu({ x: event.posx, y: event.posy });
+			this.onClick(e);
 		});
 
+		// Extra listener for keyboard interaction
 		this.$container.on(DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
 			let event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
-				DOM.EventHelper.stop(e, true);
-
-				this.showContextMenu(this.$container.getHTMLElement());
+				this.onClick(e);
 			}
 		});
+	}
+
+	public onClick(event?: MouseEvent | KeyboardEvent): void {
+		DOM.EventHelper.stop(event, true);
+
+		let location: HTMLElement | { x: number, y: number };
+		if (event instanceof MouseEvent) {
+			const mouseEvent = new StandardMouseEvent(event);
+			location = { x: mouseEvent.posx, y: mouseEvent.posy };
+		} else {
+			location = this.$container.getHTMLElement();
+		}
+
+		this.showContextMenu(location);
 	}
 
 	private showContextMenu(location: HTMLElement | { x: number, y: number }): void {
