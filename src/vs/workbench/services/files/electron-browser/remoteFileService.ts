@@ -6,7 +6,7 @@
 
 import URI from 'vs/base/common/uri';
 import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';
-import { IContent, IStreamContent, IFileStat, IResolveContentOptions, IUpdateContentOptions, IResolveFileOptions, IResolveFileResult, FileOperationEvent, FileOperation, IFileSystemProvider, IStat, FileType, IImportResult, FileChangesEvent } from 'vs/platform/files/common/files';
+import { IContent, IStreamContent, IFileStat, IResolveContentOptions, IUpdateContentOptions, IResolveFileOptions, IResolveFileResult, FileOperationEvent, FileOperation, IFileSystemProvider, IStat, FileType, IImportResult, FileChangesEvent, ICreateFileOptions } from 'vs/platform/files/common/files';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { basename, join } from 'path';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -240,9 +240,9 @@ export class RemoteFileService extends FileService {
 
 	// --- saving
 
-	async createFile(resource: URI, content?: string): TPromise<IFileStat> {
+	async createFile(resource: URI, content?: string, options?: ICreateFileOptions): TPromise<IFileStat> {
 		if (resource.scheme === Schemas.file) {
-			return super.createFile(resource, content);
+			return super.createFile(resource, content, options);
 		} else {
 			const provider = await this._withProvider(resource);
 			const stat = await this._doUpdateContent(provider, resource, content || '', {});
