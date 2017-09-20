@@ -68,7 +68,7 @@ export class Win32AutoUpdaterImpl extends EventEmitter implements IAutoUpdater {
 					return this.cleanup();
 				}
 
-				this.emit('update-available');
+				this.emit('update-available', null, update.url, update.version);
 
 				return this.cleanup(update.version).then(() => {
 					return this.getUpdatePackagePath(update.version).then(updatePackagePath => {
