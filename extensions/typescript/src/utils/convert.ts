@@ -7,18 +7,21 @@ import * as vscode from 'vscode';
 import * as Proto from '../protocol';
 
 
-export const textSpanToRange = (span: Proto.TextSpan) =>
+export const tsTextSpanToVsRange = (span: Proto.TextSpan) =>
 	new vscode.Range(
 		span.start.line - 1, span.start.offset - 1,
 		span.end.line - 1, span.end.offset - 1);
 
-export const positionToFileLocation = (file: string, position: vscode.Position): Proto.FileLocationRequestArgs => ({
+export const tsLocationToVsPosition = (tslocation: Proto.Location) =>
+	new vscode.Position(tslocation.line - 1, tslocation.offset - 1);
+
+export const vsPositionToTsFileLocation = (file: string, position: vscode.Position): Proto.FileLocationRequestArgs => ({
 	file,
 	line: position.line + 1,
 	offset: position.character + 1
 });
 
-export const rangeToFileRange = (file: string, range: vscode.Range): Proto.FileRangeRequestArgs => ({
+export const vsRangeToTsFileRange = (file: string, range: vscode.Range): Proto.FileRangeRequestArgs => ({
 	file,
 	startLine: range.start.line + 1,
 	startOffset: range.start.character + 1,

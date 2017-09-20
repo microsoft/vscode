@@ -6,7 +6,7 @@
 import { DocumentHighlightProvider, DocumentHighlight, DocumentHighlightKind, TextDocument, Position, Range, CancellationToken } from 'vscode';
 
 import { ITypescriptServiceClient } from '../typescriptService';
-import { textSpanToRange, positionToFileLocation } from '../utils/convert';
+import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/convert';
 
 
 export default class TypeScriptDocumentHighlightProvider implements DocumentHighlightProvider {
@@ -18,7 +18,7 @@ export default class TypeScriptDocumentHighlightProvider implements DocumentHigh
 		if (!filepath) {
 			return Promise.resolve<DocumentHighlight[]>([]);
 		}
-		const args = positionToFileLocation(filepath, position);
+		const args = vsPositionToTsFileLocation(filepath, position);
 		return this.client.execute('occurrences', args, token).then((response): DocumentHighlight[] => {
 			let data = response.body;
 			if (data && data.length) {
@@ -35,7 +35,7 @@ export default class TypeScriptDocumentHighlightProvider implements DocumentHigh
 				}
 				return data.map(item =>
 					new DocumentHighlight(
-						textSpanToRange(item),
+						tsTextSpanToVsRange(item),
 						item.isWriteAccess ? DocumentHighlightKind.Write : DocumentHighlightKind.Read));
 			}
 			return [];

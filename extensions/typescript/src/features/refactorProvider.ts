@@ -5,11 +5,11 @@
 
 'use strict';
 
-import { CodeActionProvider, TextDocument, Range, CancellationToken, CodeActionContext, Command, commands, workspace, WorkspaceEdit, window, QuickPickItem, Selection, Position } from 'vscode';
+import { CodeActionProvider, TextDocument, Range, CancellationToken, CodeActionContext, Command, commands, workspace, WorkspaceEdit, window, QuickPickItem, Selection } from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
-import { textSpanToRange, rangeToFileRange } from '../utils/convert';
+import { tsTextSpanToVsRange, vsRangeToTsFileRange, tsLocationToVsPosition } from '../utils/convert';
 
 
 export default class TypeScriptRefactorProvider implements CodeActionProvider {
@@ -25,7 +25,6 @@ export default class TypeScriptRefactorProvider implements CodeActionProvider {
 
 		commands.registerCommand(this.doRefactorCommandId, this.doRefactoring, this);
 		commands.registerCommand(this.selectRefactorCommandId, this.selectRefactoring, this);
-
 	}
 
 	public async provideCodeActions(
@@ -43,7 +42,7 @@ export default class TypeScriptRefactorProvider implements CodeActionProvider {
 			return [];
 		}
 
-		const args: Proto.GetApplicableRefactorsRequestArgs = rangeToFileRange(file, range);
+		const args: Proto.GetApplicableRefactorsRequestArgs = vsRangeToTsFileRange(file, range);
 		try {
 			const response = await this.client.execute('getApplicableRefactors', args, token);
 			if (!response || !response.body) {
@@ -79,7 +78,7 @@ export default class TypeScriptRefactorProvider implements CodeActionProvider {
 		for (const edit of edits) {
 			for (const textChange of edit.textChanges) {
 				workspaceEdit.replace(this.client.asUrl(edit.fileName),
-					textSpanToRange(textChange),
+					tsTextSpanToVsRange(textChange),
 					textChange.newText);
 			}
 		}
@@ -100,7 +99,7 @@ export default class TypeScriptRefactorProvider implements CodeActionProvider {
 
 	private async doRefactoring(file: string, refactor: string, action: string, range: Range): Promise<boolean> {
 		const args: Proto.GetEditsForRefactorRequestArgs = {
-			...rangeToFileRange(file, range),
+			...vsRangeToTsFileRange(file, range),
 			refactor,
 			action
 		};
@@ -118,7 +117,7 @@ export default class TypeScriptRefactorProvider implements CodeActionProvider {
 		const renameLocation = response.body.renameLocation;
 		if (renameLocation) {
 			if (window.activeTextEditor && window.activeTextEditor.document.uri.fsPath === file) {
-				const pos = new Position(renameLocation.line - 1, renameLocation.offset - 1);
+				const pos = tsLocationToVsPosition(renameLocation);
 				window.activeTextEditor.selection = new Selection(pos, pos);
 				await commands.executeCommand('editor.action.rename');
 			}

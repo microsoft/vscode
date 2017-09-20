@@ -9,7 +9,7 @@ import * as PConst from '../protocol.const';
 
 import { TypeScriptBaseCodeLensProvider, ReferencesCodeLens } from './baseCodeLensProvider';
 import { ITypescriptServiceClient } from '../typescriptService';
-import { textSpanToRange, positionToFileLocation } from '../utils/convert';
+import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/convert';
 
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
@@ -36,7 +36,7 @@ export default class TypeScriptReferencesCodeLensProvider extends TypeScriptBase
 
 	resolveCodeLens(inputCodeLens: CodeLens, token: CancellationToken): Promise<CodeLens> {
 		const codeLens = inputCodeLens as ReferencesCodeLens;
-		const args = positionToFileLocation(codeLens.file, codeLens.range.start);
+		const args = vsPositionToTsFileLocation(codeLens.file, codeLens.range.start);
 		return this.client.execute('references', args, token).then(response => {
 			if (!response || !response.body) {
 				throw codeLens;
@@ -44,7 +44,7 @@ export default class TypeScriptReferencesCodeLensProvider extends TypeScriptBase
 
 			const locations = response.body.refs
 				.map(reference =>
-					new Location(this.client.asUrl(reference.file), textSpanToRange(reference)))
+					new Location(this.client.asUrl(reference.file), tsTextSpanToVsRange(reference)))
 				.filter(location =>
 					// Exclude original definition from references
 					!(location.uri.fsPath === codeLens.document.fsPath &&

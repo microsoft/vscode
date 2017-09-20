@@ -7,7 +7,7 @@ import { TextDocument, Position, CancellationToken, Location } from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
-import { textSpanToRange, positionToFileLocation } from '../utils/convert';
+import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/convert';
 
 export default class TypeScriptDefinitionProviderBase {
 	constructor(
@@ -23,7 +23,7 @@ export default class TypeScriptDefinitionProviderBase {
 		if (!filepath) {
 			return Promise.resolve(null);
 		}
-		const args = positionToFileLocation(filepath, position);
+		const args = vsPositionToTsFileLocation(filepath, position);
 		return this.client.execute(definitionType, args, token).then(response => {
 			const locations: Proto.FileSpan[] = (response && response.body) || [];
 			if (!locations || locations.length === 0) {
@@ -34,7 +34,7 @@ export default class TypeScriptDefinitionProviderBase {
 				if (resource === null) {
 					return null;
 				} else {
-					return new Location(resource, textSpanToRange(location));
+					return new Location(resource, tsTextSpanToVsRange(location));
 				}
 			}).filter(x => x !== null) as Location[];
 		}, () => {

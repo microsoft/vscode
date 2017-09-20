@@ -8,7 +8,7 @@ import { HoverProvider, Hover, TextDocument, Position, CancellationToken } from 
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
 import { tagsMarkdownPreview } from './previewer';
-import { textSpanToRange, positionToFileLocation } from '../utils/convert';
+import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/convert';
 
 export default class TypeScriptHoverProvider implements HoverProvider {
 
@@ -20,14 +20,14 @@ export default class TypeScriptHoverProvider implements HoverProvider {
 		if (!filepath) {
 			return undefined;
 		}
-		const args = positionToFileLocation(filepath, position);
+		const args = vsPositionToTsFileLocation(filepath, position);
 		try {
 			const response = await this.client.execute('quickinfo', args, token);
 			if (response && response.body) {
 				const data = response.body;
 				return new Hover(
 					TypeScriptHoverProvider.getContents(data),
-					textSpanToRange(data));
+					tsTextSpanToVsRange(data));
 			}
 		} catch (e) {
 			// noop

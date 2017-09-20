@@ -7,7 +7,7 @@ import { CodeActionProvider, TextDocument, Range, CancellationToken, CodeActionC
 
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
-import { textSpanToRange, rangeToFileRange } from '../utils/convert';
+import { tsTextSpanToVsRange, vsRangeToTsFileRange } from '../utils/convert';
 
 interface NumberSet {
 	[key: number]: boolean;
@@ -68,7 +68,7 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 			formattingOptions: formattingOptions
 		};
 		const args: Proto.CodeFixRequestArgs = {
-			...rangeToFileRange(file, range),
+			...vsRangeToTsFileRange(file, range),
 			errorCodes: Array.from(supportedActions)
 		};
 		const response = await this.client.execute('getCodeFixes', args, token);
@@ -109,7 +109,7 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 		for (const change of action.changes) {
 			for (const textChange of change.textChanges) {
 				workspaceEdit.replace(this.client.asUrl(change.fileName),
-					textSpanToRange(textChange),
+					tsTextSpanToVsRange(textChange),
 					textChange.newText);
 			}
 		}

@@ -9,7 +9,7 @@ import * as PConst from '../protocol.const';
 
 import { TypeScriptBaseCodeLensProvider, ReferencesCodeLens } from './baseCodeLensProvider';
 import { ITypescriptServiceClient } from '../typescriptService';
-import { textSpanToRange, positionToFileLocation } from '../utils/convert';
+import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/convert';
 
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
@@ -36,7 +36,7 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 
 	resolveCodeLens(inputCodeLens: CodeLens, token: CancellationToken): Promise<CodeLens> {
 		const codeLens = inputCodeLens as ReferencesCodeLens;
-		const args = positionToFileLocation(codeLens.file, codeLens.range.start);
+		const args = vsPositionToTsFileLocation(codeLens.file, codeLens.range.start);
 		return this.client.execute('implementation', args, token).then(response => {
 			if (!response || !response.body) {
 				throw codeLens;
@@ -47,7 +47,7 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 					// Only take first line on implementation: https://github.com/Microsoft/vscode/issues/23924
 					new Location(this.client.asUrl(reference.file),
 						reference.start.line === reference.end.line
-							? textSpanToRange(reference)
+							? tsTextSpanToVsRange(reference)
 							: new Range(
 								reference.start.line - 1, reference.start.offset - 1,
 								reference.start.line, 0)))

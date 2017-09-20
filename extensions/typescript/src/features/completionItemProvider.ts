@@ -11,7 +11,7 @@ import TypingsStatus from '../utils/typingsStatus';
 import * as PConst from '../protocol.const';
 import { CompletionEntry, CompletionsRequestArgs, CompletionDetailsRequestArgs, CompletionEntryDetails } from '../protocol';
 import * as Previewer from './previewer';
-import { textSpanToRange, positionToFileLocation } from '../utils/convert';
+import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/convert';
 
 import * as nls from 'vscode-nls';
 let localize = nls.loadMessageBundle();
@@ -33,7 +33,7 @@ class MyCompletionItem extends CompletionItem {
 			let span: protocol.TextSpan = entry.replacementSpan;
 			// The indexing for the range returned by the server uses 1-based indexing.
 			// We convert to 0-based indexing.
-			this.textEdit = TextEdit.replace(textSpanToRange(span), entry.name);
+			this.textEdit = TextEdit.replace(tsTextSpanToVsRange(span), entry.name);
 		} else {
 			// Try getting longer, prefix based range for completions that span words
 			const wordRange = document.getWordRangeAtPosition(position);
@@ -175,7 +175,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 		if (!file) {
 			return Promise.resolve<CompletionItem[]>([]);
 		}
-		const args: CompletionsRequestArgs = positionToFileLocation(file, position);
+		const args: CompletionsRequestArgs = vsPositionToTsFileLocation(file, position);
 		return this.client.execute('completions', args, token).then((msg) => {
 			// This info has to come from the tsserver. See https://github.com/Microsoft/TypeScript/issues/2831
 			// let isMemberCompletion = false;
@@ -234,9 +234,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 			return null;
 		}
 		const args: CompletionDetailsRequestArgs = {
-			file: filepath,
-			line: item.position.line + 1,
-			offset: item.position.character + 1,
+			...vsPositionToTsFileLocation(filepath, item.position),
 			entryNames: [item.label]
 		};
 		return this.client.execute('completionEntryDetails', args, token).then((response) => {
@@ -265,7 +263,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 	}
 
 	private isValidFunctionCompletionContext(filepath: string, position: Position): Promise<boolean> {
-		const args = positionToFileLocation(filepath, position);
+		const args = vsPositionToTsFileLocation(filepath, position);
 		// Workaround for https://github.com/Microsoft/TypeScript/issues/12677
 		// Don't complete function calls inside of destructive assigments or imports
 		return this.client.execute('quickinfo', args).then(infoResponse => {

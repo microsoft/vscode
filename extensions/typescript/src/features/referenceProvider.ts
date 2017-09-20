@@ -6,7 +6,7 @@
 import { ReferenceProvider, Location, TextDocument, Position, CancellationToken } from 'vscode';
 
 import { ITypescriptServiceClient } from '../typescriptService';
-import { textSpanToRange, positionToFileLocation } from '../utils/convert';
+import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/convert';
 
 export default class TypeScriptReferenceSupport implements ReferenceProvider {
 	public constructor(
@@ -17,7 +17,7 @@ export default class TypeScriptReferenceSupport implements ReferenceProvider {
 		if (!filepath) {
 			return Promise.resolve<Location[]>([]);
 		}
-		const args = positionToFileLocation(filepath, position);
+		const args = vsPositionToTsFileLocation(filepath, position);
 		const apiVersion = this.client.apiVersion;
 		return this.client.execute('references', args, token).then((msg) => {
 			const result: Location[] = [];
@@ -31,7 +31,7 @@ export default class TypeScriptReferenceSupport implements ReferenceProvider {
 					continue;
 				}
 				const url = this.client.asUrl(ref.file);
-				const location = new Location(url, textSpanToRange(ref));
+				const location = new Location(url, tsTextSpanToVsRange(ref));
 				result.push(location);
 			}
 			return result;

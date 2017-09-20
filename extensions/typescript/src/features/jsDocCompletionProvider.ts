@@ -9,7 +9,7 @@ import { ITypescriptServiceClient } from '../typescriptService';
 import { DocCommandTemplateResponse } from '../protocol';
 
 import * as nls from 'vscode-nls';
-import { positionToFileLocation } from '../utils/convert';
+import { vsPositionToTsFileLocation } from '../utils/convert';
 const localize = nls.loadMessageBundle();
 
 const configurationNamespace = 'jsDocCompletion';
@@ -119,7 +119,7 @@ export class TryCompleteJsDocCommand {
 	}
 
 	private tryInsertJsDocFromTemplate(editor: TextEditor, file: string, position: Position): Promise<boolean> {
-		const args = positionToFileLocation(file, position);
+		const args = vsPositionToTsFileLocation(file, position);
 		return Promise.race([
 			this.lazyClient().execute('docCommentTemplate', args),
 			new Promise((_, reject) => setTimeout(reject, 250))

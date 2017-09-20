@@ -7,7 +7,7 @@ import { workspace, window, Uri, WorkspaceSymbolProvider, SymbolInformation, Sym
 
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
-import { textSpanToRange } from '../utils/convert';
+import { tsTextSpanToVsRange } from '../utils/convert';
 
 function getSymbolKind(item: Proto.NavtoItem): SymbolKind {
 	switch (item.kind) {
@@ -68,7 +68,7 @@ export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbo
 				if (!item.containerName && item.kind === 'alias') {
 					continue;
 				}
-				const range = textSpanToRange(item);
+				const range = tsTextSpanToVsRange(item);
 				let label = item.name;
 				if (item.kind === 'method' || item.kind === 'function') {
 					label += '()';
