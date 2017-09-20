@@ -1605,15 +1605,24 @@ declare module 'vscode' {
 		scheme?: string;
 
 		/**
-		 * Either a glob pattern, like `**∕*.{ts,js}` or a [workspace pattern](#WorkspacePattern) that can be relative
-		 * and matches on the path of the provided workspace.
+		 * Either a glob pattern, like `**∕*.{ts,js}` or a [relative pattern](#RelativePattern).
 		 */
-		pattern?: string | WorkspacePattern;
+		pattern?: string | RelativePattern;
 	}
 
-	export interface WorkspacePattern {
-		base: WorkspaceFolder;
-		pattern: string;
+	class RelativePattern {
+
+		/**
+		 * A base to which the pattern will be matched against relatively.
+		 */
+		readonly base: Uri;
+
+		/**
+		 * A relative glob pattern like `*.{ts,js}`.
+		 */
+		readonly pattern: string;
+
+		constructor(pattern: string, base: WorkspaceFolder | Uri)
 	}
 
 	/**

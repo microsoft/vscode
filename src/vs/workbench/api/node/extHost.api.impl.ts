@@ -602,7 +602,8 @@ export function createApiFactory(
 			ShellExecution: extHostTypes.ShellExecution,
 			TaskScope: extHostTypes.TaskScope,
 			Task: extHostTypes.Task,
-			ConfigurationTarget: extHostTypes.ConfigurationTarget
+			ConfigurationTarget: extHostTypes.ConfigurationTarget,
+			RelativePattern: extHostTypes.RelativePattern
 		};
 		if (extension.enableProposedApi && extension.isBuiltin) {
 			api['credentials'] = credentials;

@@ -10,6 +10,7 @@ import URI from 'vs/base/common/uri';
 import { illegalArgument } from 'vs/base/common/errors';
 import * as vscode from 'vscode';
 import { isMarkdownString } from 'vs/base/common/htmlContent';
+import { IRelativePattern } from 'vs/base/common/glob';
 
 export class Disposable {
 
@@ -1427,4 +1428,22 @@ export enum ConfigurationTarget {
 	Workspace = 2,
 
 	WorkspaceFolder = 3
+}
+
+export class RelativePattern implements IRelativePattern {
+	private _pattern: string;
+	private _base: URI;
+
+	constructor(pattern: string, base: vscode.WorkspaceFolder | URI) {
+		this._pattern = pattern;
+		this._base = URI.isUri(base) ? base : base.uri as URI;
+	}
+
+	get pattern(): string {
+		return this._pattern;
+	}
+
+	get base(): URI {
+		return this._base;
+	}
 }
