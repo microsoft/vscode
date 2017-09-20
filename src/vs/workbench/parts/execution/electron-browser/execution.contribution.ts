@@ -13,6 +13,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import paths = require('vs/base/common/paths');
+import resources = require('vs/base/common/resources');
 import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor } from 'vs/workbench/browser/actions';
 import uri from 'vs/base/common/uri';
 import { explorerItemToFileResource } from 'vs/workbench/parts/files/common/files';
@@ -192,7 +193,7 @@ export class ExplorerViewerActionContributor extends ActionBarContributor {
 
 		// We want the parent unless this resource is a directory
 		if (!fileResource.isDirectory) {
-			resource = uri.file(paths.dirname(resource.fsPath));
+			resource = resources.dirname(resource);
 		}
 
 		const configuration = this.configurationService.getConfiguration<ITerminalConfiguration>();
