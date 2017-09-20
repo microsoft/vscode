@@ -170,7 +170,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 
 		// editor actions don't need to be disposed
 		this._actions = {};
-
+		this._removeDecorationTypes();
 		this._postDetachModelCleanup(this._detachModel());
 
 		this._onDidDispose.fire();
@@ -232,8 +232,22 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 			newModelUrl: model ? model.uri : null
 		};
 
+		this._removeDecorationTypes();
 		this._onDidChangeModel.fire(e);
 		this._postDetachModelCleanup(detachedModel);
+	}
+
+	private _removeDecorationTypes(): void {
+		this._decorationTypeKeysToIds = {};
+		if (this._decorationTypeSubtypes) {
+			for (let decorationType in this._decorationTypeSubtypes) {
+				let subTypes = this._decorationTypeSubtypes[decorationType];
+				for (let subType in subTypes) {
+					this._removeDecorationType(decorationType + '-' + subType);
+				}
+			}
+			this._decorationTypeSubtypes = {};
+		}
 	}
 
 	public getCenteredRangeInViewport(): Range {
@@ -948,16 +962,6 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 
 	protected _postDetachModelCleanup(detachedModel: editorCommon.IModel): void {
 		if (detachedModel) {
-			this._decorationTypeKeysToIds = {};
-			if (this._decorationTypeSubtypes) {
-				for (let decorationType in this._decorationTypeSubtypes) {
-					let subTypes = this._decorationTypeSubtypes[decorationType];
-					for (let subType in subTypes) {
-						this._removeDecorationType(decorationType + '-' + subType);
-					}
-				}
-				this._decorationTypeSubtypes = {};
-			}
 			detachedModel.removeAllDecorationsWithOwnerId(this.id);
 		}
 	}
