@@ -134,16 +134,4 @@ suite('commands namespace tests', () => {
 
 		return Promise.all([a, b, c, d]);
 	});
-
-	test('api-command: vscode.pickWorkspaceFolder', function () {
-		const pickerPromise = commands.executeCommand('vscode.pickWorkspaceFolder');
-
-		return commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem').then(() => {
-			return pickerPromise.then(workspace => {
-				assert.ok(true);
-			}, error => {
-				assert.ok(false);
-			});
-		});
-	});
 });
