@@ -132,7 +132,7 @@ export function activate(context: ExtensionContext) {
 					});
 				});
 			},
-			provideColorPresentations(colorInfo: ColorInformation): ColorPresentation[] | Thenable<ColorPresentation[]> {
+			provideColorPresentations(document: TextDocument, colorInfo: ColorInformation): ColorPresentation[] | Thenable<ColorPresentation[]> {
 				let result: ColorPresentation[] = [];
 				let color = colorInfo.color;
 				let label;

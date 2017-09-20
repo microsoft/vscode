@@ -728,7 +728,7 @@ export interface DocumentColorProvider {
 	/**
 	 * Provide the string representations for a color.
 	 */
-	provideColorPresentations(colorInfo: IColorInformation, token: CancellationToken): IColorPresentation[] | Thenable<IColorPresentation[]>;
+	provideColorPresentations(model: editorCommon.IReadOnlyModel, colorInfo: IColorInformation, token: CancellationToken): IColorPresentation[] | Thenable<IColorPresentation[]>;
 }
 
 export interface IResourceEdit {

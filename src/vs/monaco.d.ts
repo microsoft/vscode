@@ -4904,7 +4904,7 @@ declare module monaco.languages {
 		/**
 		 * Provide the string representations for a color.
 		 */
-		provideColorPresentations(colorInfo: IColorInformation, token: CancellationToken): IColorPresentation[] | Thenable<IColorPresentation[]>;
+		provideColorPresentations(model: editor.IReadOnlyModel, colorInfo: IColorInformation, token: CancellationToken): IColorPresentation[] | Thenable<IColorPresentation[]>;
 	}
 
 	export interface IResourceEdit {

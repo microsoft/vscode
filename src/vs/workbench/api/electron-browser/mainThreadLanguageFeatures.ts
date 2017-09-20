@@ -306,8 +306,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 					});
 			},
 
-			provideColorPresentations: (colorInfo, token) => {
-				return wireCancellationToken(token, proxy.$provideColorPresentations(handle, {
+			provideColorPresentations: (model, colorInfo, token) => {
+				return wireCancellationToken(token, proxy.$provideColorPresentations(handle, model.uri, {
 					color: [colorInfo.color.red, colorInfo.color.green, colorInfo.color.blue, colorInfo.color.alpha],
 					range: colorInfo.range
 				}));

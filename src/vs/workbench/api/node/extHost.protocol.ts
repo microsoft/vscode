@@ -559,7 +559,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideDocumentLinks(handle: number, resource: URI): TPromise<modes.ILink[]>;
 	$resolveDocumentLink(handle: number, link: modes.ILink): TPromise<modes.ILink>;
 	$provideDocumentColors(handle: number, resource: URI): TPromise<IRawColorInfo[]>;
-	$provideColorPresentations(handle: number, colorInfo: IRawColorInfo): TPromise<modes.IColorPresentation[]>;
+	$provideColorPresentations(handle: number, resource: URI, colorInfo: IRawColorInfo): TPromise<modes.IColorPresentation[]>;
 }
 
 export interface ExtHostQuickOpenShape {

@@ -222,7 +222,7 @@ declare module 'vscode' {
 		/**
 		 * Provide representations for a color.
 		 */
-		provideColorPresentations(colorInfo: ColorInformation, token: CancellationToken): ProviderResult<ColorPresentation[]>;
+		provideColorPresentations(document: TextDocument, colorInfo: ColorInformation, token: CancellationToken): ProviderResult<ColorPresentation[]>;
 	}
 
 	export namespace languages {
