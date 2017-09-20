@@ -9,7 +9,6 @@ import * as paths from 'vs/base/common/paths';
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { Emitter } from 'vs/base/common/event';
 import { StrictResourceMap } from 'vs/base/common/map';
-import { equals } from 'vs/base/common/arrays';
 import * as objects from 'vs/base/common/objects';
 import * as errors from 'vs/base/common/errors';
 import * as collections from 'vs/base/common/collections';
@@ -18,7 +17,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { readFile, stat, writeFile } from 'vs/base/node/pfs';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import * as extfs from 'vs/base/node/extfs';
-import { IWorkspaceContextService, IWorkspace, Workspace, WorkbenchState, WorkspaceFolder, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspace, Workspace, WorkbenchState, WorkspaceFolder, toWorkspaceFolders, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
 import { isLinux } from 'vs/base/common/platform';
 import { ConfigWatcher } from 'vs/base/node/config';
@@ -253,8 +252,8 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	protected readonly _onDidUpdateConfiguration: Emitter<IConfigurationServiceEvent> = this._register(new Emitter<IConfigurationServiceEvent>());
 	public readonly onDidUpdateConfiguration: Event<IConfigurationServiceEvent> = this._onDidUpdateConfiguration.event;
 
-	protected readonly _onDidChangeWorkspaceFolders: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onDidChangeWorkspaceFolders: Event<void> = this._onDidChangeWorkspaceFolders.event;
+	protected readonly _onDidChangeWorkspaceFolders: Emitter<IWorkspaceFoldersChangeEvent> = this._register(new Emitter<IWorkspaceFoldersChangeEvent>());
+	public readonly onDidChangeWorkspaceFolders: Event<IWorkspaceFoldersChangeEvent> = this._onDidChangeWorkspaceFolders.event;
 
 	protected readonly _onDidChangeWorkspaceName: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidChangeWorkspaceName: Event<void> = this._onDidChangeWorkspaceName.event;
@@ -438,9 +437,23 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 			this._onDidChangeWorkspaceName.fire();
 		}
 
-		if (!equals(this.workspace.folders, currentFolders, (folder1, folder2) => folder1.uri.fsPath === folder2.uri.fsPath)) {
-			this._onDidChangeWorkspaceFolders.fire();
+		const changes = this.compareFolders(currentFolders, this.workspace.folders);
+		if (changes.added.length || changes.removed.length || changes.changed.length) {
+			this._onDidChangeWorkspaceFolders.fire(changes);
 		}
+	}
+
+	private compareFolders(currentFolders: WorkspaceFolder[], newFolders: WorkspaceFolder[]): IWorkspaceFoldersChangeEvent {
+		const result = { added: [], removed: [], changed: [] };
+
+		result.added = newFolders.filter(newFolder => !currentFolders.some(currentFolder => newFolder.uri.toString() === currentFolder.uri.toString()));
+		result.removed = currentFolders.filter(currentFolder => !newFolders.some(newFolder => currentFolder.uri.toString() === newFolder.uri.toString()));
+
+		if (result.added.length === 0 && result.removed.length === 0) {
+			result.changed = currentFolders.filter((currentFolder, index) => newFolders[index].uri.toString() !== currentFolder.uri.toString());
+		}
+
+		return result;
 	}
 
 	private initializeConfiguration(trigger: boolean = true): TPromise<any> {
@@ -487,12 +500,12 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	private onWorkspaceConfigurationChanged(): void {
 		if (this.workspace && this.workspace.configuration) {
 			let configuredFolders = toWorkspaceFolders(this.workspaceConfiguration.workspaceConfigurationModel.folders, URI.file(paths.dirname(this.workspace.configuration.fsPath)));
-			const foldersChanged = !equals(this.workspace.folders, configuredFolders, (folder1, folder2) => folder1.uri.fsPath === folder2.uri.fsPath);
-			if (foldersChanged) { // TODO@Sandeep be smarter here about detecting changes
+			const changes = this.compareFolders(this.workspace.folders, configuredFolders);
+			if (changes.added.length || changes.removed.length || changes.changed.length) { // TODO@Sandeep be smarter here about detecting changes
 				this.workspace.folders = configuredFolders;
 				this.onFoldersChanged()
 					.then(configurationChanged => {
-						this._onDidChangeWorkspaceFolders.fire();
+						this._onDidChangeWorkspaceFolders.fire(changes);
 						if (configurationChanged) {
 							this.triggerConfigurationChange();
 						}

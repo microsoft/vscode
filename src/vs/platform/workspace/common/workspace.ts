@@ -21,6 +21,12 @@ export enum WorkbenchState {
 	WORKSPACE
 }
 
+export interface IWorkspaceFoldersChangeEvent {
+	added: WorkspaceFolder[];
+	removed: WorkspaceFolder[];
+	changed: WorkspaceFolder[];
+}
+
 export interface IWorkspaceContextService {
 	_serviceBrand: any;
 
@@ -52,7 +58,7 @@ export interface IWorkspaceContextService {
 	/**
 	 * An event which fires on workspace folders change.
 	 */
-	onDidChangeWorkspaceFolders: Event<void>;
+	onDidChangeWorkspaceFolders: Event<IWorkspaceFoldersChangeEvent>;
 
 	/**
 	 * Returns the folder for the given resource from the workspace.

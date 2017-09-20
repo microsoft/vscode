@@ -18,7 +18,7 @@ import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingReso
 import { IKeybindingEvent, KeybindingSource, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfirmation, IMessageService } from 'vs/platform/message/common/message';
-import { IWorkspaceContextService, IWorkspace, WorkbenchState, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspace, WorkbenchState, WorkspaceFolder, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -525,8 +525,8 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 	private readonly _onDidChangeWorkspaceName: Emitter<void> = new Emitter<void>();
 	public readonly onDidChangeWorkspaceName: Event<void> = this._onDidChangeWorkspaceName.event;
 
-	private readonly _onDidChangeWorkspaceFolders: Emitter<void> = new Emitter<void>();
-	public readonly onDidChangeWorkspaceFolders: Event<void> = this._onDidChangeWorkspaceFolders.event;
+	private readonly _onDidChangeWorkspaceFolders: Emitter<IWorkspaceFoldersChangeEvent> = new Emitter<IWorkspaceFoldersChangeEvent>();
+	public readonly onDidChangeWorkspaceFolders: Event<IWorkspaceFoldersChangeEvent> = this._onDidChangeWorkspaceFolders.event;
 
 	private readonly _onDidChangeWorkbenchState: Emitter<WorkbenchState> = new Emitter<WorkbenchState>();
 	public readonly onDidChangeWorkbenchState: Event<WorkbenchState> = this._onDidChangeWorkbenchState.event;

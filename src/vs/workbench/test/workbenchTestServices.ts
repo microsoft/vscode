@@ -27,7 +27,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IEditorInput, IEditorOptions, Position, Direction, IEditor, IResourceInput, ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IMessageService, IConfirmation } from 'vs/platform/message/common/message';
-import { IWorkspaceContextService, IWorkspace as IWorkbenchWorkspace, WorkbenchState, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspace as IWorkbenchWorkspace, WorkbenchState, WorkspaceFolder, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { ILifecycleService, ShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { EditorStacksModel } from 'vs/workbench/common/editor/editorStacksModel';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -74,14 +74,14 @@ export class TestContextService implements IWorkspaceContextService {
 	private options: any;
 
 	private _onDidChangeWorkspaceName: Emitter<void>;
-	private _onDidChangeWorkspaceFolders: Emitter<void>;
+	private _onDidChangeWorkspaceFolders: Emitter<IWorkspaceFoldersChangeEvent>;
 	private _onDidChangeWorkbenchState: Emitter<WorkbenchState>;
 
 	constructor(workspace: any = TestWorkspace, options: any = null) {
 		this.workspace = workspace;
 		this.id = generateUuid();
 		this.options = options || Object.create(null);
-		this._onDidChangeWorkspaceFolders = new Emitter<void>();
+		this._onDidChangeWorkspaceFolders = new Emitter<IWorkspaceFoldersChangeEvent>();
 		this._onDidChangeWorkbenchState = new Emitter<WorkbenchState>();
 	}
 
@@ -89,7 +89,7 @@ export class TestContextService implements IWorkspaceContextService {
 		return this._onDidChangeWorkspaceName.event;
 	}
 
-	public get onDidChangeWorkspaceFolders(): Event<void> {
+	public get onDidChangeWorkspaceFolders(): Event<IWorkspaceFoldersChangeEvent> {
 		return this._onDidChangeWorkspaceFolders.event;
 	}
 
