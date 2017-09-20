@@ -29,7 +29,7 @@ import { IWindowsMainService, IOpenConfiguration, IWindowsCountChangedEvent } fr
 import { IHistoryMainService } from 'vs/platform/history/common/history';
 import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IWorkspacesMainService, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, WORKSPACE_FILTER, isSingleFolderWorkspaceIdentifier, isIRawFileWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesMainService, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, WORKSPACE_FILTER, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 
@@ -1820,12 +1820,7 @@ class WorkspacesManager {
 			} else {
 				const resolvedWorkspace = this.workspacesService.resolveWorkspaceSync(workspace.configPath);
 				if (resolvedWorkspace && resolvedWorkspace.folders.length > 0) {
-					for (const folder of resolvedWorkspace.folders) {
-						if (isIRawFileWorkspaceFolder(folder)) {
-							defaultPath = dirname(folder.path);
-							break;
-						}
-					}
+					defaultPath = dirname(resolvedWorkspace.folders[0].path);
 				}
 			}
 		}

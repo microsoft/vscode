@@ -32,35 +32,10 @@ export interface IWorkspaceIdentifier {
 	configPath: string;
 }
 
-export function isIStoredWorkspaceFolder(thing: any): thing is IStoredWorkspaceFolder {
-	return isIRawFileWorkspaceFolder(thing) || isIRawUriWorkspaceFolder(thing);
-}
-
-export function isIRawFileWorkspaceFolder(thing: any): thing is IRawFileWorkspaceFolder {
-	return thing
-		&& typeof thing === 'object'
-		&& typeof thing.path === 'string'
-		&& (!thing.name || typeof thing.name === 'string');
-}
-
-export function isIRawUriWorkspaceFolder(thing: any): thing is IRawUriWorkspaceFolder {
-	return thing
-		&& typeof thing === 'object'
-		&& typeof thing.uri === 'string'
-		&& (!thing.name || typeof thing.name === 'string');
-}
-
-export interface IRawFileWorkspaceFolder {
+export interface IStoredWorkspaceFolder {
 	path: string;
 	name?: string;
 }
-
-export interface IRawUriWorkspaceFolder {
-	uri: string;
-	name?: string;
-}
-
-export type IStoredWorkspaceFolder = IRawFileWorkspaceFolder | IRawUriWorkspaceFolder;
 
 export interface IStoredWorkspace {
 	folders: IStoredWorkspaceFolder[];
