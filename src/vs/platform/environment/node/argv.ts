@@ -27,7 +27,8 @@ const options: minimist.Opts = {
 		'debugBrkSearch',
 		'open-url',
 		'enable-proposed-api',
-		'export-default-configuration'
+		'export-default-configuration',
+		'install-source'
 	],
 	boolean: [
 		'help',

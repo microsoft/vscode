@@ -17,7 +17,10 @@ import * as os from 'os';
 import { whenDeleted } from 'vs/base/node/pfs';
 
 function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
-	return argv['list-extensions'] || !!argv['install-extension'] || !!argv['uninstall-extension'];
+	return !!argv['install-source']
+		|| !!argv['list-extensions']
+		|| !!argv['install-extension']
+		|| !!argv['uninstall-extension'];
 }
 
 interface IMainCli {
