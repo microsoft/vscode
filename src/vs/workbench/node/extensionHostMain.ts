@@ -204,6 +204,10 @@ export class ExtensionHostMain {
 	}
 
 	private async activateIfGlobPatterns(extensionId: string, globPatterns: string[]): TPromise<void> {
+		if (globPatterns.length === 0) {
+			return TPromise.as(void 0);
+		}
+
 		if (!this._diskSearch) {
 			// Shut down this search process after 1s
 			this._diskSearch = new DiskSearch(false, 1000);
