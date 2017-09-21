@@ -137,51 +137,45 @@ export class RemoteFileService extends FileService {
 		return this._extensionService.activateByEvent('onFileSystemAccess:' + resource.scheme).then(() => {
 			const provider = this._provider.get(resource.scheme);
 			if (!provider) {
-				throw new Error('ENOPRO - no provider known for ' + resource);
+				const err = new Error();
+				err.name = 'ENOPRO';
+				err.message = `no provider for ${resource.toString}`;
+				throw err;
 			}
 			return provider;
 		});
 	}
 
-	async existsFile(resource: URI): TPromise<boolean, any> {
+	existsFile(resource: URI): TPromise<boolean, any> {
 		if (resource.scheme === Schemas.file) {
 			return super.existsFile(resource);
 		} else {
-			const provider = await this._withProvider(resource);
-			return provider
-				? this._doResolveFiles(provider, [{ resource }]).then(data => data.length > 0)
-				: true;
+			return this.resolveFile(resource).then(data => true, err => false);
 		}
 	}
 
-	async resolveFile(resource: URI, options?: IResolveFileOptions): TPromise<IFileStat, any> {
+	resolveFile(resource: URI, options?: IResolveFileOptions): TPromise<IFileStat, any> {
 		if (resource.scheme === Schemas.file) {
 			return super.resolveFile(resource, options);
 		} else {
-			const provider = await this._withProvider(resource);
-			if (!provider) {
-				throw new Error('ENOENT');
-			}
-			return this._doResolveFiles(provider, [{ resource, options }]).then(data => {
-				if (isFalsyOrEmpty(data)) {
-					throw new Error('NotFound');
+			return this._doResolveFiles([{ resource, options }]).then(data => {
+				if (data.length !== 1 || !data[0].success) {
+					throw new Error(`ENOENT, ${resource}`);
+				} else {
+					return data[0].stat;
 				}
-				return data[0].stat;
 			});
 		}
 	}
 
-	async resolveFiles(toResolve: { resource: URI; options?: IResolveFileOptions; }[]): TPromise<IResolveFileResult[], any> {
+	resolveFiles(toResolve: { resource: URI; options?: IResolveFileOptions; }[]): TPromise<IResolveFileResult[], any> {
 		const groups = groupBy(toResolve, (a, b) => compare(a.resource.scheme, b.resource.scheme));
 		const promises: TPromise<IResolveFileResult[], any>[] = [];
 		for (const group of groups) {
 			if (group[0].resource.scheme === Schemas.file) {
 				promises.push(super.resolveFiles(group));
 			} else {
-				const provider = await this._withProvider(group[0].resource);
-				if (provider) {
-					promises.push(this._doResolveFiles(provider, group));
-				}
+				promises.push(this._doResolveFiles(group));
 			}
 		}
 		return TPromise.join(promises).then(data => {
@@ -189,87 +183,106 @@ export class RemoteFileService extends FileService {
 		});
 	}
 
-	private _doResolveFiles(provider: IFileSystemProvider, toResolve: { resource: URI; options?: IResolveFileOptions; }[]): TPromise<IResolveFileResult[], any> {
-		let result: IResolveFileResult[] = [];
-		let promises: TPromise<any>[] = [];
-		for (const item of toResolve) {
-			promises.push(provider.stat(item.resource)
-				.then(stat => toDeepIFileStat(provider, [item.resource, stat], item.options && item.options.resolveTo))
-				.then(stat => result.push({ stat, success: true })));
-		}
-		return TPromise.join(promises).then(() => result);
+	private _doResolveFiles(toResolve: { resource: URI; options?: IResolveFileOptions; }[]): TPromise<IResolveFileResult[], any> {
+		return this._withProvider(toResolve[0].resource).then(provider => {
+			let result: IResolveFileResult[] = [];
+			let promises = toResolve.map((item, idx) => {
+				return provider.stat(item.resource).then(stat => {
+					return toDeepIFileStat(provider, [item.resource, stat], item.options && item.options.resolveTo).then(fileStat => {
+						result[idx] = { stat: fileStat, success: true };
+					});
+				}, err => {
+					result[idx] = { stat: undefined, success: false };
+				});
+			});
+			return TPromise.join(promises).then(() => result);
+		});
 	}
 
 	// --- resolve
 
-	async resolveContent(resource: URI, options?: IResolveContentOptions): TPromise<IContent> {
+	resolveContent(resource: URI, options?: IResolveContentOptions): TPromise<IContent> {
 		if (resource.scheme === Schemas.file) {
 			return super.resolveContent(resource, options);
 		} else {
-			const provider = await this._withProvider(resource);
-			return this._doResolveContent(provider, resource).then(RemoteFileService._asContent);
+			return this._doResolveContent(resource, options).then(RemoteFileService._asContent);
 		}
 	}
 
-	async resolveStreamContent(resource: URI, options?: IResolveContentOptions): TPromise<IStreamContent> {
+	resolveStreamContent(resource: URI, options?: IResolveContentOptions): TPromise<IStreamContent> {
 		if (resource.scheme === Schemas.file) {
 			return super.resolveStreamContent(resource, options);
 		} else {
-			const provider = await this._withProvider(resource);
-			return this._doResolveContent(provider, resource);
+			return this._doResolveContent(resource, options);
 		}
 	}
 
-	private async _doResolveContent(provider: IFileSystemProvider, resource: URI): TPromise<IStreamContent> {
+	private _doResolveContent(resource: URI, options: IResolveContentOptions): TPromise<IStreamContent> {
+		return this._withProvider(resource).then(provider => {
+			return this.resolveFile(resource).then(fileStat => {
 
-		const stat = await toIFileStat(provider, [resource, await provider.stat(resource)]);
+				const encoding = this.getEncoding(resource);
+				const stream = decodeStream(encoding);
 
-		const encoding = this.getEncoding(resource);
-		const stream = decodeStream(encoding);
-		await provider.read(resource, new Progress<Buffer>(chunk => stream.write(chunk)));
-		stream.end();
+				provider.read(resource, new Progress<Buffer>(chunk => stream.write(chunk))).then(() => {
+					stream.end();
+				}, err => {
+					stream.emit('error', err);
+					stream.end();
+				});
 
-		return {
-			encoding,
-			value: stream,
-			resource: stat.resource,
-			name: stat.name,
-			etag: stat.etag,
-			mtime: stat.mtime,
-		};
+				return {
+					encoding,
+					value: stream,
+					resource: fileStat.resource,
+					name: fileStat.name,
+					etag: fileStat.etag,
+					mtime: fileStat.mtime,
+				};
+			});
+		});
 	}
 
 	// --- saving
 
-	async createFile(resource: URI, content?: string, options?: ICreateFileOptions): TPromise<IFileStat> {
+	createFile(resource: URI, content?: string, options?: ICreateFileOptions): TPromise<IFileStat> {
 		if (resource.scheme === Schemas.file) {
 			return super.createFile(resource, content, options);
 		} else {
-			const provider = await this._withProvider(resource);
-			if (options && !options.overwrite && await this.existsFile(resource)) {
-				throw new FileOperationError('EEXIST', FileOperationResult.FILE_MODIFIED_SINCE);
-			}
-			const stat = await this._doUpdateContent(provider, resource, content || '', {});
-			this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, stat));
-			return stat;
+			return this._withProvider(resource).then(provider => {
+				let prepare = options && !options.overwrite
+					? this.existsFile(resource)
+					: TPromise.as(false);
+
+
+				return prepare.then(exists => {
+					if (exists && options && !options.overwrite) {
+						return TPromise.wrapError(new FileOperationError('EEXIST', FileOperationResult.FILE_MODIFIED_SINCE));
+					}
+					return this._doUpdateContent(provider, resource, content || '', {});
+				}).then(fileStat => {
+					this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, fileStat));
+					return fileStat;
+				});
+			});
 		}
 	}
 
-	async updateContent(resource: URI, value: string, options?: IUpdateContentOptions): TPromise<IFileStat> {
+	updateContent(resource: URI, value: string, options?: IUpdateContentOptions): TPromise<IFileStat> {
 		if (resource.scheme === Schemas.file) {
 			return super.updateContent(resource, value, options);
 		} else {
-			const provider = await this._withProvider(resource);
-			return this._doUpdateContent(provider, resource, value, options || {});
+			return this._withProvider(resource).then(provider => {
+				return this._doUpdateContent(provider, resource, value, options || {});
+			});
 		}
 	}
 
-	private async _doUpdateContent(provider: IFileSystemProvider, resource: URI, content: string, options: IUpdateContentOptions): TPromise<IFileStat> {
+	private _doUpdateContent(provider: IFileSystemProvider, resource: URI, content: string, options: IUpdateContentOptions): TPromise<IFileStat> {
 		const encoding = this.getEncoding(resource, options.encoding);
-		await provider.write(resource, encode(content, encoding));
-		const stat = await provider.stat(resource);
-		const fileStat = await toIFileStat(provider, [resource, stat]);
-		return fileStat;
+		return provider.write(resource, encode(content, encoding)).then(() => {
+			return this.resolveFile(resource);
+		});
 	}
 
 	private static _asContent(content: IStreamContent): TPromise<IContent> {
@@ -290,72 +303,79 @@ export class RemoteFileService extends FileService {
 
 	// --- delete
 
-	async del(resource: URI, useTrash?: boolean): TPromise<void> {
+	del(resource: URI, useTrash?: boolean): TPromise<void> {
 		if (resource.scheme === Schemas.file) {
 			return super.del(resource, useTrash);
 		} else {
-			const provider = await this._withProvider(resource);
-			const stat = await provider.stat(resource);
-			await stat.type === FileType.Dir ? provider.rmdir(resource) : provider.unlink(resource);
-			this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
+			return this._withProvider(resource).then(provider => {
+				return provider.stat(resource).then(stat => {
+					return stat.type === FileType.Dir ? provider.rmdir(resource) : provider.unlink(resource);
+				}).then(() => {
+					this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
+				});
+			});
 		}
 	}
 
-	async createFolder(resource: URI): TPromise<IFileStat, any> {
+	createFolder(resource: URI): TPromise<IFileStat, any> {
 		if (resource.scheme === Schemas.file) {
 			return super.createFolder(resource);
 		} else {
-			const provider = await this._withProvider(resource);
-			const stat = await provider.mkdir(resource);
-			const fileStat = await toIFileStat(provider, [resource, stat]);
-			this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, fileStat));
-			return fileStat;
+			return this._withProvider(resource).then(provider => {
+				return provider.mkdir(resource).then(stat => {
+					return toIFileStat(provider, [resource, stat]);
+				});
+			}).then(fileStat => {
+				this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, fileStat));
+				return fileStat;
+			});
 		}
 	}
 
-	async rename(resource: URI, newName: string): TPromise<IFileStat, any> {
+	rename(resource: URI, newName: string): TPromise<IFileStat, any> {
 		if (resource.scheme === Schemas.file) {
 			return super.rename(resource, newName);
 		} else {
-			const provider = await this._withProvider(resource);
 			const target = resource.with({ path: join(resource.path, '..', newName) });
-			return this._doMove(provider, resource, target, false);
+			return this._doMoveWithInScheme(resource, target, false);
 		}
 	}
 
-	async moveFile(source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat> {
+	moveFile(source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat> {
 		if (source.scheme !== target.scheme) {
-			return this._manualMove(source, target);
+			return this._doMoveAcrossScheme(source, target);
 		} else if (source.scheme === Schemas.file) {
 			return super.moveFile(source, target, overwrite);
 		} else {
-			const provider = await this._withProvider(source);
-			return this._doMove(provider, source, target, overwrite);
+			return this._doMoveWithInScheme(source, target, overwrite);
 		}
 	}
 
-	private async _doMove(provider: IFileSystemProvider, source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat> {
-		if (overwrite) {
-			try {
-				await this.del(target);
-			} catch (e) {
-				// TODO@Joh Better errors
-				// ignore not_exists error
-				// abort on other errors
-			}
-		}
-		const stat = await provider.move(source, target);
-		const fileStat = await toIFileStat(provider, [target, stat]);
-		this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.MOVE, fileStat));
-		return fileStat;
+	private _doMoveWithInScheme(source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat> {
+
+		const prepare = overwrite
+			? this.del(target).then(undefined, err => { /*ignore*/ })
+			: TPromise.as(null);
+
+		return prepare.then(() => this._withProvider(source)).then(provider => {
+			return provider.move(source, target).then(stat => {
+				return toIFileStat(provider, [target, stat]);
+			}).then(fileStat => {
+				this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.MOVE, fileStat));
+				return fileStat;
+			});
+		});
 	}
 
-	private async _manualMove(source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat> {
-		await this.copyFile(source, target, overwrite);
-		await this.del(source);
-		const stat = await this.resolveFile(target);
-		this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.MOVE, stat));
-		return stat;
+	private _doMoveAcrossScheme(source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat> {
+		return this.copyFile(source, target, overwrite).then(() => {
+			return this.del(source);
+		}).then(() => {
+			return this.resolveFile(target);
+		}).then(fileStat => {
+			this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.MOVE, fileStat));
+			return fileStat;
+		});
 	}
 
 	importFile(source: URI, targetFolder: URI): TPromise<IImportResult> {
@@ -367,55 +387,56 @@ export class RemoteFileService extends FileService {
 		}
 	}
 
-	async copyFile(source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat> {
+	copyFile(source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat> {
 		if (source.scheme === target.scheme && source.scheme === Schemas.file) {
 			return super.copyFile(source, target, overwrite);
 		}
 
-		if (overwrite) {
-			try {
-				await this.del(target);
-			} catch (e) {
-				// TODO@Joh Better errors
-				// ignore not_exists error
-				// abort on other errors
-			}
-		}
-		// TODO@Joh This does only work for textfiles
-		// because the content turns things into a string
-		// and all binary data will be broken
-		const content = await this.resolveContent(source);
-		const targetProvider = await this._withProvider(target);
+		const prepare = overwrite
+			? this.del(target).then(undefined, err => { /*ignore*/ })
+			: TPromise.as(null);
 
-		if (targetProvider) {
-			const stat = await this._doUpdateContent(targetProvider, target, content.value, { encoding: content.encoding });
-			this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.COPY, stat));
-			return stat;
-		} else {
-			return super.updateContent(target, content.value, { encoding: content.encoding });
-		}
+		return prepare.then(() => {
+			// TODO@Joh This does only work for textfiles
+			// because the content turns things into a string
+			// and all binary data will be broken
+			return this.resolveContent(source).then(content => {
+				return this._withProvider(target).then(provider => {
+					return this._doUpdateContent(provider, target, content.value, { encoding: content.encoding }).then(fileStat => {
+						this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.COPY, fileStat));
+						return fileStat;
+					});
+				}, err => {
+					if (err instanceof Error && err.name === 'ENOPRO') {
+						// file scheme
+						return super.updateContent(target, content.value, { encoding: content.encoding });
+					} else {
+						return TPromise.wrapError(err);
+					}
+				});
+			});
+		});
+
 	}
 
-	async touchFile(resource: URI): TPromise<IFileStat, any> {
+	touchFile(resource: URI): TPromise<IFileStat, any> {
 		if (resource.scheme === Schemas.file) {
 			return super.touchFile(resource);
 		} else {
-			const provider = await this._withProvider(resource);
-			return this._doTouchFile(provider, resource);
+			return this._doTouchFile(resource);
 		}
 	}
 
-	private async _doTouchFile(provider: IFileSystemProvider, resource: URI): TPromise<IFileStat> {
-		let stat: IStat;
-		try {
-			await provider.stat(resource);
-			stat = await provider.utimes(resource, Date.now());
-		} catch (e) {
-			// TODO@Joh, if ENOENT
-			await provider.write(resource, new Uint8Array(0));
-			stat = await provider.stat(resource);
-		}
-		return toIFileStat(provider, [resource, stat]);
+	private _doTouchFile(resource: URI): TPromise<IFileStat> {
+		return this._withProvider(resource).then(provider => {
+			return provider.stat(resource).then(() => {
+				return provider.utimes(resource, Date.now());
+			}, err => {
+				return provider.write(resource, new Uint8Array(0));
+			}).then(() => {
+				return this.resolveFile(resource);
+			});
+		});
 	}
 
 	// TODO@Joh - file watching on demand!
