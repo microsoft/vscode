@@ -104,8 +104,12 @@ function isEnabled(folder: vscode.WorkspaceFolder): boolean {
 }
 
 async function provideNpmScriptsForFolder(folder: vscode.WorkspaceFolder): Promise<vscode.Task[]> {
-	let rootPath = folder.uri.fsPath;
 	let emptyTasks: vscode.Task[] = [];
+
+	if (folder.uri.scheme !== 'file') {
+		return emptyTasks;
+	}
+	let rootPath = folder.uri.fsPath;
 
 	let packageJson = path.join(rootPath, 'package.json');
 	if (!await exists(packageJson)) {
