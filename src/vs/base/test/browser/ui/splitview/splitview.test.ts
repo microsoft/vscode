@@ -10,7 +10,7 @@ import { Sash } from 'vs/base/browser/ui/sash/sash';
 
 class TestView implements IView {
 
-	private _onDidChange = new Emitter<void>();
+	private _onDidChange = new Emitter<number | undefined>();
 	readonly onDidChange = this._onDidChange.event;
 
 	get minimumSize(): number { return this._minimumSize; }

@@ -35,8 +35,8 @@ export abstract class Panel implements IView {
 	private static HEADER_SIZE = 22;
 
 	protected _expanded: boolean;
+	private expandedSize: number | undefined = undefined;
 	private _headerVisible = true;
-	private _onDidChange = new Emitter<void>();
 	private _minimumBodySize: number;
 	private _maximumBodySize: number;
 	private ariaHeaderLabel: string;
@@ -45,6 +45,9 @@ export abstract class Panel implements IView {
 	private el: HTMLElement;
 	private header: HTMLElement;
 	protected disposables: IDisposable[] = [];
+
+	private _onDidChange = new Emitter<number | undefined>();
+	readonly onDidChange: Event<number | undefined> = this._onDidChange.event;
 
 	get draggableElement(): HTMLElement {
 		return this.header;
@@ -97,8 +100,6 @@ export abstract class Panel implements IView {
 		return headerSize + maximumBodySize;
 	}
 
-	readonly onDidChange: Event<void> = this._onDidChange.event;
-
 	constructor(options: IPanelOptions = {}) {
 		this._expanded = typeof options.expanded === 'undefined' ? true : !!options.expanded;
 		this.ariaHeaderLabel = options.ariaHeaderLabel || '';
@@ -117,7 +118,7 @@ export abstract class Panel implements IView {
 
 		this._expanded = !!expanded;
 		this.updateHeader();
-		this._onDidChange.fire();
+		this._onDidChange.fire(expanded ? this.expandedSize : undefined);
 	}
 
 	get headerVisible(): boolean {
@@ -179,6 +180,10 @@ export abstract class Panel implements IView {
 	layout(size: number): void {
 		const headerSize = this.headerVisible ? Panel.HEADER_SIZE : 0;
 		this.layoutBody(size - headerSize);
+
+		if (this.isExpanded()) {
+			this.expandedSize = size;
+		}
 	}
 
 	style(styles: IPanelStyles): void {

@@ -22,7 +22,7 @@ export interface ISplitViewOptions {
 export interface IView {
 	readonly minimumSize: number;
 	readonly maximumSize: number;
-	readonly onDidChange: Event<void>;
+	readonly onDidChange: Event<number | undefined>;
 	render(container: HTMLElement, orientation: Orientation): void;
 	layout(size: number, orientation: Orientation): void;
 }
@@ -87,7 +87,7 @@ export class SplitView implements IDisposable {
 			this.el.insertBefore(container, this.el.children.item(index));
 		}
 
-		const onChangeDisposable = mapEvent(view.onDidChange, () => item)(this.onViewChange, this);
+		const onChangeDisposable = view.onDidChange(size => this.onViewChange(item, size));
 		const containerDisposable = toDisposable(() => this.el.removeChild(container));
 		const disposable = combinedDisposable([onChangeDisposable, containerDisposable]);
 
@@ -207,14 +207,15 @@ export class SplitView implements IDisposable {
 		this.resize(index, delta, sizes);
 	}
 
-	private onViewChange(item: IViewItem): void {
+	private onViewChange(item: IViewItem, size: number | undefined): void {
 		const index = this.viewItems.indexOf(item);
 
 		if (index < 0 || index >= this.viewItems.length) {
 			return;
 		}
 
-		const size = clamp(item.size, item.view.minimumSize, item.view.maximumSize);
+		size = typeof size === 'number' ? size : item.size;
+		size = clamp(size, item.view.minimumSize, item.view.maximumSize);
 		item.size = size;
 		this.relayout();
 	}
