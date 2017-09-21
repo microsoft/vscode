@@ -4246,23 +4246,6 @@ declare module monaco.languages {
 		triggerCharacter?: string;
 	}
 
-	export namespace CompletionItemProvider {
-		interface ProvideCompletionItems {
-			(document: editor.IReadOnlyModel, position: Position, token: CancellationToken): CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
-		}
-		interface ProvideCompletionItemsForContext {
-			(document: editor.IReadOnlyModel, position: Position, context: CompletionContext, token: CancellationToken): CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
-		}
-	}
-
-	interface ProvideCompletionItems {
-		(document: editor.IReadOnlyModel, position: Position, token: CancellationToken): CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
-	}
-
-	interface ProvideCompletionItemsForContext {
-		(document: editor.IReadOnlyModel, position: Position, context: CompletionContext, token: CancellationToken): CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
-	}
-
 	/**
 	 * The completion item provider interface defines the contract between extensions and
 	 * the [IntelliSense](https://code.visualstudio.com/docs/editor/intellisense).
@@ -4279,7 +4262,7 @@ declare module monaco.languages {
 		/**
 		 * Provide completion items for the given position and document.
 		 */
-		provideCompletionItems: CompletionItemProvider.ProvideCompletionItems | CompletionItemProvider.ProvideCompletionItemsForContext;
+		provideCompletionItems(document: editor.IReadOnlyModel, position: Position, token: CancellationToken, context: CompletionContext): CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
 		/**
 		 * Given a completion item fill in more data, like [doc-comment](#CompletionItem.documentation)
 		 * or [details](#CompletionItem.detail).

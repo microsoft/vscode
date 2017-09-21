@@ -556,16 +556,6 @@ export interface CompletionContext {
 	triggerCharacter?: string;
 }
 
-export namespace CompletionItemProvider {
-	export interface ProvideCompletionItems {
-		(document: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
-	}
-
-	export interface ProvideCompletionItemsForContext {
-		(document: editorCommon.IReadOnlyModel, position: Position, context: CompletionContext, token: CancellationToken): CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
-	}
-}
-
 /**
  * The completion item provider interface defines the contract between extensions and
  * the [IntelliSense](https://code.visualstudio.com/docs/editor/intellisense).
@@ -582,7 +572,7 @@ export interface CompletionItemProvider {
 	/**
 	 * Provide completion items for the given position and document.
 	 */
-	provideCompletionItems: CompletionItemProvider.ProvideCompletionItems | CompletionItemProvider.ProvideCompletionItemsForContext;
+	provideCompletionItems(document: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken, context: CompletionContext): CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
 
 	/**
 	 * Given a completion item fill in more data, like [doc-comment](#CompletionItem.documentation)
@@ -670,10 +660,7 @@ class SuggestAdapter {
 	}
 
 	provideCompletionItems(model: editorCommon.IReadOnlyModel, position: Position, context: modes.SuggestContext, token: CancellationToken): Thenable<modes.ISuggestResult> {
-		const result = this._provider.provideCompletionItems.length <= 3
-			? (this._provider.provideCompletionItems as CompletionItemProvider.ProvideCompletionItems)(model, position, token)
-			: (this._provider.provideCompletionItems as CompletionItemProvider.ProvideCompletionItemsForContext)(model, position, context, token);
-
+		const result = this._provider.provideCompletionItems(model, position, token, context);
 		return toThenable<CompletionItem[] | CompletionList>(result).then(value => {
 			const result: modes.ISuggestResult = {
 				suggestions: []
