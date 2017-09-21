@@ -247,7 +247,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 						this.choiceService.choose(Severity.Info, message, options, 2).done(choice => {
 							switch (choice) {
 								case 0:
-									this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'show' });
+									this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'show', extensionId: name });
 									return recommendationsAction.run();
 								case 1: this.importantRecommendationsIgnoreList.push(id);
 									this.storageService.store(
@@ -255,13 +255,13 @@ export class ExtensionTipsService implements IExtensionTipsService {
 										JSON.stringify(this.importantRecommendationsIgnoreList),
 										StorageScope.GLOBAL
 									);
-									this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'neverShowAgain' });
+									this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'neverShowAgain', extensionId: name });
 									return this.ignoreExtensionRecommendations();
 								case 2:
-									this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'close' });
+									this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'close', extensionId: name });
 							}
 						}, () => {
-							this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'cancelled' });
+							this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'cancelled', extensionId: name });
 						});
 					});
 			});
