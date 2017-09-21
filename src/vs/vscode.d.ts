@@ -4890,13 +4890,13 @@ declare module 'vscode' {
 		 *
 		 * *Note* that only files within the current [workspace folders](#workspace.workspaceFolders) can be watched.
 		 *
-		 * @param globPattern A glob pattern that is applied to the names of created, changed, and deleted files.
+		 * @param globPattern A glob pattern (either absolute like `**∕*.{ts,js}` or a [relative pattern](#RelativePattern)) that is applied to the names of created, changed, and deleted files.
 		 * @param ignoreCreateEvents Ignore when files have been created.
 		 * @param ignoreChangeEvents Ignore when files have been changed.
 		 * @param ignoreDeleteEvents Ignore when files have been deleted.
 		 * @return A new file system watcher instance.
 		 */
-		export function createFileSystemWatcher(globPattern: string, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean): FileSystemWatcher;
+		export function createFileSystemWatcher(globPattern: string | RelativePattern, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean): FileSystemWatcher;
 
 		/**
 		 * Find files in the workspace.

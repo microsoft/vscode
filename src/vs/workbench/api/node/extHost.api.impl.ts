@@ -54,6 +54,7 @@ import { ExtHostThreadService } from 'vs/workbench/services/thread/node/extHostT
 import { ProxyIdentifier } from 'vs/workbench/services/thread/common/threadService';
 import { ExtHostDialogs } from 'vs/workbench/api/node/extHostDialogs';
 import { toLanguageSelector } from 'vs/workbench/api/node/extHostTypeConverters';
+import { IRelativePattern } from 'vs/base/common/glob';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription): typeof vscode;
@@ -421,7 +422,7 @@ export function createApiFactory(
 				return extHostEditors.applyWorkspaceEdit(edit);
 			},
 			createFileSystemWatcher: (pattern, ignoreCreate, ignoreChange, ignoreDelete): vscode.FileSystemWatcher => {
-				return extHostFileSystemEvent.createFileSystemWatcher(pattern, ignoreCreate, ignoreChange, ignoreDelete);
+				return extHostFileSystemEvent.createFileSystemWatcher(pattern as IRelativePattern, ignoreCreate, ignoreChange, ignoreDelete);
 			},
 			get textDocuments() {
 				return extHostDocuments.getAllDocumentData().map(data => data.document);

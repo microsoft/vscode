@@ -448,7 +448,7 @@ export function match(arg1: string | IExpression | IRelativePattern, path: strin
  * - simple brace expansion ({js,ts} => js or ts)
  * - character ranges (using [...])
  */
-export function parse(pattern: string, options?: IGlobOptions): ParsedPattern;
+export function parse(pattern: string | IRelativePattern, options?: IGlobOptions): ParsedPattern;
 export function parse(expression: IExpression, options?: IGlobOptions): ParsedExpression;
 export function parse(arg1: string | IExpression | IRelativePattern, options: IGlobOptions = {}): any {
 	if (!arg1) {
