@@ -564,9 +564,9 @@ class TaskService extends EventEmitter implements ITaskService {
 	private quickOpenService: IQuickOpenService;
 
 	private _configHasErrors: boolean;
-	private _schemaVersion: JsonSchemaVersion;
-	private _executionEngine: ExecutionEngine;
-	private _workspaceFolders: IWorkspaceFolder[];
+	private __schemaVersion: JsonSchemaVersion;
+	private __executionEngine: ExecutionEngine;
+	private __workspaceFolders: IWorkspaceFolder[];
 	private _providers: Map<number, ITaskProvider>;
 
 	private _workspaceTasksPromise: TPromise<Map<string, WorkspaceFolderTaskResult>>;
@@ -621,8 +621,8 @@ class TaskService extends EventEmitter implements ITaskService {
 			if (!this._taskSystem && !this._workspaceTasksPromise) {
 				return;
 			}
-			let folderSetup = this.computeWorkspaceFolders();
-			if (this._executionEngine !== folderSetup[1] && this._taskSystem && this._taskSystem.getActiveTasks().length > 0) {
+			let folderSetup = this.computeWorkspaceFolderSetup();
+			if (this.executionEngine !== folderSetup[1] && this._taskSystem && this._taskSystem.getActiveTasks().length > 0) {
 				this.messageService.show(
 					Severity.Info,
 					{
@@ -638,15 +638,9 @@ class TaskService extends EventEmitter implements ITaskService {
 				);
 				return;
 			}
-			this._workspaceFolders = folderSetup[0];
-			this._executionEngine = folderSetup[1];
-			this._schemaVersion = folderSetup[2];
+			this.updateSetup(folderSetup);
 			this.updateWorkspaceTasks();
 		});
-		let folderSetup = this.computeWorkspaceFolders();
-		this._workspaceFolders = folderSetup[0];
-		this._executionEngine = folderSetup[1];
-		this._schemaVersion = folderSetup[2];
 		lifecycleService.onWillShutdown(event => event.veto(this.beforeShutdown()));
 		this.registerCommands();
 	}
@@ -707,6 +701,36 @@ class TaskService extends EventEmitter implements ITaskService {
 		CommandsRegistry.registerCommand('workbench.action.tasks.showTasks', () => {
 			this.runShowTasks();
 		});
+	}
+
+	private get workspaceFolders(): IWorkspaceFolder[] {
+		if (!this.__workspaceFolders) {
+			this.updateSetup();
+		}
+		return this.__workspaceFolders;
+	}
+
+	private get executionEngine(): ExecutionEngine {
+		if (this.__executionEngine === void 0) {
+			this.updateSetup();
+		}
+		return this.__executionEngine;
+	}
+
+	private get schemaVersion(): JsonSchemaVersion {
+		if (this.__schemaVersion === void 0) {
+			this.updateSetup();
+		}
+		return this.__schemaVersion;
+	}
+
+	private updateSetup(setup?: [IWorkspaceFolder[], ExecutionEngine, JsonSchemaVersion]): void {
+		if (!setup) {
+			setup = this.computeWorkspaceFolderSetup();
+		}
+		this.__workspaceFolders = setup[0];
+		this.__executionEngine = setup[1];
+		this.__schemaVersion = setup[2];
 	}
 
 	private showOutput(): void {
@@ -805,7 +829,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		return this.getGroupedTasks().then((tasks) => {
 			let runnable = this.createRunnableTask(tasks, TaskGroup.Build);
 			if (!runnable || !runnable.task) {
-				if (this._schemaVersion === JsonSchemaVersion.V0_1_0) {
+				if (this.schemaVersion === JsonSchemaVersion.V0_1_0) {
 					throw new TaskError(Severity.Info, nls.localize('TaskService.noBuildTask1', 'No build task defined. Mark a task with \'isBuildCommand\' in the tasks.json file.'), TaskErrors.NoBuildTask);
 				} else {
 					throw new TaskError(Severity.Info, nls.localize('TaskService.noBuildTask2', 'No build task defined. Mark a task with as a \'build\' group in the tasks.json file.'), TaskErrors.NoBuildTask);
@@ -830,7 +854,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		return this.getGroupedTasks().then((tasks) => {
 			let runnable = this.createRunnableTask(tasks, TaskGroup.Test);
 			if (!runnable || !runnable.task) {
-				if (this._schemaVersion === JsonSchemaVersion.V0_1_0) {
+				if (this.schemaVersion === JsonSchemaVersion.V0_1_0) {
 					throw new TaskError(Severity.Info, nls.localize('TaskService.noTestTask1', 'No test task defined. Mark a task with \'isTestCommand\' in the tasks.json file.'), TaskErrors.NoTestTask);
 				} else {
 					throw new TaskError(Severity.Info, nls.localize('TaskService.noTestTask2', 'No test task defined. Mark a task with as a \'test\' group in the tasks.json file.'), TaskErrors.NoTestTask);
@@ -963,7 +987,7 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	public canCustomize(task: Task): boolean {
-		if (this._schemaVersion !== JsonSchemaVersion.V2_0_0) {
+		if (this.schemaVersion !== JsonSchemaVersion.V2_0_0) {
 			return false;
 		}
 		if (CustomTask.is(task)) {
@@ -1269,7 +1293,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (this._taskSystem) {
 			return this._taskSystem;
 		}
-		if (this._executionEngine === ExecutionEngine.Terminal) {
+		if (this.executionEngine === ExecutionEngine.Terminal) {
 			this._taskSystem = new TerminalTaskSystem(
 				this.terminalService, this.outputService, this.markerService,
 				this.modelService, this.configurationResolverService, this.telemetryService,
@@ -1309,7 +1333,7 @@ class TaskService extends EventEmitter implements ITaskService {
 						resolve(result);
 					}
 				};
-				if (this._schemaVersion === JsonSchemaVersion.V2_0_0 && this._providers.size > 0) {
+				if (this.schemaVersion === JsonSchemaVersion.V2_0_0 && this._providers.size > 0) {
 					this._providers.forEach((provider) => {
 						counter++;
 						provider.provideTasks().done(done, error);
@@ -1439,7 +1463,7 @@ class TaskService extends EventEmitter implements ITaskService {
 
 	private updateWorkspaceTasks(): void {
 		this._workspaceTasksPromise = this.computeWorkspaceTasks().then(value => {
-			if (this._executionEngine === ExecutionEngine.Process && this._taskSystem instanceof ProcessTaskSystem) {
+			if (this.executionEngine === ExecutionEngine.Process && this._taskSystem instanceof ProcessTaskSystem) {
 				// We can only have a process engine if we have one folder.
 				value.forEach((value) => {
 					this._configHasErrors = value.hasErrors;
@@ -1451,11 +1475,11 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	private computeWorkspaceTasks(): TPromise<Map<string, WorkspaceFolderTaskResult>> {
-		if (this._workspaceFolders.length === 0) {
+		if (this.workspaceFolders.length === 0) {
 			return TPromise.as(new Map<string, WorkspaceFolderTaskResult>());
 		} else {
 			let promises: TPromise<WorkspaceFolderTaskResult>[] = [];
-			for (let folder of this._workspaceFolders) {
+			for (let folder of this.workspaceFolders) {
 				promises.push(this.computeWorkspaceFolderTasks(folder).then((value) => value, () => undefined));
 			}
 			return TPromise.join(promises).then((values) => {
@@ -1471,7 +1495,7 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	private computeWorkspaceFolderTasks(workspaceFolder: IWorkspaceFolder): TPromise<WorkspaceFolderTaskResult> {
-		return (this._executionEngine === ExecutionEngine.Process
+		return (this.executionEngine === ExecutionEngine.Process
 			? this.computeLegacyConfiguration(workspaceFolder)
 			: this.computeConfiguration(workspaceFolder)).
 			then((workspaceFolderConfiguration) => {
@@ -1549,7 +1573,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		}
 	}
 
-	private computeWorkspaceFolders(): [IWorkspaceFolder[], ExecutionEngine, JsonSchemaVersion] {
+	private computeWorkspaceFolderSetup(): [IWorkspaceFolder[], ExecutionEngine, JsonSchemaVersion] {
 		let workspaceFolders: IWorkspaceFolder[] = [];
 		let executionEngine = ExecutionEngine.Terminal;
 		let schemaVersion = JsonSchemaVersion.V2_0_0;
@@ -1632,7 +1656,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (this._taskSystem) {
 			return this._taskSystem instanceof TerminalTaskSystem;
 		}
-		return this._executionEngine === ExecutionEngine.Terminal;
+		return this.executionEngine === ExecutionEngine.Terminal;
 	}
 
 	private hasDetectorSupport(config: TaskConfig.ExternalTaskRunnerConfiguration): boolean {
@@ -1916,7 +1940,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (!this.canRunCommand()) {
 			return;
 		}
-		if (this._schemaVersion === JsonSchemaVersion.V0_1_0) {
+		if (this.schemaVersion === JsonSchemaVersion.V0_1_0) {
 			this.build();
 			return;
 		}
@@ -1962,7 +1986,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (!this.canRunCommand()) {
 			return;
 		}
-		if (this._schemaVersion === JsonSchemaVersion.V0_1_0) {
+		if (this.schemaVersion === JsonSchemaVersion.V0_1_0) {
 			this.runTest();
 			return;
 		}
@@ -2076,7 +2100,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			return undefined;
 		}
 		let taskPromise: TPromise<TaskMap>;
-		if (this._schemaVersion === JsonSchemaVersion.V2_0_0) {
+		if (this.schemaVersion === JsonSchemaVersion.V2_0_0) {
 			taskPromise = this.getGroupedTasks();
 		} else {
 			taskPromise = TPromise.as(new TaskMap());
@@ -2196,7 +2220,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (!this.canRunCommand()) {
 			return;
 		}
-		if (this._schemaVersion === JsonSchemaVersion.V2_0_0) {
+		if (this.schemaVersion === JsonSchemaVersion.V2_0_0) {
 			this.tasks().then((tasks => {
 				if (tasks.length === 0) {
 					this.runConfigureTasks();
@@ -2239,7 +2263,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (!this.canRunCommand()) {
 			return;
 		}
-		if (this._schemaVersion === JsonSchemaVersion.V2_0_0) {
+		if (this.schemaVersion === JsonSchemaVersion.V2_0_0) {
 			this.tasks().then((tasks => {
 				if (tasks.length === 0) {
 					this.runConfigureTasks();
