@@ -40,7 +40,6 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 export class KeyboardMapperFactory {
 	public static INSTANCE = new KeyboardMapperFactory();
 
-	private _isISOKeyboard: boolean;
 	private _layoutInfo: nativeKeymap.IKeyboardLayoutInfo;
 	private _rawMapping: nativeKeymap.IKeyboardMapping;
 	private _keyboardMapper: IKeyboardMapper;
@@ -50,25 +49,21 @@ export class KeyboardMapperFactory {
 	public onDidChangeKeyboardMapper: Event<void> = this._onDidChangeKeyboardMapper.event;
 
 	private constructor() {
-		this._isISOKeyboard = false;
 		this._layoutInfo = null;
 		this._rawMapping = null;
 		this._keyboardMapper = null;
 		this._initialized = false;
 	}
 
-	public _onKeyboardLayoutChanged(isISOKeyboard: boolean): void {
-		isISOKeyboard = !!isISOKeyboard;
+	public _onKeyboardLayoutChanged(): void {
 		if (this._initialized) {
-			this._setKeyboardData(isISOKeyboard, nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
-		} else {
-			this._isISOKeyboard = isISOKeyboard;
+			this._setKeyboardData(nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
 		}
 	}
 
 	public getKeyboardMapper(dispatchConfig: DispatchConfig): IKeyboardMapper {
 		if (!this._initialized) {
-			this._setKeyboardData(this._isISOKeyboard, nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
+			this._setKeyboardData(nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
 		}
 		if (dispatchConfig === DispatchConfig.KeyCode) {
 			// Forcefully set to use keyCode
@@ -79,7 +74,7 @@ export class KeyboardMapperFactory {
 
 	public getCurrentKeyboardLayout(): nativeKeymap.IKeyboardLayoutInfo {
 		if (!this._initialized) {
-			this._setKeyboardData(this._isISOKeyboard, nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
+			this._setKeyboardData(nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
 		}
 		return this._layoutInfo;
 	}
@@ -105,27 +100,26 @@ export class KeyboardMapperFactory {
 
 	public getRawKeyboardMapping(): nativeKeymap.IKeyboardMapping {
 		if (!this._initialized) {
-			this._setKeyboardData(this._isISOKeyboard, nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
+			this._setKeyboardData(nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
 		}
 		return this._rawMapping;
 	}
 
-	private _setKeyboardData(isISOKeyboard: boolean, layoutInfo: nativeKeymap.IKeyboardLayoutInfo, rawMapping: nativeKeymap.IKeyboardMapping): void {
+	private _setKeyboardData(layoutInfo: nativeKeymap.IKeyboardLayoutInfo, rawMapping: nativeKeymap.IKeyboardMapping): void {
 		this._layoutInfo = layoutInfo;
 
-		if (this._initialized && this._isISOKeyboard === isISOKeyboard && KeyboardMapperFactory._equals(this._rawMapping, rawMapping)) {
+		if (this._initialized && KeyboardMapperFactory._equals(this._rawMapping, rawMapping)) {
 			// nothing to do...
 			return;
 		}
 
 		this._initialized = true;
-		this._isISOKeyboard = isISOKeyboard;
 		this._rawMapping = rawMapping;
-		this._keyboardMapper = KeyboardMapperFactory._createKeyboardMapper(this._isISOKeyboard, this._layoutInfo, this._rawMapping);
+		this._keyboardMapper = KeyboardMapperFactory._createKeyboardMapper(this._layoutInfo, this._rawMapping);
 		this._onDidChangeKeyboardMapper.fire();
 	}
 
-	private static _createKeyboardMapper(isISOKeyboard: boolean, layoutInfo: nativeKeymap.IKeyboardLayoutInfo, rawMapping: nativeKeymap.IKeyboardMapping): IKeyboardMapper {
+	private static _createKeyboardMapper(layoutInfo: nativeKeymap.IKeyboardLayoutInfo, rawMapping: nativeKeymap.IKeyboardMapping): IKeyboardMapper {
 		const isUSStandard = KeyboardMapperFactory._isUSStandard(layoutInfo);
 		if (OS === OperatingSystem.Windows) {
 			return new WindowsKeyboardMapper(isUSStandard, <IWindowsKeyboardMapping>rawMapping);
@@ -144,7 +138,7 @@ export class KeyboardMapperFactory {
 			}
 		}
 
-		return new MacLinuxKeyboardMapper(isISOKeyboard, isUSStandard, <IMacLinuxKeyboardMapping>rawMapping, OS);
+		return new MacLinuxKeyboardMapper(isUSStandard, <IMacLinuxKeyboardMapping>rawMapping, OS);
 	}
 
 	private static _equals(a: nativeKeymap.IKeyboardMapping, b: nativeKeymap.IKeyboardMapping): boolean {

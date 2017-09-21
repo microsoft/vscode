@@ -228,9 +228,9 @@ export class CodeApplication {
 		});
 
 		// Keyboard layout changes
-		KeyboardLayoutMonitor.INSTANCE.onDidChangeKeyboardLayout(isISOKeyboard => {
+		KeyboardLayoutMonitor.INSTANCE.onDidChangeKeyboardLayout(() => {
 			if (this.windowsMainService) {
-				this.windowsMainService.sendToAll('vscode:keyboardLayoutChanged', isISOKeyboard);
+				this.windowsMainService.sendToAll('vscode:keyboardLayoutChanged', false);
 			}
 		});
 	}

@@ -21,7 +21,6 @@ import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
 import { IWindowSettings, MenuBarVisibility, IWindowConfiguration, ReadyState, IRunActionInWindowRequest } from 'vs/platform/windows/common/windows';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { KeyboardLayoutMonitor } from 'vs/code/electron-main/keyboard';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspaceIdentifier, IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
@@ -549,9 +548,6 @@ export class CodeWindow implements ICodeWindow {
 		// Set Accessibility Config
 		windowConfiguration.highContrast = isWindows && systemPreferences.isInvertedColorScheme() && (!windowConfig || windowConfig.autoDetectHighContrast);
 		windowConfiguration.accessibilitySupport = app.isAccessibilitySupportEnabled();
-
-		// Set Keyboard Config
-		windowConfiguration.isISOKeyboard = KeyboardLayoutMonitor.INSTANCE.isISOKeyboard();
 
 		// Theme
 		windowConfiguration.baseTheme = this.getBaseTheme();
