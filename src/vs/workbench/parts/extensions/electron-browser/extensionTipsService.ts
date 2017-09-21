@@ -107,7 +107,10 @@ export class ExtensionTipsService implements IExtensionTipsService {
 	getRecommendations(): string[] {
 		const allRecomendations = this._getAllRecommendationsInProduct();
 		const fileBased = Object.keys(this._fileBasedRecommendations)
-			.filter(recommendation => allRecomendations.indexOf(recommendation) !== -1);
+			.filter(recommendation => allRecomendations.indexOf(recommendation) !== -1)
+			.sort((a, b) => {
+				return this._fileBasedRecommendations[a] > this._fileBasedRecommendations[b] ? -1 : 1;
+			});
 
 		const exeBased = distinct(this._exeBasedRecommendations);
 
