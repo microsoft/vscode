@@ -62,9 +62,6 @@ export class SCMService implements ISCMService {
 	private _onDidRemoveProvider = new Emitter<ISCMRepository>();
 	get onDidRemoveRepository(): Event<ISCMRepository> { return this._onDidRemoveProvider.event; }
 
-	private _onDidChangeProvider = new Emitter<ISCMRepository>();
-	get onDidChangeRepository(): Event<ISCMRepository> { return this._onDidChangeProvider.event; }
-
 	constructor() { }
 
 	registerSCMProvider(provider: ISCMProvider): ISCMRepository {
