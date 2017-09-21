@@ -7,6 +7,9 @@
 
 declare module 'vscode' {
 
+	/**
+	 * Options to configure the behaviour of a file open dialog.
+	 */
 	export interface OpenDialogOptions {
 		/**
 		 * The resource the dialog shows when opened.
@@ -48,7 +51,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Options to configure the behaviour of a file save dialog
+	 * Options to configure the behaviour of a file save dialog.
 	 */
 	export interface SaveDialogOptions {
 		/**
