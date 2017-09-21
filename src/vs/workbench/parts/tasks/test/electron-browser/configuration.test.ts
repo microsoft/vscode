@@ -458,7 +458,7 @@ function assertConfiguration(result: ParseResult, expected: Tasks.Task[]): void 
 function assertTask(actual: Tasks.Task, expected: Tasks.Task) {
 	assert.ok(actual._id);
 	assert.strictEqual(actual.name, expected.name, 'name');
-	if (!Tasks.CompositeTask.is(actual) && !Tasks.CompositeTask.is(expected)) {
+	if (!Tasks.InMemoryTask.is(actual) && !Tasks.InMemoryTask.is(expected)) {
 		assertCommandConfiguration(actual.command, expected.command);
 	}
 	assert.strictEqual(actual.isBackground, expected.isBackground, 'isBackground');

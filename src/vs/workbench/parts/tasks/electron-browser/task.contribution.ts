@@ -73,7 +73,7 @@ import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 
 import { ITaskSystem, ITaskResolver, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TaskSystemEvents, TaskTerminateResponse } from 'vs/workbench/parts/tasks/common/taskSystem';
-import { Task, CustomTask, ConfiguringTask, ContributedTask, CompositeTask, TaskSet, TaskGroup, ExecutionEngine, JsonSchemaVersion, TaskSourceKind, TaskIdentifier, TaskSorter } from 'vs/workbench/parts/tasks/common/tasks';
+import { Task, CustomTask, ConfiguringTask, ContributedTask, InMemoryTask, TaskSet, TaskGroup, ExecutionEngine, JsonSchemaVersion, TaskSourceKind, TaskIdentifier, TaskSorter } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService, TaskServiceEvents, ITaskProvider, TaskEvent, RunOptions, CustomizationProperties } from 'vs/workbench/parts/tasks/common/taskService';
 import { templates as taskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
 
@@ -849,7 +849,7 @@ class TaskService extends EventEmitter implements ITaskService {
 				throw new TaskError(Severity.Info, nls.localize('TaskServer.noTask', 'Requested task {0} to execute not found.', task.name), TaskErrors.TaskNotFound);
 			} else {
 				let resolver = this.createResolver(grouped);
-				if (options && options.attachProblemMatcher && this.shouldAttachProblemMatcher(task) && !CompositeTask.is(task)) {
+				if (options && options.attachProblemMatcher && this.shouldAttachProblemMatcher(task) && !InMemoryTask.is(task)) {
 					return this.attachProblemMatcher(task).then((toExecute) => {
 						if (toExecute) {
 							return this.executeTask(toExecute, resolver);
@@ -1164,11 +1164,11 @@ class TaskService extends EventEmitter implements ITaskService {
 			return { task: extensionTasks[0], resolver };
 		} else {
 			let id: string = UUID.generateUuid();
-			let task: CompositeTask = {
+			let task: InMemoryTask = {
 				_id: id,
-				_source: { kind: TaskSourceKind.Composite, label: 'composite' },
+				_source: { kind: TaskSourceKind.InMemory, label: 'inMemory' },
 				_label: id,
-				type: 'composite',
+				type: 'inMemory',
 				name: id,
 				identifier: id,
 				dependsOn: extensionTasks.map((task) => { return { workspaceFolder: Task.getWorkspaceFolder(task), task: task._id }; })
@@ -1213,7 +1213,10 @@ class TaskService extends EventEmitter implements ITaskService {
 		return ProblemMatcherRegistry.onReady().then(() => {
 			return this.textFileService.saveAll().then((value) => { // make sure all dirty files are saved
 				let executeResult = this.getTaskSystem().run(task, resolver);
-				this.getRecentlyUsedTasks().set(Task.getKey(task), Task.getKey(task), Touch.First);
+				let key = Task.getRecentlyUsedKey(task);
+				if (key) {
+					this.getRecentlyUsedTasks().set(key, key, Touch.First);
+				}
 				if (executeResult.kind === TaskExecuteKind.Active) {
 					let active = executeResult.active;
 					if (active.same) {
@@ -1809,7 +1812,12 @@ class TaskService extends EventEmitter implements ITaskService {
 				let configured: Task[] = [];
 				let detected: Task[] = [];
 				let taskMap: IStringDictionary<Task> = Object.create(null);
-				tasks.forEach(task => taskMap[Task.getKey(task)] = task);
+				tasks.forEach(task => {
+					let key = Task.getRecentlyUsedKey(task);
+					if (key) {
+						taskMap[key] = task;
+					}
+				});
 				recentlyUsedTasks.keys().forEach(key => {
 					let task = taskMap[key];
 					if (task) {
@@ -1817,7 +1825,8 @@ class TaskService extends EventEmitter implements ITaskService {
 					}
 				});
 				for (let task of tasks) {
-					if (!recentlyUsedTasks.has(Task.getKey(task))) {
+					let key = Task.getRecentlyUsedKey(task);
+					if (!key || !recentlyUsedTasks.has(key)) {
 						if (task._source.kind === TaskSourceKind.Workspace) {
 							configured.push(task);
 						} else {
@@ -2216,7 +2225,7 @@ class TaskService extends EventEmitter implements ITaskService {
 						if (task === defaultTask && CustomTask.is(task)) {
 							this.openConfig(task);
 						}
-						if (!CompositeTask.is(task)) {
+						if (!InMemoryTask.is(task)) {
 							this.customize(task, { group: { kind: 'build', isDefault: true } }, true);
 						}
 					});
@@ -2250,7 +2259,7 @@ class TaskService extends EventEmitter implements ITaskService {
 					if (!task) {
 						return;
 					}
-					if (!CompositeTask.is(task)) {
+					if (!InMemoryTask.is(task)) {
 						this.customize(task, { group: { kind: 'test', isDefault: true } }, true);
 					}
 				});
