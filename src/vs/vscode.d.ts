@@ -1180,6 +1180,11 @@ declare module 'vscode' {
 		static parse(value: string): Uri;
 
 		/**
+		 * Use the `file` and `parse` factory functions to create new `Uri` objects.
+		 */
+		private constructor(scheme: string, authority: string, path: string, query: string, fragment: string);
+
+		/**
 		 * Scheme is the `http` part of `http://www.msft.com/some/path?query#fragment`.
 		 * The part before the first colon.
 		 */

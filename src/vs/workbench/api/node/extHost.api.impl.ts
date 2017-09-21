@@ -592,7 +592,7 @@ export function createApiFactory(
 			TextEditorRevealType: extHostTypes.TextEditorRevealType,
 			TextEditorSelectionChangeKind: extHostTypes.TextEditorSelectionChangeKind,
 			DecorationRangeBehavior: extHostTypes.DecorationRangeBehavior,
-			Uri: <any>URI,
+			Uri: URI,
 			ViewColumn: extHostTypes.ViewColumn,
 			WorkspaceEdit: extHostTypes.WorkspaceEdit,
 			ProgressLocation: extHostTypes.ProgressLocation,
@@ -609,7 +609,7 @@ export function createApiFactory(
 			Task: extHostTypes.Task,
 			ConfigurationTarget: extHostTypes.ConfigurationTarget,
 
-			// TODO@JOH
+			// TODO@JOH,remote
 			FileChangeType: <any>FileChangeType,
 			FileType: <any>FileType
 		};
