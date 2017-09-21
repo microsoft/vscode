@@ -335,7 +335,6 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 						let newRange;
 						if (model.presentation.textEdit) {
 							textEdits = [model.presentation.textEdit];
-							console.log('insert text');
 							newRange = new Range(
 								model.presentation.textEdit.range.startLineNumber,
 								model.presentation.textEdit.range.startColumn,
