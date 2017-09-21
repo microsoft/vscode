@@ -1791,7 +1791,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			if (this.needsFolderQualification()) {
 				let workspaceFolder = Task.getWorkspaceFolder(task);
 				if (workspaceFolder) {
-					description = `(${workspaceFolder.name})`;
+					description = workspaceFolder.name;
 				}
 			}
 			return { label: task._label, description, task };
@@ -2185,7 +2185,7 @@ class TaskService extends EventEmitter implements ITaskService {
 						if (tasks.length > 0) {
 							tasks = tasks.slice().sort((a, b) => a._label.localeCompare(b._label));
 							for (let i = 0; i < tasks.length; i++) {
-								let entry: EntryType = { label: tasks[i]._label, task: tasks[i] };
+								let entry: EntryType = { label: tasks[i]._label, task: tasks[i], description: folder.name };
 								if (i === 0) {
 									entry.separator = { label: folder.name, border: index > 0 };
 								}
