@@ -19,7 +19,7 @@ import { Range, IRange } from 'vs/editor/common/core/range';
 import { ISuggestion } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import {
-	ITreeElement, IExpression, IExpressionContainer, IProcess, IStackFrame, IExceptionBreakpoint, IBreakpoint, IFunctionBreakpoint, IModel,
+	ITreeElement, IExpression, IExpressionContainer, IProcess, IStackFrame, IExceptionBreakpoint, IBreakpoint, IFunctionBreakpoint, IModel, IReplElementSource,
 	IConfig, ISession, IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IRawBreakpoint, IExceptionInfo, IReplElement, ProcessState
 } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
@@ -30,7 +30,7 @@ const MAX_REPL_LENGTH = 10000;
 export abstract class AbstractOutputElement implements IReplElement {
 	private static ID_COUNTER = 0;
 
-	constructor(private id = AbstractOutputElement.ID_COUNTER++) {
+	constructor(public sourceData: IReplElementSource, private id = AbstractOutputElement.ID_COUNTER++) {
 		// noop
 	}
 
@@ -47,8 +47,9 @@ export class OutputElement extends AbstractOutputElement {
 	constructor(
 		public value: string,
 		public severity: severity,
+		source: IReplElementSource,
 	) {
-		super();
+		super(source);
 	}
 
 	public toString(): string {
@@ -60,8 +61,8 @@ export class OutputNameValueElement extends AbstractOutputElement implements IEx
 
 	private static MAX_CHILDREN = 1000; // upper bound of children per value
 
-	constructor(public name: string, public valueObj: any, public annotation?: string) {
-		super();
+	constructor(public name: string, public valueObj: any, source?: IReplElementSource, public annotation?: string) {
+		super(source);
 	}
 
 	public get value(): string {
@@ -379,18 +380,8 @@ export class StackFrame implements IStackFrame {
 	}
 
 	public openInEditor(editorService: IWorkbenchEditorService, preserveFocus?: boolean, sideBySide?: boolean): TPromise<any> {
-
-		return !this.source.available ? TPromise.as(null) : editorService.openEditor({
-			resource: this.source.uri,
-			description: this.source.origin,
-			options: {
-				preserveFocus,
-				selection: this.range,
-				revealIfVisible: true,
-				revealInCenterIfOutsideViewport: true,
-				pinned: !preserveFocus && !this.source.inMemory
-			}
-		}, sideBySide);
+		return !this.source.available ? TPromise.as(null) :
+			this.source.openInEditor(editorService, this.range, preserveFocus, sideBySide);
 	}
 }
 
@@ -960,22 +951,23 @@ export class Model implements IModel {
 			.then(() => this._onDidChangeREPLElements.fire());
 	}
 
-	public appendToRepl(output: string | IExpression, severity: severity): void {
+	public appendToRepl(output: string | IExpression, severity: severity, source?: IReplElementSource): void {
 		if (typeof output === 'string') {
 			const previousOutput = this.replElements.length && (this.replElements[this.replElements.length - 1] as OutputElement);
 
-			const toAdd = output.split('\n').map(line => new OutputElement(line, severity));
-			if (previousOutput instanceof OutputElement && severity === previousOutput.severity && toAdd.length) {
-				previousOutput.value += toAdd.shift().value;
-			}
-			if (previousOutput && previousOutput.value === '' && previousOutput.severity !== severity) {
+			const toAdd = output.split('\n').map((line, index) => new OutputElement(line, severity, index === 0 ? source : undefined));
+			if (previousOutput && previousOutput.value === '') {
 				// remove potential empty lines between different output types
 				this.replElements.pop();
+			}
+			if (previousOutput instanceof OutputElement && severity === previousOutput.severity && toAdd.length && toAdd[0].sourceData === previousOutput.sourceData) {
+				previousOutput.value += toAdd.shift().value;
 			}
 			this.addReplElements(toAdd);
 		} else {
 			// TODO@Isidor hack, we should introduce a new type which is an output that can fetch children like an expression
 			(<any>output).severity = severity;
+			(<any>output).sourceData = source;
 			this.addReplElements([output]);
 		}
 

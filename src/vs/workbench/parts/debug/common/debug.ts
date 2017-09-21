@@ -73,6 +73,13 @@ export interface ITreeElement {
 
 export interface IReplElement extends ITreeElement {
 	toString(): string;
+	sourceData?: IReplElementSource;
+}
+
+export interface IReplElementSource {
+	source: Source;
+	lineNumber: number;
+	column: number;
 }
 
 export interface IExpressionContainer extends ITreeElement {

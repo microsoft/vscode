@@ -199,7 +199,7 @@ export class DebugService implements debug.IDebugService {
 					}
 
 					// show object
-					this.logToRepl(new OutputNameValueElement((<any>a).prototype, a, nls.localize('snapshotObj', "Only primitive values are shown for this object.")), sev);
+					this.logToRepl(new OutputNameValueElement((<any>a).prototype, a, undefined, nls.localize('snapshotObj', "Only primitive values are shown for this object.")), sev);
 				}
 
 				// string: watch out for % replacement directive
@@ -335,17 +335,23 @@ export class DebugService implements debug.IDebugService {
 				return;
 			}
 
+			const source = event.body.source ? {
+				lineNumber: event.body.line,
+				column: event.body.column,
+				source: process.getSource(event.body.source)
+			} : undefined;
+
 			if (event.body.variablesReference) {
 				const container = new ExpressionContainer(process, event.body.variablesReference, generateUuid());
 				container.getChildren().then(children => {
 					children.forEach(child => {
 						// Since we can not display multiple trees in a row, we are displaying these variables one after the other (ignoring their names)
 						child.name = null;
-						this.logToRepl(child, outputSeverity);
+						this.logToRepl(child, outputSeverity, source);
 					});
 				});
 			} else if (typeof event.body.output === 'string') {
-				this.logToRepl(event.body.output, outputSeverity);
+				this.logToRepl(event.body.output, outputSeverity, source);
 			}
 		}));
 
@@ -594,12 +600,12 @@ export class DebugService implements debug.IDebugService {
 		this.model.removeReplExpressions();
 	}
 
-	public logToRepl(value: string | debug.IExpression, sev = severity.Info): void {
+	public logToRepl(value: string | debug.IExpression, sev = severity.Info, source?: debug.IReplElementSource): void {
 		if (typeof value === 'string' && '[2J'.localeCompare(value) === 0) {
 			// [2J is the ansi escape sequence for clearing the display http://ascii-table.com/ansi-escape-sequences.php
 			this.model.removeReplExpressions();
 		} else {
-			this.model.appendToRepl(value, sev);
+			this.model.appendToRepl(value, sev, source);
 		}
 	}
 
