@@ -11,6 +11,10 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 
 export type styleFn = (colors: { [name: string]: ColorIdentifier }) => void;
 
+export interface IStyleOverrides {
+	[color: string]: ColorIdentifier;
+}
+
 export interface IThemable {
 	style: styleFn;
 }
@@ -43,36 +47,43 @@ export function attachStyler<T extends IColorMapping>(themeService: IThemeServic
 	return themeService.onThemeChange(applyStyles);
 }
 
-export function attachCheckboxStyler(widget: IThemable, themeService: IThemeService, style?: { inputActiveOptionBorderColor?: ColorIdentifier }): IDisposable {
-	return attachStyler(themeService, {
-		inputActiveOptionBorder: (style && style.inputActiveOptionBorderColor) || inputActiveOptionBorder
-	}, widget);
+export interface ICheckboxStyleOverrides extends IStyleOverrides {
+	inputActiveOptionBorderColor?: ColorIdentifier;
 }
 
-export function attachBadgeStyler(widget: IThemable, themeService: IThemeService, style?:
-	{
-		badgeBackground?: ColorIdentifier,
-		badgeForeground?: ColorIdentifier
-	}): IDisposable {
+export function attachCheckboxStyler(widget: IThemable, themeService: IThemeService, style?: ICheckboxStyleOverrides): IDisposable {
+	return attachStyler(themeService, {
+		inputActiveOptionBorder: (style && style.inputActiveOptionBorderColor) || inputActiveOptionBorder
+	} as ICheckboxStyleOverrides, widget);
+}
+
+export interface IBadgeStyleOverrides extends IStyleOverrides {
+	badgeBackground?: ColorIdentifier;
+	badgeForeground?: ColorIdentifier;
+}
+
+export function attachBadgeStyler(widget: IThemable, themeService: IThemeService, style?: IBadgeStyleOverrides): IDisposable {
 	return attachStyler(themeService, {
 		badgeBackground: (style && style.badgeBackground) || badgeBackground,
 		badgeForeground: (style && style.badgeForeground) || badgeForeground,
 		badgeBorder: contrastBorder
-	}, widget);
+	} as IBadgeStyleOverrides, widget);
 }
 
-export function attachInputBoxStyler(widget: IThemable, themeService: IThemeService, style?:
-	{
-		inputBackground?: ColorIdentifier,
-		inputForeground?: ColorIdentifier,
-		inputBorder?: ColorIdentifier,
-		inputValidationInfoBorder?: ColorIdentifier,
-		inputValidationInfoBackground?: ColorIdentifier,
-		inputValidationWarningBorder?: ColorIdentifier,
-		inputValidationWarningBackground?: ColorIdentifier,
-		inputValidationErrorBorder?: ColorIdentifier,
-		inputValidationErrorBackground?: ColorIdentifier
-	}): IDisposable {
+export interface IInputBoxStyleOverrides extends IStyleOverrides {
+	inputBackground?: ColorIdentifier;
+	inputForeground?: ColorIdentifier;
+	inputBorder?: ColorIdentifier;
+	inputActiveOptionBorder?: ColorIdentifier;
+	inputValidationInfoBorder?: ColorIdentifier;
+	inputValidationInfoBackground?: ColorIdentifier;
+	inputValidationWarningBorder?: ColorIdentifier;
+	inputValidationWarningBackground?: ColorIdentifier;
+	inputValidationErrorBorder?: ColorIdentifier;
+	inputValidationErrorBackground?: ColorIdentifier;
+}
+
+export function attachInputBoxStyler(widget: IThemable, themeService: IThemeService, style?: IInputBoxStyleOverrides): IDisposable {
 	return attachStyler(themeService, {
 		inputBackground: (style && style.inputBackground) || inputBackground,
 		inputForeground: (style && style.inputForeground) || inputForeground,
@@ -83,30 +94,24 @@ export function attachInputBoxStyler(widget: IThemable, themeService: IThemeServ
 		inputValidationWarningBackground: (style && style.inputValidationWarningBackground) || inputValidationWarningBackground,
 		inputValidationErrorBorder: (style && style.inputValidationErrorBorder) || inputValidationErrorBorder,
 		inputValidationErrorBackground: (style && style.inputValidationErrorBackground) || inputValidationErrorBackground
-	}, widget);
+	} as IInputBoxStyleOverrides, widget);
 }
 
-export function attachSelectBoxStyler(widget: IThemable, themeService: IThemeService, style?: { selectBackground?: ColorIdentifier, selectForeground?: ColorIdentifier, selectBorder?: ColorIdentifier }): IDisposable {
+export interface ISelectBoxStyleOverrides extends IStyleOverrides {
+	selectBackground?: ColorIdentifier;
+	selectForeground?: ColorIdentifier;
+	selectBorder?: ColorIdentifier;
+}
+
+export function attachSelectBoxStyler(widget: IThemable, themeService: IThemeService, style?: ISelectBoxStyleOverrides): IDisposable {
 	return attachStyler(themeService, {
 		selectBackground: (style && style.selectBackground) || selectBackground,
 		selectForeground: (style && style.selectForeground) || selectForeground,
 		selectBorder: (style && style.selectBorder) || selectBorder
-	}, widget);
+	} as ISelectBoxStyleOverrides, widget);
 }
 
-export function attachFindInputBoxStyler(widget: IThemable, themeService: IThemeService, style?:
-	{
-		inputBackground?: ColorIdentifier,
-		inputForeground?: ColorIdentifier,
-		inputBorder?: ColorIdentifier,
-		inputActiveOptionBorder?: ColorIdentifier,
-		inputValidationInfoBorder?: ColorIdentifier,
-		inputValidationInfoBackground?: ColorIdentifier,
-		inputValidationWarningBorder?: ColorIdentifier,
-		inputValidationWarningBackground?: ColorIdentifier,
-		inputValidationErrorBorder?: ColorIdentifier,
-		inputValidationErrorBackground?: ColorIdentifier
-	}): IDisposable {
+export function attachFindInputBoxStyler(widget: IThemable, themeService: IThemeService, style?: IInputBoxStyleOverrides): IDisposable {
 	return attachStyler(themeService, {
 		inputBackground: (style && style.inputBackground) || inputBackground,
 		inputForeground: (style && style.inputForeground) || inputForeground,
@@ -118,43 +123,19 @@ export function attachFindInputBoxStyler(widget: IThemable, themeService: ITheme
 		inputValidationWarningBackground: (style && style.inputValidationWarningBackground) || inputValidationWarningBackground,
 		inputValidationErrorBorder: (style && style.inputValidationErrorBorder) || inputValidationErrorBorder,
 		inputValidationErrorBackground: (style && style.inputValidationErrorBackground) || inputValidationErrorBackground
-	}, widget);
+	} as IInputBoxStyleOverrides, widget);
 }
 
-export function attachQuickOpenStyler(widget: IThemable, themeService: IThemeService, style?: {
-	foreground?: ColorIdentifier,
-	background?: ColorIdentifier,
-	borderColor?: ColorIdentifier,
-	widgetShadow?: ColorIdentifier,
-	progressBarBackground?: ColorIdentifier,
-	inputBackground?: ColorIdentifier,
-	inputForeground?: ColorIdentifier,
-	inputBorder?: ColorIdentifier,
-	inputValidationInfoBorder?: ColorIdentifier,
-	inputValidationInfoBackground?: ColorIdentifier,
-	inputValidationWarningBorder?: ColorIdentifier,
-	inputValidationWarningBackground?: ColorIdentifier,
-	inputValidationErrorBorder?: ColorIdentifier,
-	inputValidationErrorBackground?: ColorIdentifier
-	pickerGroupForeground?: ColorIdentifier,
-	pickerGroupBorder?: ColorIdentifier,
-	listFocusBackground?: ColorIdentifier,
-	listFocusForeground?: ColorIdentifier,
-	listActiveSelectionBackground?: ColorIdentifier,
-	listActiveSelectionForeground?: ColorIdentifier,
-	listFocusAndSelectionBackground?: ColorIdentifier,
-	listFocusAndSelectionForeground?: ColorIdentifier,
-	listInactiveSelectionBackground?: ColorIdentifier,
-	listInactiveSelectionForeground?: ColorIdentifier,
-	listInactiveFocusBackground?: ColorIdentifier,
-	listInactiveFocusForeground?: ColorIdentifier,
-	listHoverBackground?: ColorIdentifier,
-	listHoverForeground?: ColorIdentifier,
-	listDropBackground?: ColorIdentifier,
-	listFocusOutline?: ColorIdentifier,
-	listSelectionOutline?: ColorIdentifier,
-	listHoverOutline?: ColorIdentifier
-}): IDisposable {
+export interface IQuickOpenStyleOverrides extends IListStyleOverrides, IInputBoxStyleOverrides, IProgressBarStyleOverrides {
+	foreground?: ColorIdentifier;
+	background?: ColorIdentifier;
+	borderColor?: ColorIdentifier;
+	widgetShadow?: ColorIdentifier;
+	pickerGroupForeground?: ColorIdentifier;
+	pickerGroupBorder?: ColorIdentifier;
+};
+
+export function attachQuickOpenStyler(widget: IThemable, themeService: IThemeService, style?: IQuickOpenStyleOverrides): IDisposable {
 	return attachStyler(themeService, {
 		foreground: (style && style.foreground) || foreground,
 		background: (style && style.background) || editorBackground,
@@ -188,28 +169,30 @@ export function attachQuickOpenStyler(widget: IThemable, themeService: IThemeSer
 		listFocusOutline: (style && style.listFocusOutline) || activeContrastBorder,
 		listSelectionOutline: (style && style.listSelectionOutline) || activeContrastBorder,
 		listHoverOutline: (style && style.listHoverOutline) || activeContrastBorder
-	}, widget);
+	} as IQuickOpenStyleOverrides, widget);
 }
 
-export function attachListStyler(widget: IThemable, themeService: IThemeService, style?: {
-	listFocusBackground?: ColorIdentifier,
-	listFocusForeground?: ColorIdentifier,
-	listActiveSelectionBackground?: ColorIdentifier,
-	listActiveSelectionForeground?: ColorIdentifier,
-	listFocusAndSelectionBackground?: ColorIdentifier,
-	listFocusAndSelectionForeground?: ColorIdentifier,
-	listInactiveSelectionBackground?: ColorIdentifier,
-	listInactiveSelectionForeground?: ColorIdentifier,
-	listInactiveFocusBackground?: ColorIdentifier,
-	listInactiveFocusForeground?: ColorIdentifier,
-	listHoverBackground?: ColorIdentifier,
-	listHoverForeground?: ColorIdentifier,
-	listDropBackground?: ColorIdentifier,
-	listFocusOutline?: ColorIdentifier,
-	listInactiveFocusOutline?: ColorIdentifier,
-	listSelectionOutline?: ColorIdentifier,
-	listHoverOutline?: ColorIdentifier,
-}): IDisposable {
+export interface IListStyleOverrides extends IStyleOverrides {
+	listFocusBackground?: ColorIdentifier;
+	listFocusForeground?: ColorIdentifier;
+	listActiveSelectionBackground?: ColorIdentifier;
+	listActiveSelectionForeground?: ColorIdentifier;
+	listFocusAndSelectionBackground?: ColorIdentifier;
+	listFocusAndSelectionForeground?: ColorIdentifier;
+	listInactiveSelectionBackground?: ColorIdentifier;
+	listInactiveSelectionForeground?: ColorIdentifier;
+	listInactiveFocusBackground?: ColorIdentifier;
+	listInactiveFocusForeground?: ColorIdentifier;
+	listHoverBackground?: ColorIdentifier;
+	listHoverForeground?: ColorIdentifier;
+	listDropBackground?: ColorIdentifier;
+	listFocusOutline?: ColorIdentifier;
+	listInactiveFocusOutline?: ColorIdentifier;
+	listSelectionOutline?: ColorIdentifier;
+	listHoverOutline?: ColorIdentifier;
+}
+
+export function attachListStyler(widget: IThemable, themeService: IThemeService, style?: IListStyleOverrides): IDisposable {
 	return attachStyler(themeService, {
 		listFocusBackground: (style && style.listFocusBackground) || listFocusBackground,
 		listFocusForeground: (style && style.listFocusForeground) || listFocusForeground,
@@ -228,22 +211,32 @@ export function attachListStyler(widget: IThemable, themeService: IThemeService,
 		listSelectionOutline: (style && style.listSelectionOutline) || activeContrastBorder,
 		listHoverOutline: (style && style.listHoverOutline) || activeContrastBorder,
 		listInactiveFocusOutline: style && style.listInactiveFocusOutline // not defined by default, only opt-in
-	}, widget);
+	} as IListStyleOverrides, widget);
 }
 
-export function attachButtonStyler(widget: IThemable, themeService: IThemeService, style?: { buttonForeground?: ColorIdentifier, buttonBackground?: ColorIdentifier, buttonHoverBackground?: ColorIdentifier }): IDisposable {
+export interface IButtonStyleOverrides extends IStyleOverrides {
+	buttonForeground?: ColorIdentifier;
+	buttonBackground?: ColorIdentifier;
+	buttonHoverBackground?: ColorIdentifier;
+}
+
+export function attachButtonStyler(widget: IThemable, themeService: IThemeService, style?: IButtonStyleOverrides): IDisposable {
 	return attachStyler(themeService, {
 		buttonForeground: (style && style.buttonForeground) || buttonForeground,
 		buttonBackground: (style && style.buttonBackground) || buttonBackground,
 		buttonHoverBackground: (style && style.buttonHoverBackground) || buttonHoverBackground,
 		buttonBorder: contrastBorder
-	}, widget);
+	} as IButtonStyleOverrides, widget);
 }
 
-export function attachProgressBarStyler(widget: IThemable, themeService: IThemeService, style?: { progressBarBackground?: ColorIdentifier }): IDisposable {
+export interface IProgressBarStyleOverrides extends IStyleOverrides {
+	progressBarBackground?: ColorIdentifier;
+}
+
+export function attachProgressBarStyler(widget: IThemable, themeService: IThemeService, style?: IProgressBarStyleOverrides): IDisposable {
 	return attachStyler(themeService, {
 		progressBarBackground: (style && style.progressBarBackground) || progressBarBackground
-	}, widget);
+	} as IProgressBarStyleOverrides, widget);
 }
 
 export function attachStylerCallback(themeService: IThemeService, colors: { [name: string]: ColorIdentifier }, callback: styleFn): IDisposable {
