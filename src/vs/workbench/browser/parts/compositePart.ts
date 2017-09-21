@@ -351,7 +351,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 	private updateTitle(compositeId: string, compositeTitle?: string): void {
 		let compositeDescriptor = this.registry.getComposite(compositeId);
-		if (!compositeDescriptor) {
+		if (!compositeDescriptor || !this.titleLabel) {
 			return;
 		}
 
