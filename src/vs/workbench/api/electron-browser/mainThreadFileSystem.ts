@@ -103,10 +103,10 @@ class RemoteFileSystemProvider implements IFileSystemProvider {
 	unlink(resource: URI): TPromise<void, any> {
 		return this._proxy.$unlink(this._handle, resource);
 	}
-	rename(resource: URI, target: URI): TPromise<void, any> {
-		return this._proxy.$rename(this._handle, resource, target);
+	move(resource: URI, target: URI): TPromise<IStat, any> {
+		return this._proxy.$move(this._handle, resource, target);
 	}
-	mkdir(resource: URI): TPromise<void, any> {
+	mkdir(resource: URI): TPromise<IStat, any> {
 		return this._proxy.$mkdir(this._handle, resource);
 	}
 	readdir(resource: URI): TPromise<[URI, IStat][], any> {

@@ -306,10 +306,10 @@ export class RemoteFileService extends FileService {
 			return super.createFolder(resource);
 		} else {
 			const provider = await this._withProvider(resource);
-			await provider.mkdir(resource);
-			const stat = await toIFileStat(provider, [resource, await provider.stat(resource)]);
-			this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, stat));
-			return stat;
+			const stat = await provider.mkdir(resource);
+			const fileStat = await toIFileStat(provider, [resource, stat]);
+			this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, fileStat));
+			return fileStat;
 		}
 	}
 
@@ -344,10 +344,10 @@ export class RemoteFileService extends FileService {
 				// abort on other errors
 			}
 		}
-		await provider.rename(source, target);
-		const stat = await this.resolveFile(target);
-		this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.MOVE, stat));
-		return stat;
+		const stat = await provider.move(source, target);
+		const fileStat = await toIFileStat(provider, [target, stat]);
+		this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.MOVE, fileStat));
+		return fileStat;
 	}
 
 	private async _manualMove(source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat> {

@@ -182,11 +182,11 @@ export interface IFileSystemProvider {
 	stat(resource: URI): TPromise<IStat>;
 	read(resource: URI, progress: IProgress<Uint8Array>): TPromise<void>;
 	write(resource: URI, content: Uint8Array): TPromise<void>;
-	unlink(resource: URI): TPromise<void>;
-	rename(resource: URI, target: URI): TPromise<void>;
-	mkdir(resource: URI): TPromise<void>;
+	move(from: URI, to: URI): TPromise<IStat>;
+	mkdir(resource: URI): TPromise<IStat>;
 	readdir(resource: URI): TPromise<[URI, IStat][]>;
 	rmdir(resource: URI): TPromise<void>;
+	unlink(resource: URI): TPromise<void>;
 }
 
 

@@ -222,11 +222,15 @@ declare module 'vscode' {
 
 		// todo@remote
 		// Thenable<FileStat>
-		rename(resource: Uri, target: Uri): Thenable<void>;
+		move(resource: Uri, target: Uri): Thenable<FileStat>;
+
+		// todo@remote
+		// helps with performance bigly
+		// copy?(from: Uri, to: Uri): Thenable<void>;
 
 		// todo@remote
 		// Thenable<FileStat>
-		mkdir(resource: Uri): Thenable<void>;
+		mkdir(resource: Uri): Thenable<FileStat>;
 		readdir(resource: Uri): Thenable<[Uri, FileStat][]>;
 
 		// todo@remote
@@ -237,10 +241,6 @@ declare module 'vscode' {
 
 		// todo@remote
 		// create(resource: Uri): Thenable<FileStat>;
-
-		// todo@remote
-		// helps with performance bigly
-		// copy(from: Uri, to: Uri): Thenable<void>;
 	}
 
 	export namespace workspace {
