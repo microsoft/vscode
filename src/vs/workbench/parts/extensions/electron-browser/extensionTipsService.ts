@@ -345,7 +345,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 
 		let findExecutable = (exeName, path) => {
 			return pfs.fileExists(path).then(exists => {
-				if (!foundExecutables.has(exeName)) {
+				if (exists && !foundExecutables.has(exeName)) {
 					foundExecutables.add(exeName);
 					recommendations.push(...product.exeBasedExtensionTips[exeName]['recommendations']);
 				}
