@@ -9,9 +9,9 @@ import nls = require('vs/nls');
 
 import 'vs/css!./media/dirtydiffDecorator';
 import { ThrottledDelayer, always } from 'vs/base/common/async';
-import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, toDisposable, empty as EmptyDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { any as anyEvent, filterEvent } from 'vs/base/common/event';
+import Event, { Emitter, any as anyEvent, filterEvent, once } from 'vs/base/common/event';
 import * as ext from 'vs/workbench/common/contributions';
 import * as common from 'vs/editor/common/editorCommon';
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
@@ -30,6 +30,142 @@ import { registerThemingParticipant, ITheme, ICssStyleCollector, themeColorFromI
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
 import { Color, RGBA } from 'vs/base/common/color';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { PeekViewWidget, PeekContext } from 'vs/editor/contrib/referenceSearch/browser/peekViewWidget';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { IRange } from 'vs/editor/common/core/range';
+
+export interface IModelRegistry {
+	getModel(editorModel: common.IEditorModel): DirtyDiffModel;
+}
+
+class DirtyDiffWidget extends PeekViewWidget {
+
+	constructor(editor: ICodeEditor, model: DirtyDiffModel) {
+		super(editor, {});
+
+		model.onDidChange(this.onDidModelChange, this, this._disposables);
+		this.create();
+	}
+
+	private onDidModelChange(): void {
+		console.log('MODEL CHANGED');
+	}
+}
+
+@editorAction
+export class ReferenceAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.dirtydiff.trigger',
+			// TODO@joao come up with better name
+			label: nls.localize('dirtydiff.action.label', "Trigger Dirty Diff"),
+			alias: 'Trigger Dirty Diff',
+			precondition: ContextKeyExpr.and(
+				// EditorContextKeys.hasReferenceProvider,
+				PeekContext.notInPeekEditor,
+				EditorContextKeys.isInEmbeddedEditor.toNegated()),
+			kbOpts: {
+				kbExpr: EditorContextKeys.textFocus,
+				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_D
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: common.ICommonCodeEditor): void {
+		const controller = DirtyDiffController.get(editor);
+
+		if (!controller) {
+			return;
+		}
+
+		const range = editor.getSelection();
+		controller.showWidget(range);
+	}
+}
+
+@editorContribution
+export class DirtyDiffController implements common.IEditorContribution {
+
+	private static ID = 'editor.contrib.dirtydiff';
+
+	static get(editor: common.ICommonCodeEditor): DirtyDiffController {
+		return editor.getContribution<DirtyDiffController>(DirtyDiffController.ID);
+	}
+
+	_modelRegistry: IModelRegistry | null = null;
+
+	private widget: DirtyDiffWidget | null = null;
+	private widgetDisposable: IDisposable = EmptyDisposable;
+
+	constructor(private editor: ICodeEditor) {
+		// this.disposables.push(editor.onMouseMove(e => this.onMouseMove(e)));
+		// this.disposables.push(editor.onMouseLeave(e => this.onMouseLeave(e)));
+
+		// const widget = new DirtyDiffWidget(editor);
+		// widget.
+
+		// editor.
+	}
+
+	showWidget(range: IRange): void {
+		if (this.widget) {
+			return;
+		}
+
+		if (!this._modelRegistry) {
+			return;
+		}
+
+		const editorModel = this.editor.getModel();
+
+		if (!editorModel) {
+			return;
+		}
+
+		const model = this._modelRegistry.getModel(editorModel);
+
+		if (!model) {
+			return;
+		}
+
+		this.widget = new DirtyDiffWidget(this.editor, model);
+		this.widget.setTitle('HELLO');
+		this.widget.show(range, 18);
+
+		const disposables: IDisposable[] = [
+			this.widget,
+			toDisposable(() => this.widget = null)
+		];
+
+		once(this.widget.onDidClose)(this.onDidCloseWidget, this, disposables);
+		this.widgetDisposable = combinedDisposable(disposables);
+	}
+
+	private onDidCloseWidget(): void {
+		this.widgetDisposable.dispose();
+		this.widgetDisposable = EmptyDisposable;
+	}
+
+	// private onMouseMove(e: IEditorMouseEvent): void {
+	// 	if (e.target.type === MouseTargetType.GUTTER_LINE_DECORATIONS) {
+	// 		console.log(e.target.element);
+	// 	}
+	// }
+
+	getId(): string {
+		return DirtyDiffController.ID;
+	}
+
+	dispose(): void {
+		return;
+	}
+}
 
 export const editorGutterModifiedBackground = registerColor('editorGutter.modifiedBackground', {
 	dark: Color.fromHex('#00bcf2').transparent(0.6),
@@ -55,8 +191,7 @@ export const overviewRulerModifiedForeground = registerColor('editorOverviewRule
 export const overviewRulerAddedForeground = registerColor('editorOverviewRuler.addedForeground', { dark: overviewRulerDefault, light: overviewRulerDefault, hc: overviewRulerDefault }, nls.localize('overviewRulerAddedForeground', 'Overview ruler marker color for added content.'));
 export const overviewRulerDeletedForeground = registerColor('editorOverviewRuler.deletedForeground', { dark: overviewRulerDefault, light: overviewRulerDefault, hc: overviewRulerDefault }, nls.localize('overviewRulerDeletedForeground', 'Overview ruler marker color for deleted content.'));
 
-
-class DirtyDiffModelDecorator {
+class DirtyDiffDecorator {
 
 	static MODIFIED_DECORATION_OPTIONS = ModelDecorationOptions.register({
 		linesDecorationsClassName: 'dirty-diff-modified-glyph',
@@ -89,16 +224,80 @@ class DirtyDiffModelDecorator {
 	});
 
 	private decorations: string[] = [];
+	private disposables: IDisposable[] = [];
+
+	constructor(
+		private editorModel: common.IModel,
+		private model: DirtyDiffModel
+	) {
+		model.onDidChange(this.onDidChange, this, this.disposables);
+	}
+
+	private onDidChange(diff: common.IChange[]): void {
+		const decorations = diff.map((change) => {
+			const startLineNumber = change.modifiedStartLineNumber;
+			const endLineNumber = change.modifiedEndLineNumber || startLineNumber;
+
+			// Added
+			if (change.originalEndLineNumber === 0) {
+				return {
+					range: {
+						startLineNumber: startLineNumber, startColumn: 1,
+						endLineNumber: endLineNumber, endColumn: 1
+					},
+					options: DirtyDiffDecorator.ADDED_DECORATION_OPTIONS
+				};
+			}
+
+			// Removed
+			if (change.modifiedEndLineNumber === 0) {
+				return {
+					range: {
+						startLineNumber: startLineNumber, startColumn: 1,
+						endLineNumber: startLineNumber, endColumn: 1
+					},
+					options: DirtyDiffDecorator.DELETED_DECORATION_OPTIONS
+				};
+			}
+
+			// Modified
+			return {
+				range: {
+					startLineNumber: startLineNumber, startColumn: 1,
+					endLineNumber: endLineNumber, endColumn: 1
+				},
+				options: DirtyDiffDecorator.MODIFIED_DECORATION_OPTIONS
+			};
+		});
+
+		this.decorations = this.editorModel.deltaDecorations(this.decorations, decorations);
+	}
+
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
+
+		if (this.editorModel && !this.editorModel.isDisposed()) {
+			this.editorModel.deltaDecorations(this.decorations, []);
+		}
+
+		this.editorModel = null;
+		this.decorations = [];
+	}
+}
+
+export class DirtyDiffModel {
+
 	private baselineModel: common.IModel;
 	private diffDelayer: ThrottledDelayer<common.IChange[]>;
 	private _originalURIPromise: TPromise<URI>;
-
 	private repositoryDisposables = new Set<IDisposable[]>();
 	private toDispose: IDisposable[] = [];
 
+	private _onDidChange = new Emitter<common.IChange[]>();
+	readonly onDidChange: Event<common.IChange[]> = this._onDidChange.event;
+
 	constructor(
 		private model: common.IModel,
-		// private editor: CodeEditor,
 		@ISCMService private scmService: ISCMService,
 		@IModelService private modelService: IModelService,
 		@IEditorWorkerService private editorWorkerService: IEditorWorkerService,
@@ -146,7 +345,7 @@ class DirtyDiffModelDecorator {
 					diff = [];
 				}
 
-				return this.decorations = this.model.deltaDecorations(this.decorations, DirtyDiffModelDecorator.changesToDecorations(diff || []));
+				this._onDidChange.fire(diff);
 			});
 	}
 
@@ -203,54 +402,11 @@ class DirtyDiffModelDecorator {
 		return null;
 	}
 
-	private static changesToDecorations(diff: common.IChange[]): common.IModelDeltaDecoration[] {
-		return diff.map((change) => {
-			const startLineNumber = change.modifiedStartLineNumber;
-			const endLineNumber = change.modifiedEndLineNumber || startLineNumber;
-
-			// Added
-			if (change.originalEndLineNumber === 0) {
-				return {
-					range: {
-						startLineNumber: startLineNumber, startColumn: 1,
-						endLineNumber: endLineNumber, endColumn: 1
-					},
-					options: DirtyDiffModelDecorator.ADDED_DECORATION_OPTIONS
-				};
-			}
-
-			// Removed
-			if (change.modifiedEndLineNumber === 0) {
-				return {
-					range: {
-						startLineNumber: startLineNumber, startColumn: 1,
-						endLineNumber: startLineNumber, endColumn: 1
-					},
-					options: DirtyDiffModelDecorator.DELETED_DECORATION_OPTIONS
-				};
-			}
-
-			// Modified
-			return {
-				range: {
-					startLineNumber: startLineNumber, startColumn: 1,
-					endLineNumber: endLineNumber, endColumn: 1
-				},
-				options: DirtyDiffModelDecorator.MODIFIED_DECORATION_OPTIONS
-			};
-		});
-	}
-
 	dispose(): void {
 		this.toDispose = dispose(this.toDispose);
 
-		if (this.model && !this.model.isDisposed()) {
-			this.model.deltaDecorations(this.decorations, []);
-		}
-
 		this.model = null;
 		this.baselineModel = null;
-		this.decorations = null;
 
 		if (this.diffDelayer) {
 			this.diffDelayer.cancel();
@@ -262,10 +418,20 @@ class DirtyDiffModelDecorator {
 	}
 }
 
-export class DirtyDiffDecorator implements ext.IWorkbenchContribution {
+class DirtyDiffItem {
+
+	constructor(readonly model: DirtyDiffModel, readonly decorator: DirtyDiffDecorator) { }
+
+	dispose(): void {
+		this.decorator.dispose();
+		this.model.dispose();
+	}
+}
+
+export class DirtyDiffWorkbenchController implements ext.IWorkbenchContribution, IModelRegistry {
 
 	private models: common.IModel[] = [];
-	private decorators: { [modelId: string]: DirtyDiffModelDecorator } = Object.create(null);
+	private items: { [modelId: string]: DirtyDiffItem; } = Object.create(null);
 	private toDispose: IDisposable[] = [];
 
 	constructor(
@@ -296,34 +462,51 @@ export class DirtyDiffDecorator implements ext.IWorkbenchContribution {
 			.filter(c => c instanceof CodeEditor)
 
 			// map to models
-			.map(editor => (editor as CodeEditor).getModel())
+			.map(editor => ({ model: (editor as CodeEditor).getModel(), controller: DirtyDiffController.get(editor as CodeEditor) }))
 
 			// remove nulls and duplicates
-			.filter((m, i, a) => !!m && !!m.uri && a.indexOf(m, i + 1) === -1);
+			.filter((o, i, a) => !!o.model && !!o.model.uri && a.indexOf(o, i + 1) === -1);
 
-		const newModels = models.filter(p => this.models.every(m => p !== m));
-		const oldModels = this.models.filter(m => models.every(p => p !== m));
+		const newModels = models.filter(o => this.models.every(m => o.model !== m));
+		const oldModels = this.models.filter(m => models.every(o => o.model !== m));
 
-		newModels.forEach(m => this.onModelVisible(m));
 		oldModels.forEach(m => this.onModelInvisible(m));
+		newModels.forEach(({ model, controller }) => {
+			controller._modelRegistry = this;
+			this.onModelVisible(model);
+		});
 
-		this.models = models;
+		this.models = models.map(({ model }) => model);
 	}
 
-	private onModelVisible(model: common.IModel): void {
-		this.decorators[model.id] = this.instantiationService.createInstance(DirtyDiffModelDecorator, model);
+	private onModelVisible(editorModel: common.IModel): void {
+		const model = this.instantiationService.createInstance(DirtyDiffModel, editorModel);
+		const decorator = new DirtyDiffDecorator(editorModel, model);
+
+		this.items[editorModel.id] = new DirtyDiffItem(model, decorator);
 	}
 
-	private onModelInvisible(model: common.IModel): void {
-		this.decorators[model.id].dispose();
-		delete this.decorators[model.id];
+	private onModelInvisible(editorModel: common.IModel): void {
+		this.items[editorModel.id].dispose();
+		delete this.items[editorModel.id];
+	}
+
+	getModel(editorModel: common.IModel): DirtyDiffModel | null {
+		const item = this.items[editorModel.id];
+
+		if (!item) {
+			return null;
+		}
+
+		return item.model;
 	}
 
 	dispose(): void {
 		this.toDispose = dispose(this.toDispose);
-		this.models.forEach(m => this.decorators[m.id].dispose());
+		this.models.forEach(m => this.items[m.id].dispose());
+
 		this.models = null;
-		this.decorators = null;
+		this.items = null;
 	}
 }
 
