@@ -174,6 +174,9 @@ class Widget {
 
 	private _position: IPosition;
 	private _preference: ContentWidgetPositionPreference[];
+	private _cachedDomNodeClientWidth: number;
+	private _cachedDomNodeClientHeight: number;
+	private _maxWidth: number;
 	private _isVisible: boolean;
 	private _renderData: Coordinate;
 
@@ -194,11 +197,13 @@ class Widget {
 
 		this._position = null;
 		this._preference = null;
+		this._cachedDomNodeClientWidth = -1;
+		this._cachedDomNodeClientHeight = -1;
+		this._maxWidth = this._getMaxWidth();
 		this._isVisible = false;
 		this._renderData = null;
 
 		this.domNode.setPosition((this._fixedOverflowWidgets && this.allowEditorOverflow) ? 'fixed' : 'absolute');
-		this._updateMaxWidth();
 		this.domNode.setVisibility('hidden');
 		this.domNode.setAttribute('widgetId', this.id);
 	}
@@ -210,22 +215,23 @@ class Widget {
 		if (e.layoutInfo) {
 			this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
 			this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
-
-			this._updateMaxWidth();
+			this._maxWidth = this._getMaxWidth();
 		}
 	}
 
-	private _updateMaxWidth(): void {
-		const maxWidth = this.allowEditorOverflow
-			? window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth
-			: this._contentWidth;
-
-		this.domNode.setMaxWidth(maxWidth);
+	private _getMaxWidth(): number {
+		return (
+			this.allowEditorOverflow
+				? window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth
+				: this._contentWidth
+		);
 	}
 
 	public setPosition(position: IPosition, preference: ContentWidgetPositionPreference[]): void {
 		this._position = position;
 		this._preference = preference;
+		this._cachedDomNodeClientWidth = -1;
+		this._cachedDomNodeClientHeight = -1;
 	}
 
 	private _layoutBoxInViewport(topLeft: Coordinate, width: number, height: number, ctx: RenderingContext): IBoxLayoutResult {
@@ -348,14 +354,17 @@ class Widget {
 				return;
 			}
 
-			const domNode = this.domNode.domNode;
-			const width = domNode.clientWidth;
-			const height = domNode.clientHeight;
+			if (this._cachedDomNodeClientWidth === -1 || this._cachedDomNodeClientHeight === -1) {
+				const domNode = this.domNode.domNode;
+				this.domNode.setMaxWidth(this._maxWidth);
+				this._cachedDomNodeClientWidth = domNode.clientWidth;
+				this._cachedDomNodeClientHeight = domNode.clientHeight;
+			}
 
 			if (this.allowEditorOverflow) {
-				placement = this._layoutBoxInPage(topLeft, width, height, ctx);
+				placement = this._layoutBoxInPage(topLeft, this._cachedDomNodeClientWidth, this._cachedDomNodeClientHeight, ctx);
 			} else {
-				placement = this._layoutBoxInViewport(topLeft, width, height, ctx);
+				placement = this._layoutBoxInViewport(topLeft, this._cachedDomNodeClientWidth, this._cachedDomNodeClientHeight, ctx);
 			}
 		};
 
