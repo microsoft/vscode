@@ -32,62 +32,107 @@ import { localize } from 'vs/nls';
 import { Color, RGBA } from 'vs/base/common/color';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
-import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
-import { PeekViewWidget, PeekContext } from 'vs/editor/contrib/referenceSearch/browser/peekViewWidget';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { editorAction, ServicesAccessor, EditorAction, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { PeekViewWidget, getOuterEditor } from 'vs/editor/contrib/referenceSearch/browser/peekViewWidget';
+import { IContextKeyService, IContextKey, ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IRange } from 'vs/editor/common/core/range';
+import { Position } from 'vs/editor/common/core/position';
+import { rot } from 'vs/base/common/numbers';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export interface IModelRegistry {
 	getModel(editorModel: common.IEditorModel): DirtyDiffModel;
 }
 
+export const isDirtyDiffVisible = new RawContextKey<boolean>('dirtyDiffVisible', false);
+
 class DirtyDiffWidget extends PeekViewWidget {
 
-	constructor(editor: ICodeEditor, model: DirtyDiffModel) {
+	constructor(editor: ICodeEditor) {
 		super(editor, {});
 
-		model.onDidChange(this.onDidModelChange, this, this._disposables);
 		this.create();
+		this.setTitle('HELLO');
 	}
 
-	private onDidModelChange(): void {
-		console.log('MODEL CHANGED');
+	showChange(change: common.IChange): void {
+		const position = new Position(change.modifiedEndLineNumber, 1);
+		this.show(position, 10);
 	}
 }
 
 @editorAction
-export class ReferenceAction extends EditorAction {
+export class ReferenceAction2 extends EditorAction {
 
 	constructor() {
 		super({
-			id: 'editor.action.dirtydiff.trigger',
+			id: 'editor.action.dirtydiff.trigger2',
 			// TODO@joao come up with better name
 			label: nls.localize('dirtydiff.action.label', "Trigger Dirty Diff"),
 			alias: 'Trigger Dirty Diff',
-			precondition: ContextKeyExpr.and(
-				// EditorContextKeys.hasReferenceProvider,
-				PeekContext.notInPeekEditor,
-				EditorContextKeys.isInEmbeddedEditor.toNegated()),
-			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
-				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_D
-			}
+			precondition: ContextKeyExpr.and(EditorContextKeys.isInEmbeddedEditor.toNegated()),
+			kbOpts: { kbExpr: EditorContextKeys.textFocus, primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_S }
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: common.ICommonCodeEditor): void {
+	run(accessor: ServicesAccessor, editor: common.ICommonCodeEditor): void {
 		const controller = DirtyDiffController.get(editor);
 
 		if (!controller) {
 			return;
 		}
 
-		const range = editor.getSelection();
-		controller.showWidget(range);
+		controller.previous();
 	}
 }
+
+@editorAction
+export class ReferenceAction3 extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.dirtydiff.trigger3',
+			// TODO@joao come up with better name
+			label: nls.localize('dirtydiff.action.label', "Trigger Dirty Diff"),
+			alias: 'Trigger Dirty Diff',
+			precondition: ContextKeyExpr.and(EditorContextKeys.isInEmbeddedEditor.toNegated()),
+			kbOpts: { kbExpr: EditorContextKeys.textFocus, primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_F }
+		});
+	}
+
+	run(accessor: ServicesAccessor, editor: common.ICommonCodeEditor): void {
+		const controller = DirtyDiffController.get(editor);
+
+		if (!controller) {
+			return;
+		}
+
+		controller.next();
+	}
+}
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'closeDirtyDiff',
+	weight: CommonEditorRegistry.commandWeight(50),
+	primary: KeyCode.Escape,
+	secondary: [KeyMod.Shift | KeyCode.Escape],
+	when: ContextKeyExpr.and(isDirtyDiffVisible, ContextKeyExpr.not('config.editor.stablePeek')),
+	handler: (accessor: ServicesAccessor) => {
+		const editor = getOuterEditor(accessor);
+		if (!editor) {
+			return;
+		}
+
+		const controller = DirtyDiffController.get(editor);
+
+		if (!controller) {
+			return;
+		}
+
+		controller.close();
+	}
+});
 
 @editorContribution
 export class DirtyDiffController implements common.IEditorContribution {
@@ -98,68 +143,135 @@ export class DirtyDiffController implements common.IEditorContribution {
 		return editor.getContribution<DirtyDiffController>(DirtyDiffController.ID);
 	}
 
-	_modelRegistry: IModelRegistry | null = null;
+	modelRegistry: IModelRegistry | null = null;
 
+	private model: DirtyDiffModel | null = null;
 	private widget: DirtyDiffWidget | null = null;
-	private widgetDisposable: IDisposable = EmptyDisposable;
+	private changeIndex: number = -1;
+	private readonly isDirtyDiffVisible: IContextKey<boolean>;
+	private session: IDisposable = EmptyDisposable;
 
-	constructor(private editor: ICodeEditor) {
-		// this.disposables.push(editor.onMouseMove(e => this.onMouseMove(e)));
-		// this.disposables.push(editor.onMouseLeave(e => this.onMouseLeave(e)));
-
-		// const widget = new DirtyDiffWidget(editor);
-		// widget.
-
-		// editor.
+	constructor(
+		private editor: ICodeEditor,
+		@IContextKeyService contextKeyService: IContextKeyService
+	) {
+		this.isDirtyDiffVisible = isDirtyDiffVisible.bindTo(contextKeyService);
 	}
 
-	showWidget(range: IRange): void {
-		if (this.widget) {
+	getId(): string {
+		return DirtyDiffController.ID;
+	}
+
+	next(): void {
+		if (!this.assertWidget()) {
 			return;
 		}
 
-		if (!this._modelRegistry) {
+		if (this.changeIndex === -1) {
+			this.changeIndex = this.findNextClosestChange(this.editor.getPosition().lineNumber);
+		} else {
+			this.changeIndex = rot(this.changeIndex + 1, this.model.changes.length);
+		}
+
+		this.widget.showChange(this.model.changes[this.changeIndex]);
+	}
+
+	previous(): void {
+		if (!this.assertWidget()) {
 			return;
+		}
+
+		if (this.changeIndex === -1) {
+			this.changeIndex = this.findPreviousClosestChange(this.editor.getPosition().lineNumber);
+		} else {
+			this.changeIndex = rot(this.changeIndex - 1, this.model.changes.length);
+		}
+
+		this.widget.showChange(this.model.changes[this.changeIndex]);
+	}
+
+	close(): void {
+		this.session.dispose();
+		this.session = EmptyDisposable;
+	}
+
+	private assertWidget(): boolean {
+		if (this.widget) {
+			if (this.model.changes.length === 0) {
+				this.close();
+				return false;
+			}
+
+			return true;
+			// this.widget.dispose();
+			// this.widget = null;
+		}
+
+		if (!this.modelRegistry) {
+			return false;
 		}
 
 		const editorModel = this.editor.getModel();
 
 		if (!editorModel) {
-			return;
+			return false;
 		}
 
-		const model = this._modelRegistry.getModel(editorModel);
+		const model = this.modelRegistry.getModel(editorModel);
 
 		if (!model) {
-			return;
+			return false;
 		}
 
-		this.widget = new DirtyDiffWidget(this.editor, model);
-		this.widget.setTitle('HELLO');
-		this.widget.show(range, 18);
+		if (model.changes.length === 0) {
+			return false;
+		}
 
-		const disposables: IDisposable[] = [
+		this.changeIndex = -1;
+		this.model = model;
+		this.widget = new DirtyDiffWidget(this.editor);
+		this.isDirtyDiffVisible.set(true);
+
+		// TODO react on model changes
+
+		// const range = editor.getSelection();
+		// this.widget.show(range, 18);
+
+		const disposables: IDisposable[] = [];
+		once(this.widget.onDidClose)(this.close, this, disposables);
+
+		disposables.push(
 			this.widget,
-			toDisposable(() => this.widget = null)
-		];
+			toDisposable(() => this.model = this.widget = null),
+			toDisposable(() => this.isDirtyDiffVisible.set(false))
+		);
 
-		once(this.widget.onDidClose)(this.onDidCloseWidget, this, disposables);
-		this.widgetDisposable = combinedDisposable(disposables);
+		this.session = combinedDisposable(disposables);
+		return true;
 	}
 
-	private onDidCloseWidget(): void {
-		this.widgetDisposable.dispose();
-		this.widgetDisposable = EmptyDisposable;
+	private findNextClosestChange(lineNumber: number): number {
+		for (let i = 0; i < this.model.changes.length; i++) {
+			const change = this.model.changes[i];
+
+			if (change.modifiedEndLineNumber >= lineNumber) {
+				return i;
+			}
+		}
+
+		return 0;
 	}
 
-	// private onMouseMove(e: IEditorMouseEvent): void {
-	// 	if (e.target.type === MouseTargetType.GUTTER_LINE_DECORATIONS) {
-	// 		console.log(e.target.element);
-	// 	}
-	// }
+	private findPreviousClosestChange(lineNumber: number): number {
+		for (let i = this.model.changes.length - 1; i >= 0; i--) {
+			const change = this.model.changes[i];
 
-	getId(): string {
-		return DirtyDiffController.ID;
+			if (change.modifiedStartLineNumber <= lineNumber) {
+				return i;
+			}
+		}
+
+		return 0;
 	}
 
 	dispose(): void {
@@ -296,6 +408,11 @@ export class DirtyDiffModel {
 	private _onDidChange = new Emitter<common.IChange[]>();
 	readonly onDidChange: Event<common.IChange[]> = this._onDidChange.event;
 
+	private _changes: common.IChange[] = [];
+	get changes(): common.IChange[] {
+		return this._changes;
+	}
+
 	constructor(
 		private model: common.IModel,
 		@ISCMService private scmService: ISCMService,
@@ -336,16 +453,17 @@ export class DirtyDiffModel {
 
 		return this.diffDelayer
 			.trigger(() => this.diff())
-			.then((diff: common.IChange[]) => {
+			.then((changes: common.IChange[]) => {
 				if (!this.model || this.model.isDisposed() || !this.baselineModel || this.baselineModel.isDisposed()) {
 					return undefined; // disposed
 				}
 
 				if (this.baselineModel.getValueLength() === 0) {
-					diff = [];
+					changes = [];
 				}
 
-				this._onDidChange.fire(diff);
+				this._changes = changes;
+				this._onDidChange.fire(changes);
 			});
 	}
 
@@ -461,22 +579,24 @@ export class DirtyDiffWorkbenchController implements ext.IWorkbenchContribution,
 			// only interested in code editor widgets
 			.filter(c => c instanceof CodeEditor)
 
-			// map to models
-			.map(editor => ({ model: (editor as CodeEditor).getModel(), controller: DirtyDiffController.get(editor as CodeEditor) }))
+			// set model registry and map to models
+			.map(editor => {
+				const codeEditor = editor as CodeEditor;
+				const controller = DirtyDiffController.get(codeEditor);
+				controller.modelRegistry = this;
+				return codeEditor.getModel();
+			})
 
 			// remove nulls and duplicates
-			.filter((o, i, a) => !!o.model && !!o.model.uri && a.indexOf(o, i + 1) === -1);
+			.filter((m, i, a) => !!m && !!m.uri && a.indexOf(m, i + 1) === -1);
 
-		const newModels = models.filter(o => this.models.every(m => o.model !== m));
-		const oldModels = this.models.filter(m => models.every(o => o.model !== m));
+		const newModels = models.filter(o => this.models.every(m => o !== m));
+		const oldModels = this.models.filter(m => models.every(o => o !== m));
 
 		oldModels.forEach(m => this.onModelInvisible(m));
-		newModels.forEach(({ model, controller }) => {
-			controller._modelRegistry = this;
-			this.onModelVisible(model);
-		});
+		newModels.forEach(m => this.onModelVisible(m));
 
-		this.models = models.map(({ model }) => model);
+		this.models = models;
 	}
 
 	private onModelVisible(editorModel: common.IModel): void {
