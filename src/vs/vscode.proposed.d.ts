@@ -8,23 +8,88 @@
 declare module 'vscode' {
 
 	export interface OpenDialogOptions {
+		/**
+		 * The resource the dialog shows when opened.
+		 */
 		defaultUri?: Uri;
+
+		/**
+		 * A human-readable string for the open button.
+		 */
 		openLabel?: string;
+
+		/**
+		 * Only allow to select files. *Note* that not all operating systems support
+		 * to select files and folders in one dialog instance.
+		 */
 		openFiles?: boolean;
+
+		/**
+		 * Only allow to select folders. *Note* that not all operating systems support
+		 * to select files and folders in one dialog instance.
+		 */
 		openFolders?: boolean;
+
+		/**
+		 * Allow to select many files or folders.
+		 */
 		openMany?: boolean;
+
+		/**
+		 * A set of file filters that are shown in the dialog, e.g.
+		 * ```ts
+		 * {
+		 * 	['Images']: ['*.png', '*.jpg']
+		 * 	['TypeScript']: ['*.ts', '*.tsx']
+		 * }
+		 * ```
+		 */
 		filters: { [name: string]: string[] };
 	}
 
+	/**
+	 * Options to configure the behaviour of a file save dialog
+	 */
 	export interface SaveDialogOptions {
+		/**
+		 * The resource the dialog shows when opened.
+		 */
 		defaultUri?: Uri;
+
+		/**
+		 * A human-readable string for the save button.
+		 */
 		saveLabel?: string;
+
+		/**
+		 * A set of file filters that are shown in the dialog, e.g.
+		 * ```ts
+		 * {
+		 * 	['Images']: ['*.png', '*.jpg']
+		 * 	['TypeScript']: ['*.ts', '*.tsx']
+		 * }
+		 * ```
+		 */
 		filters: { [name: string]: string[] };
 	}
 
 	export namespace window {
-		export function showOpenDialog(options: OpenDialogOptions): Thenable<Uri[]>;
-		export function showSaveDialog(options: SaveDialogOptions): Thenable<Uri>;
+
+		/**
+		 * Shows a file open dialog to the user.
+		 *
+		 * @param options Options that control the dialog.
+		 * @returns A promise that resolves to the selected resources or `undefined`.
+		 */
+		export function showOpenDialog(options: OpenDialogOptions): Thenable<Uri[] | undefined>;
+
+		/**
+		 * Shows a file save dialog to the user.
+		 *
+		 * @param options Options that control the dialog.
+		 * @returns A promise that resolves to the selected resource or `undefined`.
+		 */
+		export function showSaveDialog(options: SaveDialogOptions): Thenable<Uri | undefined>;
 
 		/**
 		 * Shows a selection list of [workspace folders](#workspace.workspaceFolders) to pick from.
