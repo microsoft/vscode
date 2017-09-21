@@ -34,6 +34,7 @@ import VersionStatus from './utils/versionStatus';
 import { getContributedTypeScriptServerPlugins, TypeScriptServerPlugin } from './utils/plugins';
 import { openOrCreateConfigFile, isImplicitProjectConfigFile } from './utils/tsconfig';
 import { tsLocationToVsPosition } from './utils/convert';
+import FormattingOptionsManager from './features/formattingConfigurationManager';
 
 interface LanguageDescription {
 	id: string;
@@ -174,6 +175,7 @@ class LanguageProvider {
 	private syntaxDiagnostics: ObjectMap<Diagnostic[]>;
 	private readonly currentDiagnostics: DiagnosticCollection;
 	private readonly bufferSyncSupport: BufferSyncSupport;
+	private readonly formattingOptionsManager: FormattingOptionsManager;
 
 	private readonly typingsStatus: TypingsStatus;
 	private readonly ataProgressReporter: AtaProgressReporter;
@@ -189,6 +191,7 @@ class LanguageProvider {
 		private readonly client: TypeScriptServiceClient,
 		private readonly description: LanguageDescription
 	) {
+		this.formattingOptionsManager = new FormattingOptionsManager(client);
 		this.bufferSyncSupport = new BufferSyncSupport(client, description.modeIds, {
 			delete: (file: string) => {
 				this.currentDiagnostics.delete(client.asUrl(file));
@@ -244,7 +247,7 @@ class LanguageProvider {
 		this.disposables.push(languages.registerCompletionItemProvider(selector, new (await import('./features/directiveCommentCompletionProvider')).default(client), '@'));
 
 		const { TypeScriptFormattingProvider, FormattingProviderManager } = await import('./features/formattingProvider');
-		const formattingProvider = new TypeScriptFormattingProvider(client);
+		const formattingProvider = new TypeScriptFormattingProvider(client, this.formattingOptionsManager);
 		formattingProvider.updateConfiguration(config);
 		this.disposables.push(languages.registerOnTypeFormattingEditProvider(selector, formattingProvider, ';', '}', '\n'));
 
@@ -323,6 +326,7 @@ class LanguageProvider {
 	private configurationChanged(): void {
 		const config = workspace.getConfiguration(this.id);
 		this.updateValidate(config.get(validateSetting, true));
+		this.formattingOptionsManager.updateConfiguration(config);
 
 		for (const toUpdate of this.toUpdateOnConfigurationChanged) {
 			toUpdate.updateConfiguration();
