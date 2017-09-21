@@ -110,47 +110,57 @@ export class TypeScriptFormattingProvider implements DocumentRangeFormattingEdit
 		return this.config.enable;
 	}
 
-	private ensureFormatOptions(document: TextDocument, options: FormattingOptions, token: CancellationToken): Promise<Proto.FormatCodeSettings> {
+	private async ensureFormatOptions(
+		document: TextDocument,
+		options: FormattingOptions,
+		token: CancellationToken
+	): Promise<Proto.FormatCodeSettings> {
 		const key = document.uri.toString();
 		const currentOptions = this.formatOptions[key];
 		if (currentOptions && currentOptions.tabSize === options.tabSize && currentOptions.indentSize === options.tabSize && currentOptions.convertTabsToSpaces === options.insertSpaces) {
-			return Promise.resolve(currentOptions);
-		} else {
-			const absPath = this.client.normalizePath(document.uri);
-			if (!absPath) {
-				return Promise.resolve(Object.create(null));
-			}
-
-			const formatOptions = this.getFormatOptions(options);
-			const args: Proto.ConfigureRequestArguments = {
-				file: absPath,
-				formatOptions: formatOptions
-			};
-			return this.client.execute('configure', args, token).then(_ => {
-				this.formatOptions[key] = formatOptions;
-				return formatOptions;
-			});
+			return currentOptions;
 		}
-	}
-
-	private doFormat(document: TextDocument, options: FormattingOptions, args: Proto.FormatRequestArgs, token: CancellationToken): Promise<TextEdit[]> {
-		return this.ensureFormatOptions(document, options, token).then(() => {
-			return this.client.execute('format', args, token).then((response): TextEdit[] => {
-				if (response.body) {
-					return response.body.map(this.codeEdit2SingleEditOperation);
-				} else {
-					return [];
-				}
-			}, () => {
-				return [];
-			});
-		});
-	}
-
-	public provideDocumentRangeFormattingEdits(document: TextDocument, range: Range, options: FormattingOptions, token: CancellationToken): Promise<TextEdit[]> {
 		const absPath = this.client.normalizePath(document.uri);
 		if (!absPath) {
-			return Promise.resolve([]);
+			return Object.create(null);
+		}
+		const formatOptions = this.getFormatOptions(options);
+		const args: Proto.ConfigureRequestArguments = {
+			file: absPath,
+			formatOptions: formatOptions
+		};
+		await this.client.execute('configure', args, token);
+		this.formatOptions[key] = formatOptions;
+		return formatOptions;
+	}
+
+	private async doFormat(
+		document: TextDocument,
+		options: FormattingOptions,
+		args: Proto.FormatRequestArgs,
+		token: CancellationToken
+	): Promise<TextEdit[]> {
+		await this.ensureFormatOptions(document, options, token);
+		try {
+			const response = await this.client.execute('format', args, token);
+			if (response.body) {
+				return response.body.map(this.codeEdit2SingleEditOperation);
+			}
+		} catch {
+			// noop
+		}
+		return [];
+	}
+
+	public async provideDocumentRangeFormattingEdits(
+		document: TextDocument,
+		range: Range,
+		options: FormattingOptions,
+		token: CancellationToken
+	): Promise<TextEdit[]> {
+		const absPath = this.client.normalizePath(document.uri);
+		if (!absPath) {
+			return [];
 		}
 		const args: Proto.FormatRequestArgs = {
 			file: absPath,
@@ -162,10 +172,16 @@ export class TypeScriptFormattingProvider implements DocumentRangeFormattingEdit
 		return this.doFormat(document, options, args, token);
 	}
 
-	public provideOnTypeFormattingEdits(document: TextDocument, position: Position, ch: string, options: FormattingOptions, token: CancellationToken): Promise<TextEdit[]> {
+	public async provideOnTypeFormattingEdits(
+		document: TextDocument,
+		position: Position,
+		ch: string,
+		options: FormattingOptions,
+		token: CancellationToken
+	): Promise<TextEdit[]> {
 		const filepath = this.client.normalizePath(document.uri);
 		if (!filepath) {
-			return Promise.resolve([]);
+			return [];
 		}
 		let args: Proto.FormatOnKeyRequestArgs = {
 			file: filepath,
@@ -174,34 +190,33 @@ export class TypeScriptFormattingProvider implements DocumentRangeFormattingEdit
 			key: ch
 		};
 
-		return this.ensureFormatOptions(document, options, token).then(() => {
-			return this.client.execute('formatonkey', args, token).then((response): TextEdit[] => {
-				let edits = response.body;
-				let result: TextEdit[] = [];
-				if (!edits) {
-					return result;
-				}
-				for (let edit of edits) {
-					let textEdit = this.codeEdit2SingleEditOperation(edit);
-					let range = textEdit.range;
-					// Work around for https://github.com/Microsoft/TypeScript/issues/6700.
-					// Check if we have an edit at the beginning of the line which only removes white spaces and leaves
-					// an empty line. Drop those edits
-					if (range.start.character === 0 && range.start.line === range.end.line && textEdit.newText === '') {
-						let lText = document.lineAt(range.start.line).text;
-						// If the edit leaves something on the line keep the edit (note that the end character is exclusive).
-						// Keep it also if it removes something else than whitespace
-						if (lText.trim().length > 0 || lText.length > range.end.character) {
-							result.push(textEdit);
-						}
-					} else {
+		await this.ensureFormatOptions(document, options, token);
+		return this.client.execute('formatonkey', args, token).then((response): TextEdit[] => {
+			let edits = response.body;
+			let result: TextEdit[] = [];
+			if (!edits) {
+				return result;
+			}
+			for (let edit of edits) {
+				let textEdit = this.codeEdit2SingleEditOperation(edit);
+				let range = textEdit.range;
+				// Work around for https://github.com/Microsoft/TypeScript/issues/6700.
+				// Check if we have an edit at the beginning of the line which only removes white spaces and leaves
+				// an empty line. Drop those edits
+				if (range.start.character === 0 && range.start.line === range.end.line && textEdit.newText === '') {
+					let lText = document.lineAt(range.start.line).text;
+					// If the edit leaves something on the line keep the edit (note that the end character is exclusive).
+					// Keep it also if it removes something else than whitespace
+					if (lText.trim().length > 0 || lText.length > range.end.character) {
 						result.push(textEdit);
 					}
+				} else {
+					result.push(textEdit);
 				}
-				return result;
-			}, () => {
-				return [];
-			});
+			}
+			return result;
+		}, () => {
+			return [];
 		});
 	}
 
