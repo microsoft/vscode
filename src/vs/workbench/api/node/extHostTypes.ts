@@ -879,6 +879,16 @@ export class SignatureHelp {
 	}
 }
 
+export enum CompletionTriggerKind {
+	Invoke = 0,
+	TriggerCharacter = 1
+}
+
+export interface CompletionContext {
+	triggerKind: CompletionTriggerKind;
+	triggerCharacter: string;
+}
+
 export enum CompletionItemKind {
 	Text = 0,
 	Method = 1,

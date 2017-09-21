@@ -307,6 +307,28 @@ export function toDocumentHighlight(occurrence: modes.DocumentHighlight): types.
 	return new types.DocumentHighlight(toRange(occurrence.range), occurrence.kind);
 }
 
+export namespace CompletionTriggerKind {
+	export function from(kind: modes.SuggestTriggerKind) {
+		switch (kind) {
+			case modes.SuggestTriggerKind.TriggerCharacter:
+				return types.CompletionTriggerKind.TriggerCharacter;
+
+			case modes.SuggestTriggerKind.Invoke:
+			default:
+				return types.CompletionTriggerKind.Invoke;
+		}
+	}
+}
+
+export namespace CompletionContext {
+	export function from(context: modes.SuggestContext): types.CompletionContext {
+		return {
+			triggerKind: CompletionTriggerKind.from(context.triggerKind),
+			triggerCharacter: context.triggerCharacter
+		};
+	}
+}
+
 export const CompletionItemKind = {
 
 	from(kind: types.CompletionItemKind): modes.SuggestionType {

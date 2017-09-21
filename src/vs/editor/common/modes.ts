@@ -248,13 +248,29 @@ export interface ISuggestResult {
 }
 
 /**
+ * How a suggest provider was triggered.
+ */
+export enum SuggestTriggerKind {
+	Invoke = 0,
+	TriggerCharacter = 1
+}
+
+/**
+ * @internal
+ */
+export interface SuggestContext {
+	triggerKind: SuggestTriggerKind;
+	triggerCharacter?: string;
+}
+
+/**
  * @internal
  */
 export interface ISuggestSupport {
 
 	triggerCharacters?: string[];
 
-	provideCompletionItems(model: editorCommon.IModel, position: Position, token: CancellationToken): ISuggestResult | Thenable<ISuggestResult>;
+	provideCompletionItems(model: editorCommon.IModel, position: Position, context: SuggestContext, token: CancellationToken): ISuggestResult | Thenable<ISuggestResult>;
 
 	resolveCompletionItem?(model: editorCommon.IModel, position: Position, item: ISuggestion, token: CancellationToken): ISuggestion | Thenable<ISuggestion>;
 }
