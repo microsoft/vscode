@@ -1087,6 +1087,13 @@ export class ColorPresentation {
 	label: string;
 	textEdit?: TextEdit;
 	additionalTextEdits?: TextEdit[];
+
+	constructor(label: string) {
+		if (!label || typeof label !== 'string') {
+			throw illegalArgument('label');
+		}
+		this.label = label;
+	}
 }
 
 export enum ColorFormat {

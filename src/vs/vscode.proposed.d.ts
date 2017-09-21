@@ -273,6 +273,13 @@ declare module 'vscode' {
 		 * selecting this color presentation. Edits must not overlap with the main [edit](#ColorPresentation.textEdit) nor with themselves.
 		 */
 		additionalTextEdits?: TextEdit[];
+
+		/**
+		 * Creates a new color presentation.
+		 *
+		 * @param label The label of this color presentation.
+		 */
+		constructor(label: string);
 	}
 
 	/**
