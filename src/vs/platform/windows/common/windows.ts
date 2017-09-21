@@ -254,3 +254,8 @@ export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
 	perfAppReady?: number;
 	perfWindowLoadTime?: number;
 }
+
+export interface IRunActionInWindowRequest {
+	id: string;
+	from: 'menu' | 'touchbar' | 'mouse';
+}

@@ -19,7 +19,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
-import { IWindowSettings, MenuBarVisibility, IWindowConfiguration, ReadyState } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, MenuBarVisibility, IWindowConfiguration, ReadyState, IRunActionInWindowRequest } from 'vs/platform/windows/common/windows';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyboardLayoutMonitor } from 'vs/code/electron-main/keyboard';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
@@ -443,9 +443,9 @@ export class CodeWindow implements ICodeWindow {
 			}
 
 			if (cmd === back) {
-				this.send('vscode:runAction', acrossEditors ? 'workbench.action.openPreviousRecentlyUsedEditor' : 'workbench.action.navigateBack');
+				this.send('vscode:runAction', { id: acrossEditors ? 'workbench.action.openPreviousRecentlyUsedEditor' : 'workbench.action.navigateBack', from: 'mouse' } as IRunActionInWindowRequest);
 			} else if (cmd === forward) {
-				this.send('vscode:runAction', acrossEditors ? 'workbench.action.openNextRecentlyUsedEditor' : 'workbench.action.navigateForward');
+				this.send('vscode:runAction', { id: acrossEditors ? 'workbench.action.openNextRecentlyUsedEditor' : 'workbench.action.navigateForward', from: 'mouse' } as IRunActionInWindowRequest);
 			}
 		});
 	}
@@ -932,7 +932,7 @@ export class CodeWindow implements ICodeWindow {
 			mode: 'buttons',
 			segmentStyle: 'automatic',
 			change: (selectedIndex) => {
-				this.sendWhenReady('vscode:runAction', items[selectedIndex].id);
+				this.sendWhenReady('vscode:runAction', { id: items[selectedIndex].id, from: 'touchbar' });
 			}
 		});
 	}
