@@ -30,7 +30,7 @@ export class TaskEntry extends Model.QuickOpenEntry {
 	}
 
 	public getDescription(): string {
-		if (!this.taskService.hasMultipleFolders()) {
+		if (!this.taskService.needsFolderQualification()) {
 			return null;
 		}
 		let workspaceFolder = Task.getWorkspaceFolder(this.task);

@@ -30,14 +30,13 @@ import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { SyncActionDescriptor, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { MenuRegistry } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IEditor } from 'vs/platform/editor/common/editor';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IMarkerService, MarkerStatistics } from 'vs/platform/markers/common/markers';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFileService } from 'vs/platform/files/common/files';
+import { IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -55,11 +54,10 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import jsonContributionRegistry = require('vs/platform/jsonschemas/common/jsonContributionRegistry');
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
-import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actions';
 import { IStatusbarItem, IStatusbarRegistry, Extensions as StatusbarExtensions, StatusbarItemDescriptor, StatusbarAlignment } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 
-import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
+import { IQuickOpenService, IPickOpenEntry, IPickOpenAction, IPickOpenItem } from 'vs/platform/quickOpen/common/quickOpen';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import Constants from 'vs/workbench/parts/markers/common/constants';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -95,152 +93,14 @@ import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 let $ = Builder.$;
 let tasksCategory = nls.localize('tasksCategory', "Tasks");
 
-abstract class OpenTaskConfigurationAction extends Action {
-
-	constructor(id: string, label: string,
-		private taskService: ITaskService,
-		private configurationService: IConfigurationService,
-		private editorService: IWorkbenchEditorService, private fileService: IFileService,
-		private contextService: IWorkspaceContextService, private outputService: IOutputService,
-		private messageService: IMessageService, private quickOpenService: IQuickOpenService,
-		private environmentService: IEnvironmentService,
-		private configurationResolverService: IConfigurationResolverService,
-		private extensionService: IExtensionService,
-		private telemetryService: ITelemetryService) {
-
-		super(id, label);
-	}
-
-	public run(event?: any): TPromise<IEditor> {
-		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			this.messageService.show(Severity.Info, nls.localize('ConfigureTaskRunnerAction.noWorkspace', 'Tasks are only available on a workspace folder.'));
-			return TPromise.as(undefined);
-		}
-		let sideBySide = !!(event && (event.ctrlKey || event.metaKey));
-		let configFileCreated = false;
-		return this.fileService.resolveFile(this.contextService.getWorkspace().folders[0].toResource('.vscode/tasks.json')).then((success) => { // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
-
-			return success;
-		}, (err: any) => {
-			return this.quickOpenService.pick(taskTemplates, { placeHolder: nls.localize('ConfigureTaskRunnerAction.quickPick.template', 'Select a Task Runner') }).then(selection => {
-				if (!selection) {
-					return undefined;
-				}
-				let contentPromise: TPromise<string>;
-				if (selection.autoDetect) {
-					const outputChannel = this.outputService.getChannel(TaskService.OutputChannelId);
-					outputChannel.show(true);
-					outputChannel.append(nls.localize('ConfigureTaskRunnerAction.autoDetecting', 'Auto detecting tasks for {0}', selection.id) + '\n');
-					let detector = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService);
-					contentPromise = detector.detect(false, selection.id).then((value) => {
-						let config = value.config;
-						if (value.stderr && value.stderr.length > 0) {
-							value.stderr.forEach((line) => {
-								outputChannel.append(line + '\n');
-							});
-							if (config && (!config.tasks || config.tasks.length === 0)) {
-								this.messageService.show(Severity.Warning, nls.localize('ConfigureTaskRunnerAction.autoDetect', 'Auto detecting the task system failed. Using default template. Consult the task output for details.'));
-								return selection.content;
-							} else {
-								this.messageService.show(Severity.Warning, nls.localize('ConfigureTaskRunnerAction.autoDetectError', 'Auto detecting the task system produced errors. Consult the task output for details.'));
-							}
-						}
-						if (config) {
-							if (value.stdout && value.stdout.length > 0) {
-								value.stdout.forEach(line => outputChannel.append(line + '\n'));
-							}
-							let content = JSON.stringify(config, null, '\t');
-							content = [
-								'{',
-								'\t// See https://go.microsoft.com/fwlink/?LinkId=733558',
-								'\t// for the documentation about the tasks.json format',
-							].join('\n') + content.substr(1);
-							return content;
-						} else {
-							return selection.content;
-						}
-					});
-				} else {
-					contentPromise = TPromise.as(selection.content);
-				}
-				return contentPromise.then(content => {
-					let editorConfig = this.configurationService.getConfiguration<any>();
-					if (editorConfig.editor.insertSpaces) {
-						content = content.replace(/(\n)(\t+)/g, (_, s1, s2) => s1 + strings.repeat(' ', s2.length * editorConfig.editor.tabSize));
-					}
-					configFileCreated = true;
-					return this.fileService.createFile(this.contextService.getWorkspace().folders[0].toResource('.vscode/tasks.json'), content).then((result) => {
-						this.telemetryService.publicLog(TaskService.TemplateTelemetryEventName, {
-							templateId: selection.id,
-							autoDetect: selection.autoDetect
-						});
-						return result;
-					}); // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
-				});
-				/* 2.0 version
-				let content = selection.content;
-				let editorConfig = this.configurationService.getConfiguration<any>();
-				if (editorConfig.editor.insertSpaces) {
-					content = content.replace(/(\n)(\t+)/g, (_, s1, s2) => s1 + strings.repeat(' ', s2.length * editorConfig.editor.tabSize));
-				}
-				configFileCreated = true;
-				return this.fileService.createFile(this.contextService.toResource('.vscode/tasks.json'), content);
-				*/
-			});
-		}).then((stat) => {
-			if (!stat) {
-				return undefined;
-			}
-			// // (2) Open editor with configuration file
-			return this.editorService.openEditor({
-				resource: stat.resource,
-				options: {
-					forceOpen: true,
-					pinned: configFileCreated // pin only if config file is created #8727
-				}
-			}, sideBySide);
-		}, (error) => {
-			throw new Error(nls.localize('ConfigureTaskRunnerAction.failed', "Unable to create the 'tasks.json' file inside the '.vscode' folder. Consult the task output for details."));
-		});
-	}
+namespace ConfigureTaskAction {
+	export const ID = 'workbench.action.tasks.configureTaskRunner';
+	export const TEXT = nls.localize('ConfigureTaskRunnerAction.label', "Configure Task");
 }
 
-class ConfigureTaskRunnerAction extends OpenTaskConfigurationAction {
-	public static ID = 'workbench.action.tasks.configureTaskRunner';
-	public static TEXT = nls.localize('ConfigureTaskRunnerAction.label', "Configure Task Runner");
-
-	constructor(id: string, label: string,
-		@ITaskService taskService: ITaskService, @IConfigurationService configurationService: IConfigurationService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService, @IFileService fileService: IFileService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService, @IOutputService outputService: IOutputService,
-		@IMessageService messageService: IMessageService, @IQuickOpenService quickOpenService: IQuickOpenService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
-		@IExtensionService extensionService: IExtensionService,
-		@ITelemetryService telemetryService: ITelemetryService) {
-		super(id, label, taskService, configurationService, editorService, fileService, contextService,
-			outputService, messageService, quickOpenService, environmentService, configurationResolverService,
-			extensionService, telemetryService);
-	}
-}
-
-class ConfigureBuildTaskAction extends OpenTaskConfigurationAction {
-	public static ID = 'workbench.action.tasks.configureBuildTask';
-	public static TEXT = nls.localize('ConfigureBuildTaskAction.label', "Configure Build Task");
-
-	constructor(id: string, label: string,
-		@ITaskService taskService: ITaskService, @IConfigurationService configurationService: IConfigurationService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService, @IFileService fileService: IFileService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService, @IOutputService outputService: IOutputService,
-		@IMessageService messageService: IMessageService, @IQuickOpenService quickOpenService: IQuickOpenService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
-		@IExtensionService extensionService: IExtensionService,
-		@ITelemetryService telemetryService: ITelemetryService) {
-		super(id, label, taskService, configurationService, editorService, fileService, contextService,
-			outputService, messageService, quickOpenService, environmentService, configurationResolverService,
-			extensionService, telemetryService);
-	}
+namespace ConfigureBuildTaskAction {
+	export const ID = 'workbench.action.tasks.configureBuildTask';
+	export const TEXT = nls.localize('ConfigureBuildTaskAction.label', "Configure Build Task");
 }
 
 class CloseMessageAction extends Action {
@@ -670,6 +530,10 @@ class TaskMap {
 	}
 }
 
+interface TaskQuickPickEntry extends IPickOpenEntry {
+	task: Task;
+}
+
 class TaskService extends EventEmitter implements ITaskService {
 
 	// private static autoDetectTelemetryName: string = 'taskServer.autoDetect';
@@ -826,6 +690,10 @@ class TaskService extends EventEmitter implements ITaskService {
 				return;
 			}
 			this.runTestCommand();
+		});
+
+		CommandsRegistry.registerCommand('workbench.action.tasks.configureTaskRunner', () => {
+			this.runConfigureTasks();
 		});
 
 		CommandsRegistry.registerCommand('workbench.action.tasks.configureDefaultBuildTask', () => {
@@ -1042,7 +910,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		}
 		if (entries.length > 0) {
 			entries = entries.sort((a, b) => a.label.localeCompare(b.label));
-			entries[0].separator = { border: true };
+			entries[0].separator = { border: true, label: nls.localize('TaskService.associate', 'associate') };
 			entries.unshift(
 				{ label: nls.localize('TaskService.attachProblemMatcher.continueWithout', 'Continue without scanning the task output'), matcher: undefined },
 				{ label: nls.localize('TaskService.attachProblemMatcher.never', 'Never scan the task output'), matcher: undefined, never: true },
@@ -1090,8 +958,8 @@ class TaskService extends EventEmitter implements ITaskService {
 		});
 	}
 
-	public hasMultipleFolders(): boolean {
-		return this._workspaceFolders && this._workspaceFolders.length > 1;
+	public needsFolderQualification(): boolean {
+		return this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE;
 	}
 
 	public canCustomize(task: Task): boolean {
@@ -1695,8 +1563,9 @@ class TaskService extends EventEmitter implements ITaskService {
 				} else {
 					this._outputChannel.append(nls.localize(
 						'taskService.ignoreingFolder',
-						'Ignoring task configurations for workspace folder {0}. Multi root folder support requires that all folders use task version 2.0.',
+						'Ignoring task configurations for workspace folder {0}. Multi root folder support requires that all folders use task version 2.0.0\n',
 						workspaceFolder.uri.fsPath));
+					this._outputChannel.show(true);
 				}
 			}
 		}
@@ -1771,17 +1640,21 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	public configureAction(): Action {
-		return new ConfigureTaskRunnerAction(ConfigureTaskRunnerAction.ID, ConfigureTaskRunnerAction.TEXT, this,
-			this.configurationService, this.editorService, this.fileService, this.contextService,
-			this.outputService, this.messageService, this.quickOpenService, this.environmentService, this.configurationResolverService,
-			this.extensionService, this.telemetryService);
+		let run = () => { this.runConfigureTasks(); return TPromise.as(undefined); };
+		return new class extends Action {
+			constructor() {
+				super(ConfigureTaskAction.ID, ConfigureTaskAction.TEXT, undefined, true, run);
+			}
+		};
 	}
 
 	private configureBuildTask(): Action {
-		return new ConfigureBuildTaskAction(ConfigureBuildTaskAction.ID, ConfigureBuildTaskAction.TEXT, this,
-			this.configurationService, this.editorService, this.fileService, this.contextService,
-			this.outputService, this.messageService, this.quickOpenService, this.environmentService, this.configurationResolverService,
-			this.extensionService, this.telemetryService);
+		let run = () => { this.runConfigureTasks(); return TPromise.as(undefined); };
+		return new class extends Action {
+			constructor() {
+				super(ConfigureTaskAction.ID, ConfigureTaskAction.TEXT, undefined, true, run);
+			}
+		};
 	}
 
 	public beforeShutdown(): boolean | TPromise<boolean> {
@@ -1882,16 +1755,13 @@ class TaskService extends EventEmitter implements ITaskService {
 		return true;
 	}
 
-	private showQuickPick(tasks: Task[], placeHolder: string, group: boolean = false, sort: boolean = false): TPromise<Task> {
+	private createTaskQuickPickEntries(tasks: Task[], group: boolean = false, sort: boolean = false): TaskQuickPickEntry[] {
 		if (tasks === void 0 || tasks === null || tasks.length === 0) {
-			return TPromise.as(undefined);
+			return [];
 		}
-		interface TaskQickPickEntry extends IPickOpenEntry {
-			task: Task;
-		}
-		const TaskQickPickEntry = (task: Task): TaskQickPickEntry => {
+		const TaskQuickPickEntry = (task: Task): TaskQuickPickEntry => {
 			let description: string;
-			if (this.hasMultipleFolders) {
+			if (this.needsFolderQualification()) {
 				let workspaceFolder = Task.getWorkspaceFolder(task);
 				if (workspaceFolder) {
 					description = `(${workspaceFolder.name})`;
@@ -1899,24 +1769,40 @@ class TaskService extends EventEmitter implements ITaskService {
 			}
 			return { label: task._label, description, task };
 		};
-		function fillEntries(entries: TaskQickPickEntry[], tasks: Task[], groupLabel: string, withBorder: boolean = false): void {
+		let taskService = this;
+		let action = new class extends Action implements IPickOpenAction {
+			constructor() {
+				super('configureAction', 'Configure Task', 'quick-open-task-configure', true);
+			}
+			public run(item: IPickOpenItem): TPromise<boolean> {
+				let task: Task = item.getPayload();
+				taskService.quickOpenService.close();
+				if (ContributedTask.is(task)) {
+					taskService.customize(task, undefined, true);
+				} else if (CustomTask.is(task)) {
+					taskService.openConfig(task);
+				}
+				return TPromise.as(false);
+			}
+		};
+		function fillEntries(entries: TaskQuickPickEntry[], tasks: Task[], groupLabel: string, withBorder: boolean = false): void {
 			let first = true;
 			for (let task of tasks) {
+				let entry: TaskQuickPickEntry = TaskQuickPickEntry(task);
 				if (first) {
 					first = false;
-					let entry = TaskQickPickEntry(task);
 					entry.separator = { label: groupLabel, border: withBorder };
-					entries.push(entry);
-				} else {
-					entries.push(TaskQickPickEntry(task));
 				}
+				entry.action = action;
+				entry.payload = task;
+				entries.push(entry);
 			}
 		}
-		let entries: TaskQickPickEntry[];
+		let entries: TaskQuickPickEntry[];
 		if (group) {
 			entries = [];
 			if (tasks.length === 1) {
-				entries.push(TaskQickPickEntry(tasks[0]));
+				entries.push(TaskQuickPickEntry(tasks[0]));
 			} else {
 				let recentlyUsedTasks = this.getRecentlyUsedTasks();
 				let recent: Task[] = [];
@@ -1953,9 +1839,25 @@ class TaskService extends EventEmitter implements ITaskService {
 				const sorter = this.createSorter();
 				tasks = tasks.sort((a, b) => sorter.compare(a, b));
 			}
-			entries = tasks.map<TaskQickPickEntry>(task => TaskQickPickEntry(task));
+			entries = tasks.map<TaskQuickPickEntry>(task => TaskQuickPickEntry(task));
 		}
-		return this.quickOpenService.pick(entries, { placeHolder, autoFocus: { autoFocusFirstEntry: true } }).then(entry => entry ? entry.task : undefined);
+		return entries;
+	}
+
+	private showQuickPick(tasks: TPromise<Task[]> | Task[], placeHolder: string, defaultEntry?: TaskQuickPickEntry, group: boolean = false, sort: boolean = false): TPromise<Task> {
+		let _createEntries = (): TPromise<TaskQuickPickEntry[]> => {
+			if (Array.isArray(tasks)) {
+				return TPromise.as(this.createTaskQuickPickEntries(tasks, group, sort));
+			} else {
+				return tasks.then((tasks) => this.createTaskQuickPickEntries(tasks, group, sort));
+			}
+		};
+		return this.quickOpenService.pick(_createEntries().then((entries) => {
+			if (entries.length === 0 && defaultEntry) {
+				entries.push(defaultEntry);
+			}
+			return entries;
+		}), { placeHolder, autoFocus: { autoFocusFirstEntry: true } }).then(entry => entry ? entry.task : undefined);
 	}
 
 	private runTaskCommand(accessor: ServicesAccessor, arg: any): void {
@@ -1973,13 +1875,32 @@ class TaskService extends EventEmitter implements ITaskService {
 						return;
 					}
 				}
-				this.quickOpenService.show('task ');
+				this.doRunTaskCommand(grouped.all());
 			}, () => {
-				this.quickOpenService.show('task ');
+				this.doRunTaskCommand();
 			});
 		} else {
-			this.quickOpenService.show('task ');
+			this.doRunTaskCommand();
 		}
+	}
+
+	private doRunTaskCommand(tasks?: Task[]): void {
+		this.showQuickPick(tasks ? tasks : this.tasks(),
+			nls.localize('TaskService.pickRunTask', 'Select the task to run'),
+			{
+				label: nls.localize('TaslService.noEntryToRun', 'No task to run found. Configure Tasks...'),
+				task: null
+			},
+			true).then((task) => {
+				if (task === void 0) {
+					return;
+				}
+				if (task === null) {
+					this.runConfigureTasks();
+				} else {
+					this.run(task, { attachProblemMatcher: true });
+				}
+			});
 	}
 
 	private runBuildCommand(): void {
@@ -1995,32 +1916,35 @@ class TaskService extends EventEmitter implements ITaskService {
 			title: nls.localize('TaskService.fetchingBuildTasks', 'Fetching build tasks...')
 		};
 		let promise = this.getTasksForGroup(TaskGroup.Build).then((tasks) => {
-			if (tasks.length === 0) {
-				this.messageService.show(
-					Severity.Info,
-					{
-						message: nls.localize('TaskService.noBuildTaskTerminal', 'No Build Task found. Press \'Configure Build Task\' to define one.'),
-						actions: [this.configureBuildTask(), new CloseMessageAction()]
+			if (tasks.length > 0) {
+				let primaries: Task[] = [];
+				for (let task of tasks) {
+					// We only have build tasks here
+					if (task.isDefaultGroupEntry) {
+						primaries.push(task);
 					}
-				);
-				return;
-			}
-			let primaries: Task[] = [];
-			for (let task of tasks) {
-				// We only have build tasks here
-				if (task.isDefaultGroupEntry) {
-					primaries.push(task);
+				}
+				if (primaries.length === 1) {
+					this.run(primaries[0]);
+					return;
 				}
 			}
-			if (primaries.length === 1) {
-				this.run(primaries[0]);
-				return;
-			}
-			this.showQuickPick(tasks, nls.localize('TaskService.pickBuildTask', 'Select the build task to run'), true).then((task) => {
-				if (task) {
+			this.showQuickPick(tasks,
+				nls.localize('TaskService.pickBuildTask', 'Select the build task to run'),
+				{
+					label: nls.localize('TaskService.noBuildTask', 'No build task to run found. Configure Tasks...'),
+					task: null
+				},
+				true).then((task) => {
+					if (task === void 0) {
+						return;
+					}
+					if (task === null) {
+						this.runConfigureTasks();
+						return;
+					}
 					this.run(task, { attachProblemMatcher: true });
-				}
-			});
+				});
 		});
 		this.progressService.withProgress(options, () => promise);
 	}
@@ -2038,31 +1962,34 @@ class TaskService extends EventEmitter implements ITaskService {
 			title: nls.localize('TaskService.fetchingTestTasks', 'Fetching test tasks...')
 		};
 		let promise = this.getTasksForGroup(TaskGroup.Test).then((tasks) => {
-			if (tasks.length === 0) {
-				this.messageService.show(
-					Severity.Info,
-					{
-						message: nls.localize('TaskService.noTestTaskTerminal', 'No Test Task found. Press \'Configure Task Runner\' to define one.'),
-						actions: [this.configureAction(), new CloseMessageAction()]
+			if (tasks.length > 0) {
+				let primaries: Task[] = [];
+				for (let task of tasks) {
+					// We only have test task here.
+					if (task.isDefaultGroupEntry) {
+						primaries.push(task);
 					}
-				);
-				return;
-			}
-			let primaries: Task[] = [];
-			for (let task of tasks) {
-				// We only have test task here.
-				if (task.isDefaultGroupEntry) {
-					primaries.push(task);
+				}
+				if (primaries.length === 1) {
+					this.run(primaries[0]);
+					return;
 				}
 			}
-			if (primaries.length === 1) {
-				this.run(primaries[0]);
-				return;
-			}
-			this.showQuickPick(tasks, nls.localize('TaskService.pickTestTask', 'Select the test task to run'), true).then((task) => {
-				if (task) {
-					this.run(task);
+			this.showQuickPick(tasks,
+				nls.localize('TaskService.pickTestTask', 'Select the test task to run'),
+				{
+					label: nls.localize('TaskService.noTestTaskTerminal', 'No test task to run found. Configure Tasks...'),
+					task: null
+				}, true
+			).then((task) => {
+				if (task === void 0) {
+					return;
 				}
+				if (task === null) {
+					this.runConfigureTasks();
+					return;
+				}
+				this.run(task);
 			});
 		});
 		this.progressService.withProgress(options, () => promise);
@@ -2073,16 +2000,18 @@ class TaskService extends EventEmitter implements ITaskService {
 			return;
 		}
 		if (this.inTerminal()) {
-			this.getActiveTasks().then((activeTasks) => {
-				if (activeTasks.length === 0) {
-					this.messageService.show(Severity.Info, nls.localize('TaskService.noTaskRunning', 'No task is currently running.'));
+			this.showQuickPick(this.getActiveTasks(),
+				nls.localize('TaskService.tastToTerminate', 'Select task to terminate'),
+				{
+					label: nls.localize('TaskService.noTaskRunning', 'No task is currently running'),
+					task: null
+				},
+				false, true
+			).then(task => {
+				if (task === void 0 || task === null) {
 					return;
 				}
-				this.showQuickPick(activeTasks, nls.localize('TaskService.tastToTerminate', 'Select task to terminate'), false, true).then(task => {
-					if (task) {
-						this.terminate(task);
-					}
-				});
+				this.terminate(task);
 			});
 		} else {
 			this.isActive().then((active) => {
@@ -2109,16 +2038,18 @@ class TaskService extends EventEmitter implements ITaskService {
 			return;
 		}
 		if (this.inTerminal()) {
-			this.getActiveTasks().then((activeTasks) => {
-				if (activeTasks.length === 0) {
-					this.messageService.show(Severity.Info, nls.localize('TaskService.noTaskToRestart', 'No task to restart.'));
+			this.showQuickPick(this.getActiveTasks(),
+				nls.localize('TaskService.tastToRestart', 'Select the task to restart'),
+				{
+					label: nls.localize('TaskService.noTaskToRestart', 'No task to restart'),
+					task: null
+				},
+				false, true
+			).then(task => {
+				if (task === void 0 || task === null) {
 					return;
 				}
-				this.showQuickPick(activeTasks, nls.localize('TaskService.tastToRestart', 'Select the task to restart'), false, true).then(task => {
-					if (task) {
-						this.restart(task);
-					}
-				});
+				this.restart(task);
 			});
 		} else {
 			this.getActiveTasks().then((activeTasks) => {
@@ -2131,6 +2062,127 @@ class TaskService extends EventEmitter implements ITaskService {
 		}
 	}
 
+	private runConfigureTasks(): void {
+		if (!this.canRunCommand()) {
+			return undefined;
+		}
+		let taskPromise: TPromise<TaskMap>;
+		if (this._schemaVersion === JsonSchemaVersion.V2_0_0) {
+			taskPromise = this.getGroupedTasks();
+		} else {
+			taskPromise = TPromise.as(new TaskMap());
+		}
+
+		let openTaskFile = (workspaceFolder: IWorkspaceFolder): void => {
+			let resource = workspaceFolder.toResource('.vscode/tasks.json');
+			let configFileCreated = false;
+			this.fileService.resolveFile(resource).then((stat) => stat, () => undefined).then((stat) => {
+				if (stat) {
+					return stat.resource;
+				}
+				return this.quickOpenService.pick(taskTemplates, { placeHolder: nls.localize('TaskService.template', 'Select a Task Template') }).then((selection) => {
+					if (!selection) {
+						return undefined;
+					}
+					let content = selection.content;
+					let editorConfig = this.configurationService.getConfiguration<any>();
+					if (editorConfig.editor.insertSpaces) {
+						content = content.replace(/(\n)(\t+)/g, (_, s1, s2) => s1 + strings.repeat(' ', s2.length * editorConfig.editor.tabSize));
+					}
+					configFileCreated = true;
+					return this.fileService.createFile(resource, content).then((result): URI => {
+						this.telemetryService.publicLog(TaskService.TemplateTelemetryEventName, {
+							templateId: selection.id,
+							autoDetect: selection.autoDetect
+						});
+						return result.resource;
+					});
+				});
+			}).then((resource) => {
+				if (!resource) {
+					return;
+				}
+				this.editorService.openEditor({
+					resource: resource,
+					options: {
+						forceOpen: true,
+						pinned: configFileCreated // pin only if config file is created #8727
+					}
+				}, false);
+			});
+		};
+
+		let configureTask = (task: Task): void => {
+			if (ContributedTask.is(task)) {
+				this.customize(task, undefined, true);
+			} else if (CustomTask.is(task)) {
+				this.openConfig(task);
+			}
+		};
+
+		function isTaskEntry(value: IPickOpenEntry): value is IPickOpenEntry & { task: Task } {
+			let candidate: IPickOpenEntry & { task: Task } = value as any;
+			return candidate && !!candidate.task;
+		}
+
+		let stats = this.contextService.getWorkspace().folders.map<TPromise<IFileStat>>((folder) => {
+			return this.fileService.resolveFile(folder.toResource('.vscode/tasks.json')).then(stat => stat, () => undefined);
+		});
+
+		let createLabel = nls.localize('TaskService.createJsonFile', 'Create tasks.json file from template');
+		let openLabel = nls.localize('TaskService.openJsonFile', 'Open tasks.json file');
+		let entries = TPromise.join(stats).then((stats) => {
+			return taskPromise.then((taskMap) => {
+				type EntryType = (IPickOpenEntry & { task: Task; }) | (IPickOpenEntry & { folder: IWorkspaceFolder; });
+				let entries: EntryType[] = [];
+				if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
+					let tasks = taskMap.all();
+					if (tasks.length > 0) {
+						tasks = tasks.sort((a, b) => a._label.localeCompare(b._label));
+						entries = tasks.map(task => { return { label: task._label, task }; });
+					} else {
+						let label = stats[0] !== void 0 ? openLabel : createLabel;
+						entries.push({ label, folder: this.contextService.getWorkspace().folders[0] });
+					}
+				} else {
+					let folders = this.contextService.getWorkspace().folders;
+					let index = 0;
+					for (let folder of folders) {
+						let tasks = taskMap.get(folder);
+						if (tasks.length > 0) {
+							tasks = tasks.slice().sort((a, b) => a._label.localeCompare(b._label));
+							for (let i = 0; i < tasks.length; i++) {
+								let entry: EntryType = { label: tasks[i]._label, task: tasks[i] };
+								if (i === 0) {
+									entry.separator = { label: folder.name, border: index > 0 };
+								}
+								entries.push(entry);
+							}
+						} else {
+							let label = stats[index] !== void 0 ? openLabel : createLabel;
+							let entry: EntryType = { label, folder: folder };
+							entry.separator = { label: folder.name, border: index > 0 };
+							entries.push(entry);
+						}
+						index++;
+					}
+				}
+				return entries;
+			});
+		});
+
+		this.quickOpenService.pick(entries, { placeHolder: nls.localize('TaskService.pickTask', 'Select a task to configure'), autoFocus: { autoFocusFirstEntry: true } }).then((selection) => {
+			if (!selection) {
+				return;
+			}
+			if (isTaskEntry(selection)) {
+				configureTask(selection.task);
+			} else {
+				openTaskFile(selection.folder);
+			}
+		});
+	}
+
 	private runConfigureDefaultBuildTask(): void {
 		if (!this.canRunCommand()) {
 			return;
@@ -2138,10 +2190,11 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (this._schemaVersion === JsonSchemaVersion.V2_0_0) {
 			this.tasks().then((tasks => {
 				if (tasks.length === 0) {
-					this.configureBuildTask().run();
+					this.runConfigureTasks();
 					return;
 				}
 				let defaultTask: Task;
+				let defaultEntry: TaskQuickPickEntry;
 				for (let task of tasks) {
 					if (task.group === TaskGroup.Build && task.isDefaultGroupEntry) {
 						defaultTask = task;
@@ -2149,20 +2202,27 @@ class TaskService extends EventEmitter implements ITaskService {
 					}
 				}
 				if (defaultTask) {
-					this.messageService.show(Severity.Info, nls.localize('TaskService.defaultBuildTaskExists', '{0} is already marked as the default build task.', Task.getQualifiedLabel(defaultTask)));
-					return;
+					tasks = [];
+					defaultEntry = {
+						label: nls.localize('TaskService.defaultBuildTaskExists', '{0} is already marked as the default build task', Task.getQualifiedLabel(defaultTask)),
+						task: defaultTask
+					};
 				}
-				this.showQuickPick(tasks, nls.localize('TaskService.pickDefaultBuildTask', 'Select the task to be used as the default build task'), true).then((task) => {
-					if (!task) {
-						return;
-					}
-					if (!CompositeTask.is(task)) {
-						this.customize(task, { group: { kind: 'build', isDefault: true } }, true);
-					}
-				});
+				this.showQuickPick(tasks,
+					nls.localize('TaskService.pickDefaultBuildTask', 'Select the task to be used as the default build task'), defaultEntry, true).then((task) => {
+						if (task === void 0) {
+							return;
+						}
+						if (task === defaultTask && CustomTask.is(task)) {
+							this.openConfig(task);
+						}
+						if (!CompositeTask.is(task)) {
+							this.customize(task, { group: { kind: 'build', isDefault: true } }, true);
+						}
+					});
 			}));
 		} else {
-			this.configureBuildTask().run();
+			this.runConfigureTasks();
 		}
 	}
 
@@ -2173,7 +2233,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (this._schemaVersion === JsonSchemaVersion.V2_0_0) {
 			this.tasks().then((tasks => {
 				if (tasks.length === 0) {
-					this.configureAction().run();
+					this.runConfigureTasks();
 				}
 				let defaultTask: Task;
 				for (let task of tasks) {
@@ -2186,7 +2246,7 @@ class TaskService extends EventEmitter implements ITaskService {
 					this.messageService.show(Severity.Info, nls.localize('TaskService.defaultTestTaskExists', '{0} is already marked as the default test task.', Task.getQualifiedLabel(defaultTask)));
 					return;
 				}
-				this.showQuickPick(tasks, nls.localize('TaskService.pickDefaultTestTask', 'Select the task to be used as the default test task'), true).then((task) => {
+				this.showQuickPick(tasks, nls.localize('TaskService.pickDefaultTestTask', 'Select the task to be used as the default test task'), undefined, true).then((task) => {
 					if (!task) {
 						return;
 					}
@@ -2196,7 +2256,7 @@ class TaskService extends EventEmitter implements ITaskService {
 				});
 			}));
 		} else {
-			this.configureAction().run();
+			this.runConfigureTasks();
 		}
 	}
 
@@ -2204,33 +2264,23 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (!this.canRunCommand()) {
 			return;
 		}
-		if (!this._taskSystem) {
-			this.messageService.show(Severity.Info, nls.localize('TaskService.noTaskIsRunning', 'No task is running.'));
-			return;
-		}
-		this.getActiveTasks().then((tasks) => {
-			if (tasks.length === 0) {
-				this.messageService.show(Severity.Info, nls.localize('TaskService.noTaskIsRunning', 'No task is running.'));
-			} else if (tasks.length === 1) {
-				if (this._taskSystem) {
-					this._taskSystem.revealTask(tasks[0]);
-				}
-			} else {
-				this.showQuickPick(tasks, nls.localize('TaskService.pickShowTask', 'Select the task to show its output'), false, true).then((task) => {
-					if (!task || !this._taskSystem) {
-						return;
-					}
-					this._taskSystem.revealTask(task);
-				});
+		this.showQuickPick(this.getActiveTasks(),
+			nls.localize('TaskService.pickShowTask', 'Select the task to show its output'),
+			{
+				label: nls.localize('TaskService.noTaskIsRunning', 'No task is running'),
+				task: null
+			},
+			false, true
+		).then((task) => {
+			if (task === void 0 || task === null) {
+				return;
 			}
+			this._taskSystem.revealTask(task);
 		});
 	}
 }
 
-
-let workbenchActionsRegistry = <IWorkbenchActionRegistry>Registry.as(WorkbenchActionExtensions.WorkbenchActions);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ConfigureTaskRunnerAction, ConfigureTaskRunnerAction.ID, ConfigureTaskRunnerAction.TEXT), 'Tasks: Configure Task Runner', tasksCategory);
-
+MenuRegistry.addCommand({ id: ConfigureTaskAction.ID, title: { value: ConfigureTaskAction.TEXT, original: 'Configure Task' }, category: { value: tasksCategory, original: 'Tasks' } });
 MenuRegistry.addCommand({ id: 'workbench.action.tasks.showLog', title: { value: nls.localize('ShowLogAction.label', "Show Task Log"), original: 'Show Task Log' }, category: { value: tasksCategory, original: 'Tasks' } });
 MenuRegistry.addCommand({ id: 'workbench.action.tasks.runTask', title: { value: nls.localize('RunTaskAction.label', "Run Task"), original: 'Run Task' }, category: { value: tasksCategory, original: 'Tasks' } });
 MenuRegistry.addCommand({ id: 'workbench.action.tasks.restartTask', title: { value: nls.localize('RestartTaskAction.label', "Restart Running Task"), original: 'Restart Running Task' }, category: { value: tasksCategory, original: 'Tasks' } });
