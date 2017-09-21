@@ -8,26 +8,25 @@ import { DocumentRangeFormattingEditProvider, OnTypeFormattingEditProvider, Form
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
 import { tsTextSpanToVsRange } from '../utils/convert';
-import { FormattingOptionsManager, Configuration } from './FormattingConfigurationManager';
+import FormattingOptionsManager from './FormattingConfigurationManager';
 
 export class TypeScriptFormattingProvider implements DocumentRangeFormattingEditProvider, OnTypeFormattingEditProvider {
-	private config: Configuration;
+	private enabled: boolean = true;
 	private formattingOptionsManager: FormattingOptionsManager;
 
 	public constructor(
 		private client: ITypescriptServiceClient
 	) {
-		this.config = Configuration.def();
 		this.formattingOptionsManager = new FormattingOptionsManager(client);
 	}
 
 	public updateConfiguration(config: WorkspaceConfiguration): void {
-		this.config = config.get('format', Configuration.def());
+		this.enabled = config.get('format.enabled', true);
 		this.formattingOptionsManager.updateConfiguration(config);
 	}
 
 	public isEnabled(): boolean {
-		return this.config.enable;
+		return this.enabled;
 	}
 
 	private async doFormat(
