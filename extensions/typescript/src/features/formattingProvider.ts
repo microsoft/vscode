@@ -19,7 +19,7 @@ export class TypeScriptFormattingProvider implements DocumentRangeFormattingEdit
 	) { }
 
 	public updateConfiguration(config: WorkspaceConfiguration): void {
-		this.enabled = config.get('format.enabled', true);
+		this.enabled = config.get('format.enable', true);
 	}
 
 	public isEnabled(): boolean {

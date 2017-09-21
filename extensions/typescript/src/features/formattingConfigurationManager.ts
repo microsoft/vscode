@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace as Workspace, FormattingOptions, TextDocument, CancellationToken, WorkspaceConfiguration } from 'vscode';
+import { workspace as Workspace, FormattingOptions, TextDocument, CancellationToken, WorkspaceConfiguration, window } from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
@@ -58,8 +58,7 @@ namespace FormattingConfiguration {
 }
 
 export default class FormattingConfigurationManager {
-	private jsConfig: FormattingConfiguration = FormattingConfiguration.def;
-	private tsConfig: FormattingConfiguration = FormattingConfiguration.def;
+	private config: FormattingConfiguration = FormattingConfiguration.def;
 
 	private formatOptions: { [key: string]: Proto.FormatCodeSettings | undefined; } = Object.create(null);
 
@@ -76,67 +75,72 @@ export default class FormattingConfigurationManager {
 		});
 	}
 
+	public async ensureFormatOptionsForDocument(
+		document: TextDocument,
+		token: CancellationToken | undefined
+	): Promise<void> {
+		for (const editor of window.visibleTextEditors) {
+			if (editor.document.fileName === document.fileName) {
+				const formattingOptions = { tabSize: editor.options.tabSize, insertSpaces: editor.options.insertSpaces } as FormattingOptions;
+				return this.ensureFormatOptions(document, formattingOptions, token);
+			}
+		}
+	}
+
 	public async ensureFormatOptions(
 		document: TextDocument,
 		options: FormattingOptions,
-		token: CancellationToken
-	): Promise<Proto.FormatCodeSettings> {
+		token: CancellationToken | undefined
+	): Promise<void> {
 		const key = document.uri.toString();
 		const currentOptions = this.formatOptions[key];
 		if (currentOptions && currentOptions.tabSize === options.tabSize && currentOptions.indentSize === options.tabSize && currentOptions.convertTabsToSpaces === options.insertSpaces) {
-			return currentOptions;
+			return;
 		}
 		const absPath = this.client.normalizePath(document.uri);
 		if (!absPath) {
 			return Object.create(null);
 		}
-		const formatOptions = this.getFormatOptions(document, options);
+		const formatOptions = this.getFormatOptions(options);
 		const args: Proto.ConfigureRequestArguments = {
 			file: absPath,
 			formatOptions: formatOptions
 		};
 		await this.client.execute('configure', args, token);
 		this.formatOptions[key] = formatOptions;
-		return formatOptions;
 	}
 
 	public updateConfiguration(config: WorkspaceConfiguration): void {
-		const newJsConfig = config.get('javascript.format', FormattingConfiguration.def);
-		const newTsConfig = config.get('typeScript.format', FormattingConfiguration.def);
+		const newConfig = config.get('format', FormattingConfiguration.def);
 
-		if (!FormattingConfiguration.equals(this.jsConfig, newJsConfig) || !FormattingConfiguration.equals(this.tsConfig, newTsConfig)) {
+		if (!FormattingConfiguration.equals(this.config, newConfig)) {
 			this.formatOptions = Object.create(null);
 		}
-		this.jsConfig = newJsConfig;
-		this.tsConfig = newTsConfig;
+		this.config = newConfig;
 	}
 
-	private getFormatOptions(
-		document: TextDocument,
-		options: FormattingOptions
-	): Proto.FormatCodeSettings {
-		const config = document.languageId === 'typescript' || document.languageId === 'typescriptreact' ? this.tsConfig : this.jsConfig;
+	private getFormatOptions(options: FormattingOptions): Proto.FormatCodeSettings {
 		return {
 			tabSize: options.tabSize,
 			indentSize: options.tabSize,
 			convertTabsToSpaces: options.insertSpaces,
 			// We can use \n here since the editor normalizes later on to its line endings.
 			newLineCharacter: '\n',
-			insertSpaceAfterCommaDelimiter: config.insertSpaceAfterCommaDelimiter,
-			insertSpaceAfterConstructor: config.insertSpaceAfterConstructor,
-			insertSpaceAfterSemicolonInForStatements: config.insertSpaceAfterSemicolonInForStatements,
-			insertSpaceBeforeAndAfterBinaryOperators: config.insertSpaceBeforeAndAfterBinaryOperators,
-			insertSpaceAfterKeywordsInControlFlowStatements: config.insertSpaceAfterKeywordsInControlFlowStatements,
-			insertSpaceAfterFunctionKeywordForAnonymousFunctions: config.insertSpaceAfterFunctionKeywordForAnonymousFunctions,
-			insertSpaceBeforeFunctionParenthesis: config.insertSpaceBeforeFunctionParenthesis,
-			insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: config.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis,
-			insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: config.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets,
-			insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces: config.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces,
-			insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: config.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces,
-			insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces: config.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces,
-			insertSpaceAfterTypeAssertion: config.insertSpaceAfterTypeAssertion,
-			placeOpenBraceOnNewLineForFunctions: config.placeOpenBraceOnNewLineForFunctions,
-			placeOpenBraceOnNewLineForControlBlocks: config.placeOpenBraceOnNewLineForControlBlocks,
+			insertSpaceAfterCommaDelimiter: this.config.insertSpaceAfterCommaDelimiter,
+			insertSpaceAfterConstructor: this.config.insertSpaceAfterConstructor,
+			insertSpaceAfterSemicolonInForStatements: this.config.insertSpaceAfterSemicolonInForStatements,
+			insertSpaceBeforeAndAfterBinaryOperators: this.config.insertSpaceBeforeAndAfterBinaryOperators,
+			insertSpaceAfterKeywordsInControlFlowStatements: this.config.insertSpaceAfterKeywordsInControlFlowStatements,
+			insertSpaceAfterFunctionKeywordForAnonymousFunctions: this.config.insertSpaceAfterFunctionKeywordForAnonymousFunctions,
+			insertSpaceBeforeFunctionParenthesis: this.config.insertSpaceBeforeFunctionParenthesis,
+			insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: this.config.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis,
+			insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: this.config.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets,
+			insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces: this.config.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces,
+			insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: this.config.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces,
+			insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces: this.config.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces,
+			insertSpaceAfterTypeAssertion: this.config.insertSpaceAfterTypeAssertion,
+			placeOpenBraceOnNewLineForFunctions: this.config.placeOpenBraceOnNewLineForFunctions,
+			placeOpenBraceOnNewLineForControlBlocks: this.config.placeOpenBraceOnNewLineForControlBlocks,
 		};
 	}
 }
