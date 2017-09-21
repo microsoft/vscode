@@ -181,9 +181,9 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 		}
 
 		let args: string[] = commandConfig.args ? commandConfig.args.slice() : [];
-		args = this.resolveVariables(args);
-		let command: string = this.resolveVariable(commandConfig.name);
-		this.childProcess = new LineProcess(command, args, commandConfig.runtime === RuntimeType.Shell, this.resolveOptions(commandConfig.options));
+		args = this.resolveVariables(task, args);
+		let command: string = this.resolveVariable(task, commandConfig.name);
+		this.childProcess = new LineProcess(command, args, commandConfig.runtime === RuntimeType.Shell, this.resolveOptions(task, commandConfig.options));
 		telemetryEvent.command = this.childProcess.getSanitizedCommand();
 		// we have no problem matchers defined. So show the output log
 		let reveal = task.command.presentation.reveal;
@@ -196,7 +196,7 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 			this.log(`running command${prompt} ${command} ${args.join(' ')}`);
 		}
 		if (task.isBackground) {
-			let watchingProblemMatcher = new WatchingProblemCollector(this.resolveMatchers(task.problemMatchers), this.markerService, this.modelService);
+			let watchingProblemMatcher = new WatchingProblemCollector(this.resolveMatchers(task, task.problemMatchers), this.markerService, this.modelService);
 			let toUnbind: IDisposable[] = [];
 			let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.Watching, group: task.group };
 			let eventCounter: number = 0;
@@ -259,7 +259,7 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 		} else {
 			let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.SingleRun, group: task.group };
 			this.emit(TaskSystemEvents.Active, event);
-			let startStopProblemMatcher = new StartStopProblemCollector(this.resolveMatchers(task.problemMatchers), this.markerService, this.modelService);
+			let startStopProblemMatcher = new StartStopProblemCollector(this.resolveMatchers(task, task.problemMatchers), this.markerService, this.modelService);
 			this.activeTask = task;
 			this.activeTaskPromise = this.childProcess.start().then((success): ITaskSummary => {
 				this.childProcessEnded();
@@ -329,14 +329,14 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 		return false;
 	}
 
-	private resolveOptions(options: CommandOptions): CommandOptions {
-		let result: CommandOptions = { cwd: this.resolveVariable(options.cwd) };
+	private resolveOptions(task: CustomTask, options: CommandOptions): CommandOptions {
+		let result: CommandOptions = { cwd: this.resolveVariable(task, options.cwd) };
 		if (options.env) {
 			result.env = Object.create(null);
 			Object.keys(options.env).forEach((key) => {
 				let value: any = options.env[key];
 				if (Types.isString(value)) {
-					result.env[key] = this.resolveVariable(value);
+					result.env[key] = this.resolveVariable(task, value);
 				} else {
 					result.env[key] = value.toString();
 				}
@@ -345,11 +345,11 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 		return result;
 	}
 
-	private resolveVariables(value: string[]): string[] {
-		return value.map(s => this.resolveVariable(s));
+	private resolveVariables(task: CustomTask, value: string[]): string[] {
+		return value.map(s => this.resolveVariable(task, s));
 	}
 
-	private resolveMatchers(values: (string | ProblemMatcher)[]): ProblemMatcher[] {
+	private resolveMatchers(task: CustomTask, values: (string | ProblemMatcher)[]): ProblemMatcher[] {
 		if (values === void 0 || values === null || values.length === 0) {
 			return [];
 		}
@@ -373,16 +373,15 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 				result.push(matcher);
 			} else {
 				let copy = Objects.clone(matcher);
-				copy.filePrefix = this.resolveVariable(copy.filePrefix);
+				copy.filePrefix = this.resolveVariable(task, copy.filePrefix);
 				result.push(copy);
 			}
 		});
 		return result;
 	}
 
-	private resolveVariable(value: string): string {
-		// TODO@Dirk adopt new configuration resolver service https://github.com/Microsoft/vscode/issues/31365
-		return this.configurationResolverService.resolve(this.contextService.getWorkspace().folders[0], value);
+	private resolveVariable(task: CustomTask, value: string): string {
+		return this.configurationResolverService.resolve(Task.getWorkspaceFolder(task), value);
 	}
 
 	public log(value: string): void {

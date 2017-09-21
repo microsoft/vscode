@@ -1540,7 +1540,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		}
 		if (config) {
 			if (this.hasDetectorSupport(config)) {
-				return new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService, config).detect(true).then((value): WorkspaceFolderConfigurationResult => {
+				return new ProcessRunnerDetector(workspaceFolder, this.fileService, this.contextService, this.configurationResolverService, config).detect(true).then((value): WorkspaceFolderConfigurationResult => {
 					let hasErrors = this.printStderr(value.stderr);
 					let detectedConfig = value.config;
 					if (!detectedConfig) {
@@ -1566,7 +1566,7 @@ class TaskService extends EventEmitter implements ITaskService {
 				return TPromise.as({ workspaceFolder, config, hasErrors: false });
 			}
 		} else {
-			return new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService).detect(true).then((value) => {
+			return new ProcessRunnerDetector(workspaceFolder, this.fileService, this.contextService, this.configurationResolverService).detect(true).then((value) => {
 				let hasErrors = this.printStderr(value.stderr);
 				return { workspaceFolder, config: value.config, hasErrors };
 			});
