@@ -363,17 +363,19 @@ export class ExtensionsListView extends CollapsibleView {
 
 	// Sorts the firsPage of the pager in the same order as given array of extension ids
 	private sortFirstPage(pager: IPager<IExtension>, ids: string[]) {
-		if (ids.length === pager.pageSize) {
-			let newArray = new Array(pager.pageSize);
-			for (let i = 0; i < pager.pageSize; i++) {
-				let index = ids.indexOf(pager.firstPage[i].id);
-				if (index === -1) {
-					return;
-				}
-				newArray[index] = pager.firstPage[i];
-			}
-			pager.firstPage = newArray;
+		if (ids.length !== pager.pageSize) {
+			return;
 		}
+		ids = ids.map(x => x.toLowerCase());
+		let newFirstPage = new Array(pager.pageSize);
+		for (let i = 0; i < pager.pageSize; i++) {
+			let index = ids.indexOf(pager.firstPage[i].id.toLowerCase());
+			if (index === -1) {
+				return; // Something went wrong, Abort! Abort!
+			}
+			newFirstPage[index] = pager.firstPage[i];
+		}
+		pager.firstPage = newFirstPage;
 	}
 
 	private setModel(model: IPagedModel<IExtension>) {
