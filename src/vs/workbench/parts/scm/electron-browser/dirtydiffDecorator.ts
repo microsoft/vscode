@@ -26,7 +26,7 @@ import URI from 'vs/base/common/uri';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ISCMService, ISCMRepository } from 'vs/workbench/services/scm/common/scm';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
-import { registerThemingParticipant, ITheme, ICssStyleCollector, themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, ITheme, ICssStyleCollector, themeColorFromId, IThemeService } from 'vs/platform/theme/common/themeService';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
 import { Color, RGBA } from 'vs/base/common/color';
@@ -40,6 +40,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Position } from 'vs/editor/common/core/position';
 import { rot } from 'vs/base/common/numbers';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { peekViewBorder, peekViewTitleBackground, peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/referenceSearch/browser/referencesWidget';
 
 export interface IModelRegistry {
 	getModel(editorModel: common.IEditorModel): DirtyDiffModel;
@@ -49,8 +50,11 @@ export const isDirtyDiffVisible = new RawContextKey<boolean>('dirtyDiffVisible',
 
 class DirtyDiffWidget extends PeekViewWidget {
 
-	constructor(editor: ICodeEditor) {
+	constructor(editor: ICodeEditor, themeService: IThemeService) {
 		super(editor, {});
+
+		themeService.onThemeChange(this._applyTheme, this, this._disposables);
+		this._applyTheme(themeService.getTheme());
 
 		this.create();
 		this.setTitle('HELLO');
@@ -59,6 +63,17 @@ class DirtyDiffWidget extends PeekViewWidget {
 	showChange(change: common.IChange): void {
 		const position = new Position(change.modifiedEndLineNumber, 1);
 		this.show(position, 10);
+	}
+
+	private _applyTheme(theme: ITheme) {
+		let borderColor = theme.getColor(peekViewBorder) || Color.transparent;
+		this.style({
+			arrowColor: borderColor,
+			frameColor: borderColor,
+			headerBackgroundColor: theme.getColor(peekViewTitleBackground) || Color.transparent,
+			primaryHeadingColor: theme.getColor(peekViewTitleForeground),
+			secondaryHeadingColor: theme.getColor(peekViewTitleInfoForeground)
+		});
 	}
 }
 
@@ -153,7 +168,8 @@ export class DirtyDiffController implements common.IEditorContribution {
 
 	constructor(
 		private editor: ICodeEditor,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IThemeService private themeService: IThemeService
 	) {
 		this.isDirtyDiffVisible = isDirtyDiffVisible.bindTo(contextKeyService);
 	}
@@ -229,7 +245,7 @@ export class DirtyDiffController implements common.IEditorContribution {
 
 		this.changeIndex = -1;
 		this.model = model;
-		this.widget = new DirtyDiffWidget(this.editor);
+		this.widget = new DirtyDiffWidget(this.editor, this.themeService);
 		this.isDirtyDiffVisible.set(true);
 
 		// TODO react on model changes
