@@ -399,9 +399,6 @@ export class SearchWidget extends Widget {
 	private _onDidChange: Emitter<string> = this._register(new Emitter<string>());
 	public readonly onDidChange: Event<string> = this._onDidChange.event;
 
-	private _onNavigate: Emitter<boolean> = this._register(new Emitter<boolean>());
-	public readonly onNavigate: Event<boolean> = this._onNavigate.event;
-
 	private _onFocus: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onFocus: Event<void> = this._onFocus.event;
 
@@ -447,7 +444,6 @@ export class SearchWidget extends Widget {
 		const searchInput = DOM.append(this.searchContainer, DOM.$('div.settings-search-input'));
 		this.inputBox = this._register(this.createInputBox(searchInput));
 		this._register(this.inputBox.onDidChange(value => this._onDidChange.fire(value)));
-		this.onkeydown(this.inputBox.inputElement, (e) => this._onKeyDown(e));
 	}
 
 	protected createInputBox(parent: HTMLElement): InputBox {
@@ -502,24 +498,6 @@ export class SearchWidget extends Widget {
 
 	public setValue(value: string): string {
 		return this.inputBox.value = value;
-	}
-
-	private _onKeyDown(keyboardEvent: IKeyboardEvent): void {
-		let handled = false;
-		switch (keyboardEvent.keyCode) {
-			case KeyCode.Enter:
-				this._onNavigate.fire(keyboardEvent.shiftKey);
-				handled = true;
-				break;
-			case KeyCode.Escape:
-				this.clear();
-				handled = true;
-				break;
-		}
-		if (handled) {
-			keyboardEvent.preventDefault();
-			keyboardEvent.stopPropagation();
-		}
 	}
 
 	public dispose(): void {

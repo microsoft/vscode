@@ -23,7 +23,7 @@ import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import {
 	IPreferencesService, ISettingsGroup, ISetting, IFilterResult,
-	CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, SETTINGS_EDITOR_COMMAND_SEARCH, SETTINGS_EDITOR_COMMAND_FOCUS_FILE, ISettingsEditorModel
+	CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, SETTINGS_EDITOR_COMMAND_SEARCH, SETTINGS_EDITOR_COMMAND_FOCUS_FILE, ISettingsEditorModel, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_FOCUS_NEXT_SETTING, SETTINGS_EDITOR_COMMAND_FOCUS_PREVIOUS_SETTING
 } from 'vs/workbench/parts/preferences/common/preferences';
 import { SettingsEditorModel, DefaultSettingsEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
@@ -140,7 +140,6 @@ export class PreferencesEditor extends BaseEditor {
 			focusKey: this.focusSettingsContextKey
 		}));
 		this._register(this.searchWidget.onDidChange(value => this.filterPreferences(value.trim())));
-		this._register(this.searchWidget.onNavigate(shift => this.preferencesRenderers.focusNextPreference(!shift)));
 		this._register(this.searchWidget.onFocus(() => this.lastFocusedWidget = this.searchWidget));
 		this.lastFocusedWidget = this.searchWidget;
 
@@ -154,6 +153,24 @@ export class PreferencesEditor extends BaseEditor {
 		this.preferencesRenderers = this._register(new PreferencesRenderers());
 		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => this.onWorkspaceFoldersChanged()));
 		this._register(this.workspaceContextService.onDidChangeWorkbenchState(() => this.onWorkbenchStateChanged()));
+	}
+
+	public clearSearchResults(): void {
+		if (this.searchWidget) {
+			this.searchWidget.clear();
+		}
+	}
+
+	public focusNextResult(): void {
+		if (this.preferencesRenderers) {
+			this.preferencesRenderers.focusNextPreference(true);
+		}
+	}
+
+	public focusPreviousResult(): void {
+		if (this.preferencesRenderers) {
+			this.preferencesRenderers.focusNextPreference(false);
+		}
 	}
 
 	public setInput(newInput: PreferencesEditorInput, options?: EditorOptions): TPromise<void> {
@@ -959,3 +976,54 @@ const focusSettingsFileEditorCommand = new FocusSettingsFileEditorCommand({
 	kbOpts: { primary: KeyCode.DownArrow }
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule(focusSettingsFileEditorCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
+
+class ClearSearchResultsCommand extends SettingsCommand {
+
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		const preferencesEditor = this.getPreferencesEditor(accessor);
+		if (preferencesEditor) {
+			preferencesEditor.clearSearchResults();
+		}
+	}
+
+}
+const clearSearchResultsCommand = new ClearSearchResultsCommand({
+	id: SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS,
+	precondition: CONTEXT_SETTINGS_SEARCH_FOCUS,
+	kbOpts: { primary: KeyCode.Escape }
+});
+KeybindingsRegistry.registerCommandAndKeybindingRule(clearSearchResultsCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
+
+class FocusNextSearchResultCommand extends SettingsCommand {
+
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		const preferencesEditor = this.getPreferencesEditor(accessor);
+		if (preferencesEditor) {
+			preferencesEditor.focusNextResult();
+		}
+	}
+
+}
+const focusNextSearchResultCommand = new FocusNextSearchResultCommand({
+	id: SETTINGS_EDITOR_COMMAND_FOCUS_NEXT_SETTING,
+	precondition: CONTEXT_SETTINGS_SEARCH_FOCUS,
+	kbOpts: { primary: KeyCode.Enter }
+});
+KeybindingsRegistry.registerCommandAndKeybindingRule(focusNextSearchResultCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
+
+class FocusPreviousSearchResultCommand extends SettingsCommand {
+
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		const preferencesEditor = this.getPreferencesEditor(accessor);
+		if (preferencesEditor) {
+			preferencesEditor.focusPreviousResult();
+		}
+	}
+
+}
+const focusPreviousSearchResultCommand = new FocusPreviousSearchResultCommand({
+	id: SETTINGS_EDITOR_COMMAND_FOCUS_PREVIOUS_SETTING,
+	precondition: CONTEXT_SETTINGS_SEARCH_FOCUS,
+	kbOpts: { primary: KeyMod.Shift | KeyCode.Enter }
+});
+KeybindingsRegistry.registerCommandAndKeybindingRule(focusPreviousSearchResultCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
