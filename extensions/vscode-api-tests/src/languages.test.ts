@@ -69,7 +69,7 @@ suite('languages namespace tests', () => {
 		let jsonDocumentFilter = [{ language: 'json', pattern: '**/package.json' }, { language: 'json', pattern: '**/bower.json' }, { language: 'json', pattern: '**/.bower.json' }];
 
 		let r1 = languages.registerCompletionItemProvider(jsonDocumentFilter, {
-		provideCompletionItems(document: TextDocument, position: Position, token: CancellationToken): CompletionItem[] {
+			provideCompletionItems: (document: TextDocument, position: Position, token: CancellationToken): CompletionItem[] => {
 				let proposal = new CompletionItem('foo');
 				proposal.kind = CompletionItemKind.Property;
 				ran = true;
