@@ -8,16 +8,18 @@
 declare module 'vscode' {
 
 	export interface OpenDialogOptions {
-		defaultResource?: Uri;
+		defaultUri?: Uri;
 		openLabel?: string;
 		openFiles?: boolean;
 		openFolders?: boolean;
 		openMany?: boolean;
+		filters: { [name: string]: string[] };
 	}
 
 	export interface SaveDialogOptions {
-		defaultResource?: Uri;
+		defaultUri?: Uri;
 		saveLabel?: string;
+		filters: { [name: string]: string[] };
 	}
 
 	export namespace window {
