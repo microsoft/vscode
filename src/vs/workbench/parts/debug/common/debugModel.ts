@@ -959,8 +959,7 @@ export class Model implements IModel {
 			if (previousOutput && previousOutput.value === '') {
 				// remove potential empty lines between different output types
 				this.replElements.pop();
-			}
-			if (previousOutput instanceof OutputElement && severity === previousOutput.severity && toAdd.length && toAdd[0].sourceData === previousOutput.sourceData) {
+			} else if (previousOutput instanceof OutputElement && severity === previousOutput.severity && toAdd.length && toAdd[0].sourceData === previousOutput.sourceData) {
 				previousOutput.value += toAdd.shift().value;
 			}
 			this.addReplElements(toAdd);
