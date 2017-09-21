@@ -78,15 +78,15 @@ namespace Configuration {
 	}
 }
 
-export class TypeScriptFormattingProvider implements DocumentRangeFormattingEditProvider, OnTypeFormattingEditProvider {
+export class FormattingOptionsManager {
 	private config: Configuration;
-	private formatOptions: { [key: string]: Proto.FormatCodeSettings | undefined; };
+
+	private formatOptions: { [key: string]: Proto.FormatCodeSettings | undefined; } = Object.create(null);
 
 	public constructor(
 		private client: ITypescriptServiceClient
 	) {
 		this.config = Configuration.def();
-		this.formatOptions = Object.create(null);
 		Workspace.onDidCloseTextDocument((textDocument) => {
 			let key = textDocument.uri.toString();
 			// When a document gets closed delete the cached formatting options.
@@ -97,20 +97,7 @@ export class TypeScriptFormattingProvider implements DocumentRangeFormattingEdit
 		});
 	}
 
-	public updateConfiguration(config: WorkspaceConfiguration): void {
-		let newConfig = config.get('format', Configuration.def());
-
-		if (!Configuration.equals(this.config, newConfig)) {
-			this.config = newConfig;
-			this.formatOptions = Object.create(null);
-		}
-	}
-
-	public isEnabled(): boolean {
-		return this.config.enable;
-	}
-
-	private async ensureFormatOptions(
+	public async ensureFormatOptions(
 		document: TextDocument,
 		options: FormattingOptions,
 		token: CancellationToken
@@ -134,13 +121,70 @@ export class TypeScriptFormattingProvider implements DocumentRangeFormattingEdit
 		return formatOptions;
 	}
 
+	public updateConfiguration(config: WorkspaceConfiguration): void {
+		let newConfig = config.get('format', Configuration.def());
+
+		if (!Configuration.equals(this.config, newConfig)) {
+			this.config = newConfig;
+			this.formatOptions = Object.create(null);
+		}
+	}
+
+
+	private getFormatOptions(options: FormattingOptions): Proto.FormatCodeSettings {
+		return {
+			tabSize: options.tabSize,
+			indentSize: options.tabSize,
+			convertTabsToSpaces: options.insertSpaces,
+			// We can use \n here since the editor normalizes later on to its line endings.
+			newLineCharacter: '\n',
+			insertSpaceAfterCommaDelimiter: this.config.insertSpaceAfterCommaDelimiter,
+			insertSpaceAfterConstructor: this.config.insertSpaceAfterConstructor,
+			insertSpaceAfterSemicolonInForStatements: this.config.insertSpaceAfterSemicolonInForStatements,
+			insertSpaceBeforeAndAfterBinaryOperators: this.config.insertSpaceBeforeAndAfterBinaryOperators,
+			insertSpaceAfterKeywordsInControlFlowStatements: this.config.insertSpaceAfterKeywordsInControlFlowStatements,
+			insertSpaceAfterFunctionKeywordForAnonymousFunctions: this.config.insertSpaceAfterFunctionKeywordForAnonymousFunctions,
+			insertSpaceBeforeFunctionParenthesis: this.config.insertSpaceBeforeFunctionParenthesis,
+			insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: this.config.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis,
+			insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: this.config.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets,
+			insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces: this.config.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces,
+			insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: this.config.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces,
+			insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces: this.config.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces,
+			insertSpaceAfterTypeAssertion: this.config.insertSpaceAfterTypeAssertion,
+			placeOpenBraceOnNewLineForFunctions: this.config.placeOpenBraceOnNewLineForFunctions,
+			placeOpenBraceOnNewLineForControlBlocks: this.config.placeOpenBraceOnNewLineForControlBlocks,
+
+		};
+	}
+}
+
+export class TypeScriptFormattingProvider implements DocumentRangeFormattingEditProvider, OnTypeFormattingEditProvider {
+	private config: Configuration;
+	private formattingOptionsManager: FormattingOptionsManager;
+
+	public constructor(
+		private client: ITypescriptServiceClient
+	) {
+		this.config = Configuration.def();
+		this.formattingOptionsManager = new FormattingOptionsManager(client);
+	}
+
+	public updateConfiguration(config: WorkspaceConfiguration): void {
+		this.config = config.get('format', Configuration.def());
+		this.formattingOptionsManager.updateConfiguration(config);
+	}
+
+	public isEnabled(): boolean {
+		return this.config.enable;
+	}
+
 	private async doFormat(
 		document: TextDocument,
 		options: FormattingOptions,
 		args: Proto.FormatRequestArgs,
 		token: CancellationToken
 	): Promise<TextEdit[]> {
-		await this.ensureFormatOptions(document, options, token);
+		await this.formattingOptionsManager.ensureFormatOptions(document, options, token);
 		try {
 			const response = await this.client.execute('format', args, token);
 			if (response.body) {
@@ -190,7 +234,7 @@ export class TypeScriptFormattingProvider implements DocumentRangeFormattingEdit
 			key: ch
 		};
 
-		await this.ensureFormatOptions(document, options, token);
+		await this.formattingOptionsManager.ensureFormatOptions(document, options, token);
 		return this.client.execute('formatonkey', args, token).then((response): TextEdit[] => {
 			let edits = response.body;
 			let result: TextEdit[] = [];
@@ -222,32 +266,6 @@ export class TypeScriptFormattingProvider implements DocumentRangeFormattingEdit
 
 	private codeEdit2SingleEditOperation(edit: Proto.CodeEdit): TextEdit {
 		return new TextEdit(tsTextSpanToVsRange(edit), edit.newText);
-	}
-
-	private getFormatOptions(options: FormattingOptions): Proto.FormatCodeSettings {
-		return {
-			tabSize: options.tabSize,
-			indentSize: options.tabSize,
-			convertTabsToSpaces: options.insertSpaces,
-			// We can use \n here since the editor normalizes later on to its line endings.
-			newLineCharacter: '\n',
-			insertSpaceAfterCommaDelimiter: this.config.insertSpaceAfterCommaDelimiter,
-			insertSpaceAfterConstructor: this.config.insertSpaceAfterConstructor,
-			insertSpaceAfterSemicolonInForStatements: this.config.insertSpaceAfterSemicolonInForStatements,
-			insertSpaceBeforeAndAfterBinaryOperators: this.config.insertSpaceBeforeAndAfterBinaryOperators,
-			insertSpaceAfterKeywordsInControlFlowStatements: this.config.insertSpaceAfterKeywordsInControlFlowStatements,
-			insertSpaceAfterFunctionKeywordForAnonymousFunctions: this.config.insertSpaceAfterFunctionKeywordForAnonymousFunctions,
-			insertSpaceBeforeFunctionParenthesis: this.config.insertSpaceBeforeFunctionParenthesis,
-			insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: this.config.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis,
-			insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: this.config.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets,
-			insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces: this.config.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces,
-			insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: this.config.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces,
-			insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces: this.config.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces,
-			insertSpaceAfterTypeAssertion: this.config.insertSpaceAfterTypeAssertion,
-			placeOpenBraceOnNewLineForFunctions: this.config.placeOpenBraceOnNewLineForFunctions,
-			placeOpenBraceOnNewLineForControlBlocks: this.config.placeOpenBraceOnNewLineForControlBlocks,
-
-		};
 	}
 }
 
