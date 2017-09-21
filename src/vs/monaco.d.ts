@@ -4237,7 +4237,7 @@ declare module monaco.languages {
 		/**
 		 * How the completion was triggered.
 		 */
-		readonly trigger: 'auto' | 'manual';
+		triggerKind: SuggestTriggerKind;
 		/**
 		 * Character that triggered the completion item provider.
 		 *
@@ -4511,6 +4511,14 @@ declare module monaco.languages {
 		 * to the word range at the position when omitted.
 		 */
 		provideHover(model: editor.IReadOnlyModel, position: Position, token: CancellationToken): Hover | Thenable<Hover>;
+	}
+
+	/**
+	 * How a suggest provider was triggered.
+	 */
+	export enum SuggestTriggerKind {
+		Invoke = 0,
+		TriggerCharacter = 1,
 	}
 
 	/**

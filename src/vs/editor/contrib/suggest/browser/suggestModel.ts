@@ -11,7 +11,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICommonCodeEditor, IModel, IWordAtPosition } from 'vs/editor/common/editorCommon';
-import { ISuggestSupport, SuggestRegistry, StandardTokenType } from 'vs/editor/common/modes';
+import { ISuggestSupport, SuggestRegistry, StandardTokenType, SuggestTriggerKind } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import { provideSuggestionItems, getSuggestionComparator, ISuggestionItem } from './suggest';
 import { CompletionModel } from './completionModel';
@@ -358,7 +358,7 @@ export class SuggestModel implements IDisposable {
 			onlyFrom,
 			{
 				triggerCharacter: context.triggerCharacter,
-				trigger: context.auto ? 'auto' : 'manual'
+				triggerKind: context.triggerCharacter ? SuggestTriggerKind.TriggerCharacter : SuggestTriggerKind.Invoke
 			}
 		).then(items => {
 

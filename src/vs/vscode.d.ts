@@ -2719,6 +2719,20 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * How a [completion provider](#CompletionItemProvider) was triggered
+	 */
+	export enum CompletionTriggerKind {
+		/**
+		 * Completion was triggered normally.
+		 */
+		Invoke = 0,
+		/**
+		 * Completion was triggered by a trigger character.
+		 */
+		TriggerCharacter = 1
+	}
+
+	/**
 	 * Contains additional information about the context in which
 	 * [completion provider](#CompletionItemProvider.provideCompletionItems) is triggered.
 	 */
@@ -2726,7 +2740,7 @@ declare module 'vscode' {
 		/**
 		 * How the completion was triggered.
 		 */
-		readonly trigger: 'auto' | 'manual';
+		readonly triggerKind: CompletionTriggerKind;
 
 		/**
 		 * Character that triggered the completion item provider.

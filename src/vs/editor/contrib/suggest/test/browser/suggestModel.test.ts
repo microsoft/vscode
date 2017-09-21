@@ -11,7 +11,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Model } from 'vs/editor/common/model/model';
 import { ICommonCodeEditor, Handler } from 'vs/editor/common/editorCommon';
-import { ISuggestSupport, ISuggestResult, SuggestRegistry } from 'vs/editor/common/modes';
+import { ISuggestSupport, ISuggestResult, SuggestRegistry, SuggestTriggerKind } from 'vs/editor/common/modes';
 import { SuggestModel, LineContext } from 'vs/editor/contrib/suggest/browser/suggestModel';
 import { MockCodeEditor, MockScopeLocation } from 'vs/editor/test/common/mocks/mockCodeEditor';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -458,12 +458,12 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 		});
 	});
 
-	test('Trigger characters is provided in suggest context', function () {
+	test('Trigger character is provided in suggest context', function () {
 		let triggerCharacter = '';
 		disposables.push(SuggestRegistry.register({ scheme: 'test' }, {
 			triggerCharacters: ['.'],
 			provideCompletionItems(doc, pos, context) {
-				assert.equal(context.trigger, 'auto');
+				assert.equal(context.triggerKind, SuggestTriggerKind.TriggerCharacter);
 				triggerCharacter = context.triggerCharacter;
 				return <ISuggestResult>{
 					currentWord: '',

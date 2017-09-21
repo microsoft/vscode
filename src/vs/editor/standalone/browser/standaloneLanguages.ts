@@ -546,7 +546,7 @@ export interface CompletionContext {
 	/**
 	 * How the completion was triggered.
 	 */
-	readonly trigger: 'auto' | 'manual';
+	triggerKind: modes.SuggestTriggerKind;
 
 	/**
 	 * Character that triggered the completion item provider.
@@ -610,6 +610,7 @@ function convertKind(kind: CompletionItemKind): modes.SuggestionType {
 	}
 	return 'property';
 }
+
 class SuggestAdapter {
 
 	private _provider: CompletionItemProvider;
@@ -758,6 +759,7 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		DocumentHighlightKind: modes.DocumentHighlightKind,
 		CompletionItemKind: CompletionItemKind,
 		SymbolKind: modes.SymbolKind,
-		IndentAction: IndentAction
+		IndentAction: IndentAction,
+		SuggestTriggerKind: modes.SuggestTriggerKind
 	};
 }

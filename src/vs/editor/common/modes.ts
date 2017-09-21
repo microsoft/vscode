@@ -248,10 +248,18 @@ export interface ISuggestResult {
 }
 
 /**
+ * How a suggest provider was triggered.
+ */
+export enum SuggestTriggerKind {
+	Invoke = 0,
+	TriggerCharacter = 1
+}
+
+/**
  * @internal
  */
 export interface SuggestContext {
-	trigger: 'auto' | 'manual';
+	triggerKind: SuggestTriggerKind;
 	triggerCharacter?: string;
 }
 

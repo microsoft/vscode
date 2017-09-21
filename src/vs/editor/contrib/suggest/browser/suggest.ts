@@ -12,7 +12,7 @@ import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IModel, IEditorContribution, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
-import { ISuggestResult, ISuggestSupport, ISuggestion, SuggestRegistry, SuggestContext } from 'vs/editor/common/modes';
+import { ISuggestResult, ISuggestSupport, ISuggestion, SuggestRegistry, SuggestContext, SuggestTriggerKind } from 'vs/editor/common/modes';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
@@ -57,7 +57,7 @@ export function provideSuggestionItems(model: IModel, position: Position, snippe
 		supports.unshift([_snippetSuggestSupport]);
 	}
 
-	const suggestConext = context || { trigger: 'auto' };
+	const suggestConext = context || { triggerKind: SuggestTriggerKind.Invoke };
 
 	// add suggestions from contributed providers - providers are ordered in groups of
 	// equal score and once a group produces a result the process stops

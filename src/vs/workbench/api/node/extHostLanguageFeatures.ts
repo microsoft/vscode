@@ -492,7 +492,7 @@ class SuggestAdapter {
 		const pos = TypeConverters.toPosition(position);
 
 		return asWinJsPromise<vscode.CompletionItem[] | vscode.CompletionList>(token => {
-			return this._provider.provideCompletionItems(doc, pos, token, context);
+			return this._provider.provideCompletionItems(doc, pos, token, TypeConverters.CompletionContext.from(context));
 		}).then(value => {
 
 			const _id = this._idPool++;
