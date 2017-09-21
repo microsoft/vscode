@@ -57,7 +57,7 @@ namespace FormattingConfiguration {
 	};
 }
 
-export default class FormattingOptionsManager {
+export default class FormattingConfigurationManager {
 	private jsConfig: FormattingConfiguration = FormattingConfiguration.def;
 	private tsConfig: FormattingConfiguration = FormattingConfiguration.def;
 

@@ -34,7 +34,7 @@ import VersionStatus from './utils/versionStatus';
 import { getContributedTypeScriptServerPlugins, TypeScriptServerPlugin } from './utils/plugins';
 import { openOrCreateConfigFile, isImplicitProjectConfigFile } from './utils/tsconfig';
 import { tsLocationToVsPosition } from './utils/convert';
-import FormattingOptionsManager from './features/formattingConfigurationManager';
+import FormattingConfigurationManager from './features/formattingConfigurationManager';
 
 interface LanguageDescription {
 	id: string;
@@ -175,7 +175,7 @@ class LanguageProvider {
 	private syntaxDiagnostics: ObjectMap<Diagnostic[]>;
 	private readonly currentDiagnostics: DiagnosticCollection;
 	private readonly bufferSyncSupport: BufferSyncSupport;
-	private readonly formattingOptionsManager: FormattingOptionsManager;
+	private readonly formattingOptionsManager: FormattingConfigurationManager;
 
 	private readonly typingsStatus: TypingsStatus;
 	private readonly ataProgressReporter: AtaProgressReporter;
@@ -191,7 +191,7 @@ class LanguageProvider {
 		private readonly client: TypeScriptServiceClient,
 		private readonly description: LanguageDescription
 	) {
-		this.formattingOptionsManager = new FormattingOptionsManager(client);
+		this.formattingOptionsManager = new FormattingConfigurationManager(client);
 		this.bufferSyncSupport = new BufferSyncSupport(client, description.modeIds, {
 			delete: (file: string) => {
 				this.currentDiagnostics.delete(client.asUrl(file));

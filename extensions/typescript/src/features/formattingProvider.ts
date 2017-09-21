@@ -8,14 +8,14 @@ import { DocumentRangeFormattingEditProvider, OnTypeFormattingEditProvider, Form
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
 import { tsTextSpanToVsRange } from '../utils/convert';
-import FormattingOptionsManager from './formattingConfigurationManager';
+import FormattingConfigurationManager from './formattingConfigurationManager';
 
 export class TypeScriptFormattingProvider implements DocumentRangeFormattingEditProvider, OnTypeFormattingEditProvider {
 	private enabled: boolean = true;
 
 	public constructor(
 		private readonly client: ITypescriptServiceClient,
-		private readonly formattingOptionsManager: FormattingOptionsManager
+		private readonly formattingOptionsManager: FormattingConfigurationManager
 	) { }
 
 	public updateConfiguration(config: WorkspaceConfiguration): void {
