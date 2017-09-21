@@ -6,11 +6,11 @@
 
 import * as path from 'path';
 
-import { workspace, languages, ExtensionContext, extensions, Uri, TextDocument, ColorInformation, Color, ColorPresentation, TextEdit } from 'vscode';
+import { workspace, languages, ExtensionContext, extensions, Uri, TextDocument, ColorInformation, Color, ColorPresentation } from 'vscode';
 import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
-import { ConfigurationFeature } from 'vscode-languageclient/lib/proposed';
-import { DocumentColorRequest } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
+import { ConfigurationFeature } from 'vscode-languageclient/lib/configuration.proposed';
+import { DocumentColorRequest, DocumentColorParams, ColorPresentationParams, ColorPresentationRequest } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
 
 
 import * as nls from 'vscode-nls';
@@ -116,14 +116,12 @@ export function activate(context: ExtensionContext) {
 
 		client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context));
 
-		var _toTwoDigitHex = function (n: number): string {
-			const r = n.toString(16);
-			return r.length !== 2 ? '0' + r : r;
-		};
 		// register color provider
 		context.subscriptions.push(languages.registerColorProvider(documentSelector, {
 			provideDocumentColors(document: TextDocument): Thenable<ColorInformation[]> {
-				let params = client.code2ProtocolConverter.asDocumentSymbolParams(document);
+				let params: DocumentColorParams = {
+					textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document)
+				};
 				return client.sendRequest(DocumentColorRequest.type, params).then(symbols => {
 					return symbols.map(symbol => {
 						let range = client.protocol2CodeConverter.asRange(symbol.range);
@@ -132,19 +130,19 @@ export function activate(context: ExtensionContext) {
 					});
 				});
 			},
-			provideColorPresentations(document: TextDocument, colorInfo: ColorInformation): ColorPresentation[] | Thenable<ColorPresentation[]> {
-				let result: ColorPresentation[] = [];
-				let color = colorInfo.color;
-				let label;
-
-				if (color.alpha === 1) {
-					label = `#${_toTwoDigitHex(Math.round(color.red * 255))}${_toTwoDigitHex(Math.round(color.green * 255))}${_toTwoDigitHex(Math.round(color.blue * 255))}`;
-				} else {
-					label = `#${_toTwoDigitHex(Math.round(color.red * 255))}${_toTwoDigitHex(Math.round(color.green * 255))}${_toTwoDigitHex(Math.round(color.blue * 255))}${_toTwoDigitHex(Math.round(color.alpha * 255))}`;
-				}
-
-				result.push({ label: label, textEdit: new TextEdit(colorInfo.range, label) });
-				return result;
+			provideColorPresentations(document: TextDocument, colorInfo: ColorInformation): Thenable<ColorPresentation[]> {
+				let params: ColorPresentationParams = {
+					textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document),
+					colorInfo: { range: client.code2ProtocolConverter.asRange(colorInfo.range), color: colorInfo.color }
+				};
+				return client.sendRequest(ColorPresentationRequest.type, params).then(presentations => {
+					return presentations.map(p => {
+						let presentation = new ColorPresentation(p.label);
+						presentation.textEdit = p.textEdit && client.protocol2CodeConverter.asTextEdit(p.textEdit);
+						presentation.additionalTextEdits = p.additionalTextEdits && client.protocol2CodeConverter.asTextEdits(p.additionalTextEdits);
+						return presentation;
+					});
+				});
 			}
 		}));
 	});
