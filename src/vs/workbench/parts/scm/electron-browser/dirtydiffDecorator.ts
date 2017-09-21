@@ -38,9 +38,11 @@ import { IContextKeyService, IContextKey, ContextKeyExpr, RawContextKey } from '
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 import { rot } from 'vs/base/common/numbers';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { peekViewBorder, peekViewTitleBackground, peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/referenceSearch/browser/referencesWidget';
+import { append, $ } from 'vs/base/browser/dom';
 
 export interface IModelRegistry {
 	getModel(editorModel: common.IEditorModel): DirtyDiffModel;
@@ -50,7 +52,9 @@ export const isDirtyDiffVisible = new RawContextKey<boolean>('dirtyDiffVisible',
 
 class DirtyDiffWidget extends PeekViewWidget {
 
-	constructor(editor: ICodeEditor, themeService: IThemeService) {
+	private contents: HTMLElement;
+
+	constructor(editor: ICodeEditor, private model: DirtyDiffModel, themeService: IThemeService) {
 		super(editor, {});
 
 		themeService.onThemeChange(this._applyTheme, this, this._disposables);
@@ -61,8 +65,24 @@ class DirtyDiffWidget extends PeekViewWidget {
 	}
 
 	showChange(change: common.IChange): void {
+		const originalModel = this.model.originalModel;
+
+		if (!originalModel) {
+			return;
+		}
+
+		const range = new Range(change.originalStartLineNumber, 0, change.originalEndLineNumber, Number.MAX_VALUE);
+		const text = originalModel.getValueInRange(range);
+		this.contents.textContent = text;
+
 		const position = new Position(change.modifiedEndLineNumber, 1);
 		this.show(position, 10);
+
+	}
+
+
+	protected _fillBody(container: HTMLElement): void {
+		this.contents = append(container, $('.text'));
 	}
 
 	private _applyTheme(theme: ITheme) {
@@ -245,7 +265,7 @@ export class DirtyDiffController implements common.IEditorContribution {
 
 		this.changeIndex = -1;
 		this.model = model;
-		this.widget = new DirtyDiffWidget(this.editor, this.themeService);
+		this.widget = new DirtyDiffWidget(this.editor, model, this.themeService);
 		this.isDirtyDiffVisible.set(true);
 
 		// TODO react on model changes
@@ -415,7 +435,12 @@ class DirtyDiffDecorator {
 
 export class DirtyDiffModel {
 
-	private baselineModel: common.IModel;
+	private _originalModel: common.IModel;
+
+	get originalModel(): common.IModel {
+		return this._originalModel;
+	}
+
 	private diffDelayer: ThrottledDelayer<common.IChange[]>;
 	private _originalURIPromise: TPromise<URI>;
 	private repositoryDisposables = new Set<IDisposable[]>();
@@ -470,11 +495,11 @@ export class DirtyDiffModel {
 		return this.diffDelayer
 			.trigger(() => this.diff())
 			.then((changes: common.IChange[]) => {
-				if (!this.model || this.model.isDisposed() || !this.baselineModel || this.baselineModel.isDisposed()) {
+				if (!this.model || this.model.isDisposed() || !this._originalModel || this._originalModel.isDisposed()) {
 					return undefined; // disposed
 				}
 
-				if (this.baselineModel.getValueLength() === 0) {
+				if (this._originalModel.getValueLength() === 0) {
 					changes = [];
 				}
 
@@ -505,12 +530,13 @@ export class DirtyDiffModel {
 		this._originalURIPromise = this.getOriginalResource()
 			.then(originalUri => {
 				if (!originalUri) {
+					this._originalModel = null;
 					return null;
 				}
 
 				return this.textModelResolverService.createModelReference(originalUri)
 					.then(ref => {
-						this.baselineModel = ref.object.textEditorModel;
+						this._originalModel = ref.object.textEditorModel;
 
 						this.toDispose.push(ref);
 						this.toDispose.push(ref.object.textEditorModel.onDidChangeContent(() => this.triggerDiff()));
@@ -540,7 +566,7 @@ export class DirtyDiffModel {
 		this.toDispose = dispose(this.toDispose);
 
 		this.model = null;
-		this.baselineModel = null;
+		this._originalModel = null;
 
 		if (this.diffDelayer) {
 			this.diffDelayer.cancel();
