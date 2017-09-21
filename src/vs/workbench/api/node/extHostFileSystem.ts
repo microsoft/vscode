@@ -66,7 +66,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	$mkdir(handle: number, resource: URI): TPromise<void, any> {
 		return TPromise.as<any>(this._provider.get(handle).mkdir(resource));
 	}
-	$readdir(handle: number, resource: URI): TPromise<IStat[], any> {
+	$readdir(handle: number, resource: URI): TPromise<[URI, IStat][], any> {
 		return TPromise.as<any>(this._provider.get(handle).readdir(resource));
 	}
 	$rmdir(handle: number, resource: URI): TPromise<void, any> {

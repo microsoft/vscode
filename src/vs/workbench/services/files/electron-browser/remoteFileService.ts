@@ -25,12 +25,13 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 
-function toIFileStat(provider: IFileSystemProvider, stat: IStat, recurse?: (stat: IStat) => boolean): TPromise<IFileStat> {
-	const ret: IFileStat = {
+function toIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], recurse?: (tuple: [URI, IStat]) => boolean): TPromise<IFileStat> {
+	const [resource, stat] = tuple;
+	const fileStat: IFileStat = {
 		isDirectory: false,
 		hasChildren: false,
-		resource: stat.resource,
-		name: basename(stat.resource.path),
+		resource: resource,
+		name: basename(resource.path),
 		mtime: stat.mtime,
 		size: stat.size,
 		etag: stat.mtime.toString(29) + stat.size.toString(31),
@@ -38,38 +39,38 @@ function toIFileStat(provider: IFileSystemProvider, stat: IStat, recurse?: (stat
 
 	if (stat.type === FileType.File) {
 		// done
-		return TPromise.as(ret);
+		return TPromise.as(fileStat);
 
 	} else {
 		// dir -> resolve
-		return provider.readdir(stat.resource).then(items => {
-			ret.isDirectory = true;
-			ret.hasChildren = items.length > 0;
+		return provider.readdir(resource).then(entries => {
+			fileStat.isDirectory = true;
+			fileStat.hasChildren = entries.length > 0;
 
-			if (recurse && recurse(stat)) {
+			if (recurse && recurse([resource, stat])) {
 				// resolve children if requested
-				return TPromise.join(items.map(stat => toIFileStat(provider, stat, recurse))).then(children => {
-					ret.children = children;
-					return ret;
+				return TPromise.join(entries.map(stat => toIFileStat(provider, stat, recurse))).then(children => {
+					fileStat.children = children;
+					return fileStat;
 				});
 			} else {
-				return ret;
+				return fileStat;
 			}
 		});
 	}
 }
 
-export function toDeepIFileStat(provider: IFileSystemProvider, stat: IStat, to: URI[]): TPromise<IFileStat> {
+export function toDeepIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], to: URI[]): TPromise<IFileStat> {
 
 	const trie = new StringTrieMap<true>();
-	trie.insert(stat.resource.toString(), true);
+	trie.insert(tuple[0].toString(), true);
 
 	if (!isFalsyOrEmpty(to)) {
 		to.forEach(uri => trie.insert(uri.toString(), true));
 	}
 
-	return toIFileStat(provider, stat, candidate => {
-		const sub = trie.findSuperstr(candidate.resource.toString());
+	return toIFileStat(provider, tuple, candidate => {
+		const sub = trie.findSuperstr(candidate[0].toString());
 		return !!sub;
 	});
 }
@@ -193,7 +194,7 @@ export class RemoteFileService extends FileService {
 		let promises: TPromise<any>[] = [];
 		for (const item of toResolve) {
 			promises.push(provider.stat(item.resource)
-				.then(stat => toDeepIFileStat(provider, stat, item.options && item.options.resolveTo))
+				.then(stat => toDeepIFileStat(provider, [item.resource, stat], item.options && item.options.resolveTo))
 				.then(stat => result.push({ stat, success: true })));
 		}
 		return TPromise.join(promises).then(() => result);
@@ -221,7 +222,7 @@ export class RemoteFileService extends FileService {
 
 	private async _doResolveContent(provider: IFileSystemProvider, resource: URI): TPromise<IStreamContent> {
 
-		const stat = await toIFileStat(provider, await provider.stat(resource));
+		const stat = await toIFileStat(provider, [resource, await provider.stat(resource)]);
 
 		const encoding = this.getEncoding(resource);
 		const stream = decodeStream(encoding);
@@ -267,7 +268,7 @@ export class RemoteFileService extends FileService {
 		const encoding = this.getEncoding(resource, options.encoding);
 		await provider.write(resource, encode(content, encoding));
 		const stat = await provider.stat(resource);
-		const fileStat = await toIFileStat(provider, stat);
+		const fileStat = await toIFileStat(provider, [resource, stat]);
 		return fileStat;
 	}
 
@@ -306,7 +307,7 @@ export class RemoteFileService extends FileService {
 		} else {
 			const provider = await this._withProvider(resource);
 			await provider.mkdir(resource);
-			const stat = await toIFileStat(provider, await provider.stat(resource));
+			const stat = await toIFileStat(provider, [resource, await provider.stat(resource)]);
 			this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, stat));
 			return stat;
 		}
@@ -414,7 +415,7 @@ export class RemoteFileService extends FileService {
 			await provider.write(resource, new Uint8Array(0));
 			stat = await provider.stat(resource);
 		}
-		return toIFileStat(provider, stat);
+		return toIFileStat(provider, [resource, stat]);
 	}
 
 	// TODO@Joh - file watching on demand!

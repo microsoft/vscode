@@ -486,7 +486,7 @@ export interface ExtHostFileSystemShape {
 	$unlink(handle: number, resource: URI): TPromise<void>;
 	$rename(handle: number, resource: URI, target: URI): TPromise<void>;
 	$mkdir(handle: number, resource: URI): TPromise<void>;
-	$readdir(handle: number, resource: URI): TPromise<IStat[]>;
+	$readdir(handle: number, resource: URI): TPromise<[URI, IStat][]>;
 	$rmdir(handle: number, resource: URI): TPromise<void>;
 }
 

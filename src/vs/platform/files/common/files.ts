@@ -166,7 +166,7 @@ export enum FileType {
 	Symlink = 2
 }
 export interface IStat {
-	resource: URI;
+	id: number | string;
 	mtime: number;
 	size: number;
 	type: FileType;
@@ -185,7 +185,7 @@ export interface IFileSystemProvider {
 	unlink(resource: URI): TPromise<void>;
 	rename(resource: URI, target: URI): TPromise<void>;
 	mkdir(resource: URI): TPromise<void>;
-	readdir(resource: URI): TPromise<IStat[]>;
+	readdir(resource: URI): TPromise<[URI, IStat][]>;
 	rmdir(resource: URI): TPromise<void>;
 }
 
