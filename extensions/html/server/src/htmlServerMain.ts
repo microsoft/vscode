@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, RequestType, DocumentRangeFormattingRequest, Disposable, DocumentSelector, GetConfigurationParams, TextDocumentPositionParams, ServerCapabilities, Position } from 'vscode-languageserver';
+import { createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, RequestType, DocumentRangeFormattingRequest, Disposable, DocumentSelector, TextDocumentPositionParams, ServerCapabilities, Position } from 'vscode-languageserver';
 import { DocumentContext } from 'vscode-html-languageservice';
 import { TextDocument, Diagnostic, DocumentLink, SymbolInformation } from 'vscode-languageserver-types';
 import { getLanguageModes, LanguageModes, Settings } from './modes/languageModes';
 
-import { GetConfigurationRequest } from 'vscode-languageserver-protocol/lib/protocol.configuration.proposed';
-import { DocumentColorRequest, ServerCapabilities as CPServerCapabilities, ColorInformation } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
+import { ConfigurationRequest, ConfigurationParams } from 'vscode-languageserver-protocol/lib/protocol.configuration.proposed';
+import { DocumentColorRequest, ServerCapabilities as CPServerCapabilities, ColorInformation, ColorPresentationRequest } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
 
 import { format } from './modes/formatting';
 import { pushAll } from './utils/arrays';
@@ -58,8 +58,8 @@ function getDocumentSettings(textDocument: TextDocument, needsDocumentSettings: 
 		let promise = documentSettings[textDocument.uri];
 		if (!promise) {
 			let scopeUri = textDocument.uri;
-			let configRequestParam: GetConfigurationParams = { items: [{ scopeUri, section: 'css' }, { scopeUri, section: 'html' }, { scopeUri, section: 'javascript' }] };
-			promise = connection.sendRequest(GetConfigurationRequest.type, configRequestParam).then(s => ({ css: s[0], html: s[1], javascript: s[2] }));
+			let configRequestParam: ConfigurationParams = { items: [{ scopeUri, section: 'css' }, { scopeUri, section: 'html' }, { scopeUri, section: 'javascript' }] };
+			promise = connection.sendRequest(ConfigurationRequest.type, configRequestParam).then(s => ({ css: s[0], html: s[1], javascript: s[2] }));
 			documentSettings[textDocument.uri] = promise;
 		}
 		return promise;
@@ -321,6 +321,17 @@ connection.onRequest(DocumentColorRequest.type, params => {
 		});
 	}
 	return infos;
+});
+
+connection.onRequest(ColorPresentationRequest.type, params => {
+	let document = documents.get(params.textDocument.uri);
+	if (document) {
+		let mode = languageModes.getModeAtPosition(document, params.colorInfo.range.start);
+		if (mode && mode.getColorPresentations) {
+			return mode.getColorPresentations(document, params.colorInfo);
+		}
+	}
+	return [];
 });
 
 connection.onRequest(TagCloseRequest.type, params => {
