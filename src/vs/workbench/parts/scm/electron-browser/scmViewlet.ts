@@ -595,6 +595,11 @@ export class RepositoryPanel extends ViewletPanel {
 	private pin(): void {
 		const activeEditor = this.editorService.getActiveEditor();
 		const activeEditorInput = this.editorService.getActiveEditorInput();
+
+		if (!activeEditor) {
+			return;
+		}
+
 		this.editorGroupService.pinEditor(activeEditor.position, activeEditorInput);
 	}
 
