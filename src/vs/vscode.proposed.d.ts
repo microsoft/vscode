@@ -206,13 +206,10 @@ declare module 'vscode' {
 		// more...
 		//
 		utimes(resource: Uri, mtime: number): Thenable<FileStat>;
+
 		stat(resource: Uri): Thenable<FileStat>;
 
-		// todo@remote
-		// offset - byte offset to start
-		// count - number of bytes to read
-		// Thenable<number> - number of bytes actually red
-		read(resource: Uri, progress: Progress<Uint8Array>): Thenable<void>;
+		read(resource: Uri, offset: number, length: number, progress: Progress<Uint8Array>): Thenable<number>;
 
 		// todo@remote
 		// offset - byte offset to start
@@ -231,6 +228,7 @@ declare module 'vscode' {
 		// todo@remote
 		// Thenable<FileStat>
 		mkdir(resource: Uri): Thenable<FileStat>;
+
 		readdir(resource: Uri): Thenable<[Uri, FileStat][]>;
 
 		// todo@remote

@@ -90,9 +90,9 @@ class RemoteFileSystemProvider implements IFileSystemProvider {
 	stat(resource: URI): TPromise<IStat, any> {
 		return this._proxy.$stat(this._handle, resource);
 	}
-	read(resource: URI, progress: IProgress<Uint8Array>): TPromise<void, any> {
+	read(resource: URI, offset: number, count: number, progress: IProgress<Uint8Array>): TPromise<number, any> {
 		this._reads.set(resource.toString(), progress);
-		return this._proxy.$read(this._handle, resource);
+		return this._proxy.$read(this._handle, offset, count, resource);
 	}
 	reportFileChunk(resource: URI, chunk: number[]): void {
 		this._reads.get(resource.toString()).report(Buffer.from(chunk));

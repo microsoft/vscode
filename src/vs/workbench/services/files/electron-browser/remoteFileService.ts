@@ -224,7 +224,7 @@ export class RemoteFileService extends FileService {
 				const encoding = this.getEncoding(resource);
 				const stream = decodeStream(encoding);
 
-				provider.read(resource, new Progress<Buffer>(chunk => stream.write(chunk))).then(() => {
+				provider.read(resource, 0, Number.MAX_VALUE, new Progress<Buffer>(chunk => stream.write(chunk))).then(() => {
 					stream.end();
 				}, err => {
 					stream.emit('error', err);

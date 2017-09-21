@@ -180,7 +180,7 @@ export interface IFileSystemProvider {
 	//
 	utimes(resource: URI, mtime: number): TPromise<IStat>;
 	stat(resource: URI): TPromise<IStat>;
-	read(resource: URI, progress: IProgress<Uint8Array>): TPromise<void>;
+	read(resource: URI, offset: number, count: number, progress: IProgress<Uint8Array>): TPromise<number>;
 	write(resource: URI, content: Uint8Array): TPromise<void>;
 	move(from: URI, to: URI): TPromise<IStat>;
 	mkdir(resource: URI): TPromise<IStat>;
