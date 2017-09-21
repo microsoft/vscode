@@ -17,7 +17,7 @@ import URI from 'vs/base/common/uri';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { WORKSPACE_FILTER } from 'vs/platform/workspaces/common/workspaces';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
+import { IMessageService } from 'vs/platform/message/common/message';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isLinux } from 'vs/base/common/platform';
 import { dirname } from 'vs/base/common/paths';
@@ -203,17 +203,10 @@ export class SaveWorkspaceAsAction extends BaseWorkspacesAction {
 	}
 
 	public run(): TPromise<any> {
-		const workspaceState = this.contextService.getWorkbenchState();
-		if (workspaceState === WorkbenchState.EMPTY) {
-			this.messageService.show(Severity.Info, nls.localize('saveEmptyWorkspaceNotSupported', "Please open a workspace first to save."));
-
-			return TPromise.as(null);
-		}
-
 		const configPath = this.getNewWorkspaceConfigPath();
 		if (configPath) {
-			switch (workspaceState) {
-
+			switch (this.contextService.getWorkbenchState()) {
+				case WorkbenchState.EMPTY:
 				case WorkbenchState.FOLDER:
 					const workspaceFolders = this.contextService.getWorkspace().folders.map(root => root.uri.fsPath);
 					return this.workspaceEditingService.createAndEnterWorkspace(workspaceFolders, configPath);
