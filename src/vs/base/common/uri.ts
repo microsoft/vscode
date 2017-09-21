@@ -21,6 +21,35 @@ function encodeNoop(str: string): string {
 }
 
 
+const _schemePattern = /^\w[\w\d+.-]*$/;
+const _singleSlashStart = /^\//;
+const _doubleSlashStart = /^\/\//;
+
+function _validateUri(ret: URI): void {
+	// scheme, https://tools.ietf.org/html/rfc3986#section-3.1
+	// ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )
+	if (ret.scheme && !_schemePattern.test(ret.scheme)) {
+		throw new Error('[UriError]: Scheme contains illegal characters.');
+	}
+
+	// path, http://tools.ietf.org/html/rfc3986#section-3.3
+	// If a URI contains an authority component, then the path component
+	// must either be empty or begin with a slash ("/") character.  If a URI
+	// does not contain an authority component, then the path cannot begin
+	// with two slash characters ("//").
+	if (ret.path) {
+		if (ret.authority) {
+			if (!_singleSlashStart.test(ret.path)) {
+				throw new Error('[UriError]: If a URI contains an authority component, then the path component must either be empty or begin with a slash ("/") character');
+			}
+		} else {
+			if (_doubleSlashStart.test(ret.path)) {
+				throw new Error('[UriError]: If a URI does not contain an authority component, then the path cannot begin with two slash characters ("//")');
+			}
+		}
+	}
+}
+
 const _empty = '';
 const _slash = '/';
 const _regexp = /^(([^:/?#]+?):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?/;
@@ -97,7 +126,7 @@ export default class URI {
 		this.query = query || _empty;
 		this.fragment = fragment || _empty;
 
-		URI._validate(this);
+		_validateUri(this);
 	}
 
 	// ---- filesystem path -----------------------
@@ -216,35 +245,6 @@ export default class URI {
 			components.query,
 			components.fragment,
 		);
-	}
-
-	private static _schemePattern = /^\w[\w\d+.-]*$/;
-	private static _singleSlashStart = /^\//;
-	private static _doubleSlashStart = /^\/\//;
-
-	private static _validate(ret: URI): void {
-		// scheme, https://tools.ietf.org/html/rfc3986#section-3.1
-		// ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )
-		if (ret.scheme && !URI._schemePattern.test(ret.scheme)) {
-			throw new Error('[UriError]: Scheme contains illegal characters.');
-		}
-
-		// path, http://tools.ietf.org/html/rfc3986#section-3.3
-		// If a URI contains an authority component, then the path component
-		// must either be empty or begin with a slash ("/") character.  If a URI
-		// does not contain an authority component, then the path cannot begin
-		// with two slash characters ("//").
-		if (ret.path) {
-			if (ret.authority) {
-				if (!URI._singleSlashStart.test(ret.path)) {
-					throw new Error('[UriError]: If a URI contains an authority component, then the path component must either be empty or begin with a slash ("/") character');
-				}
-			} else {
-				if (URI._doubleSlashStart.test(ret.path)) {
-					throw new Error('[UriError]: If a URI does not contain an authority component, then the path cannot begin with two slash characters ("//")');
-				}
-			}
-		}
 	}
 
 	// ---- printing/externalize ---------------------------
