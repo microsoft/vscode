@@ -43,7 +43,7 @@ import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { getCodeEditor as getEditorWidget } from 'vs/editor/common/services/codeEditorService';
+import { getCodeEditor as getEditorWidget, getCodeOrDiffEditor } from 'vs/editor/common/services/codeEditorService';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
@@ -873,28 +873,38 @@ export class ChangeModeAction extends Action {
 
 			// Change mode for active editor
 			activeEditor = this.editorService.getActiveEditor();
-			const editorWidget = getEditorWidget(activeEditor);
-			if (editorWidget) {
-				const models: IModel[] = [];
-
-				const textModel = editorWidget.getModel();
-				if (textModel) {
-					models.push(textModel);
+			const codeOrDiffEditor = getCodeOrDiffEditor(activeEditor);
+			const models: IModel[] = [];
+			if (codeOrDiffEditor.codeEditor) {
+				const codeEditorModel = codeOrDiffEditor.codeEditor.getModel();
+				if (codeEditorModel) {
+					models.push(codeEditorModel);
 				}
-
-				// Find mode
-				let mode: TPromise<IMode>;
-				if (pick === autoDetectMode) {
-					mode = this.modeService.getOrCreateModeByFilenameOrFirstLine(toResource(activeEditor.input, { supportSideBySide: true, filter: ['file', 'untitled'] }).fsPath, textModel.getLineContent(1));
-				} else {
-					mode = this.modeService.getOrCreateModeByLanguageName(pick.label);
-				}
-
-				// Change mode
-				models.forEach(textModel => {
-					this.modelService.setMode(textModel, mode);
-				});
 			}
+			if (codeOrDiffEditor.diffEditor) {
+				const diffEditorModel = codeOrDiffEditor.diffEditor.getModel();
+				if (diffEditorModel) {
+					if (diffEditorModel.original) {
+						models.push(diffEditorModel.original);
+					}
+					if (diffEditorModel.modified) {
+						models.push(diffEditorModel.modified);
+					}
+				}
+			}
+
+			// Find mode
+			let mode: TPromise<IMode>;
+			if (pick === autoDetectMode) {
+				mode = this.modeService.getOrCreateModeByFilenameOrFirstLine(toResource(activeEditor.input, { supportSideBySide: true, filter: ['file', 'untitled'] }).fsPath, textModel.getLineContent(1));
+			} else {
+				mode = this.modeService.getOrCreateModeByLanguageName(pick.label);
+			}
+
+			// Change mode
+			models.forEach(textModel => {
+				this.modelService.setMode(textModel, mode);
+			});
 		});
 	}
 
