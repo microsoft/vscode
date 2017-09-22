@@ -3932,9 +3932,9 @@ declare module 'vscode' {
 	export class Task {
 
 		/**
-		 * Creates a new task.
+		 * ~~Creates a new task.~~
 		 *
-		 * @deprecated: Use the new constructors that allow specifying a target for the task.
+		 * @deprecated Use the new constructors that allow specifying a target for the task.
 		 *
 		 * @param definition The task definition as defined in the taskDefinitions extension point.
 		 * @param scope The task's name. Is presented in the user interface.
