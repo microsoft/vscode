@@ -55,6 +55,7 @@ const _slash = '/';
 const _regexp = /^(([^:/?#]+?):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?/;
 const _driveLetterPath = /^\/[a-zA-Z]:/;
 const _upperCaseDrive = /^(\/)?([A-Z]:)/;
+const _driveLetter = /^[a-zA-Z]:/;
 
 /**
  * Uniform Resource Identifier (URI) http://tools.ietf.org/html/rfc3986.
@@ -217,20 +218,26 @@ export default class URI {
 
 		// check for authority as used in UNC shares
 		// or use the path as given
-		if (path[0] === _slash && path[0] === path[1]) {
+		if (path[0] === _slash && path[1] === _slash) {
 			let idx = path.indexOf(_slash, 2);
 			if (idx === -1) {
 				authority = path.substring(2);
-				path = _empty;
+				path = _slash;
 			} else {
 				authority = path.substring(2, idx);
-				path = path.substring(idx);
+				path = path.substring(idx) || _slash;
 			}
 		}
 
 		// Ensure that path starts with a slash
 		// or that it is at least a slash
-		if (path[0] !== _slash) {
+		if (_driveLetter.test(path)) {
+			path = _slash + path;
+
+		} else if (path[0] !== _slash) {
+			// tricky -> makes invalid paths
+			// but otherwise we have to stop
+			// allowing relative paths...
 			path = _slash + path;
 		}
 
