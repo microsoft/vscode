@@ -7,7 +7,7 @@
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { join, basename } from 'path';
+import { join, basename, dirname } from 'path';
 import { readdir, rimraf, stat } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -73,28 +73,45 @@ export class NodeCachedDataManager {
 	private _manageCachedDataSoon(): void {
 		// Cached data is stored as user data and we run a cleanup task everytime
 		// the editor starts. The strategy is to delete all files that are older than
-		// 3 months
+		// 3 months (1 week respectively)
 
-		const { nodeCachedDataDir } = this._environmentService;
-		if (!nodeCachedDataDir) {
+		if (!this._environmentService.nodeCachedDataDir) {
 			return;
 		}
+
+		// The folder which contains folders of cached data. Each of these folder is per
+		// version
+		const nodeCachedDataRootDir = dirname(this._environmentService.nodeCachedDataDir);
+		const nodeCachedDataCurrent = basename(this._environmentService.nodeCachedDataDir);
 
 		let handle = setTimeout(() => {
 			handle = undefined;
 
-			readdir(nodeCachedDataDir).then(entries => {
+			readdir(nodeCachedDataRootDir).then(entries => {
 
 				const now = Date.now();
-				const deletes = entries.map(entry => {
-					const path = join(nodeCachedDataDir, entry);
-					return stat(path).then(stats => {
-						const diff = now - stats.mtime.getTime();
-						if (diff > NodeCachedDataManager._DataMaxAge) {
-							return rimraf(path);
-						}
-						return undefined;
-					});
+				const deletes: TPromise<any>[] = [];
+
+				entries.forEach(entry => {
+					// name check
+					// * name is a git commit id (40 hex characters)
+					// * not the current cached data folder
+					if (entry.match(/^[a-f0-9]{40}$/i) && entry !== nodeCachedDataCurrent) {
+
+						const path = join(nodeCachedDataRootDir, entry);
+						deletes.push(stat(path).then(stats => {
+							// stat check
+							// * only directories
+							// * only when old enough
+							if (stats.isDirectory()) {
+								const diff = now - stats.mtime.getTime();
+								if (diff > NodeCachedDataManager._DataMaxAge) {
+									return rimraf(path);
+								}
+							}
+							return undefined;
+						}));
+					}
 				});
 
 				return TPromise.join(deletes);
