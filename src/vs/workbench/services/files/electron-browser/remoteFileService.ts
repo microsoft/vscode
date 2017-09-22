@@ -14,7 +14,7 @@ import { groupBy, isFalsyOrEmpty, distinct } from 'vs/base/common/arrays';
 import { compare } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
 import { Progress } from 'vs/platform/progress/common/progress';
-import { decodeStream, encode } from 'vs/base/node/encoding';
+import { decodeStream, encode, UTF8, UTF8_with_bom } from 'vs/base/node/encoding';
 import { StringTrieMap } from 'vs/base/common/map';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -24,6 +24,8 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { maxBufferLen, detectMimeAndEncodingFromBuffer } from 'vs/base/node/mime';
+import { MIME_BINARY } from 'vs/base/common/mime';
 
 function toIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], recurse?: (tuple: [URI, IStat]) => boolean): TPromise<IFileStat> {
 	const [resource, stat] = tuple;
@@ -217,28 +219,73 @@ export class RemoteFileService extends FileService {
 		}
 	}
 
-	private _doResolveContent(resource: URI, options: IResolveContentOptions): TPromise<IStreamContent> {
+	private _doResolveContent(resource: URI, options: IResolveContentOptions = Object.create(null)): TPromise<IStreamContent> {
 		return this._withProvider(resource).then(provider => {
+
 			return this.resolveFile(resource).then(fileStat => {
+				const guessEncoding = options.autoGuessEncoding;
+				const count = maxBufferLen(options);
+				const chunks: Buffer[] = [];
 
-				const encoding = this.getEncoding(resource);
-				const stream = decodeStream(encoding);
+				return provider.read(
+					resource,
+					0, count,
+					new Progress<Buffer>(chunk => chunks.push(chunk))
+				).then(bytesRead => {
+					// send to bla
+					return detectMimeAndEncodingFromBuffer({ bytesRead, buffer: Buffer.concat(chunks) }, guessEncoding);
 
-				provider.read(resource, 0, Number.MAX_VALUE, new Progress<Buffer>(chunk => stream.write(chunk))).then(() => {
-					stream.end();
-				}, err => {
-					stream.emit('error', err);
-					stream.end();
+				}).then(detected => {
+					if (options.acceptTextOnly && detected.mimes.indexOf(MIME_BINARY) >= 0) {
+						throw new Error('binary');
+					}
+
+					let preferredEncoding: string;
+					if (options && options.encoding) {
+						if (detected.encoding === UTF8 && options.encoding === UTF8) {
+							preferredEncoding = UTF8_with_bom; // indicate the file has BOM if we are to resolve with UTF 8
+						} else {
+							preferredEncoding = options.encoding; // give passed in encoding highest priority
+						}
+					} else if (detected.encoding) {
+						if (detected.encoding === UTF8) {
+							preferredEncoding = UTF8_with_bom; // if we detected UTF-8, it can only be because of a BOM
+						} else {
+							preferredEncoding = detected.encoding;
+						}
+						// todo@remote - encoding logic should not be kept
+						// hostage inside the node file service
+						// } else if (super.configuredEncoding(resource) === UTF8_with_bom) {
+					} else {
+						preferredEncoding = UTF8; // if we did not detect UTF 8 BOM before, this can only be UTF 8 then
+					}
+
+					// const encoding = this.getEncoding(resource);
+					const stream = decodeStream(preferredEncoding);
+
+					// start with what we have already read
+					// and have a new stream to read the rest
+					let offset = 0;
+					for (const chunk of chunks) {
+						stream.write(chunk);
+						offset += chunk.length;
+					}
+					provider.read(resource, offset, Number.MAX_VALUE, new Progress<Buffer>(chunk => stream.write(chunk))).then(() => {
+						stream.end();
+					}, err => {
+						stream.emit('error', err);
+						stream.end();
+					});
+
+					return {
+						encoding: preferredEncoding,
+						value: stream,
+						resource: fileStat.resource,
+						name: fileStat.name,
+						etag: fileStat.etag,
+						mtime: fileStat.mtime,
+					};
 				});
-
-				return {
-					encoding,
-					value: stream,
-					resource: fileStat.resource,
-					name: fileStat.name,
-					etag: fileStat.etag,
-					mtime: fileStat.mtime,
-				};
 			});
 		});
 	}
