@@ -350,9 +350,9 @@ export function createApiFactory(
 			showQuickPick(items: any, options: vscode.QuickPickOptions, token?: vscode.CancellationToken) {
 				return extHostQuickOpen.showQuickPick(items, options, token);
 			},
-			showWorkspaceFolderPick(options: vscode.WorkspaceFolderPickOptions) {
+			showWorkspaceFolderPick: proposedApiFunction(extension, (options: vscode.WorkspaceFolderPickOptions) => {
 				return extHostQuickOpen.showWorkspaceFolderPick(options);
-			},
+			}),
 			showInputBox(options?: vscode.InputBoxOptions, token?: vscode.CancellationToken) {
 				return extHostQuickOpen.showInput(options, token);
 			},
