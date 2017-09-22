@@ -53,8 +53,6 @@ import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 import { ExtHostThreadService } from 'vs/workbench/services/thread/node/extHostThreadService';
 import { ProxyIdentifier } from 'vs/workbench/services/thread/common/threadService';
 import { ExtHostDialogs } from 'vs/workbench/api/node/extHostDialogs';
-import { toLanguageSelector } from 'vs/workbench/api/node/extHostTypeConverters';
-import { IRelativePattern } from 'vs/base/common/glob';
 import { ExtHostFileSystem } from 'vs/workbench/api/node/extHostFileSystem';
 import { FileChangeType, FileType } from 'vs/platform/files/common/files';
 
@@ -232,7 +230,7 @@ export function createApiFactory(
 				return extHostLanguages.getLanguages();
 			},
 			match(selector: vscode.DocumentSelector, document: vscode.TextDocument): number {
-				return score(toLanguageSelector(selector), <any>document.uri, document.languageId);
+				return score(selector, <any>document.uri, document.languageId);
 			},
 			registerCodeActionsProvider(selector: vscode.DocumentSelector, provider: vscode.CodeActionProvider): vscode.Disposable {
 				return languageFeatures.registerCodeActionProvider(selector, provider);
@@ -419,7 +417,7 @@ export function createApiFactory(
 				return extHostWorkspace.getRelativePath(pathOrUri, includeWorkspace);
 			},
 			findFiles: (include, exclude, maxResults?, token?) => {
-				return extHostWorkspace.findFiles(include as IRelativePattern | string, exclude as IRelativePattern | string, maxResults, token);
+				return extHostWorkspace.findFiles(include, exclude, maxResults, token);
 			},
 			saveAll: (includeUntitled?) => {
 				return extHostWorkspace.saveAll(includeUntitled);
@@ -428,7 +426,7 @@ export function createApiFactory(
 				return extHostEditors.applyWorkspaceEdit(edit);
 			},
 			createFileSystemWatcher: (pattern, ignoreCreate, ignoreChange, ignoreDelete): vscode.FileSystemWatcher => {
-				return extHostFileSystemEvent.createFileSystemWatcher(pattern as IRelativePattern | string, ignoreCreate, ignoreChange, ignoreDelete);
+				return extHostFileSystemEvent.createFileSystemWatcher(pattern, ignoreCreate, ignoreChange, ignoreDelete);
 			},
 			get textDocuments() {
 				return extHostDocuments.getAllDocumentData().map(data => data.document);

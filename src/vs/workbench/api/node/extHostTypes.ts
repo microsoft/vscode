@@ -1453,7 +1453,7 @@ export class RelativePattern implements IRelativePattern {
 
 	constructor(pattern: string, base: vscode.WorkspaceFolder | URI) {
 		this._pattern = pattern;
-		this._base = URI.isUri(base) ? base : base.uri as URI;
+		this._base = URI.isUri(base) ? base : base.uri;
 	}
 
 	get pattern(): string {
