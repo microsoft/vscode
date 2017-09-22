@@ -516,6 +516,9 @@
           "tsconfig": {
             "type": "string",
             "description": "The tsconfig file that defines the TS build"
+          },
+          "option": {
+            "type": "string"
           }
         }
       }

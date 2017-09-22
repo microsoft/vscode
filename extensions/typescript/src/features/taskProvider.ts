@@ -28,7 +28,7 @@ const exists = (file: string): Promise<boolean> =>
 
 interface TypeScriptTaskDefinition extends vscode.TaskDefinition {
 	tsconfig: string;
-	label: string;
+	option?: string;
 }
 
 /**
@@ -167,7 +167,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 			}
 		}
 
-		const buildTaskidentifier: TypeScriptTaskDefinition = { type: 'typescript', tsconfig: label, label: 'tsc' };
+		const buildTaskidentifier: TypeScriptTaskDefinition = { type: 'typescript', tsconfig: label };
 		const buildTask = new vscode.Task(
 			buildTaskidentifier,
 			localize('buildTscLabel', 'build - {0}', label),
@@ -177,7 +177,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 		buildTask.group = vscode.TaskGroup.Build;
 		buildTask.isBackground = false;
 
-		const watchTaskidentifier: TypeScriptTaskDefinition = { type: 'typescript', tsconfig: label, label: 'xsc-watch' };
+		const watchTaskidentifier: TypeScriptTaskDefinition = { type: 'typescript', tsconfig: label, option: 'watch' };
 		const watchTask = new vscode.Task(
 			watchTaskidentifier,
 			localize('buildAndWatchTscLabel', 'watch - {0}', label),
