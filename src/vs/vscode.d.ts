@@ -1592,20 +1592,20 @@ declare module 'vscode' {
 	class RelativePattern {
 
 		/**
-		 * A base to which the pattern will be matched against relatively.
+		 * A base file path to which the pattern will be matched against relatively.
 		 */
-		base: Uri;
+		base: string;
 
 		/**
-		 * A relative glob pattern like `*.{ts,js}`.
+		 * A relative file glob pattern like `*.{ts,js}`.
 		 */
 		pattern: string;
 
-		constructor(pattern: string, base: WorkspaceFolder | Uri)
+		constructor(pattern: string, base: WorkspaceFolder | string)
 	}
 
 	/**
-	 * A glob pattern to match file paths against. This can either be a absolute pattern
+	 * A file glob pattern to match file paths against. This can either be a absolute glob pattern
 	 * (like `**∕*.{ts,js}`) or a [relative pattern](#RelativePattern).
 	 */
 	export type GlobPattern = string | RelativePattern;

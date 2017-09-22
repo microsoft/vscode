@@ -1449,18 +1449,18 @@ export enum ConfigurationTarget {
 
 export class RelativePattern implements IRelativePattern {
 	private _pattern: string;
-	private _base: URI;
+	private _base: string;
 
-	constructor(pattern: string, base: vscode.WorkspaceFolder | URI) {
+	constructor(pattern: string, base: vscode.WorkspaceFolder | string) {
 		this._pattern = pattern;
-		this._base = URI.isUri(base) ? base : base.uri;
+		this._base = typeof base === 'string' ? base : base.uri.fsPath;
 	}
 
 	get pattern(): string {
 		return this._pattern;
 	}
 
-	get base(): URI {
+	get base(): string {
 		return this._base;
 	}
 }

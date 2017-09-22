@@ -11,14 +11,13 @@ import paths = require('vs/base/common/paths');
 import { BoundedMap } from 'vs/base/common/map';
 import { CharCode } from 'vs/base/common/charCode';
 import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
 
 export interface IExpression {
 	[pattern: string]: boolean | SiblingClause | any;
 }
 
 export interface IRelativePattern {
-	base: URI;
+	base: string;
 	pattern: string;
 }
 
@@ -284,7 +283,7 @@ export function toAbsolutePattern(relativePattern: IRelativePattern | string): s
 	}
 
 	// With a base URI, we can append the path to the relative glob as prefix
-	return relativePattern.base.fsPath + GLOB_SPLIT + strings.ltrim(relativePattern.pattern, GLOB_SPLIT);
+	return relativePattern.base + GLOB_SPLIT + strings.ltrim(relativePattern.pattern, GLOB_SPLIT);
 }
 
 function parsePattern(arg1: string | IRelativePattern, options: IGlobOptions): ParsedStringPattern {
@@ -344,7 +343,7 @@ function wrapRelativePattern(parsedPattern: ParsedStringPattern, arg2: string | 
 	}
 
 	return function (path, basename) {
-		if (!paths.isEqualOrParent(path, arg2.base.fsPath)) {
+		if (!paths.isEqualOrParent(path, arg2.base)) {
 			return null;
 		}
 

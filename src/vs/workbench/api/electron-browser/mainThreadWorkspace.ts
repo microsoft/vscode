@@ -64,7 +64,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		if (typeof include === 'string') {
 			folderQueries = workspace.folders.map(folder => ({ folder: folder.uri })); // absolute pattern: search across all folders
 		} else {
-			folderQueries = [{ folder: include.base }]; // relative pattern: search only in base folder
+			folderQueries = [{ folder: URI.file(include.base) }]; // relative pattern: search only in base folder
 		}
 
 		const query: ISearchQuery = {
