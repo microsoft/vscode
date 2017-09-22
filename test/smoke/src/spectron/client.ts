@@ -101,8 +101,12 @@ export class SpectronClient {
 			.then(result => result.value);
 	}
 
-	public async waitForActiveElement(accept: (result: Element | undefined) => boolean = result => !!result): Promise<any> {
-		return this.waitFor<RawResult<Element>>(() => this.spectron.client.elementActive(), result => accept(result ? result.value : void 0), `elementActive`);
+	public async waitForActiveElement(selector: string): Promise<any> {
+		return this.waitFor(
+			() => this.spectron.client.execute(s => document.activeElement.matches(s), selector),
+			r => r.value,
+			`wait for active element: ${selector}`
+		);
 	}
 
 	public async waitForAttribute(selector: string, attribute: string, accept: (result: string) => boolean = result => !!result): Promise<string> {
