@@ -369,7 +369,7 @@ export class ExplorerView extends CollapsibleView {
 		}
 
 		// check for files
-		return toResource(input, { supportSideBySide: true, filter: 'file' });
+		return toResource(input, { supportSideBySide: true });
 	}
 
 	private get isCreated(): boolean {
