@@ -127,7 +127,7 @@ export class RemoteFileService extends FileService {
 		};
 	}
 
-	supportResource(resource: URI): boolean {
+	canHandleResource(resource: URI): boolean {
 		return resource.scheme === Schemas.file
 			|| this._provider.has(resource.scheme)
 			// TODO@remote

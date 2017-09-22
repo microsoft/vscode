@@ -275,7 +275,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		}
 
 		let input: ICachedEditorInput;
-		if (resource.scheme === network.Schemas.file || this.fileService.supportResource && this.fileService.supportResource(resource)) {
+		if (resource.scheme === network.Schemas.file || this.fileService.canHandleResource && this.fileService.canHandleResource(resource)) {
 			input = this.fileInputFactory.createFileInput(resource, encoding, instantiationService);
 		} else {
 			input = instantiationService.createInstance(ResourceEditorInput, label, description, resource);

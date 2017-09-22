@@ -33,11 +33,14 @@ export interface IFileService {
 	onAfterOperation: Event<FileOperationEvent>;
 
 	/**
-	 *
+	 * Registeres a file system provider for a certain scheme.
 	 */
-	registerProvider?(authority: string, provider: IFileSystemProvider): IDisposable;
+	registerProvider?(scheme: string, provider: IFileSystemProvider): IDisposable;
 
-	supportResource?(resource: URI): boolean;
+	/**
+	 * Checks if this file service can handle the given resource.
+	 */
+	canHandleResource?(resource: URI): boolean;
 
 	/**
 	 * Resolve the properties of a file identified by the resource.
