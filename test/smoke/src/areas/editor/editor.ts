@@ -18,10 +18,6 @@ export class Editor {
 	constructor(private spectron: SpectronApplication) {
 	}
 
-	public async getEditorVisibleText(): Promise<string> {
-		return await this.spectron.client.getText('.view-lines');
-	}
-
 	public async openOutline(): Promise<QuickOutline> {
 		const outline = new QuickOutline(this.spectron);
 		await outline.open();
@@ -95,6 +91,11 @@ export class Editor {
 	public async clickOnTerm(term: string, line: number): Promise<void> {
 		const selector = await this.getSelector(term, line);
 		await this.spectron.client.waitAndClick(selector);
+	}
+
+	public async waitForEditorContents(filename: string, accept: (contents: string) => boolean): Promise<any> {
+		const selector = `.editor-container .monaco-editor[data-uri$="${filename}"] .view-lines`;
+		return this.spectron.client.waitForTextContent(selector, undefined, c => accept(c.replace(/\u00a0/g, ' ')));
 	}
 
 	public async waitForActiveEditor(filename: string): Promise<any> {

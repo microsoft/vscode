@@ -9,7 +9,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as stripJsonComments from 'strip-json-comments';
-import { SpectronApplication, VSCODE_BUILD, EXTENSIONS_DIR, findFreePort } from '../../spectron/application';
+import { SpectronApplication, VSCODE_BUILD, EXTENSIONS_DIR, findFreePort, WORKSPACE_PATH } from '../../spectron/application';
 
 describe('Debug', () => {
 	let app: SpectronApplication = new SpectronApplication();
@@ -48,16 +48,22 @@ describe('Debug', () => {
 		await app.workbench.debug.openDebugViewlet();
 		await app.workbench.openFile('app.js');
 		await app.workbench.debug.configure();
-		await app.screenCapturer.capture('launch.json file');
-		const content = await app.workbench.editor.getEditorVisibleText();
-		const json = JSON.parse(stripJsonComments(content));
 
-		assert.equal(json.configurations[0].request, 'launch');
-		assert.equal(json.configurations[0].type, 'node');
+		const launchJsonPath = path.join(WORKSPACE_PATH, '.vscode', 'launch.json');
+		const content = fs.readFileSync(launchJsonPath, 'utf8');
+		const config = JSON.parse(stripJsonComments(content));
+		config.configurations[0].protocol = 'inspector';
+		fs.writeFileSync(launchJsonPath, JSON.stringify(config, undefined, 4), 'utf8');
+
+		await app.workbench.editor.waitForEditorContents('launch.json', contents => /"protocol": "inspector"/.test(contents));
+		await app.screenCapturer.capture('launch.json file');
+
+		assert.equal(config.configurations[0].request, 'launch');
+		assert.equal(config.configurations[0].type, 'node');
 		if (process.platform === 'win32') {
-			assert.equal(json.configurations[0].program, '${workspaceFolder}\\bin\\www');
+			assert.equal(config.configurations[0].program, '${workspaceFolder}\\bin\\www');
 		} else {
-			assert.equal(json.configurations[0].program, '${workspaceFolder}/bin/www');
+			assert.equal(config.configurations[0].program, '${workspaceFolder}/bin/www');
 		}
 	});
 
