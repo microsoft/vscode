@@ -4,41 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { join, basename, dirname } from 'path';
-import { readdir, rimraf, stat } from 'vs/base/node/pfs';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { basename } from 'path';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import product from 'vs/platform/node/product';
 
 declare type OnNodeCachedDataArgs = [{ errorCode: string, path: string, detail?: string }, { path: string, length: number }];
 declare const MonacoEnvironment: { onNodeCachedData: OnNodeCachedDataArgs[] };
 
 export class NodeCachedDataManager {
 
-	private static _DataMaxAge = product.nameLong.indexOf('Insiders') >= 0
-		? 1000 * 60 * 60 * 24 * 7 // roughly 1 week
-		: 1000 * 60 * 60 * 24 * 30 * 3; // roughly 3 months
-
-	private _telemetryService: ITelemetryService;
-	private _environmentService: IEnvironmentService;
-	private _disposables: IDisposable[] = [];
+	private readonly _telemetryService: ITelemetryService;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IEnvironmentService environmentService: IEnvironmentService
 	) {
 		this._telemetryService = telemetryService;
-		this._environmentService = environmentService;
-
 		this._handleCachedDataInfo();
-		this._manageCachedDataSoon();
-	}
-
-	dispose(): void {
-		this._disposables = dispose(this._disposables);
 	}
 
 	private _handleCachedDataInfo(): void {
@@ -68,60 +48,5 @@ export class NodeCachedDataManager {
 
 		global.require.config({ onNodeCachedData: undefined });
 		delete MonacoEnvironment.onNodeCachedData;
-	}
-
-	private _manageCachedDataSoon(): void {
-		// Cached data is stored as user data and we run a cleanup task everytime
-		// the editor starts. The strategy is to delete all files that are older than
-		// 3 months (1 week respectively)
-
-		if (!this._environmentService.nodeCachedDataDir) {
-			return;
-		}
-
-		// The folder which contains folders of cached data. Each of these folder is per
-		// version
-		const nodeCachedDataRootDir = dirname(this._environmentService.nodeCachedDataDir);
-		const nodeCachedDataCurrent = basename(this._environmentService.nodeCachedDataDir);
-
-		let handle = setTimeout(() => {
-			handle = undefined;
-
-			readdir(nodeCachedDataRootDir).then(entries => {
-
-				const now = Date.now();
-				const deletes: TPromise<any>[] = [];
-
-				entries.forEach(entry => {
-					// name check
-					// * name is a git commit id (40 hex characters)
-					// * not the current cached data folder
-					if (entry.match(/^[a-f0-9]{40}$/i) && entry !== nodeCachedDataCurrent) {
-
-						const path = join(nodeCachedDataRootDir, entry);
-						deletes.push(stat(path).then(stats => {
-							// stat check
-							// * only directories
-							// * only when old enough
-							if (stats.isDirectory()) {
-								const diff = now - stats.mtime.getTime();
-								if (diff > NodeCachedDataManager._DataMaxAge) {
-									return rimraf(path);
-								}
-							}
-							return undefined;
-						}));
-					}
-				});
-
-				return TPromise.join(deletes);
-
-			}).done(undefined, onUnexpectedError);
-
-		}, 30 * 1000);
-
-		this._disposables.push({
-			dispose() { clearTimeout(handle); }
-		});
 	}
 }

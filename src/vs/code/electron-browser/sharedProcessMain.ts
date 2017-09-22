@@ -35,6 +35,7 @@ import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
 import { ipcRenderer } from 'electron';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { StorageService, inMemoryLocalStorageInstance } from 'vs/platform/storage/common/storageService';
+import { createSharedProcessContributions } from 'vs/code/electron-browser/contrib/contributions';
 
 interface ISharedProcessInitData {
 	sharedIPCHandle: string;
@@ -132,6 +133,8 @@ function main(server: Server, initData: ISharedProcessInitData): void {
 
 			// clean up deprecated extensions
 			(extensionManagementService as ExtensionManagementService).removeDeprecatedExtensions();
+
+			createSharedProcessContributions(instantiationService2);
 		});
 	});
 }
