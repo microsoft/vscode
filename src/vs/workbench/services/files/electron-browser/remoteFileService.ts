@@ -139,7 +139,7 @@ export class RemoteFileService extends FileService {
 			if (!provider) {
 				const err = new Error();
 				err.name = 'ENOPRO';
-				err.message = `no provider for ${resource.toString}`;
+				err.message = `no provider for ${resource.toString()}`;
 				throw err;
 			}
 			return provider;
