@@ -32,6 +32,7 @@ import { Verbosity } from 'vs/platform/editor/common/editor';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER } from 'vs/workbench/common/theme';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { isMacintosh } from 'vs/base/common/platform';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -40,7 +41,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	private static NLS_UNSUPPORTED = nls.localize('patchedWindowTitle', "[Unsupported]");
 	private static NLS_EXTENSION_HOST = nls.localize('devExtensionWindowTitlePrefix', "[Extension Development Host]");
 	private static TITLE_DIRTY = '\u25cf ';
-	private static TITLE_SEPARATOR = ' — ';
+	private static TITLE_SEPARATOR = isMacintosh ? ' - ' : ' - '; // macOS uses special - separator
 
 	private titleContainer: Builder;
 	private title: Builder;
