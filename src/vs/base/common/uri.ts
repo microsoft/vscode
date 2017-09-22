@@ -185,7 +185,7 @@ export default class URI {
 			return this;
 		}
 
-		return new UriWithCache(scheme, authority, path, query, fragment);
+		return new _URI(scheme, authority, path, query, fragment);
 	}
 
 	// ---- parse & validate ------------------------
@@ -193,9 +193,9 @@ export default class URI {
 	public static parse(value: string): URI {
 		const match = _regexp.exec(value);
 		if (!match) {
-			return new UriWithCache(_empty, _empty, _empty, _empty, _empty);
+			return new _URI(_empty, _empty, _empty, _empty, _empty);
 		}
-		return new UriWithCache(
+		return new _URI(
 			match[2] || _empty,
 			decodeURIComponent(match[4] || _empty),
 			decodeURIComponent(match[5] || _empty),
@@ -234,11 +234,11 @@ export default class URI {
 			path = _slash + path;
 		}
 
-		return new UriWithCache('file', authority, path, _empty, _empty);
+		return new _URI('file', authority, path, _empty, _empty);
 	}
 
 	public static from(components: { scheme?: string; authority?: string; path?: string; query?: string; fragment?: string }): URI {
-		return new UriWithCache(
+		return new _URI(
 			components.scheme,
 			components.authority,
 			components.path,
@@ -288,7 +288,7 @@ export default class URI {
 	}
 
 	static revive(data: any): URI {
-		let result = new UriWithCache(
+		let result = new _URI(
 			(<UriState>data).scheme,
 			(<UriState>data).authority,
 			(<UriState>data).path,
@@ -302,7 +302,8 @@ export default class URI {
 }
 
 
-class UriWithCache extends URI {
+// tslint:disable-next-line:class-name
+class _URI extends URI {
 
 	_formatted: string = null;
 	_fsPath: string = null;
@@ -331,12 +332,12 @@ class UriWithCache extends URI {
 	public toString(skipEncoding: boolean = false): string {
 		if (!skipEncoding) {
 			if (!this._formatted) {
-				this._formatted = UriWithCache._asFormatted(this, false);
+				this._formatted = _URI._asFormatted(this, false);
 			}
 			return this._formatted;
 		} else {
 			// we don't cache that
-			return UriWithCache._asFormatted(this, true);
+			return _URI._asFormatted(this, true);
 		}
 	}
 
