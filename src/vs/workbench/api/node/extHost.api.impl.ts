@@ -439,7 +439,7 @@ export function createApiFactory(
 				let uriPromise: TPromise<URI>;
 
 				let options = uriOrFileNameOrOptions as { language?: string; content?: string; };
-				if (!options || typeof options.language === 'string') {
+				if (!options || typeof options === 'object') {
 					uriPromise = extHostDocuments.createDocumentData(options);
 				} else if (typeof uriOrFileNameOrOptions === 'string') {
 					uriPromise = TPromise.as(URI.file(uriOrFileNameOrOptions));
