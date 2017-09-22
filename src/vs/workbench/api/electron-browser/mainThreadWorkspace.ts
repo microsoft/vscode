@@ -15,7 +15,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { IExperimentService } from 'vs/platform/telemetry/common/experiments';
-import { IRelativePattern, toAbsolutePattern } from 'vs/base/common/glob';
+import { IRelativePattern } from 'vs/base/common/glob';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
@@ -61,7 +61,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		}
 
 		let folderQueries: IFolderQuery[];
-		if (typeof include === 'string') {
+		if (typeof include === 'string' || !include) {
 			folderQueries = workspace.folders.map(folder => ({ folder: folder.uri })); // absolute pattern: search across all folders
 		} else {
 			folderQueries = [{ folder: URI.file(include.base) }]; // relative pattern: search only in base folder
@@ -71,8 +71,8 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			folderQueries,
 			type: QueryType.File,
 			maxResults,
-			includePattern: { [toAbsolutePattern(include)]: true },
-			excludePattern: { [toAbsolutePattern(exclude)]: true },
+			includePattern: { [typeof include === 'string' ? include : !!include ? include.pattern : undefined]: true },
+			excludePattern: { [typeof exclude === 'string' ? exclude : !!exclude ? exclude.pattern : undefined]: true },
 			useRipgrep: this._experimentService.getExperiments().ripgrepQuickSearch
 		};
 		this._searchService.extendQuery(query);

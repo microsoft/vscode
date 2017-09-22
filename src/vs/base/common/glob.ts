@@ -271,7 +271,7 @@ const NULL = function (): string {
 	return null;
 };
 
-export function toAbsolutePattern(relativePattern: IRelativePattern | string): string {
+function toAbsolutePattern(relativePattern: IRelativePattern | string): string {
 
 	// Without a base URI, best we can do is add '**' to the pattern
 	if (typeof relativePattern === 'string') {
