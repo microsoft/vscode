@@ -78,4 +78,4 @@ export interface IChoiceService {
 	choose(severity: Severity, message: string, options: string[], cancelId: number, modal?: boolean): TPromise<number>;
 }
 
-// export import Severity = Severity;
+export { Severity };

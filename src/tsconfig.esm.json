@@ -3,7 +3,7 @@
 		"module": "es2015",
 		"moduleResolution": "classic",
 		"noImplicitAny": false,
-		"removeComments": false,
+		"removeComments": true,
 		"preserveConstEnums": true,
 		"target": "es5",
 		"sourceMap": false,
