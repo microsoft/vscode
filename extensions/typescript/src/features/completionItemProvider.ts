@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, TextEdit, Range, SnippetString, workspace, ProviderResult } from 'vscode';
+import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, TextEdit, Range, SnippetString, workspace, ProviderResult, CompletionContext } from 'vscode';
 
 import { ITypescriptServiceClient } from '../typescriptService';
 import TypingsStatus from '../utils/typingsStatus';
@@ -159,7 +159,12 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 		this.config.nameSuggestions = jsConfig.get(Configuration.nameSuggestions, true);
 	}
 
-	public provideCompletionItems(document: TextDocument, position: Position, token: CancellationToken): Promise<CompletionItem[]> {
+	public provideCompletionItems(
+		document: TextDocument,
+		position: Position,
+		token: CancellationToken,
+		context: CompletionContext
+	): Promise<CompletionItem[]> {
 		if (this.typingsStatus.isAcquiringTypings) {
 			return Promise.reject<CompletionItem[]>({
 				label: localize(
@@ -175,6 +180,16 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 		if (!file) {
 			return Promise.resolve<CompletionItem[]>([]);
 		}
+
+
+		if (context.triggerCharacter === '"' || context.triggerCharacter === '\'') {
+			// make sure we are in something that looks like an import
+			const line = document.lineAt(position.line).text.slice(0, position.character);
+			if (!line.match(/^import .+? from\s*["']$/)) {
+				return Promise.resolve<CompletionItem[]>([]);
+			}
+		}
+
 		const args: CompletionsRequestArgs = vsPositionToTsFileLocation(file, position);
 		return this.client.execute('completions', args, token).then((msg) => {
 			// This info has to come from the tsserver. See https://github.com/Microsoft/TypeScript/issues/2831
