@@ -656,6 +656,8 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			}).catch((err: any) => {
 				if (!wasCancelled) {
 					this.error(`'${command}' request failed with error.`, err);
+					const properties = this.parseErrorText(err && err.message, command);
+					this.logTelemetry('languageServiceErrorResponse', properties);
 				}
 				throw err;
 			});
@@ -665,6 +667,30 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this.sendNextRequests();
 
 		return result;
+	}
+
+	/**
+	 * Given a `errorText` from a tsserver request indicating failure in handling a request,
+	 * prepares a payload for telemetry-logging.
+	 */
+	private parseErrorText(errorText: string | undefined, command: string) {
+		const properties: ObjectMap<string> = Object.create(null);
+		properties['command'] = command;
+		if (errorText) {
+			properties['errorText'] = errorText;
+
+			const errorPrefix = 'Error processing request. ';
+			if (errorText.startsWith(errorPrefix)) {
+				const prefixFreeErrorText = errorText.substr(errorPrefix.length);
+				const newlineIndex = prefixFreeErrorText.indexOf('\n');
+				if (newlineIndex >= 0) {
+					// Newline expected between message and stack.
+					properties['message'] = prefixFreeErrorText.substring(0, newlineIndex);
+					properties['stack'] = prefixFreeErrorText.substring(newlineIndex + 1);
+				}
+			}
+		}
+		return properties;
 	}
 
 	private sendNextRequests(): void {
