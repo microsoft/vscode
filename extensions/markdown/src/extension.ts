@@ -253,7 +253,7 @@ function showPreview(cspArbiter: ExtensionContentSecurityPolicyArbiter, uri?: vs
 	const thenable = vscode.commands.executeCommand('vscode.previewHtml',
 		getMarkdownUri(resource),
 		getViewColumn(sideBySide),
-		`Preview '${path.basename(resource.fsPath)}'`,
+		localize('previewTitle', 'Preview {0}', path.basename(resource.fsPath)),
 		{
 			allowScripts: true,
 			allowSvgs: cspArbiter.shouldAllowSvgsForResource(resource)
