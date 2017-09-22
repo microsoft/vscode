@@ -10,5 +10,8 @@
 		"no-extra-semi": "warn",
 		"semi": "warn"
 	},
+	"parserOptions": {
+		"sourceType": "module"
+	},
 	"extends": "eslint:recommended"
 }
