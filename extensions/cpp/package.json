@@ -33,11 +33,5 @@
 			"scopeName": "source.c.platform",
 			"path": "./syntaxes/Platform.tmLanguage"
 		}]
-	},
-	"folding": {
-		"markers": {
-			"start": "^\\s*#pragma\\s+region",
-			"end": "^\\s*#pragma\\s+endregion"
-		}
 	}
 }
