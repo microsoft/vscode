@@ -282,6 +282,11 @@ export function toAbsolutePattern(relativePattern: IRelativePattern | string): s
 		return relativePattern;
 	}
 
+	// Guard against null/undefined
+	if (!relativePattern) {
+		return undefined;
+	}
+
 	// With a base URI, we can append the path to the relative glob as prefix
 	return relativePattern.base + GLOB_SPLIT + strings.ltrim(relativePattern.pattern, GLOB_SPLIT);
 }
