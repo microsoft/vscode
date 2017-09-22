@@ -26,6 +26,7 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { maxBufferLen, detectMimeAndEncodingFromBuffer } from 'vs/base/node/mime';
 import { MIME_BINARY } from 'vs/base/common/mime';
+import { localize } from 'vs/nls';
 
 function toIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], recurse?: (tuple: [URI, IStat]) => boolean): TPromise<IFileStat> {
 	const [resource, stat] = tuple;
@@ -237,7 +238,10 @@ export class RemoteFileService extends FileService {
 
 				}).then(detected => {
 					if (options.acceptTextOnly && detected.mimes.indexOf(MIME_BINARY) >= 0) {
-						throw new Error('binary');
+						return TPromise.wrapError<IStreamContent>(new FileOperationError(
+							localize('fileBinaryError', "File seems to be binary and cannot be opened as text"),
+							FileOperationResult.FILE_IS_BINARY
+						));
 					}
 
 					let preferredEncoding: string;
