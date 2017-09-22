@@ -1154,12 +1154,42 @@ namespace ConfiguringTask {
 			identifier = {
 				type
 			};
-			Object.keys(typeDeclaration.properties).forEach((property) => {
+			let properties = typeDeclaration.properties;
+			let required: Set<string> = new Set();
+			if (Array.isArray(typeDeclaration.required)) {
+				typeDeclaration.required.forEach(element => Types.isString(element) ? required.add(element) : required);
+			}
+			for (let property of Object.keys(properties)) {
 				let value = external[property];
 				if (value !== void 0 && value !== null) {
 					identifier[property] = value;
+				} else if (required.has(property)) {
+					let schema = properties[property];
+					if (schema.default !== void 0) {
+						identifier[property] = Objects.deepClone(schema.default);
+					} else {
+						switch (schema.type) {
+							case 'boolean':
+								identifier[property] = false;
+								break;
+							case 'number':
+							case 'integer':
+								identifier[property] = 0;
+								break;
+							case 'string':
+								identifier[property] = '';
+								break;
+							default:
+								let message = nls.localize(
+									'ConfigurationParser.missingRequiredProperty',
+									'Error: the task configuration \'{0}\' missed the required property \'{1}\'. The task configuration will be ignored.', JSON.stringify(external, undefined, 0), property
+								);
+								context.problemReporter.error(message);
+								return undefined;
+						}
+					}
 				}
-			});
+			}
 		}
 		let taskIdentifier = TaskIdentifier.from(identifier);
 		let configElement: Tasks.TaskSourceConfigElement = {
