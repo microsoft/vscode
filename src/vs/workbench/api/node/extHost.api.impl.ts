@@ -403,6 +403,7 @@ export function createApiFactory(
 				throw errors.readonly();
 			},
 			getWorkspaceFolder(resource) {
+				apiUsage.publicLog('workspace#getWorkspaceFolder');
 				return extHostWorkspace.getWorkspaceFolder(resource);
 			},
 			get workspaceFolders() {
