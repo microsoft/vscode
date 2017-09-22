@@ -74,7 +74,7 @@ describe('Debug', () => {
 		await new Promise((c, e) => {
 			const request = http.get(`http://localhost:${port}`);
 			request.on('error', e);
-			app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 6).then(c, e);
+			app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 6, 'looking for index.js and line 6').then(c, e);
 		});
 
 		await app.screenCapturer.capture('debugging is paused');
@@ -83,13 +83,13 @@ describe('Debug', () => {
 	it('focus stack frames and variables', async function () {
 		await app.client.waitFor(() => app.workbench.debug.getLocalVariableCount(), c => c === 4, 'there should be 4 local variables');
 
-		await app.workbench.debug.focusStackFrame('layer.js');
+		await app.workbench.debug.focusStackFrame('layer.js', 'looking for layer.js');
 		await app.client.waitFor(() => app.workbench.debug.getLocalVariableCount(), c => c === 5, 'there should be 5 local variables');
 
-		await app.workbench.debug.focusStackFrame('route.js');
+		await app.workbench.debug.focusStackFrame('route.js', 'looking for route.js');
 		await app.client.waitFor(() => app.workbench.debug.getLocalVariableCount(), c => c === 3, 'there should be 3 local variables');
 
-		await app.workbench.debug.focusStackFrame('index.js');
+		await app.workbench.debug.focusStackFrame('index.js', 'looking for index.js');
 		await app.client.waitFor(() => app.workbench.debug.getLocalVariableCount(), c => c === 4, 'there should be 4 local variables');
 	});
 
@@ -97,15 +97,15 @@ describe('Debug', () => {
 		await app.workbench.debug.stepIn();
 		await app.screenCapturer.capture('debugging has stepped in');
 
-		const first = await app.workbench.debug.waitForStackFrame(sf => sf.name === 'response.js');
+		const first = await app.workbench.debug.waitForStackFrame(sf => sf.name === 'response.js', 'looking for response.js');
 		await app.workbench.debug.stepOver();
 		await app.screenCapturer.capture('debugging has stepped over');
 
-		await app.workbench.debug.waitForStackFrame(sf => sf.name === 'response.js' && sf.lineNumber === first.lineNumber + 1);
+		await app.workbench.debug.waitForStackFrame(sf => sf.name === 'response.js' && sf.lineNumber === first.lineNumber + 1, `looking for response.js and line ${first.lineNumber + 1}`);
 		await app.workbench.debug.stepOut();
 		await app.screenCapturer.capture('debugging has stepped out');
 
-		await app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 7);
+		await app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 7, `looking for index.js and line 7`);
 	});
 
 	it('continue', async function () {
@@ -115,7 +115,7 @@ describe('Debug', () => {
 		await new Promise((c, e) => {
 			const request = http.get(`http://localhost:${port}`);
 			request.on('error', e);
-			app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 6).then(c, e);
+			app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 6, `looking for index.js and line 6`).then(c, e);
 		});
 
 		await app.screenCapturer.capture('debugging is paused');

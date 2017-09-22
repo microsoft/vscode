@@ -94,19 +94,19 @@ export class Debug extends Viewlet {
 		await this.spectron.client.waitForElement(NOT_DEBUG_STATUS_BAR);
 	}
 
-	async waitForStackFrame(func: (stackFrame: IStackFrame) => boolean): Promise<IStackFrame> {
+	async waitForStackFrame(func: (stackFrame: IStackFrame) => boolean, message: string): Promise<IStackFrame> {
 		return await this.spectron.client.waitFor(async () => {
 			const stackFrames = await this.getStackFrames();
 			return stackFrames.filter(func)[0];
-		}, void 0, 'Waiting for Stack Frame');
+		}, void 0, `Waiting for Stack Frame: ${message}`);
 	}
 
 	async waitForStackFrameLength(length: number): Promise<any> {
 		return await this.spectron.client.waitFor(() => this.getStackFrames(), stackFrames => stackFrames.length === length);
 	}
 
-	async focusStackFrame(name: string): Promise<any> {
-		const stackFrame = await this.waitForStackFrame(sf => sf.name === name);
+	async focusStackFrame(name: string, message: string): Promise<any> {
+		const stackFrame = await this.waitForStackFrame(sf => sf.name === name, message);
 		await this.spectron.client.spectron.client.elementIdClick(stackFrame.id);
 		await this.spectron.workbench.waitForTab(name);
 	}
