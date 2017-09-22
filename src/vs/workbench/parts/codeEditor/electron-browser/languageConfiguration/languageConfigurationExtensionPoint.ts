@@ -387,15 +387,9 @@ const schema: IJSONSchema = {
 			type: 'object',
 			description: nls.localize('schema.folding', 'The language\'s folding settings.'),
 			properties: {
-				indendationBasedFolding: {
-					type: 'object',
-					description: nls.localize('schema.folding.indendationBasedFolding', 'Settings for indentation based folding.'),
-					properties: {
-						offSide: {
-							type: 'boolean',
-							description: nls.localize('schema.folding.indendationBasedFolding.offSide', 'A language adheres to the off-side rule if blocks in that language are expressed by their indentation. If set, empty lines belong to the subsequent block.'),
-						}
-					}
+				offSide: {
+					type: 'boolean',
+					description: nls.localize('schema.folding.offSide', 'A language adheres to the off-side rule if blocks in that language are expressed by their indentation. If set, empty lines belong to the subsequent block.'),
 				}
 			}
 		}
