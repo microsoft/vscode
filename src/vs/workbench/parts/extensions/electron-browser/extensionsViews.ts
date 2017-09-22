@@ -294,6 +294,7 @@ export class ExtensionsListView extends CollapsibleView {
 							.filter(name => local.every(ext => `${ext.publisher}.${ext.name}` !== name))
 							.filter(name => name.toLowerCase().indexOf(value) > -1);
 
+						this.telemetryService.publicLog('extensionAllRecommendations:open', { count: names.length });
 						if (!names.length) {
 							return TPromise.as(new PagedModel([]));
 						}
