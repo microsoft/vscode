@@ -6,6 +6,7 @@
 
 import URI from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/paths';
+import * as resources from 'vs/base/common/resources';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { StringTrieMap } from 'vs/base/common/map';
 import Event from 'vs/base/common/event';
@@ -216,7 +217,7 @@ export class WorkspaceFolder implements IWorkspaceFolder {
 	}
 
 	toResource(relativePath: string): URI {
-		return URI.file(paths.join(this.uri.fsPath, relativePath));
+		return this.uri.with({ path: paths.join(this.uri.path, relativePath) });
 	}
 
 	toJSON(): IWorkspaceFolderData {
@@ -227,7 +228,7 @@ export class WorkspaceFolder implements IWorkspaceFolder {
 export function toWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], relativeTo?: URI): WorkspaceFolder[] {
 	let workspaceFolders = parseWorkspaceFolders(configuredFolders, relativeTo);
 	return ensureUnique(coalesce(workspaceFolders))
-		.map(({ uri, raw, name }, index) => new WorkspaceFolder({ uri, name: name || paths.basename(uri.fsPath), index }, raw));
+		.map(({ uri, raw, name }, index) => new WorkspaceFolder({ uri, name: name || resources.basenameOrAuthority(uri), index }, raw));
 }
 
 function parseWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], relativeTo: URI): WorkspaceFolder[] {
@@ -256,12 +257,12 @@ function toUri(path: string, relativeTo: URI): URI {
 			return URI.file(path);
 		}
 		if (relativeTo) {
-			return URI.file(paths.join(relativeTo.fsPath, path));
+			return relativeTo.with({ path: paths.join(relativeTo.path, path) });
 		}
 	}
 	return null;
 }
 
 function ensureUnique(folders: WorkspaceFolder[]): WorkspaceFolder[] {
-	return distinct(folders, folder => isLinux ? folder.uri.fsPath : folder.uri.fsPath.toLowerCase());
+	return distinct(folders, folder => isLinux ? folder.uri.toString() : folder.uri.toString().toLowerCase());
 }
