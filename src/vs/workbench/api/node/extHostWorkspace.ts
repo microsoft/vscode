@@ -14,6 +14,7 @@ import { IWorkspaceData, ExtHostWorkspaceShape, MainContext, MainThreadWorkspace
 import * as vscode from 'vscode';
 import { compare } from 'vs/base/common/strings';
 import { TrieMap } from 'vs/base/common/map';
+import { IRelativePattern } from 'vs/base/common/glob';
 
 class Workspace2 extends Workspace {
 
@@ -156,7 +157,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 
 	// --- search ---
 
-	findFiles(include: string, exclude: string, maxResults?: number, token?: vscode.CancellationToken): Thenable<vscode.Uri[]> {
+	findFiles(include: string | IRelativePattern, exclude: string | IRelativePattern, maxResults?: number, token?: vscode.CancellationToken): Thenable<vscode.Uri[]> {
 		const requestId = ExtHostWorkspace._requestIdPool++;
 		const result = this._proxy.$startSearch(include, exclude, maxResults, requestId);
 		if (token) {

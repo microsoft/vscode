@@ -6,7 +6,7 @@
 
 import Event, { Emitter } from 'vs/base/common/event';
 import { Disposable } from './extHostTypes';
-import { parse } from 'vs/base/common/glob';
+import { parse, IRelativePattern } from 'vs/base/common/glob';
 import { Uri, FileSystemWatcher as _FileSystemWatcher } from 'vscode';
 import { FileSystemEvents, ExtHostFileSystemEventServiceShape } from './extHost.protocol';
 
@@ -30,7 +30,7 @@ class FileSystemWatcher implements _FileSystemWatcher {
 		return Boolean(this._config & 0b100);
 	}
 
-	constructor(dispatcher: Event<FileSystemEvents>, globPattern: string, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean) {
+	constructor(dispatcher: Event<FileSystemEvents>, globPattern: string | IRelativePattern, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean) {
 
 		this._config = 0;
 		if (ignoreCreateEvents) {
@@ -96,7 +96,7 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 	constructor() {
 	}
 
-	public createFileSystemWatcher(globPattern: string, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean): _FileSystemWatcher {
+	public createFileSystemWatcher(globPattern: string | IRelativePattern, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean): _FileSystemWatcher {
 		return new FileSystemWatcher(this._emitter.event, globPattern, ignoreCreateEvents, ignoreChangeEvents, ignoreDeleteEvents);
 	}
 

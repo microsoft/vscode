@@ -610,6 +610,7 @@ export function createApiFactory(
 			TaskScope: extHostTypes.TaskScope,
 			Task: extHostTypes.Task,
 			ConfigurationTarget: extHostTypes.ConfigurationTarget,
+			RelativePattern: extHostTypes.RelativePattern,
 
 			// TODO@JOH,remote
 			FileChangeType: <any>FileChangeType,
