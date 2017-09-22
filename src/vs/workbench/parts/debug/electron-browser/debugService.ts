@@ -381,7 +381,8 @@ export class DebugService implements debug.IDebugService {
 			}
 
 			// For compatibilty reasons check if wrong reason and source not present
-			if (event.body.reason === 'changed' || (event.body.reason === 'new' && !event.body.breakpoint.source)) {
+			// TODO@Isidor clean up these checks in October
+			if (event.body.reason === 'changed' || (event.body.reason === 'new' && !event.body.breakpoint.source) || event.body.reason === 'update') {
 				if (breakpoint) {
 					if (!breakpoint.column) {
 						event.body.breakpoint.column = undefined;
@@ -1095,6 +1096,7 @@ export class DebugService implements debug.IDebugService {
 
 			const source = process.sources.get(modelUri.toString());
 			const rawSource = source ? source.raw : { path: paths.normalize(modelUri.fsPath, true), name: paths.basename(modelUri.fsPath) };
+
 
 			return session.setBreakpoints({
 				source: rawSource,
