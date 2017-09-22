@@ -7,6 +7,7 @@ import * as nls from 'vs/nls';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import * as paths from 'vs/base/common/paths';
+import * as resources from 'vs/base/common/resources';
 import * as strings from 'vs/base/common/strings';
 import { generateUuid } from 'vs/base/common/uuid';
 import uri from 'vs/base/common/uri';
@@ -1094,7 +1095,7 @@ export class DebugService implements debug.IDebugService {
 			const breakpointsToSend = this.model.getBreakpoints().filter(bp => this.model.areBreakpointsActivated() && bp.enabled && bp.uri.toString() === modelUri.toString());
 
 			const source = process.sources.get(modelUri.toString());
-			const rawSource = source ? source.raw : { path: paths.normalize(modelUri.fsPath, true), name: paths.basename(modelUri.fsPath) };
+			const rawSource = source ? source.raw : { path: paths.normalize(modelUri.fsPath, true), name: resources.basenameOrAuthority(modelUri) };
 			if (breakpointsToSend.length) {
 				rawSource.adapterData = breakpointsToSend[0].adapterData;
 			}

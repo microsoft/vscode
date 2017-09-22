@@ -542,7 +542,7 @@ class Launch implements ILaunch {
 	}
 
 	public get uri(): uri {
-		return uri.file(paths.join(this.workspace.uri.fsPath, '/.vscode/launch.json'));
+		return this.workspace.uri.with({ path: paths.join(this.workspace.uri.path, '/.vscode/launch.json') });
 	}
 
 	public openConfigFile(sideBySide: boolean, type?: string): TPromise<IEditor> {

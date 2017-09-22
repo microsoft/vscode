@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as paths from 'vs/base/common/paths';
+import * as resources from 'vs/base/common/resources';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
 import * as builder from 'vs/base/browser/builder';
@@ -457,7 +457,7 @@ export class BreakpointsView extends CollapsibleView {
 					}
 
 					if (first.uri.toString() !== second.uri.toString()) {
-						return paths.basename(first.uri.fsPath).localeCompare(paths.basename(second.uri.fsPath));
+						return resources.basenameOrAuthority(first.uri).localeCompare(resources.basenameOrAuthority(second.uri));
 					}
 					if (first.lineNumber === second.lineNumber) {
 						return first.column - second.column;

@@ -6,6 +6,7 @@
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import uri from 'vs/base/common/uri';
+import * as paths from 'vs/base/common/paths';
 import { DEBUG_SCHEME } from 'vs/workbench/parts/debug/common/debug';
 import { IRange } from 'vs/editor/common/core/range';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -26,7 +27,11 @@ export class Source {
 		if (this.raw.sourceReference > 0) {
 			this.uri = uri.parse(`${DEBUG_SCHEME}:${encodeURIComponent(path)}?session=${encodeURIComponent(sessionId)}&ref=${this.raw.sourceReference}`);
 		} else {
-			this.uri = uri.file(path);	// path should better be absolute!
+			if (paths.isAbsolute(path)) {
+				this.uri = uri.file(path); // path should better be absolute!
+			} else {
+				this.uri = uri.parse(path);
+			}
 		}
 	}
 
