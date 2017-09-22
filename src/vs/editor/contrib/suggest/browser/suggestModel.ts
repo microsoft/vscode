@@ -301,11 +301,11 @@ export class SuggestModel implements IDisposable {
 						} else if (quickSuggestions === true) {
 							// all good
 						} else {
+							// Check the type of the token that triggered this
 							model.tokenizeIfCheap(pos.lineNumber);
 							const { tokenType } = model
 								.getLineTokens(pos.lineNumber)
-								.findTokenAtOffset(pos.column - 1);
-
+								.findTokenAtOffset(Math.max(pos.column - 1 - 1, 0));
 							const inValidScope = quickSuggestions.other && tokenType === StandardTokenType.Other
 								|| quickSuggestions.comments && tokenType === StandardTokenType.Comment
 								|| quickSuggestions.strings && tokenType === StandardTokenType.String;
