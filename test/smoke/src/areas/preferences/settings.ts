@@ -24,7 +24,7 @@ export class SettingsEditor {
 
 	public async focusEditableSettings(): Promise<void> {
 		await this.spectron.client.keys(['ArrowDown', 'NULL'], false);
-		await this.spectron.client.waitForElement(`.editable-preferences-editor-container .monaco-editor.focused`);
+		await this.spectron.client.waitForActiveElement('.editable-preferences-editor-container .monaco-editor textarea');
 		await this.spectron.client.keys(['ArrowRight', 'NULL'], false);
 	}
 
