@@ -236,7 +236,7 @@ export class DebugService implements debug.IDebugService {
 
 	private tryToAutoFocusStackFrame(thread: debug.IThread): TPromise<any> {
 		const callStack = thread.getCallStack();
-		if (!callStack.length || this.viewModel.focusedStackFrame) {
+		if (!callStack.length || (this.viewModel.focusedStackFrame && this.viewModel.focusedStackFrame.thread.threadId === thread.threadId)) {
 			return TPromise.as(null);
 		}
 
@@ -529,7 +529,7 @@ export class DebugService implements debug.IDebugService {
 		}
 		if (!stackFrame) {
 			const threads = process ? process.getAllThreads() : null;
-			const callStack = threads && threads.length ? threads[0].getCallStack() : null;
+			const callStack = threads && threads.length === 1 ? threads[0].getCallStack() : null;
 			stackFrame = callStack && callStack.length ? callStack[0] : null;
 		}
 
