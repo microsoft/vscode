@@ -481,7 +481,7 @@ export class RemoteFileService extends FileService {
 	private _doTouchFile(resource: URI): TPromise<IFileStat> {
 		return this._withProvider(resource).then(provider => {
 			return provider.stat(resource).then(() => {
-				return provider.utimes(resource, Date.now());
+				return provider.utimes(resource, Date.now(), Date.now());
 			}, err => {
 				return provider.write(resource, new Uint8Array(0));
 			}).then(() => {

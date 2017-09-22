@@ -107,6 +107,7 @@ declare module 'vscode' {
 	export interface FileStat {
 		id: number | string;
 		mtime: number;
+		// atime: number;
 		size: number;
 		type: FileType;
 	}
@@ -120,7 +121,7 @@ declare module 'vscode' {
 
 		// more...
 		//
-		utimes(resource: Uri, mtime: number): Thenable<FileStat>;
+		utimes(resource: Uri, mtime: number, atime: number): Thenable<FileStat>;
 
 		stat(resource: Uri): Thenable<FileStat>;
 

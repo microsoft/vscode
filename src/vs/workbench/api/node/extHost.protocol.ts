@@ -480,7 +480,7 @@ export interface ExtHostWorkspaceShape {
 }
 
 export interface ExtHostFileSystemShape {
-	$utimes(handle: number, resource: URI, mtime: number): TPromise<IStat>;
+	$utimes(handle: number, resource: URI, mtime: number, atime: number): TPromise<IStat>;
 	$stat(handle: number, resource: URI): TPromise<IStat>;
 	$read(handle: number, offset: number, count: number, resource: URI): TPromise<number>;
 	$write(handle: number, resource: URI, content: number[]): TPromise<void>;

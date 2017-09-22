@@ -84,8 +84,8 @@ class RemoteFileSystemProvider implements IFileSystemProvider {
 
 	// --- forwarding calls
 
-	utimes(resource: URI, mtime: number): TPromise<IStat, any> {
-		return this._proxy.$utimes(this._handle, resource, mtime);
+	utimes(resource: URI, mtime: number, atime: number): TPromise<IStat, any> {
+		return this._proxy.$utimes(this._handle, resource, mtime, atime);
 	}
 	stat(resource: URI): TPromise<IStat, any> {
 		return this._proxy.$stat(this._handle, resource);

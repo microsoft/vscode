@@ -42,8 +42,8 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		};
 	}
 
-	$utimes(handle: number, resource: URI, mtime: number): TPromise<IStat, any> {
-		return asWinJsPromise(token => this._provider.get(handle).utimes(resource, mtime));
+	$utimes(handle: number, resource: URI, mtime: number, atime: number): TPromise<IStat, any> {
+		return asWinJsPromise(token => this._provider.get(handle).utimes(resource, mtime, atime));
 	}
 	$stat(handle: number, resource: URI): TPromise<IStat, any> {
 		return asWinJsPromise(token => this._provider.get(handle).stat(resource));
