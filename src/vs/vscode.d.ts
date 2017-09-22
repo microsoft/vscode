@@ -5038,17 +5038,18 @@ declare module 'vscode' {
 		export function createFileSystemWatcher(globPattern: GlobPattern, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean): FileSystemWatcher;
 
 		/**
-		 * Find files in the workspace. Will return no results if no [workspace folders](#workspace.workspaceFolders)
-		 * are opened.
+		 * Find files across all [workspace folders](#workspace.workspaceFolders) in the workspace.
 		 *
 		 * @sample `findFiles('**∕*.js', '**∕node_modules∕**', 10)`
 		 * @param include A [glob pattern](#GlobPattern) that defines the files to search for. The glob pattern
-		 * will be matched against the file paths of resulting matches relative to their workspace.
+		 * will be matched against the file paths of resulting matches relative to their workspace. Use [RelativePattern](#RelativePattern)
+		 * to restrict the search to a specific folder of the workspace.
 		 * @param exclude  A [glob pattern](#GlobPattern) that defines files and folders to exclude. The glob pattern
 		 * will be matched against the file paths of resulting matches relative to their workspace.
 		 * @param maxResults An upper-bound for the result.
 		 * @param token A token that can be used to signal cancellation to the underlying search engine.
-		 * @return A thenable that resolves to an array of resource identifiers.
+		 * @return A thenable that resolves to an array of resource identifiers. Will return no results if no
+		 * [workspace folders](#workspace.workspaceFolders) are opened.
 		 */
 		export function findFiles(include: GlobPattern, exclude?: GlobPattern, maxResults?: number, token?: CancellationToken): Thenable<Uri[]>;
 
