@@ -1597,7 +1597,11 @@ declare module 'vscode' {
 		base: string;
 
 		/**
-		 * A relative file glob pattern like `*.{ts,js}`.
+		 * A file glob pattern like `*.{ts,js}` that will be matched on file paths
+		 * relative to the base path.
+		 *
+		 * Example: Given a base of `/home/work/folder` and a file path of `/home/work/folder/index.js`,
+		 * the file glob pattern will match on `index.js`.
 		 */
 		pattern: string;
 
@@ -1605,8 +1609,8 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A file glob pattern to match file paths against. This can either be a absolute glob pattern
-	 * (like `**∕*.{ts,js}`) or a [relative pattern](#RelativePattern).
+	 * A file glob pattern to match file paths against. This can either be a glob pattern string
+	 * (like `**∕*.{ts,js}` or `*.{ts,js}`) or a [relative pattern](#RelativePattern).
 	 */
 	export type GlobPattern = string | RelativePattern;
 
@@ -1631,7 +1635,7 @@ declare module 'vscode' {
 		scheme?: string;
 
 		/**
-		 * A [glob pattern](#GlobPattern) to match against.
+		 * A [glob pattern](#GlobPattern) that is matched on the absolute path of the document.
 		 */
 		pattern?: GlobPattern;
 	}
@@ -4931,12 +4935,13 @@ declare module 'vscode' {
 		/**
 		 * Creates a file system watcher.
 		 *
-		 * A glob pattern that filters the file events must be provided. Optionally, flags to ignore certain
-		 * kinds of events can be provided. To stop listening to events the watcher must be disposed.
+		 * A glob pattern that filters the file events on their absolute path must be provided. Optionally,
+		 * flags to ignore certain kinds of events can be provided. To stop listening to events the watcher must be disposed.
 		 *
 		 * *Note* that only files within the current [workspace folders](#workspace.workspaceFolders) can be watched.
 		 *
-		 * @param globPattern A [glob pattern](#GlobPattern) that is applied to the names of created, changed, and deleted files.
+		 * @param globPattern A [glob pattern](#GlobPattern) that is applied to the absolute paths of created, changed,
+		 * and deleted files.
 		 * @param ignoreCreateEvents Ignore when files have been created.
 		 * @param ignoreChangeEvents Ignore when files have been changed.
 		 * @param ignoreDeleteEvents Ignore when files have been deleted.
@@ -4945,11 +4950,14 @@ declare module 'vscode' {
 		export function createFileSystemWatcher(globPattern: GlobPattern, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean): FileSystemWatcher;
 
 		/**
-		 * Find files in the workspace.
+		 * Find files in the workspace. Will return no results if no [workspace folders](#workspace.workspaceFolders)
+		 * are opened.
 		 *
 		 * @sample `findFiles('**∕*.js', '**∕node_modules∕**', 10)`
-		 * @param include A [glob pattern](#GlobPattern) that defines the files to search for.
-		 * @param exclude  A [glob pattern](#GlobPattern) that defines files and folders to exclude.
+		 * @param include A [glob pattern](#GlobPattern) that defines the files to search for. The glob pattern
+		 * will be matched against the file paths of resulting matches relative to their workspace.
+		 * @param exclude  A [glob pattern](#GlobPattern) that defines files and folders to exclude. The glob pattern
+		 * will be matched against the file paths of resulting matches relative to their workspace.
 		 * @param maxResults An upper-bound for the result.
 		 * @param token A token that can be used to signal cancellation to the underlying search engine.
 		 * @return A thenable that resolves to an array of resource identifiers.
