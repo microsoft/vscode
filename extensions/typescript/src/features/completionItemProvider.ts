@@ -190,9 +190,17 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 		}
 
 		if (context.triggerCharacter === '/') {
-			// make sure we are in something that looks line an import path
+			// make sure we are in something that looks like an import path
 			const line = document.lineAt(position.line).text.slice(0, position.character);
 			if (!line.match(/^import .+? from\s*["'][^'"]*$/) && !line.match(/\b(import|require)\(['"][^'"]*$/)) {
+				return Promise.resolve<CompletionItem[]>([]);
+			}
+		}
+
+		if (context.triggerCharacter === '@') {
+			// make sure we are in something that looks like the start of a jsdoc comment
+			const line = document.lineAt(position.line).text.slice(0, position.character);
+			if (!line.match(/^\s*\*[ ]?@/) && !line.match(/\/\*\*+[ ]?@/)) {
 				return Promise.resolve<CompletionItem[]>([]);
 			}
 		}
