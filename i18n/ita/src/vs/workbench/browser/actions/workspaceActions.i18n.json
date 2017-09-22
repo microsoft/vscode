@@ -14,7 +14,6 @@
 	"selectWorkspace": "Seleziona cartelle per l'area di lavoro",
 	"removeFolderFromWorkspace": "Rimuovi cartella dall'area di lavoro",
 	"saveWorkspaceAsAction": "Salva area di lavoro come...",
-	"saveEmptyWorkspaceNotSupported": "Aprire prima un'area di lavoro da salvare.",
 	"save": "&&Salva",
 	"saveWorkspace": "Salva area di lavoro",
 	"openWorkspaceAction": "Apri area di lavoro...",

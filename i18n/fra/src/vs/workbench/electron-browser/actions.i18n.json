@@ -42,5 +42,10 @@
 	"navigateUp": "Naviguer vers l'affichage au-dessus",
 	"navigateDown": "Naviguer vers l'affichage en dessous",
 	"increaseViewSize": "Augmenter la taille de l'affichage actuel",
-	"decreaseViewSize": "Diminuer la taille de l'affichage actuel"
+	"decreaseViewSize": "Diminuer la taille de l'affichage actuel",
+	"showPreviousTab": "Afficher l’onglet de la fenêtre précédente",
+	"showNextWindowTab": "Afficher l’onglet de la fenêtre suivante",
+	"moveWindowTabToNewWindow": "Déplacer l’onglet de la fenêtre vers la nouvelle fenêtre",
+	"mergeAllWindowTabs": "Fusionner toutes les fenêtres",
+	"toggleWindowTabsBar": "Activer/désactiver la barre de fenêtres d’onglets"
 }

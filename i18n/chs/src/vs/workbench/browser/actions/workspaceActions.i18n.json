@@ -14,7 +14,6 @@
 	"selectWorkspace": "选择文件夹作为工作区",
 	"removeFolderFromWorkspace": "将文件夹从工作区删除",
 	"saveWorkspaceAsAction": "将工作区另存为...",
-	"saveEmptyWorkspaceNotSupported": "请先打开一个工作区再保存。",
 	"save": "保存(&&S)",
 	"saveWorkspace": "保存工作区",
 	"openWorkspaceAction": "打开工作区...",

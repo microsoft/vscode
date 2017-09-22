@@ -13,7 +13,6 @@
 	"invalid.title": "'configuration.title' 必須是字串",
 	"vscode.extension.contributes.defaultConfiguration": "依語言貢獻預設編輯器組態設定。",
 	"invalid.properties": "'configuration.properties' 必須是物件",
-	"workspaceConfig.folders.description": "要在工作區中載入之資料夾的清單。必須是檔案路徑，例如 `/root/folderA` 或 `./folderA` 即為會對工作區檔案位置解析的相關路徑。",
-	"workspaceConfig.folder.description": "檔案路徑，例如 `/root/folderA` 或 `./folderA` 即為會對工作區檔案位置解析的相關路徑。",
+	"workspaceConfig.path.description": "檔案路徑，例如 `/root/folderA` 或 `./folderA` 即為會對工作區檔案位置解析的相關路徑。",
 	"workspaceConfig.settings.description": "工作區設定"
 }

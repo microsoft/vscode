@@ -13,7 +13,11 @@
 	"invalid.title": "'configuration.title' bir dize olmalıdır",
 	"vscode.extension.contributes.defaultConfiguration": "Varsayılan düzenleyici yapılandırma ayarlarına dil bazında ekleme yapar.",
 	"invalid.properties": "'configuration.properties' bir nesne olmalıdır",
-	"workspaceConfig.folders.description": "Çalışma alanında yüklenecek klasörler listesi. Bir dosya yolu olmalıdır. ör. `/root/folderA` veya çalışma alanı dosyasının konumuna karşı çözümlenecek göreceli bir yol için `./folderA`.",
-	"workspaceConfig.folder.description": "Bir dosya yolu. ör. `/root/folderA` veya çalışma alanı dosyasının konumuna karşı çözümlenecek göreceli bir yol için `./folderA`.",
-	"workspaceConfig.settings.description": "Çalışma alanı ayarları"
+	"invalid.allOf": "'configuration.allOf' kullanım dışıdır ve artık kullanılmamalıdır. Bunun yerine, birden çok yapılandırma bölümlerini bir dizi olarak 'configuration' ekleme noktasına geçirin.",
+	"workspaceConfig.folders.description": "Çalışma alanına yüklenecek klasörler listesi.",
+	"workspaceConfig.path.description": "Bir dosya yolu. ör. `/root/folderA` veya çalışma alanı dosyasının konumuna karşı çözümlenecek göreceli bir yol için `./folderA`.",
+	"workspaceConfig.name.description": "Klasör için isteğe bağlı bir ad.",
+	"workspaceConfig.uri.description": "Klasörün URI'si",
+	"workspaceConfig.settings.description": "Çalışma alanı ayarları",
+	"workspaceConfig.extensions.description": "Çalışma alanı eklentileri"
 }
