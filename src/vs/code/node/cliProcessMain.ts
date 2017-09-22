@@ -110,7 +110,7 @@ class Main {
 						return TPromise.as(null);
 					}
 
-					return this.extensionGalleryService.query({ names: [id] })
+					return this.extensionGalleryService.query({ names: [id], source: 'cli' })
 						.then<IPager<IGalleryExtension>>(null, err => {
 							if (err.responseText) {
 								try {
