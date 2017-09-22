@@ -1180,6 +1180,11 @@ declare module 'vscode' {
 		static parse(value: string): Uri;
 
 		/**
+		 * Use the `file` and `parse` factory functions to create new `Uri` objects.
+		 */
+		private constructor(scheme: string, authority: string, path: string, query: string, fragment: string);
+
+		/**
 		 * Scheme is the `http` part of `http://www.msft.com/some/path?query#fragment`.
 		 * The part before the first colon.
 		 */
@@ -2734,6 +2739,40 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * How a [completion provider](#CompletionItemProvider) was triggered
+	 */
+	export enum CompletionTriggerKind {
+		/**
+		 * Completion was triggered normally.
+		 */
+		Invoke = 0,
+		/**
+		 * Completion was triggered by a trigger character.
+		 */
+		TriggerCharacter = 1
+	}
+
+	/**
+	 * Contains additional information about the context in which
+	 * [completion provider](#CompletionItemProvider.provideCompletionItems) is triggered.
+	 */
+	export interface CompletionContext {
+		/**
+		 * How the completion was triggered.
+		 */
+		readonly triggerKind: CompletionTriggerKind;
+
+		/**
+		 * Character that triggered the completion item provider.
+		 *
+		 * `undefined` if provider was not triggered by a character.
+		 *
+		 * The trigger character is already in the document when the completion provider is triggered.
+		 */
+		readonly triggerCharacter?: string;
+	}
+
+	/**
 	 * The completion item provider interface defines the contract between extensions and
 	 * [IntelliSense](https://code.visualstudio.com/docs/editor/intellisense).
 	 *
@@ -2755,10 +2794,12 @@ declare module 'vscode' {
 		 * @param document The document in which the command was invoked.
 		 * @param position The position at which the command was invoked.
 		 * @param token A cancellation token.
+		 * @param context How the completion was triggered.
+		 *
 		 * @return An array of completions, a [completion list](#CompletionList), or a thenable that resolves to either.
 		 * The lack of a result can be signaled by returning `undefined`, `null`, or an empty array.
 		 */
-		provideCompletionItems(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<CompletionItem[] | CompletionList>;
+		provideCompletionItems(document: TextDocument, position: Position, token: CancellationToken, context: CompletionContext): ProviderResult<CompletionItem[] | CompletionList>;
 
 		/**
 		 * Given a completion item fill in more data, like [doc-comment](#CompletionItem.documentation)
@@ -3933,7 +3974,7 @@ declare module 'vscode' {
 		 *  or '$eslint'. Problem matchers can be contributed by an extension using
 		 *  the `problemMatchers` extension point.
 		 */
-		constructor(taskDefinition: TaskDefinition, target: TaskScope.Global | TaskScope.Workspace | WorkspaceFolder, name: string, source: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string | string[]);
+		constructor(taskDefinition: TaskDefinition, target: WorkspaceFolder | TaskScope.Global | TaskScope.Workspace, name: string, source: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string | string[]);
 
 		/**
 		 * The task's definition.

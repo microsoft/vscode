@@ -13,6 +13,7 @@ import URI from 'vs/base/common/uri';
 import { MIME_BINARY } from 'vs/base/common/mime';
 import { once } from 'vs/base/common/functional';
 import paths = require('vs/base/common/paths');
+import resources = require('vs/base/common/resources');
 import errors = require('vs/base/common/errors');
 import { isString } from 'vs/base/common/types';
 import { IAction, ActionRunner as BaseActionRunner, IActionRunner } from 'vs/base/common/actions';
@@ -350,9 +351,9 @@ export class FileRenderer implements IRenderer {
 		});
 		const styler = attachInputBoxStyler(inputBox, this.themeService);
 
-		const parent = paths.dirname(stat.resource.fsPath);
+		const parent = resources.dirname(stat.resource);
 		inputBox.onDidChange(value => {
-			label.setFile(URI.file(paths.join(parent, value)), labelOptions); // update label icon while typing!
+			label.setFile(parent.with({ path: paths.join(parent.path, value) }), labelOptions); // update label icon while typing!
 		});
 
 		const value = stat.name || '';
@@ -752,7 +753,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		}
 
 		if (stat.isDirectory) {
-			return URI.from({ scheme: 'folder', path: stat.resource.fsPath }); // indicates that we are dragging a folder
+			return URI.from({ scheme: 'folder', path: stat.resource.path }); // indicates that we are dragging a folder
 		}
 
 		return stat.resource;
@@ -836,11 +837,11 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 					return true; // Can not move anything onto itself
 				}
 
-				if (!isCopy && paths.isEqual(paths.dirname(source.resource.fsPath), target.resource.fsPath)) {
+				if (!isCopy && resources.dirname(source.resource).toString() === target.resource.toString()) {
 					return true; // Can not move a file to the same parent unless we copy
 				}
 
-				if (paths.isEqualOrParent(target.resource.fsPath, source.resource.fsPath, !isLinux /* ignorecase */)) {
+				if (resources.isEqualOrParent(target.resource, source.resource, !isLinux /* ignorecase */)) {
 					return true; // Can not move a parent folder into one of its children
 				}
 
@@ -928,9 +929,8 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 			// Handle dropped files (only support FileStat as target)
 			else if (target instanceof FileStat) {
 				const importAction = this.instantiationService.createInstance(ImportFileAction, tree, target, null);
-				return importAction.run({
-					input: { paths: droppedResources.map(res => res.resource.fsPath) }
-				});
+
+				return importAction.run(droppedResources.map(res => res.resource));
 			}
 
 			return void 0;
@@ -962,18 +962,18 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 			};
 
 			// 1. check for dirty files that are being moved and backup to new target
-			const dirty = this.textFileService.getDirty().filter(d => paths.isEqualOrParent(d.fsPath, source.resource.fsPath, !isLinux /* ignorecase */));
+			const dirty = this.textFileService.getDirty().filter(d => resources.isEqualOrParent(d, source.resource, !isLinux /* ignorecase */));
 			return TPromise.join(dirty.map(d => {
 				let moved: URI;
 
 				// If the dirty file itself got moved, just reparent it to the target folder
-				if (paths.isEqual(source.resource.fsPath, d.fsPath)) {
-					moved = URI.file(paths.join(target.resource.fsPath, source.name));
+				if (source.resource.toString() === d.toString()) {
+					moved = target.resource.with({ path: paths.join(target.resource.path, source.name) });
 				}
 
 				// Otherwise, a parent of the dirty resource got moved, so we have to reparent more complicated. Example:
 				else {
-					moved = URI.file(paths.join(target.resource.fsPath, d.fsPath.substr(source.parent.resource.fsPath.length + 1)));
+					moved = target.resource.with({ path: paths.join(target.resource.path, d.path.substr(source.parent.resource.path.length + 1)) });
 				}
 
 				dirtyMoved.push(moved);
@@ -988,7 +988,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 
 				// 3.) run the move operation
 				.then(() => {
-					const targetResource = URI.file(paths.join(target.resource.fsPath, source.name));
+					const targetResource = target.resource.with({ path: paths.join(target.resource.path, source.name) });
 					let didHandleConflict = false;
 
 					return this.fileService.moveFile(source.resource, targetResource).then(null, error => {
@@ -1006,7 +1006,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 
 							// Move with overwrite if the user confirms
 							if (this.messageService.confirm(confirm)) {
-								const targetDirty = this.textFileService.getDirty().filter(d => paths.isEqualOrParent(d.fsPath, targetResource.fsPath, !isLinux /* ignorecase */));
+								const targetDirty = this.textFileService.getDirty().filter(d => resources.isEqualOrParent(d, targetResource, !isLinux /* ignorecase */));
 
 								// Make sure to revert all dirty in target first to be able to overwrite properly
 								return this.textFileService.revertAll(targetDirty, { soft: true /* do not attempt to load content from disk */ }).then(() => {

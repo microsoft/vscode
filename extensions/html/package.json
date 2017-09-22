@@ -215,11 +215,10 @@
     }
   },
   "dependencies": {
-	"color-convert": "^0.5.3",
     "vscode-extension-telemetry": "0.0.8",
-    "vscode-languageclient": "3.4.0-next.17",
-    "vscode-languageserver-protocol": "^3.1.1",
-    "vscode-languageserver-types": "^3.3.0",
+    "vscode-languageclient": "^3.4.2",
+    "vscode-languageserver-protocol": "^3.4.2",
+    "vscode-languageserver-types": "^3.4.0",
     "vscode-nls": "2.0.2"
   },
   "devDependencies": {

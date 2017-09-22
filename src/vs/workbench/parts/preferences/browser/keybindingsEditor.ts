@@ -251,6 +251,10 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.searchWidget.focus();
 	}
 
+	clearSearchResults(): void {
+		this.searchWidget.clear();
+	}
+
 	showConflicts(keybindingEntry: IKeybindingItemEntry): TPromise<any> {
 		const value = `"${keybindingEntry.keybindingItem.keybinding.getAriaLabel()}"`;
 		if (value !== this.searchWidget.getValue()) {

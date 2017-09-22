@@ -720,9 +720,8 @@
     ]
   },
   "dependencies": {
-    "color-convert": "^0.5.3",
-    "vscode-languageclient": "3.4.0-next.17",
-    "vscode-languageserver-protocol": "^3.1.1",
+    "vscode-languageclient": "^3.4.2",
+    "vscode-languageserver-protocol": "^3.4.2",
     "vscode-nls": "^2.0.2"
   },
   "devDependencies": {

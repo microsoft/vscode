@@ -11,6 +11,7 @@ import * as platform from 'vs/base/common/platform';
 import * as paths from 'vs/base/common/paths';
 import { OpenContext } from 'vs/platform/windows/common/windows';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IResolvedWorkspace } from 'vs/platform/workspaces/common/workspaces';
+import { Schemas } from 'vs/base/common/network';
 
 export interface ISimpleWindow {
 	openedWorkspace?: IWorkspaceIdentifier;
@@ -62,7 +63,7 @@ function findWindowOnFilePath<W extends ISimpleWindow>(windows: W[], filePath: s
 	for (let i = 0; i < workspaceWindows.length; i++) {
 		const window = workspaceWindows[i];
 		const resolvedWorkspace = workspaceResolver(window.openedWorkspace);
-		if (resolvedWorkspace && resolvedWorkspace.folders.some(folder => paths.isEqualOrParent(filePath, folder.uri.fsPath, !platform.isLinux /* ignorecase */))) {
+		if (resolvedWorkspace && resolvedWorkspace.folders.some(folder => folder.uri.scheme === Schemas.file && paths.isEqualOrParent(filePath, folder.uri.fsPath, !platform.isLinux /* ignorecase */))) {
 			return window;
 		}
 	}

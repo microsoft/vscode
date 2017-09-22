@@ -20,7 +20,7 @@ import {
 	isNamedProblemMatcher, ProblemMatcherRegistry
 } from 'vs/platform/markers/common/problemMatcher';
 
-import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 import * as Tasks from '../common/tasks';
 import { TaskDefinitionRegistry } from '../common/taskDefinitionRegistry';
@@ -563,7 +563,7 @@ function _freeze<T>(this: void, target: T, properties: MetaData<T, any>[]): Read
 }
 
 interface ParseContext {
-	workspaceFolder: WorkspaceFolder;
+	workspaceFolder: IWorkspaceFolder;
 	problemReporter: IProblemReporter;
 	namedProblemMatchers: IStringDictionary<NamedProblemMatcher>;
 	uuidMap: UUIDMap;
@@ -1682,11 +1682,11 @@ class UUIDMap {
 
 class ConfigurationParser {
 
-	private workspaceFolder: WorkspaceFolder;
+	private workspaceFolder: IWorkspaceFolder;
 	private problemReporter: IProblemReporter;
 	private uuidMap: UUIDMap;
 
-	constructor(workspaceFolder: WorkspaceFolder, problemReporter: IProblemReporter, uuidMap: UUIDMap) {
+	constructor(workspaceFolder: IWorkspaceFolder, problemReporter: IProblemReporter, uuidMap: UUIDMap) {
 		this.workspaceFolder = workspaceFolder;
 		this.problemReporter = problemReporter;
 		this.uuidMap = uuidMap;
@@ -1791,7 +1791,7 @@ class ConfigurationParser {
 }
 
 let uuidMaps: Map<string, UUIDMap> = new Map();
-export function parse(workspaceFolder: WorkspaceFolder, configuration: ExternalTaskRunnerConfiguration, logger: IProblemReporter): ParseResult {
+export function parse(workspaceFolder: IWorkspaceFolder, configuration: ExternalTaskRunnerConfiguration, logger: IProblemReporter): ParseResult {
 	let uuidMap = uuidMaps.get(workspaceFolder.uri.toString());
 	if (!uuidMap) {
 		uuidMap = new UUIDMap();

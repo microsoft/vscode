@@ -30,7 +30,7 @@ export class TaskEntry extends Model.QuickOpenEntry {
 	}
 
 	public getDescription(): string {
-		if (!this.taskService.hasMultipleFolders()) {
+		if (!this.taskService.needsFolderQualification()) {
 			return null;
 		}
 		let workspaceFolder = Task.getWorkspaceFolder(this.task);
@@ -98,7 +98,12 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 			let configured: CustomTask[] = [];
 			let detected: ContributedTask[] = [];
 			let taskMap: IStringDictionary<CustomTask | ContributedTask> = Object.create(null);
-			tasks.forEach(task => taskMap[Task.getKey(task)] = task);
+			tasks.forEach(task => {
+				let key = Task.getRecentlyUsedKey(task);
+				if (key) {
+					taskMap[key] = task;
+				}
+			});
 			recentlyUsedTasks.keys().forEach(key => {
 				let task = taskMap[key];
 				if (task) {
@@ -106,7 +111,8 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 				}
 			});
 			for (let task of tasks) {
-				if (!recentlyUsedTasks.has(Task.getKey(task))) {
+				let key = Task.getRecentlyUsedKey(task);
+				if (!key || !recentlyUsedTasks.has(key)) {
 					if (CustomTask.is(task)) {
 						configured.push(task);
 					} else {

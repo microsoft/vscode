@@ -11,6 +11,7 @@ import nls = require('vs/nls');
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { sequence, ITask } from 'vs/base/common/async';
 import paths = require('vs/base/common/paths');
+import resources = require('vs/base/common/resources');
 import URI from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -296,22 +297,20 @@ class RenameFileAction extends BaseRenameAction {
 	}
 
 	public runAction(newName: string): TPromise<any> {
-
-		const dirty = this.textFileService.getDirty().filter(d => paths.isEqualOrParent(d.fsPath, this.element.resource.fsPath, !isLinux /* ignorecase */));
+		const dirty = this.textFileService.getDirty().filter(d => resources.isEqualOrParent(d, this.element.resource, !isLinux /* ignorecase */));
 		const dirtyRenamed: URI[] = [];
 		return TPromise.join(dirty.map(d => {
-
-			const targetPath = paths.join(this.element.parent.resource.fsPath, newName);
 			let renamed: URI;
 
 			// If the dirty file itself got moved, just reparent it to the target folder
-			if (paths.isEqual(this.element.resource.fsPath, d.fsPath)) {
-				renamed = URI.file(targetPath);
+			const targetPath = paths.join(this.element.parent.resource.path, newName);
+			if (this.element.resource.toString() === d.toString()) {
+				renamed = this.element.parent.resource.with({ path: targetPath });
 			}
 
 			// Otherwise, a parent of the dirty resource got moved, so we have to reparent more complicated. Example:
 			else {
-				renamed = URI.file(paths.join(targetPath, d.fsPath.substr(this.element.resource.fsPath.length + 1)));
+				renamed = this.element.parent.resource.with({ path: paths.join(targetPath, d.path.substr(this.element.resource.path.length + 1)) });
 			}
 
 			dirtyRenamed.push(renamed);
@@ -589,7 +588,8 @@ export class CreateFileAction extends BaseCreateAction {
 	}
 
 	public runAction(fileName: string): TPromise<any> {
-		return this.fileService.createFile(URI.file(paths.join(this.element.parent.resource.fsPath, fileName))).then(stat => {
+		const resource = this.element.parent.resource;
+		return this.fileService.createFile(resource.with({ path: paths.join(resource.path, fileName) })).then(stat => {
 			return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
 		}, (error) => {
 			this.onErrorWithRetry(error, () => this.runAction(fileName));
@@ -615,7 +615,8 @@ export class CreateFolderAction extends BaseCreateAction {
 	}
 
 	public runAction(fileName: string): TPromise<any> {
-		return this.fileService.createFolder(URI.file(paths.join(this.element.parent.resource.fsPath, fileName))).then(null, (error) => {
+		const resource = this.element.parent.resource;
+		return this.fileService.createFolder(resource.with({ path: paths.join(resource.path, fileName) })).then(null, (error) => {
 			this.onErrorWithRetry(error, () => this.runAction(fileName));
 		});
 	}
@@ -673,7 +674,7 @@ export class BaseDeleteFileAction extends BaseFileAction {
 
 		// Handle dirty
 		let revertPromise: TPromise<any> = TPromise.as(null);
-		const dirty = this.textFileService.getDirty().filter(d => paths.isEqualOrParent(d.fsPath, this.element.resource.fsPath, !isLinux /* ignorecase */));
+		const dirty = this.textFileService.getDirty().filter(d => resources.isEqualOrParent(d, this.element.resource, !isLinux /* ignorecase */));
 		if (dirty.length) {
 			let message: string;
 			if (this.element.isDirectory) {
@@ -798,10 +799,9 @@ export class ImportFileAction extends BaseFileAction {
 		return this.tree;
 	}
 
-	public run(context?: any): TPromise<any> {
+	public run(resources: URI[]): TPromise<any> {
 		const importPromise = TPromise.as(null).then(() => {
-			const input = context.input as { paths: string[] };
-			if (input.paths && input.paths.length > 0) {
+			if (resources && resources.length > 0) {
 
 				// Find parent for import
 				let targetElement: FileStat;
@@ -826,8 +826,8 @@ export class ImportFileAction extends BaseFileAction {
 					});
 
 					let overwrite = true;
-					if (input.paths.some(path => {
-						return !!targetNames[isLinux ? paths.basename(path) : paths.basename(path).toLowerCase()];
+					if (resources.some(resource => {
+						return !!targetNames[isLinux ? paths.basename(resource.fsPath) : paths.basename(resource.fsPath).toLowerCase()];
 					})) {
 						const confirm: IConfirmation = {
 							message: nls.localize('confirmOverwrite', "A file or folder with the same name already exists in the destination folder. Do you want to replace it?"),
@@ -845,10 +845,10 @@ export class ImportFileAction extends BaseFileAction {
 
 					// Run import in sequence
 					const importPromisesFactory: ITask<TPromise<void>>[] = [];
-					input.paths.forEach(path => {
+					resources.forEach(resource => {
 						importPromisesFactory.push(() => {
-							const sourceFile = URI.file(path);
-							const targetFile = URI.file(paths.join(targetElement.resource.fsPath, paths.basename(path)));
+							const sourceFile = resource;
+							const targetFile = targetElement.resource.with({ path: paths.join(targetElement.resource.path, paths.basename(sourceFile.path)) });
 
 							// if the target exists and is dirty, make sure to revert it. otherwise the dirty contents
 							// of the target file would replace the contents of the imported file. since we already
@@ -862,7 +862,7 @@ export class ImportFileAction extends BaseFileAction {
 								return this.fileService.importFile(sourceFile, targetElement.resource).then(res => {
 
 									// if we only import one file, just open it directly
-									if (input.paths.length === 1) {
+									if (resources.length === 1) {
 										this.editorService.openEditor({ resource: res.stat.resource, options: { pinned: true } }).done(null, errors.onUnexpectedError);
 									}
 								}, error => this.onError(error));
@@ -964,7 +964,7 @@ export class PasteFileAction extends BaseFileAction {
 		}
 
 		// Check if target is ancestor of pasted folder
-		if (!paths.isEqual(this.element.resource.fsPath, fileToCopy.resource.fsPath) && paths.isEqualOrParent(this.element.resource.fsPath, fileToCopy.resource.fsPath, !isLinux /* ignorecase */)) {
+		if (this.element.resource.toString() !== fileToCopy.resource.toString() && resources.isEqualOrParent(this.element.resource, fileToCopy.resource, !isLinux /* ignorecase */)) {
 			return false;
 		}
 
@@ -1047,14 +1047,14 @@ export class DuplicateFileAction extends BaseFileAction {
 	private findTarget(): URI {
 		let name = this.element.name;
 
-		let candidate = URI.file(paths.join(this.target.resource.fsPath, name));
+		let candidate = this.target.resource.with({ path: paths.join(this.target.resource.fsPath, name) });
 		while (true) {
 			if (!this.element.root.find(candidate)) {
 				break;
 			}
 
 			name = this.toCopyName(name, this.element.isDirectory);
-			candidate = URI.file(paths.join(this.target.resource.fsPath, name));
+			candidate = this.target.resource.with({ path: paths.join(this.target.resource.fsPath, name) });
 		}
 
 		return candidate;
@@ -1210,7 +1210,7 @@ export class GlobalCompareResourcesAction extends Action {
 				}
 
 				label = paths.basename(resource.fsPath);
-				description = resource.scheme === 'file' ? labels.getPathLabel(paths.dirname(resource.fsPath), this.contextService, this.environmentService) : void 0;
+				description = labels.getPathLabel(resources.dirname(resource), this.contextService, this.environmentService);
 
 				return <IHistoryPickEntry>{ input, resource, label, description };
 			}).filter(p => !!p);
@@ -1370,7 +1370,8 @@ export abstract class BaseSaveOneFileAction extends BaseSaveFileAction {
 		if (this.resource) {
 			source = this.resource;
 		} else {
-			source = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: ['file', 'untitled'] });
+			// source = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: ['file', 'untitled'] });
+			source = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true });
 		}
 
 		if (source) {

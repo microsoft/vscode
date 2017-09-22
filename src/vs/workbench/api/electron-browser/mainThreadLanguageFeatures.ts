@@ -234,8 +234,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 		this._registrations[handle] = modes.SuggestRegistry.register(toLanguageSelector(selector), <modes.ISuggestSupport>{
 			triggerCharacters,
-			provideCompletionItems: (model: IReadOnlyModel, position: EditorPosition, token: CancellationToken): Thenable<modes.ISuggestResult> => {
-				return wireCancellationToken(token, this._proxy.$provideCompletionItems(handle, model.uri, position)).then(result => {
+			provideCompletionItems: (model: IReadOnlyModel, position: EditorPosition, context: modes.SuggestContext, token: CancellationToken): Thenable<modes.ISuggestResult> => {
+				return wireCancellationToken(token, this._proxy.$provideCompletionItems(handle, model.uri, position, context)).then(result => {
 					if (!result) {
 						return result;
 					}
@@ -293,9 +293,9 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 						return documentColors.map(documentColor => {
 							const [red, green, blue, alpha] = documentColor.color;
 							const color = {
-								red: red / 255.0,
-								green: green / 255.0,
-								blue: blue / 255.0,
+								red: red,
+								green: green,
+								blue: blue,
 								alpha
 							};
 
@@ -307,8 +307,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 					});
 			},
 
-			provideColorPresentations: (colorInfo, token) => {
-				return wireCancellationToken(token, proxy.$provideColorPresentations(handle, {
+			provideColorPresentations: (model, colorInfo, token) => {
+				return wireCancellationToken(token, proxy.$provideColorPresentations(handle, model.uri, {
 					color: [colorInfo.color.red, colorInfo.color.green, colorInfo.color.blue, colorInfo.color.alpha],
 					range: colorInfo.range
 				}));

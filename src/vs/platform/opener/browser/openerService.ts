@@ -73,7 +73,7 @@ export class OpenerService implements IOpenerService {
 				return TPromise.as(undefined);
 
 			} else if (resource.scheme === Schemas.file) {
-				resource = URI.file(normalize(resource.fsPath)); // workaround for non-normalized paths (https://github.com/Microsoft/vscode/issues/12954)
+				resource = resource.with({ path: normalize(resource.path) }); // workaround for non-normalized paths (https://github.com/Microsoft/vscode/issues/12954)
 			}
 			promise = this._editorService.openEditor({ resource, options: { selection, } }, options && options.openToSide);
 		}

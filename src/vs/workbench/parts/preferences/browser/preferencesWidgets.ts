@@ -332,7 +332,7 @@ export class SettingsTargetsWidget extends Widget {
 		actions.push(<IAction>{
 			id: 'userSettingsTarget',
 			label: getSettingsTargetName(ConfigurationTarget.USER, userSettingsResource, this.workspaceContextService),
-			checked: this.uri.fsPath === userSettingsResource.fsPath,
+			checked: this.uri.toString() === userSettingsResource.toString(),
 			enabled: true,
 			run: () => this.onTargetClicked(userSettingsResource)
 		});
@@ -342,7 +342,7 @@ export class SettingsTargetsWidget extends Widget {
 			actions.push(<IAction>{
 				id: 'workspaceSettingsTarget',
 				label: getSettingsTargetName(ConfigurationTarget.WORKSPACE, workspaceSettingsResource, this.workspaceContextService),
-				checked: this.uri.fsPath === workspaceSettingsResource.fsPath,
+				checked: this.uri.toString() === workspaceSettingsResource.toString(),
 				enabled: true,
 				run: () => this.onTargetClicked(workspaceSettingsResource)
 			});
@@ -355,7 +355,7 @@ export class SettingsTargetsWidget extends Widget {
 				return <IAction>{
 					id: 'folderSettingsTarget' + index,
 					label: getSettingsTargetName(ConfigurationTarget.FOLDER, folder.uri, this.workspaceContextService),
-					checked: this.uri.fsPath === folder.uri.fsPath,
+					checked: this.uri.toString() === folder.uri.toString(),
 					enabled: true,
 					run: () => this.onTargetClicked(folder.uri)
 				};
@@ -366,7 +366,7 @@ export class SettingsTargetsWidget extends Widget {
 	}
 
 	private onTargetClicked(target: URI): void {
-		if (this.uri.fsPath === target.fsPath) {
+		if (this.uri.toString() === target.toString()) {
 			return;
 		}
 		this._onDidTargetChange.fire(target);
@@ -398,9 +398,6 @@ export class SearchWidget extends Widget {
 
 	private _onDidChange: Emitter<string> = this._register(new Emitter<string>());
 	public readonly onDidChange: Event<string> = this._onDidChange.event;
-
-	private _onNavigate: Emitter<boolean> = this._register(new Emitter<boolean>());
-	public readonly onNavigate: Event<boolean> = this._onNavigate.event;
 
 	private _onFocus: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onFocus: Event<void> = this._onFocus.event;
@@ -447,7 +444,6 @@ export class SearchWidget extends Widget {
 		const searchInput = DOM.append(this.searchContainer, DOM.$('div.settings-search-input'));
 		this.inputBox = this._register(this.createInputBox(searchInput));
 		this._register(this.inputBox.onDidChange(value => this._onDidChange.fire(value)));
-		this.onkeydown(this.inputBox.inputElement, (e) => this._onKeyDown(e));
 	}
 
 	protected createInputBox(parent: HTMLElement): InputBox {
@@ -502,24 +498,6 @@ export class SearchWidget extends Widget {
 
 	public setValue(value: string): string {
 		return this.inputBox.value = value;
-	}
-
-	private _onKeyDown(keyboardEvent: IKeyboardEvent): void {
-		let handled = false;
-		switch (keyboardEvent.keyCode) {
-			case KeyCode.Enter:
-				this._onNavigate.fire(keyboardEvent.shiftKey);
-				handled = true;
-				break;
-			case KeyCode.Escape:
-				this.clear();
-				handled = true;
-				break;
-		}
-		if (handled) {
-			keyboardEvent.preventDefault();
-			keyboardEvent.stopPropagation();
-		}
 	}
 
 	public dispose(): void {

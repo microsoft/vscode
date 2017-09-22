@@ -880,6 +880,16 @@ export class SignatureHelp {
 	}
 }
 
+export enum CompletionTriggerKind {
+	Invoke = 0,
+	TriggerCharacter = 1
+}
+
+export interface CompletionContext {
+	triggerKind: CompletionTriggerKind;
+	triggerCharacter: string;
+}
+
 export enum CompletionItemKind {
 	Text = 0,
 	Method = 1,
@@ -1078,6 +1088,13 @@ export class ColorPresentation {
 	label: string;
 	textEdit?: TextEdit;
 	additionalTextEdits?: TextEdit[];
+
+	constructor(label: string) {
+		if (!label || typeof label !== 'string') {
+			throw illegalArgument('label');
+		}
+		this.label = label;
+	}
 }
 
 export enum ColorFormat {

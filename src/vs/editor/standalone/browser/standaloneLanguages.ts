@@ -373,8 +373,8 @@ export function registerCompletionItemProvider(languageId: string, provider: Com
 	let adapter = new SuggestAdapter(provider);
 	return modes.SuggestRegistry.register(languageId, {
 		triggerCharacters: provider.triggerCharacters,
-		provideCompletionItems: (model: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): Thenable<modes.ISuggestResult> => {
-			return adapter.provideCompletionItems(model, position, token);
+		provideCompletionItems: (model: editorCommon.IReadOnlyModel, position: Position, context: modes.SuggestContext, token: CancellationToken): Thenable<modes.ISuggestResult> => {
+			return adapter.provideCompletionItems(model, position, context, token);
 		},
 		resolveCompletionItem: (model: editorCommon.IReadOnlyModel, position: Position, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion> => {
 			return adapter.resolveCompletionItem(model, position, suggestion, token);
@@ -537,6 +537,25 @@ export interface CompletionList {
 	 */
 	items: CompletionItem[];
 }
+
+/**
+ * Contains additional information about the context in which
+ * [completion provider](#CompletionItemProvider.provideCompletionItems) is triggered.
+ */
+export interface CompletionContext {
+	/**
+	 * How the completion was triggered.
+	 */
+	triggerKind: modes.SuggestTriggerKind;
+
+	/**
+	 * Character that triggered the completion item provider.
+	 *
+	 * `undefined` if provider was not triggered by a character.
+	 */
+	triggerCharacter?: string;
+}
+
 /**
  * The completion item provider interface defines the contract between extensions and
  * the [IntelliSense](https://code.visualstudio.com/docs/editor/intellisense).
@@ -553,7 +572,8 @@ export interface CompletionItemProvider {
 	/**
 	 * Provide completion items for the given position and document.
 	 */
-	provideCompletionItems(model: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
+	provideCompletionItems(document: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken, context: CompletionContext): CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
+
 	/**
 	 * Given a completion item fill in more data, like [doc-comment](#CompletionItem.documentation)
 	 * or [details](#CompletionItem.detail).
@@ -590,6 +610,7 @@ function convertKind(kind: CompletionItemKind): modes.SuggestionType {
 	}
 	return 'property';
 }
+
 class SuggestAdapter {
 
 	private _provider: CompletionItemProvider;
@@ -639,9 +660,9 @@ class SuggestAdapter {
 		return suggestion;
 	}
 
-	provideCompletionItems(model: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): Thenable<modes.ISuggestResult> {
-
-		return toThenable<CompletionItem[] | CompletionList>(this._provider.provideCompletionItems(model, position, token)).then(value => {
+	provideCompletionItems(model: editorCommon.IReadOnlyModel, position: Position, context: modes.SuggestContext, token: CancellationToken): Thenable<modes.ISuggestResult> {
+		const result = this._provider.provideCompletionItems(model, position, token, context);
+		return toThenable<CompletionItem[] | CompletionList>(result).then(value => {
 			const result: modes.ISuggestResult = {
 				suggestions: []
 			};
@@ -738,6 +759,7 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		DocumentHighlightKind: modes.DocumentHighlightKind,
 		CompletionItemKind: CompletionItemKind,
 		SymbolKind: modes.SymbolKind,
-		IndentAction: IndentAction
+		IndentAction: IndentAction,
+		SuggestTriggerKind: modes.SuggestTriggerKind
 	};
 }

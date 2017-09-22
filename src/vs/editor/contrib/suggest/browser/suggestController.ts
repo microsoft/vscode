@@ -209,7 +209,7 @@ export class SuggestController implements IEditorContribution {
 	}
 
 	triggerSuggest(onlyFrom?: ISuggestSupport[]): void {
-		this._model.trigger(false, false, onlyFrom);
+		this._model.trigger({ auto: false }, false, onlyFrom);
 		this._editor.revealLine(this._editor.getPosition().lineNumber, ScrollType.Smooth);
 		this._editor.focus();
 	}

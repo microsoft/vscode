@@ -825,7 +825,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 				return TPromise.as(null);
 			}
 
-			return this.queryGallery({ names: [extensionId] }).then(result => {
+			return this.queryGallery({ names: [extensionId], source: 'uri' }).then(result => {
 				if (result.total < 1) {
 					return TPromise.as(null);
 				}

@@ -32,6 +32,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkspacesMainService, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, WORKSPACE_FILTER, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
+import { Schemas } from 'vs/base/common/network';
 
 enum WindowError {
 	UNRESPONSIVE,
@@ -1813,18 +1814,20 @@ class WorkspacesManager {
 	}
 
 	private getWorkspaceDialogDefaultPath(workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier): string {
-		let defaultPath: string;
 		if (workspace) {
 			if (isSingleFolderWorkspaceIdentifier(workspace)) {
-				defaultPath = dirname(workspace);
-			} else {
-				const resolvedWorkspace = this.workspacesService.resolveWorkspaceSync(workspace.configPath);
-				if (resolvedWorkspace && resolvedWorkspace.folders.length > 0) {
-					defaultPath = dirname(resolvedWorkspace.folders[0].uri.fsPath);
+				return dirname(workspace);
+			}
+
+			const resolvedWorkspace = this.workspacesService.resolveWorkspaceSync(workspace.configPath);
+			if (resolvedWorkspace && resolvedWorkspace.folders.length > 0) {
+				for (const folder of resolvedWorkspace.folders) {
+					if (folder.uri.scheme === Schemas.file) {
+						return dirname(folder.uri.fsPath);
+					}
 				}
 			}
 		}
-
-		return defaultPath;
+		return void 0;
 	}
 }

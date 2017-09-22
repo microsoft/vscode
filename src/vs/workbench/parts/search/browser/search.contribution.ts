@@ -190,7 +190,7 @@ class ExplorerViewerActionContributor extends ActionBarContributor {
 			return false;
 		}
 
-		return fileResource.isDirectory;
+		return fileResource.isDirectory && fileResource.resource.scheme === 'file';
 	}
 
 	public getSecondaryActions(context: any): IAction[] {

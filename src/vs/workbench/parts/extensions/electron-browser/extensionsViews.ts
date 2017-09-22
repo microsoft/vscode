@@ -299,7 +299,10 @@ export class ExtensionsListView extends CollapsibleView {
 						}
 						options.source = 'recommendations-all';
 						return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
-							.then(pager => new PagedModel(pager || []));
+							.then(pager => {
+								this.sortFirstPage(pager, names);
+								return new PagedModel(pager || []);
+							});
 					});
 			});
 	}
@@ -321,7 +324,10 @@ export class ExtensionsListView extends CollapsibleView {
 				}
 				options.source = 'recommendations';
 				return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
-					.then(pager => new PagedModel(pager || []));
+					.then(pager => {
+						this.sortFirstPage(pager, names);
+						return new PagedModel(pager || []);
+					});
 			});
 	}
 
@@ -353,6 +359,23 @@ export class ExtensionsListView extends CollapsibleView {
 		options.source = 'recommendations-keymaps';
 		return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
 			.then(result => new PagedModel(result));
+	}
+
+	// Sorts the firsPage of the pager in the same order as given array of extension ids
+	private sortFirstPage(pager: IPager<IExtension>, ids: string[]) {
+		if (ids.length !== pager.pageSize) {
+			return;
+		}
+		ids = ids.map(x => x.toLowerCase());
+		let newFirstPage = new Array(pager.pageSize);
+		for (let i = 0; i < pager.pageSize; i++) {
+			let index = ids.indexOf(pager.firstPage[i].id.toLowerCase());
+			if (index === -1) {
+				return; // Something went wrong, Abort! Abort!
+			}
+			newFirstPage[index] = pager.firstPage[i];
+		}
+		pager.firstPage = newFirstPage;
 	}
 
 	private setModel(model: IPagedModel<IExtension>) {

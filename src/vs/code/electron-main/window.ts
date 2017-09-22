@@ -19,9 +19,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
-import { IWindowSettings, MenuBarVisibility, IWindowConfiguration, ReadyState } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, MenuBarVisibility, IWindowConfiguration, ReadyState, IRunActionInWindowRequest } from 'vs/platform/windows/common/windows';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { KeyboardLayoutMonitor } from 'vs/code/electron-main/keyboard';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspaceIdentifier, IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
@@ -94,6 +93,8 @@ export class CodeWindow implements ICodeWindow {
 	private currentConfig: IWindowConfiguration;
 	private pendingLoadConfig: IWindowConfiguration;
 
+	private touchBarGroups: Map<string, Electron.TouchBarSegmentedControl>;
+
 	constructor(
 		config: IWindowCreationOptions,
 		@ILogService private logService: ILogService,
@@ -103,6 +104,7 @@ export class CodeWindow implements ICodeWindow {
 		@IWorkspacesMainService private workspaceService: IWorkspacesMainService,
 		@IBackupMainService private backupService: IBackupMainService
 	) {
+		this.touchBarGroups = new Map<string, Electron.TouchBarSegmentedControl>();
 		this._lastFocusTime = -1;
 		this._readyState = ReadyState.NONE;
 		this.whenReadyCallbacks = [];
@@ -440,9 +442,9 @@ export class CodeWindow implements ICodeWindow {
 			}
 
 			if (cmd === back) {
-				this.send('vscode:runAction', acrossEditors ? 'workbench.action.openPreviousRecentlyUsedEditor' : 'workbench.action.navigateBack');
+				this.send('vscode:runAction', { id: acrossEditors ? 'workbench.action.openPreviousRecentlyUsedEditor' : 'workbench.action.navigateBack', from: 'mouse' } as IRunActionInWindowRequest);
 			} else if (cmd === forward) {
-				this.send('vscode:runAction', acrossEditors ? 'workbench.action.openNextRecentlyUsedEditor' : 'workbench.action.navigateForward');
+				this.send('vscode:runAction', { id: acrossEditors ? 'workbench.action.openNextRecentlyUsedEditor' : 'workbench.action.navigateForward', from: 'mouse' } as IRunActionInWindowRequest);
 			}
 		});
 	}
@@ -546,9 +548,6 @@ export class CodeWindow implements ICodeWindow {
 		// Set Accessibility Config
 		windowConfiguration.highContrast = isWindows && systemPreferences.isInvertedColorScheme() && (!windowConfig || windowConfig.autoDetectHighContrast);
 		windowConfiguration.accessibilitySupport = app.isAccessibilitySupportEnabled();
-
-		// Set Keyboard Config
-		windowConfiguration.isISOKeyboard = KeyboardLayoutMonitor.INSTANCE.isISOKeyboard();
 
 		// Theme
 		windowConfiguration.baseTheme = this.getBaseTheme();
@@ -858,49 +857,80 @@ export class CodeWindow implements ICodeWindow {
 		this._win.webContents.send(channel, ...args);
 	}
 
-	public updateTouchBar(items: ICommandAction[][]): void {
+	public updateTouchBar(groups: ICommandAction[][]): void {
 		if (!isMacintosh) {
 			return; // only supported on macOS
 		}
 
-		const groups: (Electron.TouchBarGroup | Electron.TouchBarSpacer)[] = [];
-
-		items.forEach(itemGroup => {
-			if (itemGroup.length) {
-
-				// Group Segments
-				const groupSegments = itemGroup.map(item => {
-					let icon: Electron.NativeImage;
-					if (item.iconPath) {
-						icon = nativeImage.createFromPath(item.iconPath);
-						if (icon.isEmpty()) {
-							icon = void 0;
-						}
-					}
-
-					return {
-						label: !icon ? item.title as string : void 0,
-						icon
-					};
-				});
-
-				// Group Touch Bar
-				const groupTouchBar = new TouchBar.TouchBarSegmentedControl({
-					segments: groupSegments,
-					mode: 'buttons',
-					segmentStyle: 'automatic',
-					change: (selectedIndex) => {
-						this.sendWhenReady('vscode:runAction', itemGroup[selectedIndex].id);
-					}
-				});
-
-				// Push and add small space between groups
-				groups.push(groupTouchBar);
-				groups.push(new TouchBar.TouchBarSpacer({ size: 'small' }));
+		// Clean up previous groups no longer in use
+		const groupHashes: string[] = [];
+		groups.forEach(group => groupHashes.push(this.getTouchBarGroupHash(group)));
+		this.touchBarGroups.forEach((value, key) => {
+			if (groupHashes.indexOf(key) === -1) {
+				this.touchBarGroups.delete(key);
 			}
 		});
 
-		this._win.setTouchBar(new TouchBar({ items: groups }));
+		// Build touchbar from groups
+		const touchBarGroups: (Electron.TouchBarGroup | Electron.TouchBarSpacer)[] = [];
+		groups.forEach(group => {
+			if (group.length) {
+				const groupHash = this.getTouchBarGroupHash(group);
+
+				// To avoid flickering, we try to reuse the touch bar group
+				// as much as possible by checking for a previously created
+				// group that has the same number of items with same style.
+				let groupTouchBar: Electron.TouchBarSegmentedControl;
+				if (this.touchBarGroups.has(groupHash)) {
+					groupTouchBar = this.touchBarGroups.get(groupHash);
+				} else {
+					groupTouchBar = this.createTouchBarGroup(group);
+					this.touchBarGroups.set(groupHash, groupTouchBar);
+				}
+
+				// Push and add small space between groups
+				touchBarGroups.push(groupTouchBar);
+				touchBarGroups.push(new TouchBar.TouchBarSpacer({ size: 'small' }));
+			}
+		});
+
+		this._win.setTouchBar(new TouchBar({ items: touchBarGroups }));
+	}
+
+	private getTouchBarGroupHash(items: ICommandAction[]): string {
+		let id = '';
+		items.forEach(item => id += (item.id + item.title + item.iconPath));
+
+		return id;
+	}
+
+	private createTouchBarGroup(items: ICommandAction[]): Electron.TouchBarSegmentedControl {
+
+		// Group Segments
+		const segments = items.map(item => {
+			let icon: Electron.NativeImage;
+			if (item.iconPath) {
+				icon = nativeImage.createFromPath(item.iconPath);
+				if (icon.isEmpty()) {
+					icon = void 0;
+				}
+			}
+
+			return {
+				label: !icon ? item.title as string : void 0,
+				icon
+			};
+		});
+
+		// Group Touch Bar
+		return new TouchBar.TouchBarSegmentedControl({
+			segments,
+			mode: 'buttons',
+			segmentStyle: 'automatic',
+			change: (selectedIndex) => {
+				this.sendWhenReady('vscode:runAction', { id: items[selectedIndex].id, from: 'touchbar' });
+			}
+		});
 	}
 
 	public dispose(): void {

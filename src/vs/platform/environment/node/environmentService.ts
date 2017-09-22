@@ -52,6 +52,10 @@ function getIPCHandle(userDataPath: string, type: string): string {
 	}
 }
 
+export function getInstallSourcePath(userDataPath: string): string {
+	return path.join(userDataPath, 'installSource');
+}
+
 export class EnvironmentService implements IEnvironmentService {
 
 	_serviceBrand: any;
@@ -143,6 +147,8 @@ export class EnvironmentService implements IEnvironmentService {
 
 	readonly machineUUID: string;
 
+	readonly installSource: string;
+
 	constructor(private _args: ParsedArgs, private _execPath: string) {
 		const machineIdPath = path.join(this.userDataPath, 'machineid');
 
@@ -160,6 +166,12 @@ export class EnvironmentService implements IEnvironmentService {
 			} catch (err) {
 				console.warn('Could not store machine ID');
 			}
+		}
+
+		try {
+			this.installSource = fs.readFileSync(getInstallSourcePath(this.userDataPath), 'utf8').slice(0, 30);
+		} catch (err) {
+			this.installSource = '';
 		}
 	}
 }

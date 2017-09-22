@@ -10,8 +10,8 @@ import { Builder, $ } from 'vs/base/browser/builder';
 import URI from 'vs/base/common/uri';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import errors = require('vs/base/common/errors');
-import labels = require('vs/base/common/labels');
 import paths = require('vs/base/common/paths');
+import resources = require('vs/base/common/resources');
 import glob = require('vs/base/common/glob');
 import { Action, IAction } from 'vs/base/common/actions';
 import { prepareActions } from 'vs/workbench/browser/actions';
@@ -32,7 +32,7 @@ import { FileStat, Model } from 'vs/workbench/parts/files/common/explorerModel';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { IWorkspaceContextService, WorkbenchState, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -133,7 +133,7 @@ export class ExplorerView extends CollapsibleView {
 		const titleSpan = $('span').appendTo(titleDiv);
 		const setHeader = () => {
 			const workspace = this.contextService.getWorkspace();
-			const title = workspace.folders.map(folder => labels.getPathLabel(folder.uri.fsPath, void 0, this.environmentService)).join();
+			const title = workspace.folders.map(folder => folder.name).join();
 			titleSpan.text(this.name).title(title);
 		};
 		this.toDispose.push(this.contextService.onDidChangeWorkspaceName(() => setHeader()));
@@ -194,7 +194,11 @@ export class ExplorerView extends CollapsibleView {
 		this.onConfigurationUpdated(configuration);
 
 		// Load and Fill Viewer
-		return this.doRefresh().then(() => {
+		let targetsToExpand = [];
+		if (this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES]) {
+			targetsToExpand = this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES].map((e: string) => URI.parse(e));
+		}
+		return this.doRefresh(targetsToExpand).then(() => {
 
 			// When the explorer viewer is loaded, listen to changes to the editor input
 			this.toDispose.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
@@ -456,7 +460,7 @@ export class ExplorerView extends CollapsibleView {
 		// Add
 		if (e.operation === FileOperation.CREATE || e.operation === FileOperation.IMPORT || e.operation === FileOperation.COPY) {
 			const addedElement = e.target;
-			const parentResource = URI.file(paths.dirname(addedElement.resource.fsPath));
+			const parentResource = resources.dirname(addedElement.resource);
 			const parents = this.model.findAll(parentResource);
 
 			if (parents.length) {
@@ -491,8 +495,8 @@ export class ExplorerView extends CollapsibleView {
 			const oldResource = e.resource;
 			const newElement = e.target;
 
-			const oldParentResource = URI.file(paths.dirname(oldResource.fsPath));
-			const newParentResource = URI.file(paths.dirname(newElement.resource.fsPath));
+			const oldParentResource = resources.dirname(oldResource);
+			const newParentResource = resources.dirname(newElement.resource);
 
 			// Only update focus if renamed/moved element is selected
 			let restoreFocus = false;
@@ -676,11 +680,11 @@ export class ExplorerView extends CollapsibleView {
 		}));
 	}
 
-	private refreshFromEvent(newRoots: WorkspaceFolder[] = []): void {
+	private refreshFromEvent(newRoots: IWorkspaceFolder[] = []): void {
 		if (this.isVisible()) {
 			this.explorerRefreshDelayer.trigger(() => {
 				if (!this.explorerViewer.getHighlight()) {
-					return this.doRefresh(newRoots);
+					return this.doRefresh(newRoots.map(r => r.uri));
 				}
 
 				return TPromise.as(null);
@@ -722,18 +726,12 @@ export class ExplorerView extends CollapsibleView {
 		});
 	}
 
-	private doRefresh(newRoots: WorkspaceFolder[] = []): TPromise<void> {
+	private doRefresh(targetsToExpand: URI[] = []): TPromise<void> {
 		const targetsToResolve: { root: FileStat, resource: URI, options: { resolveTo: URI[] } }[] = [];
 		this.model.roots.forEach(root => {
 			const rootAndTargets = { root, resource: root.resource, options: { resolveTo: [] } };
 			targetsToResolve.push(rootAndTargets);
 		});
-
-		let targetsToExpand: URI[] = [];
-		if (this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES]) {
-			targetsToExpand = this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES].map((e: string) => URI.parse(e));
-		}
-		targetsToExpand.push(...newRoots.map(r => r.uri));
 
 		// First time refresh: Receive target through active editor input or selection and also include settings from previous session
 		if (!this.isCreated) {
@@ -772,7 +770,7 @@ export class ExplorerView extends CollapsibleView {
 
 				return FileStat.create({
 					resource: targetsToResolve[index].resource,
-					name: paths.basename(targetsToResolve[index].resource.fsPath),
+					name: resources.basenameOrAuthority(targetsToResolve[index].resource),
 					mtime: 0,
 					etag: undefined,
 					isDirectory: true,
@@ -808,7 +806,7 @@ export class ExplorerView extends CollapsibleView {
 				// Drop those path which are parents of the current one
 				for (let i = resolvedDirectories.length - 1; i >= 0; i--) {
 					const resource = resolvedDirectories[i];
-					if (paths.isEqualOrParent(stat.resource.fsPath, resource.fsPath, !isLinux /* ignorecase */)) {
+					if (resources.isEqualOrParent(stat.resource, resource, !isLinux /* ignorecase */)) {
 						resolvedDirectories.splice(i);
 					}
 				}
