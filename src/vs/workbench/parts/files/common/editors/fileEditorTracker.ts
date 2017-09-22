@@ -241,8 +241,8 @@ export class FileEditorTracker implements IWorkbenchContribution {
 		for (let i = 0; i < editors.length; i++) {
 			const editor = editors[i];
 			if (editor && editor.position === stacks.positionOfGroup(group)) {
-				const resource = toResource(editor.input, { filter: 'file' });
-				if (resource && paths.isEqual(resource.fsPath, resource.fsPath)) {
+				const editorResource = toResource(editor.input, { filter: 'file' });
+				if (editorResource && paths.isEqual(resource.fsPath, editorResource.fsPath)) {
 					const control = editor.getControl();
 					if (isCommonCodeEditor(control)) {
 						return control.saveViewState();
