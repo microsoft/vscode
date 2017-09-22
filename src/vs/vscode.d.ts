@@ -1704,7 +1704,8 @@ declare module 'vscode' {
 		scheme?: string;
 
 		/**
-		 * A [glob pattern](#GlobPattern) that is matched on the absolute path of the document.
+		 * A [glob pattern](#GlobPattern) that is matched on the absolute path of the document. Use a [relative pattern](#RelativePattern)
+		 * to filter documents to a [workspace folder](#WorkspaceFolder).
 		 */
 		pattern?: GlobPattern;
 	}
@@ -5029,7 +5030,7 @@ declare module 'vscode' {
 		 * *Note* that only files within the current [workspace folders](#workspace.workspaceFolders) can be watched.
 		 *
 		 * @param globPattern A [glob pattern](#GlobPattern) that is applied to the absolute paths of created, changed,
-		 * and deleted files.
+		 * and deleted files. Use a [relative pattern](#RelativePattern) to limit events to a certain [workspace folder](#WorkspaceFolder).
 		 * @param ignoreCreateEvents Ignore when files have been created.
 		 * @param ignoreChangeEvents Ignore when files have been changed.
 		 * @param ignoreDeleteEvents Ignore when files have been deleted.
@@ -5042,8 +5043,8 @@ declare module 'vscode' {
 		 *
 		 * @sample `findFiles('**∕*.js', '**∕node_modules∕**', 10)`
 		 * @param include A [glob pattern](#GlobPattern) that defines the files to search for. The glob pattern
-		 * will be matched against the file paths of resulting matches relative to their workspace. Use [RelativePattern](#RelativePattern)
-		 * to restrict the search to a specific folder of the workspace.
+		 * will be matched against the file paths of resulting matches relative to their workspace. Use a [relative pattern](#RelativePattern)
+		 * to restrict the search results to a [workspace folder](#WorkspaceFolder).
 		 * @param exclude  A [glob pattern](#GlobPattern) that defines files and folders to exclude. The glob pattern
 		 * will be matched against the file paths of resulting matches relative to their workspace.
 		 * @param maxResults An upper-bound for the result.
