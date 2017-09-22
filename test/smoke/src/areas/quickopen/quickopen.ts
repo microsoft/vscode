@@ -25,6 +25,9 @@ export class QuickOpen {
 	public async openCommandPallette(): Promise<void> {
 		await this.spectron.command('workbench.action.showCommands');
 		await this.waitForQuickOpenOpened();
+
+		// we gotta wait 50 milliseconds due to https://github.com/Microsoft/vscode/blob/master/src/vs/platform/list/browser/listService.ts#L59
+		await new Promise(c => setTimeout(c, 50));
 	}
 
 	public async closeQuickOpen(): Promise<void> {
