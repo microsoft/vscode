@@ -2186,6 +2186,11 @@ declare module 'vscode' {
 		 * skip the [location](#SymbolInformation.location) of symbols and implement `resolveWorkspaceSymbol` to do that
 		 * later.
 		 *
+		 * The `query`-parameter should be interpreted in a *relaxed way* as the editor will apply its own highlighting
+		 * and scoring on the results. A good rule of thumb is to match case-insensitive and to simply check that the
+		 * characters of *query* appear in their order in a candidate symbol. Don't use prefix, substring, or similar
+		 * strict matching.
+		 *
 		 * @param query A non-empty query string.
 		 * @param token A cancellation token.
 		 * @return An array of document highlights or a thenable that resolves to such. The lack of a result can be
