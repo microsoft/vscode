@@ -87,15 +87,14 @@ export default class TypeScriptRefactorProvider implements CodeActionProvider {
 	}
 
 	private async selectRefactoring(document: TextDocument, file: string, info: Proto.ApplicableRefactorInfo, range: Range): Promise<boolean> {
-		return window.showQuickPick(info.actions.map((action): QuickPickItem => ({
+		const selected = await window.showQuickPick(info.actions.map((action): QuickPickItem => ({
 			label: action.name,
 			description: action.description
-		}))).then(selected => {
-			if (!selected) {
-				return false;
-			}
-			return this.doRefactoring(document, file, info.name, selected.label, range);
-		});
+		})));
+		if (!selected) {
+			return false;
+		}
+		return this.doRefactoring(document, file, info.name, selected.label, range);
 	}
 
 	private async doRefactoring(document: TextDocument, file: string, refactor: string, action: string, range: Range): Promise<boolean> {
