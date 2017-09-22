@@ -1504,6 +1504,75 @@ declare module 'vscode' {
 	}
 
 	/**
+ * Options to configure the behaviour of a file open dialog.
+ */
+	export interface OpenDialogOptions {
+		/**
+		 * The resource the dialog shows when opened.
+		 */
+		defaultUri?: Uri;
+
+		/**
+		 * A human-readable string for the open button.
+		 */
+		openLabel?: string;
+
+		/**
+		 * Only allow to select files. *Note* that not all operating systems support
+		 * to select files and folders in one dialog instance.
+		 */
+		openFiles?: boolean;
+
+		/**
+		 * Only allow to select folders. *Note* that not all operating systems support
+		 * to select files and folders in one dialog instance.
+		 */
+		openFolders?: boolean;
+
+		/**
+		 * Allow to select many files or folders.
+		 */
+		openMany?: boolean;
+
+		/**
+		 * A set of file filters that are shown in the dialog, e.g.
+		 * ```ts
+		 * {
+		 * 	['Images']: ['*.png', '*.jpg']
+		 * 	['TypeScript']: ['*.ts', '*.tsx']
+		 * }
+		 * ```
+		 */
+		filters: { [name: string]: string[] };
+	}
+
+	/**
+	 * Options to configure the behaviour of a file save dialog.
+	 */
+	export interface SaveDialogOptions {
+		/**
+		 * The resource the dialog shows when opened.
+		 */
+		defaultUri?: Uri;
+
+		/**
+		 * A human-readable string for the save button.
+		 */
+		saveLabel?: string;
+
+		/**
+		 * A set of file filters that are shown in the dialog, e.g.
+		 * ```ts
+		 * {
+		 * 	['Images']: ['*.png', '*.jpg']
+		 * 	['TypeScript']: ['*.ts', '*.tsx']
+		 * }
+		 * ```
+		 */
+		filters: { [name: string]: string[] };
+	}
+
+	/**
 	 * Represents an action that is shown with an information, warning, or
 	 * error message.
 	 *
@@ -4445,6 +4514,22 @@ declare module 'vscode' {
 		 * @return A promise that resolves to the selected item or `undefined`.
 		 */
 		export function showQuickPick<T extends QuickPickItem>(items: T[] | Thenable<T[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<T | undefined>;
+
+		/**
+		 * Shows a file open dialog to the user.
+		 *
+		 * @param options Options that control the dialog.
+		 * @returns A promise that resolves to the selected resources or `undefined`.
+		 */
+		export function showOpenDialog(options: OpenDialogOptions): Thenable<Uri[] | undefined>;
+
+		/**
+		 * Shows a file save dialog to the user.
+		 *
+		 * @param options Options that control the dialog.
+		 * @returns A promise that resolves to the selected resource or `undefined`.
+		 */
+		export function showSaveDialog(options: SaveDialogOptions): Thenable<Uri | undefined>;
 
 		/**
 		 * Opens an input box to ask the user for input.

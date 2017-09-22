@@ -356,6 +356,12 @@ export function createApiFactory(
 			showInputBox(options?: vscode.InputBoxOptions, token?: vscode.CancellationToken) {
 				return extHostQuickOpen.showInput(options, token);
 			},
+			showOpenDialog(options) {
+				return extHostDialogs.showOpenDialog(options);
+			},
+			showSaveDialog(options) {
+				return extHostDialogs.showSaveDialog(options);
+			},
 			createStatusBarItem(position?: vscode.StatusBarAlignment, priority?: number): vscode.StatusBarItem {
 				return extHostStatusBar.createStatusBarEntry(extension.id, <number>position, priority);
 			},
@@ -385,12 +391,6 @@ export function createApiFactory(
 			sampleFunction: proposedApiFunction(extension, () => {
 				return extHostMessageService.showMessage(extension, Severity.Info, 'Hello Proposed Api!', {}, []);
 			}),
-			showOpenDialog: proposedApiFunction(extension, options => {
-				return extHostDialogs.showOpenDialog(options);
-			}),
-			showSaveDialog: proposedApiFunction(extension, options => {
-				return extHostDialogs.showSaveDialog(options);
-			})
 		};
 
 		// namespace: workspace
