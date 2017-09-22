@@ -12,7 +12,7 @@
     "vscode-html-languageservice": "^2.0.8",
     "vscode-languageserver": "^3.4.2",
     "vscode-languageserver-protocol": "^3.4.2",
-    "vscode-languageserver-types": "^3.3.0",
+    "vscode-languageserver-types": "^3.4.0",
     "vscode-nls": "^2.0.2",
     "vscode-uri": "^1.0.1"
   },
