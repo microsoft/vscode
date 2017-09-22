@@ -74,7 +74,6 @@ export class DebugService implements debug.IDebugService {
 	private viewModel: ViewModel;
 	private allProcesses: Map<string, debug.IProcess>;
 	private configurationManager: ConfigurationManager;
-	private customTelemetryService: ITelemetryService;
 	private toDispose: lifecycle.IDisposable[];
 	private toDisposeOnSessionEnd: Map<string, lifecycle.IDisposable[]>;
 	private inDebugMode: IContextKey<boolean>;
@@ -328,8 +327,8 @@ export class DebugService implements debug.IDebugService {
 			if (event.body.category === 'telemetry') {
 				// only log telemetry events from debug adapter if the adapter provided the telemetry key
 				// and the user opted in telemetry
-				if (this.customTelemetryService && this.telemetryService.isOptedIn) {
-					this.customTelemetryService.publicLog(event.body.output, event.body.data);
+				if (session.customTelemetryService && this.telemetryService.isOptedIn) {
+					session.customTelemetryService.publicLog(event.body.output, event.body.data);
 				}
 
 				return;
@@ -821,9 +820,9 @@ export class DebugService implements debug.IDebugService {
 			const adapter = this.configurationManager.getAdapter(configuration.type);
 			const { aiKey, type } = adapter;
 			const publisher = adapter.extensionDescription.publisher;
-			this.customTelemetryService = null;
 			let client: TelemetryClient;
 
+			let customTelemetryService: TelemetryService;
 			if (aiKey) {
 				client = new TelemetryClient(
 					uri.parse(require.toUrl('bootstrap')).fsPath,
@@ -842,10 +841,10 @@ export class DebugService implements debug.IDebugService {
 				const channel = client.getChannel('telemetryAppender');
 				const appender = new TelemetryAppenderClient(channel);
 
-				this.customTelemetryService = new TelemetryService({ appender }, this.configurationService);
+				customTelemetryService = new TelemetryService({ appender }, this.configurationService);
 			}
 
-			const session = this.instantiationService.createInstance(RawDebugSession, sessionId, configuration.debugServer, adapter, this.customTelemetryService, root);
+			const session = this.instantiationService.createInstance(RawDebugSession, sessionId, configuration.debugServer, adapter, customTelemetryService, root);
 			const process = this.model.addProcess(configuration, session);
 			this.allProcesses.set(process.getId(), process);
 

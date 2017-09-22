@@ -70,7 +70,7 @@ export class RawDebugSession extends V8Protocol implements debug.ISession {
 		id: string,
 		private debugServerPort: number,
 		private adapter: Adapter,
-		private customTelemetryService: ITelemetryService,
+		public customTelemetryService: ITelemetryService,
 		public root: IWorkspaceFolder,
 		@IMessageService private messageService: IMessageService,
 		@ITelemetryService private telemetryService: ITelemetryService,
