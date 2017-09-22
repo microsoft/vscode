@@ -366,7 +366,7 @@ export class DebugService implements debug.IDebugService {
 					column: event.body.breakpoint.column,
 					enabled: true,
 					lineNumber: event.body.breakpoint.line
-				}]);
+				}], source.raw.adapterData);
 				const newBreakpoint = this.model.getBreakpoints().filter(bp => bp.idFromAdapter === event.body.breakpoint.id).pop();
 				this.model.updateBreakpoints({ [newBreakpoint.getId()]: event.body.breakpoint });
 			}
@@ -433,7 +433,7 @@ export class DebugService implements debug.IDebugService {
 		let result: Breakpoint[];
 		try {
 			result = JSON.parse(this.storageService.get(DEBUG_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((breakpoint: any) => {
-				return new Breakpoint(uri.parse(breakpoint.uri.external || breakpoint.source.uri.external), breakpoint.lineNumber, breakpoint.column, breakpoint.enabled, breakpoint.condition, breakpoint.hitCondition);
+				return new Breakpoint(uri.parse(breakpoint.uri.external || breakpoint.source.uri.external), breakpoint.lineNumber, breakpoint.column, breakpoint.enabled, breakpoint.condition, breakpoint.hitCondition, breakpoint.adapterData);
 			});
 		} catch (e) { }
 
@@ -1096,7 +1096,9 @@ export class DebugService implements debug.IDebugService {
 
 			const source = process.sources.get(modelUri.toString());
 			const rawSource = source ? source.raw : { path: paths.normalize(modelUri.fsPath, true), name: paths.basename(modelUri.fsPath) };
-
+			if (breakpointsToSend.length) {
+				rawSource.adapterData = breakpointsToSend[0].adapterData;
+			}
 
 			return session.setBreakpoints({
 				source: rawSource,
