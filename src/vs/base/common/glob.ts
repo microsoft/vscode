@@ -272,6 +272,21 @@ const NULL = function (): string {
 	return null;
 };
 
+export function toAbsolutePattern(relativePattern: IRelativePattern | string): string {
+
+	// Without a base URI, best we can do is add '**' to the pattern
+	if (typeof relativePattern === 'string') {
+		if (relativePattern.indexOf(GLOBSTAR) !== 0) {
+			relativePattern = GLOBSTAR + GLOB_SPLIT + strings.ltrim(relativePattern, GLOB_SPLIT);
+		}
+
+		return relativePattern;
+	}
+
+	// With a base URI, we can append the path to the relative glob as prefix
+	return relativePattern.base.fsPath + GLOB_SPLIT + strings.ltrim(relativePattern.pattern, GLOB_SPLIT);
+}
+
 function parsePattern(arg1: string | IRelativePattern, options: IGlobOptions): ParsedStringPattern {
 	if (!arg1) {
 		return NULL;
@@ -280,12 +295,7 @@ function parsePattern(arg1: string | IRelativePattern, options: IGlobOptions): P
 	// Handle IRelativePattern
 	let pattern: string;
 	if (typeof arg1 !== 'string') {
-		pattern = arg1.pattern;
-
-		// convert relative to absolute pattern unless it already uses GLOBSTAR
-		if (pattern.indexOf(GLOBSTAR) !== 0) {
-			pattern = GLOBSTAR + GLOB_SPLIT + strings.ltrim(pattern, GLOB_SPLIT);
-		}
+		pattern = toAbsolutePattern(arg1.pattern);
 	} else {
 		pattern = arg1;
 	}

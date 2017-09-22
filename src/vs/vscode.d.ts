@@ -1605,7 +1605,7 @@ declare module 'vscode' {
 		scheme?: string;
 
 		/**
-		 * Either a glob pattern, like `**∕*.{ts,js}` or a [relative pattern](#RelativePattern).
+		 * Either a absolute glob pattern, like `**∕*.{ts,js}` or a [relative pattern](#RelativePattern).
 		 */
 		pattern?: string | RelativePattern;
 	}
@@ -4890,7 +4890,8 @@ declare module 'vscode' {
 		 *
 		 * *Note* that only files within the current [workspace folders](#workspace.workspaceFolders) can be watched.
 		 *
-		 * @param globPattern A glob pattern (either absolute like `**∕*.{ts,js}` or a [relative pattern](#RelativePattern)) that is applied to the names of created, changed, and deleted files.
+		 * @param globPattern A glob pattern (either absolute like `**∕*.{ts,js}` or a [relative pattern](#RelativePattern))
+		 * that is applied to the names of created, changed, and deleted files.
 		 * @param ignoreCreateEvents Ignore when files have been created.
 		 * @param ignoreChangeEvents Ignore when files have been changed.
 		 * @param ignoreDeleteEvents Ignore when files have been deleted.
@@ -4902,13 +4903,15 @@ declare module 'vscode' {
 		 * Find files in the workspace.
 		 *
 		 * @sample `findFiles('**∕*.js', '**∕node_modules∕**', 10)`
-		 * @param include A glob pattern that defines the files to search for.
-		 * @param exclude A glob pattern that defines files and folders to exclude.
+		 * @param include A glob pattern (either absolute like `**∕*.{ts,js}` or a [relative pattern](#RelativePattern))
+		 * that defines the files to search for.
+		 * @param exclude A glob pattern (either absolute like `**∕*.{ts,js}` or a [relative pattern](#RelativePattern))
+		 * that defines files and folders to exclude.
 		 * @param maxResults An upper-bound for the result.
 		 * @param token A token that can be used to signal cancellation to the underlying search engine.
 		 * @return A thenable that resolves to an array of resource identifiers.
 		 */
-		export function findFiles(include: string, exclude?: string, maxResults?: number, token?: CancellationToken): Thenable<Uri[]>;
+		export function findFiles(include: string | RelativePattern, exclude?: string | RelativePattern, maxResults?: number, token?: CancellationToken): Thenable<Uri[]>;
 
 		/**
 		 * Save all dirty files.

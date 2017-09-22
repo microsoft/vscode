@@ -6,7 +6,7 @@
 
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
-import { ISearchService, QueryType, ISearchQuery, ISearchProgressItem, ISearchComplete } from 'vs/platform/search/common/search';
+import { ISearchService, QueryType, ISearchQuery, ISearchProgressItem, ISearchComplete, IFolderQuery } from 'vs/platform/search/common/search';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { TPromise, PPromise } from 'vs/base/common/winjs.base';
@@ -17,6 +17,7 @@ import { RemoteFileService } from 'vs/workbench/services/files/electron-browser/
 import { Emitter } from 'vs/base/common/event';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { IExperimentService } from 'vs/platform/telemetry/common/experiments';
+import { IRelativePattern, toAbsolutePattern } from 'vs/base/common/glob';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
@@ -54,17 +55,25 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	// --- search ---
 
-	$startSearch(include: string, exclude: string, maxResults: number, requestId: number): Thenable<URI[]> {
+	$startSearch(include: string | IRelativePattern, exclude: string | IRelativePattern, maxResults: number, requestId: number): Thenable<URI[]> {
 		const workspace = this._contextService.getWorkspace();
 		if (!workspace.folders.length) {
 			return undefined;
 		}
+
+		let folderQueries: IFolderQuery[];
+		if (typeof include === 'string') {
+			folderQueries = workspace.folders.map(folder => ({ folder: folder.uri })); // absolute pattern: search across all folders
+		} else {
+			folderQueries = [{ folder: include.base }]; // relative pattern: search only in base folder
+		}
+
 		const query: ISearchQuery = {
-			folderQueries: workspace.folders.map(folder => ({ folder: folder.uri })),
+			folderQueries,
 			type: QueryType.File,
 			maxResults,
-			includePattern: { [include]: true },
-			excludePattern: { [exclude]: true },
+			includePattern: { [toAbsolutePattern(include)]: true },
+			excludePattern: { [toAbsolutePattern(exclude)]: true },
 			useRipgrep: this.experimentService.getExperiments().ripgrepQuickSearch
 		};
 		this._searchService.extendQuery(query);

@@ -48,6 +48,7 @@ import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { SerializedError } from 'vs/base/common/errors';
 import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IRelativePattern } from 'vs/base/common/glob';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -308,7 +309,7 @@ export interface MainThreadTelemetryShape extends IDisposable {
 }
 
 export interface MainThreadWorkspaceShape extends IDisposable {
-	$startSearch(include: string, exclude: string, maxResults: number, requestId: number): Thenable<URI[]>;
+	$startSearch(include: string | IRelativePattern, exclude: string | IRelativePattern, maxResults: number, requestId: number): Thenable<URI[]>;
 	$cancelSearch(requestId: number): Thenable<boolean>;
 	$saveAll(includeUntitled?: boolean): Thenable<boolean>;
 
