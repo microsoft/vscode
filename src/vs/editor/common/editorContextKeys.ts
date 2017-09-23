@@ -28,6 +28,7 @@ export namespace EditorContextKeys {
 
 	// -- mode context keys
 	export const languageId = new RawContextKey<string>('editorLangId', undefined);
+	export const fileExtension = new RawContextKey<string>('editorFileExtension', undefined);
 	export const hasCompletionItemProvider = new RawContextKey<boolean>('editorHasCompletionItemProvider', undefined);
 	export const hasCodeActionsProvider = new RawContextKey<boolean>('editorHasCodeActionsProvider', undefined);
 	export const hasCodeLensProvider = new RawContextKey<boolean>('editorHasCodeLensProvider', undefined);
