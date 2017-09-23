@@ -171,11 +171,7 @@ export class RawDebugSession extends V8Protocol implements debug.ISession {
 					 */
 					this.telemetryService.publicLog('debugProtocolErrorResponse', { error: telemetryMessage });
 					if (this.customTelemetryService) {
-						/* __GDPR__
-						   "debugProtocolErrorResponse" : {
-						   	"error" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-						   }
-						*/
+						// __GDPR__TODO the message is sent in the name of the adapter but since the adapters are an open set, this can not be statically declared
 						this.customTelemetryService.publicLog('debugProtocolErrorResponse', { error: telemetryMessage });
 					}
 				}
