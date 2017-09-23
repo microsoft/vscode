@@ -16,6 +16,7 @@ export class EditorModeContext extends Disposable {
 	private _editor: ICommonCodeEditor;
 
 	private _langId: IContextKey<string>;
+	private _fileExtension: IContextKey<string>;
 	private _hasCompletionItemProvider: IContextKey<boolean>;
 	private _hasCodeActionsProvider: IContextKey<boolean>;
 	private _hasCodeLensProvider: IContextKey<boolean>;
@@ -40,6 +41,7 @@ export class EditorModeContext extends Disposable {
 		this._editor = editor;
 
 		this._langId = EditorContextKeys.languageId.bindTo(contextKeyService);
+		this._fileExtension = EditorContextKeys.fileExtension.bindTo(contextKeyService);
 		this._hasCompletionItemProvider = EditorContextKeys.hasCompletionItemProvider.bindTo(contextKeyService);
 		this._hasCodeActionsProvider = EditorContextKeys.hasCodeActionsProvider.bindTo(contextKeyService);
 		this._hasCodeLensProvider = EditorContextKeys.hasCodeLensProvider.bindTo(contextKeyService);
@@ -87,6 +89,7 @@ export class EditorModeContext extends Disposable {
 
 	reset() {
 		this._langId.reset();
+		this._fileExtension.reset();
 		this._hasCompletionItemProvider.reset();
 		this._hasCodeActionsProvider.reset();
 		this._hasCodeLensProvider.reset();
@@ -111,6 +114,7 @@ export class EditorModeContext extends Disposable {
 			return;
 		}
 		this._langId.set(model.getLanguageIdentifier().language);
+		this._fileExtension.set(model.uri.path.split('.').pop());
 		this._hasCompletionItemProvider.set(modes.SuggestRegistry.has(model));
 		this._hasCodeActionsProvider.set(modes.CodeActionProviderRegistry.has(model));
 		this._hasCodeLensProvider.set(modes.CodeLensProviderRegistry.has(model));
