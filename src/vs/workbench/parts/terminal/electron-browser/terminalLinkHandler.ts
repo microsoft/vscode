@@ -151,7 +151,6 @@ export class TerminalLinkHandler {
 	}
 
 	private _validateLocalLink(link: string, callback: (isValid: boolean) => void): void {
-		console.log('validate link: ', link);
 		this._resolvePath(link).then(resolvedLink => callback(!!resolvedLink));
 	}
 
