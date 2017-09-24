@@ -87,14 +87,6 @@ export class TerminalLinkHandler {
 	}
 
 	public registerCustomLinkHandler(regex: RegExp, handler: (uri: string) => void, matchIndex?: number, validationCallback?: XtermLinkMatcherValidationCallback): number {
-		// const wrappedValidationCallback = (uri: string, element: HTMLElement, callback) => {
-		// 	this._addTooltipEventListeners(element);
-		// 	if (validationCallback) {
-		// 		validationCallback(uri, element, callback);
-		// 	} else {
-		// 		callback(true);
-		// 	}
-		// };
 		return this._xterm.registerLinkMatcher(regex, this._wrapLinkHandler(handler), {
 			matchIndex,
 			validationCallback: (uri: string, callback: (isValid: boolean) => void) => validationCallback(uri, callback),
@@ -159,17 +151,11 @@ export class TerminalLinkHandler {
 	}
 
 	private _validateLocalLink(link: string, callback: (isValid: boolean) => void): void {
-		// this._resolvePath(link).then(resolvedLink => {
-		// 	if (resolvedLink) {
-		// 		this._addTooltipEventListeners(element);
-		// 	}
-		// 	callback(!!resolvedLink);
-		// });
+		console.log('validate link: ', link);
 		this._resolvePath(link).then(resolvedLink => callback(!!resolvedLink));
 	}
 
 	private _validateWebLink(link: string, callback: (isValid: boolean) => void): void {
-		// this._addTooltipEventListeners(element);
 		callback(true);
 	}
 
@@ -196,30 +182,6 @@ export class TerminalLinkHandler {
 		}
 		return nls.localize('terminalLinkHandler.followLinkCtrl', 'Ctrl + click to follow link');
 	}
-
-	// private _addTooltipEventListeners(element: HTMLElement): void {
-	// 	let timeout: number = null;
-	// 	let isMessageShowing = false;
-	// 	this._hoverDisposables.push(dom.addDisposableListener(element, dom.EventType.MOUSE_OVER, e => {
-	// 		element.classList.toggle('active', this._isLinkActivationModifierDown(e));
-	// 		this._mouseMoveDisposable = dom.addDisposableListener(element, dom.EventType.MOUSE_MOVE, e => {
-	// 			element.classList.toggle('active', this._isLinkActivationModifierDown(e));
-	// 		});
-	// 		timeout = setTimeout(() => {
-	// 			this._widgetManager.showMessage(element.offsetLeft, element.offsetTop, this._getLinkHoverString());
-	// 			isMessageShowing = true;
-	// 		}, 500);
-	// 	}));
-	// 	this._hoverDisposables.push(dom.addDisposableListener(element, dom.EventType.MOUSE_OUT, () => {
-	// 		element.classList.remove('active');
-	// 		if (this._mouseMoveDisposable) {
-	// 			this._mouseMoveDisposable.dispose();
-	// 		}
-	// 		clearTimeout(timeout);
-	// 		this._widgetManager.closeMessage();
-	// 		isMessageShowing = false;
-	// 	}));
-	// }
 
 	protected _preprocessPath(link: string): string {
 		if (this._platform === platform.Platform.Windows) {
