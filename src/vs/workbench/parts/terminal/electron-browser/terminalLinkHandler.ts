@@ -52,7 +52,7 @@ const CUSTOM_LINK_PRIORITY = -1;
 const LOCAL_LINK_PRIORITY = -2;
 
 export type XtermLinkMatcherHandler = (event: MouseEvent, uri: string) => boolean | void;
-export type XtermLinkMatcherValidationCallback = (uri: string, element: HTMLElement, callback: (isValid: boolean) => void) => void;
+export type XtermLinkMatcherValidationCallback = (uri: string, callback: (isValid: boolean) => void) => void;
 
 export class TerminalLinkHandler {
 	private _hoverDisposables: IDisposable[] = [];
@@ -97,7 +97,7 @@ export class TerminalLinkHandler {
 		// };
 		return this._xterm.registerLinkMatcher(regex, this._wrapLinkHandler(handler), {
 			matchIndex,
-			validationCallback: (uri, element, callback) => validationCallback(uri, element, callback),
+			validationCallback: (uri: string, callback: (isValid: boolean) => void) => validationCallback(uri, callback),
 			tooltipCallback: (e: MouseEvent, u) => this._widgetManager.showMessage(e.offsetX, e.offsetY, this._getLinkHoverString()),
 			leaveCallback: () => this._widgetManager.closeMessage(),
 			priority: CUSTOM_LINK_PRIORITY
@@ -110,7 +110,7 @@ export class TerminalLinkHandler {
 		});
 
 		return this._xterm.registerLinkMatcher(this._localLinkRegex, wrappedHandler, {
-			validationCallback: (link: string, callback: (isValid: boolean) => void) => this._validateLocalLink(link, callback),
+			validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateLocalLink(uri, callback),
 			tooltipCallback: (e: MouseEvent, u) => this._widgetManager.showMessage(e.offsetX, e.offsetY, this._getLinkHoverString()),
 			leaveCallback: () => this._widgetManager.closeMessage(),
 			priority: LOCAL_LINK_PRIORITY
