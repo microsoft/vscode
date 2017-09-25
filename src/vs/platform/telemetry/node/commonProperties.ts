@@ -28,6 +28,7 @@ export function resolveCommonProperties(commit: string, version: string, source:
 	result['common.nodePlatform'] = process.platform;
 	// __GDPR__COMMON__ "common.nodeArch" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['common.nodeArch'] = process.arch;
+	// __GDPR__COMMON__ "common.source" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['common.source'] = source;
 
 	// dynamic properties which value differs on each call
