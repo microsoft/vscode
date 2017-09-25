@@ -433,6 +433,6 @@ export class OpenEditor {
 	}
 
 	public getResource(): URI {
-		return toResource(this.editor, { supportSideBySide: true, filter: ['file', 'untitled'] });
+		return toResource(this.editor, { supportSideBySide: true });
 	}
 }

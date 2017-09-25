@@ -1177,7 +1177,7 @@ export class GlobalCompareResourcesAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		const activeResource = toResource(this.editorService.getActiveEditorInput(), { filter: ['file', 'untitled'] });
+		const activeResource = toResource(this.editorService.getActiveEditorInput());
 		if (activeResource) {
 
 			// Keep as resource to compare
@@ -1195,7 +1195,7 @@ export class GlobalCompareResourcesAction extends Action {
 				let description: string;
 
 				if (input instanceof EditorInput) {
-					resource = toResource(input, { filter: ['file', 'untitled'] });
+					resource = toResource(input);
 				} else {
 					resource = (input as IResourceInput).resource;
 				}
@@ -1352,7 +1352,8 @@ export abstract class BaseSaveOneFileAction extends BaseSaveFileAction {
 		@ITextFileService private textFileService: ITextFileService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IMessageService messageService: IMessageService
+		@IMessageService messageService: IMessageService,
+		@IFileService private fileService: IFileService
 	) {
 		super(id, label, messageService);
 
@@ -1370,11 +1371,10 @@ export abstract class BaseSaveOneFileAction extends BaseSaveFileAction {
 		if (this.resource) {
 			source = this.resource;
 		} else {
-			// source = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: ['file', 'untitled'] });
 			source = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true });
 		}
 
-		if (source) {
+		if (source && this.fileService.canHandleResource(source)) {
 
 			// Save As (or Save untitled with associated path)
 			if (this.isSaveAs() || source.scheme === 'untitled') {
@@ -1390,8 +1390,8 @@ export abstract class BaseSaveOneFileAction extends BaseSaveFileAction {
 				const activeEditor = this.editorService.getActiveEditor();
 				const editor = getCodeEditor(activeEditor);
 				if (editor) {
-					const activeResource = toResource(activeEditor.input, { supportSideBySide: true, filter: ['file', 'untitled'] });
-					if (activeResource && activeResource.toString() === source.toString()) {
+					const activeResource = toResource(activeEditor.input, { supportSideBySide: true });
+					if (this.fileService.canHandleResource(activeResource) && activeResource && activeResource.toString() === source.toString()) {
 						viewStateOfSource = editor.saveViewState();
 					}
 				}
@@ -1481,7 +1481,8 @@ export abstract class BaseSaveAllAction extends BaseSaveFileAction {
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IMessageService messageService: IMessageService
+		@IMessageService messageService: IMessageService,
+		@IFileService protected fileService: IFileService
 	) {
 		super(id, label, messageService);
 
@@ -1633,8 +1634,8 @@ export class SaveAllInGroupAction extends BaseSaveAllAction {
 		const editorGroup = editorIdentifier.group;
 		const resourcesToSave: URI[] = [];
 		editorGroup.getEditors().forEach(editor => {
-			const resource = toResource(editor, { supportSideBySide: true, filter: ['file', 'untitled'] });
-			if (resource) {
+			const resource = toResource(editor, { supportSideBySide: true });
+			if (resource && this.fileService.canHandleResource(resource)) {
 				resourcesToSave.push(resource);
 			}
 		});
@@ -1763,9 +1764,9 @@ export class ShowActiveFileInExplorer extends Action {
 	}
 
 	public run(): TPromise<any> {
-		const fileResource = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
-		if (fileResource) {
-			this.instantiationService.invokeFunction.apply(this.instantiationService, [revealInExplorerCommand, fileResource]);
+		const resource = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true });
+		if (resource) {
+			this.instantiationService.invokeFunction.apply(this.instantiationService, [revealInExplorerCommand, resource]);
 		} else {
 			this.messageService.show(severity.Info, nls.localize('openFileToShow', "Open a file first to show it in the explorer"));
 		}
