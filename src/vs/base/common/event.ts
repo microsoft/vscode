@@ -82,7 +82,7 @@ export class Emitter<T> {
 					this._options.onFirstListenerAdd(this);
 				}
 
-				this._callbacks.add(listener, thisArgs);
+				const remove = this._callbacks.add(listener, thisArgs);
 
 				if (firstListener && this._options && this._options.onFirstListenerDidAdd) {
 					this._options.onFirstListenerDidAdd(this);
@@ -97,7 +97,7 @@ export class Emitter<T> {
 					dispose: () => {
 						result.dispose = Emitter._noop;
 						if (!this._disposed) {
-							this._callbacks.remove(listener, thisArgs);
+							remove();
 							if (this._options && this._options.onLastListenerRemove && this._callbacks.isEmpty()) {
 								this._options.onLastListenerRemove(this);
 							}
