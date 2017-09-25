@@ -106,6 +106,10 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 					return 'css';
 				}
 				if (currentHtmlNode.name === 'script') {
+					if (currentHtmlNode.attributes
+						&& currentHtmlNode.attributes.some(x => x.name.toString() === 'type' && x.value.toString() === 'text/html')) {
+						return syntax;
+					}
 					return;
 				}
 			}
