@@ -35,7 +35,7 @@ export const copyPathCommand = (accessor: ServicesAccessor, resource?: URI) => {
 		const editorService = accessor.get(IWorkbenchEditorService);
 		const activeEditor = editorService.getActiveEditor();
 
-		resource = activeEditor ? toResource(activeEditor.input, { supportSideBySide: true, filter: 'file' }) : void 0;
+		resource = activeEditor ? toResource(activeEditor.input, { supportSideBySide: true }) : void 0;
 		if (activeEditor) {
 			editorGroupService.focusGroup(activeEditor.position); // focus back to active editor group
 		}

@@ -266,10 +266,10 @@ export class FileEditorTracker implements IWorkbenchContribution {
 	private handleUpdatesToVisibleBinaryEditors(e: FileChangesEvent): void {
 		const editors = this.editorService.getVisibleEditors();
 		editors.forEach(editor => {
-			const fileResource = toResource(editor.input, { filter: 'file', supportSideBySide: true });
+			const resource = toResource(editor.input, { supportSideBySide: true });
 
 			// Binary editor that should reload from event
-			if (fileResource && editor.getId() === BINARY_FILE_EDITOR_ID && (e.contains(fileResource, FileChangeType.UPDATED) || e.contains(fileResource, FileChangeType.ADDED))) {
+			if (resource && editor.getId() === BINARY_FILE_EDITOR_ID && (e.contains(resource, FileChangeType.UPDATED) || e.contains(resource, FileChangeType.ADDED))) {
 				this.editorService.openEditor(editor.input, { forceOpen: true, preserveFocus: true }, editor.position).done(null, errors.onUnexpectedError);
 			}
 		});
@@ -305,9 +305,9 @@ export class FileEditorTracker implements IWorkbenchContribution {
 	private handleOutOfWorkspaceWatchers(): void {
 		const visibleOutOfWorkspacePaths = new ResourceMap<URI>();
 		this.editorService.getVisibleEditors().map(editor => {
-			return toResource(editor.input, { supportSideBySide: true, filter: 'file' });
-		}).filter(fileResource => {
-			return !!fileResource && !this.contextService.isInsideWorkspace(fileResource);
+			return toResource(editor.input, { supportSideBySide: true });
+		}).filter(resource => {
+			return !!resource && this.fileService.canHandleResource(resource) && !this.contextService.isInsideWorkspace(resource);
 		}).forEach(resource => {
 			visibleOutOfWorkspacePaths.set(resource, resource);
 		});

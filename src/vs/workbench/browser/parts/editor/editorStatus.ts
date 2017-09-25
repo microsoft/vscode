@@ -696,7 +696,7 @@ export class EditorStatus implements IStatusbarItem {
 	private onResourceEncodingChange(resource: uri): void {
 		const activeEditor = this.editorService.getActiveEditor();
 		if (activeEditor) {
-			const activeResource = toResource(activeEditor.input, { supportSideBySide: true, filter: ['file', 'untitled'] });
+			const activeResource = toResource(activeEditor.input, { supportSideBySide: true });
 			if (activeResource && activeResource.toString() === resource.toString()) {
 				return this.onEncodingChange(<IBaseEditor>activeEditor); // only update if the encoding changed for the active resource
 			}
@@ -766,6 +766,7 @@ export class ChangeModeAction extends Action {
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ICommandService private commandService: ICommandService,
+		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IConfigurationEditingService private configurationEditService: IConfigurationEditingService
 	) {
 		super(actionId, actionLabel);
@@ -779,7 +780,10 @@ export class ChangeModeAction extends Action {
 		}
 
 		const textModel = editorWidget.getModel();
-		const fileResource = toResource(activeEditor.input, { supportSideBySide: true, filter: 'file' });
+		let resource = toResource(activeEditor.input, { supportSideBySide: true });
+		if (resource.scheme === 'untitled' && !this.untitledEditorService.hasAssociatedFilePath(resource)) {
+			resource = void 0; // no configuration for untitled resources (e.g. "Untitled-1")
+		}
 
 		// Compute mode
 		let currentModeId: string;
@@ -818,7 +822,7 @@ export class ChangeModeAction extends Action {
 			};
 		});
 
-		if (fileResource) {
+		if (resource) {
 			picks[0].separator = { border: true, label: nls.localize('languagesPicks', "languages (identifier)") };
 		}
 
@@ -826,14 +830,13 @@ export class ChangeModeAction extends Action {
 		let configureModeAssociations: IPickOpenEntry;
 		let configureModeSettings: IPickOpenEntry;
 		let galleryAction: Action;
-		if (fileResource) {
-			const ext = paths.extname(fileResource.fsPath) || paths.basename(fileResource.fsPath);
+		if (resource) {
+			const ext = paths.extname(resource.fsPath) || paths.basename(resource.fsPath);
 
 			galleryAction = this.instantiationService.createInstance(ShowLanguageExtensionsAction, ext);
 			if (galleryAction.enabled) {
 				picks.unshift(galleryAction);
 			}
-
 
 			configureModeSettings = { label: nls.localize('configureModeSettings', "Configure '{0}' language based settings...", currentModeId) };
 			picks.unshift(configureModeSettings);
@@ -845,7 +848,8 @@ export class ChangeModeAction extends Action {
 		const autoDetectMode: IPickOpenEntry = {
 			label: nls.localize('autoDetect', "Auto Detect")
 		};
-		if (fileResource) {
+
+		if (resource) {
 			picks.unshift(autoDetectMode);
 		}
 
@@ -861,7 +865,7 @@ export class ChangeModeAction extends Action {
 
 			// User decided to permanently configure associations, return right after
 			if (pick === configureModeAssociations) {
-				this.configureFileAssociation(fileResource);
+				this.configureFileAssociation(resource);
 				return;
 			}
 
@@ -896,7 +900,7 @@ export class ChangeModeAction extends Action {
 			// Find mode
 			let mode: TPromise<IMode>;
 			if (pick === autoDetectMode) {
-				mode = this.modeService.getOrCreateModeByFilenameOrFirstLine(toResource(activeEditor.input, { supportSideBySide: true, filter: ['file', 'untitled'] }).fsPath, textModel.getLineContent(1));
+				mode = this.modeService.getOrCreateModeByFilenameOrFirstLine(toResource(activeEditor.input, { supportSideBySide: true }).fsPath, textModel.getLineContent(1));
 			} else {
 				mode = this.modeService.getOrCreateModeByLanguageName(pick.label);
 			}
@@ -1111,12 +1115,12 @@ export class ChangeEncodingAction extends Action {
 				return void 0;
 			}
 
-			const resource = toResource(activeEditor.input, { filter: ['file', 'untitled'], supportSideBySide: true });
+			const resource = toResource(activeEditor.input, { supportSideBySide: true });
 
 			return TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */)
 				.then(() => {
-					if (!resource || resource.scheme !== 'file') {
-						return TPromise.as(null); // encoding detection only possible for file resources
+					if (!resource || !this.fileService.canHandleResource(resource)) {
+						return TPromise.as(null); // encoding detection only possible for resources the file service can handle
 					}
 
 					return this.fileService.resolveContent(resource, { autoGuessEncoding: true, acceptTextOnly: true }).then(content => content.encoding, err => null);

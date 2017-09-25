@@ -15,6 +15,7 @@ import Event from 'vs/base/common/event';
 import { beginsWithIgnoreCase } from 'vs/base/common/strings';
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { isEqualOrParent, isEqual } from 'vs/base/common/resources';
 
 export const IFileService = createDecorator<IFileService>('fileService');
 
@@ -274,10 +275,10 @@ export class FileChangesEvent extends events.Event {
 
 			// For deleted also return true when deleted folder is parent of target path
 			if (type === FileChangeType.DELETED) {
-				return paths.isEqualOrParent(resource.fsPath, change.resource.fsPath, !isLinux /* ignorecase */);
+				return isEqualOrParent(resource, change.resource, !isLinux /* ignorecase */);
 			}
 
-			return paths.isEqual(resource.fsPath, change.resource.fsPath, !isLinux /* ignorecase */);
+			return isEqual(resource, change.resource, !isLinux /* ignorecase */);
 		});
 	}
 
