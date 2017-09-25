@@ -16,9 +16,8 @@ describe('Editor', () => {
 	it('shows correct quick outline', async function () {
 		await app.workbench.quickopen.openFile('www');
 
-		const outline = await app.workbench.editor.openOutline();
-
-		await outline.waitForQuickOpenElements(12);
+		await app.workbench.editor.openOutline();
+		await app.workbench.quickopen.waitForQuickOpenElements(names => names.length === 12);
 	});
 
 	it(`finds 'All References' to 'app'`, async function () {

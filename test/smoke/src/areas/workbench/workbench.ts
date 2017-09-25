@@ -83,8 +83,4 @@ export class Workbench {
 		await this.spectron.command('workbench.action.files.newUntitledFile');
 		await this.waitForEditorFocus('Untitled-1', true);
 	}
-
-	async openFile(fileName: string): Promise<void> {
-		await this.quickopen.openFile(fileName);
-	}
 }

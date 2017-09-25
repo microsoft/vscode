@@ -46,7 +46,7 @@ describe('Debug', () => {
 
 	it('configure launch json', async function () {
 		await app.workbench.debug.openDebugViewlet();
-		await app.workbench.openFile('app.js');
+		await app.workbench.quickopen.openFile('app.js');
 		await app.workbench.debug.configure();
 
 		const launchJsonPath = path.join(WORKSPACE_PATH, '.vscode', 'launch.json');
@@ -68,7 +68,7 @@ describe('Debug', () => {
 	});
 
 	it('breakpoints', async function () {
-		await app.workbench.openFile('index.js');
+		await app.workbench.quickopen.openFile('index.js');
 		await app.workbench.debug.setBreakpointOnLine(6);
 		await app.screenCapturer.capture('breakpoints are set');
 	});

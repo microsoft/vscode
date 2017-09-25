@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SpectronApplication } from '../../spectron/application';
-import { Element } from 'webdriverio';
 
 export class QuickOpen {
 
@@ -36,19 +35,11 @@ export class QuickOpen {
 		await this.spectron.client.type(text);
 	}
 
-	async getQuickOpenElements(): Promise<Element[]> {
-		return this.spectron.client.waitForElements(QuickOpen.QUICK_OPEN_ENTRY_SELECTOR);
-	}
-
-	async waitForQuickOpenElements(count: number): Promise<Element[]> {
-		return this.spectron.client.waitForElements(QuickOpen.QUICK_OPEN_ENTRY_SELECTOR, elements => elements && elements.length === count);
-	}
-
 	async openFile(fileName: string): Promise<void> {
 		await this.openQuickOpen();
 		await this.type(fileName);
 
-		await this.getQuickOpenElements();
+		await this.waitForQuickOpenElements(names => names.some(n => n === fileName));
 		await this.spectron.client.keys(['Enter', 'NULL']);
 		await this.spectron.workbench.waitForActiveTab(fileName);
 		await this.spectron.workbench.waitForEditorFocus(fileName);
@@ -92,5 +83,19 @@ export class QuickOpen {
 		}
 		await this.spectron.client.keys(['Enter', 'NULL']);
 		await this.waitForQuickOpenClosed();
+	}
+
+	async waitForQuickOpenElements(accept: (names: string[]) => boolean): Promise<void> {
+		await this.spectron.client.waitFor(() => this.getQuickOpenElements(), accept);
+	}
+
+	private async getQuickOpenElements(): Promise<string[]> {
+		return await this.spectron.webclient.selectorExecute(QuickOpen.QUICK_OPEN_ENTRY_SELECTOR,
+			div => (Array.isArray(div) ? div : [div]).map(element => {
+				const name = element.querySelector('.label-name') as HTMLElement;
+
+				return name.textContent;
+			})
+		);
 	}
 }

@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { SpectronApplication, CODE_WORKSPACE_PATH, VSCODE_BUILD } from '../../spectron/application';
 import { Window } from '../window';
 
-describe('Multi Root', () => {
+describe('Multiroot', () => {
 	let app: SpectronApplication = new SpectronApplication(void 0, CODE_WORKSPACE_PATH);
 	if (app.build === VSCODE_BUILD.STABLE) {
 		return;
@@ -20,7 +20,8 @@ describe('Multi Root', () => {
 	it('shows results from all folders', async function () {
 		await app.workbench.quickopen.openQuickOpen();
 		await app.workbench.quickopen.type('*.*');
-		await app.workbench.quickopen.waitForQuickOpenElements(6);
+
+		await app.workbench.quickopen.waitForQuickOpenElements(names => names.length >= 6);
 		await app.workbench.quickopen.closeQuickOpen();
 	});
 

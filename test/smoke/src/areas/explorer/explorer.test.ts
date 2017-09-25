@@ -12,20 +12,32 @@ describe('Explorer', () => {
 	beforeEach(function () { app.screenCapturer.testName = this.currentTest.title; });
 
 	it('quick open search produces correct result', async function () {
+		const expectedNames = [
+			'.eslintrc.json',
+			'tasks.json',
+			'app.js',
+			'index.js',
+			'users.js',
+			'package.json',
+			'jsconfig.json'
+		];
+
 		await app.workbench.quickopen.openQuickOpen();
-
 		await app.client.type('.js');
-
-		await app.workbench.quickopen.waitForQuickOpenElements(7);
+		await app.workbench.quickopen.waitForQuickOpenElements(names => expectedNames.every(n => names.some(m => n === m)));
 		await app.client.keys(['Escape', 'NULL']);
 	});
 
 	it('quick open respects fuzzy matching', async function () {
+		const expectedNames = [
+			'tasks.json',
+			'app.js',
+			'package.json'
+		];
+
 		await app.workbench.quickopen.openQuickOpen();
-
 		await app.client.type('a.s');
-
-		await app.workbench.quickopen.waitForQuickOpenElements(3);
+		await app.workbench.quickopen.waitForQuickOpenElements(names => expectedNames.every(n => names.some(m => n === m)));
 		await app.client.keys(['Escape', 'NULL']);
 	});
 });
