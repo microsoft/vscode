@@ -8,7 +8,7 @@
 import 'vs/css!./media/editorstatus';
 import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
-import { $, append, runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
+import { $, append, runAtThisOrScheduleAtNextAnimationFrame, addDisposableListener } from 'vs/base/browser/dom';
 import strings = require('vs/base/common/strings');
 import paths = require('vs/base/common/paths');
 import types = require('vs/base/common/types');
@@ -17,6 +17,7 @@ import errors = require('vs/base/common/errors');
 import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { Action } from 'vs/base/common/actions';
 import { language, LANGUAGE_DEFAULT, AccessibilitySupport } from 'vs/base/common/platform';
+import * as browser from 'vs/base/browser/browser';
 import { IMode } from 'vs/editor/common/modes';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { IFileEditorInput, EncodingMode, IEncodingSupport, toResource, SideBySideEditorInput } from 'vs/workbench/common/editor';
@@ -45,8 +46,12 @@ import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { getCodeEditor as getEditorWidget, getCodeOrDiffEditor } from 'vs/editor/common/services/codeEditorService';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { IConfigurationChangedEvent, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { attachStylerCallback } from 'vs/platform/theme/common/styler';
+import { widgetShadow, editorWidgetBackground } from 'vs/platform/theme/common/colorRegistry';
 
 // TODO@Sandeep layer breaker
 // tslint:disable-next-line:import-patterns
@@ -269,7 +274,8 @@ export class EditorStatus implements IStatusbarItem {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IModeService private modeService: IModeService,
-		@ITextFileService private textFileService: ITextFileService
+		@ITextFileService private textFileService: ITextFileService,
+		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService,
 	) {
 		this.toDispose = [];
 		this.activeEditorListeners = [];
@@ -288,6 +294,7 @@ export class EditorStatus implements IStatusbarItem {
 		this.screenRedearModeElement = append(this.element, $('a.editor-status-screenreadermode.status-bar-info'));
 		this.screenRedearModeElement.textContent = nlsScreenReaderDetected;
 		this.screenRedearModeElement.title = nlsScreenReaderDetectedTitle;
+		this.screenRedearModeElement.onclick = () => this.onScreenReaderModeClick();
 		hide(this.screenRedearModeElement);
 
 		this.selectionElement = append(this.element, $('a.editor-status-selection'));
@@ -469,6 +476,10 @@ export class EditorStatus implements IStatusbarItem {
 		action.dispose();
 	}
 
+	private onScreenReaderModeClick(): void {
+		this.instantiationService.createInstance(ScreenReaderDetectedExplanation, this.screenRedearModeElement);
+	}
+
 	private onSelectionClick(): void {
 		this.quickOpenService.show(':'); // "Go to line"
 	}
@@ -607,11 +618,26 @@ export class EditorStatus implements IStatusbarItem {
 		this.updateState(update);
 	}
 
+	private _promptedScreenReader: boolean = false;
+
 	private onScreenReaderModeChange(editorWidget: ICommonCodeEditor): void {
 		let screenReaderMode = false;
 
 		// We only support text based editors
 		if (editorWidget) {
+			const screenReaderDetected = (browser.getAccessibilitySupport() === AccessibilitySupport.Enabled);
+			if (screenReaderDetected) {
+				const screenReaderConfiguration = this.configurationService.getConfiguration<IEditorOptions>('editor').accessibilitySupport;
+				if (screenReaderConfiguration === 'auto') {
+					// show explanation
+					if (!this._promptedScreenReader) {
+						this._promptedScreenReader = true;
+						setTimeout(() => {
+							this.onScreenReaderModeClick();
+						}, 100);
+					}
+				}
+			}
 
 			screenReaderMode = (editorWidget.getConfiguration().accessibilitySupport === AccessibilitySupport.Enabled);
 		}
@@ -1182,5 +1208,105 @@ export class ChangeEncodingAction extends Action {
 					});
 				});
 		});
+	}
+}
+
+class ScreenReaderDetectedExplanation {
+
+	private toDispose: IDisposable[];
+
+	constructor(
+		anchorElement: HTMLElement,
+		@IThemeService private readonly themeService: IThemeService,
+		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IConfigurationEditingService private readonly configurationEditingService: IConfigurationEditingService,
+	) {
+		this.toDispose = [];
+
+		this.contextViewService.showContextView({
+			getAnchor: () => anchorElement,
+
+			render: (container) => {
+				return this.renderContents(container);
+			},
+
+			onDOMEvent: (e, activeElement) => {
+			},
+
+			onHide: () => {
+				this.dispose();
+			}
+		});
+	}
+
+	public dispose(): void {
+		this.toDispose = dispose(this.toDispose);
+	}
+
+	protected renderContents(container: HTMLElement): IDisposable {
+		const domNode = $('div.screen-reader-detected-explanation', {
+			'aria-hidden': 'true'
+		});
+
+		const title = $('h2.title', {}, nls.localize('screenReaderDetectedExplanation.title', "Screen Reader Detected"));
+		domNode.appendChild(title);
+
+		const closeBtn = $('div.cancel');
+		this.toDispose.push(addDisposableListener(closeBtn, 'click', () => {
+			this.contextViewService.hideContextView();
+		}));
+		domNode.appendChild(closeBtn);
+
+		const question = $('p.question', {}, nls.localize('screenReaderDetectedExplanation.question', "Are you using a screen reader to operate VS Code?"));
+		domNode.appendChild(question);
+
+		const yesBtn = $('div.button', {}, nls.localize('screenReaderDetectedExplanation.answerYes', "Yes"));
+		this.toDispose.push(addDisposableListener(yesBtn, 'click', () => {
+			this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, {
+				key: 'editor.accessibilitySupport',
+				value: 'on'
+			});
+			this.contextViewService.hideContextView();
+		}));
+		domNode.appendChild(yesBtn);
+
+		const noBtn = $('div.button', {}, nls.localize('screenReaderDetectedExplanation.answerNo', "No"));
+		this.toDispose.push(addDisposableListener(noBtn, 'click', () => {
+			this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, {
+				key: 'editor.accessibilitySupport',
+				value: 'off'
+			});
+			this.contextViewService.hideContextView();
+		}));
+		domNode.appendChild(noBtn);
+
+		const clear = $('div');
+		clear.style.clear = 'both';
+		domNode.appendChild(clear);
+
+		const br = $('br');
+		domNode.appendChild(br);
+
+		const hr = $('hr');
+		domNode.appendChild(hr);
+
+		const explanation1 = $('p.body1', {}, nls.localize('screenReaderDetectedExplanation.body1', "VS Code is now optimized for usage with a screen reader."));
+		domNode.appendChild(explanation1);
+
+		const explanation2 = $('p.body2', {}, nls.localize('screenReaderDetectedExplanation.body2', "Additionally, due to limitations of WAI-ARIA, we have disabled certain editor features which cannot be currently expressed to screen readers: e.g. word wrapping, folding, auto closing brackets, etc."));
+		domNode.appendChild(explanation2);
+
+		container.appendChild(domNode);
+
+		this.toDispose.push(attachStylerCallback(this.themeService, { widgetShadow, editorWidgetBackground }, colors => {
+			domNode.style.backgroundColor = colors.editorWidgetBackground;
+			if (colors.widgetShadow) {
+				domNode.style.boxShadow = `0 2px 8px ${colors.widgetShadow}`;
+			}
+		}));
+
+		return {
+			dispose: () => { this.dispose(); }
+		};
 	}
 }
