@@ -1002,7 +1002,7 @@
 	},
 	{
 		"c": "[",
-		"t": "source.coffee meta.brace.square.coffee",
+		"t": "source.coffee punctuation.definition.array.begin.bracket.square.coffee",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1024,13 +1024,13 @@
 	},
 	{
 		"c": "..",
-		"t": "source.coffee constant.numeric.decimal.coffee punctuation.separator.decimal.period.coffee",
+		"t": "source.coffee keyword.operator.slice.inclusive.coffee",
 		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
-			"hc_black": "constant.numeric: #B5CEA8"
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
 		}
 	},
 	{
@@ -1046,7 +1046,7 @@
 	},
 	{
 		"c": "]",
-		"t": "source.coffee meta.brace.square.coffee",
+		"t": "source.coffee punctuation.definition.array.end.bracket.square.coffee",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1178,7 +1178,7 @@
 	},
 	{
 		"c": "[",
-		"t": "source.coffee meta.brace.square.coffee",
+		"t": "source.coffee punctuation.definition.array.begin.bracket.square.coffee",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1299,7 +1299,7 @@
 	},
 	{
 		"c": "]",
-		"t": "source.coffee meta.brace.square.coffee",
+		"t": "source.coffee punctuation.definition.array.end.bracket.square.coffee",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
