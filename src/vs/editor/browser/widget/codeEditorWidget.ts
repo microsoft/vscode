@@ -30,7 +30,7 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
 import { CoreEditorCommand } from 'vs/editor/common/controller/coreCommands';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder } from 'vs/editor/common/view/editorColorRegistry';
+import { editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder, editorInfoBorder, editorInfoForeground } from 'vs/editor/common/view/editorColorRegistry';
 import { Color } from 'vs/base/common/color';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 
@@ -518,19 +518,28 @@ function getSquigglySVGData(color: Color) {
 registerThemingParticipant((theme, collector) => {
 	let errorBorderColor = theme.getColor(editorErrorBorder);
 	if (errorBorderColor) {
-		collector.addRule(`.monaco-editor .redsquiggly { border-bottom: 4px double ${errorBorderColor}; }`);
+		collector.addRule(`.monaco-editor .errorsquiggly { border-bottom: 4px double ${errorBorderColor}; }`);
 	}
 	let errorForeground = theme.getColor(editorErrorForeground);
 	if (errorForeground) {
-		collector.addRule(`.monaco-editor .redsquiggly { background: url("data:image/svg+xml,${getSquigglySVGData(errorForeground)}") repeat-x bottom left; }`);
+		collector.addRule(`.monaco-editor .errorsquiggly { background: url("data:image/svg+xml,${getSquigglySVGData(errorForeground)}") repeat-x bottom left; }`);
 	}
 
 	let warningBorderColor = theme.getColor(editorWarningBorder);
 	if (warningBorderColor) {
-		collector.addRule(`.monaco-editor .greensquiggly { border-bottom: 4px double ${warningBorderColor}; }`);
+		collector.addRule(`.monaco-editor .warningsquiggly { border-bottom: 4px double ${warningBorderColor}; }`);
 	}
 	let warningForeground = theme.getColor(editorWarningForeground);
 	if (warningForeground) {
-		collector.addRule(`.monaco-editor .greensquiggly { background: url("data:image/svg+xml;utf8,${getSquigglySVGData(warningForeground)}") repeat-x bottom left; }`);
+		collector.addRule(`.monaco-editor .warningsquiggly { background: url("data:image/svg+xml;utf8,${getSquigglySVGData(warningForeground)}") repeat-x bottom left; }`);
+	}
+
+	let infoBorderColor = theme.getColor(editorInfoBorder);
+	if (warningBorderColor) {
+		collector.addRule(`.monaco-editor .infosquiggly { border-bottom: 4px double ${infoBorderColor}; }`);
+	}
+	let infoForeground = theme.getColor(editorInfoForeground);
+	if (warningForeground) {
+		collector.addRule(`.monaco-editor .infosquiggly { background: url("data:image/svg+xml;utf8,${getSquigglySVGData(infoForeground)}") repeat-x bottom left; }`);
 	}
 });

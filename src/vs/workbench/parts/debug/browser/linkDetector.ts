@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import strings = require('vs/base/common/strings');
 import uri from 'vs/base/common/uri';
 import { isMacintosh } from 'vs/base/common/platform';
 import * as errors from 'vs/base/common/errors';
@@ -37,7 +36,6 @@ export class LinkDetector {
 	 * If no links were detected, returns the original string.
 	 */
 	public handleLinks(text: string): HTMLElement | string {
-		const workspaceFolder = this.contextService.getWorkspace().folders[0];
 		let linkContainer: HTMLElement;
 
 		for (let pattern of LinkDetector.FILE_LOCATION_PATTERNS) {
@@ -47,13 +45,6 @@ export class LinkDetector {
 			let match = pattern.exec(text);
 			while (match !== null) {
 				let resource: uri = null;
-				if (workspaceFolder) {
-					try {
-						resource = (match && !strings.startsWith(match[0], 'http'))
-							&& (match[2] || strings.startsWith(match[1], '/') ? uri.file(match[1]) : this.contextService.toResource(match[1], workspaceFolder)); // TODO@Michel TODO@Isidor (https://github.com/Microsoft/vscode/issues/29190)
-					} catch (e) { }
-				}
-
 				if (!resource) {
 					match = pattern.exec(text);
 					continue;

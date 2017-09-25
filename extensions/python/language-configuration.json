@@ -21,6 +21,8 @@
 		["(", ")"],
 		["\"", "\""],
 		["'", "'"]
-	]
-	// enhancedBrackets: [ { open: /.*:\s*$/,  closeComplete: 'else:' } ],
+	],
+	"folding": {
+		"offSide": true
+	}
 }

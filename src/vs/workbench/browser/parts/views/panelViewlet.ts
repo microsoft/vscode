@@ -23,7 +23,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { PanelView, IPanelOptions, Panel } from 'vs/base/browser/ui/splitview/panelview';
+import { PanelView, IPanelViewOptions, IPanelOptions, Panel } from 'vs/base/browser/ui/splitview/panelview';
 
 export interface IPanelColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
@@ -50,8 +50,8 @@ export abstract class ViewletPanel extends Panel {
 	private _onDidFocus = new Emitter<void>();
 	readonly onDidFocus: Event<void> = this._onDidFocus.event;
 
-	private actionRunner: IActionRunner;
-	private toolbar: ToolBar;
+	protected actionRunner: IActionRunner;
+	protected toolbar: ToolBar;
 
 	constructor(
 		readonly title: string,
@@ -114,7 +114,7 @@ export abstract class ViewletPanel extends Panel {
 	}
 }
 
-export interface IViewsViewletOptions {
+export interface IViewsViewletOptions extends IPanelViewOptions {
 	showHeaderInTitleWhenSingleView: boolean;
 }
 
@@ -129,18 +129,13 @@ export class PanelViewlet extends Viewlet {
 	private panelItems: IViewletPanelItem[] = [];
 	private panelview: PanelView;
 
-	// TODO@Joao make this into method so people can override it
-	protected get isSingleView(): boolean {
-		return this.options.showHeaderInTitleWhenSingleView && this.panelItems.length === 1;
-	}
-
 	protected get length(): number {
 		return this.panelItems.length;
 	}
 
 	constructor(
 		id: string,
-		private options: Partial<IViewsViewletOptions>,
+		private options: IViewsViewletOptions,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService
 	) {
@@ -151,13 +146,14 @@ export class PanelViewlet extends Viewlet {
 		super.create(parent);
 
 		const container = parent.getHTMLElement();
-		this.panelview = this._register(new PanelView(container));
+		this.panelview = this._register(new PanelView(container, this.options));
+		this.panelview.onDidDrop(({ from, to }) => this.movePanel(from as ViewletPanel, to as ViewletPanel));
 	}
 
 	getTitle(): string {
 		let title = Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlet(this.getId()).name;
 
-		if (this.isSingleView) {
+		if (this.isSingleView()) {
 			title += ': ' + this.panelItems[0].panel.title;
 		}
 
@@ -165,7 +161,7 @@ export class PanelViewlet extends Viewlet {
 	}
 
 	getActions(): IAction[] {
-		if (this.isSingleView) {
+		if (this.isSingleView()) {
 			return this.panelItems[0].panel.getActions();
 		}
 
@@ -173,7 +169,7 @@ export class PanelViewlet extends Viewlet {
 	}
 
 	getSecondaryActions(): IAction[] {
-		if (this.isSingleView) {
+		if (this.isSingleView()) {
 			return this.panelItems[0].panel.getSecondaryActions();
 		}
 
@@ -246,9 +242,9 @@ export class PanelViewlet extends Viewlet {
 			return;
 		}
 
-
 		const [panelItem] = this.panelItems.splice(fromIndex, 1);
-		this.panelItems.splice(toIndex < fromIndex ? toIndex : toIndex - 1, 0, panelItem);
+		this.panelItems.splice(toIndex, 0, panelItem);
+
 		this.panelview.movePanel(from, to);
 	}
 
@@ -256,12 +252,21 @@ export class PanelViewlet extends Viewlet {
 		this.panelview.resizePanel(panel, size);
 	}
 
+	getPanelSize(panel: ViewletPanel): number {
+		return this.panelview.getPanelSize(panel);
+	}
+
 	private updateViewHeaders(): void {
-		if (this.isSingleView) {
+		if (this.isSingleView()) {
+			this.panelItems[0].panel.setExpanded(true);
 			this.panelItems[0].panel.headerVisible = false;
 		} else {
 			this.panelItems.forEach(i => i.panel.headerVisible = true);
 		}
+	}
+
+	protected isSingleView(): boolean {
+		return this.options.showHeaderInTitleWhenSingleView && this.panelItems.length === 1;
 	}
 
 	dispose(): void {

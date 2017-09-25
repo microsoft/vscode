@@ -9,8 +9,8 @@ import * as DOM from 'vs/base/browser/dom';
 import { Dimension, Builder } from 'vs/base/browser/builder';
 
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IEditorRegistry, Extensions as EditorExtensions, EditorInput, EditorOptions, SideBySideEditorInput } from 'vs/workbench/common/editor';
-import { BaseEditor, EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { IEditorRegistry, EditorInput, EditorOptions, SideBySideEditorInput } from 'vs/workbench/common/editor';
+import { BaseEditor, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorControl, Position, IEditor } from 'vs/platform/editor/common/editor';
 import { VSash } from 'vs/base/browser/ui/sash/sash';
 

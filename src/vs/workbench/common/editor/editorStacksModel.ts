@@ -6,8 +6,12 @@
 'use strict';
 
 import Event, { Emitter, once } from 'vs/base/common/event';
-import { IEditorRegistry, Extensions, EditorInput, toResource, IEditorStacksModel, IEditorGroup, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, EditorOpenPositioning, SideBySideEditorInput } from 'vs/workbench/common/editor';
+import { IEditorRegistry, EditorInput, toResource, IEditorStacksModel, IEditorGroup, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, EditorOpenPositioning, SideBySideEditorInput } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
+// TODO@Ben fix layering issues
+// tslint:disable-next-line:import-patterns
+// tslint:disable-next-line:layering
+import { Extensions } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';

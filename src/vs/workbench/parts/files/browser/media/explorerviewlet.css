@@ -53,7 +53,7 @@
 	visibility: hidden;
 }
 
-.explorer-viewlet .header .monaco-count-badge.hidden {
+.explorer-viewlet .panel-header .monaco-count-badge.hidden {
 	display: none;
 	visibility: hidden;
 }

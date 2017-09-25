@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { TerminateResponse } from 'vs/base/common/processes';
 import { IEventEmitter } from 'vs/base/common/eventEmitter';
 
-import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 import { Task } from './tasks';
 
@@ -104,7 +104,7 @@ export interface TaskEvent {
 }
 
 export interface ITaskResolver {
-	resolve(workspaceFolder: WorkspaceFolder, identifier: string): Task;
+	resolve(workspaceFolder: IWorkspaceFolder, identifier: string): Task;
 }
 
 export interface TaskTerminateResponse extends TerminateResponse {

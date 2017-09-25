@@ -9,6 +9,7 @@ import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { MainThreadDiaglogsShape, MainContext, IExtHostContext, MainThreadDialogOpenOptions, MainThreadDialogSaveOptions } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { IWindowService } from 'vs/platform/windows/common/windows';
+import { forEach } from 'vs/base/common/collections';
 
 @extHostNamedCustomer(MainContext.MainThreadDialogs)
 export class MainThreadDialogs implements MainThreadDiaglogsShape {
@@ -26,7 +27,7 @@ export class MainThreadDialogs implements MainThreadDiaglogsShape {
 
 	$showOpenDialog(options: MainThreadDialogOpenOptions): TPromise<string[]> {
 		// TODO@joh what about remote dev setup?
-		if (options.defaultResource && options.defaultResource.scheme !== 'file') {
+		if (options.defaultUri && options.defaultUri.scheme !== 'file') {
 			return TPromise.wrapError(new Error('bad path'));
 		}
 		return new TPromise<string[]>(resolve => {
@@ -39,7 +40,7 @@ export class MainThreadDialogs implements MainThreadDiaglogsShape {
 
 	$showSaveDialog(options: MainThreadDialogSaveOptions): TPromise<string> {
 		// TODO@joh what about remote dev setup?
-		if (options.defaultResource && options.defaultResource.scheme !== 'file') {
+		if (options.defaultUri && options.defaultUri.scheme !== 'file') {
 			return TPromise.wrapError(new Error('bad path'));
 		}
 		return new TPromise<string>(resolve => {
@@ -57,8 +58,8 @@ export class MainThreadDialogs implements MainThreadDiaglogsShape {
 		if (options.openLabel) {
 			result.buttonLabel = options.openLabel;
 		}
-		if (options.defaultResource) {
-			result.defaultPath = options.defaultResource.fsPath;
+		if (options.defaultUri) {
+			result.defaultPath = options.defaultUri.fsPath;
 		}
 		if (!options.openFiles && !options.openFolders) {
 			options.openFiles = true;
@@ -72,6 +73,10 @@ export class MainThreadDialogs implements MainThreadDiaglogsShape {
 		if (options.openMany) {
 			result.properties.push('multiSelections');
 		}
+		if (options.filters) {
+			result.filters = [];
+			forEach(options.filters, entry => result.filters.push({ name: entry.key, extensions: entry.value }));
+		}
 		return result;
 	}
 
@@ -79,11 +84,15 @@ export class MainThreadDialogs implements MainThreadDiaglogsShape {
 		const result: Electron.SaveDialogOptions = {
 
 		};
-		if (options.defaultResource) {
-			result.defaultPath = options.defaultResource.fsPath;
+		if (options.defaultUri) {
+			result.defaultPath = options.defaultUri.fsPath;
 		}
 		if (options.saveLabel) {
 			result.buttonLabel = options.saveLabel;
+		}
+		if (options.filters) {
+			result.filters = [];
+			forEach(options.filters, entry => result.filters.push({ name: entry.key, extensions: entry.value }));
 		}
 		return result;
 	}

@@ -27,13 +27,13 @@ describe('Dataloss', () => {
 
 		await app.workbench.waitForActiveTab(fileName, true);
 		await app.screenCapturer.capture(`${fileName} after reload`);
-		let actual = await app.workbench.editor.getEditorFirstLineText();
-		assert.ok(actual.startsWith(textToType), `${actual} did not start with ${textToType}`);
+		let actual = await app.workbench.editor.waitForActiveEditorFirstLineText(fileName);
+		assert.ok(actual.startsWith(textToType), `'${actual}' did not start with '${textToType}'`);
 
 		await app.workbench.waitForTab(untitled, true);
 		await app.workbench.selectTab('Untitled-1', true);
 		await app.screenCapturer.capture('Untitled file after reload');
-		actual = await app.workbench.editor.getEditorFirstLineText();
-		assert.ok(actual.startsWith(textToTypeInUntitled), `${actual} did not start with ${textToTypeInUntitled}`);
+		actual = await app.workbench.editor.waitForActiveEditorFirstLineText('Untitled-1');
+		assert.ok(actual.startsWith(textToTypeInUntitled), `'${actual}' did not start with '${textToTypeInUntitled}'`);
 	});
 });

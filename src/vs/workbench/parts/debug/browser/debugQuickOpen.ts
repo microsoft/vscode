@@ -11,16 +11,21 @@ import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');
 import Model = require('vs/base/parts/quickopen/browser/quickOpenModel');
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IDebugService, ILaunch } from 'vs/workbench/parts/debug/common/debug';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import * as errors from 'vs/base/common/errors';
 
 class DebugEntry extends Model.QuickOpenEntry {
 
-	constructor(private debugService: IDebugService, private launch: ILaunch, private configurationName: string, highlights: Model.IHighlight[] = []) {
+	constructor(private debugService: IDebugService, private contextService: IWorkspaceContextService, private launch: ILaunch, private configurationName: string, highlights: Model.IHighlight[] = []) {
 		super(highlights);
 	}
 
 	public getLabel(): string {
-		return this.debugService.getConfigurationManager().getLaunches().length <= 1 ? this.configurationName : `${this.configurationName} (${this.launch.workspace.name})`;
+		return this.configurationName;
+	}
+
+	public getDescription(): string {
+		return this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? this.launch.workspace.name : '';
 	}
 
 	public getAriaLabel(): string {
@@ -43,7 +48,8 @@ export class DebugQuickOpenHandler extends Quickopen.QuickOpenHandler {
 
 	constructor(
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IDebugService private debugService: IDebugService
+		@IDebugService private debugService: IDebugService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		super();
 	}
@@ -58,7 +64,7 @@ export class DebugQuickOpenHandler extends Quickopen.QuickOpenHandler {
 		for (let launch of this.debugService.getConfigurationManager().getLaunches()) {
 			launch.getConfigurationNames().map(config => ({ config: config, highlights: Filters.matchesContiguousSubString(input, config) }))
 				.filter(({ highlights }) => !!highlights)
-				.forEach(({ config, highlights }) => configurations.push(new DebugEntry(this.debugService, launch, config, highlights)));
+				.forEach(({ config, highlights }) => configurations.push(new DebugEntry(this.debugService, this.contextService, launch, config, highlights)));
 		}
 
 		return TPromise.as(new Model.QuickOpenModel(configurations));

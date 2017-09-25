@@ -23,7 +23,6 @@ describe('CSS', () => {
 
 	it('verifies warnings for the empty rule', async () => {
 		await app.workbench.quickopen.openFile('style.css');
-		await app.client.waitForElement(`.monaco-editor.focused`);
 		await app.client.type('.foo{}');
 
 		let warning = await app.client.waitForElement(Problems.getSelectorInEditor(ProblemSeverity.WARNING));

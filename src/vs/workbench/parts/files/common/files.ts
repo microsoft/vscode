@@ -95,9 +95,9 @@ export function explorerItemToFileResource(obj: FileStat | OpenEditor): IFileRes
 	if (obj instanceof OpenEditor) {
 		const editor = obj as OpenEditor;
 		const resource = editor.getResource();
-		if (resource && resource.scheme === 'file') {
+		if (resource) {
 			return {
-				resource: editor.getResource()
+				resource
 			};
 		}
 	}

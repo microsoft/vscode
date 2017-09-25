@@ -26,7 +26,8 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { Position as EditorPosition, IResourceDiffInput, IUntitledResourceInput, IEditor, IResourceInput } from 'vs/platform/editor/common/editor';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
+import { IEditorRegistry } from 'vs/workbench/common/editor';
+import { Extensions as EditorExtensions } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { HistoryService } from 'vs/workbench/services/history/browser/history';
 import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
@@ -554,6 +555,11 @@ export class Workbench implements IPartService {
 		this.toShutdown.push(this.activitybarPart);
 		serviceCollection.set(IActivityBarService, this.activitybarPart);
 
+		// File Service
+		this.fileService = this.instantiationService.createInstance(RemoteFileService);
+		serviceCollection.set(IFileService, this.fileService);
+		this.toDispose.push(this.fileService.onFileChanges(e => this.configurationService.handleWorkspaceFileEvents(e)));
+
 		// Editor service (editor part)
 		this.editorPart = this.instantiationService.createInstance(EditorPart, Identifiers.EDITOR_PART, !this.hasFilesToCreateOpenOrDiff);
 		this.toDispose.push(this.editorPart);
@@ -567,11 +573,6 @@ export class Workbench implements IPartService {
 		this.toDispose.push(this.titlebarPart);
 		this.toShutdown.push(this.titlebarPart);
 		serviceCollection.set(ITitleService, this.titlebarPart);
-
-		// File Service
-		this.fileService = this.instantiationService.createInstance(RemoteFileService);
-		serviceCollection.set(IFileService, this.fileService);
-		this.toDispose.push(this.fileService.onFileChanges(e => this.configurationService.handleWorkspaceFileEvents(e)));
 
 		// History
 		serviceCollection.set(IHistoryService, new SyncDescriptor(HistoryService));

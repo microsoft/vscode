@@ -203,7 +203,7 @@ if (isMacintosh) {
 
 	registerTouchBarEntry(StartAction.ID, StartAction.LABEL, 0, CONTEXT_NOT_IN_DEBUG_MODE, 'continue-tb.png');
 	registerTouchBarEntry(ContinueAction.ID, ContinueAction.LABEL, 0, CONTEXT_DEBUG_STATE.isEqualTo('stopped'), 'continue-tb.png');
-	registerTouchBarEntry(PauseAction.ID, PauseAction.LABEL, 1, CONTEXT_IN_DEBUG_MODE, 'pause-tb.png');
+	registerTouchBarEntry(PauseAction.ID, PauseAction.LABEL, 1, ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, ContextKeyExpr.notEquals('debugState', 'stopped')), 'pause-tb.png');
 	registerTouchBarEntry(StepOverAction.ID, StepOverAction.LABEL, 2, CONTEXT_DEBUG_STATE.isEqualTo('stopped'), 'stepover-tb.png');
 	registerTouchBarEntry(StepIntoAction.ID, StepIntoAction.LABEL, 3, CONTEXT_DEBUG_STATE.isEqualTo('stopped'), 'stepinto-tb.png');
 	registerTouchBarEntry(StepOutAction.ID, StepOutAction.LABEL, 4, CONTEXT_DEBUG_STATE.isEqualTo('stopped'), 'stepout-tb.png');

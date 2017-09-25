@@ -325,7 +325,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				const model = new ColorPickerModel(color, [], 0);
 				const widget = new ColorPickerWidget(fragment, model, this._editor.getConfiguration().pixelRatio);
 
-				getColorPresentations(colorInfo, msg.provider).then(colorPresentations => {
+				getColorPresentations(editorModel, colorInfo, msg.provider).then(colorPresentations => {
 					model.colorPresentations = colorPresentations;
 					const originalText = this._editor.getModel().getValueInRange(msg.range);
 					model.guessColorPresentation(color, originalText);
@@ -335,7 +335,6 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 						let newRange;
 						if (model.presentation.textEdit) {
 							textEdits = [model.presentation.textEdit];
-							console.log('insert text');
 							newRange = new Range(
 								model.presentation.textEdit.range.startLineNumber,
 								model.presentation.textEdit.range.startColumn,
@@ -360,7 +359,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 					};
 
 					const updateColorPresentations = (color: Color) => {
-						return getColorPresentations({
+						return getColorPresentations(editorModel, {
 							range: range,
 							color: {
 								red: color.rgba.r / 255,

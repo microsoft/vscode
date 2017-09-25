@@ -36,10 +36,14 @@ export default class TypeScriptHoverProvider implements HoverProvider {
 	}
 
 	private static getContents(data: Proto.QuickInfoResponseBody) {
+		const parts = [];
+
+		if (data.displayString) {
+			parts.push({ language: 'typescript', value: data.displayString });
+		}
+
 		const tags = tagsMarkdownPreview(data.tags);
-		return [
-			{ language: 'typescript', value: data.displayString },
-			data.documentation + (tags ? '\n\n' + tags : '')
-		];
+		parts.push(data.documentation + (tags ? '\n\n' + tags : ''));
+		return parts;
 	}
 }

@@ -6,7 +6,7 @@
 'use strict';
 
 
-import { BoundedMap, TrieMap, ResourceMap } from 'vs/base/common/map';
+import { BoundedMap, StringTrieMap, ResourceMap } from 'vs/base/common/map';
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 
@@ -314,7 +314,7 @@ suite('Map', () => {
 
 	test('TrieMap - basics', function () {
 
-		const map = new TrieMap<number>();
+		const map = new StringTrieMap<number>();
 
 		map.insert('/user/foo/bar', 1);
 		map.insert('/user/foo', 2);
@@ -332,7 +332,7 @@ suite('Map', () => {
 
 	test('TrieMap - lookup', function () {
 
-		const map = new TrieMap<number>();
+		const map = new StringTrieMap<number>();
 		map.insert('/user/foo/bar', 1);
 		map.insert('/user/foo', 2);
 		map.insert('/user/foo/flip/flop', 3);
@@ -346,7 +346,7 @@ suite('Map', () => {
 
 	test('TrieMap - superstr', function () {
 
-		const map = new TrieMap<number>();
+		const map = new StringTrieMap<number>();
 		map.insert('/user/foo/bar', 1);
 		map.insert('/user/foo', 2);
 		map.insert('/user/foo/flip/flop', 3);

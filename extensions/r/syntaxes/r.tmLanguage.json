@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Ikuyadeu/vscode-R/commit/b4fdb1db24cdd690e88bc2bbb7f608426e63da67",
+	"version": "https://github.com/Ikuyadeu/vscode-R/commit/0ad8c770ea3836b15bc121fff4161a794d3deeaa",
 	"fileTypes": [
 		"R",
 		"r",
@@ -281,7 +281,7 @@
 							"name": "punctuation.section.brackets.single.begin.r"
 						}
 					},
-					"end": "\\](?!\\])",
+					"end": "\\]",
 					"endCaptures": {
 						"0": {
 							"name": "punctuation.section.brackets.single.end.r"
@@ -381,7 +381,10 @@
 					"contentName": "meta.function.parameters.r",
 					"patterns": [
 						{
-							"match": "[a-zA-Z._][a-zA-Z0-9._]*",
+							"include": "#comments"
+						},
+						{
+							"match": "(?:[a-zA-Z._][a-zA-Z0-9._]*|`[^`]+`)",
 							"name": "variable.parameter.r"
 						},
 						{
@@ -402,7 +405,7 @@
 			]
 		},
 		"function-calls": {
-			"begin": "(?:\\b|(?=\\.))([a-zA-Z._][a-zA-Z0-9._]*)\\s*(\\()",
+			"begin": "(?:\\b|(?=\\.))((?:[a-zA-Z._][a-zA-Z0-9._]*|`[^`]+`))\\s*(\\()",
 			"beginCaptures": {
 				"1": {
 					"name": "variable.function.r"
@@ -432,7 +435,7 @@
 					"contentName": "meta.function-call.parameters.r"
 				},
 				{
-					"match": "[a-zA-Z._][a-zA-Z0-9._]*(?=\\s[^=])",
+					"match": "(?:[a-zA-Z._][a-zA-Z0-9._]*|`[^`]+`)(?=\\s[^=])",
 					"name": "variable.parameter.r"
 				},
 				{
@@ -480,7 +483,7 @@
 									"name": "variable.parameter.r"
 								}
 							},
-							"match": "(@param)\\s*([a-zA-Z._][a-zA-Z0-9._]*)"
+							"match": "(@param)\\s*((?:[a-zA-Z._][a-zA-Z0-9._]*|`[^`]+`))"
 						},
 						{
 							"match": "@[a-zA-Z0-9]+",

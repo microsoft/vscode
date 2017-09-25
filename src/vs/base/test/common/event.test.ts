@@ -179,6 +179,29 @@ suite('Event', function () {
 		}
 	});
 
+	test('reusing event function and context', function () {
+		let counter = 0;
+		function listener() {
+			counter += 1;
+		}
+		const context = {};
+
+		let emitter = new Emitter();
+		let reg1 = emitter.event(listener, context);
+		let reg2 = emitter.event(listener, context);
+
+		emitter.fire();
+		assert.equal(counter, 2);
+
+		reg1.dispose();
+		emitter.fire();
+		assert.equal(counter, 3);
+
+		reg2.dispose();
+		emitter.fire();
+		assert.equal(counter, 3);
+	});
+
 	test('Debounce Event', function (done: () => void) {
 		let doc = new Samples.Document3();
 

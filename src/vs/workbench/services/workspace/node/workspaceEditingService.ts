@@ -12,7 +12,7 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IWindowsService, IWindowService, IEnterWorkspaceResult } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { IWorkspacesService, IStoredWorkspaceFolder, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesService, IStoredWorkspaceFolder, IWorkspaceIdentifier, isStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { dirname } from 'path';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { massageFolderPathForWorkspace } from 'vs/platform/workspaces/node/workspaces';
@@ -26,6 +26,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { BackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
+import { Schemas } from 'vs/base/common/network';
 
 export class WorkspaceEditingService implements IWorkspaceEditingService {
 
@@ -33,7 +34,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 	constructor(
 		@IJSONEditingService private jsonEditingService: IJSONEditingService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IWorkspaceContextService private contextService: WorkspaceService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWindowsService private windowsService: IWindowsService,
 		@IWindowService private windowService: IWindowService,
@@ -58,14 +59,20 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 		const workspaceConfigFolder = dirname(this.contextService.getWorkspace().configuration.fsPath);
 
-		foldersToAdd.forEach(foldersToAdd => {
-			if (this.contains(currentWorkspaceFolderUris, foldersToAdd)) {
+		foldersToAdd.forEach(folderToAdd => {
+			if (this.contains(currentWorkspaceFolderUris, folderToAdd)) {
 				return; // already existing
 			}
 
-			storedFoldersToAdd.push({
-				path: massageFolderPathForWorkspace(foldersToAdd.fsPath, workspaceConfigFolder, currentStoredFolders)
-			});
+			if (folderToAdd.scheme === Schemas.file) {
+				storedFoldersToAdd.push({
+					path: massageFolderPathForWorkspace(folderToAdd.fsPath, workspaceConfigFolder, currentStoredFolders)
+				});
+			} else {
+				storedFoldersToAdd.push({
+					uri: folderToAdd.toString(true)
+				});
+			}
 		});
 
 		if (storedFoldersToAdd.length > 0) {
@@ -84,7 +91,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		const currentStoredFolders = currentWorkspaceFolders.map(folder => folder.raw);
 
 		const newStoredFolders: IStoredWorkspaceFolder[] = currentStoredFolders.filter((folder, index) => {
-			if (!folder.path) {
+			if (!isStoredWorkspaceFolder(folder)) {
 				return true; // keep entries which are unrelated
 			}
 
@@ -179,7 +186,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 		const targetWorkspaceConfiguration = {};
 		for (const key of this.workspaceConfigurationService.keys().workspace) {
-			if (configurationProperties[key] && configurationProperties[key].scope === ConfigurationScope.WINDOW) {
+			if (configurationProperties[key] && !configurationProperties[key].isFromExtensions && configurationProperties[key].scope === ConfigurationScope.WINDOW) {
 				targetWorkspaceConfiguration[key] = this.workspaceConfigurationService.lookup(key).workspace;
 			}
 		}

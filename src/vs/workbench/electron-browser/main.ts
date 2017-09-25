@@ -58,7 +58,7 @@ export function startup(configuration: IWindowConfiguration): TPromise<void> {
 
 	browser.setFullscreen(!!configuration.fullscreen);
 
-	KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged(configuration.isISOKeyboard);
+	KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged();
 
 	browser.setAccessibilitySupport(configuration.accessibilitySupport ? platform.AccessibilitySupport.Enabled : platform.AccessibilitySupport.Disabled);
 

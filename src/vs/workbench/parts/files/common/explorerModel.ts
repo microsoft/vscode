@@ -273,7 +273,8 @@ export class FileStat implements IFileStat {
 	}
 
 	private updateResource(recursive: boolean): void {
-		this.resource = URI.file(paths.join(this.parent.resource.fsPath, this.name));
+		this.resource = this.parent.resource.with({ path: paths.join(this.parent.resource.path, this.name) });
+		// this.resource = URI.file(paths.join(this.parent.resource.fsPath, this.name));
 
 		if (recursive) {
 			if (this.isDirectory && this.hasChildren && this.children) {
@@ -432,6 +433,6 @@ export class OpenEditor {
 	}
 
 	public getResource(): URI {
-		return toResource(this.editor, { supportSideBySide: true, filter: ['file', 'untitled'] });
+		return toResource(this.editor, { supportSideBySide: true });
 	}
 }

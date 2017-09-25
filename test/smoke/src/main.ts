@@ -185,6 +185,10 @@ before(async function () {
 	await setup();
 });
 
+after(async () => {
+	await new Promise((c, e) => rimraf(testDataPath, { maxBusyTries: 10 }, err => err ? e(err) : c()));
+});
+
 // import './areas/workbench/data-migration.test';
 import './areas/workbench/data-loss.test';
 import './areas/explorer/explorer.test';

@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { TrieMap } from 'vs/base/common/map';
+import { StringTrieMap } from 'vs/base/common/map';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
@@ -17,7 +17,7 @@ export class TestConfigurationService extends EventEmitter implements IConfigura
 
 	private configuration = Object.create(null);
 
-	private configurationByRoot: TrieMap<any> = new TrieMap<any>();
+	private configurationByRoot: StringTrieMap<any> = new StringTrieMap<any>();
 
 	public reloadConfiguration<T>(section?: string): TPromise<T> {
 		return TPromise.as(this.getConfiguration());

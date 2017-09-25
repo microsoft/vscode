@@ -1788,6 +1788,11 @@ declare module monaco.editor {
 		 */
 		onDidChangeLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable;
 		/**
+		 * An event emitted when the language configuration associated with the model has changed.
+		 * @event
+		 */
+		onDidChangeLanguageConfiguration(listener: (e: IModelLanguageConfigurationChangedEvent) => void): IDisposable;
+		/**
 		 * An event emitted right before disposing the model.
 		 * @event
 		 */
@@ -2186,6 +2191,11 @@ declare module monaco.editor {
 		 */
 		onDidChangeModelLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable;
 		/**
+		 * An event emitted when the language configuration of the current model has changed.
+		 * @event
+		 */
+		onDidChangeModelLanguageConfiguration(listener: (e: IModelLanguageConfigurationChangedEvent) => void): IDisposable;
+		/**
 		 * An event emitted when the options of the current model has changed.
 		 * @event
 		 */
@@ -2417,6 +2427,12 @@ declare module monaco.editor {
 		 * New language
 		 */
 		readonly newLanguage: string;
+	}
+
+	/**
+	 * An event describing that the language configuration associated with a model has changed.
+	 */
+	export interface IModelLanguageConfigurationChangedEvent {
 	}
 
 	export interface IModelContentChange {
@@ -4214,6 +4230,23 @@ declare module monaco.languages {
 	}
 
 	/**
+	 * Contains additional information about the context in which
+	 * [completion provider](#CompletionItemProvider.provideCompletionItems) is triggered.
+	 */
+	export interface CompletionContext {
+		/**
+		 * How the completion was triggered.
+		 */
+		triggerKind: SuggestTriggerKind;
+		/**
+		 * Character that triggered the completion item provider.
+		 *
+		 * `undefined` if provider was not triggered by a character.
+		 */
+		triggerCharacter?: string;
+	}
+
+	/**
 	 * The completion item provider interface defines the contract between extensions and
 	 * the [IntelliSense](https://code.visualstudio.com/docs/editor/intellisense).
 	 *
@@ -4229,7 +4262,7 @@ declare module monaco.languages {
 		/**
 		 * Provide completion items for the given position and document.
 		 */
-		provideCompletionItems(model: editor.IReadOnlyModel, position: Position, token: CancellationToken): CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
+		provideCompletionItems(document: editor.IReadOnlyModel, position: Position, token: CancellationToken, context: CompletionContext): CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
 		/**
 		 * Given a completion item fill in more data, like [doc-comment](#CompletionItem.documentation)
 		 * or [details](#CompletionItem.detail).
@@ -4295,6 +4328,10 @@ declare module monaco.languages {
 		 */
 		surroundingPairs?: IAutoClosingPair[];
 		/**
+		 * The language's folding rules.
+		 */
+		folding?: FoldingRules;
+		/**
 		 * **Deprecated** Do not use.
 		 *
 		 * @deprecated Will be replaced by a better API soon.
@@ -4322,6 +4359,19 @@ declare module monaco.languages {
 		 * If a line matches this pattern, then its indentation should not be changed and it should not be evaluated against the other rules.
 		 */
 		unIndentedLinePattern?: RegExp;
+	}
+
+	/**
+	 * Describes folding rules for a language.
+	 */
+	export interface FoldingRules {
+		/**
+		 * Used by the indentation based strategy to decide wheter empty lines belong to the previous or the next block.
+		 * A language adheres to the off-side rule if blocks in that language are expressed by their indentation.
+		 * See [wikipedia](https://en.wikipedia.org/wiki/Off-side_rule) for more information.
+		 * If not set, `false` is used and empty lines belong to the previous block.
+		 */
+		offSide?: boolean;
 	}
 
 	/**
@@ -4459,6 +4509,14 @@ declare module monaco.languages {
 		 * to the word range at the position when omitted.
 		 */
 		provideHover(model: editor.IReadOnlyModel, position: Position, token: CancellationToken): Hover | Thenable<Hover>;
+	}
+
+	/**
+	 * How a suggest provider was triggered.
+	 */
+	export enum SuggestTriggerKind {
+		Invoke = 0,
+		TriggerCharacter = 1,
 	}
 
 	/**
@@ -4869,7 +4927,7 @@ declare module monaco.languages {
 		/**
 		 * Provide the string representations for a color.
 		 */
-		provideColorPresentations(colorInfo: IColorInformation, token: CancellationToken): IColorPresentation[] | Thenable<IColorPresentation[]>;
+		provideColorPresentations(model: editor.IReadOnlyModel, colorInfo: IColorInformation, token: CancellationToken): IColorPresentation[] | Thenable<IColorPresentation[]>;
 	}
 
 	export interface IResourceEdit {

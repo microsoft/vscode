@@ -35,6 +35,7 @@ export interface IPickOpenEntry {
 }
 
 export interface IPickOpenItem {
+	index: number;
 	remove: () => void;
 	getId: () => string;
 	getResource: () => uri;

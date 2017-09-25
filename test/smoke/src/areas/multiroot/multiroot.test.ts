@@ -19,10 +19,9 @@ describe('Multi Root', () => {
 
 	it('shows results from all folders', async function () {
 		await app.workbench.quickopen.openQuickOpen();
-
 		await app.workbench.quickopen.type('*.*');
-
 		await app.workbench.quickopen.waitForQuickOpenElements(6);
+		await app.workbench.quickopen.closeQuickOpen();
 	});
 
 	it('shows workspace name in title', async function () {

@@ -6,7 +6,7 @@
 'use strict';
 
 import uri from 'vs/base/common/uri';
-import paths = require('vs/base/common/paths');
+import resources = require('vs/base/common/resources');
 import { IconLabel, IIconLabelOptions, IIconLabelCreationOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -147,7 +147,7 @@ export class ResourceLabel extends IconLabel {
 		if (this.options && typeof this.options.title === 'string') {
 			title = this.options.title;
 		} else if (resource) {
-			title = getPathLabel(resource.fsPath, void 0, this.environmentService);
+			title = getPathLabel(resource, void 0, this.environmentService);
 		}
 
 		if (!this.computedIconClasses) {
@@ -210,14 +210,19 @@ export class FileLabel extends ResourceLabel {
 	}
 
 	public setFile(resource: uri, options?: IFileLabelOptions): void {
+		const hideLabel = options && options.hideLabel;
 		let name: string;
-		if (options && options.hideLabel) {
-			name = void 0;
-		} else if (options && options.fileKind === FileKind.ROOT_FOLDER) {
-			const workspaceFolder = this.contextService.getWorkspaceFolder(resource);
-			name = workspaceFolder.name;
-		} else {
-			name = paths.basename(resource.fsPath);
+		if (!hideLabel) {
+			if (options && options.fileKind === FileKind.ROOT_FOLDER) {
+				const workspaceFolder = this.contextService.getWorkspaceFolder(resource);
+				if (workspaceFolder) {
+					name = workspaceFolder.name;
+				}
+			}
+
+			if (!name) {
+				name = resources.basenameOrAuthority(resource);
+			}
 		}
 
 		let description: string;
@@ -233,7 +238,7 @@ export class FileLabel extends ResourceLabel {
 				rootProvider = this.contextService;
 			}
 
-			description = getPathLabel(paths.dirname(resource.fsPath), rootProvider, this.environmentService);
+			description = getPathLabel(resources.dirname(resource), rootProvider, this.environmentService);
 		}
 
 		this.setLabel({ resource, name, description }, options);
@@ -245,34 +250,30 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 	// we always set these base classes even if we do not have a path
 	const classes = fileKind === FileKind.ROOT_FOLDER ? ['rootfolder-icon'] : fileKind === FileKind.FOLDER ? ['folder-icon'] : ['file-icon'];
 
-	let path: string;
-	if (resource) {
-		path = resource.fsPath;
-	}
 
-	if (path) {
-		const basename = cssEscape(paths.basename(path).toLowerCase());
+	if (resource) {
+		const name = cssEscape(resources.basenameOrAuthority(resource).toLowerCase());
 
 		// Folders
 		if (fileKind === FileKind.FOLDER) {
-			classes.push(`${basename}-name-folder-icon`);
+			classes.push(`${name}-name-folder-icon`);
 		}
 
 		// Files
 		else {
 
 			// Name
-			classes.push(`${basename}-name-file-icon`);
+			classes.push(`${name}-name-file-icon`);
 
 			// Extension(s)
-			const dotSegments = basename.split('.');
+			const dotSegments = name.split('.');
 			for (let i = 1; i < dotSegments.length; i++) {
 				classes.push(`${dotSegments.slice(i).join('.')}-ext-file-icon`); // add each combination of all found extensions if more than one
 			}
 
 			// Configured Language
 			let configuredLangId = getConfiguredLangId(modelService, resource);
-			configuredLangId = configuredLangId || modeService.getModeIdByFilenameOrFirstLine(path);
+			configuredLangId = configuredLangId || modeService.getModeIdByFilenameOrFirstLine(name);
 			if (configuredLangId) {
 				classes.push(`${cssEscape(configuredLangId)}-lang-file-icon`);
 			}

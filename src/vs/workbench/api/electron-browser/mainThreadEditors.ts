@@ -35,6 +35,7 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 	private _toDispose: IDisposable[];
 	private _textEditorsListenersMap: { [editorId: string]: IDisposable[]; };
 	private _editorPositionData: ITextEditorPositionData;
+	private _registeredDecorationTypes: { [decorationType: string]: boolean; };
 
 	constructor(
 		documentsAndEditors: MainThreadDocumentsAndEditors,
@@ -60,6 +61,8 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 
 		this._toDispose.push(editorGroupService.onEditorsChanged(() => this._updateActiveAndVisibleTextEditors()));
 		this._toDispose.push(editorGroupService.onEditorsMoved(() => this._updateActiveAndVisibleTextEditors()));
+
+		this._registeredDecorationTypes = Object.create(null);
 	}
 
 	public dispose(): void {
@@ -68,6 +71,10 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 		});
 		this._textEditorsListenersMap = Object.create(null);
 		this._toDispose = dispose(this._toDispose);
+		for (let decorationType in this._registeredDecorationTypes) {
+			this._codeEditorService.removeDecorationType(decorationType);
+		}
+		this._registeredDecorationTypes = Object.create(null);
 	}
 
 	private _onTextEditorAdd(textEditor: MainThreadTextEditor): void {
@@ -255,10 +262,12 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 	}
 
 	$registerTextEditorDecorationType(key: string, options: IDecorationRenderOptions): void {
+		this._registeredDecorationTypes[key] = true;
 		this._codeEditorService.registerDecorationType(key, options);
 	}
 
 	$removeTextEditorDecorationType(key: string): void {
+		delete this._registeredDecorationTypes[key];
 		this._codeEditorService.removeDecorationType(key);
 	}
 

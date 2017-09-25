@@ -10,6 +10,7 @@ import URI from 'vs/base/common/uri';
 import { illegalArgument } from 'vs/base/common/errors';
 import * as vscode from 'vscode';
 import { isMarkdownString } from 'vs/base/common/htmlContent';
+import { IRelativePattern } from 'vs/base/common/glob';
 
 export class Disposable {
 
@@ -879,6 +880,16 @@ export class SignatureHelp {
 	}
 }
 
+export enum CompletionTriggerKind {
+	Invoke = 0,
+	TriggerCharacter = 1
+}
+
+export interface CompletionContext {
+	triggerKind: CompletionTriggerKind;
+	triggerCharacter: string;
+}
+
 export enum CompletionItemKind {
 	Text = 0,
 	Method = 1,
@@ -953,6 +964,7 @@ export class CompletionList {
 }
 
 export enum ViewColumn {
+	Active = -1,
 	One = 1,
 	Two = 2,
 	Three = 3
@@ -1076,6 +1088,13 @@ export class ColorPresentation {
 	label: string;
 	textEdit?: TextEdit;
 	additionalTextEdits?: TextEdit[];
+
+	constructor(label: string) {
+		if (!label || typeof label !== 'string') {
+			throw illegalArgument('label');
+		}
+		this.label = label;
+	}
 }
 
 export enum ColorFormat {
@@ -1426,4 +1445,14 @@ export enum ConfigurationTarget {
 	Workspace = 2,
 
 	WorkspaceFolder = 3
+}
+
+export class RelativePattern implements IRelativePattern {
+	base: string;
+	pattern: string;
+
+	constructor(pattern: string, base: vscode.WorkspaceFolder | string) {
+		this.pattern = pattern;
+		this.base = typeof base === 'string' ? base : base.uri.fsPath;
+	}
 }

@@ -36,5 +36,6 @@
 	"schema.indentationRules.unIndentedLinePattern": "Ha egy sor illeszkedik erre a mintára, akkor az indentálása nem változik, és nem lesz kiértékelve más szabályok alapján.",
 	"schema.indentationRules.unIndentedLinePattern.pattern": "Az unIndentedLinePatternhöz tartozó reguláris kifejezés.",
 	"schema.indentationRules.unIndentedLinePattern.flags": "Az unIndentedLinePatternhöz tartozó reguláris kifejezés beállításai.",
-	"schema.indentationRules.unIndentedLinePattern.errorMessage": "Illeszkednie kell a következő mintára: `/^([gimuy]+)$/`."
+	"schema.indentationRules.unIndentedLinePattern.errorMessage": "Illeszkednie kell a következő mintára: `/^([gimuy]+)$/`.",
+	"schema.folding": "A nyelv kódrészek bezárásával kapcsolatos beállításai."
 }

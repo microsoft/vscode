@@ -11,7 +11,7 @@ import * as uuid from 'vs/base/common/uuid';
 export const machineIdStorageKey = 'telemetry.machineId';
 export const machineIdIpcChannel = 'vscode:machineId';
 
-export function resolveCommonProperties(commit: string, version: string): TPromise<{ [name: string]: string; }> {
+export function resolveCommonProperties(commit: string, version: string, source: string): TPromise<{ [name: string]: string; }> {
 	const result: { [name: string]: string; } = Object.create(null);
 
 	result['sessionID'] = uuid.generateUuid() + Date.now();
@@ -21,6 +21,7 @@ export function resolveCommonProperties(commit: string, version: string): TPromi
 	result['common.platform'] = Platform.Platform[Platform.platform];
 	result['common.nodePlatform'] = process.platform;
 	result['common.nodeArch'] = process.arch;
+	result['common.source'] = source;
 
 	// dynamic properties which value differs on each call
 	let seq = 0;

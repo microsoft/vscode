@@ -8,7 +8,7 @@
 import 'vs/css!./media/editorstatus';
 import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
-import { $, append, runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
+import { $, append, runAtThisOrScheduleAtNextAnimationFrame, addDisposableListener } from 'vs/base/browser/dom';
 import strings = require('vs/base/common/strings');
 import paths = require('vs/base/common/paths');
 import types = require('vs/base/common/types');
@@ -17,6 +17,7 @@ import errors = require('vs/base/common/errors');
 import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { Action } from 'vs/base/common/actions';
 import { language, LANGUAGE_DEFAULT, AccessibilitySupport } from 'vs/base/common/platform';
+import * as browser from 'vs/base/browser/browser';
 import { IMode } from 'vs/editor/common/modes';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { IFileEditorInput, EncodingMode, IEncodingSupport, toResource, SideBySideEditorInput } from 'vs/workbench/common/editor';
@@ -43,10 +44,14 @@ import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { getCodeEditor as getEditorWidget } from 'vs/editor/common/services/codeEditorService';
+import { getCodeEditor as getEditorWidget, getCodeOrDiffEditor } from 'vs/editor/common/services/codeEditorService';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { IConfigurationChangedEvent, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { attachStylerCallback } from 'vs/platform/theme/common/styler';
+import { widgetShadow, editorWidgetBackground } from 'vs/platform/theme/common/colorRegistry';
 
 // TODO@Sandeep layer breaker
 // tslint:disable-next-line:import-patterns
@@ -269,7 +274,8 @@ export class EditorStatus implements IStatusbarItem {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IModeService private modeService: IModeService,
-		@ITextFileService private textFileService: ITextFileService
+		@ITextFileService private textFileService: ITextFileService,
+		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService,
 	) {
 		this.toDispose = [];
 		this.activeEditorListeners = [];
@@ -288,6 +294,7 @@ export class EditorStatus implements IStatusbarItem {
 		this.screenRedearModeElement = append(this.element, $('a.editor-status-screenreadermode.status-bar-info'));
 		this.screenRedearModeElement.textContent = nlsScreenReaderDetected;
 		this.screenRedearModeElement.title = nlsScreenReaderDetectedTitle;
+		this.screenRedearModeElement.onclick = () => this.onScreenReaderModeClick();
 		hide(this.screenRedearModeElement);
 
 		this.selectionElement = append(this.element, $('a.editor-status-selection'));
@@ -469,6 +476,10 @@ export class EditorStatus implements IStatusbarItem {
 		action.dispose();
 	}
 
+	private onScreenReaderModeClick(): void {
+		this.instantiationService.createInstance(ScreenReaderDetectedExplanation, this.screenRedearModeElement);
+	}
+
 	private onSelectionClick(): void {
 		this.quickOpenService.show(':'); // "Go to line"
 	}
@@ -607,11 +618,26 @@ export class EditorStatus implements IStatusbarItem {
 		this.updateState(update);
 	}
 
+	private _promptedScreenReader: boolean = false;
+
 	private onScreenReaderModeChange(editorWidget: ICommonCodeEditor): void {
 		let screenReaderMode = false;
 
 		// We only support text based editors
 		if (editorWidget) {
+			const screenReaderDetected = (browser.getAccessibilitySupport() === AccessibilitySupport.Enabled);
+			if (screenReaderDetected) {
+				const screenReaderConfiguration = this.configurationService.getConfiguration<IEditorOptions>('editor').accessibilitySupport;
+				if (screenReaderConfiguration === 'auto') {
+					// show explanation
+					if (!this._promptedScreenReader) {
+						this._promptedScreenReader = true;
+						setTimeout(() => {
+							this.onScreenReaderModeClick();
+						}, 100);
+					}
+				}
+			}
 
 			screenReaderMode = (editorWidget.getConfiguration().accessibilitySupport === AccessibilitySupport.Enabled);
 		}
@@ -696,7 +722,7 @@ export class EditorStatus implements IStatusbarItem {
 	private onResourceEncodingChange(resource: uri): void {
 		const activeEditor = this.editorService.getActiveEditor();
 		if (activeEditor) {
-			const activeResource = toResource(activeEditor.input, { supportSideBySide: true, filter: ['file', 'untitled'] });
+			const activeResource = toResource(activeEditor.input, { supportSideBySide: true });
 			if (activeResource && activeResource.toString() === resource.toString()) {
 				return this.onEncodingChange(<IBaseEditor>activeEditor); // only update if the encoding changed for the active resource
 			}
@@ -766,6 +792,7 @@ export class ChangeModeAction extends Action {
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ICommandService private commandService: ICommandService,
+		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IConfigurationEditingService private configurationEditService: IConfigurationEditingService
 	) {
 		super(actionId, actionLabel);
@@ -779,7 +806,10 @@ export class ChangeModeAction extends Action {
 		}
 
 		const textModel = editorWidget.getModel();
-		const fileResource = toResource(activeEditor.input, { supportSideBySide: true, filter: 'file' });
+		let resource = toResource(activeEditor.input, { supportSideBySide: true });
+		if (resource.scheme === 'untitled' && !this.untitledEditorService.hasAssociatedFilePath(resource)) {
+			resource = void 0; // no configuration for untitled resources (e.g. "Untitled-1")
+		}
 
 		// Compute mode
 		let currentModeId: string;
@@ -818,7 +848,7 @@ export class ChangeModeAction extends Action {
 			};
 		});
 
-		if (fileResource) {
+		if (resource) {
 			picks[0].separator = { border: true, label: nls.localize('languagesPicks', "languages (identifier)") };
 		}
 
@@ -826,14 +856,13 @@ export class ChangeModeAction extends Action {
 		let configureModeAssociations: IPickOpenEntry;
 		let configureModeSettings: IPickOpenEntry;
 		let galleryAction: Action;
-		if (fileResource) {
-			const ext = paths.extname(fileResource.fsPath) || paths.basename(fileResource.fsPath);
+		if (resource) {
+			const ext = paths.extname(resource.fsPath) || paths.basename(resource.fsPath);
 
 			galleryAction = this.instantiationService.createInstance(ShowLanguageExtensionsAction, ext);
 			if (galleryAction.enabled) {
 				picks.unshift(galleryAction);
 			}
-
 
 			configureModeSettings = { label: nls.localize('configureModeSettings', "Configure '{0}' language based settings...", currentModeId) };
 			picks.unshift(configureModeSettings);
@@ -845,7 +874,8 @@ export class ChangeModeAction extends Action {
 		const autoDetectMode: IPickOpenEntry = {
 			label: nls.localize('autoDetect', "Auto Detect")
 		};
-		if (fileResource) {
+
+		if (resource) {
 			picks.unshift(autoDetectMode);
 		}
 
@@ -861,7 +891,7 @@ export class ChangeModeAction extends Action {
 
 			// User decided to permanently configure associations, return right after
 			if (pick === configureModeAssociations) {
-				this.configureFileAssociation(fileResource);
+				this.configureFileAssociation(resource);
 				return;
 			}
 
@@ -873,28 +903,38 @@ export class ChangeModeAction extends Action {
 
 			// Change mode for active editor
 			activeEditor = this.editorService.getActiveEditor();
-			const editorWidget = getEditorWidget(activeEditor);
-			if (editorWidget) {
-				const models: IModel[] = [];
-
-				const textModel = editorWidget.getModel();
-				if (textModel) {
-					models.push(textModel);
+			const codeOrDiffEditor = getCodeOrDiffEditor(activeEditor);
+			const models: IModel[] = [];
+			if (codeOrDiffEditor.codeEditor) {
+				const codeEditorModel = codeOrDiffEditor.codeEditor.getModel();
+				if (codeEditorModel) {
+					models.push(codeEditorModel);
 				}
-
-				// Find mode
-				let mode: TPromise<IMode>;
-				if (pick === autoDetectMode) {
-					mode = this.modeService.getOrCreateModeByFilenameOrFirstLine(toResource(activeEditor.input, { supportSideBySide: true, filter: ['file', 'untitled'] }).fsPath, textModel.getLineContent(1));
-				} else {
-					mode = this.modeService.getOrCreateModeByLanguageName(pick.label);
-				}
-
-				// Change mode
-				models.forEach(textModel => {
-					this.modelService.setMode(textModel, mode);
-				});
 			}
+			if (codeOrDiffEditor.diffEditor) {
+				const diffEditorModel = codeOrDiffEditor.diffEditor.getModel();
+				if (diffEditorModel) {
+					if (diffEditorModel.original) {
+						models.push(diffEditorModel.original);
+					}
+					if (diffEditorModel.modified) {
+						models.push(diffEditorModel.modified);
+					}
+				}
+			}
+
+			// Find mode
+			let mode: TPromise<IMode>;
+			if (pick === autoDetectMode) {
+				mode = this.modeService.getOrCreateModeByFilenameOrFirstLine(toResource(activeEditor.input, { supportSideBySide: true }).fsPath, textModel.getLineContent(1));
+			} else {
+				mode = this.modeService.getOrCreateModeByLanguageName(pick.label);
+			}
+
+			// Change mode
+			models.forEach(textModel => {
+				this.modelService.setMode(textModel, mode);
+			});
 		});
 	}
 
@@ -1101,12 +1141,12 @@ export class ChangeEncodingAction extends Action {
 				return void 0;
 			}
 
-			const resource = toResource(activeEditor.input, { filter: ['file', 'untitled'], supportSideBySide: true });
+			const resource = toResource(activeEditor.input, { supportSideBySide: true });
 
 			return TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */)
 				.then(() => {
-					if (!resource || resource.scheme !== 'file') {
-						return TPromise.as(null); // encoding detection only possible for file resources
+					if (!resource || !this.fileService.canHandleResource(resource)) {
+						return TPromise.as(null); // encoding detection only possible for resources the file service can handle
 					}
 
 					return this.fileService.resolveContent(resource, { autoGuessEncoding: true, acceptTextOnly: true }).then(content => content.encoding, err => null);
@@ -1168,5 +1208,105 @@ export class ChangeEncodingAction extends Action {
 					});
 				});
 		});
+	}
+}
+
+class ScreenReaderDetectedExplanation {
+
+	private toDispose: IDisposable[];
+
+	constructor(
+		anchorElement: HTMLElement,
+		@IThemeService private readonly themeService: IThemeService,
+		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IConfigurationEditingService private readonly configurationEditingService: IConfigurationEditingService,
+	) {
+		this.toDispose = [];
+
+		this.contextViewService.showContextView({
+			getAnchor: () => anchorElement,
+
+			render: (container) => {
+				return this.renderContents(container);
+			},
+
+			onDOMEvent: (e, activeElement) => {
+			},
+
+			onHide: () => {
+				this.dispose();
+			}
+		});
+	}
+
+	public dispose(): void {
+		this.toDispose = dispose(this.toDispose);
+	}
+
+	protected renderContents(container: HTMLElement): IDisposable {
+		const domNode = $('div.screen-reader-detected-explanation', {
+			'aria-hidden': 'true'
+		});
+
+		const title = $('h2.title', {}, nls.localize('screenReaderDetectedExplanation.title', "Screen Reader Detected"));
+		domNode.appendChild(title);
+
+		const closeBtn = $('div.cancel');
+		this.toDispose.push(addDisposableListener(closeBtn, 'click', () => {
+			this.contextViewService.hideContextView();
+		}));
+		domNode.appendChild(closeBtn);
+
+		const question = $('p.question', {}, nls.localize('screenReaderDetectedExplanation.question', "Are you using a screen reader to operate VS Code?"));
+		domNode.appendChild(question);
+
+		const yesBtn = $('div.button', {}, nls.localize('screenReaderDetectedExplanation.answerYes', "Yes"));
+		this.toDispose.push(addDisposableListener(yesBtn, 'click', () => {
+			this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, {
+				key: 'editor.accessibilitySupport',
+				value: 'on'
+			});
+			this.contextViewService.hideContextView();
+		}));
+		domNode.appendChild(yesBtn);
+
+		const noBtn = $('div.button', {}, nls.localize('screenReaderDetectedExplanation.answerNo', "No"));
+		this.toDispose.push(addDisposableListener(noBtn, 'click', () => {
+			this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, {
+				key: 'editor.accessibilitySupport',
+				value: 'off'
+			});
+			this.contextViewService.hideContextView();
+		}));
+		domNode.appendChild(noBtn);
+
+		const clear = $('div');
+		clear.style.clear = 'both';
+		domNode.appendChild(clear);
+
+		const br = $('br');
+		domNode.appendChild(br);
+
+		const hr = $('hr');
+		domNode.appendChild(hr);
+
+		const explanation1 = $('p.body1', {}, nls.localize('screenReaderDetectedExplanation.body1', "VS Code is now optimized for usage with a screen reader."));
+		domNode.appendChild(explanation1);
+
+		const explanation2 = $('p.body2', {}, nls.localize('screenReaderDetectedExplanation.body2', "Additionally, due to limitations of WAI-ARIA, we have disabled certain editor features which cannot be currently expressed to screen readers: e.g. word wrapping, folding, auto closing brackets, etc."));
+		domNode.appendChild(explanation2);
+
+		container.appendChild(domNode);
+
+		this.toDispose.push(attachStylerCallback(this.themeService, { widgetShadow, editorWidgetBackground }, colors => {
+			domNode.style.backgroundColor = colors.editorWidgetBackground;
+			if (colors.widgetShadow) {
+				domNode.style.boxShadow = `0 2px 8px ${colors.widgetShadow}`;
+			}
+		}));
+
+		return {
+			dispose: () => { this.dispose(); }
+		};
 	}
 }

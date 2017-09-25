@@ -12,7 +12,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as DOM from 'vs/base/browser/dom';
 import { Builder } from 'vs/base/browser/builder';
 import { VIEWLET_ID, ExplorerViewletVisibleContext, IFilesConfiguration, OpenEditorsVisibleContext, OpenEditorsVisibleCondition } from 'vs/workbench/parts/files/common/files';
-import { PersistentViewsViewlet, IViewletView, IViewletViewOptions } from 'vs/workbench/browser/parts/views/views';
+import { PersistentViewsViewlet, ViewsViewletPanel, IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationEditingService } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { ActionRunner, FileViewletState } from 'vs/workbench/parts/files/browser/views/explorerViewer';
@@ -70,8 +70,11 @@ export class ExplorerViewlet extends PersistentViewsViewlet {
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.registerViews()));
 	}
 
-	public create(parent: Builder): TPromise<void> {
-		return super.create(parent).then(() => DOM.addClass(this.viewletContainer, 'explorer-viewlet'));
+	async create(parent: Builder): TPromise<void> {
+		await super.create(parent);
+
+		const el = parent.getHTMLElement();
+		DOM.addClass(el, 'explorer-viewlet');
 	}
 
 	private registerViews(): void {
@@ -152,7 +155,7 @@ export class ExplorerViewlet extends PersistentViewsViewlet {
 		this.openEditorsVisibleContextKey.set(this.contextService.getWorkbenchState() === WorkbenchState.EMPTY || (<IFilesConfiguration>this.configurationService.getConfiguration()).explorer.openEditors.visible !== 0);
 	}
 
-	protected createView(viewDescriptor: IViewDescriptor, initialSize: number, options: IViewletViewOptions): IViewletView {
+	protected createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): ViewsViewletPanel {
 		if (viewDescriptor.id === ExplorerView.ID) {
 			// Create a delegating editor service for the explorer to be able to delay the refresh in the opened
 			// editors view above. This is a workaround for being able to double click on a file to make it pinned
@@ -192,9 +195,9 @@ export class ExplorerViewlet extends PersistentViewsViewlet {
 			});
 
 			const explorerInstantiator = this.instantiationService.createChild(new ServiceCollection([IWorkbenchEditorService, delegatingEditorService]));
-			return explorerInstantiator.createInstance(ExplorerView, initialSize, <IExplorerViewOptions>{ ...options, viewletState: this.viewletState });
+			return explorerInstantiator.createInstance(ExplorerView, <IExplorerViewOptions>{ ...options, viewletState: this.viewletState });
 		}
-		return super.createView(viewDescriptor, initialSize, options);
+		return super.createView(viewDescriptor, options);
 	}
 
 	public getExplorerView(): ExplorerView {
@@ -218,28 +221,28 @@ export class ExplorerViewlet extends PersistentViewsViewlet {
 		const hasOpenedEditors = !!this.editorGroupService.getStacksModel().activeGroup;
 
 		let openEditorsView = this.getOpenEditorsView();
-		if (this.lastFocusedView && this.lastFocusedView.isExpanded() && this.hasSelectionOrFocus(this.lastFocusedView)) {
-			if (this.lastFocusedView !== openEditorsView || hasOpenedEditors) {
-				this.lastFocusedView.focusBody();
+		if (this.lastFocusedPanel && this.lastFocusedPanel.isExpanded() && this.hasSelectionOrFocus(this.lastFocusedPanel as ViewsViewletPanel)) {
+			if (this.lastFocusedPanel !== openEditorsView || hasOpenedEditors) {
+				this.lastFocusedPanel.focus();
 				return;
 			}
 		}
 
 		if (this.hasSelectionOrFocus(openEditorsView) && hasOpenedEditors) {
-			return openEditorsView.focusBody();
+			return openEditorsView.focus();
 		}
 
 		let explorerView = this.getExplorerView();
 		if (this.hasSelectionOrFocus(explorerView)) {
-			return explorerView.focusBody();
+			return explorerView.focus();
 		}
 
 		if (openEditorsView && openEditorsView.isExpanded() && hasOpenedEditors) {
-			return openEditorsView.focusBody(); // we have entries in the opened editors view to focus on
+			return openEditorsView.focus(); // we have entries in the opened editors view to focus on
 		}
 
 		if (explorerView && explorerView.isExpanded()) {
-			return explorerView.focusBody();
+			return explorerView.focus();
 		}
 
 		let emptyView = this.getEmptyView();
@@ -250,7 +253,7 @@ export class ExplorerViewlet extends PersistentViewsViewlet {
 		super.focus();
 	}
 
-	private hasSelectionOrFocus(view: IViewletView): boolean {
+	private hasSelectionOrFocus(view: ViewsViewletPanel): boolean {
 		if (!view) {
 			return false;
 		}

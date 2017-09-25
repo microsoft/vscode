@@ -242,7 +242,6 @@ export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
 	workspace?: IWorkspaceIdentifier;
 	folderPath?: string;
 
-	isISOKeyboard?: boolean;
 	zoomLevel?: number;
 	fullscreen?: boolean;
 	highContrast?: boolean;
@@ -253,4 +252,9 @@ export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
 	perfStartTime?: number;
 	perfAppReady?: number;
 	perfWindowLoadTime?: number;
+}
+
+export interface IRunActionInWindowRequest {
+	id: string;
+	from: 'menu' | 'touchbar' | 'mouse';
 }

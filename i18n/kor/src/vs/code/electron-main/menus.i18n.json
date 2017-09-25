@@ -171,8 +171,6 @@
 	"miRunningTask": "실행 중인 작업 표시(&&G)...",
 	"miRestartTask": "실행 중인 작업 다시 시작(&&E)...",
 	"miTerminateTask": "작업 종료(&&T)...",
-	"miConfigureTask": "작업 구성(&&C)",
-	"miConfigureBuildTask": "기본 빌드 작업 구성(&&F)",
 	"accessibilityOptionsWindowTitle": "접근성 옵션",
 	"miRestartToUpdate": "다시 시작하여 업데이트...",
 	"miCheckingForUpdates": "업데이트를 확인하는 중...",

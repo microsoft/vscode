@@ -115,6 +115,8 @@ export function fromViewColumn(column?: vscode.ViewColumn): EditorPosition {
 		editorColumn = EditorPosition.TWO;
 	} else if (column === <number>types.ViewColumn.Three) {
 		editorColumn = EditorPosition.THREE;
+	} else if (column === <number>types.ViewColumn.Active) {
+		editorColumn = undefined;
 	}
 	return editorColumn;
 }
@@ -156,7 +158,7 @@ export namespace MarkdownString {
 	}
 
 	function isCodeblock(thing: any): thing is Codeblock {
-		return typeof thing === 'object'
+		return thing && typeof thing === 'object'
 			&& typeof (<Codeblock>thing).language === 'string'
 			&& typeof (<Codeblock>thing).value === 'string';
 	}
@@ -303,6 +305,28 @@ export function toHover(info: modes.Hover): types.Hover {
 
 export function toDocumentHighlight(occurrence: modes.DocumentHighlight): types.DocumentHighlight {
 	return new types.DocumentHighlight(toRange(occurrence.range), occurrence.kind);
+}
+
+export namespace CompletionTriggerKind {
+	export function from(kind: modes.SuggestTriggerKind) {
+		switch (kind) {
+			case modes.SuggestTriggerKind.TriggerCharacter:
+				return types.CompletionTriggerKind.TriggerCharacter;
+
+			case modes.SuggestTriggerKind.Invoke:
+			default:
+				return types.CompletionTriggerKind.Invoke;
+		}
+	}
+}
+
+export namespace CompletionContext {
+	export function from(context: modes.SuggestContext): types.CompletionContext {
+		return {
+			triggerKind: CompletionTriggerKind.from(context.triggerKind),
+			triggerCharacter: context.triggerCharacter
+		};
+	}
 }
 
 export const CompletionItemKind = {

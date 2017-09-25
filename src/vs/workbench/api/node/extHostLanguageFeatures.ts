@@ -486,12 +486,14 @@ class SuggestAdapter {
 		this._provider = provider;
 	}
 
-	provideCompletionItems(resource: URI, position: IPosition): TPromise<IExtHostSuggestResult> {
+	provideCompletionItems(resource: URI, position: IPosition, context: modes.SuggestContext): TPromise<IExtHostSuggestResult> {
 
 		const doc = this._documents.getDocumentData(resource).document;
 		const pos = TypeConverters.toPosition(position);
 
-		return asWinJsPromise<vscode.CompletionItem[] | vscode.CompletionList>(token => this._provider.provideCompletionItems(doc, pos, token)).then(value => {
+		return asWinJsPromise<vscode.CompletionItem[] | vscode.CompletionList>(token => {
+			return this._provider.provideCompletionItems(doc, pos, token, TypeConverters.CompletionContext.from(context));
+		}).then(value => {
 
 			const _id = this._idPool++;
 
@@ -729,7 +731,7 @@ class ColorProviderAdapter {
 		});
 	}
 
-	provideColorPresentations(rawColorInfo: IRawColorInfo): TPromise<modes.IColorPresentation[]> {
+	provideColorPresentations(resource: URI, rawColorInfo: IRawColorInfo): TPromise<modes.IColorPresentation[]> {
 		let colorInfo: vscode.ColorInformation = {
 			range: TypeConverters.toRange(rawColorInfo.range),
 			color: {
@@ -739,7 +741,8 @@ class ColorProviderAdapter {
 				alpha: rawColorInfo.color[3]
 			}
 		};
-		return asWinJsPromise(token => this._provider.provideColorPresentations(colorInfo, token)).then(value => {
+		const doc = this._documents.getDocumentData(resource).document;
+		return asWinJsPromise(token => this._provider.provideColorPresentations(doc, colorInfo, token)).then(value => {
 			return value.map(v => TypeConverters.ColorPresentation.from(v));
 		});
 	}
@@ -1000,8 +1003,8 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideCompletionItems(handle: number, resource: URI, position: IPosition): TPromise<IExtHostSuggestResult> {
-		return this._withAdapter(handle, SuggestAdapter, adapter => adapter.provideCompletionItems(resource, position));
+	$provideCompletionItems(handle: number, resource: URI, position: IPosition, context: modes.SuggestContext): TPromise<IExtHostSuggestResult> {
+		return this._withAdapter(handle, SuggestAdapter, adapter => adapter.provideCompletionItems(resource, position, context));
 	}
 
 	$resolveCompletionItem(handle: number, resource: URI, position: IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion> {
@@ -1053,8 +1056,8 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._withAdapter(handle, ColorProviderAdapter, adapter => adapter.provideColors(resource));
 	}
 
-	$provideColorPresentations(handle: number, colorInfo: IRawColorInfo): TPromise<modes.IColorPresentation[]> {
-		return this._withAdapter(handle, ColorProviderAdapter, adapter => adapter.provideColorPresentations(colorInfo));
+	$provideColorPresentations(handle: number, resource: URI, colorInfo: IRawColorInfo): TPromise<modes.IColorPresentation[]> {
+		return this._withAdapter(handle, ColorProviderAdapter, adapter => adapter.provideColorPresentations(resource, colorInfo));
 	}
 
 	// --- configuration

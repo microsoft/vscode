@@ -87,7 +87,7 @@ export class StatusBarColorProvider extends Themable implements IWorkbenchContri
 	}
 
 	private isDebugging(): boolean {
-		if (this.debugService.state === State.Inactive) {
+		if (this.debugService.state === State.Inactive || this.debugService.state === State.Initializing) {
 			return false;
 		}
 

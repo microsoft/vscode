@@ -27,6 +27,6 @@ export function getColors(model: IReadOnlyModel): TPromise<IColorData[]> {
 	return TPromise.join(promises).then(() => colors);
 }
 
-export function getColorPresentations(colorInfo: IColorInformation, provider: DocumentColorProvider): TPromise<IColorPresentation[]> {
-	return asWinJsPromise(token => provider.provideColorPresentations(colorInfo, token));
+export function getColorPresentations(model: IReadOnlyModel, colorInfo: IColorInformation, provider: DocumentColorProvider): TPromise<IColorPresentation[]> {
+	return asWinJsPromise(token => provider.provideColorPresentations(model, colorInfo, token));
 }

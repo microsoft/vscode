@@ -169,12 +169,12 @@ export class CommandCenter {
 		const opts: TextDocumentShowOptions = {
 			preserveFocus,
 			preview,
-			viewColumn: window.activeTextEditor && window.activeTextEditor.viewColumn || ViewColumn.One
+			viewColumn: ViewColumn.Active
 		};
 
 		const activeTextEditor = window.activeTextEditor;
 
-		if (preserveSelection && activeTextEditor && activeTextEditor.document.uri.fsPath === right.fsPath) {
+		if (preserveSelection && activeTextEditor && activeTextEditor.document.uri.toString() === right.toString()) {
 			opts.selection = activeTextEditor.selection;
 		}
 
@@ -365,10 +365,10 @@ export class CommandCenter {
 			const opts: TextDocumentShowOptions = {
 				preserveFocus,
 				preview: preview,
-				viewColumn: activeTextEditor && activeTextEditor.viewColumn || ViewColumn.One
+				viewColumn: ViewColumn.Active
 			};
 
-			if (activeTextEditor && activeTextEditor.document.uri.fsPath === uri.fsPath) {
+			if (activeTextEditor && activeTextEditor.document.uri.toString() === uri.toString()) {
 				opts.selection = activeTextEditor.selection;
 			}
 

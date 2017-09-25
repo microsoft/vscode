@@ -13,7 +13,6 @@
 	"invalid.title": "configuration.title 必须是字符串",
 	"vscode.extension.contributes.defaultConfiguration": "按语言提供默认编辑器配置设置。",
 	"invalid.properties": "configuration.properties 必须是对象",
-	"workspaceConfig.folders.description": "要在工作区中加载的文件夹列表。必须为文件夹完整路径。例如 \"/root/folderA\" 或 \"./folderA\"。后者表示根据工作区文件位置进行解析的相对路径。",
-	"workspaceConfig.folder.description": "文件路径。例如 \"/root/folderA\" 或 \"./folderA\"。后者表示根据工作区文件位置进行解析的相对路径。",
+	"workspaceConfig.path.description": "文件路径。例如 \"/root/folderA\" 或 \"./folderA\"。后者表示根据工作区文件位置进行解析的相对路径。",
 	"workspaceConfig.settings.description": "工作区设置"
 }

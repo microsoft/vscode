@@ -33,10 +33,6 @@ export interface IEditorDescriptor {
 	describes(obj: any): boolean;
 }
 
-export const Extensions = {
-	Editors: 'workbench.contributions.editors'
-};
-
 /**
  * Text diff editor id.
  */

@@ -14,7 +14,6 @@
 	"selectWorkspace": "Выбрать папки для рабочей области",
 	"removeFolderFromWorkspace": "Удалить папку из рабочей области",
 	"saveWorkspaceAsAction": "Сохранить рабочую область как...",
-	"saveEmptyWorkspaceNotSupported": "Перед сохранением рабочей области откройте ее. ",
 	"save": "Сохранить",
 	"saveWorkspace": "Сохранить рабочую область",
 	"openWorkspaceAction": "Открыть рабочую область...",

@@ -195,7 +195,7 @@ export class QueryBuilder {
 			const pathPortions = this.expandAbsoluteSearchPaths(pathPortion);
 			return pathPortions.map(searchPath => {
 				return <ISearchPathPattern>{
-					searchPath: uri.file(searchPath),
+					searchPath,
 					pattern: globPortion
 				};
 			});
@@ -207,14 +207,15 @@ export class QueryBuilder {
 	/**
 	 * Takes a searchPath like `./a/foo` and expands it to absolute paths for all the workspaces it matches.
 	 */
-	private expandAbsoluteSearchPaths(searchPath: string): string[] {
+	private expandAbsoluteSearchPaths(searchPath: string): uri[] {
 		if (paths.isAbsolute(searchPath)) {
-			return [paths.normalize(searchPath)];
+			// Currently only local resources can be searched for with absolute search paths
+			return [uri.file(paths.normalize(searchPath))];
 		}
 
 		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.FOLDER) { // TODO: @Sandy Try checking workspace folders length instead.
-			return [paths.normalize(
-				paths.join(this.workspaceContextService.getWorkspace().folders[0].uri.fsPath, searchPath))];
+			const workspaceUri = this.workspaceContextService.getWorkspace().folders[0].uri;
+			return [workspaceUri.with({ path: paths.normalize(paths.join(workspaceUri.path, searchPath)) })];
 		} else if (searchPath === './') {
 			return []; // ./ or ./**/foo makes sense for single-folder but not multi-folder workspaces
 		} else {
@@ -225,8 +226,8 @@ export class QueryBuilder {
 				if (matchingRoots.length) {
 					return matchingRoots.map(root => {
 						return relativeSearchPathMatch[2] ?
-							paths.normalize(paths.join(root.uri.fsPath, relativeSearchPathMatch[2])) :
-							root.uri.fsPath;
+							root.uri.with({ path: paths.normalize(paths.join(root.uri.path, relativeSearchPathMatch[2])) }) :
+							root.uri;
 					});
 				} else {
 					// No root folder with name

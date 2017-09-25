@@ -6,7 +6,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 export const IConfigurationResolverService = createDecorator<IConfigurationResolverService>('configurationResolverService');
 
@@ -14,9 +14,9 @@ export interface IConfigurationResolverService {
 	_serviceBrand: any;
 
 	// TODO@Isidor improve this API
-	resolve(root: WorkspaceFolder, value: string): string;
-	resolve(root: WorkspaceFolder, value: string[]): string[];
-	resolve(root: WorkspaceFolder, value: IStringDictionary<string>): IStringDictionary<string>;
-	resolveAny<T>(root: WorkspaceFolder, value: T): T;
+	resolve(root: IWorkspaceFolder, value: string): string;
+	resolve(root: IWorkspaceFolder, value: string[]): string[];
+	resolve(root: IWorkspaceFolder, value: IStringDictionary<string>): IStringDictionary<string>;
+	resolveAny<T>(root: IWorkspaceFolder, value: T): T;
 	resolveInteractiveVariables(configuration: any, interactiveVariablesMap: { [key: string]: string }): TPromise<any>;
 }

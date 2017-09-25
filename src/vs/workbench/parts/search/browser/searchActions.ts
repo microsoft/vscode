@@ -6,7 +6,7 @@
 import nls = require('vs/nls');
 import DOM = require('vs/base/browser/dom');
 import errors = require('vs/base/common/errors');
-import paths = require('vs/base/common/paths');
+import resources = require('vs/base/common/resources');
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
@@ -376,7 +376,7 @@ export const findInFolderCommand = (accessor: ServicesAccessor, resource?: URI) 
 		if (focused) {
 			const file = explorerItemToFileResource(focused);
 			if (file) {
-				resource = file.isDirectory ? file.resource : URI.file(paths.dirname(file.resource.fsPath));
+				resource = file.isDirectory ? file.resource : resources.dirname(file.resource);
 			}
 		}
 	}
@@ -633,9 +633,9 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 	}
 
 	private hasToOpenFile(): boolean {
-		const file = toResource(this.editorService.getActiveEditorInput(), { filter: 'file' });
+		const file = toResource(this.editorService.getActiveEditorInput());
 		if (file) {
-			return paths.isEqual(file.fsPath, this.element.parent().resource().fsPath);
+			return file.toString() === this.element.parent().resource().toString();
 		}
 		return false;
 	}

@@ -45,8 +45,8 @@ const nodeModules = ['electron', 'original-fs']
 // Build
 
 const builtInExtensions = [
-	{ name: 'ms-vscode.node-debug', version: '1.17.8' },
-	{ name: 'ms-vscode.node-debug2', version: '1.17.1' }
+	{ name: 'ms-vscode.node-debug', version: '1.17.12' },
+	{ name: 'ms-vscode.node-debug2', version: '1.17.4' }
 ];
 
 const excludedExtensions = [

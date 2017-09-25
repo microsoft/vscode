@@ -37,11 +37,13 @@
             "on"
           ],
           "default": "on",
+          "scope": "resource",
           "description": "%config.npm.autoDetect%"
         },
         "npm.runSilent": {
 					"type": "boolean",
-					"default": false,
+          "default": false,
+          "scope": "resource",
 					"description": "%config.npm.runSilent%"
         }
       }

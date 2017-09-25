@@ -12,17 +12,16 @@ import * as UUID from 'vs/base/common/uuid';
 import * as Platform from 'vs/base/common/platform';
 import { ValidationStatus } from 'vs/base/common/parsers';
 import { ProblemMatcher, FileLocationKind, ProblemPattern, ApplyToKind } from 'vs/platform/markers/common/problemMatcher';
-import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceFolder, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 import * as Tasks from 'vs/workbench/parts/tasks/common/tasks';
 import { parse, ParseResult, IProblemReporter, ExternalTaskRunnerConfiguration, CustomTask } from 'vs/workbench/parts/tasks/node/taskConfiguration';
 
-const workspaceFolder: WorkspaceFolder = {
+const workspaceFolder: IWorkspaceFolder = new WorkspaceFolder({
 	uri: URI.file('/workspace/folderOne'),
 	name: 'folderOne',
-	index: 0,
-	raw: { path: '../folderOne', name: 'folderOne' }
-};
+	index: 0
+});
 
 class ProblemReporter implements IProblemReporter {
 
@@ -459,7 +458,7 @@ function assertConfiguration(result: ParseResult, expected: Tasks.Task[]): void 
 function assertTask(actual: Tasks.Task, expected: Tasks.Task) {
 	assert.ok(actual._id);
 	assert.strictEqual(actual.name, expected.name, 'name');
-	if (!Tasks.CompositeTask.is(actual) && !Tasks.CompositeTask.is(expected)) {
+	if (!Tasks.InMemoryTask.is(actual) && !Tasks.InMemoryTask.is(expected)) {
 		assertCommandConfiguration(actual.command, expected.command);
 	}
 	assert.strictEqual(actual.isBackground, expected.isBackground, 'isBackground');
