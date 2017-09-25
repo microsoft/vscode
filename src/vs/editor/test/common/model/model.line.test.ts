@@ -7,12 +7,18 @@
 import * as assert from 'assert';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { ModelLine, ILineEdit, LineMarker, MarkersTracker } from 'vs/editor/common/model/modelLine';
-import { MetadataConsts } from 'vs/editor/common/modes';
+import { MetadataConsts, LanguageIdentifier } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 import { ViewLineToken, ViewLineTokenFactory } from 'vs/editor/common/core/viewLineToken';
+import { EditableTextModel } from 'vs/editor/common/model/editableTextModel';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { RawTextSource } from 'vs/editor/common/model/textSource';
 
 function assertLineTokens(_actual: LineTokens, _expected: TestToken[]): void {
-	let expected = ViewLineTokenFactory.inflateArr(TestToken.toTokens(_expected), _actual.getLineLength());
+	let tmp = TestToken.toTokens(_expected);
+	LineTokens.convertToEndOffset(tmp, _actual.getLineLength());
+	let expected = ViewLineTokenFactory.inflateArr(tmp);
 	let actual = _actual.inflate();
 	let decode = (token: ViewLineToken) => {
 		return {
@@ -294,28 +300,375 @@ class TestToken {
 	}
 }
 
-suite('Editor Model - modelLine.applyEdits text & tokens', () => {
+suite('ModelLinesTokens', () => {
 
+	interface IBufferLineState {
+		text: string;
+		tokens: TestToken[];
+	}
+
+	interface IEdit {
+		range: Range;
+		text: string;
+	}
+
+	function testApplyEdits(initial: IBufferLineState[], edits: IEdit[], expected: IBufferLineState[]): void {
+		const initialText = initial.map(el => el.text).join('\n');
+		const model = new EditableTextModel(RawTextSource.fromString(initialText), TextModel.DEFAULT_CREATION_OPTIONS, new LanguageIdentifier('test', 0));
+		for (let lineIndex = 0; lineIndex < initial.length; lineIndex++) {
+			const lineTokens = initial[lineIndex].tokens;
+			const lineTextLength = model.getLineMaxColumn(lineIndex + 1) - 1;
+			model._tokens.setTokens(0, lineIndex, lineTextLength, TestToken.toTokens(lineTokens));
+		}
+
+		model.applyEdits(edits.map((ed) => ({
+			identifier: null,
+			range: ed.range,
+			text: ed.text,
+			forceMoveMarkers: false
+		})));
+
+		for (let lineIndex = 0; lineIndex < expected.length; lineIndex++) {
+			const actualLine = model.getLineContent(lineIndex + 1);
+			const actualTokens = model.getLineTokens(lineIndex + 1);
+			assert.equal(actualLine, expected[lineIndex].text);
+			assertLineTokens(actualTokens, expected[lineIndex].tokens);
+		}
+	}
+
+	test('single delete 1', () => {
+		testApplyEdits(
+			[{
+				text: 'hello world',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
+			}],
+			[{ range: new Range(1, 1, 1, 2), text: '' }],
+			[{
+				text: 'ello world',
+				tokens: [new TestToken(0, 1), new TestToken(4, 2), new TestToken(5, 3)]
+			}]
+		);
+	});
+
+	test('single delete 2', () => {
+		testApplyEdits(
+			[{
+				text: 'helloworld',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2)]
+			}],
+			[{ range: new Range(1, 3, 1, 8), text: '' }],
+			[{
+				text: 'herld',
+				tokens: [new TestToken(0, 1), new TestToken(2, 2)]
+			}]
+		);
+	});
+
+	test('single delete 3', () => {
+		testApplyEdits(
+			[{
+				text: 'hello world',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
+			}],
+			[{ range: new Range(1, 1, 1, 6), text: '' }],
+			[{
+				text: ' world',
+				tokens: [new TestToken(0, 2), new TestToken(1, 3)]
+			}]
+		);
+	});
+
+	test('single delete 4', () => {
+		testApplyEdits(
+			[{
+				text: 'hello world',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
+			}],
+			[{ range: new Range(1, 2, 1, 7), text: '' }],
+			[{
+				text: 'hworld',
+				tokens: [new TestToken(0, 1), new TestToken(1, 3)]
+			}]
+		);
+	});
+
+	test('single delete 5', () => {
+		testApplyEdits(
+			[{
+				text: 'hello world',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
+			}],
+			[{ range: new Range(1, 1, 1, 12), text: '' }],
+			[{
+				text: '',
+				tokens: [new TestToken(0, 1)]
+			}]
+		);
+	});
+
+	test('multi delete 6', () => {
+		testApplyEdits(
+			[{
+				text: 'hello world',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
+			}, {
+				text: 'hello world',
+				tokens: [new TestToken(0, 4), new TestToken(5, 5), new TestToken(6, 6)]
+			}, {
+				text: 'hello world',
+				tokens: [new TestToken(0, 7), new TestToken(5, 8), new TestToken(6, 9)]
+			}],
+			[{ range: new Range(1, 6, 3, 6), text: '' }],
+			[{
+				text: 'hello world',
+				tokens: [new TestToken(0, 1), new TestToken(5, 8), new TestToken(6, 9)]
+			}]
+		);
+	});
+
+	test('multi delete 7', () => {
+		testApplyEdits(
+			[{
+				text: 'hello world',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
+			}, {
+				text: 'hello world',
+				tokens: [new TestToken(0, 4), new TestToken(5, 5), new TestToken(6, 6)]
+			}, {
+				text: 'hello world',
+				tokens: [new TestToken(0, 7), new TestToken(5, 8), new TestToken(6, 9)]
+			}],
+			[{ range: new Range(1, 12, 3, 12), text: '' }],
+			[{
+				text: 'hello world',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
+			}]
+		);
+	});
+
+	test('multi delete 8', () => {
+		testApplyEdits(
+			[{
+				text: 'hello world',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
+			}, {
+				text: 'hello world',
+				tokens: [new TestToken(0, 4), new TestToken(5, 5), new TestToken(6, 6)]
+			}, {
+				text: 'hello world',
+				tokens: [new TestToken(0, 7), new TestToken(5, 8), new TestToken(6, 9)]
+			}],
+			[{ range: new Range(1, 1, 3, 1), text: '' }],
+			[{
+				text: 'hello world',
+				tokens: [new TestToken(0, 7), new TestToken(5, 8), new TestToken(6, 9)]
+			}]
+		);
+	});
+
+	test('multi delete 9', () => {
+		testApplyEdits(
+			[{
+				text: 'hello world',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
+			}, {
+				text: 'hello world',
+				tokens: [new TestToken(0, 4), new TestToken(5, 5), new TestToken(6, 6)]
+			}, {
+				text: 'hello world',
+				tokens: [new TestToken(0, 7), new TestToken(5, 8), new TestToken(6, 9)]
+			}],
+			[{ range: new Range(1, 12, 3, 1), text: '' }],
+			[{
+				text: 'hello worldhello world',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3), new TestToken(11, 7), new TestToken(16, 8), new TestToken(17, 9)]
+			}]
+		);
+	});
+
+	test('single insert 1', () => {
+		testApplyEdits(
+			[{
+				text: 'hello world',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
+			}],
+			[{ range: new Range(1, 1, 1, 1), text: 'xx' }],
+			[{
+				text: 'xxhello world',
+				tokens: [new TestToken(0, 1), new TestToken(7, 2), new TestToken(8, 3)]
+			}]
+		);
+	});
+
+	test('single insert 2', () => {
+		testApplyEdits(
+			[{
+				text: 'hello world',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
+			}],
+			[{ range: new Range(1, 2, 1, 2), text: 'xx' }],
+			[{
+				text: 'hxxello world',
+				tokens: [new TestToken(0, 1), new TestToken(7, 2), new TestToken(8, 3)]
+			}]
+		);
+	});
+
+	test('single insert 3', () => {
+		testApplyEdits(
+			[{
+				text: 'hello world',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
+			}],
+			[{ range: new Range(1, 6, 1, 6), text: 'xx' }],
+			[{
+				text: 'helloxx world',
+				tokens: [new TestToken(0, 1), new TestToken(7, 2), new TestToken(8, 3)]
+			}]
+		);
+	});
+
+	test('single insert 4', () => {
+		testApplyEdits(
+			[{
+				text: 'hello world',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
+			}],
+			[{ range: new Range(1, 7, 1, 7), text: 'xx' }],
+			[{
+				text: 'hello xxworld',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(8, 3)]
+			}]
+		);
+	});
+
+	test('single insert 5', () => {
+		testApplyEdits(
+			[{
+				text: 'hello world',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
+			}],
+			[{ range: new Range(1, 12, 1, 12), text: 'xx' }],
+			[{
+				text: 'hello worldxx',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
+			}]
+		);
+	});
+
+	test('multi insert 6', () => {
+		testApplyEdits(
+			[{
+				text: 'hello world',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
+			}],
+			[{ range: new Range(1, 1, 1, 1), text: '\n' }],
+			[{
+				text: '',
+				tokens: [new TestToken(0, 1)]
+			}, {
+				text: 'hello world',
+				tokens: [new TestToken(0, 1)]
+			}]
+		);
+	});
+
+	test('multi insert 7', () => {
+		testApplyEdits(
+			[{
+				text: 'hello world',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
+			}],
+			[{ range: new Range(1, 12, 1, 12), text: '\n' }],
+			[{
+				text: 'hello world',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
+			}, {
+				text: '',
+				tokens: [new TestToken(0, 1)]
+			}]
+		);
+	});
+
+	test('multi insert 8', () => {
+		testApplyEdits(
+			[{
+				text: 'hello world',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
+			}],
+			[{ range: new Range(1, 7, 1, 7), text: '\n' }],
+			[{
+				text: 'hello ',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2)]
+			}, {
+				text: 'world',
+				tokens: [new TestToken(0, 1)]
+			}]
+		);
+	});
+
+	test('multi insert 9', () => {
+		testApplyEdits(
+			[{
+				text: 'hello world',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
+			}, {
+				text: 'hello world',
+				tokens: [new TestToken(0, 4), new TestToken(5, 5), new TestToken(6, 6)]
+			}],
+			[{ range: new Range(1, 7, 1, 7), text: 'xx\nyy' }],
+			[{
+				text: 'hello xx',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2)]
+			}, {
+				text: 'yyworld',
+				tokens: [new TestToken(0, 1)]
+			}, {
+				text: 'hello world',
+				tokens: [new TestToken(0, 4), new TestToken(5, 5), new TestToken(6, 6)]
+			}]
+		);
+	});
 
 	function testLineEditTokens(initialText: string, initialTokens: TestToken[], edits: ILineEdit[], expectedText: string, expectedTokens: TestToken[]): void {
-		let line = new ModelLine(initialText, NO_TAB_SIZE);
-		line.setTokens(0, TestToken.toTokens(initialTokens));
-
-		line.applyEdits(new MarkersTracker(), edits, NO_TAB_SIZE);
-
-		assert.equal(line.text, expectedText);
-		assertLineTokens(line.getTokens(0), expectedTokens);
+		testApplyEdits(
+			[{
+				text: initialText,
+				tokens: initialTokens
+			}],
+			edits.map((ed) => ({
+				range: new Range(1, ed.startColumn, 1, ed.endColumn),
+				text: ed.text
+			})),
+			[{
+				text: expectedText,
+				tokens: expectedTokens
+			}]
+		);
 	}
 
 	test('insertion on empty line', () => {
-		let line = new ModelLine('some text', NO_TAB_SIZE);
-		line.setTokens(0, TestToken.toTokens([new TestToken(0, 1)]));
+		const model = new EditableTextModel(RawTextSource.fromString('some text'), TextModel.DEFAULT_CREATION_OPTIONS, new LanguageIdentifier('test', 0));
+		model._tokens.setTokens(0, 0, model.getLineMaxColumn(1) - 1, TestToken.toTokens([new TestToken(0, 1)]));
 
-		line.applyEdits(new MarkersTracker(), [{ startColumn: 1, endColumn: 10, text: '', forceMoveMarkers: false }], NO_TAB_SIZE);
-		line.setTokens(0, new Uint32Array(0));
+		model.applyEdits([{
+			identifier: null,
+			range: new Range(1, 1, 1, 10),
+			text: '',
+			forceMoveMarkers: false
+		}]);
 
-		line.applyEdits(new MarkersTracker(), [{ startColumn: 1, endColumn: 1, text: 'a', forceMoveMarkers: false }], NO_TAB_SIZE);
-		assertLineTokens(line.getTokens(0), [new TestToken(0, 1)]);
+		model._tokens.setTokens(0, 0, model.getLineMaxColumn(1) - 1, new Uint32Array(0));
+
+		model.applyEdits([{
+			identifier: null,
+			range: new Range(1, 1, 1, 1),
+			text: 'a',
+			forceMoveMarkers: false
+		}]);
+
+		const actualTokens = model.getLineTokens(1);
+		assertLineTokens(actualTokens, [new TestToken(0, 1)]);
 	});
 
 	test('updates tokens on insertion 1', () => {
@@ -736,7 +1089,7 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 			}],
 			'',
 			[
-				new TestToken(0, 3)
+				new TestToken(0, 1)
 			]
 		);
 	});
@@ -826,8 +1179,7 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 			}],
 			'Hi world, ciao',
 			[
-				new TestToken(0, 1),
-				new TestToken(2, 0),
+				new TestToken(0, 0),
 				new TestToken(3, 2),
 				new TestToken(8, 0),
 				new TestToken(10, 0),
@@ -858,26 +1210,32 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 			}],
 			'Hi wmy friends, ciao',
 			[
-				new TestToken(0, 1),
-				new TestToken(2, 0),
+				new TestToken(0, 0),
 				new TestToken(3, 2),
 				new TestToken(14, 0),
 				new TestToken(16, 0),
 			]
 		);
 	});
-});
 
-suite('Editor Model - modelLine.split text & tokens', () => {
 	function testLineSplitTokens(initialText: string, initialTokens: TestToken[], splitColumn: number, expectedText1: string, expectedText2: string, expectedTokens: TestToken[]): void {
-		let line = new ModelLine(initialText, NO_TAB_SIZE);
-		line.setTokens(0, TestToken.toTokens(initialTokens));
-
-		let other = line.split(new MarkersTracker(), splitColumn, false, NO_TAB_SIZE);
-
-		assert.equal(line.text, expectedText1);
-		assert.equal(other.text, expectedText2);
-		assertLineTokens(line.getTokens(0), expectedTokens);
+		testApplyEdits(
+			[{
+				text: initialText,
+				tokens: initialTokens
+			}],
+			[{
+				range: new Range(1, splitColumn, 1, splitColumn),
+				text: '\n'
+			}],
+			[{
+				text: expectedText1,
+				tokens: expectedTokens
+			}, {
+				text: expectedText2,
+				tokens: [new TestToken(0, 1)]
+			}]
+		);
 	}
 
 	test('split at the beginning', () => {
@@ -950,20 +1308,25 @@ suite('Editor Model - modelLine.split text & tokens', () => {
 			]
 		);
 	});
-});
 
-suite('Editor Model - modelLine.append text & tokens', () => {
 	function testLineAppendTokens(aText: string, aTokens: TestToken[], bText: string, bTokens: TestToken[], expectedText: string, expectedTokens: TestToken[]): void {
-		let a = new ModelLine(aText, NO_TAB_SIZE);
-		a.setTokens(0, TestToken.toTokens(aTokens));
-
-		let b = new ModelLine(bText, NO_TAB_SIZE);
-		b.setTokens(0, TestToken.toTokens(bTokens));
-
-		a.append(new MarkersTracker(), 1, b, NO_TAB_SIZE);
-
-		assert.equal(a.text, expectedText);
-		assertLineTokens(a.getTokens(0), expectedTokens);
+		testApplyEdits(
+			[{
+				text: aText,
+				tokens: aTokens
+			}, {
+				text: bText,
+				tokens: bTokens
+			}],
+			[{
+				range: new Range(1, aText.length + 1, 2, 1),
+				text: ''
+			}],
+			[{
+				text: expectedText,
+				tokens: expectedTokens
+			}]
+		);
 	}
 
 	test('append empty 1', () => {

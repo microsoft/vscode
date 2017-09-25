@@ -60,12 +60,13 @@ export class ViewLineToken {
 
 export class ViewLineTokenFactory {
 
-	public static inflateArr(tokens: Uint32Array, lineLength: number): ViewLineToken[] {
-		let result: ViewLineToken[] = [];
+	public static inflateArr(tokens: Uint32Array): ViewLineToken[] {
+		const tokensCount = (tokens.length >>> 1);
 
-		for (let i = 0, len = (tokens.length >>> 1); i < len; i++) {
-			let endOffset = (i + 1 < len ? tokens[((i + 1) << 1)] : lineLength);
-			let metadata = tokens[(i << 1) + 1];
+		let result: ViewLineToken[] = new Array<ViewLineToken>(tokensCount);
+		for (let i = 0; i < tokensCount; i++) {
+			const endOffset = tokens[i << 1];
+			const metadata = tokens[(i << 1) + 1];
 
 			result[i] = new ViewLineToken(endOffset, metadata);
 		}
@@ -79,15 +80,15 @@ export class ViewLineTokenFactory {
 		let result: ViewLineToken[] = [], resultLen = 0;
 
 		for (let i = tokenIndex, len = (tokens.length >>> 1); i < len; i++) {
-			let tokenStartOffset = tokens[(i << 1)];
+			const tokenStartOffset = (i > 0 ? tokens[((i - 1) << 1)] : 0);
 
 			if (tokenStartOffset >= endOffset) {
 				break;
 			}
 
-			let tokenEndOffset = (i + 1 < len ? tokens[((i + 1) << 1)] : lineLength);
-			let newEndOffset = Math.min(maxEndOffset, tokenEndOffset - startOffset + deltaOffset);
-			let metadata = tokens[(i << 1) + 1];
+			const tokenEndOffset = tokens[(i << 1)];
+			const newEndOffset = Math.min(maxEndOffset, tokenEndOffset - startOffset + deltaOffset);
+			const metadata = tokens[(i << 1) + 1];
 
 			result[resultLen++] = new ViewLineToken(newEndOffset, metadata);
 		}
@@ -96,23 +97,55 @@ export class ViewLineTokenFactory {
 	}
 
 	public static findIndexInSegmentsArray(tokens: Uint32Array, desiredIndex: number): number {
+		// // TODO@tokenize: implement binary search
+		// const tokensCount = (tokens.length >>> 1);
+		// for (let tokenIndex = 0; tokenIndex < tokensCount; tokenIndex++) {
+		// 	const endOffset = tokens[tokenIndex << 1];
+		// 	if (endOffset > desiredIndex) {
+		// 		return tokenIndex;
+		// 	}
+		// }
+		// return tokensCount - 1;
 
-		let low = 0;
-		let high = (tokens.length >>> 1) - 1;
+		return this._alt(tokens, desiredIndex);
 
-		while (low < high) {
+		// let low = 0;
+		// let high = (tokens.length >>> 1) - 1;
 
-			let mid = low + Math.ceil((high - low) / 2);
+		// while (low < high) {
 
-			let value = tokens[(mid << 1)];
+		// 	let mid = low + Math.floor((high - low) / 2);
 
-			if (value > desiredIndex) {
-				high = mid - 1;
-			} else {
-				low = mid;
+		// 	let endOffset = tokens[(mid << 1)];
+
+		// 	if (endOffset < desiredIndex) {
+		// 		low = mid + 1;
+		// 	} else {
+		// 		high = mid;
+		// 	}
+		// // 	if (value > desiredIndex) {
+		// // 		high = mid - 1;
+		// // 	} else {
+		// // 		low = mid;
+		// // 	}
+		// }
+
+		// let me = low;
+		// if (me !== ref) {
+		// 	throw new Error(`nope`);
+		// }
+		// return low;
+	}
+
+	private static _alt(tokens: Uint32Array, desiredIndex: number): number {
+		// TODO@tokenize: implement binary search
+		const tokensCount = (tokens.length >>> 1);
+		for (let tokenIndex = 0; tokenIndex < tokensCount; tokenIndex++) {
+			const endOffset = tokens[tokenIndex << 1];
+			if (endOffset > desiredIndex) {
+				return tokenIndex;
 			}
 		}
-
-		return low;
+		return tokensCount - 1;
 	}
 }

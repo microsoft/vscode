@@ -98,7 +98,10 @@ export class LineTokens {
 	}
 
 	public getTokenStartOffset(tokenIndex: number): number {
-		return this._tokens[(tokenIndex << 1)];
+		if (tokenIndex > 0) {
+			return this._tokens[(tokenIndex - 1) << 1];
+		}
+		return 0;
 	}
 
 	public getLanguageId(tokenIndex: number): LanguageId {
@@ -112,20 +115,11 @@ export class LineTokens {
 	}
 
 	public getTokenEndOffset(tokenIndex: number): number {
-		if (tokenIndex + 1 < this._tokensCount) {
-			return this._tokens[(tokenIndex + 1) << 1];
-		}
-		return this._textLength;
+		return this._tokens[tokenIndex << 1];
 	}
 
 	/**
 	 * Find the token containing offset `offset`.
-	 * ```
-	 *   For example, with the following tokens [0, 5), [5, 9), [9, infinity)
-	 *   Searching for 0, 1, 2, 3 or 4 will return 0.
-	 *   Searching for 5, 6, 7 or 8 will return 1.
-	 *   Searching for 9, 10, 11, ... will return 2.
-	 * ```
 	 * @param offset The search offset
 	 * @return The index of the token containing the offset.
 	 */
@@ -139,13 +133,12 @@ export class LineTokens {
 	}
 
 	public tokenAt(tokenIndex: number): LineToken {
-		let startOffset = this._tokens[(tokenIndex << 1)];
-		let endOffset: number;
-		if (tokenIndex + 1 < this._tokensCount) {
-			endOffset = this._tokens[(tokenIndex + 1) << 1];
-		} else {
-			endOffset = this._textLength;
-		}
+		const startOffset = (
+			tokenIndex > 0
+				? this._tokens[(tokenIndex - 1) << 1]
+				: 0
+		);
+		const endOffset = this._tokens[tokenIndex << 1];
 		let metadata = this._tokens[(tokenIndex << 1) + 1];
 		return new LineToken(this, tokenIndex, this._tokensCount, startOffset, endOffset, metadata);
 	}
@@ -165,10 +158,20 @@ export class LineTokens {
 	}
 
 	public inflate(): ViewLineToken[] {
-		return ViewLineTokenFactory.inflateArr(this._tokens, this._textLength);
+		return ViewLineTokenFactory.inflateArr(this._tokens);
 	}
 
 	public sliceAndInflate(startOffset: number, endOffset: number, deltaOffset: number): ViewLineToken[] {
 		return ViewLineTokenFactory.sliceAndInflate(this._tokens, startOffset, endOffset, deltaOffset, this._textLength);
+	}
+
+	public static convertToEndOffset(tokens: Uint32Array, lineTextLength: number): void {
+		// TODO@tokenize: massage, use tokenLength
+		const tokenCount = (tokens.length >>> 1);
+		const lastTokenIndex = tokenCount - 1;
+		for (let tokenIndex = 0; tokenIndex < lastTokenIndex; tokenIndex++) {
+			tokens[tokenIndex << 1] = tokens[(tokenIndex + 1) << 1];
+		}
+		tokens[lastTokenIndex << 1] = lineTextLength;
 	}
 }

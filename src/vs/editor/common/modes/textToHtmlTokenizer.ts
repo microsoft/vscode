@@ -109,6 +109,7 @@ function _tokenizeToString(text: string, tokenizationSupport: ITokenizationSuppo
 		}
 
 		let tokenizationResult = tokenizationSupport.tokenize2(line, currentState, 0);
+		LineTokens.convertToEndOffset(tokenizationResult.tokens, line.length);
 		let lineTokens = new LineTokens(tokenizationResult.tokens, line);
 		let viewLineTokens = lineTokens.inflate();
 

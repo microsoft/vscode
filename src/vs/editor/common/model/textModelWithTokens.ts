@@ -23,6 +23,7 @@ import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { ITextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 import { IndentRange, computeRanges } from 'vs/editor/common/model/indentRanges';
+import { ModelLinesTokens } from 'vs/editor/common/model/modelLine';
 
 class ModelTokensChangedEventBuilder {
 
@@ -74,6 +75,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	private _languageRegistryListener: IDisposable;
 
 	private _revalidateTokensTimeout: number;
+	/*protected*/_tokens: ModelLinesTokens;
 
 	constructor(rawTextSource: IRawTextSource, creationOptions: editorCommon.ITextModelCreationOptions, languageIdentifier: LanguageIdentifier) {
 		super(rawTextSource, creationOptions);
@@ -132,9 +134,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 	protected _resetTokenizationState(): void {
 		this._clearTimers();
-		for (let i = 0; i < this._lines.length; i++) {
-			this._lines[i].resetTokenizationState();
-		}
+		this._tokens = new ModelLinesTokens();
 
 		this._tokenizationSupport = null;
 		if (!this._isTooLargeForTokenization) {
@@ -152,7 +152,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			}
 
 			if (initialState) {
-				this._lines[0].setState(initialState);
+				this._tokens.setInitialState(initialState);
 			}
 		}
 
@@ -213,7 +213,8 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	}
 
 	private _getLineTokens(lineNumber: number): LineTokens {
-		return this._lines[lineNumber - 1].getTokens(this._languageIdentifier.id);
+		const lineText = this._lines[lineNumber - 1].text;
+		return this._tokens.getTokens(this._languageIdentifier.id, lineNumber - 1, lineText);
 	}
 
 	public getLanguageIdentifier(): LanguageIdentifier {
@@ -263,10 +264,10 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	}
 
 	protected _invalidateLine(lineIndex: number): void {
-		this._lines[lineIndex].setIsInvalid(true);
+		this._tokens.setIsInvalid(lineIndex, true);
 		if (lineIndex < this._invalidLineStartIndex) {
 			if (this._invalidLineStartIndex < this._lines.length) {
-				this._lines[this._invalidLineStartIndex].setIsInvalid(true);
+				this._tokens.setIsInvalid(this._invalidLineStartIndex, true);
 			}
 			this._invalidLineStartIndex = lineIndex;
 			this._beginBackgroundTokenization();
@@ -363,7 +364,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 			try {
 				// Tokenize only the first X characters
-				let freshState = this._lines[lineIndex].getState().clone();
+				let freshState = this._tokens.getState(lineIndex).clone();
 				r = this._tokenizationSupport.tokenize2(this._lines[lineIndex].text, freshState, 0);
 			} catch (e) {
 				e.friendlyMessage = TextModelWithTokens.MODE_TOKENIZATION_FAILED_MSG;
@@ -371,22 +372,22 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			}
 
 			if (!r) {
-				r = nullTokenize2(this._languageIdentifier.id, text, this._lines[lineIndex].getState(), 0);
+				r = nullTokenize2(this._languageIdentifier.id, text, this._tokens.getState(lineIndex), 0);
 			}
-			this._lines[lineIndex].setTokens(this._languageIdentifier.id, r.tokens);
+			this._tokens.setTokens(this._languageIdentifier.id, lineIndex, this._lines[lineIndex].text.length, r.tokens);
 			eventBuilder.registerChangedTokens(lineIndex + 1);
-			this._lines[lineIndex].setIsInvalid(false);
+			this._tokens.setIsInvalid(lineIndex, false);
 
 			if (endStateIndex < linesLength) {
-				if (this._lines[endStateIndex].getState() !== null && r.endState.equals(this._lines[endStateIndex].getState())) {
+				if (this._tokens.getState(endStateIndex) !== null && r.endState.equals(this._tokens.getState(endStateIndex))) {
 					// The end state of this line remains the same
 					let nextInvalidLineIndex = lineIndex + 1;
 					while (nextInvalidLineIndex < linesLength) {
-						if (this._lines[nextInvalidLineIndex].isInvalid()) {
+						if (this._tokens.isInvalid(nextInvalidLineIndex)) {
 							break;
 						}
 						if (nextInvalidLineIndex + 1 < linesLength) {
-							if (this._lines[nextInvalidLineIndex + 1].getState() === null) {
+							if (this._tokens.getState(nextInvalidLineIndex + 1) === null) {
 								break;
 							}
 						} else {
@@ -399,7 +400,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 					this._invalidLineStartIndex = Math.max(this._invalidLineStartIndex, nextInvalidLineIndex);
 					lineIndex = nextInvalidLineIndex - 1; // -1 because the outer loop increments it
 				} else {
-					this._lines[endStateIndex].setState(r.endState);
+					this._tokens.setState(endStateIndex, r.endState);
 				}
 			} else {
 				this._lastState = r.endState;

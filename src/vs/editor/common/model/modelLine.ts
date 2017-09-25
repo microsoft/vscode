@@ -8,7 +8,10 @@ import { IState, FontStyle, StandardTokenType, MetadataConsts, ColorId, Language
 import { CharCode } from 'vs/base/common/charCode';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 import { Constants } from 'vs/editor/common/core/uint';
+import { ViewLineTokenFactory } from 'vs/editor/common/core/viewLineToken';
+import * as arrays from 'vs/base/common/arrays';
 
 export interface ILineEdit {
 	startColumn: number;
@@ -97,21 +100,12 @@ export class MarkersTracker {
 	}
 }
 
-export interface ITokensAdjuster {
-	adjust(toColumn: number, delta: number, minimumAllowedColumn: number): void;
-	finish(delta: number, lineTextLength: number): void;
-}
-
 interface IMarkersAdjuster {
 	adjustDelta(toColumn: number, delta: number, minimumAllowedColumn: number, moveSemantics: MarkerMoveSemantics): void;
 	adjustSet(toColumn: number, newColumn: number, moveSemantics: MarkerMoveSemantics): void;
 	finish(delta: number, lineTextLength: number): void;
 }
 
-var NO_OP_TOKENS_ADJUSTER: ITokensAdjuster = {
-	adjust: () => { },
-	finish: () => { }
-};
 var NO_OP_MARKERS_ADJUSTER: IMarkersAdjuster = {
 	adjustDelta: () => { },
 	adjustSet: () => { },
@@ -163,15 +157,6 @@ export interface IModelLine {
 	removeMarkers(deleteMarkers: { [markerId: string]: boolean; }): void;
 	getMarkers(): LineMarker[];
 
-	// --- tokenization
-	resetTokenizationState(): void;
-	isInvalid(): boolean;
-	setIsInvalid(isInvalid: boolean): void;
-	getState(): IState;
-	setState(state: IState): void;
-	getTokens(topLevelLanguageId: LanguageId): LineTokens;
-	setTokens(topLevelLanguageId: LanguageId, tokens: Uint32Array): void;
-
 	// --- indentation
 	updateTabSize(tabSize: number): void;
 	getIndentLevel(): number;
@@ -197,7 +182,6 @@ export abstract class AbstractModelLine {
 
 	public abstract get text(): string;
 	protected abstract _setText(text: string, tabSize: number): void;
-	protected abstract _createTokensAdjuster(): ITokensAdjuster;
 	protected abstract _createModelLine(text: string, tabSize: number): IModelLine;
 
 	///
@@ -308,7 +292,6 @@ export abstract class AbstractModelLine {
 		let deltaColumn = 0;
 		let resultText = this.text;
 
-		let tokensAdjuster = this._createTokensAdjuster();
 		let markersAdjuster = this._createMarkersAdjuster(markersTracker);
 
 		for (let i = 0, len = edits.length; i < len; i++) {
@@ -326,15 +309,12 @@ export abstract class AbstractModelLine {
 
 			// Adjust tokens & markers before this edit
 			// console.log('Adjust tokens & markers before this edit');
-			tokensAdjuster.adjust(edit.startColumn - 1, deltaColumn, 1);
 			markersAdjuster.adjustDelta(edit.startColumn, deltaColumn, 1, edit.forceMoveMarkers ? MarkerMoveSemantics.ForceMove : (deletingCnt > 0 ? MarkerMoveSemantics.ForceStay : MarkerMoveSemantics.MarkerDefined));
 
 			// Adjust tokens & markers for the common part of this edit
 			let commonLength = Math.min(deletingCnt, insertingCnt);
 			if (commonLength > 0) {
 				// console.log('Adjust tokens & markers for the common part of this edit');
-				tokensAdjuster.adjust(edit.startColumn - 1 + commonLength, deltaColumn, startColumn);
-
 				if (!edit.forceMoveMarkers) {
 					markersAdjuster.adjustDelta(edit.startColumn + commonLength, deltaColumn, startColumn, edit.forceMoveMarkers ? MarkerMoveSemantics.ForceMove : (deletingCnt > insertingCnt ? MarkerMoveSemantics.ForceStay : MarkerMoveSemantics.MarkerDefined));
 				}
@@ -346,12 +326,10 @@ export abstract class AbstractModelLine {
 
 			// Adjust tokens & markers inside this edit
 			// console.log('Adjust tokens & markers inside this edit');
-			tokensAdjuster.adjust(edit.endColumn, deltaColumn, startColumn);
 			markersAdjuster.adjustSet(edit.endColumn, startColumn + insertingCnt, edit.forceMoveMarkers ? MarkerMoveSemantics.ForceMove : MarkerMoveSemantics.MarkerDefined);
 		}
 
 		// Wrap up tokens & markers; adjust remaining if needed
-		tokensAdjuster.finish(deltaColumn, resultText.length);
 		markersAdjuster.finish(deltaColumn, resultText.length);
 
 		// Save the resulting text
@@ -525,14 +503,6 @@ export class ModelLine extends AbstractModelLine implements IModelLine {
 	 */
 	private _metadata: number;
 
-	public isInvalid(): boolean {
-		return (this._metadata & 0x00000001) ? true : false;
-	}
-
-	public setIsInvalid(isInvalid: boolean): void {
-		this._metadata = (this._metadata & 0xfffffffe) | (isInvalid ? 1 : 0);
-	}
-
 	/**
 	 * Returns:
 	 *  - -1 => the line consists of whitespace
@@ -555,236 +525,14 @@ export class ModelLine extends AbstractModelLine implements IModelLine {
 		}
 	}
 
-	private _state: IState;
-	private _lineTokens: ArrayBuffer;
-
 	constructor(text: string, tabSize: number) {
 		super(true);
 		this._metadata = 0;
 		this._setText(text, tabSize);
-		this._state = null;
-		this._lineTokens = null;
 	}
 
 	protected _createModelLine(text: string, tabSize: number): IModelLine {
 		return new ModelLine(text, tabSize);
-	}
-
-	public split(markersTracker: MarkersTracker, splitColumn: number, forceMoveMarkers: boolean, tabSize: number): IModelLine {
-		let result = super.split(markersTracker, splitColumn, forceMoveMarkers, tabSize);
-
-		// Mark overflowing tokens for deletion & delete marked tokens
-		this._deleteMarkedTokens(this._markOverflowingTokensForDeletion(0, this.text.length));
-
-		return result;
-	}
-
-	public append(markersTracker: MarkersTracker, myLineNumber: number, other: IModelLine, tabSize: number): void {
-		let thisTextLength = this.text.length;
-
-		super.append(markersTracker, myLineNumber, other, tabSize);
-
-		if (other instanceof ModelLine) {
-			let otherRawTokens = other._lineTokens;
-			if (otherRawTokens) {
-				// Other has real tokens
-
-				let otherTokens = new Uint32Array(otherRawTokens);
-
-				// Adjust other tokens
-				if (thisTextLength > 0) {
-					for (let i = 0, len = (otherTokens.length >>> 1); i < len; i++) {
-						otherTokens[(i << 1)] = otherTokens[(i << 1)] + thisTextLength;
-					}
-				}
-
-				// Append other tokens
-				let myRawTokens = this._lineTokens;
-				if (myRawTokens) {
-					// I have real tokens
-					let myTokens = new Uint32Array(myRawTokens);
-					let result = new Uint32Array(myTokens.length + otherTokens.length);
-					result.set(myTokens, 0);
-					result.set(otherTokens, myTokens.length);
-					this._lineTokens = result.buffer;
-				} else {
-					// I don't have real tokens
-					this._lineTokens = otherTokens.buffer;
-				}
-			}
-		}
-	}
-
-	// --- BEGIN STATE
-
-	public resetTokenizationState(): void {
-		this._state = null;
-		this._lineTokens = null;
-	}
-
-	public setState(state: IState): void {
-		this._state = state;
-	}
-
-	public getState(): IState {
-		return this._state || null;
-	}
-
-	// --- END STATE
-
-	// --- BEGIN TOKENS
-
-	public setTokens(topLevelLanguageId: LanguageId, tokens: Uint32Array): void {
-		if (!tokens || tokens.length === 0) {
-			this._lineTokens = null;
-			return;
-		}
-		if (tokens.length === 2) {
-			// there is one token
-			if (tokens[0] === 0 && tokens[1] === getDefaultMetadata(topLevelLanguageId)) {
-				this._lineTokens = null;
-				return;
-			}
-		}
-		this._lineTokens = tokens.buffer;
-	}
-
-	public getTokens(topLevelLanguageId: LanguageId): LineTokens {
-		let rawLineTokens = this._lineTokens;
-		if (rawLineTokens) {
-			return new LineTokens(new Uint32Array(rawLineTokens), this._text);
-		}
-
-		let lineTokens = new Uint32Array(2);
-		lineTokens[0] = 0;
-		lineTokens[1] = getDefaultMetadata(topLevelLanguageId);
-		return new LineTokens(lineTokens, this._text);
-	}
-
-	// --- END TOKENS
-
-	protected _createTokensAdjuster(): ITokensAdjuster {
-		if (!this._lineTokens) {
-			// This line does not have real tokens, so there is nothing to adjust
-			return NO_OP_TOKENS_ADJUSTER;
-		}
-
-		let lineTokens = new Uint32Array(this._lineTokens);
-		let tokensLength = (lineTokens.length >>> 1);
-		let tokenIndex = 0;
-		let tokenStartOffset = 0;
-		let removeTokensCount = 0;
-
-		let adjust = (toColumn: number, delta: number, minimumAllowedColumn: number) => {
-			// console.log(`------------------------------------------------------------------`);
-			// console.log(`before call: tokenIndex: ${tokenIndex}: ${lineTokens}`);
-			// console.log(`adjustTokens: ${toColumn} with delta: ${delta} and [${minimumAllowedColumn}]`);
-			// console.log(`tokenStartOffset: ${tokenStartOffset}`);
-			let minimumAllowedIndex = minimumAllowedColumn - 1;
-
-			while (tokenStartOffset < toColumn && tokenIndex < tokensLength) {
-
-				if (tokenStartOffset > 0 && delta !== 0) {
-					// adjust token's `startIndex` by `delta`
-					let newTokenStartOffset = Math.max(minimumAllowedIndex, tokenStartOffset + delta);
-					lineTokens[(tokenIndex << 1)] = newTokenStartOffset;
-
-					// console.log(` * adjusted token start offset for token at ${tokenIndex}: ${newTokenStartOffset}`);
-
-					if (delta < 0) {
-						let tmpTokenIndex = tokenIndex;
-						while (tmpTokenIndex > 0) {
-							let prevTokenStartOffset = lineTokens[((tmpTokenIndex - 1) << 1)];
-							if (prevTokenStartOffset >= newTokenStartOffset) {
-								if (prevTokenStartOffset !== Constants.MAX_UINT_32) {
-									// console.log(` * marking for deletion token at ${tmpTokenIndex - 1}`);
-									lineTokens[((tmpTokenIndex - 1) << 1)] = Constants.MAX_UINT_32;
-									removeTokensCount++;
-								}
-								tmpTokenIndex--;
-							} else {
-								break;
-							}
-						}
-					}
-				}
-
-				tokenIndex++;
-				if (tokenIndex < tokensLength) {
-					tokenStartOffset = lineTokens[(tokenIndex << 1)];
-				}
-			}
-			// console.log(`after call: tokenIndex: ${tokenIndex}: ${lineTokens}`);
-		};
-
-		let finish = (delta: number, lineTextLength: number) => {
-			adjust(Constants.MAX_SAFE_SMALL_INTEGER, delta, 1);
-
-			// Mark overflowing tokens for deletion & delete marked tokens
-			this._deleteMarkedTokens(this._markOverflowingTokensForDeletion(removeTokensCount, lineTextLength));
-		};
-
-		return {
-			adjust: adjust,
-			finish: finish
-		};
-	}
-
-	private _markOverflowingTokensForDeletion(removeTokensCount: number, lineTextLength: number): number {
-		if (!this._lineTokens) {
-			return removeTokensCount;
-		}
-
-		let lineTokens = new Uint32Array(this._lineTokens);
-		let tokensLength = (lineTokens.length >>> 1);
-
-		if (removeTokensCount + 1 === tokensLength) {
-			// no more removing, cannot end up without any tokens for mode transition reasons
-			return removeTokensCount;
-		}
-
-		for (let tokenIndex = tokensLength - 1; tokenIndex > 0; tokenIndex--) {
-			let tokenStartOffset = lineTokens[(tokenIndex << 1)];
-			if (tokenStartOffset < lineTextLength) {
-				// valid token => stop iterating
-				return removeTokensCount;
-			}
-
-			// this token now overflows the text => mark it for removal
-			if (tokenStartOffset !== Constants.MAX_UINT_32) {
-				// console.log(` * marking for deletion token at ${tokenIndex}`);
-				lineTokens[(tokenIndex << 1)] = Constants.MAX_UINT_32;
-				removeTokensCount++;
-
-				if (removeTokensCount + 1 === tokensLength) {
-					// no more removing, cannot end up without any tokens for mode transition reasons
-					return removeTokensCount;
-				}
-			}
-		}
-
-		return removeTokensCount;
-	}
-
-	private _deleteMarkedTokens(removeTokensCount: number): void {
-		if (removeTokensCount === 0) {
-			return;
-		}
-
-		let lineTokens = new Uint32Array(this._lineTokens);
-		let tokensLength = (lineTokens.length >>> 1);
-		let newTokens = new Uint32Array(((tokensLength - removeTokensCount) << 1)), newTokenIdx = 0;
-		for (let i = 0; i < tokensLength; i++) {
-			let startOffset = lineTokens[(i << 1)];
-			if (startOffset === Constants.MAX_UINT_32) {
-				// marked for deletion
-				continue;
-			}
-			let metadata = lineTokens[(i << 1) + 1];
-			newTokens[newTokenIdx++] = startOffset;
-			newTokens[newTokenIdx++] = metadata;
-		}
-		this._lineTokens = newTokens.buffer;
 	}
 
 	protected _setText(text: string, tabSize: number): void {
@@ -796,7 +544,6 @@ export class ModelLine extends AbstractModelLine implements IModelLine {
 			this._setPlusOneIndentLevel(computePlusOneIndentLevel(text, tabSize));
 		}
 	}
-
 }
 
 /**
@@ -836,47 +583,6 @@ export class MinimalModelLine extends AbstractModelLine implements IModelLine {
 		return new MinimalModelLine(text, tabSize);
 	}
 
-	public split(markersTracker: MarkersTracker, splitColumn: number, forceMoveMarkers: boolean, tabSize: number): IModelLine {
-		return super.split(markersTracker, splitColumn, forceMoveMarkers, tabSize);
-	}
-
-	public append(markersTracker: MarkersTracker, myLineNumber: number, other: IModelLine, tabSize: number): void {
-		super.append(markersTracker, myLineNumber, other, tabSize);
-	}
-
-	// --- BEGIN STATE
-
-	public resetTokenizationState(): void {
-	}
-
-	public setState(state: IState): void {
-	}
-
-	public getState(): IState {
-		return null;
-	}
-
-	// --- END STATE
-
-	// --- BEGIN TOKENS
-
-	public setTokens(topLevelLanguageId: LanguageId, tokens: Uint32Array): void {
-	}
-
-	public getTokens(topLevelLanguageId: LanguageId): LineTokens {
-		let lineTokens = new Uint32Array(2);
-		lineTokens[0] = 0;
-		lineTokens[1] = getDefaultMetadata(topLevelLanguageId);
-		return new LineTokens(lineTokens, this._text);
-	}
-
-	// --- END TOKENS
-
-	protected _createTokensAdjuster(): ITokensAdjuster {
-		// This line does not have real tokens, so there is nothing to adjust
-		return NO_OP_TOKENS_ADJUSTER;
-	}
-
 	protected _setText(text: string, tabSize: number): void {
 		this._text = text;
 	}
@@ -890,4 +596,299 @@ function getDefaultMetadata(topLevelLanguageId: LanguageId): number {
 		| (ColorId.DefaultForeground << MetadataConsts.FOREGROUND_OFFSET)
 		| (ColorId.DefaultBackground << MetadataConsts.BACKGROUND_OFFSET)
 	) >>> 0;
+}
+
+const EMPTY_LINE_TOKENS = new Uint32Array(0);
+
+class ModelLineTokens {
+	_state: IState;
+	_lineTokens: ArrayBuffer;
+	_invalid: boolean;
+
+	constructor(state: IState) {
+		this._state = state;
+		this._lineTokens = null;
+		this._invalid = true;
+	}
+
+	public deleteBeginning(toChIndex: number): void {
+		if (this._lineTokens === null || this._lineTokens === EMPTY_LINE_TOKENS) {
+			return;
+		}
+		this.delete(0, toChIndex);
+	}
+
+	public deleteEnding(fromChIndex: number): void {
+		if (this._lineTokens === null || this._lineTokens === EMPTY_LINE_TOKENS) {
+			return;
+		}
+
+		const tokens = new Uint32Array(this._lineTokens);
+		const lineTextLength = tokens[tokens.length - 2];
+		this.delete(fromChIndex, lineTextLength);
+	}
+
+	public delete(fromChIndex: number, toChIndex: number): void {
+		if (this._lineTokens === null || this._lineTokens === EMPTY_LINE_TOKENS || fromChIndex === toChIndex) {
+			return;
+		}
+
+		const tokens = new Uint32Array(this._lineTokens);
+		const tokensCount = (tokens.length >>> 1);
+
+		// special case: deleting everything
+		if (fromChIndex === 0 && tokens[tokens.length - 2] === toChIndex) {
+			this._lineTokens = EMPTY_LINE_TOKENS;
+			return;
+		}
+
+		const fromTokenIndex = ViewLineTokenFactory.findIndexInSegmentsArray(tokens, fromChIndex);
+		const fromTokenStartOffset = (fromTokenIndex > 0 ? tokens[(fromTokenIndex - 1) << 1] : 0);
+		const fromTokenEndOffset = tokens[fromTokenIndex << 1];
+
+		if (toChIndex < fromTokenEndOffset) {
+			// the delete range is inside a single token
+			const delta = (toChIndex - fromChIndex);
+			for (let i = fromTokenIndex; i < tokensCount; i++) {
+				tokens[i << 1] -= delta;
+			}
+			return;
+		}
+
+		let dest: number;
+		let lastEnd: number;
+		if (fromTokenStartOffset !== fromChIndex) {
+			tokens[fromTokenIndex << 1] = fromChIndex;
+			dest = ((fromTokenIndex + 1) << 1);
+			lastEnd = fromChIndex;
+		} else {
+			dest = (fromTokenIndex << 1);
+			lastEnd = fromTokenStartOffset;
+		}
+
+		const delta = (toChIndex - fromChIndex);
+		for (let tokenIndex = fromTokenIndex + 1; tokenIndex < tokensCount; tokenIndex++) {
+			const tokenEndOffset = tokens[tokenIndex << 1] - delta;
+			if (tokenEndOffset > lastEnd) {
+				tokens[dest++] = tokenEndOffset;
+				tokens[dest++] = tokens[(tokenIndex << 1) + 1];
+				lastEnd = tokenEndOffset;
+			}
+		}
+
+		if (dest === tokens.length) {
+			// nothing to trim
+			return;
+		}
+
+		let tmp = new Uint32Array(dest);
+		tmp.set(tokens.subarray(0, dest), 0);
+		this._lineTokens = tmp.buffer;
+	}
+
+	public append(_otherTokens: ArrayBuffer): void {
+		if (_otherTokens === EMPTY_LINE_TOKENS) {
+			return;
+		}
+		if (this._lineTokens === EMPTY_LINE_TOKENS) {
+			this._lineTokens = _otherTokens;
+			return;
+		}
+		if (this._lineTokens === null) {
+			return;
+		}
+		if (_otherTokens === null) {
+			// cannot determine combined line length...
+			this._lineTokens = null;
+			return;
+		}
+		const myTokens = new Uint32Array(this._lineTokens);
+		const otherTokens = new Uint32Array(_otherTokens);
+		const otherTokensCount = (otherTokens.length >>> 1);
+
+		let result = new Uint32Array(myTokens.length + otherTokens.length);
+		result.set(myTokens, 0);
+		let dest = myTokens.length;
+		const delta = myTokens[myTokens.length - 2];
+		for (let i = 0; i < otherTokensCount; i++) {
+			result[dest++] = otherTokens[(i << 1)] + delta;
+			result[dest++] = otherTokens[(i << 1) + 1];
+		}
+		this._lineTokens = result.buffer;
+	}
+
+	public insert(chIndex: number, textLength: number): void {
+		if (!this._lineTokens) {
+			// nothing to do
+			return;
+		}
+
+		const tokens = new Uint32Array(this._lineTokens);
+		const tokensCount = (tokens.length >>> 1);
+
+		let fromTokenIndex = ViewLineTokenFactory.findIndexInSegmentsArray(tokens, chIndex);
+		if (fromTokenIndex > 0) {
+			const fromTokenStartOffset = (fromTokenIndex > 0 ? tokens[(fromTokenIndex - 1) << 1] : 0);
+			if (fromTokenStartOffset === chIndex) {
+				fromTokenIndex--;
+			}
+		}
+		for (let tokenIndex = fromTokenIndex; tokenIndex < tokensCount; tokenIndex++) {
+			tokens[tokenIndex << 1] += textLength;
+		}
+	}
+}
+
+export class ModelLinesTokens {
+
+	private _tokens: ModelLineTokens[];
+
+	constructor() {
+		this._tokens = [];
+	}
+
+	public setInitialState(initialState: IState): void {
+		this._tokens[0] = new ModelLineTokens(initialState);
+	}
+
+	public getTokens(topLevelLanguageId: LanguageId, lineIndex: number, lineText: string): LineTokens {
+		let rawLineTokens: ArrayBuffer = null;
+		if (lineIndex < this._tokens.length) {
+			rawLineTokens = this._tokens[lineIndex]._lineTokens;
+		}
+
+		if (rawLineTokens !== null && rawLineTokens !== EMPTY_LINE_TOKENS) {
+			return new LineTokens(new Uint32Array(rawLineTokens), lineText);
+		}
+
+		let lineTokens = new Uint32Array(2);
+		lineTokens[0] = lineText.length;
+		lineTokens[1] = getDefaultMetadata(topLevelLanguageId);
+		return new LineTokens(lineTokens, lineText);
+	}
+
+	public setIsInvalid(lineIndex: number, invalid: boolean): void {
+		if (lineIndex < this._tokens.length) {
+			this._tokens[lineIndex]._invalid = invalid;
+		}
+	}
+
+	public isInvalid(lineIndex: number): boolean {
+		if (lineIndex < this._tokens.length) {
+			return this._tokens[lineIndex]._invalid;
+		}
+		return true;
+	}
+
+	public getState(lineIndex: number): IState {
+		if (lineIndex < this._tokens.length) {
+			return this._tokens[lineIndex]._state;
+		}
+		return null;
+	}
+
+	public setTokens(topLevelLanguageId: LanguageId, lineIndex: number, lineTextLength: number, tokens: Uint32Array): void {
+		let target: ModelLineTokens;
+		if (lineIndex < this._tokens.length) {
+			target = this._tokens[lineIndex];
+		} else {
+			target = new ModelLineTokens(null);
+			this._tokens[lineIndex] = target;
+		}
+
+		if (lineTextLength === 0) {
+			target._lineTokens = EMPTY_LINE_TOKENS;
+			return;
+		}
+
+		if (!tokens || tokens.length === 0) {
+			tokens = new Uint32Array(2);
+			tokens[0] = 0;
+			tokens[1] = getDefaultMetadata(topLevelLanguageId);
+		}
+
+		LineTokens.convertToEndOffset(tokens, lineTextLength);
+
+		target._lineTokens = tokens.buffer;
+	}
+
+	public setState(lineIndex: number, state: IState): void {
+		if (lineIndex < this._tokens.length) {
+			this._tokens[lineIndex]._state = state;
+		} else {
+			const tmp = new ModelLineTokens(state);
+			this._tokens[lineIndex] = tmp;
+		}
+	}
+
+	// --- editing
+
+	public applyEdits2(range: Range, lines: string[]): void {
+		this._acceptDeleteRange(range);
+		this._acceptInsertText(new Position(range.startLineNumber, range.startColumn), lines);
+	}
+
+	private _acceptDeleteRange(range: Range): void {
+
+		const firstLineIndex = range.startLineNumber - 1;
+		if (firstLineIndex >= this._tokens.length) {
+			return;
+		}
+
+		if (range.startLineNumber === range.endLineNumber) {
+			if (range.startColumn === range.endColumn) {
+				// Nothing to delete
+				return;
+			}
+
+			this._tokens[firstLineIndex].delete(range.startColumn - 1, range.endColumn - 1);
+			return;
+		}
+
+		const firstLine = this._tokens[firstLineIndex];
+		firstLine.deleteEnding(range.startColumn - 1);
+
+		const lastLineIndex = range.endLineNumber - 1;
+		let lastLineTokens: ArrayBuffer = null;
+		if (lastLineIndex < this._tokens.length) {
+			const lastLine = this._tokens[lastLineIndex];
+			lastLine.deleteBeginning(range.endColumn - 1);
+			lastLineTokens = lastLine._lineTokens;
+		}
+
+		// Take remaining text on last line and append it to remaining text on first line
+		firstLine.append(lastLineTokens);
+
+		// Delete middle lines
+		this._tokens.splice(range.startLineNumber, range.endLineNumber - range.startLineNumber);
+	}
+
+	private _acceptInsertText(position: Position, insertLines: string[]): void {
+
+		if (!insertLines || insertLines.length === 0) {
+			// Nothing to insert
+			return;
+		}
+
+		const lineIndex = position.lineNumber - 1;
+		if (lineIndex >= this._tokens.length) {
+			return;
+		}
+
+		if (insertLines.length === 1) {
+			// Inserting text on one line
+			this._tokens[lineIndex].insert(position.column - 1, insertLines[0].length);
+			return;
+		}
+
+		const line = this._tokens[lineIndex];
+		line.deleteEnding(position.column - 1);
+		line.insert(position.column - 1, insertLines[0].length);
+
+		let insert: ModelLineTokens[] = new Array<ModelLineTokens>(insertLines.length - 1);
+		for (let i = insertLines.length - 2; i >= 0; i--) {
+			insert[i] = new ModelLineTokens(null);
+		}
+		this._tokens = arrays.arrayInsert(this._tokens, position.lineNumber, insert);
+	}
 }

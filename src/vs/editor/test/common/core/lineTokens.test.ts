@@ -21,10 +21,9 @@ suite('LineTokens', () => {
 		let binTokens = new Uint32Array(tokens.length << 1);
 
 		for (let i = 0, len = tokens.length; i < len; i++) {
-			let token = tokens[i];
-			binTokens[(i << 1)] = token.startIndex;
+			binTokens[(i << 1)] = (i + 1 < len ? tokens[i + 1].startIndex : text.length);
 			binTokens[(i << 1) + 1] = (
-				token.foreground << MetadataConsts.FOREGROUND_OFFSET
+				tokens[i].foreground << MetadataConsts.FOREGROUND_OFFSET
 			) >>> 0;
 		}
 

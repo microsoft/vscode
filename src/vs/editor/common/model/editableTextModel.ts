@@ -675,11 +675,15 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				);
 			}
 
-			contentChanges.push({
-				range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
+			const contentChangeRange = new Range(startLineNumber, startColumn, endLineNumber, endColumn);
+			const contentChange: textModelEvents.IModelContentChange = {
+				range: contentChangeRange,
 				rangeLength: op.rangeLength,
 				text: op.lines ? op.lines.join(this.getEOL()) : ''
-			});
+			};
+
+			contentChanges.push(contentChange);
+			this._tokens.applyEdits2(contentChangeRange, op.lines);
 
 			// console.log('AFTER:');
 			// console.log('<<<\n' + this._lines.map(l => l.text).join('\n') + '\n>>>');
