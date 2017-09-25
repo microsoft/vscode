@@ -210,7 +210,11 @@ export class FileWalker {
 	private cmdTraversal(folderQuery: IFolderSearch, onResult: (result: IRawFileMatch) => void, cb: (err?: Error) => void): void {
 		const rootFolder = folderQuery.folder;
 		const isMac = platform.isMacintosh;
+		let cmd: childProcess.ChildProcess;
+		const killCmd = () => cmd && cmd.kill();
+
 		let done = (err?: Error) => {
+			process.removeListener('exit', killCmd);
 			done = () => { };
 			cb(err);
 		};
@@ -219,7 +223,6 @@ export class FileWalker {
 		const tree = this.initDirectoryTree();
 
 		const useRipgrep = this.useRipgrep;
-		let cmd: childProcess.ChildProcess;
 		let noSiblingsClauses: boolean;
 		let filePatternSeen = false;
 		if (useRipgrep) {
@@ -230,6 +233,7 @@ export class FileWalker {
 			cmd = this.spawnFindCmd(folderQuery);
 		}
 
+		process.on('exit', killCmd);
 		this.collectStdout(cmd, 'utf8', useRipgrep, (err: Error, stdout?: string, last?: boolean) => {
 			if (err) {
 				done(err);
