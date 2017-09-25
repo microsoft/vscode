@@ -8,7 +8,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { editorCommand, ServicesAccessor, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ICommonCodeEditor, IEditorContribution } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
@@ -72,7 +72,7 @@ export class CursorUndoController extends Disposable implements IEditorContribut
 				this._undoStack.push(this._prevState);
 				if (this._undoStack.length > 50) {
 					// keep the cursor undo stack bounded
-					this._undoStack = this._undoStack.splice(0, this._undoStack.length - 50);
+					this._undoStack.shift();
 				}
 			}
 
@@ -102,6 +102,7 @@ export class CursorUndoController extends Disposable implements IEditorContribut
 			if (!prevState.equals(currState)) {
 				this._isCursorUndo = true;
 				this._editor.setSelections(prevState.selections);
+				this._editor.revealRangeInCenterIfOutsideViewport(prevState.selections[0], ScrollType.Smooth);
 				this._isCursorUndo = false;
 				return;
 			}
