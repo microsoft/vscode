@@ -11,6 +11,7 @@ import * as resources from 'vs/base/common/resources';
 import * as strings from 'vs/base/common/strings';
 import { generateUuid } from 'vs/base/common/uuid';
 import uri from 'vs/base/common/uri';
+import * as platform from 'vs/base/common/platform';
 import { Action } from 'vs/base/common/actions';
 import { first, distinct } from 'vs/base/common/arrays';
 import { isObject, isUndefinedOrNull } from 'vs/base/common/types';
@@ -878,7 +879,8 @@ export class DebugService implements debug.IDebugService {
 				columnsStartAt1: true,
 				supportsVariableType: true, // #8858
 				supportsVariablePaging: true, // #9537
-				supportsRunInTerminalRequest: true // #10574
+				supportsRunInTerminalRequest: true, // #10574
+				locale: platform.locale
 			}).then((result: DebugProtocol.InitializeResponse) => {
 				this.model.setExceptionBreakpoints(session.capabilities.exceptionBreakpointFilters);
 				return configuration.request === 'attach' ? session.attach(configuration) : session.launch(configuration);
