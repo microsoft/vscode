@@ -153,7 +153,7 @@ export default class ErrorTelemetry {
 				  "column": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 			   }
 			 */
-			// __GDPR__TODO what's the complete set of properties?
+			// __GDPR__TODO__ what's the complete set of properties?
 			this._telemetryService.publicLog('UnhandledError', error);
 		}
 		this._buffer.length = 0;
