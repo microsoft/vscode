@@ -149,8 +149,10 @@ export class RipgrepEngine {
 			return firstLine;
 		}
 
-		if (strings.startsWith(firstLine, 'error parsing glob')) {
-			return firstLine;
+		if (strings.startsWith(firstLine, 'error parsing glob') ||
+			strings.startsWith(firstLine, 'unsupported encoding')) {
+			// Uppercase first letter
+			return firstLine.charAt(0).toUpperCase() + firstLine.substr(1);
 		}
 
 		return undefined;
