@@ -139,7 +139,7 @@ export default class URI {
 	 * invalid characters and semantics. Will *not* look at the scheme of this URI.
 	 */
 	get fsPath(): string {
-		throw new Error('not implemented');
+		return _makeFsPath(this);
 	}
 
 	// ---- modify to new -------------------------
@@ -261,7 +261,7 @@ export default class URI {
 	 * @param skipEncoding Do not encode the result, default is `false`
 	 */
 	public toString(skipEncoding: boolean = false): string {
-		throw new Error('not implemented');
+		return _asFormatted(this, skipEncoding);
 	}
 
 	public toJSON(): any {
@@ -308,119 +308,6 @@ export default class URI {
 	}
 }
 
-
-// tslint:disable-next-line:class-name
-class _URI extends URI {
-
-	_formatted: string = null;
-	_fsPath: string = null;
-
-	get fsPath(): string {
-		if (!this._fsPath) {
-			let value: string;
-			if (this.authority && this.path && this.scheme === 'file') {
-				// unc path: file://shares/c$/far/boo
-				value = `//${this.authority}${this.path}`;
-			} else if (_driveLetterPath.test(this.path)) {
-				// windows drive letter: file:///c:/far/boo
-				value = this.path[1].toLowerCase() + this.path.substr(2);
-			} else {
-				// other path
-				value = this.path;
-			}
-			if (platform.isWindows) {
-				value = value.replace(/\//g, '\\');
-			}
-			this._fsPath = value;
-		}
-		return this._fsPath;
-	}
-
-	public toString(skipEncoding: boolean = false): string {
-		if (!skipEncoding) {
-			if (!this._formatted) {
-				this._formatted = _URI._asFormatted(this, false);
-			}
-			return this._formatted;
-		} else {
-			// we don't cache that
-			return _URI._asFormatted(this, true);
-		}
-	}
-
-	private static _asFormatted(uri: URI, skipEncoding: boolean): string {
-
-		const encoder = !skipEncoding
-			? encodeURIComponent2
-			: encodeNoop;
-
-		const parts: string[] = [];
-
-		let { scheme, authority, path, query, fragment } = uri;
-		if (scheme) {
-			parts.push(scheme, ':');
-		}
-		if (authority || scheme === 'file') {
-			parts.push('//');
-		}
-		if (authority) {
-			let idx = authority.indexOf('@');
-			if (idx !== -1) {
-				const userinfo = authority.substr(0, idx);
-				authority = authority.substr(idx + 1);
-				idx = userinfo.indexOf(':');
-				if (idx === -1) {
-					parts.push(encoder(userinfo));
-				} else {
-					parts.push(encoder(userinfo.substr(0, idx)), ':', encoder(userinfo.substr(idx + 1)));
-				}
-				parts.push('@');
-			}
-			authority = authority.toLowerCase();
-			idx = authority.indexOf(':');
-			if (idx === -1) {
-				parts.push(encoder(authority));
-			} else {
-				parts.push(encoder(authority.substr(0, idx)), authority.substr(idx));
-			}
-		}
-		if (path) {
-			// lower-case windows drive letters in /C:/fff or C:/fff
-			const m = _upperCaseDrive.exec(path);
-			if (m) {
-				if (m[1]) {
-					path = '/' + m[2].toLowerCase() + path.substr(3); // "/c:".length === 3
-				} else {
-					path = m[2].toLowerCase() + path.substr(2); // // "c:".length === 2
-				}
-			}
-
-			// encode every segement but not slashes
-			// make sure that # and ? are always encoded
-			// when occurring in paths - otherwise the result
-			// cannot be parsed back again
-			let lastIdx = 0;
-			while (true) {
-				let idx = path.indexOf(_slash, lastIdx);
-				if (idx === -1) {
-					parts.push(encoder(path.substring(lastIdx)));
-					break;
-				}
-				parts.push(encoder(path.substring(lastIdx, idx)), _slash);
-				lastIdx = idx + 1;
-			};
-		}
-		if (query) {
-			parts.push('?', encoder(query));
-		}
-		if (fragment) {
-			parts.push('#', encoder(fragment));
-		}
-
-		return parts.join(_empty);
-	}
-}
-
 interface UriComponents {
 	scheme: string;
 	authority: string;
@@ -433,4 +320,130 @@ interface UriState extends UriComponents {
 	$mid: number;
 	fsPath: string;
 	external: string;
+}
+
+
+// tslint:disable-next-line:class-name
+class _URI extends URI {
+
+	_formatted: string = null;
+	_fsPath: string = null;
+
+	get fsPath(): string {
+		if (!this._fsPath) {
+			this._fsPath = _makeFsPath(this);
+		}
+		return this._fsPath;
+	}
+
+	public toString(skipEncoding: boolean = false): string {
+		if (!skipEncoding) {
+			if (!this._formatted) {
+				this._formatted = _asFormatted(this, false);
+			}
+			return this._formatted;
+		} else {
+			// we don't cache that
+			return _asFormatted(this, true);
+		}
+	}
+}
+
+
+/**
+ * Compute `fsPath` for the given uri
+ * @param uri
+ */
+function _makeFsPath(uri: URI): string {
+
+	let value: string;
+	if (uri.authority && uri.path && uri.scheme === 'file') {
+		// unc path: file://shares/c$/far/boo
+		value = `//${uri.authority}${uri.path}`;
+	} else if (_driveLetterPath.test(uri.path)) {
+		// windows drive letter: file:///c:/far/boo
+		value = uri.path[1].toLowerCase() + uri.path.substr(2);
+	} else {
+		// other path
+		value = uri.path;
+	}
+	if (platform.isWindows) {
+		value = value.replace(/\//g, '\\');
+	}
+	return value;
+}
+
+/**
+ * Create the external version of a uri
+ */
+function _asFormatted(uri: URI, skipEncoding: boolean): string {
+
+	const encoder = !skipEncoding
+		? encodeURIComponent2
+		: encodeNoop;
+
+	const parts: string[] = [];
+
+	let { scheme, authority, path, query, fragment } = uri;
+	if (scheme) {
+		parts.push(scheme, ':');
+	}
+	if (authority || scheme === 'file') {
+		parts.push('//');
+	}
+	if (authority) {
+		let idx = authority.indexOf('@');
+		if (idx !== -1) {
+			const userinfo = authority.substr(0, idx);
+			authority = authority.substr(idx + 1);
+			idx = userinfo.indexOf(':');
+			if (idx === -1) {
+				parts.push(encoder(userinfo));
+			} else {
+				parts.push(encoder(userinfo.substr(0, idx)), ':', encoder(userinfo.substr(idx + 1)));
+			}
+			parts.push('@');
+		}
+		authority = authority.toLowerCase();
+		idx = authority.indexOf(':');
+		if (idx === -1) {
+			parts.push(encoder(authority));
+		} else {
+			parts.push(encoder(authority.substr(0, idx)), authority.substr(idx));
+		}
+	}
+	if (path) {
+		// lower-case windows drive letters in /C:/fff or C:/fff
+		const m = _upperCaseDrive.exec(path);
+		if (m) {
+			if (m[1]) {
+				path = '/' + m[2].toLowerCase() + path.substr(3); // "/c:".length === 3
+			} else {
+				path = m[2].toLowerCase() + path.substr(2); // // "c:".length === 2
+			}
+		}
+
+		// encode every segement but not slashes
+		// make sure that # and ? are always encoded
+		// when occurring in paths - otherwise the result
+		// cannot be parsed back again
+		let lastIdx = 0;
+		while (true) {
+			let idx = path.indexOf(_slash, lastIdx);
+			if (idx === -1) {
+				parts.push(encoder(path.substring(lastIdx)));
+				break;
+			}
+			parts.push(encoder(path.substring(lastIdx, idx)), _slash);
+			lastIdx = idx + 1;
+		};
+	}
+	if (query) {
+		parts.push('?', encoder(query));
+	}
+	if (fragment) {
+		parts.push('#', encoder(fragment));
+	}
+
+	return parts.join(_empty);
 }
