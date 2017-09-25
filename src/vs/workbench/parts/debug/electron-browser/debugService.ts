@@ -49,8 +49,9 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ILogEntry, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL, EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL, EXTENSION_RELOAD_BROADCAST_CHANNEL } from 'vs/platform/extensions/common/extensionHost';
+import { EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL, EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL, EXTENSION_RELOAD_BROADCAST_CHANNEL } from 'vs/platform/extensions/common/extensionHost';
 import { IBroadcastService, IBroadcast } from 'vs/platform/broadcast/electron-browser/broadcastService';
+import { IRemoteConsoleLog, parse } from 'vs/base/node/console';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
@@ -163,16 +164,10 @@ export class DebugService implements debug.IDebugService {
 
 		// an extension logged output, show it inside the REPL
 		if (broadcast.channel === EXTENSION_LOG_BROADCAST_CHANNEL) {
-			let extensionOutput: ILogEntry = broadcast.payload.logEntry;
+			let extensionOutput: IRemoteConsoleLog = broadcast.payload.logEntry;
 			let sev = extensionOutput.severity === 'warn' ? severity.Warning : extensionOutput.severity === 'error' ? severity.Error : severity.Info;
 
-			let args: any[] = [];
-			try {
-				let parsed = JSON.parse(extensionOutput.arguments);
-				args.push(...Object.getOwnPropertyNames(parsed).map(o => parsed[o]));
-			} catch (error) {
-				args.push(extensionOutput.arguments);
-			}
+			const { args } = parse(extensionOutput);
 
 			// add output for each argument logged
 			let simpleVals: any[] = [];
