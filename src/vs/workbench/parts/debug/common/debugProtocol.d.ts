@@ -178,7 +178,7 @@ declare module DebugProtocol {
 		// event: 'breakpoint';
 		body: {
 			/** The reason for the event.
-				Values: 'changed', 'new', etc.
+				Values: 'changed', 'new', 'removed', etc.
 			*/
 			reason: string;
 			/** The breakpoint. */
@@ -283,6 +283,8 @@ declare module DebugProtocol {
 		clientID?: string;
 		/** The ID of the debug adapter. */
 		adapterID: string;
+		/** The ISO-639 locale of the (frontend) client using this adapter, e.g. en-US or de-CH. */
+		locale?: string;
 		/** If true all line numbers are 1-based (default). */
 		linesStartAt1?: boolean;
 		/** If true all column numbers are 1-based (default). */
