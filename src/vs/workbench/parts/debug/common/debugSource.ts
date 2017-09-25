@@ -13,14 +13,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 
 const UNKNOWN_SOURCE_LABEL = nls.localize('unknownSource', "Unknown Source");
 
-export interface ISource {
-	readonly uri: uri;
-	name: string;
-
-	openInEditor(editorService: IWorkbenchEditorService, selection: IRange, preserveFocus?: boolean, sideBySide?: boolean): TPromise<any>;
-}
-
-export class Source implements ISource {
+export class Source {
 
 	public readonly uri: uri;
 	public available: boolean;

@@ -14,7 +14,7 @@ import { IModel as EditorIModel, IEditorContribution } from 'vs/editor/common/ed
 import { IEditor } from 'vs/platform/editor/common/editor';
 import { Position } from 'vs/editor/common/core/position';
 import { ISuggestion } from 'vs/editor/common/modes';
-import { Source, ISource } from 'vs/workbench/parts/debug/common/debugSource';
+import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -77,7 +77,7 @@ export interface IReplElement extends ITreeElement {
 }
 
 export interface IReplElementSource {
-	source: ISource;
+	source: Source;
 	lineNumber: number;
 	column: number;
 }
