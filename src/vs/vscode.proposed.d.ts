@@ -9,80 +9,293 @@ declare module 'vscode' {
 
 	export namespace window {
 
-		export function sampleFunction(): Thenable<any>;
+		/**
+		 * Shows a selection list of [workspace folders](#workspace.workspaceFolders) to pick from.
+		 * Returns `undefined` if no folder is open.
+		 *
+		 * @param options Configures the behavior of the workspace folder list.
+		 * @return A promise that resolves to the workspace folder or `undefined`.
+		 */
+		export function showWorkspaceFolderPick(options?: WorkspaceFolderPickOptions): Thenable<WorkspaceFolder | undefined>;
+	}
+
+	/**
+	 * Options to configure the behaviour of the [workspace folder](#WorkspaceFolder) pick UI.
+	 */
+	export interface WorkspaceFolderPickOptions {
+
+		/**
+		 * An optional string to show as place holder in the input box to guide the user what to pick on.
+		 */
+		placeHolder?: string;
+
+		/**
+		 * Set to `true` to keep the picker open when focus moves to another part of the editor or to another window.
+		 */
+		ignoreFocusOut?: boolean;
+	}
+
+
+	// export enum FileErrorCodes {
+	// 	/**
+	// 	 * Not owner.
+	// 	 */
+	// 	EPERM = 1,
+	// 	/**
+	// 	 * No such file or directory.
+	// 	 */
+	// 	ENOENT = 2,
+	// 	/**
+	// 	 * I/O error.
+	// 	 */
+	// 	EIO = 5,
+	// 	/**
+	// 	 * Permission denied.
+	// 	 */
+	// 	EACCES = 13,
+	// 	/**
+	// 	 * File exists.
+	// 	 */
+	// 	EEXIST = 17,
+	// 	/**
+	// 	 * Not a directory.
+	// 	 */
+	// 	ENOTDIR = 20,
+	// 	/**
+	// 	 * Is a directory.
+	// 	 */
+	// 	EISDIR = 21,
+	// 	/**
+	// 	 *  File too large.
+	// 	 */
+	// 	EFBIG = 27,
+	// 	/**
+	// 	 * No space left on device.
+	// 	 */
+	// 	ENOSPC = 28,
+	// 	/**
+	// 	 * Directory is not empty.
+	// 	 */
+	// 	ENOTEMPTY = 66,
+	// 	/**
+	// 	 * Invalid file handle.
+	// 	 */
+	// 	ESTALE = 70,
+	// 	/**
+	// 	 * Illegal NFS file handle.
+	// 	 */
+	// 	EBADHANDLE = 10001,
+	// }
+
+	export enum FileChangeType {
+		Updated = 0,
+		Added = 1,
+		Deleted = 2
+	}
+
+	export interface FileChange {
+		type: FileChangeType;
+		resource: Uri;
+	}
+
+	export enum FileType {
+		File = 0,
+		Dir = 1,
+		Symlink = 2
+	}
+
+	export interface FileStat {
+		id: number | string;
+		mtime: number;
+		// atime: number;
+		size: number;
+		type: FileType;
+	}
+
+	// todo@joh discover files etc
+	export interface FileSystemProvider {
+
+		onDidChange?: Event<FileChange[]>;
+
+		root: Uri;
+
+		// more...
+		//
+		utimes(resource: Uri, mtime: number, atime: number): Thenable<FileStat>;
+
+		stat(resource: Uri): Thenable<FileStat>;
+
+		read(resource: Uri, offset: number, length: number, progress: Progress<Uint8Array>): Thenable<number>;
+
+		// todo@remote
+		// offset - byte offset to start
+		// count - number of bytes to write
+		// Thenable<number> - number of bytes actually written
+		write(resource: Uri, content: Uint8Array): Thenable<void>;
+
+		// todo@remote
+		// Thenable<FileStat>
+		move(resource: Uri, target: Uri): Thenable<FileStat>;
+
+		// todo@remote
+		// helps with performance bigly
+		// copy?(from: Uri, to: Uri): Thenable<void>;
+
+		// todo@remote
+		// Thenable<FileStat>
+		mkdir(resource: Uri): Thenable<FileStat>;
+
+		readdir(resource: Uri): Thenable<[Uri, FileStat][]>;
+
+		// todo@remote
+		// ? merge both
+		// ? recursive del
+		rmdir(resource: Uri): Thenable<void>;
+		unlink(resource: Uri): Thenable<void>;
+
+		// todo@remote
+		// create(resource: Uri): Thenable<FileStat>;
+	}
+
+	export namespace workspace {
+		export function registerFileSystemProvider(authority: string, provider: FileSystemProvider): Disposable;
 	}
 
 	export namespace window {
 
-		/**
-		 * Register a [TreeExplorerNodeProvider](#TreeExplorerNodeProvider).
-		 *
-		 * @param providerId A unique id that identifies the provider.
-		 * @param provider A [TreeExplorerNodeProvider](#TreeExplorerNodeProvider).
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
-		 */
-		export function registerTreeExplorerNodeProvider(providerId: string, provider: TreeExplorerNodeProvider<any>): Disposable;
+		export function sampleFunction(): Thenable<any>;
 	}
 
 	/**
-	 * A node provider for a tree explorer contribution.
-	 *
-	 * Providers are registered through (#workspace.registerTreeExplorerNodeProvider) with a
-	 * `providerId` that corresponds to the `treeExplorerNodeProviderId` in the extension's
-	 * `contributes.explorer` section.
-	 *
-	 * The contributed tree explorer will ask the corresponding provider to provide the root
-	 * node and resolve children for each node. In addition, the provider could **optionally**
-	 * provide the following information for each node:
-	 * - label: A human-readable label used for rendering the node.
-	 * - hasChildren: Whether the node has children and is expandable.
-	 * - clickCommand: A command to execute when the node is clicked.
+	 * The contiguous set of modified lines in a diff.
 	 */
-	export interface TreeExplorerNodeProvider<T> {
+	export interface LineChange {
+		readonly originalStartLineNumber: number;
+		readonly originalEndLineNumber: number;
+		readonly modifiedStartLineNumber: number;
+		readonly modifiedEndLineNumber: number;
+	}
+
+	export namespace commands {
 
 		/**
-		 * Provide the root node. This function will be called when the tree explorer is activated
-		 * for the first time. The root node is hidden and its direct children will be displayed on the first level of
-		 * the tree explorer.
+		 * Registers a diff information command that can be invoked via a keyboard shortcut,
+		 * a menu item, an action, or directly.
 		 *
-		 * @return The root node.
+		 * Diff information commands are different from ordinary [commands](#commands.registerCommand) as
+		 * they only execute when there is an active diff editor when the command is called, and the diff
+		 * information has been computed. Also, the command handler of an editor command has access to
+		 * the diff information.
+		 *
+		 * @param command A unique identifier for the command.
+		 * @param callback A command handler function with access to the [diff information](#LineChange).
+		 * @param thisArg The `this` context used when invoking the handler function.
+		 * @return Disposable which unregisters this command on disposal.
 		 */
-		provideRootNode(): T | Thenable<T>;
+		export function registerDiffInformationCommand(command: string, callback: (diff: LineChange[], ...args: any[]) => any, thisArg?: any): Disposable;
+	}
+
+	/**
+	 * Represents a color in RGBA space.
+	 */
+	export class Color {
 
 		/**
-		 * Resolve the children of `node`.
-		 *
-		 * @param node The node from which the provider resolves children.
-		 * @return Children of `node`.
+		 * The red component of this color in the range [0-1].
 		 */
-		resolveChildren(node: T): T[] | Thenable<T[]>;
+		readonly red: number;
 
 		/**
-		 * Provide a human-readable string that will be used for rendering the node. Default to use
-		 * `node.toString()` if not provided.
-		 *
-		 * @param node The node from which the provider computes label.
-		 * @return A human-readable label.
+		 * The green component of this color in the range [0-1].
 		 */
-		getLabel?(node: T): string;
+		readonly green: number;
 
 		/**
-		 * Determine if `node` has children and is expandable. Default to `true` if not provided.
-		 *
-		 * @param node The node to determine if it has children and is expandable.
-		 * @return A boolean that determines if `node` has children and is expandable.
+		 * The blue component of this color in the range [0-1].
 		 */
-		getHasChildren?(node: T): boolean;
+		readonly blue: number;
 
 		/**
-		 * Get the command to execute when `node` is clicked.
-		 *
-		 * Commands can be registered through [registerCommand](#commands.registerCommand). `node` will be provided
-		 * as the first argument to the command's callback function.
-		 *
-		 * @param node The node that the command is associated with.
-		 * @return The command to execute when `node` is clicked.
+		 * The alpha component of this color in the range [0-1].
 		 */
-		getClickCommand?(node: T): string;
+		readonly alpha: number;
+
+		constructor(red: number, green: number, blue: number, alpha: number);
+	}
+
+	/**
+	 * Represents a color range from a document.
+	 */
+	export class ColorInformation {
+
+		/**
+		 * The range in the document where this color appers.
+		 */
+		range: Range;
+
+		/**
+		 * The actual color value for this color range.
+		 */
+		color: Color;
+
+		/**
+		 * Creates a new color range.
+		 *
+		 * @param range The range the color appears in. Must not be empty.
+		 * @param color The value of the color.
+		 * @param format The format in which this color is currently formatted.
+		 */
+		constructor(range: Range, color: Color);
+	}
+
+	export class ColorPresentation {
+		/**
+		 * The label of this color presentation. It will be shown on the color
+		 * picker header. By default this is also the text that is inserted when selecting
+		 * this color presentation.
+		 */
+		label: string;
+		/**
+		 * An [edit](#TextEdit) which is applied to a document when selecting
+		 * this presentation for the color.  When `falsy` the [label](#ColorPresentation.label)
+		 * is used.
+		 */
+		textEdit?: TextEdit;
+		/**
+		 * An optional array of additional [text edits](#TextEdit) that are applied when
+		 * selecting this color presentation. Edits must not overlap with the main [edit](#ColorPresentation.textEdit) nor with themselves.
+		 */
+		additionalTextEdits?: TextEdit[];
+
+		/**
+		 * Creates a new color presentation.
+		 *
+		 * @param label The label of this color presentation.
+		 */
+		constructor(label: string);
+	}
+
+	/**
+	 * The document color provider defines the contract between extensions and feature of
+	 * picking and modifying colors in the editor.
+	 */
+	export interface DocumentColorProvider {
+		/**
+		 * Provide colors for the given document.
+		 *
+		 * @param document The document in which the command was invoked.
+		 * @param token A cancellation token.
+		 * @return An array of [color informations](#ColorInformation) or a thenable that resolves to such. The lack of a result
+		 * can be signaled by returning `undefined`, `null`, or an empty array.
+		 */
+		provideDocumentColors(document: TextDocument, token: CancellationToken): ProviderResult<ColorInformation[]>;
+		/**
+		 * Provide representations for a color.
+		 */
+		provideColorPresentations(document: TextDocument, colorInfo: ColorInformation, token: CancellationToken): ProviderResult<ColorPresentation[]>;
+	}
+
+	export namespace languages {
+		export function registerColorProvider(selector: DocumentSelector, provider: DocumentColorProvider): Disposable;
 	}
 }

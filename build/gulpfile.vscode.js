@@ -7,6 +7,8 @@
 
 const gulp = require('gulp');
 const fs = require('fs');
+const os = require('os');
+const cp = require('child_process');
 const path = require('path');
 const es = require('event-stream');
 const azure = require('gulp-azure-storage');
@@ -29,8 +31,12 @@ const packageJson = require('../package.json');
 const product = require('../product.json');
 const shrinkwrap = require('../npm-shrinkwrap.json');
 const crypto = require('crypto');
+const i18n = require('./lib/i18n');
+const glob = require('glob');
 
-const dependencies = Object.keys(shrinkwrap.dependencies);
+const productDependencies = Object.keys(product.dependencies || {});
+const dependencies = Object.keys(shrinkwrap.dependencies)
+	.concat(productDependencies); // additional dependencies from our product configuration
 const baseModules = Object.keys(process.binding('natives')).filter(n => !/^_|\//.test(n));
 const nodeModules = ['electron', 'original-fs']
 	.concat(dependencies)
@@ -39,12 +45,17 @@ const nodeModules = ['electron', 'original-fs']
 // Build
 
 const builtInExtensions = [
-	{ name: 'ms-vscode.node-debug', version: '1.8.1' },
-	{ name: 'ms-vscode.node-debug2', version: '1.8.1' }
+	{ name: 'ms-vscode.node-debug', version: '1.17.11' },
+	{ name: 'ms-vscode.node-debug2', version: '1.17.4' }
+];
+
+const excludedExtensions = [
+	'vscode-api-tests',
+	'vscode-colorize-tests'
 ];
 
 const vscodeEntryPoints = _.flatten([
-	buildfile.entrypoint('vs/workbench/electron-browser/workbench.main'),
+	buildfile.entrypoint('vs/workbench/workbench.main'),
 	buildfile.base,
 	buildfile.workbench,
 	buildfile.code
@@ -56,21 +67,22 @@ const vscodeResources = [
 	'out-build/bootstrap.js',
 	'out-build/bootstrap-amd.js',
 	'out-build/paths.js',
-	'out-build/vs/**/*.{svg,png,cur}',
+	'out-build/vs/**/*.{svg,png,cur,html}',
+	'out-build/vs/base/node/startupTimers.js',
 	'out-build/vs/base/node/{stdForkStart.js,terminateProcess.sh}',
 	'out-build/vs/base/browser/ui/octiconLabel/octicons/**',
 	'out-build/vs/workbench/browser/media/*-theme.css',
 	'out-build/vs/workbench/electron-browser/bootstrap/**',
 	'out-build/vs/workbench/parts/debug/**/*.json',
 	'out-build/vs/workbench/parts/execution/**/*.scpt',
-	'out-build/vs/workbench/parts/git/**/*.html',
-	'out-build/vs/workbench/parts/git/**/*.sh',
-	'out-build/vs/workbench/parts/html/browser/webview.html',
+	'out-build/vs/workbench/parts/html/browser/webview-pre.js',
 	'out-build/vs/**/markdown.css',
 	'out-build/vs/workbench/parts/tasks/**/*.json',
 	'out-build/vs/workbench/parts/terminal/electron-browser/terminalProcess.js',
+	'out-build/vs/workbench/parts/welcome/walkThrough/**/*.md',
 	'out-build/vs/workbench/services/files/**/*.exe',
 	'out-build/vs/workbench/services/files/**/*.md',
+	'out-build/vs/code/electron-browser/sharedProcess.js',
 	'!**/test/**'
 ];
 
@@ -80,6 +92,11 @@ const BUNDLED_FILE_HEADER = [
 	' *--------------------------------------------------------*/'
 ].join('\n');
 
+var languages = ['chs', 'cht', 'jpn', 'kor', 'deu', 'fra', 'esn', 'rus', 'ita'];
+if (process.env.VSCODE_QUALITY !== 'stable') {
+	languages = languages.concat(['ptb', 'hun', 'trk']); // Add languages requested by the community to non-stable builds
+}
+
 gulp.task('clean-optimized-vscode', util.rimraf('out-vscode'));
 gulp.task('optimize-vscode', ['clean-optimized-vscode', 'compile-build', 'compile-extensions-build'], common.optimizeTask({
 	entryPoints: vscodeEntryPoints,
@@ -87,12 +104,21 @@ gulp.task('optimize-vscode', ['clean-optimized-vscode', 'compile-build', 'compil
 	resources: vscodeResources,
 	loaderConfig: common.loaderConfig(nodeModules),
 	header: BUNDLED_FILE_HEADER,
-	out: 'out-vscode'
+	out: 'out-vscode',
+	languages: languages
 }));
+
+
+gulp.task('optimize-index-js', ['optimize-vscode'], () => {
+	const fullpath = path.join(process.cwd(), 'out-vscode/vs/workbench/electron-browser/bootstrap/index.js');
+	const contents = fs.readFileSync(fullpath).toString();
+	const newContents = contents.replace('[/*BUILD->INSERT_NODE_MODULES*/]', JSON.stringify(nodeModules));
+	fs.writeFileSync(fullpath, newContents);
+});
 
 const baseUrl = `https://ticino.blob.core.windows.net/sourcemaps/${commit}/core`;
 gulp.task('clean-minified-vscode', util.rimraf('out-vscode-min'));
-gulp.task('minify-vscode', ['clean-minified-vscode', 'optimize-vscode'], common.minifyTask('out-vscode', baseUrl));
+gulp.task('minify-vscode', ['clean-minified-vscode', 'optimize-index-js'], common.minifyTask('out-vscode', baseUrl));
 
 // Package
 const darwinCreditsTemplate = product.darwinCredits && _.template(fs.readFileSync(path.join(root, product.darwinCredits), 'utf8'));
@@ -101,15 +127,17 @@ const config = {
 	version: packageJson.electronVersion,
 	productAppName: product.nameLong,
 	companyName: 'Microsoft Corporation',
-	copyright: 'Copyright (C) 2016 Microsoft. All rights reserved',
+	copyright: 'Copyright (C) 2017 Microsoft. All rights reserved',
 	darwinIcon: 'resources/darwin/code.icns',
 	darwinBundleIdentifier: product.darwinBundleIdentifier,
 	darwinApplicationCategoryType: 'public.app-category.developer-tools',
+	darwinHelpBookFolder: 'VS Code HelpBook',
+	darwinHelpBookName: 'VS Code HelpBook',
 	darwinBundleDocumentTypes: [{
 		name: product.nameLong + ' document',
 		role: 'Editor',
 		ostypes: ["TEXT", "utxt", "TUTX", "****"],
-		extensions: ["ascx", "asp", "aspx", "bash", "bash_login", "bash_logout", "bash_profile", "bashrc", "bat", "bowerrc", "c", "cc", "clj", "cljs", "cljx", "clojure", "cmd", "coffee", "config", "cpp", "cs", "cshtml", "csproj", "css", "csx", "ctp", "cxx", "dockerfile", "dot", "dtd", "editorconfig", "edn", "eyaml", "eyml", "fs", "fsi", "fsscript", "fsx", "gemspec", "gitattributes", "gitconfig", "gitignore", "go", "h", "handlebars", "hbs", "hh", "hpp", "htm", "html", "hxx", "ini", "jade", "jav", "java", "js", "jscsrc", "jshintrc", "jshtm", "json", "jsp", "less", "lua", "m", "makefile", "markdown", "md", "mdoc", "mdown", "mdtext", "mdtxt", "mdwn", "mkd", "mkdn", "ml", "mli", "php", "phtml", "pl", "pl6", "pm", "pm6", "pod", "pp", "profile", "properties", "ps1", "psd1", "psgi", "psm1", "py", "r", "rb", "rhistory", "rprofile", "rs", "rt", "scss", "sh", "shtml", "sql", "svg", "svgz", "t", "ts", "txt", "vb", "wxi", "wxl", "wxs", "xaml", "xml", "yaml", "yml", "zlogin", "zlogout", "zprofile", "zsh", "zshenv", "zshrc"],
+		extensions: ["ascx", "asp", "aspx", "bash", "bash_login", "bash_logout", "bash_profile", "bashrc", "bat", "bowerrc", "c", "cc", "clj", "cljs", "cljx", "clojure", "cmd", "code-workspace", "coffee", "config", "cpp", "cs", "cshtml", "csproj", "css", "csx", "ctp", "cxx", "dockerfile", "dot", "dtd", "editorconfig", "edn", "eyaml", "eyml", "fs", "fsi", "fsscript", "fsx", "gemspec", "gitattributes", "gitconfig", "gitignore", "go", "h", "handlebars", "hbs", "hh", "hpp", "htm", "html", "hxx", "ini", "jade", "jav", "java", "js", "jscsrc", "jshintrc", "jshtm", "json", "jsp", "less", "lua", "m", "makefile", "markdown", "md", "mdoc", "mdown", "mdtext", "mdtxt", "mdwn", "mkd", "mkdn", "ml", "mli", "php", "phtml", "pl", "pl6", "pm", "pm6", "pod", "pp", "profile", "properties", "ps1", "psd1", "psgi", "psm1", "py", "r", "rb", "rhistory", "rprofile", "rs", "rt", "scss", "sh", "shtml", "sql", "svg", "svgz", "t", "ts", "txt", "vb", "wxi", "wxl", "wxs", "xaml", "xcodeproj", "xcworkspace", "xml", "yaml", "yml", "zlogin", "zlogout", "zprofile", "zsh", "zshenv", "zshrc"],
 		iconFile: 'resources/darwin/code_file.icns'
 	}],
 	darwinBundleURLTypes: [{
@@ -120,25 +148,32 @@ const config = {
 	darwinCredits: darwinCreditsTemplate ? new Buffer(darwinCreditsTemplate({ commit: commit, date: new Date().toISOString() })) : void 0,
 	linuxExecutableName: product.applicationName,
 	winIcon: 'resources/win32/code.ico',
-	token: process.env['GITHUB_TOKEN'] || void 0
+	token: process.env['VSCODE_MIXIN_PASSWORD'] || process.env['GITHUB_TOKEN'] || void 0,
+	repo: product.electronRepository || void 0
 };
 
+function getElectron(arch) {
+	return () => {
+		const electronOpts = _.extend({}, config, {
+			platform: process.platform,
+			arch,
+			ffmpegChromium: true,
+			keepDefaultApp: true
+		});
+
+		return gulp.src('package.json')
+			.pipe(json({ name: product.nameShort }))
+			.pipe(electron(electronOpts))
+			.pipe(filter(['**', '!**/app/package.json']))
+			.pipe(vfs.dest('.build/electron'));
+	};
+}
+
 gulp.task('clean-electron', util.rimraf('.build/electron'));
+gulp.task('electron', ['clean-electron'], getElectron(process.arch));
+gulp.task('electron-ia32', ['clean-electron'], getElectron('ia32'));
+gulp.task('electron-x64', ['clean-electron'], getElectron('x64'));
 
-gulp.task('electron', ['clean-electron'], () => {
-	const platform = process.platform;
-	const arch = process.env.VSCODE_ELECTRON_PLATFORM || (platform === 'win32' ? 'ia32' : process.arch);
-	const opts = _.extend({}, config, { platform, arch, ffmpegChromium: true, keepDefaultApp: true });
-	const name = product.nameShort;
-
-	return gulp.src('package.json')
-		.pipe(json({ name }))
-		.pipe(electron(opts))
-		.pipe(filter(['**', '!**/app/package.json']))
-		.pipe(vfs.dest('.build/electron'));
-});
-
-const languages = ['chs', 'cht', 'jpn', 'kor', 'deu', 'fra', 'esn', 'rus', 'ita'];
 
 /**
  * Compute checksums for some files.
@@ -179,54 +214,52 @@ function packageTask(platform, arch, opts) {
 
 	const destination = path.join(path.dirname(root), 'VSCode') + (platform ? '-' + platform : '') + (arch ? '-' + arch : '');
 	platform = platform || process.platform;
-	arch = platform === 'win32' ? 'ia32' : arch;
 
 	return () => {
 		const out = opts.minified ? 'out-vscode-min' : 'out-vscode';
 
 		const checksums = computeChecksums(out, [
-			'vs/workbench/electron-browser/workbench.main.js',
-			'vs/workbench/electron-browser/workbench.main.css',
+			'vs/workbench/workbench.main.js',
+			'vs/workbench/workbench.main.css',
 			'vs/workbench/electron-browser/bootstrap/index.html',
-			'vs/workbench/electron-browser/bootstrap/index.js'
+			'vs/workbench/electron-browser/bootstrap/index.js',
+			'vs/workbench/electron-browser/bootstrap/preload.js'
 		]);
 
 		const src = gulp.src(out + '/**', { base: '.' })
-			.pipe(rename(function (path) { path.dirname = path.dirname.replace(new RegExp('^' + out), 'out'); }))
-			.pipe(util.setExecutableBit(['**/*.sh']));
+			.pipe(rename(function (path) { path.dirname = path.dirname.replace(new RegExp('^' + out), 'out'); }));
 
-		const extensionsList = [
-			'extensions/*/**',
-			'!extensions/*/src/**',
-			'!extensions/*/out/**/test/**',
-			'!extensions/*/test/**',
-			'!extensions/*/build/**',
-			'!extensions/*/{client,server}/src/**',
-			'!extensions/*/{client,server}/test/**',
-			'!extensions/*/{client,server}/out/**/test/**',
-			'!extensions/*/{client,server}/out/**/typings/**',
-			'!extensions/**/.vscode/**',
-			'!extensions/**/tsconfig.json',
-			'!extensions/typescript/bin/**',
-			'!extensions/vscode-api-tests/**',
-			'!extensions/vscode-colorize-tests/**',
-			...builtInExtensions.map(e => `!extensions/${e.name}/**`)
-		];
+		const root = path.resolve(path.join(__dirname, '..'));
+		const localExtensionDescriptions = glob.sync('extensions/*/package.json')
+			.map(manifestPath => {
+				const extensionPath = path.dirname(path.join(root, manifestPath));
+				const extensionName = path.basename(extensionPath);
+				return { name: extensionName, path: extensionPath };
+			})
+			.filter(({ name }) => excludedExtensions.indexOf(name) === -1)
+			.filter(({ name }) => builtInExtensions.every(b => b.name !== name));
 
-		const nlsFilter = filter('**/*.nls.json', { restore: true });
-		const extensions = gulp.src(extensionsList, { base: '.' })
-			// TODO@Dirk: this filter / buffer is here to make sure the nls.json files are buffered
-			.pipe(nlsFilter)
-			.pipe(buffer())
-			.pipe(nlsDev.createAdditionalLanguageFiles(languages, path.join(__dirname, '..', 'i18n')))
-			.pipe(nlsFilter.restore);
+		const localExtensions = es.merge(...localExtensionDescriptions.map(extension => {
+			const nlsFilter = filter('**/*.nls.json', { restore: true });
+
+			return ext.fromLocal(extension.path)
+				.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`))
+				// 	// TODO@Dirk: this filter / buffer is here to make sure the nls.json files are buffered
+				.pipe(nlsFilter)
+				.pipe(buffer())
+				.pipe(nlsDev.createAdditionalLanguageFiles(languages, path.join(__dirname, '..', 'i18n')))
+				.pipe(nlsFilter.restore);
+		}));
+
+		const localExtensionDependencies = gulp.src('extensions/node_modules/**', { base: '.' });
 
 		const marketplaceExtensions = es.merge(...builtInExtensions.map(extension => {
-			return ext.src(extension.name, extension.version)
+			return ext.fromMarketplace(extension.name, extension.version)
 				.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
 		}));
 
-		const sources = es.merge(src, extensions, marketplaceExtensions)
+		const sources = es.merge(src, localExtensions, localExtensionDependencies, marketplaceExtensions)
+			.pipe(util.setExecutableBit(['**/*.sh']))
 			.pipe(filter(['**', '!**/*.js.map']));
 
 		let version = packageJson.version;
@@ -246,6 +279,8 @@ function packageTask(platform, arch, opts) {
 
 		const license = gulp.src(['LICENSES.chromium.html', 'LICENSE.txt', 'ThirdPartyNotices.txt', 'licenses/**'], { base: '.' });
 
+		const watermark = gulp.src(['resources/letterpress.svg', 'resources/letterpress-dark.svg', 'resources/letterpress-hc.svg'], { base: '.' });
+
 		// TODO the API should be copied to `out` during compile, not here
 		const api = gulp.src('src/vs/vscode.d.ts').pipe(rename('out/vs/vscode.d.ts'));
 
@@ -253,25 +288,33 @@ function packageTask(platform, arch, opts) {
 			.map(function (d) { return ['node_modules/' + d + '/**', '!node_modules/' + d + '/**/{test,tests}/**']; }));
 
 		const deps = gulp.src(depsSrc, { base: '.', dot: true })
+			.pipe(filter(['**', '!**/package-lock.json']))
 			.pipe(util.cleanNodeModule('fsevents', ['binding.gyp', 'fsevents.cc', 'build/**', 'src/**', 'test/**'], ['**/*.node']))
-			.pipe(util.cleanNodeModule('oniguruma', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node']))
+			.pipe(util.cleanNodeModule('oniguruma', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node', 'src/*.js']))
 			.pipe(util.cleanNodeModule('windows-mutex', ['binding.gyp', 'build/**', 'src/**'], ['**/*.node']))
 			.pipe(util.cleanNodeModule('native-keymap', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node']))
+			.pipe(util.cleanNodeModule('native-watchdog', ['binding.gyp', 'build/**', 'src/**'], ['**/*.node']))
+			.pipe(util.cleanNodeModule('jschardet', ['dist/**']))
 			.pipe(util.cleanNodeModule('windows-foreground-love', ['binding.gyp', 'build/**', 'src/**'], ['**/*.node']))
+			.pipe(util.cleanNodeModule('windows-process-tree', ['binding.gyp', 'build/**', 'src/**'], ['**/*.node']))
 			.pipe(util.cleanNodeModule('gc-signals', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node', 'src/index.js']))
-			.pipe(util.cleanNodeModule('pty.js', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['build/Release/**']));
+			.pipe(util.cleanNodeModule('v8-profiler', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node', 'src/index.js']))
+			.pipe(util.cleanNodeModule('node-pty', ['binding.gyp', 'build/**', 'src/**', 'tools/**'], ['build/Release/**']))
+			.pipe(util.cleanNodeModule('nsfw', ['binding.gyp', 'build/**', 'src/**', 'openpa/**', 'includes/**'], ['**/*.node', '**/*.a']))
+			.pipe(util.cleanNodeModule('vsda', ['binding.gyp', 'README.md', 'build/**', '*.bat', '*.sh', '*.cpp', '*.h'], ['build/Release/vsda.node']));
 
 		let all = es.merge(
 			packageJsonStream,
 			productJsonStream,
 			license,
+			watermark,
 			api,
 			sources,
 			deps
 		);
 
 		if (platform === 'win32') {
-			all = es.merge(all, gulp.src('resources/win32/code_file.ico', { base: '.' }));
+			all = es.merge(all, gulp.src(['resources/win32/code_file.ico', 'resources/win32/code_70x70.png', 'resources/win32/code_150x150.png'], { base: '.' }));
 		} else if (platform === 'linux') {
 			all = es.merge(all, gulp.src('resources/linux/code.png', { base: '.' }));
 		} else if (platform === 'darwin') {
@@ -297,6 +340,9 @@ function packageTask(platform, arch, opts) {
 			result = es.merge(result, gulp.src('resources/win32/bin/code.sh', { base: 'resources/win32' })
 				.pipe(replace('@@NAME@@', product.nameShort))
 				.pipe(rename(function (f) { f.basename = product.applicationName; f.extname = ''; })));
+
+			result = es.merge(result, gulp.src('resources/win32/VisualElementsManifest.xml', { base: 'resources/win32' })
+				.pipe(rename(product.nameShort + '.VisualElementsManifest.xml')));
 		} else if (platform === 'linux') {
 			result = es.merge(result, gulp.src('resources/linux/bin/code.sh', { base: '.' })
 				.pipe(replace('@@NAME@@', product.applicationName))
@@ -309,23 +355,76 @@ function packageTask(platform, arch, opts) {
 
 const buildRoot = path.dirname(root);
 
-gulp.task('clean-vscode-win32', util.rimraf(path.join(buildRoot, 'VSCode-win32')));
+gulp.task('clean-vscode-win32-ia32', util.rimraf(path.join(buildRoot, 'VSCode-win32-ia32')));
+gulp.task('clean-vscode-win32-x64', util.rimraf(path.join(buildRoot, 'VSCode-win32-x64')));
 gulp.task('clean-vscode-darwin', util.rimraf(path.join(buildRoot, 'VSCode-darwin')));
 gulp.task('clean-vscode-linux-ia32', util.rimraf(path.join(buildRoot, 'VSCode-linux-ia32')));
 gulp.task('clean-vscode-linux-x64', util.rimraf(path.join(buildRoot, 'VSCode-linux-x64')));
 gulp.task('clean-vscode-linux-arm', util.rimraf(path.join(buildRoot, 'VSCode-linux-arm')));
 
-gulp.task('vscode-win32', ['optimize-vscode', 'clean-vscode-win32'], packageTask('win32'));
+gulp.task('vscode-win32-ia32', ['optimize-vscode', 'clean-vscode-win32-ia32'], packageTask('win32', 'ia32'));
+gulp.task('vscode-win32-x64', ['optimize-vscode', 'clean-vscode-win32-x64'], packageTask('win32', 'x64'));
 gulp.task('vscode-darwin', ['optimize-vscode', 'clean-vscode-darwin'], packageTask('darwin'));
 gulp.task('vscode-linux-ia32', ['optimize-vscode', 'clean-vscode-linux-ia32'], packageTask('linux', 'ia32'));
 gulp.task('vscode-linux-x64', ['optimize-vscode', 'clean-vscode-linux-x64'], packageTask('linux', 'x64'));
 gulp.task('vscode-linux-arm', ['optimize-vscode', 'clean-vscode-linux-arm'], packageTask('linux', 'arm'));
 
-gulp.task('vscode-win32-min', ['minify-vscode', 'clean-vscode-win32'], packageTask('win32', null, { minified: true }));
+gulp.task('vscode-win32-ia32-min', ['minify-vscode', 'clean-vscode-win32-ia32'], packageTask('win32', 'ia32', { minified: true }));
+gulp.task('vscode-win32-x64-min', ['minify-vscode', 'clean-vscode-win32-x64'], packageTask('win32', 'x64', { minified: true }));
 gulp.task('vscode-darwin-min', ['minify-vscode', 'clean-vscode-darwin'], packageTask('darwin', null, { minified: true }));
 gulp.task('vscode-linux-ia32-min', ['minify-vscode', 'clean-vscode-linux-ia32'], packageTask('linux', 'ia32', { minified: true }));
 gulp.task('vscode-linux-x64-min', ['minify-vscode', 'clean-vscode-linux-x64'], packageTask('linux', 'x64', { minified: true }));
 gulp.task('vscode-linux-arm-min', ['minify-vscode', 'clean-vscode-linux-arm'], packageTask('linux', 'arm', { minified: true }));
+
+// Transifex Localizations
+const vscodeLanguages = [
+	'zh-hans',
+	'zh-hant',
+	'ja',
+	'ko',
+	'de',
+	'fr',
+	'es',
+	'ru',
+	'it',
+	'pt-br',
+	'hu',
+	'tr'
+];
+const setupDefaultLanguages = [
+	'zh-hans',
+	'zh-hant',
+	'ko'
+];
+
+const apiHostname = process.env.TRANSIFEX_API_URL;
+const apiName = process.env.TRANSIFEX_API_NAME;
+const apiToken = process.env.TRANSIFEX_API_TOKEN;
+
+gulp.task('vscode-translations-push', ['optimize-vscode'], function () {
+	const pathToMetadata = './out-vscode/nls.metadata.json';
+	const pathToExtensions = './extensions/**/*.nls.json';
+	const pathToSetup = 'build/win32/**/{Default.isl,messages.en.isl}';
+
+	return es.merge(
+		gulp.src(pathToMetadata).pipe(i18n.prepareXlfFiles()),
+		gulp.src(pathToSetup).pipe(i18n.prepareXlfFiles()),
+		gulp.src(pathToExtensions).pipe(i18n.prepareXlfFiles('vscode-extensions'))
+	).pipe(i18n.pushXlfFiles(apiHostname, apiName, apiToken));
+});
+
+gulp.task('vscode-translations-pull', function () {
+	return es.merge(
+		i18n.pullXlfFiles('vscode-editor', apiHostname, apiName, apiToken, vscodeLanguages),
+		i18n.pullXlfFiles('vscode-workbench', apiHostname, apiName, apiToken, vscodeLanguages),
+		i18n.pullXlfFiles('vscode-extensions', apiHostname, apiName, apiToken, vscodeLanguages),
+		i18n.pullXlfFiles('vscode-setup', apiHostname, apiName, apiToken, setupDefaultLanguages)
+	).pipe(vfs.dest('../vscode-localization'));
+});
+
+gulp.task('vscode-translations-import', function () {
+	return gulp.src('../vscode-localization/**/*.xlf').pipe(i18n.prepareJsonFiles()).pipe(vfs.dest('./i18n'));
+});
 
 // Sourcemaps
 
@@ -345,4 +444,65 @@ gulp.task('upload-vscode-sourcemaps', ['minify-vscode'], () => {
 			container: 'sourcemaps',
 			prefix: commit + '/'
 		}));
+});
+
+const allConfigDetailsPath = path.join(os.tmpdir(), 'configuration.json');
+gulp.task('upload-vscode-configuration', ['generate-vscode-configuration'], () => {
+	if (!fs.existsSync(allConfigDetailsPath)) {
+		console.error(`configuration file at ${allConfigDetailsPath} does not exist`);
+		return;
+	}
+
+	return gulp.src(allConfigDetailsPath)
+		.pipe(azure.upload({
+			account: process.env.AZURE_STORAGE_ACCOUNT,
+			key: process.env.AZURE_STORAGE_ACCESS_KEY,
+			container: 'configuration',
+			prefix: `${versionStringToNumber(packageJson.version)}/${commit}/`
+		}));
+});
+
+function versionStringToNumber(versionStr) {
+	const semverRegex = /(\d+)\.(\d+)\.(\d+)/;
+	const match = versionStr.match(semverRegex);
+	if (!match) {
+		return 0;
+	}
+
+	return parseInt(match[1], 10) * 10000 + parseInt(match[2], 10) * 100 + parseInt(match[3], 10);
+}
+
+gulp.task('generate-vscode-configuration', () => {
+	return new Promise((resolve, reject) => {
+		const buildDir = process.env['AGENT_BUILDDIRECTORY'];
+		if (!buildDir) {
+			return reject(new Error('$AGENT_BUILDDIRECTORY not set'));
+		}
+
+		const userDataDir = path.join(os.tmpdir(), 'tmpuserdata');
+		const extensionsDir = path.join(os.tmpdir(), 'tmpextdir');
+		const appPath = path.join(buildDir, 'VSCode-darwin/Visual\\ Studio\\ Code\\ -\\ Insiders.app/Contents/Resources/app/bin/code');
+		const codeProc = cp.exec(`${appPath} --export-default-configuration='${allConfigDetailsPath}' --wait --user-data-dir='${userDataDir}' --extensions-dir='${extensionsDir}'`);
+
+		const timer = setTimeout(() => {
+			codeProc.kill();
+			reject(new Error('export-default-configuration process timed out'));
+		}, 10 * 1000);
+
+		codeProc.stdout.on('data', d => console.log(d.toString()));
+		codeProc.stderr.on('data', d => console.log(d.toString()));
+
+		codeProc.on('exit', () => {
+			clearTimeout(timer);
+			resolve();
+		});
+
+		codeProc.on('error', err => {
+			clearTimeout(timer);
+			reject(err);
+		});
+	}).catch(e => {
+		// Don't fail the build
+		console.error(e.toString());
+	});
 });

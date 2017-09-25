@@ -4,33 +4,36 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { memoize } from 'vs/base/common/decorators';
 import paths = require('vs/base/common/paths');
+import resources = require('vs/base/common/resources');
 import labels = require('vs/base/common/labels');
 import URI from 'vs/base/common/uri';
-import { EncodingMode, ConfirmResult } from 'vs/workbench/common/editor';
+import { EncodingMode, ConfirmResult, EditorInput, IFileEditorInput, ITextEditorModel } from 'vs/workbench/common/editor';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
-import { IFileOperationResult, FileOperationResult } from 'vs/platform/files/common/files';
-import { BINARY_FILE_EDITOR_ID, TEXT_FILE_EDITOR_ID, FILE_EDITOR_INPUT_ID, FileEditorInput as CommonFileEditorInput } from 'vs/workbench/parts/files/common/files';
+import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
+import { BINARY_FILE_EDITOR_ID, TEXT_FILE_EDITOR_ID, FILE_EDITOR_INPUT_ID } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, AutoSaveMode, ModelState, TextFileModelChangeEvent } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IEventService } from 'vs/platform/event/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
+import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
+import { Verbosity } from 'vs/platform/editor/common/editor';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 
 /**
  * A file editor input is the input type for the file editor of file system resources.
  */
-export class FileEditorInput extends CommonFileEditorInput {
-	private resource: URI;
-	private preferredEncoding: string;
+export class FileEditorInput extends EditorInput implements IFileEditorInput {
 	private forceOpenAsBinary: boolean;
 
+	private textModelReference: TPromise<IReference<ITextEditorModel>>;
+
 	private name: string;
-	private description: string;
-	private verboseDescription: string;
 
 	private toUnbind: IDisposable[];
 
@@ -38,22 +41,17 @@ export class FileEditorInput extends CommonFileEditorInput {
 	 * An editor input who's contents are retrieved from file services.
 	 */
 	constructor(
-		resource: URI,
-		preferredEncoding: string,
+		private resource: URI,
+		private preferredEncoding: string,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IHistoryService private historyService: IHistoryService,
-		@IEventService private eventService: IEventService,
-		@ITextFileService private textFileService: ITextFileService
+		@ITextFileService private textFileService: ITextFileService,
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@ITextModelService private textModelResolverService: ITextModelService
 	) {
 		super();
 
 		this.toUnbind = [];
-
-		if (resource) {
-			this.setResource(resource);
-			this.preferredEncoding = preferredEncoding;
-		}
 
 		this.registerListeners();
 	}
@@ -65,6 +63,7 @@ export class FileEditorInput extends CommonFileEditorInput {
 		this.toUnbind.push(this.textFileService.models.onModelSaveError(e => this.onDirtyStateChange(e)));
 		this.toUnbind.push(this.textFileService.models.onModelSaved(e => this.onDirtyStateChange(e)));
 		this.toUnbind.push(this.textFileService.models.onModelReverted(e => this.onDirtyStateChange(e)));
+		this.toUnbind.push(this.textFileService.models.onModelOrphanedChanged(e => this.onModelOrphanedChanged(e)));
 	}
 
 	private onDirtyStateChange(e: TextFileModelChangeEvent): void {
@@ -73,17 +72,10 @@ export class FileEditorInput extends CommonFileEditorInput {
 		}
 	}
 
-	public setResource(resource: URI): void {
-		if (resource.scheme !== 'file') {
-			throw new Error('FileEditorInput can only handle file:// resources.');
+	private onModelOrphanedChanged(e: TextFileModelChangeEvent): void {
+		if (e.resource.toString() === this.resource.toString()) {
+			this._onDidChangeLabel.fire();
 		}
-
-		this.resource = resource;
-
-		// Reset resource dependent properties
-		this.name = null;
-		this.description = null;
-		this.verboseDescription = null;
 	}
 
 	public getResource(): URI {
@@ -100,6 +92,10 @@ export class FileEditorInput extends CommonFileEditorInput {
 			return textModel.getEncoding();
 		}
 
+		return this.preferredEncoding;
+	}
+
+	public getPreferredEncoding(): string {
 		return this.preferredEncoding;
 	}
 
@@ -122,26 +118,85 @@ export class FileEditorInput extends CommonFileEditorInput {
 
 	public getName(): string {
 		if (!this.name) {
-			this.name = paths.basename(this.resource.fsPath);
+			this.name = resources.basenameOrAuthority(this.resource);
 		}
 
-		return this.name;
+		return this.decorateOrphanedFiles(this.name);
 	}
 
-	public getDescription(verbose?: boolean): string {
-		if (!verbose) {
-			if (!this.description) {
-				this.description = labels.getPathLabel(paths.dirname(this.resource.fsPath), this.contextService);
-			}
+	@memoize
+	private get shortDescription(): string {
 
-			return this.description;
+		return paths.basename(labels.getPathLabel(resources.dirname(this.resource), void 0, this.environmentService));
+	}
+
+	@memoize
+	private get mediumDescription(): string {
+		return labels.getPathLabel(resources.dirname(this.resource), this.contextService, this.environmentService);
+	}
+
+	@memoize
+	private get longDescription(): string {
+		return labels.getPathLabel(resources.dirname(this.resource), void 0, this.environmentService);
+	}
+
+	public getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string {
+		let description: string;
+		switch (verbosity) {
+			case Verbosity.SHORT:
+				description = this.shortDescription;
+				break;
+			case Verbosity.LONG:
+				description = this.longDescription;
+				break;
+			case Verbosity.MEDIUM:
+			default:
+				description = this.mediumDescription;
+				break;
 		}
 
-		if (!this.verboseDescription) {
-			this.verboseDescription = labels.getPathLabel(this.resource.fsPath);
+		return description;
+	}
+
+	@memoize
+	private get shortTitle(): string {
+		return this.getName();
+	}
+
+	@memoize
+	private get mediumTitle(): string {
+		return labels.getPathLabel(this.resource, this.contextService, this.environmentService);
+	}
+
+	@memoize
+	private get longTitle(): string {
+		return labels.getPathLabel(this.resource, void 0, this.environmentService);
+	}
+
+	public getTitle(verbosity: Verbosity): string {
+		let title: string;
+		switch (verbosity) {
+			case Verbosity.SHORT:
+				title = this.shortTitle;
+				break;
+			case Verbosity.MEDIUM:
+				title = this.mediumTitle;
+				break;
+			case Verbosity.LONG:
+				title = this.longTitle;
+				break;
 		}
 
-		return this.verboseDescription;
+		return this.decorateOrphanedFiles(title);
+	}
+
+	private decorateOrphanedFiles(label: string): string {
+		const model = this.textFileService.models.get(this.resource);
+		if (model && model.hasState(ModelState.ORPHAN)) {
+			return localize('orphanedFile', "{0} (deleted from disk)", label);
+		}
+
+		return label;
 	}
 
 	public isDirty(): boolean {
@@ -150,8 +205,7 @@ export class FileEditorInput extends CommonFileEditorInput {
 			return false;
 		}
 
-		const state = model.getState();
-		if (state === ModelState.CONFLICT || state === ModelState.ERROR) {
+		if (model.hasState(ModelState.CONFLICT) || model.hasState(ModelState.ERROR)) {
 			return true; // always indicate dirty state if we are in conflict or error state
 		}
 
@@ -178,12 +232,30 @@ export class FileEditorInput extends CommonFileEditorInput {
 		return this.forceOpenAsBinary ? BINARY_FILE_EDITOR_ID : TEXT_FILE_EDITOR_ID;
 	}
 
-	public resolve(refresh?: boolean): TPromise<TextFileEditorModel> {
-		return this.textFileService.models.loadOrCreate(this.resource, this.preferredEncoding, refresh).then(null, error => {
+	public resolve(refresh?: boolean): TPromise<TextFileEditorModel | BinaryEditorModel> {
+
+		// Resolve as binary
+		if (this.forceOpenAsBinary) {
+			return this.resolveAsBinary();
+		}
+
+		// Resolve as text
+		return this.textFileService.models.loadOrCreate(this.resource, { encoding: this.preferredEncoding, reload: refresh }).then(model => {
+
+			// TODO@Ben this is a bit ugly, because we first resolve the model and then resolve a model reference. the reason being that binary
+			// or very large files do not resolve to a text file model but should be opened as binary files without text. First calling into
+			// loadOrCreate ensures we are not creating model references for these kind of resources.
+			// In addition we have a bit of payload to take into account (encoding, reload) that the text resolver does not handle yet.
+			if (!this.textModelReference) {
+				this.textModelReference = this.textModelResolverService.createModelReference(this.resource);
+			}
+
+			return this.textModelReference.then(ref => ref.object as TextFileEditorModel);
+		}, error => {
 
 			// In case of an error that indicates that the file is binary or too large, just return with the binary editor model
-			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY || (<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE) {
-				return this.instantiationService.createInstance(BinaryEditorModel, this.resource, this.getName()).load();
+			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY || (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE) {
+				return this.resolveAsBinary();
 			}
 
 			// Bubble any other error up
@@ -191,10 +263,33 @@ export class FileEditorInput extends CommonFileEditorInput {
 		});
 	}
 
+	private resolveAsBinary(): TPromise<BinaryEditorModel> {
+		return this.instantiationService.createInstance(BinaryEditorModel, this.resource, this.getName())
+			.load()
+			.then(x => x as BinaryEditorModel);
+	}
+
+	public isResolved(): boolean {
+		return !!this.textFileService.models.get(this.resource);
+	}
+
+	public getTelemetryDescriptor(): object {
+		const descriptor = super.getTelemetryDescriptor();
+		descriptor['resource'] = telemetryURIDescriptor(this.getResource());
+
+		return descriptor;
+	}
+
 	public dispose(): void {
 
+		// Model reference
+		if (this.textModelReference) {
+			this.textModelReference.done(ref => ref.dispose());
+			this.textModelReference = null;
+		}
+
 		// Listeners
-		dispose(this.toUnbind);
+		this.toUnbind = dispose(this.toUnbind);
 
 		super.dispose();
 	}
@@ -205,7 +300,7 @@ export class FileEditorInput extends CommonFileEditorInput {
 		}
 
 		if (otherInput) {
-			return otherInput instanceof FileEditorInput && (<FileEditorInput>otherInput).resource.toString() === this.resource.toString();
+			return otherInput instanceof FileEditorInput && otherInput.resource.toString() === this.resource.toString();
 		}
 
 		return false;

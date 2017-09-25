@@ -31,8 +31,8 @@ gulp.task('mixin', function () {
 		return;
 	}
 
-	const url = `https://github.com/${ repo }/archive/${ pkg.distro }.zip`;
-	const opts = { base: '' };
+	const url = `https://github.com/${repo}/archive/${pkg.distro}.zip`;
+	const opts = { base: url };
 	const username = process.env['VSCODE_MIXIN_USERNAME'];
 	const password = process.env['VSCODE_MIXIN_PASSWORD'];
 
@@ -42,27 +42,22 @@ gulp.task('mixin', function () {
 
 	console.log('Mixing in sources from \'' + url + '\':');
 
-	let all = remote(url, opts)
+	let all = remote('', opts)
 		.pipe(zip.src())
 		.pipe(filter(function (f) { return !f.isDirectory(); }))
 		.pipe(util.rebase(1));
 
 	if (quality) {
-		const build = all.pipe(filter('build/**'));
 		const productJsonFilter = filter('product.json', { restore: true });
-
 		const mixin = all
-			.pipe(filter('quality/' + quality + '/**'))
+			.pipe(filter(['quality/' + quality + '/**']))
 			.pipe(util.rebase(2))
 			.pipe(productJsonFilter)
 			.pipe(buffer())
-			.pipe(json(function (patch) {
-				const original = require('../product.json');
-				return assign(original, patch);
-			}))
+			.pipe(json(o => assign({}, require('../product.json'), o)))
 			.pipe(productJsonFilter.restore);
 
-		all = es.merge(build, mixin);
+		all = es.merge(mixin);
 	}
 
 	return all

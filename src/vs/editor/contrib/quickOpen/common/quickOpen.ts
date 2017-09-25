@@ -5,19 +5,15 @@
 
 'use strict';
 
-import { illegalArgument, onUnexpectedError } from 'vs/base/common/errors';
+import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
-import { SymbolInformation, DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
+import { SymbolInformation, DocumentSymbolProviderRegistry, IOutline } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { asWinJsPromise } from 'vs/base/common/async';
-
-export interface IOutline {
-	entries: SymbolInformation[];
-}
 
 export function getDocumentSymbols(model: IModel): TPromise<IOutline> {
 
@@ -32,7 +28,7 @@ export function getDocumentSymbols(model: IModel): TPromise<IOutline> {
 				entries.push(...result);
 			}
 		}, err => {
-			onUnexpectedError(err);
+			onUnexpectedExternalError(err);
 		});
 	});
 
@@ -64,7 +60,7 @@ function flatten(bucket: SymbolInformation[], entries: SymbolInformation[], over
 
 
 CommonEditorRegistry.registerLanguageCommand('_executeDocumentSymbolProvider', function (accessor, args) {
-	const {resource} = args;
+	const { resource } = args;
 	if (!(resource instanceof URI)) {
 		throw illegalArgument('resource');
 	}

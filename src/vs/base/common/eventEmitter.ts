@@ -9,20 +9,12 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 
 export class EmitterEvent {
 
-	private _type: string;
-	private _data: any;
+	public readonly type: string;
+	public readonly data: any;
 
 	constructor(eventType: string = null, data: any = null) {
-		this._type = eventType;
-		this._data = data;
-	}
-
-	public getType(): string {
-		return this._type;
-	}
-
-	public getData(): any {
-		return this._data;
+		this.type = eventType;
+		this.data = data;
 	}
 }
 
@@ -34,11 +26,14 @@ export interface BulkListenerCallback {
 	(value: EmitterEvent[]): void;
 }
 
-export interface IEventEmitter extends IDisposable {
-	addListener2(eventType: string, listener: ListenerCallback): IDisposable;
-	addOneTimeDisposableListener(eventType: string, listener: ListenerCallback): IDisposable;
-	addBulkListener2(listener: BulkListenerCallback): IDisposable;
-	addEmitter2(eventEmitter: IEventEmitter): IDisposable;
+export interface IBaseEventEmitter {
+	addBulkListener(listener: BulkListenerCallback): IDisposable;
+}
+
+export interface IEventEmitter extends IBaseEventEmitter, IDisposable {
+	addListener(eventType: string, listener: ListenerCallback): IDisposable;
+	addOneTimeListener(eventType: string, listener: ListenerCallback): IDisposable;
+	addEmitter(eventEmitter: IEventEmitter): IDisposable;
 }
 
 export interface IListenersMap {
@@ -60,7 +55,7 @@ export class EventEmitter implements IEventEmitter {
 		this._deferredCnt = 0;
 		if (allowedEventTypes) {
 			this._allowedEventTypes = {};
-			for (var i = 0; i < allowedEventTypes.length; i++) {
+			for (let i = 0; i < allowedEventTypes.length; i++) {
 				this._allowedEventTypes[allowedEventTypes[i]] = true;
 			}
 		} else {
@@ -76,7 +71,7 @@ export class EventEmitter implements IEventEmitter {
 		this._allowedEventTypes = null;
 	}
 
-	private addListener(eventType: string, listener: ListenerCallback): IDisposable {
+	public addListener(eventType: string, listener: ListenerCallback): IDisposable {
 		if (eventType === '*') {
 			throw new Error('Use addBulkListener(listener) to register your listener!');
 		}
@@ -91,7 +86,7 @@ export class EventEmitter implements IEventEmitter {
 			this._listeners[eventType] = [listener];
 		}
 
-		var bound = this;
+		let bound = this;
 		return {
 			dispose: () => {
 				if (!bound) {
@@ -108,11 +103,7 @@ export class EventEmitter implements IEventEmitter {
 		};
 	}
 
-	public addListener2(eventType: string, listener: ListenerCallback): IDisposable {
-		return this.addListener(eventType, listener);
-	}
-
-	public addOneTimeDisposableListener(eventType: string, listener: ListenerCallback): IDisposable {
+	public addOneTimeListener(eventType: string, listener: ListenerCallback): IDisposable {
 		const disposable = this.addListener(eventType, value => {
 			disposable.dispose();
 			listener(value);
@@ -121,7 +112,7 @@ export class EventEmitter implements IEventEmitter {
 		return disposable;
 	}
 
-	protected addBulkListener(listener: BulkListenerCallback): IDisposable {
+	public addBulkListener(listener: BulkListenerCallback): IDisposable {
 
 		this._bulkListeners.push(listener);
 
@@ -132,42 +123,31 @@ export class EventEmitter implements IEventEmitter {
 		};
 	}
 
-	public addBulkListener2(listener: BulkListenerCallback): IDisposable {
-		return this.addBulkListener(listener);
-	}
-
-	private addEmitter(eventEmitter: IEventEmitter): IDisposable {
-		return eventEmitter.addBulkListener2((events: EmitterEvent[]): void => {
-			var newEvents = events;
-
+	public addEmitter(eventEmitter: IBaseEventEmitter): IDisposable {
+		return eventEmitter.addBulkListener((events: EmitterEvent[]): void => {
 			if (this._deferredCnt === 0) {
-				this._emitEvents(<EmitterEvent[]>newEvents);
+				this._emitEvents(events);
 			} else {
 				// Collect for later
-				this._collectedEvents.push.apply(this._collectedEvents, newEvents);
+				this._collectedEvents.push.apply(this._collectedEvents, events);
 			}
 		});
 	}
 
-	public addEmitter2(eventEmitter: IEventEmitter): IDisposable {
-		return this.addEmitter(eventEmitter);
-	}
-
 	private _removeListener(eventType: string, listener: ListenerCallback): void {
 		if (this._listeners.hasOwnProperty(eventType)) {
-			var listeners = this._listeners[eventType];
-			for (var i = 0, len = listeners.length; i < len; i++) {
+			let listeners = this._listeners[eventType];
+			for (let i = 0, len = listeners.length; i < len; i++) {
 				if (listeners[i] === listener) {
 					listeners.splice(i, 1);
 					break;
 				}
 			}
-
 		}
 	}
 
 	private _removeBulkListener(listener: BulkListenerCallback): void {
-		for (var i = 0, len = this._bulkListeners.length; i < len; i++) {
+		for (let i = 0, len = this._bulkListeners.length; i < len; i++) {
 			if (this._bulkListeners[i] === listener) {
 				this._bulkListeners.splice(i, 1);
 				break;
@@ -177,16 +157,16 @@ export class EventEmitter implements IEventEmitter {
 
 	protected _emitToSpecificTypeListeners(eventType: string, data: any): void {
 		if (this._listeners.hasOwnProperty(eventType)) {
-			var listeners = this._listeners[eventType].slice(0);
-			for (var i = 0, len = listeners.length; i < len; i++) {
+			const listeners = this._listeners[eventType].slice(0);
+			for (let i = 0, len = listeners.length; i < len; i++) {
 				safeInvoke1Arg(listeners[i], data);
 			}
 		}
 	}
 
 	protected _emitToBulkListeners(events: EmitterEvent[]): void {
-		var bulkListeners = this._bulkListeners.slice(0);
-		for (var i = 0, len = bulkListeners.length; i < len; i++) {
+		const bulkListeners = this._bulkListeners.slice(0);
+		for (let i = 0, len = bulkListeners.length; i < len; i++) {
 			safeInvoke1Arg(bulkListeners[i], events);
 		}
 	}
@@ -195,22 +175,22 @@ export class EventEmitter implements IEventEmitter {
 		if (this._bulkListeners.length > 0) {
 			this._emitToBulkListeners(events);
 		}
-		for (var i = 0, len = events.length; i < len; i++) {
-			var e = events[i];
+		for (let i = 0, len = events.length; i < len; i++) {
+			const e = events[i];
 
-			this._emitToSpecificTypeListeners(e.getType(), e.getData());
+			this._emitToSpecificTypeListeners(e.type, e.data);
 		}
 	}
 
 	public emit(eventType: string, data: any = {}): void {
 		if (this._allowedEventTypes && !this._allowedEventTypes.hasOwnProperty(eventType)) {
-			throw new Error('Cannot emit this event type because it wasn\'t white-listed!');
+			throw new Error('Cannot emit this event type because it wasn\'t listed!');
 		}
 		// Early return if no listeners would get this
 		if (!this._listeners.hasOwnProperty(eventType) && this._bulkListeners.length === 0) {
 			return;
 		}
-		var emitterEvent = new EmitterEvent(eventType, data);
+		const emitterEvent = new EmitterEvent(eventType, data);
 
 		if (this._deferredCnt === 0) {
 			this._emitEvents([emitterEvent]);
@@ -220,25 +200,36 @@ export class EventEmitter implements IEventEmitter {
 		}
 	}
 
-	public deferredEmit(callback: () => any): any {
+	public beginDeferredEmit(): void {
 		this._deferredCnt = this._deferredCnt + 1;
-		var result: any = safeInvokeNoArg(callback);
+	}
+
+	public endDeferredEmit(): void {
 		this._deferredCnt = this._deferredCnt - 1;
 
 		if (this._deferredCnt === 0) {
 			this._emitCollected();
 		}
+	}
+
+	public deferredEmit<T>(callback: () => T): T {
+		this.beginDeferredEmit();
+
+		let result: T = safeInvokeNoArg<T>(callback);
+
+		this.endDeferredEmit();
+
 		return result;
 	}
 
 	private _emitCollected(): void {
-		// Flush collected events
-		var events = this._collectedEvents;
-		this._collectedEvents = [];
-
-		if (events.length > 0) {
-			this._emitEvents(events);
+		if (this._collectedEvents.length === 0) {
+			return;
 		}
+		// Flush collected events
+		const events = this._collectedEvents;
+		this._collectedEvents = [];
+		this._emitEvents(events);
 	}
 }
 
@@ -259,8 +250,8 @@ export class OrderGuaranteeEventEmitter extends EventEmitter {
 
 	private _emitQueue: EmitQueueElement[];
 
-	constructor(allowedEventTypes: string[] = null) {
-		super(allowedEventTypes);
+	constructor() {
+		super(null);
 		this._emitQueue = [];
 	}
 
@@ -290,12 +281,13 @@ export class OrderGuaranteeEventEmitter extends EventEmitter {
 	}
 }
 
-function safeInvokeNoArg(func: Function): any {
+function safeInvokeNoArg<T>(func: Function): T {
 	try {
 		return func();
 	} catch (e) {
 		Errors.onUnexpectedError(e);
 	}
+	return undefined;
 }
 
 function safeInvoke1Arg(func: Function, arg1: any): any {

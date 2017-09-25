@@ -6,6 +6,5 @@
 {
 	"json.bower.default": "Fichier bower.json par défaut",
 	"json.bower.error.repoaccess": "Échec de la requête destinée au dépôt bower : {0}",
-	"json.bower.latest.version": "dernière",
-	"json.bower.package.hover": "{0}"
+	"json.bower.latest.version": "dernière"
 }

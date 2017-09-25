@@ -1,2 +1,2 @@
-import * as Proto from '../node_modules/typescript/lib/protocol';
+import * as Proto from 'typescript/lib/protocol';
 export = Proto;

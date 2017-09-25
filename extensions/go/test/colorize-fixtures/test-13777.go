@@ -1,1 +1,1 @@
-var e [][]*aType // ( bug in highligher?)
+var e [][]*aType // ( comments after var are now green )

@@ -9,12 +9,14 @@
   "activationEvents": [
     "onLanguage:json"
   ],
+  "enableProposedApi": true,
   "main": "./client/out/jsonMain",
   "scripts": {
     "compile": "gulp compile-extension:json-client && gulp compile-extension:json-server",
     "postinstall": "cd server && npm install",
     "install-client-next": "npm install vscode-languageclient@next -f -S",
-    "install-client-local": "npm install ../../../vscode-languageserver-node/client -f -S"
+    "install-client-local": "npm install ../../../vscode-languageserver-node/client -f -S",
+    "update-grammar": "node ../../build/npm/update-grammar.js Microsoft/vscode-JSON.tmLanguage JSON.tmLanguage ./syntaxes/JSON.tmLanguage.json"
   },
   "contributes": {
     "languages": [
@@ -31,7 +33,8 @@
           ".jscsrc",
           ".eslintrc",
           ".babelrc",
-          ".webmanifest"
+          ".webmanifest",
+          ".code-workspace"
         ],
         "mimetypes": [
           "application/json",
@@ -44,7 +47,7 @@
       {
         "language": "json",
         "scopeName": "source.json",
-        "path": "./syntaxes/JSON.tmLanguage"
+        "path": "./syntaxes/JSON.tmLanguage.json"
       }
     ],
     "jsonValidation": [
@@ -61,49 +64,80 @@
       "properties": {
         "json.schemas": {
           "type": "array",
-          "description": "Associate schemas to JSON files in the current project",
+          "scope": "resource",
+          "description": "%json.schemas.desc%",
           "items": {
             "type": "object",
             "default": {
               "fileMatch": [
-                "{{/myfile}}"
+                "/myfile"
               ],
-              "url": "{{schemaURL}}"
+              "url": "schemaURL"
             },
             "properties": {
               "url": {
                 "type": "string",
                 "default": "/user.schema.json",
-                "description": "A URL to a schema or a relative path to a schema in the current directory"
+                "description": "%json.schemas.url.desc%"
               },
               "fileMatch": {
                 "type": "array",
                 "items": {
                   "type": "string",
                   "default": "MyFile.json",
-                  "description": "A file pattern that can contain '*' to match against when resolving JSON files to schemas."
+                  "description": "%json.schemas.fileMatch.item.desc%"
                 },
                 "minItems": 1,
-                "description": "An array of file patterns to match against when resolving JSON files to schemas."
+                "description": "%json.schemas.fileMatch.desc%"
               },
               "schema": {
                 "$ref": "http://json-schema.org/draft-04/schema#",
-                "description": "The schema definition for the given URL. The schema only needs to be provided to avoid accesses to the schema URL."
+                "description": "%json.schemas.schema.desc%"
               }
             }
           }
         },
         "json.format.enable": {
           "type": "boolean",
+          "scope": "window",
           "default": true,
-          "description": "Enable/disable default JSON formatter (requires restart)"
+          "description": "%json.format.enable.desc%"
+        },
+        "json.trace.server": {
+          "type": "string",
+          "scope": "window",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "%json.tracing.desc%"
+        },
+        "json.colorDecorators.enable": {
+          "type": "boolean",
+          "scope": "window",
+          "default": true,
+          "description": "%json.colorDecorators.enable.desc%",
+          "deprecationMessage": "%json.colorDecorators.enable.deprecationMessage%"
+        }
+      }
+    },
+    "configurationDefaults": {
+      "[json]": {
+        "editor.quickSuggestions": {
+          "strings": true
         }
       }
     }
   },
   "dependencies": {
-    "vscode-extension-telemetry": "^0.0.5",
-    "vscode-languageclient": "^2.4.2-next.22",
-    "vscode-nls": "^1.0.7"
+    "vscode-extension-telemetry": "0.0.8",
+    "vscode-languageclient": "^3.4.2",
+    "vscode-languageserver-protocol": "^3.4.2",
+    "vscode-nls": "2.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^6.0.51"
   }
 }

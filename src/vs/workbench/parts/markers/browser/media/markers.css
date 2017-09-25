@@ -41,13 +41,19 @@
 	height: 100%;
 }
 
+.markers-panel .markers-panel-container .tree-container.hidden,
+.markers-panel .markers-panel-container .message-box-container.hidden {
+	display: none;
+	visibility: hidden;
+}
+
 .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry {
 	display: flex;
 	line-height: 22px;
 }
 
-.markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry > * {
-	display: inline-block;
+.hc-black .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry {
+	line-height: 20px;
 }
 
 .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-stats {
@@ -80,12 +86,7 @@
 }
 
 .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .highlight {
-	color: #007ACC;
 	font-weight: bold;
-}
-
-.vs-dark .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .highlight {
-	color: #0097FB;
 }
 
 .markers-panel .icon {

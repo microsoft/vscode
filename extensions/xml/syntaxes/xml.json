@@ -1,7 +1,14 @@
 {
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/atom/language-xml/blob/master/grammars/xml.cson",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
+	"version": "https://github.com/atom/language-xml/commit/27352842917b911383122bdcf98ed0d69d55c179",
 	"scopeName": "text.xml",
 	"name": "XML",
 	"fileTypes": [
+		"aiml",
 		"atom",
 		"axml",
 		"bpmn",
@@ -21,6 +28,7 @@
 		"fodt",
 		"fsproj",
 		"fxml",
+		"gir",
 		"glade",
 		"gpx",
 		"graphml",
@@ -29,6 +37,7 @@
 		"isml",
 		"jmx",
 		"jsp",
+		"kst",
 		"launch",
 		"menu",
 		"mxml",
@@ -44,7 +53,10 @@
 		"rdf",
 		"rng",
 		"rss",
+		"sdf",
 		"shproj",
+		"siml",
+		"sld",
 		"storyboard",
 		"svg",
 		"targets",
@@ -57,7 +69,12 @@
 		"vcproj.filters",
 		"vcxproj",
 		"vcxproj.filters",
+		"wixmsp",
+		"wixmst",
+		"wixobj",
+		"wixout",
 		"wsdl",
+		"wxs",
 		"xaml",
 		"xbl",
 		"xib",
@@ -69,6 +86,7 @@
 		"xul",
 		"ui"
 	],
+	"firstLineMatch": "(?x)\n# XML declaration\n(?:\n  ^ <\\? xml\n\n  # VersionInfo\n  \\s+ version\n  \\s* = \\s*\n  (['\"])\n    1 \\. [0-9]+\n  \\1\n\n  # EncodingDecl\n  (?:\n    \\s+ encoding\n    \\s* = \\s*\n\n    # EncName\n    (['\"])\n      [A-Za-z]\n      [-A-Za-z0-9._]*\n    \\2\n  )?\n\n  # SDDecl\n  (?:\n    \\s+ standalone\n    \\s* = \\s*\n    (['\"])\n      (?:yes|no)\n    \\3\n  )?\n\n  \\s* \\?>\n)\n|\n# Modeline\n(?i:\n  # Emacs\n  -\\*-(?:\\s*(?=[^:;\\s]+\\s*-\\*-)|(?:.*?[;\\s]|(?<=-\\*-))mode\\s*:\\s*)\n    xml\n  (?=[\\s;]|(?<![-*])-\\*-).*?-\\*-\n  |\n  # Vim\n  (?:(?:\\s|^)vi(?:m[<=>]?\\d+|m)?|\\sex)(?=:(?=\\s*set?\\s[^\\n:]+:)|:(?!\\s*set?\\s))(?:(?:\\s|\\s*:\\s*)\\w*(?:\\s*=(?:[^\\n\\\\\\s]|\\\\.)*)?)*[\\s:](?:filetype|ft|syntax)\\s*=\n    xml\n  (?=\\s|:|$)\n)",
 	"patterns": [
 		{
 			"begin": "(<\\?)\\s*([-_a-zA-Z0-9]+)",
@@ -401,7 +419,7 @@
 							"name": "entity.other.attribute-name.localname.xml"
 						}
 					},
-					"match": "(?:^|\\s+)(?:([-\\w.]+)((:)))?([-\\w.:]+)="
+					"match": "(?:^|\\s+)(?:([-\\w.]+)((:)))?([-\\w.:]+)\\s*="
 				},
 				{
 					"include": "#doublequotedString"
@@ -421,6 +439,5 @@
 			"end": "--%?>",
 			"name": "comment.block.xml"
 		}
-	},
-	"version": "https://github.com/atom/language-xml/commit/f461d428fb87040cb8a52d87d0b95151b9d3c0cc"
+	}
 }

@@ -8,7 +8,7 @@
 			{
 				"label": "Quiet Light",
 				"uiTheme": "vs",
-				"path": "./themes/QuietLight.tmTheme"
+				"path": "./themes/quietlight-color-theme.json"
 			}
 		]
 	}

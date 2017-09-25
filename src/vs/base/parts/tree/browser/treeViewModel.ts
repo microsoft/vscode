@@ -46,7 +46,7 @@ export class HeightMap extends EventEmitter {
 
 			if (!viewItem) {
 				console.error('view item doesnt exist');
-				return;
+				return undefined;
 			}
 
 			totalSize = viewItem.top + viewItem.height;

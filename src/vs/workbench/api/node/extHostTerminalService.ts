@@ -7,8 +7,7 @@
 import vscode = require('vscode');
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import Event, { Emitter } from 'vs/base/common/event';
-import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape } from './extHost.protocol';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
+import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, IMainContext } from './extHost.protocol';
 
 export class ExtHostTerminal implements vscode.Terminal {
 
@@ -20,14 +19,20 @@ export class ExtHostTerminal implements vscode.Terminal {
 	private _pidPromise: TPromise<number>;
 	private _pidPromiseComplete: TValueCallback<number>;
 
-	constructor(proxy: MainThreadTerminalServiceShape, name?: string, shellPath?: string, shellArgs?: string[]) {
+	constructor(
+		proxy: MainThreadTerminalServiceShape,
+		name?: string,
+		shellPath?: string,
+		shellArgs?: string[],
+		waitOnExit?: boolean
+	) {
 		this._name = name;
 		this._queuedRequests = [];
 		this._proxy = proxy;
 		this._pidPromise = new TPromise<number>(c => {
 			this._pidPromiseComplete = c;
 		});
-		this._proxy.$createTerminal(name, shellPath, shellArgs).then((id) => {
+		this._proxy.$createTerminal(name, shellPath, shellArgs, waitOnExit).then((id) => {
 			this._id = id;
 			this._queuedRequests.forEach((r) => {
 				r.run(this._proxy, this._id);
@@ -95,14 +100,20 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	private _proxy: MainThreadTerminalServiceShape;
 	private _terminals: ExtHostTerminal[];
 
-	constructor(threadService: IThreadService) {
+	constructor(mainContext: IMainContext) {
 		this._onDidCloseTerminal = new Emitter<vscode.Terminal>();
-		this._proxy = threadService.get(MainContext.MainThreadTerminalService);
+		this._proxy = mainContext.get(MainContext.MainThreadTerminalService);
 		this._terminals = [];
 	}
 
 	public createTerminal(name?: string, shellPath?: string, shellArgs?: string[]): vscode.Terminal {
 		let terminal = new ExtHostTerminal(this._proxy, name, shellPath, shellArgs);
+		this._terminals.push(terminal);
+		return terminal;
+	}
+
+	public createTerminalFromOptions(options: vscode.TerminalOptions): vscode.Terminal {
+		let terminal = new ExtHostTerminal(this._proxy, options.name, options.shellPath, options.shellArgs/*, options.waitOnExit*/);
 		this._terminals.push(terminal);
 		return terminal;
 	}
@@ -139,6 +150,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 				index = i;
 				return true;
 			}
+			return false;
 		});
 		return index;
 	}

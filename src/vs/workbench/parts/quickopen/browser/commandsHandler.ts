@@ -5,77 +5,252 @@
 
 'use strict';
 
-import 'vs/css!./media/commandsHandler';
 import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import arrays = require('vs/base/common/arrays');
 import types = require('vs/base/common/types');
 import { language, LANGUAGE_DEFAULT } from 'vs/base/common/platform';
-import { IAction, Action } from 'vs/base/common/actions';
+import { Action } from 'vs/base/common/actions';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { Mode, IEntryRunContext, IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
-import { QuickOpenEntryGroup, IHighlight, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import { SyncActionDescriptor, ExecuteCommandAction, IMenuService } from 'vs/platform/actions/common/actions';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
-import { Registry } from 'vs/platform/platform';
-import { QuickOpenHandler, QuickOpenAction } from 'vs/workbench/browser/quickopen';
-import { IEditorAction, IEditor } from 'vs/editor/common/editorCommon';
+import { Mode, IEntryRunContext, IAutoFocus, IModel, IQuickNavigateConfiguration } from 'vs/base/parts/quickopen/common/quickOpen';
+import { QuickOpenEntryGroup, IHighlight, QuickOpenModel, QuickOpenEntry } from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import { SyncActionDescriptor, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { QuickOpenHandler, IWorkbenchQuickOpenConfiguration } from 'vs/workbench/browser/quickopen';
+import { IEditorAction, IEditor, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { matchesWords, matchesPrefix, matchesContiguousSubString, or } from 'vs/base/common/filters';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, Severity, IMessageWithAction } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
+import { editorAction, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { once } from 'vs/base/common/event';
+import { BoundedMap, ISerializedBoundedLinkedMap } from 'vs/base/common/map';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 
 export const ALL_COMMANDS_PREFIX = '>';
-export const EDITOR_COMMANDS_PREFIX = '$';
 
-const wordFilter = or(matchesPrefix, matchesWords, matchesContiguousSubString);
+let lastCommandPaletteInput: string;
+let commandHistory: BoundedMap<number>;
+let commandCounter = 1;
 
-export class ShowAllCommandsAction extends QuickOpenAction {
+function resolveCommandHistory(configurationService: IConfigurationService): number {
+	const config = <IWorkbenchQuickOpenConfiguration>configurationService.getConfiguration();
+
+	let commandHistory = config.workbench && config.workbench.commandPalette && config.workbench.commandPalette.history;
+	if (typeof commandHistory !== 'number') {
+		commandHistory = CommandsHistory.DEFAULT_COMMANDS_HISTORY_LENGTH;
+	}
+
+	return commandHistory;
+}
+
+class CommandsHistory {
+
+	public static readonly DEFAULT_COMMANDS_HISTORY_LENGTH = 50;
+
+	private static readonly PREF_KEY_CACHE = 'commandPalette.mru.cache';
+	private static readonly PREF_KEY_COUNTER = 'commandPalette.mru.counter';
+
+	private commandHistoryLength: number;
+
+	constructor(
+		@IStorageService private storageService: IStorageService,
+		@ILifecycleService private lifecycleService: ILifecycleService,
+		@IConfigurationService private configurationService: IConfigurationService
+	) {
+		this.updateConfiguration();
+		this.load();
+
+		this.registerListeners();
+	}
+
+	private updateConfiguration(): void {
+		this.commandHistoryLength = resolveCommandHistory(this.configurationService);
+
+		if (commandHistory) {
+			commandHistory.setLimit(this.commandHistoryLength);
+		}
+	}
+
+	private load(): void {
+		const raw = this.storageService.get(CommandsHistory.PREF_KEY_CACHE);
+		let deserializedCache: ISerializedBoundedLinkedMap<number>;
+		if (raw) {
+			try {
+				deserializedCache = JSON.parse(raw);
+			} catch (error) {
+				// invalid data
+			}
+		}
+
+		commandHistory = new BoundedMap<number>(this.commandHistoryLength, 1, deserializedCache);
+		commandCounter = this.storageService.getInteger(CommandsHistory.PREF_KEY_COUNTER, void 0, commandCounter);
+	}
+
+	private registerListeners(): void {
+		this.configurationService.onDidUpdateConfiguration(e => this.updateConfiguration());
+		once(this.lifecycleService.onShutdown)(reason => this.save());
+	}
+
+	private save(): void {
+		this.storageService.store(CommandsHistory.PREF_KEY_CACHE, JSON.stringify(commandHistory.serialize()));
+		this.storageService.store(CommandsHistory.PREF_KEY_COUNTER, commandCounter);
+	}
+
+	public push(commandId: string): void {
+
+		// make MRU by deleting it first
+		commandHistory.delete(commandId);
+
+		// set counter to command
+		commandHistory.set(commandId, commandCounter++);
+	}
+
+	public get(commandId: string): number {
+		return commandHistory.get(commandId);
+	}
+}
+
+export class ShowAllCommandsAction extends Action {
 
 	public static ID = 'workbench.action.showCommands';
 	public static LABEL = nls.localize('showTriggerActions', "Show All Commands");
 
-	constructor(actionId: string, actionLabel: string, @IQuickOpenService quickOpenService: IQuickOpenService) {
-		super(actionId, actionLabel, ALL_COMMANDS_PREFIX, quickOpenService);
+	constructor(
+		id: string,
+		label: string,
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IConfigurationService private configurationService: IConfigurationService
+	) {
+		super(id, label);
+	}
+
+	public run(context?: any): TPromise<void> {
+		const config = <IWorkbenchQuickOpenConfiguration>this.configurationService.getConfiguration();
+		const restoreInput = config.workbench && config.workbench.commandPalette && config.workbench.commandPalette.preserveInput === true;
+
+		// Show with last command palette input if any and configured
+		let value = ALL_COMMANDS_PREFIX;
+		if (restoreInput && lastCommandPaletteInput) {
+			value = `${value}${lastCommandPaletteInput}`;
+		}
+
+		this.quickOpenService.show(value, { inputSelection: lastCommandPaletteInput ? { start: 1 /* after prefix */, end: value.length } : void 0 });
+
+		return TPromise.as(null);
 	}
 }
 
-class BaseCommandEntry extends QuickOpenEntryGroup {
-	private keyLabel: string;
-	private keyAriaLabel: string;
-	private label: string;
-	private alias: string;
+export class ClearCommandHistoryAction extends Action {
+
+	public static ID = 'workbench.action.clearCommandHistory';
+	public static LABEL = nls.localize('clearCommandHistory', "Clear Command History");
 
 	constructor(
-		keyLabel: string,
-		keyAriaLabel: string,
+		id: string,
 		label: string,
+		@IStorageService private storageService: IStorageService,
+		@IConfigurationService private configurationService: IConfigurationService
+	) {
+		super(id, label);
+	}
+
+	public run(context?: any): TPromise<void> {
+		const commandHistoryLength = resolveCommandHistory(this.configurationService);
+		if (commandHistoryLength > 0) {
+			commandHistory = new BoundedMap<number>(commandHistoryLength);
+			commandCounter = 1;
+		}
+
+		return TPromise.as(null);
+	}
+}
+
+@editorAction
+class CommandPaletteEditorAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: ShowAllCommandsAction.ID,
+			label: nls.localize('showCommands.label', "Command Palette..."),
+			alias: 'Command Palette',
+			precondition: null,
+			menuOpts: {
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): TPromise<void> {
+		const quickOpenService = accessor.get(IQuickOpenService);
+
+		// Show with prefix
+		quickOpenService.show(ALL_COMMANDS_PREFIX);
+
+		return TPromise.as(null);
+	}
+}
+
+abstract class BaseCommandEntry extends QuickOpenEntryGroup {
+	private description: string;
+	private alias: string;
+	private labelLowercase: string;
+	private keybindingAriaLabel: string;
+
+	constructor(
+		private commandId: string,
+		private keybinding: ResolvedKeybinding,
+		private label: string,
 		alias: string,
-		labelHighlights: IHighlight[],
-		aliasHighlights: IHighlight[],
+		highlights: { label: IHighlight[], alias: IHighlight[] },
+		private onBeforeRun: (commandId: string) => void,
 		@IMessageService protected messageService: IMessageService,
 		@ITelemetryService protected telemetryService: ITelemetryService
 	) {
 		super();
 
-		this.keyLabel = keyLabel;
-		this.keyAriaLabel = keyAriaLabel;
-		this.label = label;
+		this.labelLowercase = this.label.toLowerCase();
+		this.keybindingAriaLabel = keybinding ? keybinding.getAriaLabel() : void 0;
 
-		if (label !== alias) {
+		if (this.label !== alias) {
 			this.alias = alias;
 		} else {
-			aliasHighlights = null;
+			highlights.alias = null;
 		}
 
-		this.setHighlights(labelHighlights, null, aliasHighlights);
+		this.setHighlights(highlights.label, null, highlights.alias);
+	}
+
+	public getCommandId(): string {
+		return this.commandId;
 	}
 
 	public getLabel(): string {
 		return this.label;
+	}
+
+	public getSortLabel(): string {
+		return this.labelLowercase;
+	}
+
+	public getDescription(): string {
+		return this.description;
+	}
+
+	public setDescription(description: string): void {
+		this.description = description;
+	}
+
+	public getKeybinding(): ResolvedKeybinding {
+		return this.keybinding;
 	}
 
 	public getDetail(): string {
@@ -83,241 +258,259 @@ class BaseCommandEntry extends QuickOpenEntryGroup {
 	}
 
 	public getAriaLabel(): string {
-		if (this.keyAriaLabel) {
-			return nls.localize('entryAriaLabelWithKey', "{0}, {1}, commands", this.getLabel(), this.keyAriaLabel);
+		if (this.keybindingAriaLabel) {
+			return nls.localize('entryAriaLabelWithKey', "{0}, {1}, commands", this.getLabel(), this.keybindingAriaLabel);
 		}
 
 		return nls.localize('entryAriaLabel', "{0}, commands", this.getLabel());
 	}
 
-	public getGroupLabel(): string {
-		return this.keyLabel;
-	}
-
 	protected onError(error?: Error): void;
 	protected onError(messagesWithAction?: IMessageWithAction): void;
 	protected onError(arg1?: any): void {
-		let message: any;
-
 		const messagesWithAction: IMessageWithAction = arg1;
 		if (messagesWithAction && typeof messagesWithAction.message === 'string' && Array.isArray(messagesWithAction.actions)) {
-			message = messagesWithAction;
+			this.messageService.show(Severity.Error, messagesWithAction);
 		} else {
-			message = !arg1 ? nls.localize('canNotRun', "Command '{0}' can not be run from here.", this.label) : toErrorMessage(arg1);
+			this.messageService.show(Severity.Error, !arg1 ? nls.localize('canNotRun', "Command '{0}' can not be run from here.", this.label) : toErrorMessage(arg1));
 		}
-
-
-		this.messageService.show(Severity.Error, message);
 	}
 
-	protected runAction(action: IAction): void {
+	public run(mode: Mode, context: IEntryRunContext): boolean {
+		if (mode === Mode.OPEN) {
+			this.runAction(this.getAction());
+
+			return true;
+		}
+
+		return false;
+	}
+
+	protected abstract getAction(): Action | IEditorAction;
+
+	protected runAction(action: Action | IEditorAction): void {
+
+		// Indicate onBeforeRun
+		this.onBeforeRun(this.commandId);
 
 		// Use a timeout to give the quick open widget a chance to close itself first
 		TPromise.timeout(50).done(() => {
-			if (action && action.enabled) {
+			if (action && (!(action instanceof Action) || action.enabled)) {
 				try {
 					this.telemetryService.publicLog('workbenchActionExecuted', { id: action.id, from: 'quick open' });
 					(action.run() || TPromise.as(null)).done(() => {
-						action.dispose();
-					}, (err) => this.onError(err));
+						if (action instanceof Action) {
+							action.dispose();
+						}
+					}, err => this.onError(err));
 				} catch (error) {
 					this.onError(error);
 				}
 			} else {
 				this.messageService.show(Severity.Info, nls.localize('actionNotEnabled', "Command '{0}' is not enabled in the current context.", this.getLabel()));
 			}
-		}, (err) => this.onError(err));
+		}, err => this.onError(err));
 	}
 }
 
 class CommandEntry extends BaseCommandEntry {
-	private actionDescriptor: SyncActionDescriptor;
 
 	constructor(
-		keyLabel: string,
-		keyAriaLabel: string,
+		commandId: string,
+		keybinding: ResolvedKeybinding,
 		label: string,
 		meta: string,
-		labelHighlights: IHighlight[],
-		aliasHighlights: IHighlight[],
-		actionDescriptor: SyncActionDescriptor,
+		highlights: { label: IHighlight[], alias: IHighlight[] },
+		private actionDescriptor: SyncActionDescriptor,
+		onBeforeRun: (commandId: string) => void,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IMessageService messageService: IMessageService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super(keyLabel, keyAriaLabel, label, meta, labelHighlights, aliasHighlights, messageService, telemetryService);
-
-		this.actionDescriptor = actionDescriptor;
+		super(commandId, keybinding, label, meta, highlights, onBeforeRun, messageService, telemetryService);
 	}
 
-	public run(mode: Mode, context: IEntryRunContext): boolean {
-		if (mode === Mode.OPEN) {
-			let action = <Action>this.instantiationService.createInstance(this.actionDescriptor.syncDescriptor);
-			this.runAction(action);
-
-			return true;
-		}
-
-		return false;
+	protected getAction(): Action | IEditorAction {
+		return <Action>this.instantiationService.createInstance(this.actionDescriptor.syncDescriptor);
 	}
 }
 
 class EditorActionCommandEntry extends BaseCommandEntry {
-	private action: IEditorAction;
 
 	constructor(
-		keyLabel: string,
-		keyAriaLabel: string,
+		commandId: string,
+		keybinding: ResolvedKeybinding,
 		label: string,
 		meta: string,
-		labelHighlights: IHighlight[],
-		aliasHighlights: IHighlight[],
-		action: IEditorAction,
+		highlights: { label: IHighlight[], alias: IHighlight[] },
+		private action: IEditorAction,
+		onBeforeRun: (commandId: string) => void,
 		@IMessageService messageService: IMessageService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super(keyLabel, keyAriaLabel, label, meta, labelHighlights, aliasHighlights, messageService, telemetryService);
-
-		this.action = action;
+		super(commandId, keybinding, label, meta, highlights, onBeforeRun, messageService, telemetryService);
 	}
 
-	public run(mode: Mode, context: IEntryRunContext): boolean {
-		if (mode === Mode.OPEN) {
-			// Use a timeout to give the quick open widget a chance to close itself first
-			TPromise.timeout(50).done(() => {
-				if (this.action) {
-					try {
-						this.telemetryService.publicLog('workbenchActionExecuted', { id: this.action.id, from: 'quick open' });
-						(this.action.run() || TPromise.as(null)).done(null, (err) => this.onError(err));
-					} catch (error) {
-						this.onError(error);
-					}
-				} else {
-					this.messageService.show(Severity.Info, nls.localize('actionNotEnabled', "Command '{0}' is not enabled in the current context.", this.getLabel()));
-				}
-			}, (err) => this.onError(err));
-
-			return true;
-		}
-
-		return false;
+	protected getAction(): Action | IEditorAction {
+		return this.action;
 	}
 }
-
 
 class ActionCommandEntry extends BaseCommandEntry {
-	private action: IAction;
 
 	constructor(
-		keyLabel: string,
-		keyAriaLabel: string,
+		commandId: string,
+		keybinding: ResolvedKeybinding,
 		label: string,
 		alias: string,
-		labelHighlights: IHighlight[],
-		aliasHighlights: IHighlight[],
-		action: IAction,
+		highlights: { label: IHighlight[], alias: IHighlight[] },
+		private action: Action,
+		onBeforeRun: (commandId: string) => void,
 		@IMessageService messageService: IMessageService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super(keyLabel, keyAriaLabel, label, alias, labelHighlights, aliasHighlights, messageService, telemetryService);
-
-		this.action = action;
+		super(commandId, keybinding, label, alias, highlights, onBeforeRun, messageService, telemetryService);
 	}
 
-	public run(mode: Mode, context: IEntryRunContext): boolean {
-		if (mode === Mode.OPEN) {
-			this.runAction(this.action);
-
-			return true;
-		}
-
-		return false;
+	protected getAction(): Action | IEditorAction {
+		return this.action;
 	}
 }
 
+const wordFilter = or(matchesPrefix, matchesWords, matchesContiguousSubString);
+
 export class CommandsHandler extends QuickOpenHandler {
+	private lastSearchValue: string;
+	private commandHistoryEnabled: boolean;
+	private commandsHistory: CommandsHistory;
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IKeybindingService private keybindingService: IKeybindingService,
-		@IMenuService private menuService: IMenuService
+		@IMenuService private menuService: IMenuService,
+		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super();
+
+		this.commandsHistory = this.instantiationService.createInstance(CommandsHistory);
+
+		this.configurationService.onDidUpdateConfiguration(e => this.updateConfiguration());
+		this.updateConfiguration();
 	}
 
-	protected includeWorkbenchCommands(): boolean {
-		return true;
+	private updateConfiguration(): void {
+		this.commandHistoryEnabled = resolveCommandHistory(this.configurationService) > 0;
 	}
 
 	public getResults(searchValue: string): TPromise<QuickOpenModel> {
 		searchValue = searchValue.trim();
+		this.lastSearchValue = searchValue;
 
-		// Workbench Actions (if prefix asks for all commands)
+		// Workbench Actions
 		let workbenchEntries: CommandEntry[] = [];
-		if (this.includeWorkbenchCommands()) {
-			let workbenchActions = (<IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions)).getWorkbenchActions();
-			workbenchEntries = this.actionDescriptorsToEntries(workbenchActions, searchValue);
-		}
+		const workbenchActions = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions).getWorkbenchActions();
+		workbenchEntries = this.actionDescriptorsToEntries(workbenchActions, searchValue);
 
 		// Editor Actions
-		let activeEditor = this.editorService.getActiveEditor();
-		let activeEditorControl = <any>(activeEditor ? activeEditor.getControl() : null);
+		const activeEditor = this.editorService.getActiveEditor();
+		const activeEditorControl = activeEditor ? activeEditor.getControl() : null;
 
 		let editorActions: IEditorAction[] = [];
 		if (activeEditorControl) {
-			let editor = <IEditor>activeEditorControl;
+			const editor = <IEditor>activeEditorControl;
 			if (types.isFunction(editor.getSupportedActions)) {
 				editorActions = editor.getSupportedActions();
 			}
 		}
 
-		let editorEntries = this.editorActionsToEntries(editorActions, searchValue);
+		const editorEntries = this.editorActionsToEntries(editorActions, searchValue);
 
 		// Other Actions
-		let otherActions = this.menuService.getCommandActions().map(command => {
-			return this.instantiationService.createInstance(ExecuteCommandAction, command.id,
-				command.category ? nls.localize('', "{0}: {1}", command.category, command.title) : command.title);
-		});
-		let otherEntries = this.otherActionsToEntries(otherActions, searchValue);
+		const menu = this.editorGroupService.invokeWithinEditorContext(accessor => this.menuService.createMenu(MenuId.CommandPalette, accessor.get(IContextKeyService)));
+		const menuActions = menu.getActions().reduce((r, [, actions]) => [...r, ...actions], <MenuItemAction[]>[]);
+		const commandEntries = this.menuItemActionsToEntries(menuActions, searchValue);
 
 		// Concat
-		let entries = [...workbenchEntries, ...editorEntries, ...otherEntries];
+		let entries = [...workbenchEntries, ...editorEntries, ...commandEntries];
 
 		// Remove duplicates
-		entries = arrays.distinct(entries, (entry) => entry.getLabel() + entry.getGroupLabel());
+		entries = arrays.distinct(entries, entry => `${entry.getLabel()}${entry.getGroupLabel()}${entry.getCommandId()}`);
 
-		// Sort by name
-		entries = entries.sort((elementA, elementB) => elementA.getLabel().toLowerCase().localeCompare(elementB.getLabel().toLowerCase()));
+		// Handle label clashes
+		const commandLabels = new Set<string>();
+		entries.forEach(entry => {
+			const commandLabel = `${entry.getLabel()}${entry.getGroupLabel()}`;
+			if (commandLabels.has(commandLabel)) {
+				entry.setDescription(entry.getCommandId());
+			} else {
+				commandLabels.add(commandLabel);
+			}
+		});
+
+		// Sort by MRU order and fallback to name otherwie
+		entries = entries.sort((elementA, elementB) => {
+			const counterA = this.commandsHistory.get(elementA.getCommandId());
+			const counterB = this.commandsHistory.get(elementB.getCommandId());
+
+			if (counterA && counterB) {
+				return counterA > counterB ? -1 : 1; // use more recently used command before older
+			}
+
+			if (counterA) {
+				return -1; // first command was used, so it wins over the non used one
+			}
+
+			if (counterB) {
+				return 1; // other command was used so it wins over the command
+			}
+
+			// both commands were never used, so we sort by name
+			return elementA.getSortLabel().localeCompare(elementB.getSortLabel());
+		});
+
+		// Introduce group marker border between recently used and others
+		// only if we have recently used commands in the result set
+		const firstEntry = entries[0];
+		if (firstEntry && this.commandsHistory.get(firstEntry.getCommandId())) {
+			firstEntry.setGroupLabel(nls.localize('recentlyUsed', "recently used"));
+			for (let i = 1; i < entries.length; i++) {
+				const entry = entries[i];
+				if (!this.commandsHistory.get(entry.getCommandId())) {
+					entry.setShowBorder(true);
+					entry.setGroupLabel(nls.localize('morecCommands', "other commands"));
+					break;
+				}
+			}
+		}
 
 		return TPromise.as(new QuickOpenModel(entries));
 	}
 
 	private actionDescriptorsToEntries(actionDescriptors: SyncActionDescriptor[], searchValue: string): CommandEntry[] {
-		let entries: CommandEntry[] = [];
-		let registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
+		const entries: CommandEntry[] = [];
+		const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 
 		for (let i = 0; i < actionDescriptors.length; i++) {
-			let actionDescriptor = actionDescriptors[i];
-			let keys = this.keybindingService.lookupKeybindings(actionDescriptor.id);
-			let keyLabel = keys.map(k => this.keybindingService.getLabelFor(k));
-			let keyAriaLabel = keys.map(k => this.keybindingService.getAriaLabelFor(k));
-
+			const actionDescriptor = actionDescriptors[i];
 			if (actionDescriptor.label) {
 
 				// Label (with optional category)
 				let label = actionDescriptor.label;
-				let category = registry.getCategory(actionDescriptor.id);
+				const category = registry.getCategory(actionDescriptor.id);
 				if (category) {
 					label = nls.localize('commandLabel', "{0}: {1}", category, label);
 				}
 
 				// Alias for non default languages
-				let alias = (language !== LANGUAGE_DEFAULT) ? registry.getAlias(actionDescriptor.id) : null;
-				let labelHighlights = wordFilter(searchValue, label);
-				let aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
+				const alias = (language !== LANGUAGE_DEFAULT) ? registry.getAlias(actionDescriptor.id) : null;
+				const labelHighlights = wordFilter(searchValue, label);
+				const aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
+
 				if (labelHighlights || aliasHighlights) {
-					entries.push(this.instantiationService.createInstance(CommandEntry, keyLabel.length > 0 ? keyLabel.join(', ') : '', keyAriaLabel.length > 0 ? keyAriaLabel.join(', ') : '', label, alias, labelHighlights, aliasHighlights, actionDescriptor));
+					entries.push(this.instantiationService.createInstance(CommandEntry, actionDescriptor.id, this.keybindingService.lookupKeybinding(actionDescriptor.id), label, alias, { label: labelHighlights, alias: aliasHighlights }, actionDescriptor, (id: string) => this.onBeforeRunCommand(id)));
 				}
 			}
 		}
@@ -326,24 +519,24 @@ export class CommandsHandler extends QuickOpenHandler {
 	}
 
 	private editorActionsToEntries(actions: IEditorAction[], searchValue: string): EditorActionCommandEntry[] {
-		let entries: EditorActionCommandEntry[] = [];
+		const entries: EditorActionCommandEntry[] = [];
 
 		for (let i = 0; i < actions.length; i++) {
-			let action = actions[i];
+			const action = actions[i];
+			if (action.id === ShowAllCommandsAction.ID) {
+				continue; // avoid duplicates
+			}
 
-			let keys = this.keybindingService.lookupKeybindings(action.id);
-			let keyLabel = keys.map(k => this.keybindingService.getLabelFor(k));
-			let keyAriaLabel = keys.map(k => this.keybindingService.getAriaLabelFor(k));
-			let label = action.label;
-
+			const label = action.label;
 			if (label) {
 
 				// Alias for non default languages
-				let alias = (language !== LANGUAGE_DEFAULT) ? action.alias : null;
-				let labelHighlights = wordFilter(searchValue, label);
-				let aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
+				const alias = (language !== LANGUAGE_DEFAULT) ? action.alias : null;
+				const labelHighlights = wordFilter(searchValue, label);
+				const aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
+
 				if (labelHighlights || aliasHighlights) {
-					entries.push(this.instantiationService.createInstance(EditorActionCommandEntry, keyLabel.length > 0 ? keyLabel.join(', ') : '', keyAriaLabel.length > 0 ? keyAriaLabel.join(', ') : '', label, alias, labelHighlights, aliasHighlights, action));
+					entries.push(this.instantiationService.createInstance(EditorActionCommandEntry, action.id, this.keybindingService.lookupKeybinding(action.id), label, alias, { label: labelHighlights, alias: aliasHighlights }, action, (id: string) => this.onBeforeRunCommand(id)));
 				}
 			}
 		}
@@ -351,41 +544,72 @@ export class CommandsHandler extends QuickOpenHandler {
 		return entries;
 	}
 
-	private otherActionsToEntries(actions: IAction[], searchValue: string): ActionCommandEntry[] {
-		let entries: ActionCommandEntry[] = [];
+	private onBeforeRunCommand(commandId: string): void {
+
+		// Remember as last command palette input
+		lastCommandPaletteInput = this.lastSearchValue;
+
+		// Remember in commands history
+		this.commandsHistory.push(commandId);
+	}
+
+	private menuItemActionsToEntries(actions: MenuItemAction[], searchValue: string): ActionCommandEntry[] {
+		const entries: ActionCommandEntry[] = [];
 
 		for (let action of actions) {
-			let keys = this.keybindingService.lookupKeybindings(action.id);
-			let keyLabel = keys.map(k => this.keybindingService.getLabelFor(k));
-			let keyAriaLabel = keys.map(k => this.keybindingService.getAriaLabelFor(k));
-			let highlights = wordFilter(searchValue, action.label);
-			if (highlights) {
-				entries.push(this.instantiationService.createInstance(ActionCommandEntry, keyLabel.join(', '), keyAriaLabel.join(', '), action.label, null, highlights, null, action));
+			const title = typeof action.item.title === 'string' ? action.item.title : action.item.title.value;
+			let category, label = title;
+			if (action.item.category) {
+				category = typeof action.item.category === 'string' ? action.item.category : action.item.category.value;
+				label = nls.localize('cat.title', "{0}: {1}", category, title);
+			}
+
+			if (label) {
+				const labelHighlights = wordFilter(searchValue, label);
+
+				// Add an 'alias' in original language when running in different locale
+				const aliasTitle = (language !== LANGUAGE_DEFAULT && typeof action.item.title !== 'string') ? action.item.title.original : null;
+				const aliasCategory = (language !== LANGUAGE_DEFAULT && category && typeof action.item.category !== 'string') ? action.item.category.original : null;
+				let alias;
+				if (aliasTitle && category) {
+					alias = aliasCategory ? `${aliasCategory}: ${aliasTitle}` : `${category}: ${aliasTitle}`;
+				} else if (aliasTitle) {
+					alias = aliasTitle;
+				}
+				const aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
+
+				if (labelHighlights || aliasHighlights) {
+					entries.push(this.instantiationService.createInstance(ActionCommandEntry, action.id, this.keybindingService.lookupKeybinding(action.item.id), label, alias, { label: labelHighlights, alias: aliasHighlights }, action, (id: string) => this.onBeforeRunCommand(id)));
+				}
 			}
 		}
 
 		return entries;
 	}
 
-	public getAutoFocus(searchValue: string): IAutoFocus {
+	public getAutoFocus(searchValue: string, context: { model: IModel<QuickOpenEntry>, quickNavigateConfiguration?: IQuickNavigateConfiguration }): IAutoFocus {
+		let autoFocusPrefixMatch = searchValue.trim();
+
+		if (autoFocusPrefixMatch && this.commandHistoryEnabled) {
+			const firstEntry = context.model && context.model.entries[0];
+			if (firstEntry instanceof BaseCommandEntry && this.commandsHistory.get(firstEntry.getCommandId())) {
+				autoFocusPrefixMatch = void 0; // keep focus on MRU element if we have history elements
+			}
+		}
+
 		return {
 			autoFocusFirstEntry: true,
-			autoFocusPrefixMatch: searchValue.trim()
+			autoFocusPrefixMatch
 		};
-	}
-
-	public getClass(): string {
-		return 'commands-handler';
 	}
 
 	public getEmptyLabel(searchString: string): string {
 		return nls.localize('noCommandsMatching', "No commands matching");
 	}
-}
 
-export class EditorCommandsHandler extends CommandsHandler {
-
-	protected includeWorkbenchCommands(): boolean {
-		return false;
+	public onClose(canceled: boolean): void {
+		if (canceled) {
+			lastCommandPaletteInput = void 0; // clear last input when user canceled quick open
+		}
 	}
 }

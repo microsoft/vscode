@@ -6,5 +6,7 @@
 {
 	"copy": "Copia",
 	"createNewTerminal": "Nuovo terminale",
-	"paste": "Incolla"
+	"paste": "Incolla",
+	"selectAll": "Seleziona tutto",
+	"clear": "Cancella"
 }

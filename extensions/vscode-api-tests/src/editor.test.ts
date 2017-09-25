@@ -6,12 +6,12 @@
 'use strict';
 
 import * as assert from 'assert';
-import { workspace, window, Position, Range, commands, TextEditor, TextDocument } from 'vscode';
-import { createRandomFile, deleteFile, cleanUp } from './utils';
+import { workspace, window, Position, Range, commands, TextEditor, TextDocument, TextEditorCursorStyle, TextEditorLineNumbersStyle, SnippetString, Selection } from 'vscode';
+import { createRandomFile, deleteFile, closeAllEditors } from './utils';
 
 suite('editor tests', () => {
 
-	teardown(cleanUp);
+	teardown(closeAllEditors);
 
 	function withRandomFileEditor(initialContents: string, run: (editor: TextEditor, doc: TextDocument) => Thenable<void>): Thenable<boolean> {
 		return createRandomFile(initialContents).then(file => {
@@ -32,6 +32,58 @@ suite('editor tests', () => {
 			});
 		});
 	}
+
+	test('insert snippet', () => {
+		const snippetString = new SnippetString()
+			.appendText('This is a ')
+			.appendTabstop()
+			.appendPlaceholder('placeholder')
+			.appendText(' snippet');
+
+		return withRandomFileEditor('', (editor, doc) => {
+			return editor.insertSnippet(snippetString).then(inserted => {
+				assert.ok(inserted);
+				assert.equal(doc.getText(), 'This is a placeholder snippet');
+				assert.ok(doc.isDirty);
+			});
+		});
+	});
+
+	test('insert snippet with replacement, editor selection', () => {
+		const snippetString = new SnippetString()
+			.appendText('has been');
+
+		return withRandomFileEditor('This will be replaced', (editor, doc) => {
+			editor.selection = new Selection(
+				new Position(0, 5),
+				new Position(0, 12)
+			);
+
+			return editor.insertSnippet(snippetString).then(inserted => {
+				assert.ok(inserted);
+				assert.equal(doc.getText(), 'This has been replaced');
+				assert.ok(doc.isDirty);
+			});
+		});
+	});
+
+	test('insert snippet with replacement, selection as argument', () => {
+		const snippetString = new SnippetString()
+			.appendText('has been');
+
+		return withRandomFileEditor('This will be replaced', (editor, doc) => {
+			const selection = new Selection(
+				new Position(0, 5),
+				new Position(0, 12)
+			);
+
+			return editor.insertSnippet(snippetString, selection).then(inserted => {
+				assert.ok(inserted);
+				assert.equal(doc.getText(), 'This has been replaced');
+				assert.ok(doc.isDirty);
+			});
+		});
+	});
 
 	test('make edit', () => {
 		return withRandomFileEditor('', (editor, doc) => {
@@ -96,6 +148,53 @@ suite('editor tests', () => {
 			}).then(_ => {
 				assert.equal(doc.getText(), 'hello world!');
 			});
+		});
+	});
+
+	test('issue #16573: Extension API: insertSpaces and tabSize are undefined', () => {
+		return withRandomFileEditor('Hello world!\n\tHello world!', (editor, doc) => {
+
+			assert.equal(editor.options.tabSize, 4);
+			assert.equal(editor.options.insertSpaces, false);
+			assert.equal(editor.options.cursorStyle, TextEditorCursorStyle.Line);
+			assert.equal(editor.options.lineNumbers, TextEditorLineNumbersStyle.On);
+
+			editor.options = {
+				tabSize: 2
+			};
+
+			assert.equal(editor.options.tabSize, 2);
+			assert.equal(editor.options.insertSpaces, false);
+			assert.equal(editor.options.cursorStyle, TextEditorCursorStyle.Line);
+			assert.equal(editor.options.lineNumbers, TextEditorLineNumbersStyle.On);
+
+			editor.options.tabSize = 'invalid';
+
+			assert.equal(editor.options.tabSize, 2);
+			assert.equal(editor.options.insertSpaces, false);
+			assert.equal(editor.options.cursorStyle, TextEditorCursorStyle.Line);
+			assert.equal(editor.options.lineNumbers, TextEditorLineNumbersStyle.On);
+
+			return Promise.resolve();
+		});
+	});
+
+	test('issue #20757: Overlapping ranges are not allowed!', () => {
+		return withRandomFileEditor('Hello world!\n\tHello world!', (editor, doc) => {
+			return editor.edit((builder) => {
+				// create two edits that overlap (i.e. are illegal)
+				builder.replace(new Range(0, 0, 0, 2), 'He');
+				builder.replace(new Range(0, 1, 0, 3), 'el');
+			}).then(
+
+				(applied) => {
+					assert.ok(false, 'edit with overlapping ranges should fail');
+				},
+
+				(err) => {
+					assert.ok(true, 'edit with overlapping ranges should fail');
+				}
+				);
 		});
 	});
 });

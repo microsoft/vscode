@@ -6,8 +6,7 @@
 
 import * as nls from 'vs/nls';
 import { IAction } from 'vs/base/common/actions';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Keybinding } from 'vs/base/common/keybinding';
+import { ResolvedKeybinding, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
@@ -17,9 +16,10 @@ import { IContextMenuService, IContextViewService } from 'vs/platform/contextvie
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { ICommonCodeEditor, IEditorContribution, MouseTargetType, EditorContextKeys, IScrollEvent } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, IEditorContribution, IScrollEvent, ScrollType } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
-import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 
 export interface IPosition {
@@ -127,7 +127,7 @@ export class ContextMenuController implements IEditorContribution {
 		const result: IAction[] = [];
 
 		let contextMenu = this._menuService.createMenu(MenuId.EditorContext, this._contextKeyService);
-		const groups = contextMenu.getActions();
+		const groups = contextMenu.getActions({ arg: this._editor.getModel().uri });
 		contextMenu.dispose();
 
 		for (let group of groups) {
@@ -150,7 +150,7 @@ export class ContextMenuController implements IEditorContribution {
 		var menuPosition = forcedPosition;
 		if (!menuPosition) {
 			// Ensure selection is visible
-			this._editor.revealPosition(this._editor.getPosition());
+			this._editor.revealPosition(this._editor.getPosition(), ScrollType.Immediate);
 
 			this._editor.render();
 			var cursorCoords = this._editor.getScrolledVisiblePosition(this._editor.getPosition());
@@ -175,7 +175,7 @@ export class ContextMenuController implements IEditorContribution {
 			getActionItem: (action) => {
 				var keybinding = this._keybindingFor(action);
 				if (keybinding) {
-					return new ActionItem(action, action, { label: true, keybinding: this._keybindingService.getLabelFor(keybinding) });
+					return new ActionItem(action, action, { label: true, keybinding: keybinding.getLabel(), isMenu: true });
 				}
 
 				var customActionItem = <any>action;
@@ -183,10 +183,10 @@ export class ContextMenuController implements IEditorContribution {
 					return customActionItem.getActionItem();
 				}
 
-				return null;
+				return new ActionItem(action, action, { icon: true, label: true, isMenu: true });
 			},
 
-			getKeyBinding: (action): Keybinding => {
+			getKeyBinding: (action): ResolvedKeybinding => {
 				return this._keybindingFor(action);
 			},
 
@@ -200,12 +200,8 @@ export class ContextMenuController implements IEditorContribution {
 		});
 	}
 
-	private _keybindingFor(action: IAction): Keybinding {
-		var opts = this._keybindingService.lookupKeybindings(action.id);
-		if (opts.length > 0) {
-			return opts[0]; // only take the first one
-		}
-		return null;
+	private _keybindingFor(action: IAction): ResolvedKeybinding {
+		return this._keybindingService.lookupKeybinding(action.id);
 	}
 
 	public getId(): string {
@@ -231,7 +227,7 @@ class ShowContextMenu extends EditorAction {
 			alias: 'Show Editor Context Menu',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.Shift | KeyCode.F10
 			}
 		});

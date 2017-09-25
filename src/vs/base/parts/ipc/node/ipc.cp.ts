@@ -5,12 +5,14 @@
 
 import { ChildProcess, fork } from 'child_process';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { Promise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { Delayer } from 'vs/base/common/async';
 import { clone, assign } from 'vs/base/common/objects';
 import { Emitter } from 'vs/base/common/event';
 import { fromEventEmitter } from 'vs/base/node/event';
+import { createQueuedSender } from 'vs/base/node/processes';
 import { ChannelServer as IPCServer, ChannelClient as IPCClient, IChannelClient, IChannel } from 'vs/base/parts/ipc/common/ipc';
+import { isRemoteConsoleLog, log } from 'vs/base/node/console';
 
 export class Server extends IPCServer {
 	constructor() {
@@ -54,12 +56,26 @@ export interface IIPCOptions {
 	 * Allows to assign a debug port for debugging the application and breaking it on the first line.
 	 */
 	debugBrk?: number;
+
+	/**
+	 * See https://github.com/Microsoft/vscode/issues/27665
+	 * Allows to pass in fresh execArgv to the forked process such that it doesn't inherit them from `process.execArgv`.
+	 * e.g. Launching the extension host process with `--inspect-brk=xxx` and then forking a process from the extension host
+	 * results in the forked process inheriting `--inspect-brk=xxx`.
+	 */
+	freshExecArgv?: boolean;
+
+	/**
+	 * Enables our createQueuedSender helper for this Client. Uses a queue when the internal Node.js queue is
+	 * full of messages - see notes on that method.
+	 */
+	useQueue?: boolean;
 }
 
 export class Client implements IChannelClient, IDisposable {
 
 	private disposeDelayer: Delayer<void>;
-	private activeRequests: Promise[];
+	private activeRequests: TPromise<void>[];
 	private child: ChildProcess;
 	private _client: IPCClient;
 	private channels: { [name: string]: IChannel };
@@ -74,22 +90,22 @@ export class Client implements IChannelClient, IDisposable {
 	}
 
 	getChannel<T extends IChannel>(channelName: string): T {
-		const call = (command, arg) => this.request(channelName, command, arg);
+		const call = (command: string, arg: any) => this.request(channelName, command, arg);
 		return { call } as T;
 	}
 
-	protected request(channelName: string, name: string, arg: any): Promise {
+	protected request(channelName: string, name: string, arg: any): TPromise<void> {
 		if (!this.disposeDelayer) {
-			return Promise.wrapError('disposed');
+			return TPromise.wrapError(new Error('disposed'));
 		}
 
 		this.disposeDelayer.cancel();
 
 		const channel = this.channels[channelName] || (this.channels[channelName] = this.client.getChannel(channelName));
-		const request: Promise = channel.call(name, arg);
+		const request: TPromise<void> = channel.call(name, arg);
 
 		// Progress doesn't propagate across 'then', we need to create a promise wrapper
-		const result = new Promise((c, e, p) => {
+		const result = new TPromise<void>((c, e, p) => {
 			request.then(c, e, p).done(() => {
 				if (!this.activeRequests) {
 					return;
@@ -118,12 +134,16 @@ export class Client implements IChannelClient, IDisposable {
 				forkOpts.env = assign(forkOpts.env, this.options.env);
 			}
 
+			if (this.options && this.options.freshExecArgv) {
+				forkOpts.execArgv = [];
+			}
+
 			if (this.options && typeof this.options.debug === 'number') {
-				forkOpts.execArgv = ['--nolazy', '--debug=' + this.options.debug];
+				forkOpts.execArgv = ['--nolazy', '--inspect=' + this.options.debug];
 			}
 
 			if (this.options && typeof this.options.debugBrk === 'number') {
-				forkOpts.execArgv = ['--nolazy', '--debug-brk=' + this.options.debugBrk];
+				forkOpts.execArgv = ['--nolazy', '--inspect-brk=' + this.options.debugBrk];
 			}
 
 			this.child = fork(this.modulePath, args, forkOpts);
@@ -132,27 +152,19 @@ export class Client implements IChannelClient, IDisposable {
 			const onRawMessage = fromEventEmitter(this.child, 'message', msg => msg);
 
 			onRawMessage(msg => {
-				// Handle console logs specially
-				if (msg && msg.type === '__$console') {
-					let args = ['%c[IPC Library: ' + this.options.serverName + ']', 'color: darkgreen'];
-					try {
-						const parsed = JSON.parse(msg.arguments);
-						args = args.concat(Object.getOwnPropertyNames(parsed).map(o => parsed[o]));
-					} catch (error) {
-						args.push(msg.arguments);
-					}
 
-					console[msg.severity].apply(console, args);
+				// Handle remote console logs specially
+				if (isRemoteConsoleLog(msg)) {
+					log(msg, `IPC Library: ${this.options.serverName}`);
 					return null;
 				}
 
 				// Anything else goes to the outside
-				else {
-					onMessageEmitter.fire(msg);
-				}
+				onMessageEmitter.fire(msg);
 			});
 
-			const send = r => this.child && this.child.connected && this.child.send(r);
+			const sender = this.options.useQueue ? createQueuedSender(this.child) : this.child;
+			const send = r => this.child && this.child.connected && sender.send(r);
 			const onMessage = onMessageEmitter.event;
 			const protocol = { send, onMessage };
 
@@ -171,7 +183,7 @@ export class Client implements IChannelClient, IDisposable {
 					this.activeRequests = [];
 				}
 
-				if (code && signal !== 'SIGTERM') {
+				if (code !== 0 && signal !== 'SIGTERM') {
 					console.warn('IPC "' + this.options.serverName + '" crashed with exit code ' + code);
 					this.disposeDelayer.cancel();
 					this.disposeClient();

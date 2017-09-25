@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as ts from 'typescript';
-import * as Lint from 'tslint/lib/lint';
+import * as Lint from 'tslint';
 
 /**
  * Implementation of the no-unexternalized-strings rule.
@@ -45,6 +45,8 @@ interface KeyMessagePair {
 
 class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 
+	private static ImportFailureMessage = 'Do not use double qoutes for imports.';
+
 	private static DOUBLE_QUOTE: string = '"';
 
 	private signatures: Map<boolean>;
@@ -82,10 +84,10 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 	protected visitSourceFile(node: ts.SourceFile): void {
 		super.visitSourceFile(node);
 		Object.keys(this.usedKeys).forEach(key => {
-			let occurences = this.usedKeys[key];
-			if (occurences.length > 1) {
-				occurences.forEach(occurence => {
-					this.addFailure((this.createFailure(occurence.key.getStart(), occurence.key.getWidth(), `Duplicate key ${occurence.key.getText()} with different message value.`)));
+			let occurrences = this.usedKeys[key];
+			if (occurrences.length > 1) {
+				occurrences.forEach(occurrence => {
+					this.addFailure((this.createFailure(occurrence.key.getStart(), occurrence.key.getWidth(), `Duplicate key ${occurrence.key.getText()} with different message value.`)));
 				});
 			}
 		});
@@ -101,7 +103,15 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 		let doubleQuoted = text.length >= 2 && text[0] === NoUnexternalizedStringsRuleWalker.DOUBLE_QUOTE && text[text.length - 1] === NoUnexternalizedStringsRuleWalker.DOUBLE_QUOTE;
 		let info = this.findDescribingParent(node);
 		// Ignore strings in import and export nodes.
-		if (info && info.ignoreUsage) {
+		if (info && info.isImport && doubleQuoted) {
+			this.addFailureAtNode(
+				node,
+				NoUnexternalizedStringsRuleWalker.ImportFailureMessage,
+				new Lint.Fix(NoUnexternalizedStringsRuleWalker.ImportFailureMessage, [
+					this.createReplacement(node.getStart(), 1, '\''),
+					this.createReplacement(node.getStart() + text.length - 1, 1, '\''),
+				])
+			);
 			return;
 		}
 		let callInfo = info ? info.callInfo : null;
@@ -109,8 +119,12 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 		if (functionName && this.ignores[functionName]) {
 			return;
 		}
+
 		if (doubleQuoted && (!callInfo || callInfo.argIndex === -1 || !this.signatures[functionName])) {
-			this.addFailure(this.createFailure(node.getStart(), node.getWidth(), `Unexternalized string found: ${node.getText()}`));
+			const s = node.getText();
+			const replacement = new Lint.Replacement(node.getStart(), node.getWidth(), `nls.localize('KEY-${s.substring(1, s.length - 1)}', ${s})`);
+			const fix = new Lint.Fix('Unexternalitzed string', [replacement]);
+			this.addFailure(this.createFailure(node.getStart(), node.getWidth(), `Unexternalized string found: ${node.getText()}`, fix));
 			return;
 		}
 		// We have a single quoted string outside a localize function name.
@@ -153,20 +167,20 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 
 	private recordKey(keyNode: ts.StringLiteral, messageNode: ts.Node) {
 		let text = keyNode.getText();
-		let occurences: KeyMessagePair[] = this.usedKeys[text];
-		if (!occurences) {
-			occurences = [];
-			this.usedKeys[text] = occurences;
+		let occurrences: KeyMessagePair[] = this.usedKeys[text];
+		if (!occurrences) {
+			occurrences = [];
+			this.usedKeys[text] = occurrences;
 		}
 		if (messageNode) {
-			if (occurences.some(pair => pair.message ? pair.message.getText() === messageNode.getText() : false)) {
+			if (occurrences.some(pair => pair.message ? pair.message.getText() === messageNode.getText() : false)) {
 				return;
 			}
 		}
-		occurences.push({ key: keyNode, message: messageNode });
+		occurrences.push({ key: keyNode, message: messageNode });
 	}
 
-	private findDescribingParent(node: ts.Node): { callInfo?: { callExpression: ts.CallExpression, argIndex: number }, ignoreUsage?: boolean; } {
+	private findDescribingParent(node: ts.Node): { callInfo?: { callExpression: ts.CallExpression, argIndex: number }, isImport?: boolean; } {
 		let parent: ts.Node;
 		while ((parent = node.parent)) {
 			let kind = parent.kind;
@@ -174,7 +188,7 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 				let callExpression = parent as ts.CallExpression;
 				return { callInfo: { callExpression: callExpression, argIndex: callExpression.arguments.indexOf(<any>node) } };
 			} else if (kind === ts.SyntaxKind.ImportEqualsDeclaration || kind === ts.SyntaxKind.ImportDeclaration || kind === ts.SyntaxKind.ExportDeclaration) {
-				return { ignoreUsage: true };
+				return { isImport: true };
 			} else if (kind === ts.SyntaxKind.VariableDeclaration || kind === ts.SyntaxKind.FunctionDeclaration || kind === ts.SyntaxKind.PropertyDeclaration
 				|| kind === ts.SyntaxKind.MethodDeclaration || kind === ts.SyntaxKind.VariableDeclarationList || kind === ts.SyntaxKind.InterfaceDeclaration
 				|| kind === ts.SyntaxKind.ClassDeclaration || kind === ts.SyntaxKind.EnumDeclaration || kind === ts.SyntaxKind.ModuleDeclaration

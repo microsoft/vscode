@@ -3,31 +3,10 @@
 <html>
 	<head>
 		<meta charset="utf-8" />
-
-		<!-- Theming (do not remove, we want to early load it to avoid flashing background) -->
-		<style>
-			.monaco-shell.vs-dark {
-				background-color: #1E1E1E;
-			}
-		</style>
-
+		<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' https: data:; media-src 'none'; child-src 'self'; object-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https:; font-src 'self' https:;">
 	</head>
 	<body class="monaco-shell vs-dark" aria-label="">
-		<script>
-			(function() {
-					try {
-						var theme = window.localStorage.getItem('storage://global/workbench.theme');
-						if (theme) {
-							var baseTheme = theme.split(' ')[0];
-							if (baseTheme !== 'vs-dark') {
-								window.document.body.className = 'monaco-shell ' + baseTheme;
-							}
-						}
-					} catch (error) {
-						console.error(error);
-					}
-				})();
-		</script>
+		<script src="preload.js"></script>
 	</body>
 
 	<!-- Startup via index.js -->

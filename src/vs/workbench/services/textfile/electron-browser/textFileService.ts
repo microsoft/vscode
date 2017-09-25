@@ -12,7 +12,7 @@ import strings = require('vs/base/common/strings');
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import { ConfirmResult } from 'vs/workbench/common/editor';
-import { TextFileService as AbstractTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
+import { TextFileService as AbstractTextFileService } from 'vs/workbench/services/textfile/common/textFileService';
 import { IRawTextContent } from 'vs/workbench/services/textfile/common/textfiles';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IFileService, IResolveContentOptions } from 'vs/platform/files/common/files';
@@ -21,15 +21,15 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ModelBuilder } from 'vs/editor/node/model/modelBuilder';
-import product from 'vs/platform/product';
+import { ModelBuilder } from 'vs/workbench/services/textfile/electron-browser/modelBuilder';
+import product from 'vs/platform/node/product';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IBackupService } from 'vs/workbench/services/backup/common/backup';
 import { IMessageService } from 'vs/platform/message/common/message';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { mnemonicButtonLabel } from 'vs/base/common/labels';
 
 export class TextFileService extends AbstractTextFileService {
 
@@ -44,26 +44,26 @@ export class TextFileService extends AbstractTextFileService {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IModeService private modeService: IModeService,
-		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@IWindowIPCService private windowService: IWindowIPCService,
-		@IModelService private modelService: IModelService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IBackupService backupService: IBackupService,
-		@IMessageService messageService: IMessageService
+		@IWindowService private windowService: IWindowService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IMessageService messageService: IMessageService,
+		@IBackupFileService backupFileService: IBackupFileService,
+		@IWindowsService windowsService: IWindowsService,
+		@IHistoryService historyService: IHistoryService
 	) {
-		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, fileService, untitledEditorService, instantiationService, backupService, messageService);
+		super(lifecycleService, contextService, configurationService, telemetryService, fileService, untitledEditorService, instantiationService, messageService, environmentService, backupFileService, windowsService, historyService);
 	}
 
 	public resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent> {
 		return this.fileService.resolveStreamContent(resource, options).then(streamContent => {
-			return ModelBuilder.fromStringStream(streamContent.value, this.modelService.getCreationOptions()).then(res => {
+			return ModelBuilder.fromStringStream(streamContent.value).then(res => {
 				const r: IRawTextContent = {
 					resource: streamContent.resource,
 					name: streamContent.name,
 					mtime: streamContent.mtime,
 					etag: streamContent.etag,
 					encoding: streamContent.encoding,
-					value: res.rawText,
+					value: res.value,
 					valueLogicalHash: res.hash
 				};
 				return r;
@@ -72,7 +72,7 @@ export class TextFileService extends AbstractTextFileService {
 	}
 
 	public confirmSave(resources?: URI[]): ConfirmResult {
-		if (!!this.environmentService.extensionDevelopmentPath) {
+		if (this.environmentService.isExtensionDevelopment) {
 			return ConfirmResult.DONT_SAVE; // no veto when we are in extension dev mode because we cannot assum we run interactive (e.g. tests)
 		}
 
@@ -105,11 +105,11 @@ export class TextFileService extends AbstractTextFileService {
 		// Mac: Save | Cancel | Don't Save
 		// Linux: Don't Save | Cancel | Save
 
-		const save = { label: resourcesToConfirm.length > 1 ? this.mnemonicLabel(nls.localize({ key: 'saveAll', comment: ['&& denotes a mnemonic'] }, "&&Save All")) : this.mnemonicLabel(nls.localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")), result: ConfirmResult.SAVE };
-		const dontSave = { label: this.mnemonicLabel(nls.localize({ key: 'dontSave', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save")), result: ConfirmResult.DONT_SAVE };
+		const save = { label: resourcesToConfirm.length > 1 ? mnemonicButtonLabel(nls.localize({ key: 'saveAll', comment: ['&& denotes a mnemonic'] }, "&&Save All")) : mnemonicButtonLabel(nls.localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")), result: ConfirmResult.SAVE };
+		const dontSave = { label: mnemonicButtonLabel(nls.localize({ key: 'dontSave', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save")), result: ConfirmResult.DONT_SAVE };
 		const cancel = { label: nls.localize('cancel', "Cancel"), result: ConfirmResult.CANCEL };
 
-		const buttons = [];
+		const buttons: { label: string; result: ConfirmResult; }[] = [];
 		if (isWindows) {
 			buttons.push(save, dontSave, cancel);
 		} else if (isLinux) {
@@ -118,7 +118,7 @@ export class TextFileService extends AbstractTextFileService {
 			buttons.push(save, cancel, dontSave);
 		}
 
-		const opts: Electron.ShowMessageBoxOptions = {
+		const opts: Electron.MessageBoxOptions = {
 			title: product.nameLong,
 			message: message.join('\n'),
 			type: 'warning',
@@ -132,21 +132,13 @@ export class TextFileService extends AbstractTextFileService {
 			opts.defaultId = 2;
 		}
 
-		const choice = this.windowService.getWindow().showMessageBox(opts);
+		const choice = this.windowService.showMessageBox(opts);
 
 		return buttons[choice].result;
 	}
 
-	private mnemonicLabel(label: string): string {
-		if (!isWindows) {
-			return label.replace(/\(&&\w\)|&&/g, ''); // no mnemonic support on mac/linux
-		}
-
-		return label.replace(/&&/g, '&');
-	}
-
 	public promptForPath(defaultPath?: string): string {
-		return this.windowService.getWindow().showSaveDialog(this.getSaveDialogOptions(defaultPath ? paths.normalize(defaultPath, true) : void 0));
+		return this.windowService.showSaveDialog(this.getSaveDialogOptions(defaultPath ? paths.normalize(defaultPath, true) : void 0));
 	}
 
 	private getSaveDialogOptions(defaultPath?: string): Electron.SaveDialogOptions {

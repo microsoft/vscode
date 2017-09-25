@@ -62,11 +62,11 @@ export class BowerJSONContribution implements IJSONContribution {
 								for (let i = 0; i < results.length; i++) {
 									let name = results[i].name;
 									let description = results[i].description || '';
-									let insertText = JSON.stringify(name);
+									let insertText = new SnippetString().appendText(JSON.stringify(name));
 									if (addValue) {
-										insertText += ': "{{latest}}"';
+										insertText.appendText(': ').appendPlaceholder('latest');
 										if (!isLast) {
-											insertText += ',';
+											insertText.appendText(',');
 										}
 									}
 									let proposal = new CompletionItem(name);
@@ -91,11 +91,11 @@ export class BowerJSONContribution implements IJSONContribution {
 				});
 			} else {
 				this.topRanked.forEach((name) => {
-					let insertText = JSON.stringify(name);
+					let insertText = new SnippetString().appendText(JSON.stringify(name));
 					if (addValue) {
-						insertText += ': "{{latest}}"';
+						insertText.appendText(': ').appendPlaceholder('latest');
 						if (!isLast) {
-							insertText += ',';
+							insertText.appendText(',');
 						}
 					}
 
@@ -117,7 +117,7 @@ export class BowerJSONContribution implements IJSONContribution {
 		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']))) {
 			// not implemented. Could be do done calling the bower command. Waiting for web API: https://github.com/bower/registry/issues/26
 			let proposal = new CompletionItem(localize('json.bower.latest.version', 'latest'));
-			proposal.insertText = '"{{latest}}"';
+			proposal.insertText = new SnippetString('"${1:latest}"');
 			proposal.filterText = '""';
 			proposal.kind = CompletionItemKind.Value;
 			proposal.documentation = 'The latest version of the package';

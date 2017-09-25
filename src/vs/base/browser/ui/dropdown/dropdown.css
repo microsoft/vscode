@@ -31,25 +31,6 @@
 	display: inline-block;
 }
 
-.dropdown > .dropdown-label:not(:empty):not(.tick) {
+.dropdown > .dropdown-label:not(:empty) {
 	padding: 0 .5em;
-}
-
-.dropdown > .dropdown-label:empty.tick {
-	padding: 0 1em 0 0;
-}
-
-.dropdown > .dropdown-label.tick {
-	padding: 0 1em 0 .5em;
-}
-
-.dropdown > .dropdown-label.tick:after {
-	content: '';
-	width: 0;
-	height: 0;
-	position: relative;
-	top: 1em;
-	left: .5em;
-	border: 4px solid transparent;
-	border-top: 4px solid #fff;
 }

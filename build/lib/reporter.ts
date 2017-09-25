@@ -8,9 +8,11 @@
 import * as es from 'event-stream';
 import * as _ from 'underscore';
 import * as util from 'gulp-util';
+import * as fs from 'fs';
+import * as path from 'path';
 
-const allErrors:Error[][] = [];
-let startTime:number = null;
+const allErrors: Error[][] = [];
+let startTime: number = null;
 let count = 0;
 
 function onStart(): void {
@@ -19,32 +21,57 @@ function onStart(): void {
 	}
 
 	startTime = new Date().getTime();
-	util.log(`Starting ${ util.colors.green('compilation') }...`);
+	util.log(`Starting ${util.colors.green('compilation')}...`);
 }
 
 function onEnd(): void {
 	if (--count > 0) {
-		return ;
+		return;
 	}
 
-	const errors = _.flatten(allErrors);
-	errors.map(err => util.log(`${ util.colors.red('Error') }: ${ err }`));
+	log();
+}
 
-	util.log(`Finished ${ util.colors.green('compilation') } with ${ errors.length } errors after ${ util.colors.magenta((new Date().getTime() - startTime) + ' ms') }`);
+const buildLogPath = path.join(path.dirname(path.dirname(__dirname)), '.build', 'log');
+
+try {
+	fs.mkdirSync(path.dirname(buildLogPath));
+} catch (err) {
+	// ignore
+}
+
+function log(): void {
+	const errors = _.flatten(allErrors);
+	errors.map(err => util.log(`${util.colors.red('Error')}: ${err}`));
+
+	const regex = /^([^(]+)\((\d+),(\d+)\): (.*)$/;
+	const messages = errors
+		.map(err => regex.exec(err))
+		.filter(match => !!match)
+		.map(([, path, line, column, message]) => ({ path, line: parseInt(line), column: parseInt(column), message }));
+
+	try {
+
+		fs.writeFileSync(buildLogPath, JSON.stringify(messages));
+	} catch (err) {
+		//noop
+	}
+
+	util.log(`Finished ${util.colors.green('compilation')} with ${errors.length} errors after ${util.colors.magenta((new Date().getTime() - startTime) + ' ms')}`);
 }
 
 export interface IReporter {
-	(err:Error): void;
+	(err: Error): void;
 	hasErrors(): boolean;
-	end(emitError:boolean): NodeJS.ReadWriteStream;
+	end(emitError: boolean): NodeJS.ReadWriteStream;
 }
 
 export function createReporter(): IReporter {
-	const errors:Error[] = [];
+	const errors: Error[] = [];
 	allErrors.push(errors);
 
 	class ReportFunc {
-		constructor(err:Error) {
+		constructor(err: Error) {
 			errors.push(err);
 		}
 
@@ -52,7 +79,7 @@ export function createReporter(): IReporter {
 			return errors.length > 0;
 		}
 
-		static end(emitError:boolean): NodeJS.ReadWriteStream {
+		static end(emitError: boolean): NodeJS.ReadWriteStream {
 			errors.length = 0;
 			onStart();
 
@@ -60,7 +87,8 @@ export function createReporter(): IReporter {
 				onEnd();
 
 				if (emitError && errors.length > 0) {
-					this.emit('error', 'Errors occurred.');
+					log();
+					this.emit('error');
 				} else {
 					this.emit('end');
 				}

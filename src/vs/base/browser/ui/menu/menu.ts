@@ -11,13 +11,13 @@ import { $ } from 'vs/base/browser/builder';
 import { IActionRunner, IAction } from 'vs/base/common/actions';
 import { ActionBar, IActionItemProvider, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
-import { Keybinding } from 'vs/base/common/keybinding';
+import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 
 export interface IMenuOptions {
 	context?: any;
 	actionItemProvider?: IActionItemProvider;
 	actionRunner?: IActionRunner;
-	getKeyBinding?: (action: IAction) => Keybinding;
+	getKeyBinding?: (action: IAction) => ResolvedKeybinding;
 }
 
 export class Menu extends EventEmitter {
@@ -36,10 +36,11 @@ export class Menu extends EventEmitter {
 			orientation: ActionsOrientation.VERTICAL,
 			actionItemProvider: options.actionItemProvider,
 			context: options.context,
-			actionRunner: options.actionRunner
+			actionRunner: options.actionRunner,
+			isMenu: true
 		});
 
-		this.listener = this.addEmitter2(this.actionBar);
+		this.listener = this.addEmitter(this.actionBar);
 
 		this.actionBar.push(actions, { icon: true, label: true });
 	}

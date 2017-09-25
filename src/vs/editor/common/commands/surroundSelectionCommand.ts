@@ -20,14 +20,14 @@ export class SurroundSelectionCommand implements ICommand {
 	}
 
 	public getEditOperations(model: ITokenizedModel, builder: IEditOperationBuilder): void {
-		builder.addEditOperation(new Range(
+		builder.addTrackedEditOperation(new Range(
 			this._range.startLineNumber,
 			this._range.startColumn,
 			this._range.startLineNumber,
 			this._range.startColumn
 		), this._charBeforeSelection);
 
-		builder.addEditOperation(new Range(
+		builder.addTrackedEditOperation(new Range(
 			this._range.endLineNumber,
 			this._range.endColumn,
 			this._range.endLineNumber,

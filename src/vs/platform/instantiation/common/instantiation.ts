@@ -12,6 +12,8 @@ import * as descriptors from './descriptors';
 
 export namespace _util {
 
+	export const serviceIds = new Map<string, ServiceIdentifier<any>>();
+
 	export const DI_TARGET = '$di$target';
 	export const DI_DEPENDENCIES = '$di$dependencies';
 
@@ -23,39 +25,39 @@ export namespace _util {
 // --- interfaces ------
 
 export interface IConstructorSignature0<T> {
-	new (...services: { _serviceBrand: any; }[]): T;
+	new(...services: { _serviceBrand: any; }[]): T;
 }
 
 export interface IConstructorSignature1<A1, T> {
-	new (first: A1, ...services: { _serviceBrand: any; }[]): T;
+	new(first: A1, ...services: { _serviceBrand: any; }[]): T;
 }
 
 export interface IConstructorSignature2<A1, A2, T> {
-	new (first: A1, second: A2, ...services: { _serviceBrand: any; }[]): T;
+	new(first: A1, second: A2, ...services: { _serviceBrand: any; }[]): T;
 }
 
 export interface IConstructorSignature3<A1, A2, A3, T> {
-	new (first: A1, second: A2, third: A3, ...services: { _serviceBrand: any; }[]): T;
+	new(first: A1, second: A2, third: A3, ...services: { _serviceBrand: any; }[]): T;
 }
 
 export interface IConstructorSignature4<A1, A2, A3, A4, T> {
-	new (first: A1, second: A2, third: A3, forth: A4, ...services: { _serviceBrand: any; }[]): T;
+	new(first: A1, second: A2, third: A3, fourth: A4, ...services: { _serviceBrand: any; }[]): T;
 }
 
 export interface IConstructorSignature5<A1, A2, A3, A4, A5, T> {
-	new (first: A1, second: A2, third: A3, forth: A4, fifth: A5, ...services: { _serviceBrand: any; }[]): T;
+	new(first: A1, second: A2, third: A3, fourth: A4, fifth: A5, ...services: { _serviceBrand: any; }[]): T;
 }
 
 export interface IConstructorSignature6<A1, A2, A3, A4, A5, A6, T> {
-	new (first: A1, second: A2, third: A3, forth: A4, fifth: A5, sixth: A6, ...services: { _serviceBrand: any; }[]): T;
+	new(first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, ...services: { _serviceBrand: any; }[]): T;
 }
 
 export interface IConstructorSignature7<A1, A2, A3, A4, A5, A6, A7, T> {
-	new (first: A1, second: A2, third: A3, forth: A4, fifth: A5, sixth: A6, seventh: A7, ...services: { _serviceBrand: any; }[]): T;
+	new(first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, seventh: A7, ...services: { _serviceBrand: any; }[]): T;
 }
 
 export interface IConstructorSignature8<A1, A2, A3, A4, A5, A6, A7, A8, T> {
-	new (first: A1, second: A2, third: A3, forth: A4, fifth: A5, sixth: A6, seventh: A7, eigth: A8, ...services: { _serviceBrand: any; }[]): T;
+	new(first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, seventh: A7, eigth: A8, ...services: { _serviceBrand: any; }[]): T;
 }
 
 export interface ServicesAccessor {
@@ -79,26 +81,26 @@ export interface IFunctionSignature3<A1, A2, A3, R> {
 }
 
 export interface IFunctionSignature4<A1, A2, A3, A4, R> {
-	(accessor: ServicesAccessor, first: A1, second: A2, third: A3, forth: A4): R;
+	(accessor: ServicesAccessor, first: A1, second: A2, third: A3, fourth: A4): R;
 }
 
 export interface IFunctionSignature5<A1, A2, A3, A4, A5, R> {
-	(accessor: ServicesAccessor, first: A1, second: A2, third: A3, forth: A4, fifth: A5): R;
+	(accessor: ServicesAccessor, first: A1, second: A2, third: A3, fourth: A4, fifth: A5): R;
 }
 
 export interface IFunctionSignature6<A1, A2, A3, A4, A5, A6, R> {
-	(accessor: ServicesAccessor, first: A1, second: A2, third: A3, forth: A4, fifth: A5, sixth: A6): R;
+	(accessor: ServicesAccessor, first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6): R;
 }
 
 export interface IFunctionSignature7<A1, A2, A3, A4, A5, A6, A7, R> {
-	(accessor: ServicesAccessor, first: A1, second: A2, third: A3, forth: A4, fifth: A5, sixth: A6, seventh: A7): R;
+	(accessor: ServicesAccessor, first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, seventh: A7): R;
 }
 
 export interface IFunctionSignature8<A1, A2, A3, A4, A5, A6, A7, A8, R> {
-	(accessor: ServicesAccessor, first: A1, second: A2, third: A3, forth: A4, fifth: A5, sixth: A6, seventh: A7, eigth: A8): R;
+	(accessor: ServicesAccessor, first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, seventh: A7, eigth: A8): R;
 }
 
-export var IInstantiationService = createDecorator<IInstantiationService>('instantiationService');
+export const IInstantiationService = createDecorator<IInstantiationService>('instantiationService');
 
 export interface IInstantiationService {
 
@@ -185,7 +187,11 @@ function storeServiceDependency(id: Function, target: Function, index: number, o
  */
 export function createDecorator<T>(serviceId: string): { (...args: any[]): void; type: T; } {
 
-	let id = function (target: Function, key: string, index: number): any {
+	if (_util.serviceIds.has(serviceId)) {
+		return _util.serviceIds.get(serviceId);
+	}
+
+	const id = <any>function (target: Function, key: string, index: number): any {
 		if (arguments.length !== 3) {
 			throw new Error('@IServiceName-decorator can only be used to decorate a parameter');
 		}
@@ -194,7 +200,8 @@ export function createDecorator<T>(serviceId: string): { (...args: any[]): void;
 
 	id.toString = () => serviceId;
 
-	return <any>id;
+	_util.serviceIds.set(serviceId, id);
+	return id;
 }
 
 /**

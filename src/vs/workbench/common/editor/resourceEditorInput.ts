@@ -7,8 +7,9 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorInput, ITextEditorModel } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
-import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetry';
-import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { IReference } from 'vs/base/common/lifecycle';
+import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 
 /**
@@ -17,11 +18,10 @@ import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorMo
  */
 export class ResourceEditorInput extends EditorInput {
 
-	public static ID: string = 'workbench.editors.resourceEditorInput';
+	static ID: string = 'workbench.editors.resourceEditorInput';
 
-	protected cachedModel: ResourceEditorModel;
-	protected resource: URI;
-
+	private modelReference: TPromise<IReference<ITextEditorModel>>;
+	private resource: URI;
 	private name: string;
 	private description: string;
 
@@ -29,13 +29,17 @@ export class ResourceEditorInput extends EditorInput {
 		name: string,
 		description: string,
 		resource: URI,
-		@ITextModelResolverService private textModelResolverService: ITextModelResolverService
+		@ITextModelService private textModelResolverService: ITextModelService
 	) {
 		super();
 
 		this.name = name;
 		this.description = description;
 		this.resource = resource;
+	}
+
+	public getResource(): URI {
+		return this.resource;
 	}
 
 	public getTypeId(): string {
@@ -64,34 +68,28 @@ export class ResourceEditorInput extends EditorInput {
 		}
 	}
 
-	public getTelemetryDescriptor(): { [key: string]: any; } {
+	public getTelemetryDescriptor(): object {
 		const descriptor = super.getTelemetryDescriptor();
 		descriptor['resource'] = telemetryURIDescriptor(this.resource);
+
 		return descriptor;
 	}
 
 	public resolve(refresh?: boolean): TPromise<ITextEditorModel> {
-
-		// Use Cached Model
-		if (this.cachedModel) {
-			return TPromise.as<ITextEditorModel>(this.cachedModel);
+		if (!this.modelReference) {
+			this.modelReference = this.textModelResolverService.createModelReference(this.resource);
 		}
 
-		// Otherwise Create Model and handle dispose event
-		return this.textModelResolverService.resolve(this.resource).then(model => {
+		return this.modelReference.then(ref => {
+			const model = ref.object;
+
 			if (!(model instanceof ResourceEditorModel)) {
-				return TPromise.wrapError(`Unexpected model for ResourceInput: ${this.resource}`); // TODO@Ben eventually also files should be supported, but we guard due to the dangerous dispose of the model in dispose()
+				ref.dispose();
+				this.modelReference = null;
+				return TPromise.wrapError<ITextEditorModel>(new Error(`Unexpected model for ResourceInput: ${this.resource}`)); // TODO@Ben eventually also files should be supported, but we guard due to the dangerous dispose of the model in dispose()
 			}
 
-			this.cachedModel = model;
-
-			const unbind = model.onDispose(() => {
-				this.cachedModel = null; // make sure we do not dispose model again
-				unbind.dispose();
-				this.dispose();
-			});
-
-			return this.cachedModel;
+			return model;
 		});
 	}
 
@@ -111,9 +109,9 @@ export class ResourceEditorInput extends EditorInput {
 	}
 
 	public dispose(): void {
-		if (this.cachedModel) {
-			this.cachedModel.dispose();
-			this.cachedModel = null;
+		if (this.modelReference) {
+			this.modelReference.done(ref => ref.dispose());
+			this.modelReference = null;
 		}
 
 		super.dispose();

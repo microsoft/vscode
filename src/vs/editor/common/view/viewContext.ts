@@ -5,36 +5,38 @@
 'use strict';
 
 import { IConfiguration } from 'vs/editor/common/editorCommon';
-import { EmitterEvent } from 'vs/base/common/eventEmitter';
-import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
-
-export interface IViewEventBus {
-	emit(eventType: string, data?: any): void;
-}
-
-export interface IViewEventHandler {
-	handleEvents(events: EmitterEvent[]): void;
-}
+import { IViewModel, IViewLayout } from 'vs/editor/common/viewModel/viewModel';
+import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
+import { ViewEventDispatcher } from 'vs/editor/common/view/viewEventDispatcher';
+import { ITheme } from 'vs/platform/theme/common/themeService';
 
 export class ViewContext {
 
-	public configuration: IConfiguration;
-	public model: IViewModel;
-	public privateViewEventBus: IViewEventBus;
-	public addEventHandler: (eventHandler: IViewEventHandler) => void;
-	public removeEventHandler: (eventHandler: IViewEventHandler) => void;
+	public readonly configuration: IConfiguration;
+	public readonly model: IViewModel;
+	public readonly viewLayout: IViewLayout;
+	public readonly privateViewEventBus: ViewEventDispatcher;
+
+	public theme: ITheme; // will be updated
 
 	constructor(
 		configuration: IConfiguration,
+		theme: ITheme,
 		model: IViewModel,
-		privateViewEventBus: IViewEventBus,
-		addEventHandler: (eventHandler: IViewEventHandler) => void,
-		removeEventHandler: (eventHandler: IViewEventHandler) => void
+		privateViewEventBus: ViewEventDispatcher
 	) {
 		this.configuration = configuration;
+		this.theme = theme;
 		this.model = model;
+		this.viewLayout = model.viewLayout;
 		this.privateViewEventBus = privateViewEventBus;
-		this.addEventHandler = addEventHandler;
-		this.removeEventHandler = removeEventHandler;
+	}
+
+	public addEventHandler(eventHandler: ViewEventHandler): void {
+		this.privateViewEventBus.addEventHandler(eventHandler);
+	}
+
+	public removeEventHandler(eventHandler: ViewEventHandler): void {
+		this.privateViewEventBus.removeEventHandler(eventHandler);
 	}
 }

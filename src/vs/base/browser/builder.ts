@@ -59,7 +59,7 @@ export function withElementById(id: string, offdom?: boolean): Builder {
 	return null;
 }
 
-export let Build = {
+export const Build = {
 	withElementById: withElementById
 };
 
@@ -692,7 +692,7 @@ export class Builder implements IDisposable {
 			}
 		};
 
-		return this.on(arg1, fn, listenerToUnbindContainer);
+		return this.on(arg1, fn, listenerToUnbindContainer, useCapture);
 	}
 
 	/**
@@ -857,7 +857,8 @@ export class Builder implements IDisposable {
 	 *  a) a single string passed in as argument will return the style value using the
 	 *  string as key from the current element of the builder.
 	 *  b) two strings passed in will set the style value identified by the first
-	 *  parameter to match the second parameter.
+	 *  parameter to match the second parameter. The second parameter can be null
+	 *  to unset a style
 	 *  c) an object literal passed in will apply the properties of the literal as styles
 	 *  to the current element of the builder.
 	 */
@@ -874,15 +875,19 @@ export class Builder implements IDisposable {
 					this.doSetStyle(prop, value);
 				}
 			}
+
+			return this;
 		}
 
+		const hasFirstP = types.isString(firstP);
+
 		// Get Style Value
-		else if (types.isString(firstP) && !types.isString(secondP)) {
+		if (hasFirstP && types.isUndefined(secondP)) {
 			return this.currentElement.style[this.cssKeyToJavaScriptProperty(firstP)];
 		}
 
 		// Set Style Value
-		else if (types.isString(firstP) && types.isString(secondP)) {
+		else if (hasFirstP) {
 			this.doSetStyle(firstP, secondP);
 		}
 
@@ -1280,8 +1285,8 @@ export class Builder implements IDisposable {
 	 *  Shows the current element of the builder.
 	 */
 	public show(): Builder {
-		if (this.hasClass('hidden')) {
-			this.removeClass('hidden');
+		if (this.hasClass('builder-hidden')) {
+			this.removeClass('builder-hidden');
 		}
 
 		this.attr('aria-hidden', 'false');
@@ -1319,8 +1324,8 @@ export class Builder implements IDisposable {
 	 *  Hides the current element of the builder.
 	 */
 	public hide(): Builder {
-		if (!this.hasClass('hidden')) {
-			this.addClass('hidden');
+		if (!this.hasClass('builder-hidden')) {
+			this.addClass('builder-hidden');
 		}
 		this.attr('aria-hidden', 'true');
 
@@ -1334,7 +1339,7 @@ export class Builder implements IDisposable {
 	 *  Returns true if the current element of the builder is hidden.
 	 */
 	public isHidden(): boolean {
-		return this.hasClass('hidden') || this.currentElement.style.display === 'none';
+		return this.hasClass('builder-hidden') || this.currentElement.style.display === 'none';
 	}
 
 	/**
@@ -1345,7 +1350,7 @@ export class Builder implements IDisposable {
 		// Cancel any pending showDelayed() invocation
 		this.cancelVisibilityPromise();
 
-		this.swapClass('builder-visible', 'hidden');
+		this.swapClass('builder-visible', 'builder-hidden');
 
 		if (this.isHidden()) {
 			this.attr('aria-hidden', 'true');
@@ -2091,7 +2096,7 @@ export function getBindingFromElement(element: HTMLElement): any {
 	return getPropertyFromElement(element, DATA_BINDING_ID);
 }
 
-export let Binding = {
+export const Binding = {
 	setPropertyOnElement: setPropertyOnElement,
 	getPropertyFromElement: getPropertyFromElement,
 	removePropertyFromElement: removePropertyFromElement,
@@ -2102,7 +2107,7 @@ export let Binding = {
 
 let SELECTOR_REGEX = /([\w\-]+)?(#([\w\-]+))?((.([\w\-]+))*)/;
 
-export let $: QuickBuilder = function (arg?: any): Builder {
+export const $: QuickBuilder = function (arg?: any): Builder {
 
 	// Off-DOM use
 	if (types.isUndefined(arg)) {

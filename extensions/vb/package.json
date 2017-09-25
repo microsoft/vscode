@@ -3,6 +3,9 @@
 	"version": "0.1.0",
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
+	"scripts": {
+		"update-grammar": "node ../../build/npm/update-grammar.js textmate/asp.vb.net.tmbundle Syntaxes/ASP%20VB.net.plist ./syntaxes/asp-vb-net.tmlanguage.json"
+	},
 	"contributes": {
 		"languages": [{
 			"id": "vb",
@@ -13,7 +16,7 @@
 		"grammars": [{
 			"language": "vb",
 			"scopeName": "source.asp.vb.net",
-			"path": "./syntaxes/ASPVBnet.plist"
+			"path": "./syntaxes/asp-vb-net.tmlanguage.json"
 		}],
 		"snippets": [{
 			"language": "vb",

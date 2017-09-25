@@ -12,7 +12,7 @@ import URI from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
 import strings = require('vs/base/common/strings');
 import { IIconLabelOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { IAutoFocus, Mode, IEntryRunContext, IQuickNavigateConfiguration } from 'vs/base/parts/quickopen/common/quickOpen';
+import { IAutoFocus, Mode, IEntryRunContext, IQuickNavigateConfiguration, IModel } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenModel, QuickOpenEntry, QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import scorer = require('vs/base/common/scorer');
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -24,7 +24,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { EditorInput, asFileEditorInput, IEditorGroup, IEditorStacksModel } from 'vs/workbench/common/editor';
+import { EditorInput, toResource, IEditorGroup, IEditorStacksModel } from 'vs/workbench/common/editor';
 
 export class EditorPickerEntry extends QuickOpenEntryGroup {
 	private stacks: IEditorStacksModel;
@@ -62,9 +62,7 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 	}
 
 	public getResource(): URI {
-		const fileInput = asFileEditorInput(this.editor, true);
-
-		return fileInput && fileInput.getResource();
+		return toResource(this.editor, { supportSideBySide: true });
 	}
 
 	public getAriaLabel(): string {
@@ -126,7 +124,7 @@ export abstract class BaseEditorPicker extends QuickOpenHandler {
 				return false;
 			}
 
-			const {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(e, searchValue, true /* fuzzy highlight */);
+			const { labelHighlights, descriptionHighlights } = QuickOpenEntry.highlight(e, searchValue, true /* fuzzy highlight */);
 			e.setHighlights(labelHighlights, descriptionHighlights);
 
 			return true;
@@ -187,8 +185,8 @@ export abstract class EditorGroupPicker extends BaseEditorPicker {
 		return nls.localize('noOpenedEditors', "List of opened editors is currently empty in group");
 	}
 
-	public getAutoFocus(searchValue: string, quickNavigateConfiguration: IQuickNavigateConfiguration): IAutoFocus {
-		if (searchValue || !quickNavigateConfiguration) {
+	public getAutoFocus(searchValue: string, context: { model: IModel<QuickOpenEntry>, quickNavigateConfiguration?: IQuickNavigateConfiguration }): IAutoFocus {
+		if (searchValue || !context.quickNavigateConfiguration) {
 			return {
 				autoFocusFirstEntry: true
 			};
@@ -197,10 +195,16 @@ export abstract class EditorGroupPicker extends BaseEditorPicker {
 		const stacks = this.editorGroupService.getStacksModel();
 		const group = stacks.groupAt(this.getPosition());
 		if (!group) {
-			return super.getAutoFocus(searchValue);
+			return super.getAutoFocus(searchValue, context);
 		}
 
-		const isShiftNavigate = (quickNavigateConfiguration && quickNavigateConfiguration.keybindings.some(k => k.hasShift()));
+		const isShiftNavigate = (context.quickNavigateConfiguration && context.quickNavigateConfiguration.keybindings.some(k => {
+			const [firstPart, chordPart] = k.getParts();
+			if (chordPart) {
+				return false;
+			}
+			return firstPart.shiftKey;
+		}));
 		if (isShiftNavigate) {
 			return {
 				autoFocusLastEntry: true
@@ -258,13 +262,13 @@ export class AllEditorsPicker extends BaseEditorPicker {
 		return nls.localize('noOpenedEditorsAllGroups', "List of opened editors is currently empty");
 	}
 
-	public getAutoFocus(searchValue: string): IAutoFocus {
+	public getAutoFocus(searchValue: string, context: { model: IModel<QuickOpenEntry>, quickNavigateConfiguration?: IQuickNavigateConfiguration }): IAutoFocus {
 		if (searchValue) {
 			return {
 				autoFocusFirstEntry: true
 			};
 		}
 
-		return super.getAutoFocus(searchValue);
+		return super.getAutoFocus(searchValue, context);
 	}
 }

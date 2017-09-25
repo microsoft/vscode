@@ -9,6 +9,7 @@ const gulp = require('gulp');
 const filter = require('gulp-filter');
 const es = require('event-stream');
 const gulptslint = require('gulp-tslint');
+const gulpeslint = require('gulp-eslint');
 const tsfmt = require('typescript-formatter');
 const tslint = require('tslint');
 
@@ -35,22 +36,29 @@ const eolFilter = [
 	'!ThirdPartyNotices.txt',
 	'!LICENSE.txt',
 	'!extensions/**/out/**',
+	'!test/smoke/out/**',
 	'!**/node_modules/**',
 	'!**/fixtures/**',
 	'!**/*.{svg,exe,png,bmp,scpt,bat,cmd,cur,ttf,woff,eot}',
 	'!build/{lib,tslintRules}/**/*.js',
 	'!build/monaco/**',
-	'!build/win32/**'
+	'!build/win32/**',
+	'!build/**/*.sh',
+	'!build/tfs/**/*.js',
+	'!**/Dockerfile'
 ];
 
 const indentationFilter = [
 	'**',
 	'!ThirdPartyNotices.txt',
 	'!**/*.md',
+	'!**/*.ps1',
 	'!**/*.template',
 	'!**/*.yml',
 	'!**/lib/**',
-	'!**/*.d.ts',
+	'!extensions/**/*.d.ts',
+	'!src/typings/**/*.d.ts',
+	'!src/vs/*/**/*.d.ts',
 	'!**/*.d.ts.recipe',
 	'!test/assert.js',
 	'!**/package.json',
@@ -84,15 +92,29 @@ const copyrightFilter = [
 	'!**/*.xpm',
 	'!**/*.opts',
 	'!**/*.disabled',
+	'!build/**/*.init',
 	'!resources/win32/bin/code.js',
 	'!extensions/markdown/media/tomorrow.css',
 	'!extensions/html/server/src/modes/typescript/*'
 ];
 
+const eslintFilter = [
+	'src/**/*.js',
+	'build/gulpfile.*.js',
+	'!src/vs/loader.js',
+	'!src/vs/css.js',
+	'!src/vs/nls.js',
+	'!src/vs/css.build.js',
+	'!src/vs/nls.build.js',
+	'!src/**/winjs.base.raw.js',
+	'!src/**/raw.marked.js',
+	'!**/test/**'
+];
+
 const tslintFilter = [
 	'src/**/*.ts',
+	'test/**/*.ts',
 	'extensions/**/*.ts',
-	'!**/*.d.ts',
 	'!**/fixtures/**',
 	'!**/typings/**',
 	'!**/node_modules/**',
@@ -118,6 +140,14 @@ function reportFailures(failures) {
 		console.error(`${name}:${line + 1}:${character + 1}:${failure.failure}`);
 	});
 }
+
+gulp.task('eslint', () => {
+	return gulp.src(all, { base: '.' })
+		.pipe(filter(eslintFilter))
+		.pipe(gulpeslint('src/.eslintrc'))
+		.pipe(gulpeslint.formatEach('compact'))
+		.pipe(gulpeslint.failAfterError());
+});
 
 gulp.task('tslint', () => {
 	const options = { summarizeFailureOutput: true };
@@ -171,7 +201,6 @@ const hygiene = exports.hygiene = (some, options) => {
 	});
 
 	const formatting = es.map(function (file, cb) {
-
 		tsfmt.processString(file.path, file.contents.toString('utf8'), {
 			verify: true,
 			tsfmt: true,
@@ -189,11 +218,12 @@ const hygiene = exports.hygiene = (some, options) => {
 	});
 
 	const tsl = es.through(function (file) {
-		const configuration = tslint.findConfiguration(null, '.');
-		const options = { configuration, formatter: 'json', rulesDirectory: 'build/lib/tslint' };
+		const configuration = tslint.Configuration.findConfiguration(null, '.');
+		const options = { formatter: 'json', rulesDirectory: 'build/lib/tslint' };
 		const contents = file.contents.toString('utf8');
-		const linter = new tslint(file.relative, contents, options);
-		const result = linter.lint();
+		const linter = new tslint.Linter(options);
+		linter.lint(file.relative, contents, configuration.results);
+		const result = linter.getResult();
 
 		if (result.failureCount > 0) {
 			reportFailures(result.failures);
@@ -203,17 +233,27 @@ const hygiene = exports.hygiene = (some, options) => {
 		this.emit('data', file);
 	});
 
-	return gulp.src(some || all, { base: '.' })
+	const result = gulp.src(some || all, { base: '.' })
 		.pipe(filter(f => !f.stat.isDirectory()))
 		.pipe(filter(eolFilter))
 		.pipe(options.skipEOL ? es.through() : eol)
 		.pipe(filter(indentationFilter))
 		.pipe(indentation)
 		.pipe(filter(copyrightFilter))
-		.pipe(copyrights)
+		.pipe(copyrights);
+
+	const typescript = result
 		.pipe(filter(tslintFilter))
 		.pipe(formatting)
-		.pipe(tsl)
+		.pipe(tsl);
+
+	const javascript = result
+		.pipe(filter(eslintFilter))
+		.pipe(gulpeslint('src/.eslintrc'))
+		.pipe(gulpeslint.formatEach('compact'))
+		.pipe(gulpeslint.failAfterError());
+
+	return es.merge(typescript, javascript)
 		.pipe(es.through(null, function () {
 			if (errorCount > 0) {
 				this.emit('error', 'Hygiene failed with ' + errorCount + ' errors. Check \'build/gulpfile.hygiene.js\'.');
@@ -229,8 +269,21 @@ gulp.task('hygiene', () => hygiene());
 if (require.main === module) {
 	const cp = require('child_process');
 
+	process.on('unhandledRejection', (reason, p) => {
+		console.log('Unhandled Rejection at: Promise', p, 'reason:', reason);
+		process.exit(1);
+	});
+
 	cp.exec('git config core.autocrlf', (err, out) => {
 		const skipEOL = out.trim() === 'true';
+
+		if (process.argv.length > 2) {
+			return hygiene(process.argv.slice(2), { skipEOL: skipEOL }).on('error', err => {
+				console.error();
+				console.error(err);
+				process.exit(1);
+			});
+		}
 
 		cp.exec('git diff --cached --name-only', { maxBuffer: 2000 * 1024 }, (err, out) => {
 			if (err) {

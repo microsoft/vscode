@@ -3,48 +3,53 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+import * as vscode from 'vscode';
 
-import vscode = require('vscode');
 
-const versionBarEntry: vscode.StatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, Number.MIN_VALUE);
-let _enable: boolean = false;
+export default class VersionStatus extends vscode.Disposable {
+	onChangeEditorSub: any;
+	private versionBarEntry: vscode.StatusBarItem;
 
-export function showHideStatus() {
-	if (!versionBarEntry || !_enable) {
-		return;
+	constructor() {
+		super(() => this.dispose());
+
+		this.versionBarEntry = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, Number.MIN_VALUE);
+
+		this.onChangeEditorSub = vscode.window.onDidChangeActiveTextEditor(this.showHideStatus, this);
 	}
-	if (!vscode.window.activeTextEditor) {
-		versionBarEntry.hide();
-		return;
-	}
-	let doc = vscode.window.activeTextEditor.document;
-	if (vscode.languages.match('javascript', doc) || vscode.languages.match('javascriptreact', doc)
-		|| vscode.languages.match('typescript', doc) || vscode.languages.match('typescriptreact', doc)) {
 
-		versionBarEntry.show();
-		return;
+	dispose() {
+		this.versionBarEntry.dispose();
+		this.onChangeEditorSub.dispose();
 	}
-	versionBarEntry.hide();
-}
 
-export function disposeStatus() {
-	if (versionBarEntry) {
-		versionBarEntry.dispose();
+	showHideStatus() {
+		if (!this.versionBarEntry) {
+			return;
+		}
+		if (!vscode.window.activeTextEditor) {
+			this.versionBarEntry.hide();
+			return;
+		}
+
+		let doc = vscode.window.activeTextEditor.document;
+		if (vscode.languages.match('typescript', doc) || vscode.languages.match('typescriptreact', doc)) {
+			this.versionBarEntry.show();
+			return;
+		}
+
+		if (!vscode.window.activeTextEditor.viewColumn) {
+			// viewColumn is undefined for the debug/output panel, but we still want
+			// to show the version info
+			return;
+		}
+
+		this.versionBarEntry.hide();
 	}
-}
 
-export function setInfo(message: string, tooltip: string) {
-	versionBarEntry.text = message;
-	versionBarEntry.tooltip = tooltip;
-	let color = 'white';
-	versionBarEntry.color = color;
-	if (_enable) {
-		versionBarEntry.show();
+	public setInfo(message: string, tooltip: string) {
+		this.versionBarEntry.text = message;
+		this.versionBarEntry.tooltip = tooltip;
+		this.versionBarEntry.command = 'typescript.selectTypeScriptVersion';
 	}
-}
-
-export function enable(value: boolean) {
-	_enable = value;
-	showHideStatus();
 }

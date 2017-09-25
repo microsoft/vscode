@@ -85,7 +85,7 @@ export class FindReplaceState implements IDisposable {
 	}
 
 	public addChangeListener(listener: (e: FindReplaceStateChangedEvent) => void): IDisposable {
-		return this._eventEmitter.addListener2(FindReplaceState._CHANGED_EVENT, listener);
+		return this._eventEmitter.addListener(FindReplaceState._CHANGED_EVENT, listener);
 	}
 
 	public changeMatchInfo(matchesPosition: number, matchesCount: number, currentMatch: Range): void {

@@ -6,10 +6,14 @@
 'use strict';
 
 import 'vs/css!./indentGuides';
-import * as editorCommon from 'vs/editor/common/editorCommon';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { IRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { RenderingContext } from 'vs/editor/common/view/renderingContext';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { editorIndentGuides } from 'vs/editor/common/view/editorColorRegistry';
+import * as dom from 'vs/base/browser/dom';
+import { Position } from 'vs/editor/common/core/position';
 
 export class IndentGuidesOverlay extends DynamicViewOverlay {
 
@@ -34,49 +38,52 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		this._context.removeEventHandler(this);
 		this._context = null;
 		this._renderResult = null;
+		super.dispose();
 	}
 
 	// --- begin event handlers
-	public onModelFlushed(): boolean {
-		return true;
-	}
-	public onModelLinesDeleted(e: editorCommon.IViewLinesDeletedEvent): boolean {
-		return true;
-	}
-	public onModelLineChanged(e: editorCommon.IViewLineChangedEvent): boolean {
-		return true;
-	}
-	public onModelLinesInserted(e: editorCommon.IViewLinesInsertedEvent): boolean {
-		return true;
-	}
-	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
+
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
 		}
 		if (e.fontInfo) {
 			this._spaceWidth = this._context.configuration.editor.fontInfo.spaceWidth;
 		}
-		if (e.viewInfo.renderIndentGuides) {
+		if (e.viewInfo) {
 			this._enabled = this._context.configuration.editor.viewInfo.renderIndentGuides;
 		}
 		return true;
 	}
-	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
+	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
+		// true for inline decorations
 		return true;
 	}
-	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
+	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
+		return true;
+	}
+	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
+		return true;
+	}
+	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
+		return true;
+	}
+	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
+		return true;
+	}
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return e.scrollTopChanged;// || e.scrollWidthChanged;
 	}
-	public onZonesChanged(): boolean {
+	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		return true;
 	}
+	public onLanguageConfigurationChanged(e: viewEvents.ViewLanguageConfigurationEvent): boolean {
+		return true;
+	}
+
 	// --- end event handlers
 
-	public prepareRender(ctx: IRenderingContext): void {
-		if (!this.shouldRender()) {
-			throw new Error('I did not ask to render!');
-		}
-
+	public prepareRender(ctx: RenderingContext): void {
 		if (!this._enabled) {
 			this._renderResult = null;
 			return;
@@ -87,6 +94,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		const tabSize = this._context.model.getTabSize();
 		const tabWidth = tabSize * this._spaceWidth;
 		const lineHeight = this._lineHeight;
+		const indentGuideWidth = dom.computeScreenAwareSize(1);
 
 		let output: string[] = [];
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
@@ -94,9 +102,10 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 			let indent = this._context.model.getLineIndentGuide(lineNumber);
 
 			let result = '';
-			let left = 0;
+			let leftMostVisiblePosition = ctx.visibleRangeForPosition(new Position(lineNumber, 1));
+			let left = leftMostVisiblePosition ? leftMostVisiblePosition.left : 0;
 			for (let i = 0; i < indent; i++) {
-				result += `<div class="cigr" style="left:${left}px;height:${lineHeight}px;"></div>`;
+				result += `<div class="cigr" style="left:${left}px;height:${lineHeight}px;width:${indentGuideWidth}px"></div>`;
 				left += tabWidth;
 			}
 
@@ -116,3 +125,10 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		return this._renderResult[lineIndex];
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	let editorGuideColor = theme.getColor(editorIndentGuides);
+	if (editorGuideColor) {
+		collector.addRule(`.monaco-editor .lines-content .cigr { background-color: ${editorGuideColor}; }`);
+	}
+});

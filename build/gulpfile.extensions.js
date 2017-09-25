@@ -28,10 +28,10 @@ const compilations = glob.sync('**/tsconfig.json', {
 	ignore: ['**/out/**', '**/node_modules/**']
 });
 
-const getBaseUrl = out => `https://ticino.blob.core.windows.net/sourcemaps/${ commit }/${ out }`;
+const getBaseUrl = out => `https://ticino.blob.core.windows.net/sourcemaps/${commit}/${out}`;
 const languages = ['chs', 'cht', 'jpn', 'kor', 'deu', 'fra', 'esn', 'rus', 'ita'];
 
-const tasks = compilations.map(function(tsconfigFile) {
+const tasks = compilations.map(function (tsconfigFile) {
 	const absolutePath = path.join(extensionsPath, tsconfigFile);
 	const relativeDirname = path.dirname(tsconfigFile);
 
@@ -58,7 +58,7 @@ const tasks = compilations.map(function(tsconfigFile) {
 	const i18n = path.join(__dirname, '..', 'i18n');
 	const baseUrl = getBaseUrl(out);
 
-	function createPipeline(build) {
+	function createPipeline(build, emitError) {
 		const reporter = createReporter();
 
 		tsOptions.inlineSources = !!build;
@@ -74,14 +74,14 @@ const tasks = compilations.map(function(tsconfigFile) {
 				.pipe(build ? nlsDev.rewriteLocalizeCalls() : es.through())
 				.pipe(build ? util.stripSourceMappingURL() : es.through())
 				.pipe(sourcemaps.write('.', {
-					sourceMappingURL: !build ? null : f => `${ baseUrl }/${ f.relative }.map`,
+					sourceMappingURL: !build ? null : f => `${baseUrl}/${f.relative}.map`,
 					addComment: !!build,
 					includeContent: !!build,
 					sourceRoot: '../src'
 				}))
 				.pipe(tsFilter.restore)
 				.pipe(build ? nlsDev.createAdditionalLanguageFiles(languages, i18n, out) : es.through())
-				.pipe(reporter.end());
+				.pipe(reporter.end(emitError));
 
 			return es.duplex(input, output);
 		};
@@ -92,7 +92,7 @@ const tasks = compilations.map(function(tsconfigFile) {
 	gulp.task(clean, cb => rimraf(out, cb));
 
 	gulp.task(compile, [clean], () => {
-		const pipeline = createPipeline(false);
+		const pipeline = createPipeline(false, true);
 		const input = gulp.src(src, srcOpts);
 
 		return input
@@ -113,7 +113,7 @@ const tasks = compilations.map(function(tsconfigFile) {
 	gulp.task(cleanBuild, cb => rimraf(out, cb));
 
 	gulp.task(compileBuild, [clean], () => {
-		const pipeline = createPipeline(true);
+		const pipeline = createPipeline(true, true);
 		const input = gulp.src(src, srcOpts);
 
 		return input

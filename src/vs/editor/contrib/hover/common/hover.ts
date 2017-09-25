@@ -6,7 +6,7 @@
 'use strict';
 
 import { coalesce } from 'vs/base/common/arrays';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IReadOnlyModel } from 'vs/editor/common/editorCommon';
 import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
@@ -25,13 +25,13 @@ export function getHover(model: IReadOnlyModel, position: Position): TPromise<Ho
 		}).then((result) => {
 			if (result) {
 				let hasRange = (typeof result.range !== 'undefined');
-				let hasHtmlContent = (typeof result.contents !== 'undefined' && result.contents && result.contents.length > 0);
+				let hasHtmlContent = typeof result.contents !== 'undefined' && result.contents && result.contents.length > 0;
 				if (hasRange && hasHtmlContent) {
 					values[idx] = result;
 				}
 			}
 		}, err => {
-			onUnexpectedError(err);
+			onUnexpectedExternalError(err);
 		});
 	});
 

@@ -9,6 +9,7 @@ import { DiffChange } from 'vs/base/common/diff/diffChange';
 export interface ISequence {
 	getLength(): number;
 	getElementHash(index: number): string;
+	[index: number]: string;
 }
 
 export interface IDiffChange {
@@ -148,8 +149,8 @@ export class LcsDiff2 {
 		// Construct the changes
 		let i = 0;
 		let j = 0;
-		let xChangeStart, yChangeStart;
-		let changes = [];
+		let xChangeStart: number, yChangeStart: number;
+		let changes: DiffChange[] = [];
 		while (i < xLength && j < yLength) {
 			if (this.resultX[i] && this.resultY[j]) {
 				// No change

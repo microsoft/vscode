@@ -6,9 +6,8 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IDimension } from 'vs/editor/common/editorCommon';
-import { IElementSizeObserver } from 'vs/editor/common/config/commonEditorConfig';
 
-export class ElementSizeObserver extends Disposable implements IElementSizeObserver {
+export class ElementSizeObserver extends Disposable {
 
 	private referenceDomElement: HTMLElement;
 	private measureReferenceDomElementToken: number;

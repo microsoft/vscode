@@ -4,15 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { localize } from 'vs/nls';
-
 export enum ScanError {
 	None,
 	UnexpectedEndOfComment,
 	UnexpectedEndOfString,
 	UnexpectedEndOfNumber,
 	InvalidUnicode,
-	InvalidEscapeCharacter
+	InvalidEscapeCharacter,
+	InvalidCharacter
 }
 
 export enum SyntaxKind {
@@ -42,7 +41,7 @@ export interface JSONScanner {
 	/**
 	 * Sets the scan position to a new offset. A call to 'scan' is needed to get the first token.
 	 */
-	setPosition(pos: number);
+	setPosition(pos: number): void;
 	/**
 	 * Read the next token. Returns the tolen code.
 	 */
@@ -224,10 +223,15 @@ export function createScanner(text: string, ignoreTrivia: boolean = false): JSON
 				start = pos;
 				continue;
 			}
-			if (isLineBreak(ch)) {
-				result += text.substring(start, pos);
-				scanError = ScanError.UnexpectedEndOfString;
-				break;
+			if (ch >= 0 && ch <= 0x1f) {
+				if (isLineBreak(ch)) {
+					result += text.substring(start, pos);
+					scanError = ScanError.UnexpectedEndOfString;
+					break;
+				} else {
+					scanError = ScanError.InvalidCharacter;
+					// mark as error but continue with string
+				}
 			}
 			pos++;
 		}
@@ -631,22 +635,6 @@ export enum ParseErrorCode {
 	EndOfFileExpected
 }
 
-export function getParseErrorMessage(errorCode: ParseErrorCode): string {
-	switch (errorCode) {
-		case ParseErrorCode.InvalidSymbol: return localize('error.invalidSymbol', 'Invalid symbol');
-		case ParseErrorCode.InvalidNumberFormat: return localize('error.invalidNumberFormat', 'Invalid number format');
-		case ParseErrorCode.PropertyNameExpected: return localize('error.propertyNameExpected', 'Property name expected');
-		case ParseErrorCode.ValueExpected: return localize('error.valueExpected', 'Value expected');
-		case ParseErrorCode.ColonExpected: return localize('error.colonExpected', 'Colon expected');
-		case ParseErrorCode.CommaExpected: return localize('error.commaExpected', 'Comma expected');
-		case ParseErrorCode.CloseBraceExpected: return localize('error.closeBraceExpected', 'Closing brace expected');
-		case ParseErrorCode.CloseBracketExpected: return localize('error.closeBracketExpected', 'Closing bracket expected');
-		case ParseErrorCode.EndOfFileExpected: return localize('error.endOfFileExpected', 'End of file expected');
-		default:
-			return '';
-	}
-}
-
 export type NodeType = 'object' | 'array' | 'property' | 'string' | 'number' | 'boolean' | 'null';
 
 function getLiteralNodeType(value: any): NodeType {
@@ -725,7 +713,7 @@ export function getLocation(text: string, position: number): Location {
 				}
 				previousNode = void 0;
 				isAtPropertyKey = position > offset;
-				segments.push(''); // push a placeholder (will be replaced or removed)
+				segments.push(''); // push a placeholder (will be replaced)
 			},
 			onObjectProperty: (name: string, offset: number, length: number) => {
 				if (position < offset) {
@@ -794,9 +782,6 @@ export function getLocation(text: string, position: number): Location {
 		}
 	}
 
-	if (segments[segments.length - 1] === '') {
-		segments.pop();
-	}
 	return {
 		path: segments,
 		previousNode,
@@ -817,6 +802,7 @@ export function getLocation(text: string, position: number): Location {
 
 export interface ParseOptions {
 	disallowComments?: boolean;
+	allowTrailingComma?: boolean;
 }
 
 /**
@@ -851,7 +837,7 @@ export function parse(text: string, errors: ParseError[] = [], options?: ParseOp
 			currentParent = previousParents.pop();
 		},
 		onArrayBegin: () => {
-			let array = [];
+			let array: any[] = [];
 			onValue(array);
 			previousParents.push(currentParent);
 			currentParent = array;
@@ -885,7 +871,6 @@ export function parseTree(text: string, errors: ParseError[] = [], options?: Par
 
 	function onValue(valueNode: Node): Node {
 		currentParent.children.push(valueNode);
-		ensurePropertyComplete(valueNode.offset + valueNode.length);
 		return valueNode;
 	}
 
@@ -898,9 +883,9 @@ export function parseTree(text: string, errors: ParseError[] = [], options?: Par
 			currentParent.children.push({ type: 'string', value: name, offset, length, parent: currentParent });
 		},
 		onObjectEnd: (offset: number, length: number) => {
-			ensurePropertyComplete(offset);
 			currentParent.length = offset + length - currentParent.offset;
 			currentParent = currentParent.parent;
+			ensurePropertyComplete(offset + length);
 		},
 		onArrayBegin: (offset: number, length: number) => {
 			currentParent = onValue({ type: 'array', offset, length: -1, parent: currentParent, children: [] });
@@ -908,9 +893,11 @@ export function parseTree(text: string, errors: ParseError[] = [], options?: Par
 		onArrayEnd: (offset: number, length: number) => {
 			currentParent.length = offset + length - currentParent.offset;
 			currentParent = currentParent.parent;
+			ensurePropertyComplete(offset + length);
 		},
 		onLiteralValue: (value: any, offset: number, length: number) => {
 			onValue({ type: getLiteralNodeType(value), offset, length, parent: currentParent, value });
+			ensurePropertyComplete(offset + length);
 		},
 		onSeparator: (sep: string, offset: number, length: number) => {
 			if (currentParent.type === 'property') {
@@ -1004,6 +991,7 @@ export function visit(text: string, visitor: JSONVisitor, options?: ParseOptions
 		onError = toOneArgVisit(visitor.onError);
 
 	let disallowComments = options && options.disallowComments;
+	let allowTrailingComma = options && options.allowTrailingComma;
 	function scanNext(): SyntaxKind {
 		while (true) {
 			let token = _scanner.scan();
@@ -1043,9 +1031,6 @@ export function visit(text: string, visitor: JSONVisitor, options?: ParseOptions
 	}
 
 	function parseString(isValue: boolean): boolean {
-		if (_scanner.getToken() !== SyntaxKind.StringLiteral) {
-			return false;
-		}
 		let value = _scanner.getTokenValue();
 		if (isValue) {
 			onLiteralValue(value);
@@ -1088,10 +1073,11 @@ export function visit(text: string, visitor: JSONVisitor, options?: ParseOptions
 	}
 
 	function parseProperty(): boolean {
-		if (!parseString(false)) {
+		if (_scanner.getToken() !== SyntaxKind.StringLiteral) {
 			handleError(ParseErrorCode.PropertyNameExpected, [], [SyntaxKind.CloseBraceToken, SyntaxKind.CommaToken]);
 			return false;
 		}
+		parseString(false);
 		if (_scanner.getToken() === SyntaxKind.ColonToken) {
 			onSeparator(':');
 			scanNext(); // consume colon
@@ -1106,9 +1092,6 @@ export function visit(text: string, visitor: JSONVisitor, options?: ParseOptions
 	}
 
 	function parseObject(): boolean {
-		if (_scanner.getToken() !== SyntaxKind.OpenBraceToken) {
-			return false;
-		}
 		onObjectBegin();
 		scanNext(); // consume open brace
 
@@ -1120,6 +1103,9 @@ export function visit(text: string, visitor: JSONVisitor, options?: ParseOptions
 				}
 				onSeparator(',');
 				scanNext(); // consume comma
+				if (_scanner.getToken() === SyntaxKind.CloseBraceToken && allowTrailingComma) {
+					break;
+				}
 			} else if (needsComma) {
 				handleError(ParseErrorCode.CommaExpected, [], []);
 			}
@@ -1138,9 +1124,6 @@ export function visit(text: string, visitor: JSONVisitor, options?: ParseOptions
 	}
 
 	function parseArray(): boolean {
-		if (_scanner.getToken() !== SyntaxKind.OpenBracketToken) {
-			return false;
-		}
 		onArrayBegin();
 		scanNext(); // consume open bracket
 
@@ -1170,7 +1153,16 @@ export function visit(text: string, visitor: JSONVisitor, options?: ParseOptions
 	}
 
 	function parseValue(): boolean {
-		return parseArray() || parseObject() || parseString(true) || parseLiteral();
+		switch (_scanner.getToken()) {
+			case SyntaxKind.OpenBracketToken:
+				return parseArray();
+			case SyntaxKind.OpenBraceToken:
+				return parseObject();
+			case SyntaxKind.StringLiteral:
+				return parseString(true);
+			default:
+				return parseLiteral();
+		}
 	}
 
 	scanNext();

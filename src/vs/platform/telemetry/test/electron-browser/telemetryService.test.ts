@@ -9,14 +9,14 @@ import { Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
-import Telemetry = require('vs/platform/telemetry/common/telemetry');
+import { NullAppender, ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import Errors = require('vs/base/common/errors');
 import * as sinon from 'sinon';
 import { getConfigurationValue } from 'vs/platform/configuration/common/configuration';
 
 const optInStatusEventName: string = 'optInStatus';
 
-class TestTelemetryAppender implements Telemetry.ITelemetryAppender {
+class TestTelemetryAppender implements ITelemetryAppender {
 
 	public events: any[];
 	public isDisposed: boolean;
@@ -174,7 +174,7 @@ suite('TelemetryService', () => {
 
 	test('TelemetryInfo comes from properties', function () {
 		let service = new TelemetryService({
-			appender: Telemetry.NullAppender,
+			appender: NullAppender,
 			commonProperties: TPromise.as({
 				sessionID: 'one',
 				['common.instanceId']: 'two',
@@ -243,7 +243,7 @@ suite('TelemetryService', () => {
 	// 			let testAppender = new TestTelemetryAppender();
 	// 			service.addTelemetryAppender(testAppender);
 	//
-	// 			winjs.Promise.wrapError('This should not get logged');
+	// 			winjs.Promise.wrapError(new Error('This should not get logged'));
 	// 			winjs.TPromise.as(true).then(() => {
 	// 				throw new Error('This should get logged');
 	// 			});
@@ -263,7 +263,8 @@ suite('TelemetryService', () => {
 	// 	}));
 
 	test('Handle global errors', sinon.test(function () {
-		let errorStub = this.stub(window, 'onerror');
+		let errorStub = sinon.stub();
+		window.onerror = errorStub;
 
 		let testAppender = new TestTelemetryAppender();
 		let service = new TelemetryService({ appender: testAppender }, undefined);
@@ -289,7 +290,8 @@ suite('TelemetryService', () => {
 	}));
 
 	test('Uncaught Error Telemetry removes PII from filename', sinon.test(function () {
-		let errorStub = this.stub(window, 'onerror');
+		let errorStub = sinon.stub();
+		window.onerror = errorStub;
 		let settings = new ErrorTestingSettings();
 		let testAppender = new TestTelemetryAppender();
 		let service = new TelemetryService({ appender: testAppender }, undefined);
@@ -347,7 +349,8 @@ suite('TelemetryService', () => {
 	}));
 
 	test('Uncaught Error Telemetry removes PII', sinon.test(function () {
-		let errorStub = this.stub(window, 'onerror');
+		let errorStub = sinon.stub();
+		window.onerror = errorStub;
 		let settings = new ErrorTestingSettings();
 		let testAppender = new TestTelemetryAppender();
 		let service = new TelemetryService({ appender: testAppender }, undefined);
@@ -407,7 +410,8 @@ suite('TelemetryService', () => {
 	}));
 
 	test('Uncaught Error Telemetry removes PII but preserves Code file path', sinon.test(function () {
-		let errorStub = this.stub(window, 'onerror');
+		let errorStub = sinon.stub();
+		window.onerror = errorStub;
 		let settings = new ErrorTestingSettings();
 		let testAppender = new TestTelemetryAppender();
 		let service = new TelemetryService({ appender: testAppender }, undefined);
@@ -469,7 +473,8 @@ suite('TelemetryService', () => {
 	}));
 
 	test('Uncaught Error Telemetry removes PII but preserves Code file path when PIIPath is configured', sinon.test(function () {
-		let errorStub = this.stub(window, 'onerror');
+		let errorStub = sinon.stub();
+		window.onerror = errorStub;
 		let settings = new ErrorTestingSettings();
 		let testAppender = new TestTelemetryAppender();
 		let service = new TelemetryService({ appender: testAppender, piiPaths: [settings.personalInfo + '/resources/app/'] }, undefined);
@@ -531,7 +536,8 @@ suite('TelemetryService', () => {
 	}));
 
 	test('Uncaught Error Telemetry removes PII but preserves Missing Model error message', sinon.test(function () {
-		let errorStub = this.stub(window, 'onerror');
+		let errorStub = sinon.stub();
+		window.onerror = errorStub;
 		let settings = new ErrorTestingSettings();
 		let testAppender = new TestTelemetryAppender();
 		let service = new TelemetryService({ appender: testAppender }, undefined);
@@ -598,7 +604,8 @@ suite('TelemetryService', () => {
 		Errors.setUnexpectedErrorHandler(() => { });
 
 		try {
-			let errorStub = this.stub(window, 'onerror');
+			let errorStub = sinon.stub();
+			window.onerror = errorStub;
 			let settings = new ErrorTestingSettings();
 			let testAppender = new TestTelemetryAppender();
 			let service = new TelemetryService({ appender: testAppender }, undefined);
@@ -639,27 +646,22 @@ suite('TelemetryService', () => {
 		});
 	}));
 
+	test('Telemetry Service does not sent optInStatus when user opted out', sinon.test(function () {
+		let testAppender = new TestTelemetryAppender();
+		let service = new TelemetryService({ userOptIn: false, appender: testAppender }, undefined);
+
+		return service.publicLog(optInStatusEventName, { optIn: false }).then(() => {
+			assert.equal(testAppender.getEventsCount(), 0);
+			service.dispose();
+		});
+	}));
+
 	test('Telemetry Service sends events when enableTelemetry is on even user optin is on', sinon.test(function () {
 		let testAppender = new TestTelemetryAppender();
 		let service = new TelemetryService({ userOptIn: true, appender: testAppender }, undefined);
 
 		return service.publicLog('testEvent').then(() => {
 			assert.equal(testAppender.getEventsCount(), 1);
-			service.dispose();
-		});
-	}));
-
-	test('Telemetry Service allows optin friendly events', sinon.test(function () {
-		let testAppender = new TestTelemetryAppender();
-		let service = new TelemetryService({ userOptIn: false, appender: testAppender }, undefined);
-
-		return service.publicLog('testEvent').then(() => {
-			assert.equal(testAppender.getEventsCount(), 0);
-			return service.publicLog(optInStatusEventName, { userOptIn: false });
-		}).then(() => {
-			assert.equal(testAppender.getEventsCount(), 1);
-			assert.equal(testAppender.events[0].eventName, optInStatusEventName);
-			assert.equal(testAppender.events[0].data.userOptIn, false);
 			service.dispose();
 		});
 	}));
@@ -676,8 +678,11 @@ suite('TelemetryService', () => {
 				_serviceBrand: undefined,
 				getConfiguration() {
 					return {
-						enableTelemetry
-					};
+						enableTelemetry: enableTelemetry
+					} as any;
+				},
+				getConfigurationData(): any {
+					return null;
 				},
 				reloadConfiguration() {
 					return TPromise.as(this.getConfiguration());
@@ -686,10 +691,13 @@ suite('TelemetryService', () => {
 					return {
 						value: getConfigurationValue(this.getConfiguration(), key),
 						default: getConfigurationValue(this.getConfiguration(), key),
-						user: getConfigurationValue(this.getConfiguration(), key)
+						user: getConfigurationValue(this.getConfiguration(), key),
+						workspace: null,
+						folder: null
 					};
 				},
-				keys() { return { default: [], user: [] }; },
+				keys() { return { default: [], user: [], workspace: [], folder: [] }; },
+				values() { return {}; },
 				onDidUpdateConfiguration: emitter.event
 			});
 

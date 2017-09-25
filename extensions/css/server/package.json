@@ -8,8 +8,12 @@
     "node": "*"
   },
   "dependencies": {
-    "vscode-css-languageservice": "^1.1.0",
-    "vscode-languageserver": "^2.4.0-next.12"
+    "vscode-css-languageservice": "^2.1.7",
+    "vscode-languageserver": "^3.4.2",
+    "vscode-languageserver-protocol": "^3.4.2"
+  },
+  "devDependencies": {
+    "@types/node": "^6.0.51"
   },
   "scripts": {
     "compile": "gulp compile-extension:css-server",

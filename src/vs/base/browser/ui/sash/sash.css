@@ -25,22 +25,22 @@
 	cursor: default !important;
 }
 
-.vertical-cursor-container * {
+.vertical-cursor-container {
 	cursor: ew-resize;
 }
 
-.horizontal-cursor-container * {
+.horizontal-cursor-container {
 	cursor: ns-resize;
 }
 
 /** Custom Mac Cursor */
 
 .monaco-sash.mac.vertical,
-.vertical-cursor-container-mac * {
+.vertical-cursor-container-mac {
 	cursor: col-resize;
 }
 
 .monaco-sash.mac.horizontal,
-.horizontal-cursor-container-mac * {
+.horizontal-cursor-container-mac {
 	cursor: row-resize;
 }

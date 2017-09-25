@@ -5,7 +5,7 @@
 'use strict';
 
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import platform = require('vs/platform/platform');
+import platform = require('vs/platform/registry/common/platform');
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
@@ -59,7 +59,7 @@ class JSONContributionRegistry implements IJSONContributionRegistry {
 	}
 
 	public addRegistryChangedListener(callback: (e: IJSONContributionRegistryEvent) => void): IDisposable {
-		return this.eventEmitter.addListener2('registryChanged', callback);
+		return this.eventEmitter.addListener('registryChanged', callback);
 	}
 
 	public registerSchema(uri: string, unresolvedSchemaContent: IJSONSchema): void {

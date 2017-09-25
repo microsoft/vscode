@@ -6,142 +6,147 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
+import { first } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModel } from 'vs/editor/common/editorCommon';
-import { ITextEditorModel } from 'vs/platform/editor/common/editor';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, IReference, ReferenceCollection, ImmortalReference } from 'vs/base/common/lifecycle';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { sequence } from 'vs/base/common/async';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import network = require('vs/base/common/network');
-import { ITextModelResolverService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { EditorInput } from 'vs/workbench/common/editor';
+import { ITextModelService, ITextModelContentProvider, ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { IUntitledEditorService, UNTITLED_SCHEMA } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 
-export class TextModelResolverService implements ITextModelResolverService {
+class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorModel>> {
 
-	public _serviceBrand: any;
+	private providers: { [scheme: string]: ITextModelContentProvider[] } = Object.create(null);
 
-	private loadingTextModels: { [uri: string]: TPromise<IModel> } = Object.create(null);
-	private contentProviderRegistry: { [scheme: string]: ITextModelContentProvider[] } = Object.create(null);
+	constructor(
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@ITextFileService private textFileService: ITextFileService
+	) {
+		super();
+	}
+
+	public createReferencedObject(key: string): TPromise<ITextEditorModel> {
+		const resource = URI.parse(key);
+
+		if (resource.scheme === network.Schemas.file) {
+			return this.textFileService.models.loadOrCreate(resource);
+		}
+		if (!this.providers[resource.scheme]) {
+			// TODO@remote
+			return this.textFileService.models.loadOrCreate(resource);
+		}
+		return this.resolveTextModelContent(key).then(() => this.instantiationService.createInstance(ResourceEditorModel, resource));
+	}
+
+	public destroyReferencedObject(modelPromise: TPromise<ITextEditorModel>): void {
+		modelPromise.done(model => {
+			if (model instanceof TextFileEditorModel) {
+				this.textFileService.models.disposeModel(model);
+			} else {
+				model.dispose();
+			}
+		});
+	}
+
+	public registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable {
+		const registry = this.providers;
+		const providers = registry[scheme] || (registry[scheme] = []);
+
+		providers.unshift(provider);
+
+		return toDisposable(() => {
+			const array = registry[scheme];
+
+			if (!array) {
+				return;
+			}
+
+			const index = array.indexOf(provider);
+
+			if (index === -1) {
+				return;
+			}
+
+			array.splice(index, 1);
+
+			if (array.length === 0) {
+				delete registry[scheme];
+			}
+		});
+	}
+
+	private resolveTextModelContent(key: string): TPromise<IModel> {
+		const resource = URI.parse(key);
+		const providers = this.providers[resource.scheme] || [];
+		const factories = providers.map(p => () => p.provideTextContent(resource));
+
+		return first(factories).then(model => {
+			if (!model) {
+				console.error(`Unable to open '${resource}' resource is not available.`); // TODO PII
+				return TPromise.wrapError<IModel>(new Error('resource is not available'));
+			}
+
+			return model;
+		});
+	}
+}
+
+export class TextModelResolverService implements ITextModelService {
+
+	_serviceBrand: any;
+
+	private resourceModelCollection: ResourceModelCollection;
 
 	constructor(
 		@ITextFileService private textFileService: ITextFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IModelService private modelService: IModelService
 	) {
+		this.resourceModelCollection = instantiationService.createInstance(ResourceModelCollection);
 	}
 
-	public resolve(resource: URI): TPromise<ITextEditorModel> {
+	public createModelReference(resource: URI): TPromise<IReference<ITextEditorModel>> {
+		return this._createModelReference(resource);
+	}
 
-		// File Schema: use text file service
-		if (resource.scheme === network.Schemas.file) {
-			return this.textFileService.models.loadOrCreate(resource);
-		}
+	private _createModelReference(resource: URI): TPromise<IReference<ITextEditorModel>> {
 
 		// Untitled Schema: go through cached input
-		if (resource.scheme === UntitledEditorInput.SCHEMA) {
-			return this.untitledEditorService.createOrGet(resource).resolve();
+		// TODO ImmortalReference is a hack
+		if (resource.scheme === UNTITLED_SCHEMA) {
+			return this.untitledEditorService.loadOrCreate({ resource }).then(model => new ImmortalReference(model));
 		}
 
-		// In Memory: only works on the active editor
-		if (resource.scheme === network.Schemas.inMemory) {
-			return this.editorService.createInput({ resource }).then(input => {
-				if (input instanceof EditorInput) {
-					return input.resolve();
-				}
+		// InMemory Schema: go through model service cache
+		// TODO ImmortalReference is a hack
+		if (resource.scheme === 'inmemory') {
+			const cachedModel = this.modelService.getModel(resource);
 
-				return null;
-			});
+			if (!cachedModel) {
+				return TPromise.wrapError<IReference<ITextEditorModel>>(new Error('Cant resolve inmemory resource'));
+			}
+
+			return TPromise.as(new ImmortalReference(this.instantiationService.createInstance(ResourceEditorModel, resource)));
 		}
 
-		// Any other resource: use content provider registry
-		return this.resolveTextModelContent(this.modelService, resource).then(() => this.instantiationService.createInstance(ResourceEditorModel, resource));
+		const ref = this.resourceModelCollection.acquire(resource.toString());
+
+		return ref.object.then(
+			model => ({ object: model, dispose: () => ref.dispose() }),
+			err => {
+				ref.dispose();
+
+				return TPromise.wrapError<IReference<ITextEditorModel>>(err);
+			}
+		);
 	}
 
 	public registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable {
-		let array = this.contentProviderRegistry[scheme];
-		if (!array) {
-			array = [provider];
-			this.contentProviderRegistry[scheme] = array;
-		} else {
-			array.unshift(provider);
-		}
-
-		const registry = this.contentProviderRegistry;
-		return {
-			dispose() {
-				const array = registry[scheme];
-				const idx = array.indexOf(provider);
-				if (idx >= 0) {
-					array.splice(idx, 1);
-					if (array.length === 0) {
-						delete registry[scheme];
-					}
-				}
-			}
-		};
-	}
-
-	private resolveTextModelContent(modelService: IModelService, resource: URI): TPromise<IModel> {
-		const model = modelService.getModel(resource);
-		if (model) {
-			return TPromise.as(model);
-		}
-
-		let loadingTextModel = this.loadingTextModels[resource.toString()];
-		if (!loadingTextModel) {
-
-			// make sure we have a provider this scheme
-			// the resource uses
-			const contentProviders = this.contentProviderRegistry[resource.scheme];
-			if (!contentProviders) {
-				return TPromise.wrapError(`No model with uri '${resource}' nor a resolver for the scheme '${resource.scheme}'.`);
-			}
-
-			// load the model-content from the provider and cache
-			// the loading such that we don't create the same model
-			// twice
-			this.loadingTextModels[resource.toString()] = loadingTextModel = new TPromise<IModel>((resolve, reject) => {
-				let result: IModel;
-				let lastError: any;
-
-				sequence(contentProviders.map(provider => {
-					return () => {
-						if (!result) {
-							const contentPromise = provider.provideTextContent(resource);
-							if (!contentPromise) {
-								return TPromise.wrapError<any>(`No resolver for the scheme '${resource.scheme}' found.`);
-							}
-
-							return contentPromise.then(value => {
-								result = value;
-							}, err => {
-								lastError = err;
-							});
-						}
-					};
-				})).then(() => {
-					if (!result && lastError) {
-						reject(lastError);
-					} else {
-						resolve(result);
-					}
-				}, reject);
-
-			}, function () {
-				// no cancellation when caching promises
-			});
-
-			// remove the cached promise 'cos the model is now known to the model service (see above)
-			loadingTextModel.then(() => delete this.loadingTextModels[resource.toString()], () => delete this.loadingTextModels[resource.toString()]);
-		}
-
-		return loadingTextModel;
+		return this.resourceModelCollection.registerTextModelContentProvider(scheme, provider);
 	}
 }

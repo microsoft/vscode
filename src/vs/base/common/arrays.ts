@@ -7,23 +7,10 @@
 /**
  * Returns the last element of an array.
  * @param array The array.
- * @param n Which element from the end (default ist zero).
+ * @param n Which element from the end (default is zero).
  */
 export function tail<T>(array: T[], n: number = 0): T {
 	return array[array.length - (1 + n)];
-}
-
-/**
- * Iterates the provided array and allows to remove
- * elements while iterating.
- */
-export function forEach<T>(array: T[], callback: (element: T, remove: Function) => void): void {
-	for (var i = 0, len = array.length; i < len; i++) {
-		callback(array[i], function () {
-			array.splice(i, 1);
-			i--; len--;
-		});
-	}
 }
 
 export function equals<T>(one: T[], other: T[], itemEquals: (a: T, b: T) => boolean = (a, b) => a === b): boolean {
@@ -31,7 +18,7 @@ export function equals<T>(one: T[], other: T[], itemEquals: (a: T, b: T) => bool
 		return false;
 	}
 
-	for (var i = 0, len = one.length; i < len; i++) {
+	for (let i = 0, len = one.length; i < len; i++) {
 		if (!itemEquals(one[i], other[i])) {
 			return false;
 		}
@@ -80,6 +67,143 @@ export function findFirst<T>(array: T[], p: (x: T) => boolean): number {
 }
 
 /**
+ * Like `Array#sort` but always stable. Usually runs a little slower `than Array#sort`
+ * so only use this when actually needing stable sort.
+ */
+export function mergeSort<T>(data: T[], compare: (a: T, b: T) => number): T[] {
+	_divideAndMerge(data, compare);
+	return data;
+}
+
+function _divideAndMerge<T>(data: T[], compare: (a: T, b: T) => number): void {
+	if (data.length <= 1) {
+		// sorted
+		return;
+	}
+	const p = (data.length / 2) | 0;
+	const left = data.slice(0, p);
+	const right = data.slice(p);
+
+	_divideAndMerge(left, compare);
+	_divideAndMerge(right, compare);
+
+	let leftIdx = 0;
+	let rightIdx = 0;
+	let i = 0;
+	while (leftIdx < left.length && rightIdx < right.length) {
+		let ret = compare(left[leftIdx], right[rightIdx]);
+		if (ret <= 0) {
+			// smaller_equal -> take left to preserve order
+			data[i++] = left[leftIdx++];
+		} else {
+			// greater -> take right
+			data[i++] = right[rightIdx++];
+		}
+	}
+	while (leftIdx < left.length) {
+		data[i++] = left[leftIdx++];
+	}
+	while (rightIdx < right.length) {
+		data[i++] = right[rightIdx++];
+	}
+}
+
+export function groupBy<T>(data: T[], compare: (a: T, b: T) => number): T[][] {
+	const result: T[][] = [];
+	let currentGroup: T[];
+	for (const element of data.slice(0).sort(compare)) {
+		if (!currentGroup || compare(currentGroup[0], element) !== 0) {
+			currentGroup = [element];
+			result.push(currentGroup);
+		} else {
+			currentGroup.push(element);
+		}
+	}
+	return result;
+}
+
+export interface Splice<T> {
+	start: number;
+	deleteCount: number;
+	inserted: T[];
+}
+
+/**
+ * Diffs two *sorted* arrays and computes the splices which apply the diff.
+ */
+export function sortedDiff<T>(before: T[], after: T[], compare: (a: T, b: T) => number): Splice<T>[] {
+	const result: Splice<T>[] = [];
+
+	function pushSplice(start: number, deleteCount: number, inserted: T[]): void {
+		if (deleteCount === 0 && inserted.length === 0) {
+			return;
+		}
+
+		const latest = result[result.length - 1];
+
+		if (latest && latest.start + latest.deleteCount === start) {
+			latest.deleteCount += deleteCount;
+			latest.inserted.push(...inserted);
+		} else {
+			result.push({ start, deleteCount, inserted });
+		}
+	}
+
+	let beforeIdx = 0;
+	let afterIdx = 0;
+
+	while (true) {
+		if (beforeIdx === before.length) {
+			pushSplice(beforeIdx, 0, after.slice(afterIdx));
+			break;
+		}
+		if (afterIdx === after.length) {
+			pushSplice(beforeIdx, before.length - beforeIdx, []);
+			break;
+		}
+
+		const beforeElement = before[beforeIdx];
+		const afterElement = after[afterIdx];
+		const n = compare(beforeElement, afterElement);
+		if (n === 0) {
+			// equal
+			beforeIdx += 1;
+			afterIdx += 1;
+		} else if (n < 0) {
+			// beforeElement is smaller -> before element removed
+			pushSplice(beforeIdx, 1, []);
+			beforeIdx += 1;
+		} else if (n > 0) {
+			// beforeElement is greater -> after element added
+			pushSplice(beforeIdx, 0, [afterElement]);
+			afterIdx += 1;
+		}
+	}
+
+	return result;
+}
+
+/**
+ * Takes two *sorted* arrays and computes their delta (removed, added elements).
+ * Finishes in `Math.min(before.length, after.length)` steps.
+ * @param before
+ * @param after
+ * @param compare
+ */
+export function delta<T>(before: T[], after: T[], compare: (a: T, b: T) => number): { removed: T[], added: T[] } {
+	const splices = sortedDiff(before, after, compare);
+	const removed: T[] = [];
+	const added: T[] = [];
+
+	for (const splice of splices) {
+		removed.push(...before.slice(splice.start, splice.start + splice.deleteCount));
+		added.push(...splice.inserted);
+	}
+
+	return { removed, added };
+}
+
+/**
  * Returns the top N elements from the array.
  *
  * Faster than sorting the entire array when the array is a lot larger than N.
@@ -105,29 +229,6 @@ export function top<T>(array: T[], compare: (a: T, b: T) => number, n: number): 
 	return result;
 }
 
-export function merge<T>(arrays: T[][], hashFn?: (element: T) => string): T[] {
-	const result = new Array<T>();
-	if (!hashFn) {
-		for (let i = 0, len = arrays.length; i < len; i++) {
-			result.push.apply(result, arrays[i]);
-		}
-	} else {
-		const map: { [k: string]: boolean } = {};
-		for (let i = 0; i < arrays.length; i++) {
-			for (let j = 0; j < arrays[i].length; j++) {
-				let element = arrays[i][j],
-					hash = hashFn(element);
-
-				if (!map.hasOwnProperty(hash)) {
-					map[hash] = true;
-					result.push(element);
-				}
-			}
-		}
-	}
-	return result;
-}
-
 /**
  * @returns a new array with all undefined or null values removed. The original array is not modified at all.
  */
@@ -137,24 +238,6 @@ export function coalesce<T>(array: T[]): T[] {
 	}
 
 	return array.filter(e => !!e);
-}
-
-/**
- * @returns true if the given item is contained in the array.
- */
-export function contains<T>(array: T[], item: T): boolean {
-	return array.indexOf(item) >= 0;
-}
-
-/**
- * Swaps the elements in the array for the provided positions.
- */
-export function swap(array: any[], pos1: number, pos2: number): void {
-	const element1 = array[pos1];
-	const element2 = array[pos2];
-
-	array[pos1] = element2;
-	array[pos2] = element1;
 }
 
 /**
@@ -231,7 +314,7 @@ export function first<T>(array: T[], fn: (item: T) => boolean, notFoundValue: T 
 export function commonPrefixLength<T>(one: T[], other: T[], equals: (a: T, b: T) => boolean = (a, b) => a === b): number {
 	let result = 0;
 
-	for (var i = 0, len = Math.min(one.length, other.length); i < len && equals(one[i], other[i]); i++) {
+	for (let i = 0, len = Math.min(one.length, other.length); i < len && equals(one[i], other[i]); i++) {
 		result++;
 	}
 
@@ -242,11 +325,43 @@ export function flatten<T>(arr: T[][]): T[] {
 	return arr.reduce((r, v) => r.concat(v), []);
 }
 
-export function range(to: number, from = 0): number[] {
-	const result = [];
+export function range(to: number): number[];
+export function range(from: number, to: number): number[];
+export function range(arg: number, to?: number): number[] {
+	let from = typeof to === 'number' ? arg : 0;
 
-	for (let i = from; i < to; i++) {
-		result.push(i);
+	if (typeof to === 'number') {
+		from = arg;
+	} else {
+		from = 0;
+		to = arg;
+	}
+
+	const result: number[] = [];
+
+	if (from <= to) {
+		for (let i = from; i < to; i++) {
+			result.push(i);
+		}
+	} else {
+		for (let i = from; i > to; i--) {
+			result.push(i);
+		}
+	}
+
+	return result;
+}
+
+export function weave<T>(a: T[], b: T[]): T[] {
+	const result: T[] = [];
+	let ai = 0, bi = 0;
+
+	for (let i = 0, length = a.length + b.length; i < length; i++) {
+		if ((i % 2 === 0 && ai < a.length) || bi >= b.length) {
+			result.push(a[ai++]);
+		} else {
+			result.push(b[bi++]);
+		}
 	}
 
 	return result;
@@ -283,4 +398,14 @@ export function insert<T>(array: T[], element: T): () => void {
 			array.splice(index, 1);
 		}
 	};
+}
+
+/**
+ * Insert `insertArr` inside `target` at `insertIndex`.
+ * Please don't touch unless you understand https://jsperf.com/inserting-an-array-within-an-array
+ */
+export function arrayInsert<T>(target: T[], insertIndex: number, insertArr: T[]): T[] {
+	const before = target.slice(0, insertIndex);
+	const after = target.slice(insertIndex);
+	return before.concat(insertArr, after);
 }

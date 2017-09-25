@@ -6,11 +6,12 @@
 
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IModel, IPosition } from 'vs/editor/common/editorCommon';
-import { LineToken, StandardTokenType } from 'vs/editor/common/core/lineTokens';
+import { IModel } from 'vs/editor/common/editorCommon';
+import { LineToken } from 'vs/editor/common/core/lineTokens';
 import { ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
 import { BracketsUtils, RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { LanguageId, StandardTokenType } from 'vs/editor/common/modes';
 
 export const enum TokenTreeBracket {
 	None = 0,
@@ -128,16 +129,16 @@ class RawToken {
 	public lineText: string;
 	public startOffset: number;
 	public endOffset: number;
-	public standardType: StandardTokenType;
-	public modeId: string;
+	public type: StandardTokenType;
+	public languageId: LanguageId;
 
 	constructor(source: LineToken, lineNumber: number, lineText: string) {
 		this.lineNumber = lineNumber;
 		this.lineText = lineText;
 		this.startOffset = source.startOffset;
 		this.endOffset = source.endOffset;
-		this.standardType = source.standardType;
-		this.modeId = source.modeId;
+		this.type = source.tokenType;
+		this.languageId = source.languageId;
 	}
 }
 
@@ -164,6 +165,7 @@ class ModelRawTokenScanner {
 		while (!this._next && this._lineNumber < this._lineCount) {
 			this._lineNumber++;
 			this._lineText = this._model.getLineContent(this._lineNumber);
+			this._model.forceTokenization(this._lineNumber);
 			let currentLineTokens = this._model.getLineTokens(this._lineNumber);
 			this._next = currentLineTokens.firstToken();
 		}
@@ -188,14 +190,14 @@ class TokenScanner {
 	private _rawTokenScanner: ModelRawTokenScanner;
 	private _nextBuff: Token[];
 
-	private _cachedModeBrackets: RichEditBrackets;
-	private _cachedModeId: string;
+	private _cachedLanguageBrackets: RichEditBrackets;
+	private _cachedLanguageId: LanguageId;
 
 	constructor(model: IModel) {
 		this._rawTokenScanner = new ModelRawTokenScanner(model);
 		this._nextBuff = [];
-		this._cachedModeBrackets = null;
-		this._cachedModeId = null;
+		this._cachedLanguageBrackets = null;
+		this._cachedLanguageId = -1;
 	}
 
 	next(): Token {
@@ -209,17 +211,17 @@ class TokenScanner {
 		}
 		const lineNumber = token.lineNumber;
 		const lineText = token.lineText;
-		const standardTokenType = token.standardType;
+		const tokenType = token.type;
 		let startOffset = token.startOffset;
 		const endOffset = token.endOffset;
 
-		if (this._cachedModeId !== token.modeId) {
-			this._cachedModeId = token.modeId;
-			this._cachedModeBrackets = LanguageConfigurationRegistry.getBracketsSupport(this._cachedModeId);
+		if (this._cachedLanguageId !== token.languageId) {
+			this._cachedLanguageId = token.languageId;
+			this._cachedLanguageBrackets = LanguageConfigurationRegistry.getBracketsSupport(this._cachedLanguageId);
 		}
-		const modeBrackets = this._cachedModeBrackets;
+		const modeBrackets = this._cachedLanguageBrackets;
 
-		if (!modeBrackets || ignoreBracketsInToken(standardTokenType)) {
+		if (!modeBrackets || ignoreBracketsInToken(tokenType)) {
 			return new Token(
 				new Range(lineNumber, startOffset + 1, lineNumber, endOffset + 1),
 				TokenTreeBracket.None,
@@ -252,7 +254,7 @@ class TokenScanner {
 				this._nextBuff.push(new Token(
 					new Range(lineNumber, foundBracketStartOffset + 1, lineNumber, foundBracketEndOffset + 1),
 					bracketIsOpen ? TokenTreeBracket.Open : TokenTreeBracket.Close,
-					`${bracketData.modeId};${bracketData.open};${bracketData.close}`
+					`${bracketData.languageIdentifier.language};${bracketData.open};${bracketData.close}`
 				));
 
 				startOffset = foundBracketEndOffset;
@@ -397,7 +399,7 @@ export function build(model: IModel): Node {
 	return node;
 }
 
-export function find(node: Node, position: IPosition): Node {
+export function find(node: Node, position: Position): Node {
 	if (node instanceof NodeList && node.isEmpty) {
 		return null;
 	}
@@ -409,8 +411,10 @@ export function find(node: Node, position: IPosition): Node {
 	var result: Node;
 
 	if (node instanceof NodeList) {
-		for (var i = 0, len = node.children.length; i < len && !result; i++) {
-			result = find(node.children[i], position);
+		if (node.hasChildren) {
+			for (var i = 0, len = node.children.length; i < len && !result; i++) {
+				result = find(node.children[i], position);
+			}
 		}
 
 	} else if (node instanceof Block) {

@@ -8,30 +8,39 @@
 import * as assert from 'assert';
 import { workspace, window, commands, ViewColumn, TextEditorViewColumnChangeEvent, Uri, Selection, Position, CancellationTokenSource, TextEditorSelectionChangeKind } from 'vscode';
 import { join } from 'path';
-import { cleanUp, pathEquals } from './utils';
+import { closeAllEditors, pathEquals, createRandomFile } from './utils';
 
 suite('window namespace tests', () => {
 
-	teardown(cleanUp);
+	teardown(closeAllEditors);
 
 	test('editor, active text editor', () => {
-		return workspace.openTextDocument(join(workspace.rootPath, './far.js')).then(doc => {
+		return workspace.openTextDocument(join(workspace.rootPath || '', './far.js')).then(doc => {
 			return window.showTextDocument(doc).then((editor) => {
 				const active = window.activeTextEditor;
 				assert.ok(active);
-				assert.ok(pathEquals(active.document.uri.fsPath, doc.uri.fsPath));
+				assert.ok(pathEquals(active!.document.uri.fsPath, doc.uri.fsPath));
 			});
 		});
 	});
 
-	test('editor, UN-active text editor', () => {
-		assert.equal(window.visibleTextEditors.length, 0);
-		assert.ok(window.activeTextEditor === undefined);
+	test('editor, opened via resource', () => {
+		const uri = Uri.file(join(workspace.rootPath || '', './far.js'));
+		return window.showTextDocument(uri).then((editor) => {
+			const active = window.activeTextEditor;
+			assert.ok(active);
+			assert.ok(pathEquals(active!.document.uri.fsPath, uri.fsPath));
+		});
 	});
+
+	// test('editor, UN-active text editor', () => {
+	// 	assert.equal(window.visibleTextEditors.length, 0);
+	// 	assert.ok(window.activeTextEditor === undefined);
+	// });
 
 	test('editor, assign and check view columns', () => {
 
-		return workspace.openTextDocument(join(workspace.rootPath, './far.js')).then(doc => {
+		return workspace.openTextDocument(join(workspace.rootPath || '', './far.js')).then(doc => {
 			let p1 = window.showTextDocument(doc, ViewColumn.One).then(editor => {
 				assert.equal(editor.viewColumn, ViewColumn.One);
 			});
@@ -52,7 +61,7 @@ suite('window namespace tests', () => {
 			eventCounter += 1;
 		});
 
-		return workspace.openTextDocument(join(workspace.rootPath, './far.js')).then(doc => {
+		return workspace.openTextDocument(join(workspace.rootPath || '', './far.js')).then(doc => {
 			return window.showTextDocument(doc, ViewColumn.One).then(editor => {
 				assert.equal(eventCounter, 1);
 				return doc;
@@ -110,9 +119,48 @@ suite('window namespace tests', () => {
 		});
 	});
 
+	test('issue #25801 - default column when opening a file', async () => {
+		const [docA, docB, docC] = await Promise.all([
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile())
+		]);
+
+		await window.showTextDocument(docA, ViewColumn.One);
+		await window.showTextDocument(docB, ViewColumn.Two);
+
+		assert.ok(window.activeTextEditor);
+		assert.ok(window.activeTextEditor!.document === docB);
+		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.Two);
+
+		await window.showTextDocument(docC);
+		assert.ok(window.activeTextEditor!.document === docC);
+		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.One);
+	});
+
+	test('issue #27408 - showTextDocument & vscode.diff always default to ViewColumn.One', async () => {
+		const [docA, docB, docC] = await Promise.all([
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile())
+		]);
+
+		await window.showTextDocument(docA, ViewColumn.One);
+		await window.showTextDocument(docB, ViewColumn.Two);
+
+		assert.ok(window.activeTextEditor);
+		assert.ok(window.activeTextEditor!.document === docB);
+		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.Two);
+
+		await window.showTextDocument(docC, ViewColumn.Active);
+
+		assert.ok(window.activeTextEditor!.document === docC);
+		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.Two);
+	});
+
 	test('issue #5362 - Incorrect TextEditor passed by onDidChangeTextEditorSelection', (done) => {
-		const file10Path = join(workspace.rootPath, './10linefile.ts');
-		const file30Path = join(workspace.rootPath, './30linefile.ts');
+		const file10Path = join(workspace.rootPath || '', './10linefile.ts');
+		const file30Path = join(workspace.rootPath || '', './30linefile.ts');
 
 		let finished = false;
 		let failOncePlease = (err: Error) => {
@@ -290,8 +338,48 @@ suite('window namespace tests', () => {
 		});
 	});
 
+	test('showQuickPick, never resolve promise and cancel - #22453', function () {
+
+		const result = window.showQuickPick(new Promise<string[]>(resolve => { }));
+
+		const a = result.then(value => {
+			assert.equal(value, undefined);
+		});
+		const b = commands.executeCommand('workbench.action.closeQuickOpen');
+		return Promise.all([a, b]);
+	});
+
+	// test('showWorkspaceFolderPick', function () {
+	// 	const p = (<any>window).showWorkspaceFolderPick(undefined);
+
+	// 	return commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem').then(() => {
+	// 		return p.then(workspace => {
+	// 			assert.ok(true);
+	// 		}, error => {
+	// 			assert.ok(false);
+	// 		});
+	// 	});
+	// });
+
+	test('Default value for showInput Box accepted even if fails validateInput, #33691', function () {
+		const result = window.showInputBox({
+			validateInput: (value: string) => {
+				if (!value || value.trim().length === 0) {
+					return 'Cannot set empty description';
+				}
+				return null;
+			}
+		}).then(value => {
+			assert.equal(value, undefined);
+		});
+
+		const exec = commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		return Promise.all([result, exec]);
+	});
+
+
 	test('editor, selection change kind', () => {
-		return workspace.openTextDocument(join(workspace.rootPath, './far.js')).then(doc => window.showTextDocument(doc)).then(editor => {
+		return workspace.openTextDocument(join(workspace.rootPath || '', './far.js')).then(doc => window.showTextDocument(doc)).then(editor => {
 
 
 			return new Promise((resolve, reject) => {
@@ -311,11 +399,11 @@ suite('window namespace tests', () => {
 	});
 
 	test('createTerminal, Terminal.name', () => {
-		var terminal = window.createTerminal('foo');
+		const terminal = window.createTerminal('foo');
 		assert.equal(terminal.name, 'foo');
 
 		assert.throws(() => {
-			terminal.name = 'bar';
+			(<any>terminal).name = 'bar';
 		}, 'Terminal.name should be readonly');
 	});
 

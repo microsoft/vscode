@@ -11,28 +11,33 @@ import os = require('os');
 import crypto = require('crypto');
 import assert = require('assert');
 
-import { IContent, IFileService, IResolveFileOptions, IResolveContentOptions, IFileStat, IStreamContent, IFileOperationResult, FileOperationResult, IBaseStat, IUpdateContentOptions, FileChangeType, EventType, IImportResult, MAX_FILE_SIZE } from 'vs/platform/files/common/files';
-import strings = require('vs/base/common/strings');
+import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, IImportResult, MAX_FILE_SIZE, FileChangesEvent, IFilesConfiguration, ICreateFileOptions } from 'vs/platform/files/common/files';
+import { isEqualOrParent } from 'vs/base/common/paths';
+import { ResourceMap } from 'vs/base/common/map';
 import arrays = require('vs/base/common/arrays');
 import baseMime = require('vs/base/common/mime');
-import basePaths = require('vs/base/common/paths');
 import { TPromise } from 'vs/base/common/winjs.base';
 import types = require('vs/base/common/types');
 import objects = require('vs/base/common/objects');
 import extfs = require('vs/base/node/extfs');
-import { nfcall, Limiter, ThrottledDelayer } from 'vs/base/common/async';
+import { nfcall, ThrottledDelayer } from 'vs/base/common/async';
 import uri from 'vs/base/common/uri';
 import nls = require('vs/nls');
-import { isWindows } from 'vs/base/common/platform';
+import { isWindows, isLinux } from 'vs/base/common/platform';
+import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 
 import pfs = require('vs/base/node/pfs');
 import encoding = require('vs/base/node/encoding');
-import mime = require('vs/base/node/mime');
+import { detectMimesFromFile } from 'vs/base/node/mime';
 import flow = require('vs/base/node/flow');
 import { FileWatcher as UnixWatcherService } from 'vs/workbench/services/files/node/watcher/unix/watcherService';
 import { FileWatcher as WindowsWatcherService } from 'vs/workbench/services/files/node/watcher/win32/watcherService';
 import { toFileChangesEvent, normalize, IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
-import { IEventService } from 'vs/platform/event/common/event';
+import Event, { Emitter } from 'vs/base/common/event';
+import { FileWatcher as NsfwWatcherService } from 'vs/workbench/services/files/node/watcher/nsfw/watcherService';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface IEncodingOverride {
 	resource: uri;
@@ -42,12 +47,11 @@ export interface IEncodingOverride {
 export interface IFileServiceOptions {
 	tmpDir?: string;
 	errorLogger?: (msg: string) => void;
-	encoding?: string;
-	bom?: string;
 	encodingOverride?: IEncodingOverride[];
 	watcherIgnoredPatterns?: string[];
 	disableWatcher?: boolean;
 	verboseLogging?: boolean;
+	useExperimentalFileWatcher?: boolean;
 }
 
 function etag(stat: fs.Stats): string;
@@ -63,7 +67,7 @@ function etag(arg1: any, arg2?: any): string {
 		mtime = (<fs.Stats>arg1).mtime.getTime();
 	}
 
-	return '"' + crypto.createHash('sha1').update(String(size) + String(mtime)).digest('hex') + '"';
+	return `"${crypto.createHash('sha1').update(String(size) + String(mtime)).digest('hex')}"`;
 }
 
 export class FileService implements IFileService {
@@ -72,51 +76,60 @@ export class FileService implements IFileService {
 
 	private static FS_EVENT_DELAY = 50; // aggregate and only emit events when changes have stopped for this duration (in ms)
 	private static FS_REWATCH_DELAY = 300; // delay to rewatch a file that was renamed or deleted (in ms)
-	private static MAX_DEGREE_OF_PARALLEL_FS_OPS = 10; // degree of parallel fs calls that we accept at the same time
 
-	private basePath: string;
 	private tmpPath: string;
 	private options: IFileServiceOptions;
 
-	private workspaceWatcherToDispose: () => void;
+	private _onFileChanges: Emitter<FileChangesEvent>;
+	private _onAfterOperation: Emitter<FileOperationEvent>;
 
-	private activeFileChangesWatchers: { [resource: string]: fs.FSWatcher; };
+	private toDispose: IDisposable[];
+
+	private activeFileChangesWatchers: ResourceMap<fs.FSWatcher>;
 	private fileChangesWatchDelayer: ThrottledDelayer<void>;
 	private undeliveredRawFileChangesEvents: IRawFileChange[];
 
-	constructor(basePath: string, options: IFileServiceOptions, private eventEmitter: IEventService) {
-		this.basePath = basePath ? paths.normalize(basePath) : void 0;
+	private activeWorkspaceChangeWatcher: IDisposable;
 
-		if (this.basePath && this.basePath.indexOf('\\\\') === 0 && strings.endsWith(this.basePath, paths.sep)) {
-			// for some weird reason, node adds a trailing slash to UNC paths
-			// we never ever want trailing slashes as our base path unless
-			// someone opens root ("/").
-			// See also https://github.com/nodejs/io.js/issues/1765
-			this.basePath = strings.rtrim(this.basePath, paths.sep);
-		}
-
-		if (this.basePath && !paths.isAbsolute(basePath)) {
-			throw new Error('basePath has to be an absolute path');
-		}
-
+	constructor(
+		private contextService: IWorkspaceContextService,
+		private textResourceConfigurationService: ITextResourceConfigurationService,
+		private configurationService: IConfigurationService,
+		options: IFileServiceOptions
+	) {
+		this.toDispose = [];
 		this.options = options || Object.create(null);
 		this.tmpPath = this.options.tmpDir || os.tmpdir();
+
+		this._onFileChanges = new Emitter<FileChangesEvent>();
+		this.toDispose.push(this._onFileChanges);
+
+		this._onAfterOperation = new Emitter<FileOperationEvent>();
+		this.toDispose.push(this._onAfterOperation);
 
 		if (!this.options.errorLogger) {
 			this.options.errorLogger = console.error;
 		}
 
-		if (this.basePath && !this.options.disableWatcher) {
-			if (isWindows) {
-				this.setupWin32WorkspaceWatching();
-			} else {
-				this.setupUnixWorkspaceWatching();
-			}
-		}
-
-		this.activeFileChangesWatchers = Object.create(null);
+		this.activeFileChangesWatchers = new ResourceMap<fs.FSWatcher>();
 		this.fileChangesWatchDelayer = new ThrottledDelayer<void>(FileService.FS_EVENT_DELAY);
 		this.undeliveredRawFileChangesEvents = [];
+
+		this.setupWorkspaceWatching();
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this.toDispose.push(this.contextService.onDidChangeWorkbenchState(() => this.setupWorkspaceWatching()));
+	}
+
+	public get onFileChanges(): Event<FileChangesEvent> {
+		return this._onFileChanges.event;
+	}
+
+	public get onAfterOperation(): Event<FileOperationEvent> {
+		return this._onAfterOperation.event;
 	}
 
 	public updateOptions(options: IFileServiceOptions): void {
@@ -125,16 +138,53 @@ export class FileService implements IFileService {
 		}
 	}
 
-	private setupWin32WorkspaceWatching(): void {
-		this.workspaceWatcherToDispose = new WindowsWatcherService(this.basePath, this.options.watcherIgnoredPatterns, this.eventEmitter, this.options.errorLogger, this.options.verboseLogging).startWatching();
+	private setupWorkspaceWatching(): void {
+
+		// dispose old if any
+		if (this.activeWorkspaceChangeWatcher) {
+			this.activeWorkspaceChangeWatcher.dispose();
+		}
+
+		// Return if not aplicable
+		const workbenchState = this.contextService.getWorkbenchState();
+		if (workbenchState === WorkbenchState.EMPTY || this.options.disableWatcher) {
+			return;
+		}
+
+		// new watcher: use it if setting tells us so or we run in multi-root environment
+		if (this.options.useExperimentalFileWatcher || workbenchState === WorkbenchState.WORKSPACE) {
+			this.activeWorkspaceChangeWatcher = toDisposable(this.setupNsfwWorkspaceWatching().startWatching());
+		}
+
+		// old watcher
+		else {
+			if (isWindows) {
+				this.activeWorkspaceChangeWatcher = toDisposable(this.setupWin32WorkspaceWatching().startWatching());
+			} else {
+				this.activeWorkspaceChangeWatcher = toDisposable(this.setupUnixWorkspaceWatching().startWatching());
+			}
+		}
 	}
 
-	private setupUnixWorkspaceWatching(): void {
-		this.workspaceWatcherToDispose = new UnixWatcherService(this.basePath, this.options.watcherIgnoredPatterns, this.eventEmitter, this.options.errorLogger, this.options.verboseLogging).startWatching();
+	private setupWin32WorkspaceWatching(): WindowsWatcherService {
+		return new WindowsWatcherService(this.contextService, this.options.watcherIgnoredPatterns, e => this._onFileChanges.fire(e), this.options.errorLogger, this.options.verboseLogging);
+	}
+
+	private setupUnixWorkspaceWatching(): UnixWatcherService {
+		return new UnixWatcherService(this.contextService, this.options.watcherIgnoredPatterns, e => this._onFileChanges.fire(e), this.options.errorLogger, this.options.verboseLogging);
+	}
+
+	private setupNsfwWorkspaceWatching(): NsfwWatcherService {
+		return new NsfwWatcherService(this.contextService, this.configurationService, e => this._onFileChanges.fire(e), this.options.errorLogger, this.options.verboseLogging);
 	}
 
 	public resolveFile(resource: uri, options?: IResolveFileOptions): TPromise<IFileStat> {
 		return this.resolve(resource, options);
+	}
+
+	public resolveFiles(toResolve: { resource: uri, options?: IResolveFileOptions }[]): TPromise<IResolveFileResult[]> {
+		return TPromise.join(toResolve.map(resourceAndOptions => this.resolve(resourceAndOptions.resource, resourceAndOptions.options)
+			.then(stat => ({ stat, success: true }), error => ({ stat: undefined, success: false }))));
 	}
 
 	public existsFile(resource: uri): TPromise<boolean> {
@@ -142,99 +192,99 @@ export class FileService implements IFileService {
 	}
 
 	public resolveContent(resource: uri, options?: IResolveContentOptions): TPromise<IContent> {
-		return this.doResolveContent(resource, options, (resource, etag, enc) => this.resolveFileContent(resource, etag, enc));
+		return this.doResolveContent(resource, options, (stat, enc) => this.resolveFileContent(stat, enc));
 	}
 
 	public resolveStreamContent(resource: uri, options?: IResolveContentOptions): TPromise<IStreamContent> {
-		return this.doResolveContent(resource, options, (resource, etag, enc) => this.resolveFileStreamContent(resource, etag, enc));
+		return this.doResolveContent(resource, options, (stat, enc) => this.resolveFileStreamContent(stat, enc));
 	}
 
-	private doResolveContent<T extends IBaseStat>(resource: uri, options: IResolveContentOptions, contentResolver: (resource: uri, etag?: string, enc?: string) => TPromise<T>): TPromise<T> {
+	private doResolveContent<IStreamContent>(resource: uri, options: IResolveContentOptions, contentResolver: (stat: IFileStat, enc?: string) => TPromise<IStreamContent>): TPromise<IStreamContent> {
 		const absolutePath = this.toAbsolutePath(resource);
 
 		// Guard early against attempts to resolve an invalid file path
 		if (resource.scheme !== 'file' || !resource.fsPath) {
-			return TPromise.wrapError(<IFileOperationResult>{
-				message: nls.localize('fileInvalidPath', "Invalid file resource ({0})", resource.toString()),
-				fileOperationResult: FileOperationResult.FILE_INVALID_PATH
-			});
+			return TPromise.wrapError<IStreamContent>(new FileOperationError(
+				nls.localize('fileInvalidPath', "Invalid file resource ({0})", resource.toString(true)),
+				FileOperationResult.FILE_INVALID_PATH
+			));
 		}
 
-		// 1.) detect mimes
-		return nfcall(mime.detectMimesFromFile, absolutePath).then((detected: mime.IMimeAndEncoding): TPromise<T> => {
-			const isText = detected.mimes.indexOf(baseMime.MIME_BINARY) === -1;
+		// 1.) resolve resource
+		return this.resolve(resource).then((model): TPromise<IStreamContent> => {
 
-			// Return error early if client only accepts text and this is not text
-			if (options && options.acceptTextOnly && !isText) {
-				return TPromise.wrapError(<IFileOperationResult>{
-					message: nls.localize('fileBinaryError', "File seems to be binary and cannot be opened as text"),
-					fileOperationResult: FileOperationResult.FILE_IS_BINARY
-				});
+			// Return early if resource is a directory
+			if (model.isDirectory) {
+				return TPromise.wrapError<IStreamContent>(new FileOperationError(
+					nls.localize('fileIsDirectoryError', "File is directory"),
+					FileOperationResult.FILE_IS_DIRECTORY
+				));
 			}
 
-			let preferredEncoding: string;
-			if (options && options.encoding) {
-				if (detected.encoding === encoding.UTF8 && options.encoding === encoding.UTF8) {
-					preferredEncoding = encoding.UTF8_with_bom; // indicate the file has BOM if we are to resolve with UTF 8
-				} else {
-					preferredEncoding = options.encoding; // give passed in encoding highest priority
-				}
-			} else if (detected.encoding) {
-				if (detected.encoding === encoding.UTF8) {
-					preferredEncoding = encoding.UTF8_with_bom; // if we detected UTF-8, it can only be because of a BOM
-				} else {
-					preferredEncoding = detected.encoding;
-				}
-			} else if (this.options.encoding === encoding.UTF8_with_bom) {
-				preferredEncoding = encoding.UTF8; // if we did not detect UTF 8 BOM before, this can only be UTF 8 then
+			// Return early if file not modified since
+			if (options && options.etag && options.etag === model.etag) {
+				return TPromise.wrapError<IStreamContent>(new FileOperationError(nls.localize('fileNotModifiedError', "File not modified since"), FileOperationResult.FILE_NOT_MODIFIED_SINCE));
 			}
 
-			// 2.) get content
-			return contentResolver(resource, options && options.etag, preferredEncoding);
-		}, (error) => {
+			// Return early if file is too large to load
+			if (types.isNumber(model.size) && model.size > MAX_FILE_SIZE) {
+				return TPromise.wrapError<IStreamContent>(new FileOperationError(nls.localize('fileTooLargeError', "File too large to open"), FileOperationResult.FILE_TOO_LARGE));
+			}
+
+			// 2.) detect mimes
+			const autoGuessEncoding = (options && options.autoGuessEncoding) || this.configuredAutoGuessEncoding(resource);
+			return detectMimesFromFile(absolutePath, { autoGuessEncoding }).then(detected => {
+				const isText = detected.mimes.indexOf(baseMime.MIME_BINARY) === -1;
+
+				// Return error early if client only accepts text and this is not text
+				if (options && options.acceptTextOnly && !isText) {
+					return TPromise.wrapError<IStreamContent>(new FileOperationError(
+						nls.localize('fileBinaryError', "File seems to be binary and cannot be opened as text"),
+						FileOperationResult.FILE_IS_BINARY
+					));
+				}
+
+				let preferredEncoding: string;
+				if (options && options.encoding) {
+					if (detected.encoding === encoding.UTF8 && options.encoding === encoding.UTF8) {
+						preferredEncoding = encoding.UTF8_with_bom; // indicate the file has BOM if we are to resolve with UTF 8
+					} else {
+						preferredEncoding = options.encoding; // give passed in encoding highest priority
+					}
+				} else if (detected.encoding) {
+					if (detected.encoding === encoding.UTF8) {
+						preferredEncoding = encoding.UTF8_with_bom; // if we detected UTF-8, it can only be because of a BOM
+					} else {
+						preferredEncoding = detected.encoding;
+					}
+				} else if (this.configuredEncoding(resource) === encoding.UTF8_with_bom) {
+					preferredEncoding = encoding.UTF8; // if we did not detect UTF 8 BOM before, this can only be UTF 8 then
+				}
+
+				// 3.) get content
+				return contentResolver(model, preferredEncoding);
+			});
+		}, error => {
 
 			// bubble up existing file operation results
-			if (!types.isUndefinedOrNull((<IFileOperationResult>error).fileOperationResult)) {
-				return TPromise.wrapError(error);
+			if (!types.isUndefinedOrNull((<FileOperationError>error).fileOperationResult)) {
+				return TPromise.wrapError<IStreamContent>(error);
 			}
 
-			// on error check if the file does not exist or is a folder and return with proper error result
+			// check if the file does not exist
 			return pfs.exists(absolutePath).then(exists => {
 
 				// Return if file not found
 				if (!exists) {
-					return TPromise.wrapError(<IFileOperationResult>{
-						message: nls.localize('fileNotFoundError', "File not found ({0})", absolutePath),
-						fileOperationResult: FileOperationResult.FILE_NOT_FOUND
-					});
+					return TPromise.wrapError<IStreamContent>(new FileOperationError(
+						nls.localize('fileNotFoundError', "File not found ({0})", resource.toString(true)),
+						FileOperationResult.FILE_NOT_FOUND
+					));
 				}
 
-				// Otherwise check for file being a folder?
-				return pfs.stat(absolutePath).then(stat => {
-					if (stat.isDirectory()) {
-						return TPromise.wrapError(<IFileOperationResult>{
-							message: nls.localize('fileIsDirectoryError', "File is directory ({0})", absolutePath),
-							fileOperationResult: FileOperationResult.FILE_IS_DIRECTORY
-						});
-					}
-
-					// otherwise just give up
-					return TPromise.wrapError(error);
-				});
+				// otherwise just give up
+				return TPromise.wrapError<IStreamContent>(error);
 			});
-		});
-	}
-
-	public resolveContents(resources: uri[]): TPromise<IContent[]> {
-		const limiter = new Limiter(FileService.MAX_DEGREE_OF_PARALLEL_FS_OPS);
-
-		const contentPromises = <TPromise<IContent>[]>[];
-		resources.forEach(resource => {
-			contentPromises.push(limiter.queue(() => this.resolveFileContent(resource).then(content => content, error => TPromise.as(null /* ignore errors gracefully */))));
-		});
-
-		return TPromise.join(contentPromises).then(contents => {
-			return arrays.coalesce(contents);
 		});
 	}
 
@@ -265,48 +315,101 @@ export class FileService implements IFileService {
 					if (options.overwriteEncoding) {
 						addBomPromise = TPromise.as(false); // if we are to overwrite the encoding, we do not preserve it if found
 					} else {
-						addBomPromise = nfcall(encoding.detectEncodingByBOM, absolutePath).then(enc => enc === encoding.UTF8); // otherwise preserve it if found
+						addBomPromise = encoding.detectEncodingByBOM(absolutePath).then(enc => enc === encoding.UTF8); // otherwise preserve it if found
 					}
 				}
 
 				// 3.) check to add UTF BOM
 				return addBomPromise.then(addBom => {
-					let writeFilePromise: TPromise<void>;
 
-					// Write fast if we do UTF 8 without BOM
-					if (!addBom && encodingToWrite === encoding.UTF8) {
-						writeFilePromise = pfs.writeFileAndFlush(absolutePath, value, encoding.UTF8);
-					}
+					// 4.) set contents and resolve
+					return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite, { mode: 0o666, flag: 'w' }).then(undefined, error => {
+						if (!exists || error.code !== 'EPERM' || !isWindows) {
+							return TPromise.wrapError(error);
+						}
 
-					// Otherwise use encoding lib
-					else {
-						const encoded = encoding.encode(value, encodingToWrite, { addBOM: addBom });
-						writeFilePromise = pfs.writeFileAndFlush(absolutePath, encoded);
-					}
+						// On Windows and if the file exists with an EPERM error, we try a different strategy of saving the file
+						// by first truncating the file and then writing with r+ mode. This helps to save hidden files on Windows
+						// (see https://github.com/Microsoft/vscode/issues/931)
 
-					// 4.) set contents
-					return writeFilePromise.then(() => {
+						// 5.) truncate
+						return pfs.truncate(absolutePath, 0).then(() => {
 
-						// 5.) resolve
-						return this.resolve(resource);
+							// 6.) set contents (this time with r+ mode) and resolve again
+							return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite, { mode: 0o666, flag: 'r+' });
+						});
 					});
 				});
 			});
 		});
 	}
 
-	public createFile(resource: uri, content: string = ''): TPromise<IFileStat> {
-		return this.updateContent(resource, content);
+	private doSetContentsAndResolve(resource: uri, absolutePath: string, value: string, addBOM: boolean, encodingToWrite: string, options: { mode?: number; flag?: string; }): TPromise<IFileStat> {
+		let writeFilePromise: TPromise<void>;
+
+		// Write fast if we do UTF 8 without BOM
+		if (!addBOM && encodingToWrite === encoding.UTF8) {
+			writeFilePromise = pfs.writeFile(absolutePath, value, options);
+		}
+
+		// Otherwise use encoding lib
+		else {
+			const encoded = encoding.encode(value, encodingToWrite, { addBOM });
+			writeFilePromise = pfs.writeFile(absolutePath, encoded, options);
+		}
+
+		// set contents
+		return writeFilePromise.then(() => {
+
+			// resolve
+			return this.resolve(resource);
+		});
+	}
+
+	public createFile(resource: uri, content: string = '', options: ICreateFileOptions = Object.create(null)): TPromise<IFileStat> {
+		const absolutePath = this.toAbsolutePath(resource);
+
+		let checkFilePromise: TPromise<boolean>;
+		if (options.overwrite) {
+			checkFilePromise = TPromise.as(false);
+		} else {
+			checkFilePromise = pfs.exists(absolutePath);
+		}
+
+		// Check file exists
+		return checkFilePromise.then(exists => {
+			if (exists && !options.overwrite) {
+				return TPromise.wrapError<IFileStat>(new FileOperationError(
+					nls.localize('fileExists', "File to create already exits ({0})", resource.toString(true)),
+					FileOperationResult.FILE_MODIFIED_SINCE
+				));
+			}
+
+			// Create file
+			return this.updateContent(resource, content).then(result => {
+
+				// Events
+				this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, result));
+
+				return result;
+			});
+		});
 	}
 
 	public createFolder(resource: uri): TPromise<IFileStat> {
 
-		// 1.) create folder
+		// 1.) Create folder
 		const absolutePath = this.toAbsolutePath(resource);
 		return pfs.mkdirp(absolutePath).then(() => {
 
-			// 2.) resolve
-			return this.resolve(resource);
+			// 2.) Resolve
+			return this.resolve(resource).then(result => {
+
+				// Events
+				this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, result));
+
+				return result;
+			});
 		});
 	}
 
@@ -357,7 +460,13 @@ export class FileService implements IFileService {
 		return this.doMoveOrCopyFile(sourcePath, targetPath, keepCopy, overwrite).then(() => {
 
 			// 2.) resolve
-			return this.resolve(target);
+			return this.resolve(target).then(result => {
+
+				// Events
+				this._onAfterOperation.fire(new FileOperationEvent(source, keepCopy ? FileOperation.COPY : FileOperation.MOVE, result));
+
+				return result;
+			});
 		});
 	}
 
@@ -370,16 +479,14 @@ export class FileService implements IFileService {
 
 			// Return early with conflict if target exists and we are not told to overwrite
 			if (exists && !isCaseRename && !overwrite) {
-				return TPromise.wrapError(<IFileOperationResult>{
-					fileOperationResult: FileOperationResult.FILE_MOVE_CONFLICT
-				});
+				return TPromise.wrapError<boolean>(new FileOperationError(nls.localize('fileMoveConflict', "Unable to move/copy. File already exists at destination."), FileOperationResult.FILE_MOVE_CONFLICT));
 			}
 
 			// 2.) make sure target is deleted before we move/copy unless this is a case rename of the same file
-			let deleteTargetPromise = TPromise.as(null);
+			let deleteTargetPromise = TPromise.as<void>(void 0);
 			if (exists && !isCaseRename) {
-				if (basePaths.isEqualOrParent(sourcePath, targetPath)) {
-					return TPromise.wrapError(nls.localize('unableToMoveCopyError', "Unable to move/copy. File would replace folder it is contained in.")); // catch this corner case!
+				if (isEqualOrParent(sourcePath, targetPath, !isLinux /* ignorecase */)) {
+					return TPromise.wrapError<boolean>(new Error(nls.localize('unableToMoveCopyError', "Unable to move/copy. File would replace folder it is contained in."))); // catch this corner case!
 				}
 
 				deleteTargetPromise = this.del(uri.file(targetPath));
@@ -411,14 +518,20 @@ export class FileService implements IFileService {
 		// 1.) resolve
 		return pfs.stat(sourcePath).then(stat => {
 			if (stat.isDirectory()) {
-				return TPromise.wrapError(nls.localize('foldersCopyError', "Folders cannot be copied into the workspace. Please select individual files to copy them.")); // for now we do not allow to import a folder into a workspace
+				return TPromise.wrapError<IImportResult>(new Error(nls.localize('foldersCopyError', "Folders cannot be copied into the workspace. Please select individual files to copy them."))); // for now we do not allow to import a folder into a workspace
 			}
 
 			// 2.) copy
 			return this.doMoveOrCopyFile(sourcePath, targetPath, true, true).then(exists => {
 
 				// 3.) resolve
-				return this.resolve(targetResource).then(stat => <IImportResult>{ isNew: !exists, stat: stat });
+				return this.resolve(targetResource).then(stat => {
+
+					// Events
+					this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.IMPORT, stat));
+
+					return <IImportResult>{ isNew: !exists, stat: stat };
+				});
 			});
 		});
 	}
@@ -426,7 +539,11 @@ export class FileService implements IFileService {
 	public del(resource: uri): TPromise<void> {
 		const absolutePath = this.toAbsolutePath(resource);
 
-		return nfcall(extfs.del, absolutePath, this.tmpPath);
+		return pfs.del(absolutePath, this.tmpPath).then(() => {
+
+			// Events
+			this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
+		});
 	}
 
 	// Helpers
@@ -457,39 +574,27 @@ export class FileService implements IFileService {
 		});
 	}
 
-	private resolveFileStreamContent(resource: uri, etag?: string, enc?: string): TPromise<IStreamContent> {
-		const absolutePath = this.toAbsolutePath(resource);
+	private resolveFileStreamContent(model: IFileStat, enc?: string): TPromise<IStreamContent> {
 
-		return this.resolve(resource).then((model): TPromise<IStreamContent> => {
+		// Return early if file is too large to load
+		if (types.isNumber(model.size) && model.size > MAX_FILE_SIZE) {
+			return TPromise.wrapError<IStreamContent>(new FileOperationError(nls.localize('fileTooLargeError', "File too large to open"), FileOperationResult.FILE_TOO_LARGE));
+		}
 
-			// Return early if file not modified since
-			if (etag && etag === model.etag) {
-				return TPromise.wrapError(<IFileOperationResult>{
-					fileOperationResult: FileOperationResult.FILE_NOT_MODIFIED_SINCE
-				});
-			}
+		const absolutePath = this.toAbsolutePath(model);
+		const fileEncoding = this.getEncoding(model.resource, enc);
 
-			// Return early if file is too large to load
-			if (types.isNumber(model.size) && model.size > MAX_FILE_SIZE) {
-				return TPromise.wrapError(<IFileOperationResult>{
-					fileOperationResult: FileOperationResult.FILE_TOO_LARGE
-				});
-			}
+		const reader = fs.createReadStream(absolutePath).pipe(encoding.decodeStream(fileEncoding)); // decode takes care of stripping any BOMs from the file content
 
-			const fileEncoding = this.getEncoding(model.resource, enc);
+		const content = model as IFileStat & IStreamContent;
+		content.value = reader;
+		content.encoding = fileEncoding; // make sure to store the encoding in the model to restore it later when writing
 
-			const reader = fs.createReadStream(absolutePath).pipe(encoding.decodeStream(fileEncoding)); // decode takes care of stripping any BOMs from the file content
-
-			const content: IStreamContent = <any>model;
-			content.value = reader;
-			content.encoding = fileEncoding; // make sure to store the encoding in the model to restore it later when writing
-
-			return TPromise.as(content);
-		});
+		return TPromise.as(content);
 	}
 
-	private resolveFileContent(resource: uri, etag?: string, enc?: string): TPromise<IContent> {
-		return this.resolveFileStreamContent(resource, etag, enc).then((streamContent) => {
+	private resolveFileContent(model: IFileStat, enc?: string): TPromise<IContent> {
+		return this.resolveFileStreamContent(model, enc).then(streamContent => {
 			return new TPromise<IContent>((c, e) => {
 				let done = false;
 				const chunks: string[] = [];
@@ -518,7 +623,7 @@ export class FileService implements IFileService {
 		});
 	}
 
-	private getEncoding(resource: uri, preferredEncoding?: string): string {
+	public getEncoding(resource: uri, preferredEncoding?: string): string {
 		let fileEncoding: string;
 
 		const override = this.getEncodingOverride(resource);
@@ -527,7 +632,7 @@ export class FileService implements IFileService {
 		} else if (preferredEncoding) {
 			fileEncoding = preferredEncoding;
 		} else {
-			fileEncoding = this.options.encoding;
+			fileEncoding = this.configuredEncoding(resource);
 		}
 
 		if (!fileEncoding || !encoding.encodingExists(fileEncoding)) {
@@ -537,6 +642,18 @@ export class FileService implements IFileService {
 		return fileEncoding;
 	}
 
+	private configuredAutoGuessEncoding(resource: uri): boolean {
+		const config = this.textResourceConfigurationService.getConfiguration(resource) as IFilesConfiguration;
+
+		return config && config.files && config.files.autoGuessEncoding === true;
+	}
+
+	private configuredEncoding(resource: uri): string {
+		const config = this.textResourceConfigurationService.getConfiguration(resource) as IFilesConfiguration;
+
+		return config && config.files && config.files.encoding;
+	}
+
 	private getEncodingOverride(resource: uri): string {
 		if (resource && this.options.encodingOverride && this.options.encodingOverride.length) {
 			for (let i = 0; i < this.options.encodingOverride.length; i++) {
@@ -544,7 +661,7 @@ export class FileService implements IFileService {
 
 				// check if the resource is a child of the resource with override and use
 				// the provided encoding in that case
-				if (resource.toString().indexOf(override.resource.toString() + '/') === 0) {
+				if (isParent(resource.fsPath, override.resource.fsPath, !isLinux /* ignorecase */)) {
 					return override.encoding;
 				}
 			}
@@ -558,7 +675,7 @@ export class FileService implements IFileService {
 			if (exists) {
 				return pfs.stat(absolutePath).then(stat => {
 					if (stat.isDirectory()) {
-						return TPromise.wrapError(new Error('Expected file is actually a directory'));
+						return TPromise.wrapError<boolean>(new Error('Expected file is actually a directory'));
 					}
 
 					// Dirty write prevention
@@ -566,10 +683,7 @@ export class FileService implements IFileService {
 
 						// Find out if content length has changed
 						if (options.etag !== etag(stat.size, options.mtime)) {
-							return TPromise.wrapError(<IFileOperationResult>{
-								message: 'File Modified Since',
-								fileOperationResult: FileOperationResult.FILE_MODIFIED_SINCE
-							});
+							return TPromise.wrapError<boolean>(new FileOperationError(nls.localize('fileModifiedError', "File Modified Since"), FileOperationResult.FILE_MODIFIED_SINCE));
 						}
 					}
 
@@ -578,10 +692,10 @@ export class FileService implements IFileService {
 
 					// Throw if file is readonly and we are not instructed to overwrite
 					if (readonly && !options.overwriteReadonly) {
-						return TPromise.wrapError(<IFileOperationResult>{
-							message: nls.localize('fileReadOnlyError', "File is Read Only"),
-							fileOperationResult: FileOperationResult.FILE_READ_ONLY
-						});
+						return TPromise.wrapError<boolean>(new FileOperationError(
+							nls.localize('fileReadOnlyError', "File is Read Only"),
+							FileOperationResult.FILE_READ_ONLY
+						));
 					}
 
 					if (readonly) {
@@ -601,7 +715,7 @@ export class FileService implements IFileService {
 		assert.ok(resource && resource.scheme === 'file', `Invalid resource for watching: ${resource}`);
 
 		// Create or get watcher for provided path
-		let watcher = this.activeFileChangesWatchers[resource.toString()];
+		let watcher = this.activeFileChangesWatchers.get(resource);
 		if (!watcher) {
 			const fsPath = resource.fsPath;
 
@@ -611,7 +725,7 @@ export class FileService implements IFileService {
 				return; // the path might not exist anymore, ignore this error and return
 			}
 
-			this.activeFileChangesWatchers[resource.toString()] = watcher;
+			this.activeFileChangesWatchers.set(resource, watcher);
 
 			// eventType is either 'rename' or 'change'
 			const fsName = paths.basename(resource.fsPath);
@@ -624,71 +738,96 @@ export class FileService implements IFileService {
 				// and then stops to work on Mac and Linux because the watcher is applied to the
 				// inode and not the name. The fix is to detect this case and trying to watch the file
 				// again after a certain delay.
+				// In addition, we send out a delete event if after a timeout we detect that the file
+				// does indeed not exist anymore.
 				if (renamedOrDeleted) {
-					if (isWindows) {
-						return; // on Windows the watcher continues to work even if the file was saved atomically with a replace operation
-					}
 
 					// Very important to dispose the watcher which now points to a stale inode
 					this.unwatchFileChanges(resource);
 
 					// Wait a bit and try to install watcher again, assuming that the file was renamed quickly ("Atomic Save")
 					setTimeout(() => {
-						this.watchFileChanges(resource);
+						this.existsFile(resource).done(exists => {
+
+							// File still exists, so reapply the watcher
+							if (exists) {
+								this.watchFileChanges(resource);
+							}
+
+							// File seems to be really gone, so emit a deleted event
+							else {
+								this.onRawFileChange({
+									type: FileChangeType.DELETED,
+									path: fsPath
+								});
+							}
+						});
 					}, FileService.FS_REWATCH_DELAY);
 				}
 
-				// add to bucket of undelivered events
-				this.undeliveredRawFileChangesEvents.push({
+				// Handle raw file change
+				this.onRawFileChange({
 					type: FileChangeType.UPDATED,
 					path: fsPath
-				});
-
-				// handle emit through delayer to accommodate for bulk changes
-				this.fileChangesWatchDelayer.trigger(() => {
-					const buffer = this.undeliveredRawFileChangesEvents;
-					this.undeliveredRawFileChangesEvents = [];
-
-					// Normalize
-					const normalizedEvents = normalize(buffer);
-
-					// Emit
-					this.eventEmitter.emit(EventType.FILE_CHANGES, toFileChangesEvent(normalizedEvents));
-
-					return TPromise.as(null);
 				});
 			});
 
 			// Errors
-			watcher.on('error', (error) => {
+			watcher.on('error', (error: string) => {
 				this.options.errorLogger(error);
 			});
 		}
 	}
 
-	public unwatchFileChanges(resource: uri): void;
-	public unwatchFileChanges(path: string): void;
-	public unwatchFileChanges(arg1: any): void {
-		const resource = (typeof arg1 === 'string') ? uri.parse(arg1) : arg1;
+	private onRawFileChange(event: IRawFileChange): void {
 
-		const watcher = this.activeFileChangesWatchers[resource.toString()];
+		// add to bucket of undelivered events
+		this.undeliveredRawFileChangesEvents.push(event);
+
+		if (this.options.verboseLogging) {
+			console.log('%c[node.js Watcher]%c', 'color: green', 'color: black', event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]', event.path);
+		}
+
+		// handle emit through delayer to accommodate for bulk changes
+		this.fileChangesWatchDelayer.trigger(() => {
+			const buffer = this.undeliveredRawFileChangesEvents;
+			this.undeliveredRawFileChangesEvents = [];
+
+			// Normalize
+			const normalizedEvents = normalize(buffer);
+
+			// Logging
+			if (this.options.verboseLogging) {
+				normalizedEvents.forEach(r => {
+					console.log('%c[node.js Watcher]%c >> normalized', 'color: green', 'color: black', r.type === FileChangeType.ADDED ? '[ADDED]' : r.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]', r.path);
+				});
+			}
+
+			// Emit
+			this._onFileChanges.fire(toFileChangesEvent(normalizedEvents));
+
+			return TPromise.as(null);
+		});
+	}
+
+	public unwatchFileChanges(resource: uri): void {
+		const watcher = this.activeFileChangesWatchers.get(resource);
 		if (watcher) {
 			watcher.close();
-			delete this.activeFileChangesWatchers[resource.toString()];
+			this.activeFileChangesWatchers.delete(resource);
 		}
 	}
 
 	public dispose(): void {
-		if (this.workspaceWatcherToDispose) {
-			this.workspaceWatcherToDispose();
-			this.workspaceWatcherToDispose = null;
+		this.toDispose = dispose(this.toDispose);
+
+		if (this.activeWorkspaceChangeWatcher) {
+			this.activeWorkspaceChangeWatcher.dispose();
+			this.activeWorkspaceChangeWatcher = null;
 		}
 
-		for (let key in this.activeFileChangesWatchers) {
-			const watcher = this.activeFileChangesWatchers[key];
-			watcher.close();
-		}
-		this.activeFileChangesWatchers = Object.create(null);
+		this.activeFileChangesWatchers.forEach(watcher => watcher.close());
+		this.activeFileChangesWatchers.clear();
 	}
 }
 
@@ -744,10 +883,10 @@ export class StatResolver {
 				});
 			}
 
-			return new TPromise((c, e) => {
+			return new TPromise<IFileStat>((c, e) => {
 
 				// Load children
-				this.resolveChildren(this.resource.fsPath, absoluteTargetPaths, options && options.resolveSingleChildDescendants, (children) => {
+				this.resolveChildren(this.resource.fsPath, absoluteTargetPaths, options && options.resolveSingleChildDescendants, children => {
 					children = arrays.coalesce(children); // we don't want those null children (could be permission denied when reading a child)
 					fileStat.hasChildren = children && children.length > 0;
 					fileStat.children = children || [];
@@ -819,7 +958,7 @@ export class StatResolver {
 						let resolveFolderChildren = false;
 						if (files.length === 1 && resolveSingleChildDescendants) {
 							resolveFolderChildren = true;
-						} else if (childCount > 0 && absoluteTargetPaths && absoluteTargetPaths.some(targetPath => basePaths.isEqualOrParent(targetPath, fileResource.fsPath))) {
+						} else if (childCount > 0 && absoluteTargetPaths && absoluteTargetPaths.some(targetPath => isEqualOrParent(targetPath, fileResource.fsPath, !isLinux /* ignorecase */))) {
 							resolveFolderChildren = true;
 						}
 

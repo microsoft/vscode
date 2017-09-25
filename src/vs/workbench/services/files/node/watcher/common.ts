@@ -7,6 +7,7 @@
 
 import uri from 'vs/base/common/uri';
 import { FileChangeType, FileChangesEvent, isParent } from 'vs/platform/files/common/files';
+import { isLinux } from 'vs/base/common/platform';
 
 export interface IRawFileChange {
 	type: FileChangeType;
@@ -105,7 +106,7 @@ class EventNormalizer {
 		}).sort((e1, e2) => {
 			return e1.path.length - e2.path.length; // shortest path first
 		}).filter(e => {
-			if (deletedPaths.some(d => isParent(e.path, d))) {
+			if (deletedPaths.some(d => isParent(e.path, d, !isLinux /* ignorecase */))) {
 				return false; // DELETE is ignored if parent is deleted already
 			}
 

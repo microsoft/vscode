@@ -8,27 +8,19 @@
 import * as assert from 'assert';
 import collections = require('vs/base/common/collections');
 
-suite('Collections', () => {
-	test('contains', () => {
-		assert(!collections.contains({}, 'toString'));
-		assert(collections.contains({ toString: 123 }, 'toString'));
-		assert(!collections.contains(Object.create(null), 'toString'));
 
-		var dict = Object.create(null);
-		dict['toString'] = 123;
-		assert(collections.contains(dict, 'toString'));
-	});
+suite('Collections', () => {
 
 	test('forEach', () => {
 		collections.forEach({}, () => assert(false));
 		collections.forEach(Object.create(null), () => assert(false));
 
-		var count = 0;
+		let count = 0;
 		collections.forEach({ toString: 123 }, () => count++);
 		assert.equal(count, 1);
 
 		count = 0;
-		var dict = Object.create(null);
+		let dict = Object.create(null);
 		dict['toString'] = 123;
 		collections.forEach(dict, () => count++);
 		assert.equal(count, 1);
@@ -41,28 +33,6 @@ suite('Collections', () => {
 		// don't iterate over properties that are not on the object itself
 		let test = Object.create({ 'derived': true });
 		collections.forEach(test, () => assert(false));
-	});
-
-	test('lookupOrInsert - should not insert if found', () => {
-		const property = 123;
-
-		let from = collections.createNumberDictionary();
-		from[property] = 'whatever';
-
-		collections.lookupOrInsert(from, property, () => assert(false));
-	});
-
-	test('lookupOrInsert - should insert if not found', () => {
-
-		const expected = 'alternate', property = 'test';
-
-		let fromWithValue = collections.createStringDictionary();
-		collections.lookupOrInsert(fromWithValue, property, expected);
-		assert.equal(fromWithValue[property], expected);
-
-		let fromWithCallback = collections.createStringDictionary();
-		collections.lookupOrInsert(fromWithCallback, property, () => expected);
-		assert.equal(fromWithCallback[property], expected);
 	});
 
 	test('groupBy', () => {
@@ -85,16 +55,6 @@ suite('Collections', () => {
 		// Group 2
 		assert.equal(grouped[group2].length, 1);
 		assert.equal(grouped[group2][0].value, value3);
-	});
-
-	test('insert', () => {
-
-		const expected = 'value', hashFn = x => x.toString();
-
-		let into = collections.createStringDictionary();
-		collections.insert(into, expected, hashFn);
-
-		assert.equal(into[expected], expected);
 	});
 
 	test('remove', () => {

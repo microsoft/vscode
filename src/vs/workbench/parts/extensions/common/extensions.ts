@@ -28,12 +28,13 @@ export interface IExtension {
 	state: ExtensionState;
 	name: string;
 	displayName: string;
-	identifier: string;
+	id: string;
 	publisher: string;
 	publisherDisplayName: string;
 	version: string;
 	latestVersion: string;
 	description: string;
+	url: string;
 	iconUrl: string;
 	iconUrlFallback: string;
 	licenseUrl: string;
@@ -66,6 +67,7 @@ export interface IExtensionsWorkbenchService {
 	_serviceBrand: any;
 	onChange: Event<void>;
 	local: IExtension[];
+	isAutoUpdateEnabled: boolean;
 	queryLocal(): TPromise<IExtension[]>;
 	queryGallery(options?: IQueryOptions): TPromise<IPager<IExtension>>;
 	canInstall(extension: IExtension): boolean;
@@ -75,10 +77,14 @@ export interface IExtensionsWorkbenchService {
 	setEnablement(extension: IExtension, enable: boolean, workspace?: boolean): TPromise<void>;
 	loadDependencies(extension: IExtension): TPromise<IExtensionDependencies>;
 	open(extension: IExtension, sideByside?: boolean): TPromise<any>;
+	checkForUpdates(): TPromise<void>;
+	setAutoUpdate(autoUpdate: boolean): TPromise<void>;
+	allowedBadgeProviders: string[];
 }
 
 export const ConfigurationKey = 'extensions';
 
 export interface IExtensionsConfiguration {
 	autoUpdate: boolean;
+	ignoreRecommendations: boolean;
 }

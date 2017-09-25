@@ -5,54 +5,64 @@
 
 import * as nls from 'vs/nls';
 import uri from 'vs/base/common/uri';
+import * as resources from 'vs/base/common/resources';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { generateUuid } from 'vs/base/common/uuid';
-import { clone } from 'vs/base/common/objects';
+import * as errors from 'vs/base/common/errors';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import severity from 'vs/base/common/severity';
 import { isObject, isString } from 'vs/base/common/types';
 import { distinct } from 'vs/base/common/arrays';
-import { IRange } from 'vs/editor/common/editorCommon';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { ISuggestion } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
-import * as debug from 'vs/workbench/parts/debug/common/debug';
+import {
+	ITreeElement, IExpression, IExpressionContainer, IProcess, IStackFrame, IExceptionBreakpoint, IBreakpoint, IFunctionBreakpoint, IModel, IReplElementSource,
+	IConfig, ISession, IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IRawBreakpoint, IExceptionInfo, IReplElement, ProcessState
+} from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const MAX_REPL_LENGTH = 10000;
-const UNKNOWN_SOURCE_LABEL = nls.localize('unknownSource', "Unknown Source");
 
-export class OutputElement implements debug.ITreeElement {
+export abstract class AbstractOutputElement implements IReplElement {
 	private static ID_COUNTER = 0;
 
-	constructor(private id = OutputElement.ID_COUNTER++) {
+	constructor(public sourceData: IReplElementSource, private id = AbstractOutputElement.ID_COUNTER++) {
 		// noop
 	}
 
 	public getId(): string {
 		return `outputelement:${this.id}`;
 	}
+
+	abstract toString(): string;
 }
 
-export class ValueOutputElement extends OutputElement {
+export class OutputElement extends AbstractOutputElement {
+
 
 	constructor(
 		public value: string,
 		public severity: severity,
-		public category?: string,
-		public counter = 1
+		source: IReplElementSource,
 	) {
-		super();
+		super(source);
+	}
+
+	public toString(): string {
+		return this.value;
 	}
 }
 
-export class KeyValueOutputElement extends OutputElement {
+export class OutputNameValueElement extends AbstractOutputElement implements IExpression {
 
 	private static MAX_CHILDREN = 1000; // upper bound of children per value
 
-	constructor(public key: string, public valueObj: any, public annotation?: string) {
-		super();
+	constructor(public name: string, public valueObj: any, source?: IReplElementSource, public annotation?: string) {
+		super(source);
 	}
 
 	public get value(): string {
@@ -63,46 +73,72 @@ export class KeyValueOutputElement extends OutputElement {
 		} else if (isObject(this.valueObj)) {
 			return 'Object';
 		} else if (isString(this.valueObj)) {
-			return this.valueObj;
+			return `"${this.valueObj}"`;
 		}
 
 		return String(this.valueObj) || '';
 	}
 
-	public getChildren(): debug.ITreeElement[] {
+	public get hasChildren(): boolean {
+		return (Array.isArray(this.valueObj) && this.valueObj.length > 0) || (isObject(this.valueObj) && Object.getOwnPropertyNames(this.valueObj).length > 0);
+	}
+
+	public getChildren(): TPromise<IExpression[]> {
+		let result: IExpression[] = [];
 		if (Array.isArray(this.valueObj)) {
-			return (<any[]>this.valueObj).slice(0, KeyValueOutputElement.MAX_CHILDREN)
-				.map((v, index) => new KeyValueOutputElement(String(index), v));
+			result = (<any[]>this.valueObj).slice(0, OutputNameValueElement.MAX_CHILDREN)
+				.map((v, index) => new OutputNameValueElement(String(index), v));
 		} else if (isObject(this.valueObj)) {
-			return Object.getOwnPropertyNames(this.valueObj).slice(0, KeyValueOutputElement.MAX_CHILDREN)
-				.map(key => new KeyValueOutputElement(key, this.valueObj[key]));
+			result = Object.getOwnPropertyNames(this.valueObj).slice(0, OutputNameValueElement.MAX_CHILDREN)
+				.map(key => new OutputNameValueElement(key, this.valueObj[key]));
 		}
 
-		return [];
+		return TPromise.as(result);
+	}
+
+	public toString(): string {
+		return this.name ? `${this.name}: ${this.value}` : this.value;
 	}
 }
 
-export abstract class ExpressionContainer implements debug.IExpressionContainer {
+export class ExpressionContainer implements IExpressionContainer {
 
-	public static allValues: { [id: string]: string } = {};
+	public static allValues: Map<string, string> = new Map<string, string>();
 	// Use chunks to support variable paging #9537
 	private static BASE_CHUNK_SIZE = 100;
 
 	public valueChanged: boolean;
 	private _value: string;
+	protected children: TPromise<IExpression[]>;
 
 	constructor(
-		public stackFrame: debug.IStackFrame,
-		public reference: number,
+		protected process: IProcess,
+		private _reference: number,
 		private id: string,
-		public namedVariables: number,
-		public indexedVariables: number,
+		public namedVariables = 0,
+		public indexedVariables = 0,
 		private startOfVariables = 0
 	) { }
 
-	public getChildren(): TPromise<debug.IExpression[]> {
-		// only variables with reference > 0 have children.
-		if (this.reference <= 0) {
+	public get reference(): number {
+		return this._reference;
+	}
+
+	public set reference(value: number) {
+		this._reference = value;
+		this.children = undefined; // invalidate children cache
+	}
+
+	public getChildren(): TPromise<IExpression[]> {
+		if (!this.children) {
+			this.children = this.doGetChildren();
+		}
+
+		return this.children;
+	}
+
+	private doGetChildren(): TPromise<IExpression[]> {
+		if (!this.hasChildren) {
 			return TPromise.as([]);
 		}
 
@@ -124,7 +160,7 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 				for (let i = 0; i < numberOfChunks; i++) {
 					const start = this.startOfVariables + i * chunkSize;
 					const count = Math.min(chunkSize, this.indexedVariables - i * chunkSize);
-					childrenArray.push(new Variable(this.stackFrame, this, this.reference, `[${start}..${start + count - 1}]`, '', '', null, count, null, true, start));
+					childrenArray.push(new Variable(this.process, this, this.reference, `[${start}..${start + count - 1}]`, '', '', null, count, null, true, start));
 				}
 
 				return childrenArray;
@@ -144,20 +180,21 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 	}
 
 	public get hasChildren(): boolean {
+		// only variables with reference > 0 have children.
 		return this.reference > 0;
 	}
 
 	private fetchVariables(start: number, count: number, filter: 'indexed' | 'named'): TPromise<Variable[]> {
-		return this.stackFrame.thread.process.session.variables({
+		return this.process.session.variables({
 			variablesReference: this.reference,
 			start,
 			count,
 			filter
 		}).then(response => {
-			return response && response.body && response.body.variables ? distinct(response.body.variables.filter(v => !!v), v => v.name).map(
-				v => new Variable(this.stackFrame, this, v.variablesReference, v.name, v.evaluateName, v.value, v.namedVariables, v.indexedVariables, v.type)
+			return response && response.body && response.body.variables ? distinct(response.body.variables.filter(v => !!v && v.name), v => v.name).map(
+				v => new Variable(this.process, this, v.variablesReference, v.name, v.evaluateName, v.value, v.namedVariables, v.indexedVariables, v.type)
 			) : [];
-		}, (e: Error) => [new Variable(this.stackFrame, this, 0, null, e.message, '', 0, 0, null, false)]);
+		}, (e: Error) => [new Variable(this.process, this, 0, null, e.message, '', 0, 0, null, false)]);
 	}
 
 	// The adapter explicitly sents the children count of an expression only if there are lots of children which should be chunked.
@@ -167,20 +204,24 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 
 	public set value(value: string) {
 		this._value = value;
-		this.valueChanged = ExpressionContainer.allValues[this.getId()] &&
-			ExpressionContainer.allValues[this.getId()] !== Expression.DEFAULT_VALUE && ExpressionContainer.allValues[this.getId()] !== value;
-		ExpressionContainer.allValues[this.getId()] = value;
+		this.valueChanged = ExpressionContainer.allValues.get(this.getId()) &&
+			ExpressionContainer.allValues.get(this.getId()) !== Expression.DEFAULT_VALUE && ExpressionContainer.allValues.get(this.getId()) !== value;
+		ExpressionContainer.allValues.set(this.getId(), value);
+	}
+
+	public toString(): string {
+		return this.value;
 	}
 }
 
-export class Expression extends ExpressionContainer implements debug.IExpression {
+export class Expression extends ExpressionContainer implements IExpression {
 	static DEFAULT_VALUE = nls.localize('notAvailable', "not available");
 
 	public available: boolean;
 	public type: string;
 
 	constructor(public name: string, id = generateUuid()) {
-		super(null, 0, id, 0, 0);
+		super(null, 0, id);
 		this.available = false;
 		// name is not set if the expression is just being added
 		// in that case do not set default value to prevent flashing #14499
@@ -189,8 +230,8 @@ export class Expression extends ExpressionContainer implements debug.IExpression
 		}
 	}
 
-	public evaluate(process: debug.IProcess, stackFrame: debug.IStackFrame, context: string): TPromise<void> {
-		if (!process) {
+	public evaluate(process: IProcess, stackFrame: IStackFrame, context: string): TPromise<void> {
+		if (!process || (!stackFrame && context !== 'repl')) {
 			this.value = context === 'repl' ? nls.localize('startDebugFirst', "Please start a debug session to evaluate") : Expression.DEFAULT_VALUE;
 			this.available = false;
 			this.reference = 0;
@@ -198,10 +239,7 @@ export class Expression extends ExpressionContainer implements debug.IExpression
 			return TPromise.as(null);
 		}
 
-		// Create a fake stack frame which is just used as a container for the process.
-		// TODO@Isidor revisit if variables should have a reference to the StackFrame or a process after all
-		this.stackFrame = stackFrame || new StackFrame(new Thread(process, undefined, undefined), undefined, undefined, undefined, undefined, undefined);
-
+		this.process = process;
 		return process.session.evaluate({
 			expression: this.name,
 			frameId: stackFrame ? stackFrame.frameId : undefined,
@@ -221,21 +259,23 @@ export class Expression extends ExpressionContainer implements debug.IExpression
 			this.reference = 0;
 		});
 	}
+
+	public toString(): string {
+		return `${this.name}\n${this.value}`;
+	}
 }
 
-export class Variable extends ExpressionContainer implements debug.IExpression {
+export class Variable extends ExpressionContainer implements IExpression {
 
 	// Used to show the error message coming from the adapter when setting the value #7807
 	public errorMessage: string;
-	private static NOT_PROPERTY_SYNTAX = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
-	private static ARRAY_ELEMENT_SYNTAX = /\[.*\]$/;
 
 	constructor(
-		stackFrame: debug.IStackFrame,
-		public parent: debug.IExpressionContainer,
+		process: IProcess,
+		public parent: IExpressionContainer,
 		reference: number,
 		public name: string,
-		private _evaluateName: string,
+		public evaluateName: string,
 		value: string,
 		namedVariables: number,
 		indexedVariables: number,
@@ -243,40 +283,12 @@ export class Variable extends ExpressionContainer implements debug.IExpression {
 		public available = true,
 		startOfVariables = 0
 	) {
-		super(stackFrame, reference, `variable:${parent.getId()}:${name}:${reference}`, namedVariables, indexedVariables, startOfVariables);
+		super(process, reference, `variable:${parent.getId()}:${name}:${reference}`, namedVariables, indexedVariables, startOfVariables);
 		this.value = value;
 	}
 
-	public get evaluateName(): string {
-		if (this._evaluateName) {
-			return this._evaluateName;
-		}
-
-		let names = [this.name];
-		let v = this.parent;
-		while (v instanceof Variable || v instanceof Expression) {
-			names.push((<Variable>v).name);
-			v = (<Variable>v).parent;
-		}
-		names = names.reverse();
-
-		let result = null;
-		names.forEach(name => {
-			if (!result) {
-				result = name;
-			} else if (Variable.ARRAY_ELEMENT_SYNTAX.test(name) || (this.stackFrame.thread.process.session.configuration.type === 'node' && !Variable.NOT_PROPERTY_SYNTAX.test(name))) {
-				// use safe way to access node properties a['property_name']. Also handles array elements.
-				result = name && name.indexOf('[') === 0 ? `${result}${name}` : `${result}['${name}']`;
-			} else {
-				result = `${result}.${name}`;
-			}
-		});
-
-		return result;
-	}
-
 	public setVariable(value: string): TPromise<any> {
-		return this.stackFrame.thread.process.session.setVariable({
+		return this.process.session.setVariable({
 			name: this.name,
 			value,
 			variablesReference: (<ExpressionContainer>this.parent).reference
@@ -288,17 +300,20 @@ export class Variable extends ExpressionContainer implements debug.IExpression {
 				this.namedVariables = response.body.namedVariables;
 				this.indexedVariables = response.body.indexedVariables;
 			}
-			// TODO@Isidor notify stackFrame that a change has happened so watch expressions get revelauted
 		}, err => {
 			this.errorMessage = err.message;
 		});
 	}
+
+	public toString(): string {
+		return `${this.name}: ${this.value}`;
+	}
 }
 
-export class Scope extends ExpressionContainer implements debug.IScope {
+export class Scope extends ExpressionContainer implements IScope {
 
 	constructor(
-		stackFrame: debug.IStackFrame,
+		stackFrame: IStackFrame,
 		public name: string,
 		reference: number,
 		public expensive: boolean,
@@ -306,30 +321,31 @@ export class Scope extends ExpressionContainer implements debug.IScope {
 		indexedVariables: number,
 		public range?: IRange
 	) {
-		super(stackFrame, reference, `scope:${stackFrame.getId()}:${name}:${reference}`, namedVariables, indexedVariables);
+		super(stackFrame.thread.process, reference, `scope:${stackFrame.getId()}:${name}:${reference}`, namedVariables, indexedVariables);
 	}
 }
 
-export class StackFrame implements debug.IStackFrame {
+export class StackFrame implements IStackFrame {
 
 	private scopes: TPromise<Scope[]>;
 
 	constructor(
-		public thread: debug.IThread,
+		public thread: IThread,
 		public frameId: number,
 		public source: Source,
 		public name: string,
-		public lineNumber: number,
-		public column: number
+		public presentationHint: string,
+		public range: IRange,
+		private index: number
 	) {
 		this.scopes = null;
 	}
 
 	public getId(): string {
-		return `stackframe:${this.thread.getId()}:${this.frameId}`;
+		return `stackframe:${this.thread.getId()}:${this.frameId}:${this.index}`;
 	}
 
-	public getScopes(): TPromise<debug.IScope[]> {
+	public getScopes(): TPromise<IScope[]> {
 		if (!this.scopes) {
 			this.scopes = this.thread.process.session.scopes({ frameId: this.frameId }).then(response => {
 				return response && response.body && response.body.scopes ?
@@ -341,86 +357,90 @@ export class StackFrame implements debug.IStackFrame {
 		return this.scopes;
 	}
 
-	public restart(): TPromise<any> {
-		return this.thread.process.session.restartFrame({ frameId: this.frameId });
+	public getMostSpecificScopes(range: IRange): TPromise<IScope[]> {
+		return this.getScopes().then(scopes => {
+			scopes = scopes.filter(s => !s.expensive);
+			const haveRangeInfo = scopes.some(s => !!s.range);
+			if (!haveRangeInfo) {
+				return scopes;
+			}
+
+			const scopesContainingRange = scopes.filter(scope => scope.range && Range.containsRange(scope.range, range))
+				.sort((first, second) => (first.range.endLineNumber - first.range.startLineNumber) - (second.range.endLineNumber - second.range.startLineNumber));
+			return scopesContainingRange.length ? scopesContainingRange : scopes;
+		});
 	}
 
-	public completions(text: string, position: Position, overwriteBefore: number): TPromise<ISuggestion[]> {
-		if (!this.thread.process.session.configuration.capabilities.supportsCompletionsRequest) {
-			return TPromise.as([]);
-		}
+	public restart(): TPromise<any> {
+		return this.thread.process.session.restartFrame({ frameId: this.frameId }, this.thread.threadId);
+	}
 
-		return this.thread.process.session.completions({
-			frameId: this.frameId,
-			text,
-			column: position.column,
-			line: position.lineNumber
-		}).then(response => {
-			return response && response.body && response.body.targets ? response.body.targets.map(item => (<ISuggestion>{
-				label: item.label,
-				insertText: item.text || item.label,
-				type: item.type,
-				overwriteBefore: item.length || overwriteBefore
-			})) : [];
-		}, err => []);
+	public toString(): string {
+		return `${this.name} (${this.source.inMemory ? this.source.name : this.source.uri.fsPath}:${this.range.startLineNumber})`;
+	}
+
+	public openInEditor(editorService: IWorkbenchEditorService, preserveFocus?: boolean, sideBySide?: boolean): TPromise<any> {
+		return !this.source.available ? TPromise.as(null) :
+			this.source.openInEditor(editorService, this.range, preserveFocus, sideBySide);
 	}
 }
 
-export class Thread implements debug.IThread {
-	private promisedCallStack: TPromise<debug.IStackFrame[]>;
-	private cachedCallStack: debug.IStackFrame[];
-	public stoppedDetails: debug.IRawStoppedDetails;
+export class Thread implements IThread {
+	private callStack: IStackFrame[];
+	private staleCallStack: IStackFrame[];
+	public stoppedDetails: IRawStoppedDetails;
 	public stopped: boolean;
 
-	constructor(public process: debug.IProcess, public name: string, public threadId: number) {
-		this.promisedCallStack = null;
+	constructor(public process: IProcess, public name: string, public threadId: number) {
 		this.stoppedDetails = null;
-		this.cachedCallStack = null;
+		this.callStack = [];
+		this.staleCallStack = [];
 		this.stopped = false;
 	}
 
 	public getId(): string {
-		return `thread:${this.process.getId()}:${this.name}:${this.threadId}`;
+		return `thread:${this.process.getId()}:${this.threadId}`;
 	}
 
 	public clearCallStack(): void {
-		this.promisedCallStack = null;
-		this.cachedCallStack = null;
+		if (this.callStack.length) {
+			this.staleCallStack = this.callStack;
+		}
+		this.callStack = [];
 	}
 
-	public getCallStack(): debug.IStackFrame[] {
-		return this.cachedCallStack;
+	public getCallStack(): IStackFrame[] {
+		return this.callStack;
+	}
+
+	public getStaleCallStack(): IStackFrame[] {
+		return this.staleCallStack;
 	}
 
 	/**
-	 * Queries the debug adapter for the callstack and returns a promise with
-	 * the stack frames of the callstack.
+	 * Queries the debug adapter for the callstack and returns a promise
+	 * which completes once the call stack has been retrieved.
 	 * If the thread is not stopped, it returns a promise to an empty array.
-	 * Only gets the first 20 stack frames. Calling this method consecutive times
-	 * with getAdditionalStackFrames = true gets the remainder of the call stack.
+	 * Only fetches the first stack frame for performance reasons. Calling this method consecutive times
+	 * gets the remainder of the call stack.
 	 */
-	public fetchCallStack(getAdditionalStackFrames = false): TPromise<debug.IStackFrame[]> {
+	public fetchCallStack(levels = 20): TPromise<void> {
 		if (!this.stopped) {
-			return TPromise.as([]);
+			return TPromise.as(null);
 		}
 
-		if (!this.promisedCallStack) {
-			this.promisedCallStack = this.getCallStackImpl(0).then(callStack => {
-				this.cachedCallStack = callStack;
-				return callStack;
-			});
-		} else if (getAdditionalStackFrames) {
-			this.promisedCallStack = this.promisedCallStack.then(callStackFirstPart => this.getCallStackImpl(callStackFirstPart.length).then(callStackSecondPart => {
-				this.cachedCallStack = callStackFirstPart.concat(callStackSecondPart);
-				return this.cachedCallStack;
-			}));
-		}
-
-		return this.promisedCallStack;
+		const start = this.callStack.length;
+		return this.getCallStackImpl(start, levels).then(callStack => {
+			if (start < this.callStack.length) {
+				// Set the stack frames for exact position we requested. To make sure no concurrent requests create duplicate stack frames #30660
+				this.callStack.splice(start, this.callStack.length - start);
+			}
+			this.callStack = this.callStack.concat(callStack || []);
+		});
 	}
 
-	private getCallStackImpl(startFrame: number): TPromise<debug.IStackFrame[]> {
-		return this.process.session.stackTrace({ threadId: this.threadId, startFrame, levels: 20 }).then(response => {
+	private getCallStackImpl(startFrame: number, levels: number): TPromise<IStackFrame[]> {
+		return this.process.session.stackTrace({ threadId: this.threadId, startFrame, levels }).then(response => {
 			if (!response || !response.body) {
 				return [];
 			}
@@ -429,12 +449,15 @@ export class Thread implements debug.IThread {
 				this.stoppedDetails.totalFrames = response.body.totalFrames;
 			}
 
-			return response.body.stackFrames.map((rsf, level) => {
-				if (!rsf) {
-					return new StackFrame(this, 0, new Source({ name: UNKNOWN_SOURCE_LABEL }, false), nls.localize('unknownStack', "Unknown stack location"), null, null);
-				}
+			return response.body.stackFrames.map((rsf, index) => {
+				const source = this.process.getSource(rsf.source);
 
-				return new StackFrame(this, rsf.id, rsf.source ? new Source(rsf.source) : new Source({ name: UNKNOWN_SOURCE_LABEL }, false), rsf.name, rsf.line, rsf.column);
+				return new StackFrame(this, rsf.id, source, rsf.name, rsf.presentationHint, new Range(
+					rsf.line,
+					rsf.column,
+					rsf.endLine,
+					rsf.endColumn
+				), startFrame + index);
 			});
 		}, (err: Error) => {
 			if (this.stoppedDetails) {
@@ -443,6 +466,36 @@ export class Thread implements debug.IThread {
 
 			return [];
 		});
+	}
+
+	/**
+	 * Returns exception info promise if the exception was thrown, otherwise null
+	 */
+	public get exceptionInfo(): TPromise<IExceptionInfo> {
+		const session = this.process.session;
+		if (this.stoppedDetails && this.stoppedDetails.reason === 'exception') {
+			if (!session.capabilities.supportsExceptionInfoRequest) {
+				return TPromise.as({
+					description: this.stoppedDetails.text,
+					breakMode: null
+				});
+			}
+
+			return session.exceptionInfo({ threadId: this.threadId }).then(exception => {
+				if (!exception) {
+					return null;
+				}
+
+				return {
+					id: exception.body.exceptionId,
+					description: exception.body.description,
+					breakMode: exception.body.breakMode,
+					details: exception.body.details
+				};
+			});
+		}
+
+		return TPromise.as(null);
 	}
 
 	public next(): TPromise<any> {
@@ -474,109 +527,162 @@ export class Thread implements debug.IThread {
 	}
 }
 
-export class Process implements debug.IProcess {
+export class Process implements IProcess {
 
-	private threads: { [reference: number]: Thread; };
+	public sources: Map<string, Source>;
+	private threads: Map<number, Thread>;
+	private inactive = true;
 
-	constructor(public name: string, private _session: debug.ISession & debug.ITreeElement) {
-		this.threads = {};
+	constructor(public configuration: IConfig, private _session: ISession & ITreeElement) {
+		this.threads = new Map<number, Thread>();
+		this.sources = new Map<string, Source>();
+		this._session.onDidInitialize(() => this.inactive = false);
 	}
 
-	public get session(): debug.ISession {
+	public get session(): ISession {
 		return this._session;
 	}
 
-	public getThread(threadId: number): Thread {
-		return this.threads[threadId];
+	public getName(includeRoot: boolean): string {
+		return includeRoot ? `${this.configuration.name} (${resources.basenameOrAuthority(this.session.root.uri)})` : this.configuration.name;
 	}
 
-	public getAllThreads(): debug.IThread[] {
-		return Object.keys(this.threads).map(key => this.threads[key]);
+	public get state(): ProcessState {
+		if (this.inactive) {
+			return ProcessState.INACTIVE;
+		}
+
+		return this.configuration.type === 'attach' ? ProcessState.ATTACH : ProcessState.LAUNCH;
+	}
+
+	public getSource(raw: DebugProtocol.Source): Source {
+		let source = new Source(raw, this.getId());
+		if (this.sources.has(source.uri.toString())) {
+			source = this.sources.get(source.uri.toString());
+		} else {
+			this.sources.set(source.uri.toString(), source);
+		}
+
+		return source;
+	}
+
+	public getThread(threadId: number): Thread {
+		return this.threads.get(threadId);
+	}
+
+	public getAllThreads(): IThread[] {
+		const result: IThread[] = [];
+		this.threads.forEach(t => result.push(t));
+		return result;
 	}
 
 	public getId(): string {
 		return this._session.getId();
 	}
 
-	public rawUpdate(data: debug.IRawModelUpdate): void {
+	public rawUpdate(data: IRawModelUpdate): void {
 
-		if (data.thread && !this.threads[data.threadId]) {
+		if (data.thread && !this.threads.has(data.threadId)) {
 			// A new thread came in, initialize it.
-			this.threads[data.threadId] = new Thread(this, data.thread.name, data.thread.id);
+			this.threads.set(data.threadId, new Thread(this, data.thread.name, data.thread.id));
+		} else if (data.thread && data.thread.name) {
+			// Just the thread name got updated #18244
+			this.threads.get(data.threadId).name = data.thread.name;
 		}
 
 		if (data.stoppedDetails) {
 			// Set the availability of the threads' callstacks depending on
 			// whether the thread is stopped or not
 			if (data.allThreadsStopped) {
-				Object.keys(this.threads).forEach(ref => {
-					// Only update the details if all the threads are stopped
-					// because we don't want to overwrite the details of other
-					// threads that have stopped for a different reason
-					this.threads[ref].stoppedDetails = clone(data.stoppedDetails);
-					this.threads[ref].stopped = true;
-					this.threads[ref].clearCallStack();
+				this.threads.forEach(thread => {
+					thread.stoppedDetails = thread.threadId === data.threadId ? data.stoppedDetails : { reason: undefined };
+					thread.stopped = true;
+					thread.clearCallStack();
 				});
-			} else {
+			} else if (this.threads.has(data.threadId)) {
 				// One thread is stopped, only update that thread.
-				this.threads[data.threadId].stoppedDetails = data.stoppedDetails;
-				this.threads[data.threadId].clearCallStack();
-				this.threads[data.threadId].stopped = true;
+				const thread = this.threads.get(data.threadId);
+				thread.stoppedDetails = data.stoppedDetails;
+				thread.clearCallStack();
+				thread.stopped = true;
 			}
 		}
 	}
 
 	public clearThreads(removeThreads: boolean, reference: number = undefined): void {
-		if (reference) {
-			if (this.threads[reference]) {
-				this.threads[reference].clearCallStack();
-				this.threads[reference].stoppedDetails = undefined;
-				this.threads[reference].stopped = false;
+		if (reference !== undefined && reference !== null) {
+			if (this.threads.has(reference)) {
+				const thread = this.threads.get(reference);
+				thread.clearCallStack();
+				thread.stoppedDetails = undefined;
+				thread.stopped = false;
 
 				if (removeThreads) {
-					delete this.threads[reference];
+					this.threads.delete(reference);
 				}
 			}
 		} else {
-			Object.keys(this.threads).forEach(ref => {
-				this.threads[ref].clearCallStack();
-				this.threads[ref].stoppedDetails = undefined;
-				this.threads[ref].stopped = false;
+			this.threads.forEach(thread => {
+				thread.clearCallStack();
+				thread.stoppedDetails = undefined;
+				thread.stopped = false;
 			});
 
 			if (removeThreads) {
-				this.threads = {};
-				ExpressionContainer.allValues = {};
+				this.threads.clear();
+				ExpressionContainer.allValues.clear();
 			}
 		}
 	}
 
-	public sourceIsUnavailable(source: Source): void {
-		Object.keys(this.threads).forEach(key => {
-			if (this.threads[key].getCachedCallStack()) {
-				this.threads[key].getCachedCallStack().forEach(stackFrame => {
-					if (stackFrame.source.uri.toString() === source.uri.toString()) {
-						stackFrame.source.available = false;
+	public completions(frameId: number, text: string, position: Position, overwriteBefore: number): TPromise<ISuggestion[]> {
+		if (!this.session.capabilities.supportsCompletionsRequest) {
+			return TPromise.as([]);
+		}
+
+		return this.session.completions({
+			frameId,
+			text,
+			column: position.column,
+			line: position.lineNumber
+		}).then(response => {
+			const result: ISuggestion[] = [];
+			if (response && response.body && response.body.targets) {
+				response.body.targets.forEach(item => {
+					if (item && item.label) {
+						result.push({
+							label: item.label,
+							insertText: item.text || item.label,
+							type: item.type,
+							filterText: item.start && item.length && text.substr(item.start, item.length).concat(item.label),
+							overwriteBefore: item.length || overwriteBefore
+						});
 					}
 				});
 			}
-		});
+
+			return result;
+		}, err => []);
 	}
 }
 
-export class Breakpoint implements debug.IBreakpoint {
+export class Breakpoint implements IBreakpoint {
 
 	public verified: boolean;
 	public idFromAdapter: number;
 	public message: string;
+	public endLineNumber: number;
+	public endColumn: number;
 	private id: string;
 
 	constructor(
 		public uri: uri,
 		public lineNumber: number,
+		public column: number,
 		public enabled: boolean,
 		public condition: string,
-		public hitCondition: string
+		public hitCondition: string,
+		public adapterData: any
 	) {
 		if (enabled === undefined) {
 			this.enabled = true;
@@ -590,7 +696,7 @@ export class Breakpoint implements debug.IBreakpoint {
 	}
 }
 
-export class FunctionBreakpoint implements debug.IFunctionBreakpoint {
+export class FunctionBreakpoint implements IFunctionBreakpoint {
 
 	private id: string;
 	public verified: boolean;
@@ -606,7 +712,7 @@ export class FunctionBreakpoint implements debug.IFunctionBreakpoint {
 	}
 }
 
-export class ExceptionBreakpoint implements debug.IExceptionBreakpoint {
+export class ExceptionBreakpoint implements IExceptionBreakpoint {
 
 	private id: string;
 
@@ -619,14 +725,23 @@ export class ExceptionBreakpoint implements debug.IExceptionBreakpoint {
 	}
 }
 
-export class Model implements debug.IModel {
+export class ThreadAndProcessIds implements ITreeElement {
+	constructor(public processId: string, public threadId: number) { }
+
+	public getId(): string {
+		return `${this.processId}:${this.threadId}`;
+	}
+}
+
+export class Model implements IModel {
 
 	private processes: Process[];
 	private toDispose: lifecycle.IDisposable[];
-	private replElements: debug.ITreeElement[];
+	private replElements: IReplElement[];
+	private schedulers = new Map<string, RunOnceScheduler>();
 	private _onDidChangeBreakpoints: Emitter<void>;
 	private _onDidChangeCallStack: Emitter<void>;
-	private _onDidChangeWatchExpressions: Emitter<debug.IExpression>;
+	private _onDidChangeWatchExpressions: Emitter<IExpression>;
 	private _onDidChangeREPLElements: Emitter<void>;
 
 	constructor(
@@ -641,7 +756,7 @@ export class Model implements debug.IModel {
 		this.toDispose = [];
 		this._onDidChangeBreakpoints = new Emitter<void>();
 		this._onDidChangeCallStack = new Emitter<void>();
-		this._onDidChangeWatchExpressions = new Emitter<debug.IExpression>();
+		this._onDidChangeWatchExpressions = new Emitter<IExpression>();
 		this._onDidChangeREPLElements = new Emitter<void>();
 	}
 
@@ -653,8 +768,8 @@ export class Model implements debug.IModel {
 		return this.processes;
 	}
 
-	public addProcess(name: string, session: debug.ISession & debug.ITreeElement): Process {
-		const process = new Process(name, session);
+	public addProcess(configuration: IConfig, session: ISession & ITreeElement): Process {
+		const process = new Process(configuration, session);
 		this.processes.push(process);
 
 		return process;
@@ -673,7 +788,7 @@ export class Model implements debug.IModel {
 		return this._onDidChangeCallStack.event;
 	}
 
-	public get onDidChangeWatchExpressions(): Event<debug.IExpression> {
+	public get onDidChangeWatchExpressions(): Event<IExpression> {
 		return this._onDidChangeWatchExpressions.event;
 	}
 
@@ -681,7 +796,7 @@ export class Model implements debug.IModel {
 		return this._onDidChangeREPLElements.event;
 	}
 
-	public rawUpdate(data: debug.IRawModelUpdate): void {
+	public rawUpdate(data: IRawModelUpdate): void {
 		let process = this.processes.filter(p => p.getId() === data.sessionId).pop();
 		if (process) {
 			process.rawUpdate(data);
@@ -691,21 +806,42 @@ export class Model implements debug.IModel {
 
 	public clearThreads(id: string, removeThreads: boolean, reference: number = undefined): void {
 		const process = this.processes.filter(p => p.getId() === id).pop();
+		this.schedulers.forEach(scheduler => scheduler.dispose());
+		this.schedulers.clear();
+
 		if (process) {
 			process.clearThreads(removeThreads, reference);
 			this._onDidChangeCallStack.fire();
 		}
 	}
 
+	public fetchCallStack(thread: Thread): TPromise<void> {
+		if (thread.process.session.capabilities.supportsDelayedStackTraceLoading) {
+			// For improved performance load the first stack frame and then load the rest async.
+			return thread.fetchCallStack(1).then(() => {
+				if (!this.schedulers.has(thread.getId())) {
+					this.schedulers.set(thread.getId(), new RunOnceScheduler(() => {
+						thread.fetchCallStack(19).done(() => this._onDidChangeCallStack.fire(), errors.onUnexpectedError);
+					}, 420));
+				}
+
+				this.schedulers.get(thread.getId()).schedule();
+				this._onDidChangeCallStack.fire();
+			});
+		}
+
+		return thread.fetchCallStack();
+	}
+
 	public getBreakpoints(): Breakpoint[] {
 		return this.breakpoints;
 	}
 
-	public getFunctionBreakpoints(): debug.IFunctionBreakpoint[] {
+	public getFunctionBreakpoints(): IFunctionBreakpoint[] {
 		return this.functionBreakpoints;
 	}
 
-	public getExceptionBreakpoints(): debug.IExceptionBreakpoint[] {
+	public getExceptionBreakpoints(): IExceptionBreakpoint[] {
 		return this.exceptionBreakpoints;
 	}
 
@@ -727,14 +863,15 @@ export class Model implements debug.IModel {
 		this._onDidChangeBreakpoints.fire();
 	}
 
-	public addBreakpoints(uri: uri, rawData: debug.IRawBreakpoint[]): void {
+	public addBreakpoints(uri: uri, rawData: IRawBreakpoint[], adapterData: any = undefined): void {
 		this.breakpoints = this.breakpoints.concat(rawData.map(rawBp =>
-			new Breakpoint(uri, rawBp.lineNumber, rawBp.enabled, rawBp.condition, rawBp.hitCondition)));
+			new Breakpoint(uri, rawBp.lineNumber, rawBp.column, rawBp.enabled, rawBp.condition, rawBp.hitCondition, adapterData)));
 		this.breakpointsActivated = true;
+		this.breakpoints = distinct(this.breakpoints, bp => `${bp.uri.toString()}:${bp.lineNumber}:${bp.column}`);
 		this._onDidChangeBreakpoints.fire();
 	}
 
-	public removeBreakpoints(toRemove: debug.IBreakpoint[]): void {
+	public removeBreakpoints(toRemove: IBreakpoint[]): void {
 		this.breakpoints = this.breakpoints.filter(bp => !toRemove.some(toRemove => toRemove.getId() === bp.getId()));
 		this._onDidChangeBreakpoints.fire();
 	}
@@ -744,21 +881,24 @@ export class Model implements debug.IModel {
 			const bpData = data[bp.getId()];
 			if (bpData) {
 				bp.lineNumber = bpData.line ? bpData.line : bp.lineNumber;
+				bp.endLineNumber = bpData.endLine;
+				bp.column = bpData.column;
+				bp.endColumn = bpData.endColumn;
 				bp.verified = bpData.verified;
 				bp.idFromAdapter = bpData.id;
 				bp.message = bpData.message;
+				bp.adapterData = bpData.source ? bpData.source.adapterData : bp.adapterData;
 			}
 		});
+		this.breakpoints = distinct(this.breakpoints, bp => `${bp.uri.toString()}:${bp.lineNumber}:${bp.column}`);
 
-		// Remove duplicate breakpoints. This can happen when an adapter updates a line number of a breakpoint
-		this.breakpoints = distinct(this.breakpoints, bp => bp.uri.toString() + bp.lineNumber);
 		this._onDidChangeBreakpoints.fire();
 	}
 
-	public setEnablement(element: debug.IEnablement, enable: boolean): void {
+	public setEnablement(element: IEnablement, enable: boolean): void {
 		element.enabled = enable;
 		if (element instanceof Breakpoint && !element.enabled) {
-			var breakpoint = <Breakpoint>element;
+			const breakpoint = <Breakpoint>element;
 			breakpoint.verified = false;
 		}
 
@@ -802,68 +942,40 @@ export class Model implements debug.IModel {
 		this._onDidChangeBreakpoints.fire();
 	}
 
-	public getReplElements(): debug.ITreeElement[] {
+	public getReplElements(): IReplElement[] {
 		return this.replElements;
 	}
 
-	public addReplExpression(process: debug.IProcess, stackFrame: debug.IStackFrame, name: string): TPromise<void> {
+	public addReplExpression(process: IProcess, stackFrame: IStackFrame, name: string): TPromise<void> {
 		const expression = new Expression(name);
 		this.addReplElements([expression]);
 		return expression.evaluate(process, stackFrame, 'repl')
 			.then(() => this._onDidChangeREPLElements.fire());
 	}
 
-	public logToRepl(value: string | { [key: string]: any }, severity?: severity): void {
-		let elements: OutputElement[] = [];
-		let previousOutput = this.replElements.length && (<ValueOutputElement>this.replElements[this.replElements.length - 1]);
+	public appendToRepl(output: string | IExpression, severity: severity, source?: IReplElementSource): void {
+		if (typeof output === 'string') {
+			const previousOutput = this.replElements.length && (this.replElements[this.replElements.length - 1] as OutputElement);
 
-		// string message
-		if (typeof value === 'string') {
-			if (value && value.trim() && previousOutput && previousOutput.value === value && previousOutput.severity === severity) {
-				previousOutput.counter++; // we got the same output (but not an empty string when trimmed) so we just increment the counter
-			} else {
-				let lines = value.trim().split('\n');
-				lines.forEach((line, index) => {
-					elements.push(new ValueOutputElement(line, severity));
-				});
+			const toAdd = output.split('\n').map((line, index) => new OutputElement(line, severity, index === 0 ? source : undefined));
+			if (previousOutput && previousOutput.value === '') {
+				// remove potential empty lines between different output types
+				this.replElements.pop();
+			} else if (previousOutput instanceof OutputElement && severity === previousOutput.severity && toAdd.length && toAdd[0].sourceData === previousOutput.sourceData) {
+				previousOutput.value += toAdd.shift().value;
 			}
+			this.addReplElements(toAdd);
+		} else {
+			// TODO@Isidor hack, we should introduce a new type which is an output that can fetch children like an expression
+			(<any>output).severity = severity;
+			(<any>output).sourceData = source;
+			this.addReplElements([output]);
 		}
 
-		// key-value output
-		else {
-			elements.push(new KeyValueOutputElement((<any>value).prototype, value, nls.localize('snapshotObj', "Only primitive values are shown for this object.")));
-		}
-
-		if (elements.length) {
-			this.addReplElements(elements);
-		}
 		this._onDidChangeREPLElements.fire();
 	}
 
-	public appendReplOutput(value: string, severity?: severity): void {
-		const elements: OutputElement[] = [];
-		let previousOutput = this.replElements.length && (<ValueOutputElement>this.replElements[this.replElements.length - 1]);
-		let lines = value.split('\n');
-		let groupTogether = !!previousOutput && (previousOutput.category === 'output' && severity === previousOutput.severity);
-
-		if (groupTogether) {
-			// append to previous line if same group
-			previousOutput.value += lines.shift();
-		} else if (previousOutput && previousOutput.value === '') {
-			// remove potential empty lines between different output types
-			this.replElements.pop();
-		}
-
-		// fill in lines as output value elements
-		lines.forEach((line, index) => {
-			elements.push(new ValueOutputElement(line, severity, 'output'));
-		});
-
-		this.addReplElements(elements);
-		this._onDidChangeREPLElements.fire();
-	}
-
-	private addReplElements(newElements: debug.ITreeElement[]): void {
+	private addReplElements(newElements: IReplElement[]): void {
 		this.replElements.push(...newElements);
 		if (this.replElements.length > MAX_REPL_LENGTH) {
 			this.replElements.splice(0, this.replElements.length - MAX_REPL_LENGTH);
@@ -881,7 +993,7 @@ export class Model implements debug.IModel {
 		return this.watchExpressions;
 	}
 
-	public addWatchExpression(process: debug.IProcess, stackFrame: debug.IStackFrame, name: string): TPromise<void> {
+	public addWatchExpression(process: IProcess, stackFrame: IStackFrame, name: string): TPromise<void> {
 		const we = new Expression(name);
 		this.watchExpressions.push(we);
 		if (!name) {
@@ -892,11 +1004,12 @@ export class Model implements debug.IModel {
 		return this.evaluateWatchExpressions(process, stackFrame, we.getId());
 	}
 
-	public renameWatchExpression(process: debug.IProcess, stackFrame: debug.IStackFrame, id: string, newName: string): TPromise<void> {
+	public renameWatchExpression(process: IProcess, stackFrame: IStackFrame, id: string, newName: string): TPromise<void> {
 		const filtered = this.watchExpressions.filter(we => we.getId() === id);
 		if (filtered.length === 1) {
 			filtered[0].name = newName;
-			return filtered[0].evaluate(process, stackFrame, 'watch').then(() => {
+			// Evaluate all watch expressions again since the new watch expression might have changed some.
+			return this.evaluateWatchExpressions(process, stackFrame).then(() => {
 				this._onDidChangeWatchExpressions.fire(filtered[0]);
 			});
 		}
@@ -904,7 +1017,7 @@ export class Model implements debug.IModel {
 		return TPromise.as(null);
 	}
 
-	public evaluateWatchExpressions(process: debug.IProcess, stackFrame: debug.IStackFrame, id: string = null): TPromise<void> {
+	public evaluateWatchExpressions(process: IProcess, stackFrame: IStackFrame, id: string = null): TPromise<void> {
 		if (id) {
 			const filtered = this.watchExpressions.filter(we => we.getId() === id);
 			if (filtered.length !== 1) {
@@ -934,8 +1047,12 @@ export class Model implements debug.IModel {
 		this._onDidChangeWatchExpressions.fire();
 	}
 
-	public sourceIsUnavailable(source: Source): void {
-		this.processes.forEach(p => p.sourceIsUnavailable(source));
+	public sourceIsNotAvailable(uri: uri): void {
+		this.processes.forEach(p => {
+			if (p.sources.has(uri.toString())) {
+				p.sources.get(uri.toString()).available = false;
+			}
+		});
 		this._onDidChangeCallStack.fire();
 	}
 

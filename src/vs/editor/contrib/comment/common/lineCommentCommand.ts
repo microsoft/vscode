@@ -11,7 +11,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { BlockCommentCommand } from './blockCommentCommand';
-import { ICommentsConfiguration, LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { CharCode } from 'vs/base/common/charCode';
 
 export interface IInsertionPoint {
@@ -63,39 +63,25 @@ export class LineCommentCommand implements editorCommon.ICommand {
 	 * Returns null if any of the lines doesn't support a line comment string.
 	 */
 	public static _gatherPreflightCommentStrings(model: editorCommon.ITokenizedModel, startLineNumber: number, endLineNumber: number): ILinePreflightData[] {
-		var lines: ILinePreflightData[] = [],
-			config: ICommentsConfiguration,
-			commentStr: string,
-			seenModes: { [modeId: string]: string; } = Object.create(null),
-			i: number,
-			lineCount: number,
-			lineNumber: number,
-			modeId: string;
 
-		for (i = 0, lineCount = endLineNumber - startLineNumber + 1; i < lineCount; i++) {
-			lineNumber = startLineNumber + i;
-			modeId = model.getModeIdAtPosition(lineNumber, 1);
+		model.tokenizeIfCheap(startLineNumber);
+		const languageId = model.getLanguageIdAtPosition(startLineNumber, 1);
 
-			// Find the commentStr for this line, if none is found then bail out: we cannot do line comments
-			if (seenModes[modeId]) {
-				commentStr = seenModes[modeId];
-			} else {
-				config = LanguageConfigurationRegistry.getComments(modeId);
-				commentStr = (config ? config.lineCommentToken : null);
-				if (!commentStr) {
-					// Mode does not support line comments
-					return null;
-				}
+		const config = LanguageConfigurationRegistry.getComments(languageId);
+		const commentStr = (config ? config.lineCommentToken : null);
+		if (!commentStr) {
+			// Mode does not support line comments
+			return null;
+		}
 
-				seenModes[modeId] = commentStr;
-			}
-
-			lines.push({
+		let lines: ILinePreflightData[] = [];
+		for (let i = 0, lineCount = endLineNumber - startLineNumber + 1; i < lineCount; i++) {
+			lines[i] = {
 				ignore: false,
 				commentStr: commentStr,
 				commentStrOffset: 0,
 				commentStrLength: commentStr.length
-			});
+			};
 		}
 
 		return lines;
@@ -255,13 +241,22 @@ export class LineCommentCommand implements editorCommon.ICommand {
 			}
 		}
 
+		// We have to adjust to possible inner white space.
+		// For Space after startToken, add Space to startToken - range math will work out.
+		if (startTokenIndex !== -1 && model.getLineContent(startLineNumber).charCodeAt(startTokenIndex + startToken.length) === CharCode.Space) {
+			startToken += ' ';
+		}
+
+		// For Space before endToken, add Space before endToken and shift index one left.
+		if (endTokenIndex !== -1 && model.getLineContent(endLineNumber).charCodeAt(endTokenIndex - 1) === CharCode.Space) {
+			endToken = ' ' + endToken;
+			endTokenIndex -= 1;
+		}
+
 		if (startTokenIndex !== -1 && endTokenIndex !== -1) {
-			return BlockCommentCommand._createRemoveBlockCommentOperations({
-				startLineNumber: startLineNumber,
-				startColumn: startTokenIndex + startToken.length + 1,
-				endLineNumber: endLineNumber,
-				endColumn: endTokenIndex + 1
-			}, startToken, endToken);
+			return BlockCommentCommand._createRemoveBlockCommentOperations(
+				new Range(startLineNumber, startTokenIndex + startToken.length + 1, endLineNumber, endTokenIndex + 1), startToken, endToken
+			);
 		}
 
 		return null;
@@ -271,8 +266,9 @@ export class LineCommentCommand implements editorCommon.ICommand {
 	 * Given an unsuccessful analysis, delegate to the block comment command
 	 */
 	private _executeBlockComment(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder, s: Selection): void {
-		let modeId = model.getModeIdAtPosition(s.startLineNumber, s.startColumn);
-		let config = LanguageConfigurationRegistry.getComments(modeId);
+		model.tokenizeIfCheap(s.startLineNumber);
+		let languageId = model.getLanguageIdAtPosition(s.startLineNumber, s.startColumn);
+		let config = LanguageConfigurationRegistry.getComments(languageId);
 		if (!config || !config.blockCommentStartToken || !config.blockCommentEndToken) {
 			// Mode does not support block comments
 			return;
@@ -290,23 +286,18 @@ export class LineCommentCommand implements editorCommon.ICommand {
 					// Line is empty or contains only whitespace
 					firstNonWhitespaceIndex = lineContent.length;
 				}
-				ops = BlockCommentCommand._createAddBlockCommentOperations({
-					startLineNumber: s.startLineNumber,
-					startColumn: firstNonWhitespaceIndex + 1,
-					endLineNumber: s.startLineNumber,
-					endColumn: lineContent.length + 1
-				}, startToken, endToken);
+				ops = BlockCommentCommand._createAddBlockCommentOperations(
+					new Range(s.startLineNumber, firstNonWhitespaceIndex + 1, s.startLineNumber, lineContent.length + 1), startToken, endToken
+				);
 			} else {
-				ops = BlockCommentCommand._createAddBlockCommentOperations({
-					startLineNumber: s.startLineNumber,
-					startColumn: model.getLineFirstNonWhitespaceColumn(s.startLineNumber),
-					endLineNumber: s.endLineNumber,
-					endColumn: model.getLineMaxColumn(s.endLineNumber)
-				}, startToken, endToken);
+				ops = BlockCommentCommand._createAddBlockCommentOperations(
+					new Range(s.startLineNumber, model.getLineFirstNonWhitespaceColumn(s.startLineNumber), s.endLineNumber, model.getLineMaxColumn(s.endLineNumber)), startToken, endToken
+				);
 			}
 
 			if (ops.length === 1) {
-				this._deltaColumn = startToken.length;
+				// Leave cursor after token and Space
+				this._deltaColumn = startToken.length + 1;
 			}
 		}
 		this._selectionId = builder.trackSelection(s);

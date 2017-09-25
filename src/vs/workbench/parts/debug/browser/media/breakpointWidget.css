@@ -6,6 +6,7 @@
 .monaco-editor .zone-widget .zone-widget-container.breakpoint-widget {
 	height: 30px !important;
 	display: flex;
+	border-color: #007ACC;
 }
 
 .monaco-editor .zone-widget .zone-widget-container.breakpoint-widget .breakpoint-select-container {
@@ -13,10 +14,6 @@
 	justify-content: center;
 	flex-direction: column;
 	padding: 0 10px;
-}
-
-.monaco-editor .zone-widget .zone-widget-container.breakpoint-widget .breakpoint-select-container .select-box {
-	border-color: rgba(128, 128, 128, 0.35);
 }
 
 .monaco-editor .zone-widget .zone-widget-container.breakpoint-widget .inputBoxContainer {

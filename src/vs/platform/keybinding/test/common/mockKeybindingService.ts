@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IHTMLContentElement } from 'vs/base/common/htmlContent';
-import { Keybinding } from 'vs/base/common/keybinding';
+import { ResolvedKeybinding, Keybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import Event from 'vs/base/common/event';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IKeybindingService, IKeybindingEvent, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
+import { IContextKey, IContextKeyService, IContextKeyServiceTarget, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
+import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
+import { OS } from 'vs/base/common/platform';
+import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 
 class MockKeybindingContextKey<T> implements IContextKey<T> {
 	private _key: string;
@@ -34,13 +37,18 @@ class MockKeybindingContextKey<T> implements IContextKey<T> {
 	}
 }
 
-export class MockKeybindingService implements IContextKeyService {
+export class MockContextKeyService implements IContextKeyService {
+
 	public _serviceBrand: any;
+	private _keys = new Map<string, IContextKey<any>>();
 
-	public dispose(): void { }
-
+	public dispose(): void {
+		//
+	}
 	public createKey<T>(key: string, defaultValue: T): IContextKey<T> {
-		return new MockKeybindingContextKey(key, defaultValue);
+		let ret = new MockKeybindingContextKey(key, defaultValue);
+		this._keys.set(key, ret);
+		return ret;
 	}
 	public contextMatchesRules(rules: ContextKeyExpr): boolean {
 		return false;
@@ -49,9 +57,11 @@ export class MockKeybindingService implements IContextKeyService {
 		return Event.None;
 	}
 	public getContextKeyValue(key: string) {
-		return;
+		if (this._keys.has(key)) {
+			return this._keys.get(key).get();
+		}
 	}
-	public getContextValue(domNode: HTMLElement): any {
+	public getContext(domNode: HTMLElement): any {
 		return null;
 	}
 	public createScoped(domNode: HTMLElement): IContextKeyService {
@@ -59,38 +69,57 @@ export class MockKeybindingService implements IContextKeyService {
 	}
 }
 
-export class MockKeybindingService2 implements IKeybindingService {
+export class MockKeybindingService implements IKeybindingService {
 	public _serviceBrand: any;
 
-	public get onDidUpdateKeybindings(): Event<void> {
+	public get onDidUpdateKeybindings(): Event<IKeybindingEvent> {
 		return Event.None;
 	}
 
-	public getLabelFor(keybinding: Keybinding): string {
-		return keybinding._toUSLabel();
-	}
-
-	public getHTMLLabelFor(keybinding: Keybinding): IHTMLContentElement[] {
-		return keybinding._toUSHTMLLabel();
-	}
-
-	public getAriaLabelFor(keybinding: Keybinding): string {
-		return keybinding._toUSAriaLabel();
-	}
-
-	public getElectronAcceleratorFor(keybinding: Keybinding): string {
-		return keybinding._toElectronAccelerator();
-	}
-
-	public getDefaultKeybindings(): string {
+	public getDefaultKeybindingsContent(): string {
 		return null;
 	}
 
-	public lookupKeybindings(commandId: string): Keybinding[] {
+	public getDefaultKeybindings(): ResolvedKeybindingItem[] {
 		return [];
+	}
+
+	public getKeybindings(): ResolvedKeybindingItem[] {
+		return [];
+	}
+
+	public resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding[] {
+		return [new USLayoutResolvedKeybinding(keybinding, OS)];
+	}
+
+	public resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding {
+		let keybinding = new SimpleKeybinding(
+			keyboardEvent.ctrlKey,
+			keyboardEvent.shiftKey,
+			keyboardEvent.altKey,
+			keyboardEvent.metaKey,
+			keyboardEvent.keyCode
+		);
+		return this.resolveKeybinding(keybinding)[0];
+	}
+
+	public resolveUserBinding(userBinding: string): ResolvedKeybinding[] {
+		return [];
+	}
+
+	public lookupKeybindings(commandId: string): ResolvedKeybinding[] {
+		return [];
+	}
+
+	public lookupKeybinding(commandId: string): ResolvedKeybinding {
+		return null;
 	}
 
 	public customKeybindingsCount(): number {
 		return 0;
+	}
+
+	public softDispatch(keybinding: IKeyboardEvent, target: IContextKeyServiceTarget): IResolveResult {
+		return null;
 	}
 }

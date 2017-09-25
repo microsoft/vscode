@@ -3,40 +3,47 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { HoverProvider, Hover, TextDocument, Position, Range, CancellationToken } from 'vscode';
+import { HoverProvider, Hover, TextDocument, Position, CancellationToken } from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
+import { tagsMarkdownPreview } from './previewer';
+import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/convert';
 
 export default class TypeScriptHoverProvider implements HoverProvider {
 
-	private client: ITypescriptServiceClient;
+	public constructor(
+		private client: ITypescriptServiceClient) { }
 
-	public constructor(client: ITypescriptServiceClient) {
-		this.client = client;
+	public async provideHover(document: TextDocument, position: Position, token: CancellationToken): Promise<Hover | undefined> {
+		const filepath = this.client.normalizePath(document.uri);
+		if (!filepath) {
+			return undefined;
+		}
+		const args = vsPositionToTsFileLocation(filepath, position);
+		try {
+			const response = await this.client.execute('quickinfo', args, token);
+			if (response && response.body) {
+				const data = response.body;
+				return new Hover(
+					TypeScriptHoverProvider.getContents(data),
+					tsTextSpanToVsRange(data));
+			}
+		} catch (e) {
+			// noop
+		}
+		return undefined;
 	}
 
-	public provideHover(document: TextDocument, position: Position, token: CancellationToken): Promise<Hover> {
-		let args: Proto.FileLocationRequestArgs = {
-			file: this.client.asAbsolutePath(document.uri),
-			line: position.line + 1,
-			offset: position.character + 1
-		};
-		if (!args.file) {
-			return Promise.resolve<Hover>(null);
+	private static getContents(data: Proto.QuickInfoResponseBody) {
+		const parts = [];
+
+		if (data.displayString) {
+			parts.push({ language: 'typescript', value: data.displayString });
 		}
-		return this.client.execute('quickinfo', args, token).then((response): Hover => {
-			let data = response.body;
-			if (data) {
-				return new Hover(
-					[{ language: 'typescript', value: data.displayString }, data.documentation],
-					new Range(data.start.line - 1, data.start.offset - 1, data.end.line - 1, data.end.offset - 1));
-			}
-		}, (err) => {
-			this.client.error(`'quickinfo' request failed with error.`, err);
-			return null;
-		});
+
+		const tags = tagsMarkdownPreview(data.tags);
+		parts.push(data.documentation + (tags ? '\n\n' + tags : ''));
+		return parts;
 	}
 }

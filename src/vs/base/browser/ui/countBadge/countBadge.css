@@ -9,19 +9,5 @@
 	font-size: 85%;
 	font-weight: normal;
 	text-align: center;
-	background: #BEBEBE;
-	color: #FFF;
 	display: inline;
-}
-
-.vs-dark .monaco-count-badge {
-	color: #FFF;
-	background: #4D4D4D;
-}
-
-/* High Contrast Theming */
-.hc-black .monaco-count-badge {
-	background: #000;
-	border: 1px solid #6FC3DF;
-	margin-top: 2px;
 }

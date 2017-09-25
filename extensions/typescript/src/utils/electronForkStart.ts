@@ -14,7 +14,7 @@ var log = (function () {
 	}
 	var isFirst = true;
 	var LOG_LOCATION = 'C:\\stdFork.log';
-	return function log(str) {
+	return function log(str: any) {
 		if (isFirst) {
 			isFirst = false;
 			fs.writeFileSync(LOG_LOCATION, str + '\n');
@@ -55,13 +55,13 @@ log('ELECTRON_RUN_AS_NODE: ' + process.env['ELECTRON_RUN_AS_NODE']);
 	// handle process.stderr
 	(<any>process).__defineGetter__('stderr', function () { return stdErrStream; });
 
-	var fsWriteSyncString = function (fd, str, position, encoding) {
+	var fsWriteSyncString = function (fd: number, str: string, _position: number, encoding?: string) {
 		//  fs.writeSync(fd, string[, position[, encoding]]);
 		var buf = new Buffer(str, encoding || 'utf8');
 		return fsWriteSyncBuffer(fd, buf, 0, buf.length);
 	};
 
-	var fsWriteSyncBuffer = function (fd, buffer, off, len) {
+	var fsWriteSyncBuffer = function (fd: number, buffer: Buffer, off: number, len: number) {
 		off = Math.abs(off | 0);
 		len = Math.abs(len | 0);
 
@@ -97,8 +97,8 @@ log('ELECTRON_RUN_AS_NODE: ' + process.env['ELECTRON_RUN_AS_NODE']);
 
 	// handle fs.writeSync(1, ...)
 	var originalWriteSync = fs.writeSync;
-	fs.writeSync = function (fd, data, position, encoding) {
-		if (fd !== 1 || fd !== 2) {
+	fs.writeSync = function (fd: number, data: any, _position: number, _encoding?: string) {
+		if (fd !== 1 && fd !== 2) {
 			return originalWriteSync.apply(fs, arguments);
 		}
 		// usage:
@@ -125,7 +125,7 @@ log('ELECTRON_RUN_AS_NODE: ' + process.env['ELECTRON_RUN_AS_NODE']);
 (function () {
 
 	// Begin listening to stdin pipe
-	var server = net.createServer(function (stream) {
+	var server = net.createServer(function (stream: any) {
 		// Stop accepting new connections, keep the existing one alive
 		server.close();
 

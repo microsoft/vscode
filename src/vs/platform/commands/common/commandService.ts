@@ -6,19 +6,25 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ICommandService, ICommand, CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { ICommandService, ICommand, ICommandEvent, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import Event, { Emitter } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
 
-export class CommandService implements ICommandService {
+export class CommandService extends Disposable implements ICommandService {
 
 	_serviceBrand: any;
 
 	private _extensionHostIsReady: boolean = false;
 
+	private _onWillExecuteCommand: Emitter<ICommandEvent> = this._register(new Emitter<ICommandEvent>());
+	public readonly onWillExecuteCommand: Event<ICommandEvent> = this._onWillExecuteCommand.event;
+
 	constructor(
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IExtensionService private _extensionService: IExtensionService
 	) {
+		super();
 		this._extensionService.onReady().then(value => this._extensionHostIsReady = value);
 	}
 
@@ -41,6 +47,7 @@ export class CommandService implements ICommandService {
 		}
 
 		try {
+			this._onWillExecuteCommand.fire({ commandId: id });
 			const result = this._instantiationService.invokeFunction.apply(this._instantiationService, [command.handler].concat(args));
 			return TPromise.as(result);
 		} catch (err) {

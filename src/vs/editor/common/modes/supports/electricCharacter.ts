@@ -94,6 +94,12 @@ export class BracketElectricCharacterSupport {
 			return null;
 		}
 
+		let textBeforeBracket = text.substring(0, r.startColumn - 1);
+		if (!/^\s*$/.test(textBeforeBracket)) {
+			// There is other text on the line before the bracket
+			return null;
+		}
+
 		return {
 			matchOpenBracket: bracketText
 		};

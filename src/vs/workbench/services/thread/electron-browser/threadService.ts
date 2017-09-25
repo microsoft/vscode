@@ -6,9 +6,8 @@
 'use strict';
 
 import * as strings from 'vs/base/common/strings';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { IMainProcessExtHostIPC, create } from 'vs/platform/extensions/common/ipcRemoteCom';
-import { AbstractThreadService } from 'vs/workbench/services/thread/common/abstractThreadService';
+import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
+import { AbstractThreadService } from 'vs/workbench/services/thread/node/abstractThreadService';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
@@ -16,37 +15,30 @@ import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 // Enable to see detailed message communication between window and extension host
 const logExtensionHostCommunication = false;
 
+
+function asLoggingProtocol(protocol: IMessagePassingProtocol): IMessagePassingProtocol {
+
+	protocol.onMessage(msg => {
+		console.log('%c[Extension \u2192 Window]%c[len: ' + strings.pad(msg.length, 5, ' ') + ']', 'color: darkgreen', 'color: grey', msg);
+	});
+
+	return {
+		onMessage: protocol.onMessage,
+
+		send(msg: any) {
+			protocol.send(msg);
+			console.log('%c[Window \u2192 Extension]%c[len: ' + strings.pad(msg.length, 5, ' ') + ']', 'color: darkgreen', 'color: grey', msg);
+		}
+	};
+}
+
+
 export class MainThreadService extends AbstractThreadService implements IThreadService {
-	public _serviceBrand: any;
+	constructor(protocol: IMessagePassingProtocol, @IEnvironmentService environmentService: IEnvironmentService) {
+		if (logExtensionHostCommunication || environmentService.logExtensionHostCommunication) {
+			protocol = asLoggingProtocol(protocol);
+		}
 
-	private remoteCom: IMainProcessExtHostIPC;
-
-	constructor(extensionHostMessagingProtocol: IMessagePassingProtocol, @IEnvironmentService environmentService: IEnvironmentService) {
-		super(true);
-
-		let logCommunication = logExtensionHostCommunication || environmentService.logExtensionHostCommunication;
-		// Message: Window --> Extension Host
-		this.remoteCom = create((msg) => {
-			if (logCommunication) {
-				console.log('%c[Window \u2192 Extension]%c[len: ' + strings.pad(msg.length, 5, ' ') + ']', 'color: darkgreen', 'color: grey', msg);
-			}
-
-			extensionHostMessagingProtocol.send(msg);
-		});
-
-		// Message: Extension Host --> Window
-		extensionHostMessagingProtocol.onMessage((msg) => {
-			if (logCommunication) {
-				console.log('%c[Extension \u2192 Window]%c[len: ' + strings.pad(msg.length, 5, ' ') + ']', 'color: darkgreen', 'color: grey', msg);
-			}
-
-			this.remoteCom.handle(msg);
-		});
-
-		this.remoteCom.setManyHandler(this);
-	}
-
-	protected _callOnRemote(proxyId: string, path: string, args: any[]): TPromise<any> {
-		return this.remoteCom.callOnRemote(proxyId, path, args);
+		super(new RPCProtocol(protocol), true);
 	}
 }

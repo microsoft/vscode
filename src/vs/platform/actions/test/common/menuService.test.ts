@@ -9,24 +9,56 @@ import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { MenuService } from 'vs/platform/actions/common/menuService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { NullCommandService } from 'vs/platform/commands/common/commands';
-import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { AbstractExtensionService, ActivatedExtension } from 'vs/platform/extensions/common/abstractExtensionService';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { IExtensionPoint } from 'vs/platform/extensions/common/extensionsRegistry';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { ExtensionPointContribution, IExtensionDescription, IExtensionsStatus, IExtensionService, ActivationTimes } from 'vs/platform/extensions/common/extensions';
 
 // --- service instances
 
-const extensionService = new class extends AbstractExtensionService<ActivatedExtension> {
-	protected _showMessage(): void {
-		console.log(arguments);
-	}
-	protected _createFailedExtension() {
-		return null;
-	}
-	protected _actualActivateExtension() {
-		return null;
-	}
-}(true);
+class MockExtensionService implements IExtensionService {
+	public _serviceBrand: any;
 
-const contextKeyService = new class extends MockKeybindingService {
+	public activateByEvent(activationEvent: string): TPromise<void> {
+		throw new Error('Not implemented');
+	}
+
+	public onReady(): TPromise<boolean> {
+		return TPromise.as(true);
+	}
+
+	public getExtensions(): TPromise<IExtensionDescription[]> {
+		throw new Error('Not implemented');
+	}
+
+	public readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): TPromise<ExtensionPointContribution<T>[]> {
+		throw new Error('Not implemented');
+	}
+
+	public getExtensionsStatus(): { [id: string]: IExtensionsStatus; } {
+		throw new Error('Not implemented');
+	}
+
+	public getExtensionsActivationTimes(): { [id: string]: ActivationTimes; } {
+		throw new Error('Not implemented');
+	}
+
+	public restartExtensionHost(): void {
+		throw new Error('Method not implemented.');
+	}
+
+	public startExtensionHost(): void {
+		throw new Error('Method not implemented.');
+	}
+
+	public stopExtensionHost(): void {
+		throw new Error('Method not implemented.');
+	}
+}
+
+const extensionService = new MockExtensionService();
+
+const contextKeyService = new class extends MockContextKeyService {
 	contextMatchesRules() {
 		return true;
 	}
@@ -185,5 +217,29 @@ suite('MenuService', function () {
 		assert.equal(one.id, 'c');
 		assert.equal(two.id, 'b');
 		assert.equal(three.id, 'a');
+	});
+
+	test('special MenuId palette', function () {
+
+		disposables.push(MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+			command: { id: 'a', title: 'Explicit' }
+		}));
+
+		MenuRegistry.addCommand({ id: 'b', title: 'Implicit' });
+
+		let foundA = false;
+		let foundB = false;
+		for (const item of MenuRegistry.getMenuItems(MenuId.CommandPalette)) {
+			if (item.command.id === 'a') {
+				assert.equal(item.command.title, 'Explicit');
+				foundA = true;
+			}
+			if (item.command.id === 'b') {
+				assert.equal(item.command.title, 'Implicit');
+				foundB = true;
+			}
+		}
+		assert.equal(foundA, true);
+		assert.equal(foundB, true);
 	});
 });

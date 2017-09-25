@@ -1,0 +1,222 @@
+{
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/freebroccolo/atom-language-swift/blob/master/grammars/swift.cson",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
+	"version": "https://github.com/freebroccolo/atom-language-swift/commit/fb7c93e0174dea69c8685c00deeb53d480d1d202",
+	"scopeName": "source.swift",
+	"fileTypes": [
+		"swift"
+	],
+	"name": "Swift",
+	"firstLineMatch": "^#!\\s*/.*\\bswift",
+	"patterns": [
+		{
+			"name": "keyword.others.swift",
+			"match": "^\\s*(#if|#else|#endif|#elseif|@warn_unused_result|@discardableResult|@IBAction|@IBOutlet|@IBDesignable|@IBInspectable)\\b"
+		},
+		{
+			"name": "keyword.declaration.swift",
+			"match": "\\b(deinit|import|init|subscript)\\b"
+		},
+		{
+			"name": "storage.type.swift",
+			"match": "\\b(precedencegroup|class|struct|enum|extension|protocol|let|var|typealias)\\b"
+		},
+		{
+			"name": "storage.modifier.swift",
+			"match": "\\b(final|internal|private|fileprivate|public|open|static|required|convenience)\\b"
+		},
+		{
+			"name": "keyword.statement.swift",
+			"match": "\\b(try|catch|repeat|break|case|continue|default|do|else|fallthrough|if|in|for|return|switch|where|while|guard|defer)\\b"
+		},
+		{
+			"name": "support.type.swift",
+			"match": "(?x) \\b(Character|U?Int|U?Int(8|16|32|64) |Float|Double|Float(32|64)|Bool|String|Date|Data|URL |(double|float)[234]|(double|float)[234]x[234] |Any |AnyObject |Error |Equatable |Hashable |Comparable |CustomDebugStringConvertible |CustomStringConvertible |OptionSet |ManagedBuffer |ManagedBufferPointer |BitwiseOperations |CountedSet |Counter |Directions |ExpressibleByArrayLiteral |ExpressibleByBooleanLiteral |ExpressibleByDictionaryLiteral |ExpressibleByExtendedGraphemeClusterLiteral |ExpressibleByFloatLitera |ExpressibleByIntegerLiteral |ExpressibleByNilLiteral |ExpressibleByStringInterpolation |ExpressibleByStringLiteral |ExpressibleByUnicodeScalarLiteral |OrderedSet |PaperSize |RawRepresentable |(UI|NS|CF|CG)[A-Z][a-zA-Z0-9]+ |Stream |(In|Out)putStream |FileManager |Array |Unsafe[a-zA-Z]*Pointer |Bundle |Jex)\\b"
+		},
+		{
+			"name": "support.function.swift",
+			"match": "\\b(assert|assertionFailure|print)\\b"
+		},
+		{
+			"name": "keyword.expressions-and-types.swift",
+			"match": "\\b(as|dynamicType|is|new|super|self|Self|Type|#column|#file|#function|#line)\\b"
+		},
+		{
+			"name": "keyword.reserved.swift",
+			"match": "\\b(associativity|didSet|get|infix|inout|left|mutating|nonmutating|operator|override|postfix|precedence|prefix|right|set|unowned|unowned(safe)|unowned(unsafe)|weak|willSet)\\b"
+		},
+		{
+			"name": "constant.language.swift",
+			"match": "\\b(true|false|nil|none)\\b"
+		},
+		{
+			"name": "entity.name.function.swift",
+			"match": "\\bfunc\\s+([^\\t\\n\\x20\\x28]+)"
+		},
+		{
+			"include": "#comment"
+		},
+		{
+			"include": "#literal"
+		},
+		{
+			"include": "#operator"
+		}
+	],
+	"repository": {
+		"comment": {
+			"patterns": [
+				{
+					"name": "comment.block.swift",
+					"begin": "/\\*",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.comment.begin.swift"
+						}
+					},
+					"end": "\\*/",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.comment.end.swift"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#comment"
+						}
+					]
+				},
+				{
+					"begin": "(^[ \\t]+)?(?=//)",
+					"beginCaptures": {
+						"1": {
+							"name": "punctuation.whitespace.comment.leading.swift"
+						}
+					},
+					"end": "(?!\\G)",
+					"patterns": [
+						{
+							"name": "comment.line.double-slash.swift",
+							"begin": "//",
+							"beginCaptures": {
+								"0": {
+									"name": "punctuation.definition.comment.swift"
+								}
+							},
+							"end": "\\n",
+							"patterns": [
+								{
+									"name": "punctuation.separator.continuation.swift",
+									"match": "(?>\\\\\\s*\\n)"
+								}
+							]
+						}
+					]
+				}
+			]
+		},
+		"escaped-char": {
+			"patterns": [
+				{
+					"name": "constant.character.escape.swift",
+					"match": "\\\\[0\\\\tnr\"']"
+				},
+				{
+					"name": "constant.character.escape.swift",
+					"match": "\\\\(x\\h{2}|u\\h{4}|U\\h{8})"
+				},
+				{
+					"name": "invalid.illegal.constant.character.escape.swift",
+					"match": "\\\\[^uxU]"
+				}
+			]
+		},
+		"identifier": {
+			"match": "(?x) (?<identifier>                \\g<identifier-head> \\g<identifier-characters>? |                         ` \\g<identifier-head> \\g<identifier-characters>? ` ){0} (?<identifier-head>           [ a-z A-Z ] |                           [ \\u00A8 \\u00AA \\u00AD \\u00AF \\u00B2-\\u00B5 \\u00B7-\\u00BA ] |                           [ \\u00BC-\\u00BE \\u00C0-\\u00D6 \\u00D8-\\u00F6 \\u00F8-\\u00FF ] |                           [ \\u0100-\\u02FF \\u0370-\\u167F \\u1681-\\u180D \\u180F-\\u1DBF ] |                           [ \\u1E00-\\u1FFF ] |                           [ \\u200B-\\u200D \\u202A-\\u202E \\u203F-\\u2040 \\u2054 \\u2060-\\u206F ] |                           [ \\u2070-\\u20CF \\u2100-\\u218F \\u2460-\\u24FF \\u2776-\\u2793 ] |                           [ \\u2C00-\\u2DFF \\u2E80-\\u2FFF ] |                           [ \\u3004-\\u3007 \\u3021-\\u302F \\u3031-\\u303F \\u3040-\\uD7FF ] |                           [ \\uF900-\\uFD3D \\uFD40-\\uFDCF \\uFDF0-\\uFE1F \\uFE30-\\uFE44 ] |                           [ \\uFE47-\\uFFFD ] |                           [ \\u10000-\\u1FFFD \\u20000-\\u2FFFD \\u30000-\\u3FFFD \\u40000-\\u4FFFD ] |                           [ \\u50000-\\u5FFFD \\u60000-\\u6FFFD \\u70000-\\u7FFFD \\u80000-\\u8FFFD ] |                           [ \\u90000-\\u9FFFD \\uA0000-\\uAFFFD \\uB0000-\\uBFFFD \\uC0000-\\uCFFFD ] |                           [ \\uD0000-\\uDFFFD \\uE0000-\\uEFFFD ] ){0} (?<identifier-character>      \\d |                           [ \\u0300-\\u036F \\u1DC0-\\u1DFF \\u20D0-\\u20FF \\uFE20-\\uFE2F ] |                           \\g<identifier-head> ){0} (?<identifier-characters>     \\g<identifier-character> \\g<identifier-characters>? ){0} (?<implicit-parameter-name>   (?<!\\g<identifier-head>) \\$ \\d+ (?!\\g<identifier-head>) (?# FIXME) ){0} \\g<identifier> | \\g<implicit-parameter-name>",
+			"captures": {
+				"5": {
+					"name": "variable.other.positional.swift"
+				}
+			}
+		},
+		"literal": {
+			"patterns": [
+				{
+					"include": "#literal-number"
+				},
+				{
+					"include": "#literal-string"
+				}
+			]
+		},
+		"literal-number": {
+			"name": "constant.numeric.swift",
+			"match": "(?x) (?### INTEGER ###) (?<integer-literal>                 \\g<binary-literal> |                                 \\g<octal-literal> |                                 \\g<hexadecimal-literal> |                                 \\g<decimal-literal> ){0} (?### BINARY ###) (?<binary-literal>                  \\b 0b \\g<binary-digit> \\g<binary-literal-characters>? \\b ){0} (?<binary-digit>                    [0-1] ){0} (?<binary-literal-character>        \\g<binary-digit> |                                 _ ){0} (?<binary-literal-characters>       \\g<binary-literal-character> \\g<binary-literal-characters>? ){0} (?### OCTAL ###) (?<octal-literal>                   \\b 0o \\g<octal-digit> \\g<octal-literal-characters>? \\b ){0} (?<octal-digit>                     [0-7] ){0} (?<octal-literal-character>         \\g<octal-digit> |                                 _ ){0} (?<octal-literal-characters>        \\g<octal-literal-character> \\g<octal-literal-characters>? ){0} (?### DECIMAL ###) (?<decimal-literal>                 \\b \\g<decimal-digit> \\g<decimal-literal-characters>? \\b ){0} (?<decimal-digit>                   \\d ){0} (?<decimal-literal-character>       \\g<decimal-digit> |                                 _ ){0} (?<decimal-literal-characters>      \\g<decimal-literal-character> \\g<decimal-literal-characters>? ){0} (?### HEXADECIMAL ###) (?<hexadecimal-literal>             \\b 0x \\g<hexadecimal-digit> \\g<hexadecimal-literal-characters>? \\b ){0} (?<hexadecimal-digit>               \\h ){0} (?<hexadecimal-literal-character>   \\g<hexadecimal-digit> |                                 _ ){0} (?<hexadecimal-literal-characters>  \\g<hexadecimal-literal-character> \\g<hexadecimal-literal-characters>? ){0} (?### FLOATING POINT ###) (?<floating-point-literal>          \\b \\g<decimal-literal>     \\g<decimal-fraction>?     \\g<decimal-exponent>? \\b |                                 \\b \\g<hexadecimal-literal> \\g<hexadecimal-fraction>? \\g<hexadecimal-exponent> \\b ){0} (?<decimal-fraction>                \\. \\g<decimal-literal> ){0} (?<decimal-exponent>                \\g<floating-point-e> \\g<sign>? \\g<decimal-literal> ){0} (?<hexadecimal-fraction>            \\. \\g<hexadecimal-literal>? ){0} (?<hexadecimal-exponent>            \\g<floating-point-p> \\g<sign>? \\g<hexadecimal-literal> ){0} (?<floating-point-e>                [eE] ){0} (?<floating-point-p>                [pP] ){0} (?<sign>                            [+-] ){0} (?!0[box]) \\g<floating-point-literal> |            \\g<integer-literal>"
+		},
+		"literal-string": {
+			"name": "string.quoted.double.swift",
+			"begin": "\"",
+			"end": "\"",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.begin.swift"
+				}
+			},
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.end.swift"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#quoted-text"
+				}
+			]
+		},
+		"operator": {
+			"patterns": [
+				{
+					"include": "#operator-character"
+				}
+			]
+		},
+		"operator-character": {
+			"name": "keyword.operator.swift",
+			"match": "[\\/=\\-+!*%<>&|^~,\\?:\\[\\]]"
+		},
+		"quoted-text": {
+			"patterns": [
+				{
+					"name": "meta.embedded.line.swift",
+					"contentName": "source.swift",
+					"begin": "\\\\\\(",
+					"end": "\\)",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.section.embedded.begin.swift"
+						}
+					},
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.section.embedded.end.swift"
+						}
+					},
+					"patterns": [
+						{
+							"include": "$self"
+						}
+					]
+				},
+				{
+					"include": "#escaped-char"
+				}
+			]
+		},
+		"whitespace": {
+			"match": "(?x) [ \\u0020 (?#           space) \\u000A (?#       line-feed) \\u000D (?# carriage-return) \\u0009 (?#  horizontal-tab) \\u000B (?#    vertical-tab) \\u000C (?#       form-feed) \\u0000 (?#            null) ]"
+		}
+	}
+}

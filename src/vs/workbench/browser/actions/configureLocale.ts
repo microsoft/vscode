@@ -12,8 +12,8 @@ import * as Labels from 'vs/base/common/labels';
 import * as Platform from 'vs/base/common/platform';
 import { Action } from 'vs/base/common/actions';
 
-import { Registry } from 'vs/platform/platform';
-import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -32,12 +32,12 @@ class ConfigureLocaleAction extends Action {
 		'{',
 		`\t// ${nls.localize('displayLanguage', 'Defines VSCode\'s display language.')}`,
 		`\t// ${nls.localize('doc', 'See {0} for a list of supported languages.', 'https://go.microsoft.com/fwlink/?LinkId=761051')}`,
-		`\t// ${nls.localize('restart', 'Changing the value requires to restart VSCode.')}`,
+		`\t// ${nls.localize('restart', 'Changing the value requires restarting VSCode.')}`,
 		`\t"locale":"${Platform.language}"`,
 		'}'
 	].join('\n');
 
-	constructor(id, label,
+	constructor(id: string, label: string,
 		@IFileService private fileService: IFileService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
@@ -52,7 +52,7 @@ class ConfigureLocaleAction extends Action {
 			return this.fileService.createFile(file, ConfigureLocaleAction.DEFAULT_CONTENT);
 		}).then((stat) => {
 			if (!stat) {
-				return;
+				return undefined;
 			}
 			return this.editorService.openEditor({
 				resource: stat.resource,
@@ -89,5 +89,5 @@ const schema: IJSONSchema =
 		}
 	};
 
-const jsonRegistry = <IJSONContributionRegistry>Registry.as(JSONExtensions.JSONContribution);
+const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 jsonRegistry.registerSchema(schemaId, schema);

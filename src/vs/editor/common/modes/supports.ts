@@ -4,59 +4,38 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as modes from 'vs/editor/common/modes';
-import { ModeTransition } from 'vs/editor/common/core/modeTransition';
-import { Token } from 'vs/editor/common/core/token';
-import { LineTokens, StandardTokenType } from 'vs/editor/common/core/lineTokens';
-
-export class RawLineTokens implements modes.ILineTokens {
-	_lineTokensBrand: void;
-
-	tokens: Token[];
-	modeTransitions: ModeTransition[];
-	actualStopOffset: number;
-	endState: modes.IState;
-	retokenize: TPromise<void>;
-
-	constructor(tokens: Token[], modeTransitions: ModeTransition[], actualStopOffset: number, endState: modes.IState) {
-		this.tokens = tokens;
-		this.modeTransitions = modeTransitions;
-		this.actualStopOffset = actualStopOffset;
-		this.endState = endState;
-		this.retokenize = null;
-	}
-}
+import { LineTokens } from 'vs/editor/common/core/lineTokens';
 
 export function createScopedLineTokens(context: LineTokens, offset: number): ScopedLineTokens {
-	let modeTransitions = context.modeTransitions;
-	if (modeTransitions.length === 1) {
-		return new ScopedLineTokens(context, modeTransitions[0].modeId, 0, context.getTokenCount(), 0, context.getLineContent().length);
+	let tokenCount = context.getTokenCount();
+	let tokenIndex = context.findTokenIndexAtOffset(offset);
+	let desiredLanguageId = context.getLanguageId(tokenIndex);
+
+	let lastTokenIndex = tokenIndex;
+	while (lastTokenIndex + 1 < tokenCount && context.getLanguageId(lastTokenIndex + 1) === desiredLanguageId) {
+		lastTokenIndex++;
 	}
 
-	let modeIndex = ModeTransition.findIndexInSegmentsArray(modeTransitions, offset);
-	let nestedModeId = modeTransitions[modeIndex].modeId;
-	let modeStartIndex = modeTransitions[modeIndex].startIndex;
-
-	let firstTokenIndex = context.findTokenIndexAtOffset(modeStartIndex);
-	let lastCharOffset = -1;
-	let lastTokenIndex = -1;
-	if (modeIndex + 1 < modeTransitions.length) {
-		lastTokenIndex = context.findTokenIndexAtOffset(modeTransitions[modeIndex + 1].startIndex);
-		lastCharOffset = context.getTokenStartOffset(lastTokenIndex);
-	} else {
-		lastTokenIndex = context.getTokenCount();
-		lastCharOffset = context.getLineContent().length;
+	let firstTokenIndex = tokenIndex;
+	while (firstTokenIndex > 0 && context.getLanguageId(firstTokenIndex - 1) === desiredLanguageId) {
+		firstTokenIndex--;
 	}
 
-	let firstCharOffset = context.getTokenStartOffset(firstTokenIndex);
-	return new ScopedLineTokens(context, nestedModeId, firstTokenIndex, lastTokenIndex, firstCharOffset, lastCharOffset);
+	return new ScopedLineTokens(
+		context,
+		desiredLanguageId,
+		firstTokenIndex,
+		lastTokenIndex + 1,
+		context.getTokenStartOffset(firstTokenIndex),
+		context.getTokenEndOffset(lastTokenIndex)
+	);
 }
 
 export class ScopedLineTokens {
 	_scopedLineTokensBrand: void;
 
-	public readonly modeId: string;
+	public readonly languageId: modes.LanguageId;
 	private readonly _actual: LineTokens;
 	private readonly _firstTokenIndex: number;
 	private readonly _lastTokenIndex: number;
@@ -65,14 +44,14 @@ export class ScopedLineTokens {
 
 	constructor(
 		actual: LineTokens,
-		modeId: string,
+		languageId: modes.LanguageId,
 		firstTokenIndex: number,
 		lastTokenIndex: number,
 		firstCharOffset: number,
 		lastCharOffset: number
 	) {
 		this._actual = actual;
-		this.modeId = modeId;
+		this.languageId = languageId;
 		this._firstTokenIndex = firstTokenIndex;
 		this._lastTokenIndex = lastTokenIndex;
 		this.firstCharOffset = firstCharOffset;
@@ -96,15 +75,15 @@ export class ScopedLineTokens {
 		return this._actual.getTokenStartOffset(tokenIndex + this._firstTokenIndex) - this.firstCharOffset;
 	}
 
-	public getStandardTokenType(tokenIndex: number): StandardTokenType {
+	public getStandardTokenType(tokenIndex: number): modes.StandardTokenType {
 		return this._actual.getStandardTokenType(tokenIndex + this._firstTokenIndex);
 	}
 }
 
 const enum IgnoreBracketsInTokens {
-	value = StandardTokenType.Comment | StandardTokenType.String | StandardTokenType.RegEx
+	value = modes.StandardTokenType.Comment | modes.StandardTokenType.String | modes.StandardTokenType.RegEx
 }
 
-export function ignoreBracketsInToken(standardTokenType: StandardTokenType): boolean {
+export function ignoreBracketsInToken(standardTokenType: modes.StandardTokenType): boolean {
 	return (standardTokenType & IgnoreBracketsInTokens.value) !== 0;
 }

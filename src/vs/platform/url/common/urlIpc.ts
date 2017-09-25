@@ -35,6 +35,7 @@ export class URLChannel implements IURLChannel {
 		switch (command) {
 			case 'event:onOpenURL': return eventToCall(filterEvent(this.service.onOpenURL, () => this.isWindowFocused(arg)), URISerializer);
 		}
+		return undefined;
 	}
 
 	/**

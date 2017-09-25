@@ -5,15 +5,10 @@ Summary:  Code editing. Redefined.
 Group:    Development/Tools
 Vendor:   Microsoft Corporation
 Packager: Visual Studio Code Team <vscode-linux@microsoft.com>
-License:  MIT
+License:  @@LICENSE@@
 URL:      https://code.visualstudio.com/
 Icon:     @@NAME@@.xpm
-Requires: glibc >= 2.15
-%ifarch x86_64
-Requires: libXss.so.1()(64bit)
-%else
-Requires: libXss.so.1
-%endif
+Requires: @@DEPENDENCIES@@
 AutoReq:  0
 
 %description

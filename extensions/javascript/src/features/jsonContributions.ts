@@ -36,7 +36,7 @@ export function addJSONProviders(xhr: XHRRequest): Disposable {
 	let subscriptions: Disposable[] = [];
 	contributions.forEach(contribution => {
 		let selector = contribution.getDocumentSelector();
-		subscriptions.push(languages.registerCompletionItemProvider(selector, new JSONCompletionItemProvider(contribution), '.', '$'));
+		subscriptions.push(languages.registerCompletionItemProvider(selector, new JSONCompletionItemProvider(contribution), '"', ':'));
 		subscriptions.push(languages.registerHoverProvider(selector, new JSONHoverProvider(contribution)));
 	});
 	return Disposable.from(...subscriptions);

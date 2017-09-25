@@ -5,61 +5,200 @@
 'use strict';
 
 
-import { TextDocument, Position, HTMLDocument, Node, LanguageService, TokenType } from 'vscode-html-languageservice';
+import { TextDocument, Position, LanguageService, TokenType, Range } from 'vscode-html-languageservice';
 
-export function getLanguageAtPosition(languageService: LanguageService, document: TextDocument, htmlDocument: HTMLDocument, position: Position): string {
+export interface LanguageRange extends Range {
+	languageId: string;
+	attributeValue?: boolean;
+}
+
+export interface HTMLDocumentRegions {
+	getEmbeddedDocument(languageId: string, ignoreAttributeValues?: boolean): TextDocument;
+	getLanguageRanges(range: Range): LanguageRange[];
+	getLanguageAtPosition(position: Position): string;
+	getLanguagesInDocument(): string[];
+	getImportedScripts(): string[];
+}
+
+export var CSS_STYLE_RULE = '__';
+
+interface EmbeddedRegion { languageId: string; start: number; end: number; attributeValue?: boolean; };
+
+
+export function getDocumentRegions(languageService: LanguageService, document: TextDocument): HTMLDocumentRegions {
+	let regions: EmbeddedRegion[] = [];
+	let scanner = languageService.createScanner(document.getText());
+	let lastTagName: string;
+	let lastAttributeName: string;
+	let languageIdFromType: string;
+	let importedScripts = [];
+
+	let token = scanner.scan();
+	while (token !== TokenType.EOS) {
+		switch (token) {
+			case TokenType.StartTag:
+				lastTagName = scanner.getTokenText();
+				lastAttributeName = null;
+				languageIdFromType = 'javascript';
+				break;
+			case TokenType.Styles:
+				regions.push({ languageId: 'css', start: scanner.getTokenOffset(), end: scanner.getTokenEnd() });
+				break;
+			case TokenType.Script:
+				regions.push({ languageId: languageIdFromType, start: scanner.getTokenOffset(), end: scanner.getTokenEnd() });
+				break;
+			case TokenType.AttributeName:
+				lastAttributeName = scanner.getTokenText();
+				break;
+			case TokenType.AttributeValue:
+				if (lastAttributeName === 'src' && lastTagName.toLowerCase() === 'script') {
+					let value = scanner.getTokenText();
+					if (value[0] === '\'' || value[0] === '"') {
+						value = value.substr(1, value.length - 1);
+					}
+					importedScripts.push(value);
+				} else if (lastAttributeName === 'type' && lastTagName.toLowerCase() === 'script') {
+					if (/["'](module|(text|application)\/(java|ecma)script)["']/.test(scanner.getTokenText())) {
+						languageIdFromType = 'javascript';
+					} else {
+						languageIdFromType = void 0;
+					}
+				} else {
+					let attributeLanguageId = getAttributeLanguage(lastAttributeName);
+					if (attributeLanguageId) {
+						let start = scanner.getTokenOffset();
+						let end = scanner.getTokenEnd();
+						let firstChar = document.getText()[start];
+						if (firstChar === '\'' || firstChar === '"') {
+							start++;
+							end--;
+						}
+						regions.push({ languageId: attributeLanguageId, start, end, attributeValue: true });
+					}
+				}
+				lastAttributeName = null;
+				break;
+		}
+		token = scanner.scan();
+	}
+	return {
+		getLanguageRanges: (range: Range) => getLanguageRanges(document, regions, range),
+		getEmbeddedDocument: (languageId: string, ignoreAttributeValues: boolean) => getEmbeddedDocument(document, regions, languageId, ignoreAttributeValues),
+		getLanguageAtPosition: (position: Position) => getLanguageAtPosition(document, regions, position),
+		getLanguagesInDocument: () => getLanguagesInDocument(document, regions),
+		getImportedScripts: () => importedScripts
+	};
+}
+
+
+function getLanguageRanges(document: TextDocument, regions: EmbeddedRegion[], range: Range): LanguageRange[] {
+	let result: LanguageRange[] = [];
+	let currentPos = range ? range.start : Position.create(0, 0);
+	let currentOffset = range ? document.offsetAt(range.start) : 0;
+	let endOffset = range ? document.offsetAt(range.end) : document.getText().length;
+	for (let region of regions) {
+		if (region.end > currentOffset && region.start < endOffset) {
+			let start = Math.max(region.start, currentOffset);
+			let startPos = document.positionAt(start);
+			if (currentOffset < region.start) {
+				result.push({
+					start: currentPos,
+					end: startPos,
+					languageId: 'html'
+				});
+			}
+			let end = Math.min(region.end, endOffset);
+			let endPos = document.positionAt(end);
+			if (end > region.start) {
+				result.push({
+					start: startPos,
+					end: endPos,
+					languageId: region.languageId,
+					attributeValue: region.attributeValue
+				});
+			}
+			currentOffset = end;
+			currentPos = endPos;
+		}
+	}
+	if (currentOffset < endOffset) {
+		let endPos = range ? range.end : document.positionAt(endOffset);
+		result.push({
+			start: currentPos,
+			end: endPos,
+			languageId: 'html'
+		});
+	}
+	return result;
+}
+
+function getLanguagesInDocument(document: TextDocument, regions: EmbeddedRegion[]): string[] {
+	let result = [];
+	for (let region of regions) {
+		if (region.languageId && result.indexOf(region.languageId) === -1) {
+			result.push(region.languageId);
+			if (result.length === 3) {
+				return result;
+			}
+		}
+	}
+	result.push('html');
+	return result;
+}
+
+function getLanguageAtPosition(document: TextDocument, regions: EmbeddedRegion[], position: Position): string {
 	let offset = document.offsetAt(position);
-	let node = htmlDocument.findNodeAt(offset);
-	if (node && node.children.length === 0) {
-		let embeddedContent = getEmbeddedContentForNode(languageService, document, node);
-		if (embeddedContent && embeddedContent.start <= offset && offset <= embeddedContent.end) {
-			return embeddedContent.languageId;
+	for (let region of regions) {
+		if (region.start <= offset) {
+			if (offset <= region.end) {
+				return region.languageId;
+			}
+		} else {
+			break;
 		}
 	}
 	return 'html';
 }
 
-export function getLanguagesInContent(languageService: LanguageService, document: TextDocument, htmlDocument: HTMLDocument): string[] {
-	let embeddedLanguageIds: { [languageId: string]: boolean } = { html: true };
-	function collectEmbeddedLanguages(node: Node): void {
-		let c = getEmbeddedContentForNode(languageService, document, node);
-		if (c && !isWhitespace(document.getText().substring(c.start, c.end))) {
-			embeddedLanguageIds[c.languageId] = true;
-		}
-		node.children.forEach(collectEmbeddedLanguages);
-	}
-
-	htmlDocument.roots.forEach(collectEmbeddedLanguages);
-	return Object.keys(embeddedLanguageIds);
-}
-
-export function getEmbeddedDocument(languageService: LanguageService, document: TextDocument, htmlDocument: HTMLDocument, languageId: string): TextDocument {
-	let contents = [];
-	function collectEmbeddedNodes(node: Node): void {
-		let c = getEmbeddedContentForNode(languageService, document, node);
-		if (c && c.languageId === languageId) {
-			contents.push(c);
-		}
-		node.children.forEach(collectEmbeddedNodes);
-	}
-
-	htmlDocument.roots.forEach(collectEmbeddedNodes);
-
+function getEmbeddedDocument(document: TextDocument, contents: EmbeddedRegion[], languageId: string, ignoreAttributeValues: boolean): TextDocument {
 	let currentPos = 0;
 	let oldContent = document.getText();
 	let result = '';
+	let lastSuffix = '';
 	for (let c of contents) {
-		result = substituteWithWhitespace(result, currentPos, c.start, oldContent);
-		result += oldContent.substring(c.start, c.end);
-		currentPos = c.end;
+		if (c.languageId === languageId && (!ignoreAttributeValues || !c.attributeValue)) {
+			result = substituteWithWhitespace(result, currentPos, c.start, oldContent, lastSuffix, getPrefix(c));
+			result += oldContent.substring(c.start, c.end);
+			currentPos = c.end;
+			lastSuffix = getSuffix(c);
+		}
 	}
-	result = substituteWithWhitespace(result, currentPos, oldContent.length, oldContent);
+	result = substituteWithWhitespace(result, currentPos, oldContent.length, oldContent, lastSuffix, '');
 	return TextDocument.create(document.uri, languageId, document.version, result);
 }
 
-function substituteWithWhitespace(result, start, end, oldContent) {
+function getPrefix(c: EmbeddedRegion) {
+	if (c.attributeValue) {
+		switch (c.languageId) {
+			case 'css': return CSS_STYLE_RULE + '{';
+		}
+	}
+	return '';
+}
+function getSuffix(c: EmbeddedRegion) {
+	if (c.attributeValue) {
+		switch (c.languageId) {
+			case 'css': return '}';
+			case 'javascript': return ';';
+		}
+	}
+	return '';
+}
+
+function substituteWithWhitespace(result: string, start: number, end: number, oldContent: string, before: string, after: string) {
 	let accumulatedWS = 0;
-	for (let i = start; i < end; i++) {
+	result += before;
+	for (let i = start + before.length; i < end; i++) {
 		let ch = oldContent[i];
 		if (ch === '\n' || ch === '\r') {
 			// only write new lines, skip the whitespace
@@ -69,12 +208,13 @@ function substituteWithWhitespace(result, start, end, oldContent) {
 			accumulatedWS++;
 		}
 	}
-	result = append(result, ' ', accumulatedWS);
+	result = append(result, ' ', accumulatedWS - after.length);
+	result += after;
 	return result;
 }
 
 function append(result: string, str: string, n: number): string {
-	while (n) {
+	while (n > 0) {
 		if (n & 1) {
 			result += str;
 		}
@@ -84,42 +224,10 @@ function append(result: string, str: string, n: number): string {
 	return result;
 }
 
-function getEmbeddedContentForNode(languageService: LanguageService, document: TextDocument, node: Node): { languageId: string, start: number, end: number } {
-	if (node.tag === 'style') {
-		let scanner = languageService.createScanner(document.getText().substring(node.start, node.end));
-		let token = scanner.scan();
-		while (token !== TokenType.EOS) {
-			if (token === TokenType.Styles) {
-				return { languageId: 'css', start: node.start + scanner.getTokenOffset(), end: node.start + scanner.getTokenEnd() };
-			}
-			token = scanner.scan();
-		}
-	} else if (node.tag === 'script') {
-		let scanner = languageService.createScanner(document.getText().substring(node.start, node.end));
-		let token = scanner.scan();
-		let isTypeAttribute = false;
-		let languageId = 'javascript';
-		while (token !== TokenType.EOS) {
-			if (token === TokenType.AttributeName) {
-				isTypeAttribute = scanner.getTokenText() === 'type';
-			} else if (token === TokenType.AttributeValue) {
-				if (isTypeAttribute) {
-					if (/["'](text|application)\/(java|ecma)script["']/.test(scanner.getTokenText())) {
-						languageId = 'javascript';
-					} else {
-						languageId = void 0;
-					}
-				}
-				isTypeAttribute = false;
-			} else if (token === TokenType.Script) {
-				return { languageId, start: node.start + scanner.getTokenOffset(), end: node.start + scanner.getTokenEnd() };
-			}
-			token = scanner.scan();
-		}
+function getAttributeLanguage(attributeName: string): string {
+	let match = attributeName.match(/^(style)$|^(on\w+)$/i);
+	if (!match) {
+		return null;
 	}
-	return void 0;
-}
-
-function isWhitespace(str: string) {
-	return str.match(/^\s*$/);
+	return match[1] ? 'css' : 'javascript';
 }

@@ -221,16 +221,16 @@ export class SimpleWorkerClient<T> extends Disposable {
 
 		// Gather loader configuration
 		let loaderConfiguration: any = null;
-		let globalRequire = (<any>window).require;
+		let globalRequire = (<any>self).require;
 		if (typeof globalRequire.getConfig === 'function') {
 			// Get the configuration from the Monaco AMD Loader
 			loaderConfiguration = globalRequire.getConfig();
-		} else if (typeof (<any>window).requirejs !== 'undefined') {
+		} else if (typeof (<any>self).requirejs !== 'undefined') {
 			// Get the configuration from requirejs
-			loaderConfiguration = (<any>window).requirejs.s.contexts._.config;
+			loaderConfiguration = (<any>self).requirejs.s.contexts._.config;
 		}
 
-		this._lazyProxy = new TPromise((c, e, p) => {
+		this._lazyProxy = new TPromise<T>((c, e, p) => {
 			lazyProxyFulfill = c;
 			lazyProxyReject = e;
 		}, () => { /* no cancel */ });
@@ -242,7 +242,7 @@ export class SimpleWorkerClient<T> extends Disposable {
 			loaderConfiguration
 		]);
 		this._onModuleLoaded.then((availableMethods: string[]) => {
-			let proxy = <T><any>{};
+			let proxy = <T>{};
 			for (let i = 0; i < availableMethods.length; i++) {
 				proxy[availableMethods[i]] = createProxyMethod(availableMethods[i], proxyMethodRequest);
 			}

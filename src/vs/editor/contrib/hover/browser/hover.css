@@ -7,8 +7,6 @@
 	cursor: default;
 	position: absolute;
 	overflow: hidden;
-	background-color: #F3F3F3;
-	border: 1px solid #CCC;
 	z-index: 50;
 	-webkit-user-select: text;
 	-ms-user-select: text;
@@ -29,12 +27,16 @@
 	max-width: 500px;
 }
 
-.monaco-editor-hover .hover-row {
-	padding: 4px 5px;
+/*
+ * https://github.com/Microsoft/monaco-editor/issues/417
+ * Safari 10.1, fails inherit correct visibility from parent when we change the visibility of parent element from hidden to inherit, in this particular case.
+ */
+.monaco-editor-hover .monaco-scrollable-element {
+	visibility: visible;
 }
 
-.monaco-editor-hover .hover-row:not(:first-child):not(:empty) {
-	border-top: 1px solid rgba(204, 204, 204, 0.5);
+.monaco-editor-hover .hover-row {
+	padding: 4px 5px;
 }
 
 .monaco-editor-hover p,
@@ -53,12 +55,18 @@
 }
 
 .monaco-editor-hover ul {
-	list-style-position: inside;
-	-webkit-padding-start: 6px;
+	padding-left: 20px;
+}
+
+.monaco-editor-hover li > p {
+	margin-bottom: 0;
+}
+
+.monaco-editor-hover li > ul {
+	margin-top: 0;
 }
 
 .monaco-editor-hover code {
-	background-color: rgba(132, 132, 132, 0.14);
 	border-radius: 3px;
 	padding: 0 0.4em;
 }
@@ -67,14 +75,3 @@
 	white-space: pre-wrap;
 	word-break: break-all;
 }
-
-.monaco-editor .hoverHighlight {
-	background: rgba(173, 214, 255, 0.15);
-}
-
-.monaco-editor.vs-dark .monaco-editor-hover { background-color: #2D2D30; border-color: #555; }
-.monaco-editor.vs-dark .monaco-editor-hover a { color: #1C5DAF; }
-.monaco-editor.vs-dark .monaco-editor-hover .hover-row:not(:first-child):not(:empty) { border-color: rgba(85,85,85,0.5); }
-.monaco-editor.vs-dark .hoverHighlight { background: rgba(38, 79, 120, 0.25); }
-
-.monaco-editor.hc-black .monaco-editor-hover { background-color: #0C141F; }

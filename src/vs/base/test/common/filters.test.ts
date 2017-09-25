@@ -5,10 +5,10 @@
 'use strict';
 
 import * as assert from 'assert';
-import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString, matchesWords } from 'vs/base/common/filters';
+import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString, matchesWords, fuzzyScore, nextTypoPermutation, fuzzyScoreGraceful } from 'vs/base/common/filters';
 
 function filterOk(filter: IFilter, word: string, wordToMatchAgainst: string, highlights?: { start: number; end: number; }[]) {
-	var r = filter(word, wordToMatchAgainst);
+	let r = filter(word, wordToMatchAgainst);
 	assert(r);
 	if (highlights) {
 		assert.deepEqual(r, highlights);
@@ -21,8 +21,8 @@ function filterNotOk(filter, word, suggestion) {
 
 suite('Filters', () => {
 	test('or', function () {
-		var filter, counters;
-		var newFilter = function (i, r) {
+		let filter, counters;
+		let newFilter = function (i, r) {
 			return function () { counters[i]++; return r; };
 		};
 
@@ -64,9 +64,11 @@ suite('Filters', () => {
 		filterOk(matchesPrefix, 'alpha', 'alphasomething', [{ start: 0, end: 5 }]);
 		filterNotOk(matchesPrefix, 'alpha', 'alp');
 		filterOk(matchesPrefix, 'a', 'alpha', [{ start: 0, end: 1 }]);
+		filterOk(matchesPrefix, 'ä', 'Älpha', [{ start: 0, end: 1 }]);
 		filterNotOk(matchesPrefix, 'x', 'alpha');
 		filterOk(matchesPrefix, 'A', 'alpha', [{ start: 0, end: 1 }]);
 		filterOk(matchesPrefix, 'AlPh', 'alPHA', [{ start: 0, end: 4 }]);
+		filterNotOk(matchesPrefix, 'T', '4'); // see https://github.com/Microsoft/vscode/issues/22401
 	});
 
 	test('CamelCaseFilter', function () {
@@ -186,5 +188,249 @@ suite('Filters', () => {
 		filterOk(matchesWords, 'git プル', 'git: プル', [{ start: 0, end: 3 }, { start: 4, end: 7 }]);
 
 		filterOk(matchesWords, 'öäk', 'Öhm: Älles Klar', [{ start: 0, end: 1 }, { start: 5, end: 6 }, { start: 11, end: 12 }]);
+
+		assert.ok(matchesWords('gipu', 'Category: Git: Pull', true) === null);
+		assert.deepEqual(matchesWords('pu', 'Category: Git: Pull', true), [{ start: 15, end: 17 }]);
+	});
+
+	function assertMatches(pattern: string, word: string, decoratedWord: string, filter: typeof fuzzyScore) {
+		let r = filter(pattern, word);
+		assert.ok(!decoratedWord === (!r || r[1].length === 0));
+		if (r) {
+			const [, matches] = r;
+			let pos = 0;
+			for (let i = 0; i < matches.length; i++) {
+				let actual = matches[i];
+				let expected = decoratedWord.indexOf('^', pos) - i;
+				assert.equal(actual, expected);
+				pos = expected + 1 + i;
+			}
+		}
+	}
+
+	test('fuzzyScore, #23215', function () {
+		assertMatches('tit', 'win.tit', 'win.^t^i^t', fuzzyScore);
+		assertMatches('title', 'win.title', 'win.^t^i^t^l^e', fuzzyScore);
+		assertMatches('WordCla', 'WordCharacterClassifier', '^W^o^r^dCharacter^C^l^assifier', fuzzyScore);
+		assertMatches('WordCCla', 'WordCharacterClassifier', '^W^o^r^d^Character^C^l^assifier', fuzzyScore);
+	});
+
+	test('fuzzyScore, #23332', function () {
+		assertMatches('dete', '"editor.quickSuggestionsDelay"', undefined, fuzzyScore);
+	});
+
+	test('fuzzyScore, #23190', function () {
+		assertMatches('c:\\do', '& \'C:\\Documents and Settings\'', '& \'^C^:^\\^D^ocuments and Settings\'', fuzzyScore);
+		assertMatches('c:\\do', '& \'c:\\Documents and Settings\'', '& \'^c^:^\\^D^ocuments and Settings\'', fuzzyScore);
+	});
+
+	test('fuzzyScore, #23581', function () {
+		assertMatches('close', 'css.lint.importStatement', '^css.^lint.imp^ort^Stat^ement', fuzzyScore);
+		assertMatches('close', 'css.colorDecorators.enable', '^css.co^l^orDecorator^s.^enable', fuzzyScore);
+		assertMatches('close', 'workbench.quickOpen.closeOnFocusOut', 'workbench.quickOpen.^c^l^o^s^eOnFocusOut', fuzzyScore);
+		assertTopScore(fuzzyScore, 'close', 2, 'css.lint.importStatement', 'css.colorDecorators.enable', 'workbench.quickOpen.closeOnFocusOut');
+	});
+
+	test('fuzzyScore, #23458', function () {
+		assertMatches('highlight', 'editorHoverHighlight', 'editorHover^H^i^g^h^l^i^g^h^t', fuzzyScore);
+		assertMatches('hhighlight', 'editorHoverHighlight', 'editor^Hover^H^i^g^h^l^i^g^h^t', fuzzyScore);
+		assertMatches('dhhighlight', 'editorHoverHighlight', undefined, fuzzyScore);
+	});
+	test('fuzzyScore, #23746', function () {
+		assertMatches('-moz', '-moz-foo', '^-^m^o^z-foo', fuzzyScore);
+		assertMatches('moz', '-moz-foo', '-^m^o^z-foo', fuzzyScore);
+		assertMatches('moz', '-moz-animation', '-^m^o^z-animation', fuzzyScore);
+		assertMatches('moza', '-moz-animation', '-^m^o^z-^animation', fuzzyScore);
+	});
+
+	test('fuzzyScore', function () {
+		assertMatches('ab', 'abA', '^a^bA', fuzzyScore);
+		assertMatches('ccm', 'cacmelCase', '^ca^c^melCase', fuzzyScore);
+		assertMatches('bti', 'the_black_knight', undefined, fuzzyScore);
+		assertMatches('ccm', 'camelCase', undefined, fuzzyScore);
+		assertMatches('cmcm', 'camelCase', undefined, fuzzyScore);
+		assertMatches('BK', 'the_black_knight', 'the_^black_^knight', fuzzyScore);
+		assertMatches('KeyboardLayout=', 'KeyboardLayout', undefined, fuzzyScore);
+		assertMatches('LLL', 'SVisualLoggerLogsList', 'SVisual^Logger^Logs^List', fuzzyScore);
+		assertMatches('LLLL', 'SVilLoLosLi', undefined, fuzzyScore);
+		assertMatches('LLLL', 'SVisualLoggerLogsList', undefined, fuzzyScore);
+		assertMatches('TEdit', 'TextEdit', '^Text^E^d^i^t', fuzzyScore);
+		assertMatches('TEdit', 'TextEditor', '^Text^E^d^i^tor', fuzzyScore);
+		assertMatches('TEdit', 'Textedit', '^T^exte^d^i^t', fuzzyScore);
+		assertMatches('TEdit', 'text_edit', '^text_^e^d^i^t', fuzzyScore);
+		assertMatches('TEditDit', 'TextEditorDecorationType', '^Text^E^d^i^tor^Decorat^ion^Type', fuzzyScore);
+		assertMatches('TEdit', 'TextEditorDecorationType', '^Text^E^d^i^torDecorationType', fuzzyScore);
+		assertMatches('Tedit', 'TextEdit', '^Text^E^d^i^t', fuzzyScore);
+		assertMatches('ba', '?AB?', undefined, fuzzyScore);
+		assertMatches('bkn', 'the_black_knight', 'the_^black_^k^night', fuzzyScore);
+		assertMatches('bt', 'the_black_knight', 'the_^black_knigh^t', fuzzyScore);
+		assertMatches('ccm', 'camelCasecm', '^camel^Casec^m', fuzzyScore);
+		assertMatches('fdm', 'findModel', '^fin^d^Model', fuzzyScore);
+		assertMatches('fob', 'foobar', '^f^oo^bar', fuzzyScore);
+		assertMatches('fobz', 'foobar', undefined, fuzzyScore);
+		assertMatches('foobar', 'foobar', '^f^o^o^b^a^r', fuzzyScore);
+		assertMatches('form', 'editor.formatOnSave', 'editor.^f^o^r^matOnSave', fuzzyScore);
+		assertMatches('g p', 'Git: Pull', '^Git:^ ^Pull', fuzzyScore);
+		assertMatches('g p', 'Git: Pull', '^Git:^ ^Pull', fuzzyScore);
+		assertMatches('gip', 'Git: Pull', '^G^it: ^Pull', fuzzyScore);
+		assertMatches('gip', 'Git: Pull', '^G^it: ^Pull', fuzzyScore);
+		assertMatches('gp', 'Git: Pull', '^Git: ^Pull', fuzzyScore);
+		assertMatches('gp', 'Git_Git_Pull', '^Git_Git_^Pull', fuzzyScore);
+		assertMatches('is', 'ImportStatement', '^Import^Statement', fuzzyScore);
+		assertMatches('is', 'isValid', '^i^sValid', fuzzyScore);
+		assertMatches('lowrd', 'lowWord', '^l^o^wWo^r^d', fuzzyScore);
+		assertMatches('myvable', 'myvariable', '^m^y^v^aria^b^l^e', fuzzyScore);
+		assertMatches('no', '', undefined, fuzzyScore);
+		assertMatches('no', 'match', undefined, fuzzyScore);
+		assertMatches('ob', 'foobar', undefined, fuzzyScore);
+		assertMatches('sl', 'SVisualLoggerLogsList', '^SVisual^LoggerLogsList', fuzzyScore);
+		assertMatches('sllll', 'SVisualLoggerLogsList', '^SVisua^l^Logger^Logs^List', fuzzyScore);
+		assertMatches('Three', 'HTMLHRElement', 'H^TML^H^R^El^ement', fuzzyScore);
+		assertMatches('Three', 'Three', '^T^h^r^e^e', fuzzyScore);
+		assertMatches('fo', 'barfoo', undefined, fuzzyScore);
+		assertMatches('fo', 'bar_foo', 'bar_^f^oo', fuzzyScore);
+		assertMatches('fo', 'bar_Foo', 'bar_^F^oo', fuzzyScore);
+		assertMatches('fo', 'bar foo', 'bar ^f^oo', fuzzyScore);
+		assertMatches('fo', 'bar.foo', 'bar.^f^oo', fuzzyScore);
+		assertMatches('fo', 'bar/foo', 'bar/^f^oo', fuzzyScore);
+		assertMatches('fo', 'bar\\foo', 'bar\\^f^oo', fuzzyScore);
+	});
+
+	test('fuzzyScore, many matches', function () {
+
+		assertMatches(
+			'aaaaaa',
+			'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+			'^a^a^a^a^a^aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+			fuzzyScore
+		);
+	});
+
+	test('fuzzyScore, issue #26423', function () {
+
+		assertMatches('baba', 'abababab', undefined, fuzzyScore);
+
+		assertMatches(
+			'fsfsfs',
+			'dsafdsafdsafdsafdsafdsafdsafasdfdsa',
+			undefined,
+			fuzzyScore
+		);
+		assertMatches(
+			'fsfsfsfsfsfsfsf',
+			'dsafdsafdsafdsafdsafdsafdsafasdfdsafdsafdsafdsafdsfdsafdsfdfdfasdnfdsajfndsjnafjndsajlknfdsa',
+			undefined,
+			fuzzyScore
+		);
+	});
+
+	test('Fuzzy IntelliSense matching vs Haxe metadata completion, #26995', function () {
+		assertMatches('f', ':Foo', ':^Foo', fuzzyScore);
+		assertMatches('f', ':foo', ':^foo', fuzzyScore);
+	});
+
+	test('Cannot set property \'1\' of undefined, #26511', function () {
+		let word = new Array<void>(123).join('a');
+		let pattern = new Array<void>(120).join('a');
+		fuzzyScore(pattern, word);
+		assert.ok(true); // must not explode
+	});
+
+	test('Vscode 1.12 no longer obeys \'sortText\' in completion items (from language server), #26096', function () {
+		assertMatches('  ', '  group', undefined, fuzzyScore);
+		assertMatches('  g', '  group', '  ^group', fuzzyScore);
+		assertMatches('g', '  group', '  ^group', fuzzyScore);
+		assertMatches('g g', '  groupGroup', undefined, fuzzyScore);
+		assertMatches('g g', '  group Group', '  ^group^ ^Group', fuzzyScore);
+		assertMatches(' g g', '  group Group', '  ^group^ ^Group', fuzzyScore);
+		assertMatches('zz', 'zzGroup', '^z^zGroup', fuzzyScore);
+		assertMatches('zzg', 'zzGroup', '^z^z^Group', fuzzyScore);
+		assertMatches('g', 'zzGroup', 'zz^Group', fuzzyScore);
+	});
+
+	function assertTopScore(filter: typeof fuzzyScore, pattern: string, expected: number, ...words: string[]) {
+		let topScore = -(100 * 10);
+		let topIdx = 0;
+		for (let i = 0; i < words.length; i++) {
+			const word = words[i];
+			const m = filter(pattern, word);
+			if (m) {
+				const [score] = m;
+				if (score > topScore) {
+					topScore = score;
+					topIdx = i;
+				}
+			}
+		}
+		assert.equal(topIdx, expected, `${pattern} -> actual=${words[topIdx]} <> expected=${words[expected]}`);
+	}
+
+	test('topScore - fuzzyScore', function () {
+
+		assertTopScore(fuzzyScore, 'cons', 2, 'ArrayBufferConstructor', 'Console', 'console');
+		assertTopScore(fuzzyScore, 'Foo', 1, 'foo', 'Foo', 'foo');
+
+		// #24904
+		assertTopScore(fuzzyScore, 'onMess', 1, 'onmessage', 'onMessage', 'onThisMegaEscape');
+
+		assertTopScore(fuzzyScore, 'CC', 1, 'camelCase', 'CamelCase');
+		assertTopScore(fuzzyScore, 'cC', 0, 'camelCase', 'CamelCase');
+		// assertTopScore(fuzzyScore, 'cC', 1, 'ccfoo', 'camelCase');
+		// assertTopScore(fuzzyScore, 'cC', 1, 'ccfoo', 'camelCase', 'foo-cC-bar');
+
+		// issue #17836
+		// assertTopScore(fuzzyScore, 'TEdit', 1, 'TextEditorDecorationType', 'TextEdit', 'TextEditor');
+		assertTopScore(fuzzyScore, 'p', 0, 'parse', 'posix', 'pafdsa', 'path', 'p');
+		assertTopScore(fuzzyScore, 'pa', 0, 'parse', 'pafdsa', 'path');
+
+		// issue #14583
+		assertTopScore(fuzzyScore, 'log', 3, 'HTMLOptGroupElement', 'ScrollLogicalPosition', 'SVGFEMorphologyElement', 'log');
+		assertTopScore(fuzzyScore, 'e', 2, 'AbstractWorker', 'ActiveXObject', 'else');
+
+		// issue #14446
+		assertTopScore(fuzzyScore, 'workbench.sideb', 1, 'workbench.editor.defaultSideBySideLayout', 'workbench.sideBar.location');
+
+		// issue #11423
+		assertTopScore(fuzzyScore, 'editor.r', 2, 'diffEditor.renderSideBySide', 'editor.overviewRulerlanes', 'editor.renderControlCharacter', 'editor.renderWhitespace');
+		// assertTopScore(fuzzyScore, 'editor.R', 1, 'diffEditor.renderSideBySide', 'editor.overviewRulerlanes', 'editor.renderControlCharacter', 'editor.renderWhitespace');
+		// assertTopScore(fuzzyScore, 'Editor.r', 0, 'diffEditor.renderSideBySide', 'editor.overviewRulerlanes', 'editor.renderControlCharacter', 'editor.renderWhitespace');
+
+		assertTopScore(fuzzyScore, '-mo', 1, '-ms-ime-mode', '-moz-columns');
+		// // dupe, issue #14861
+		assertTopScore(fuzzyScore, 'convertModelPosition', 0, 'convertModelPositionToViewPosition', 'convertViewToModelPosition');
+		// // dupe, issue #14942
+		assertTopScore(fuzzyScore, 'is', 0, 'isValidViewletId', 'import statement');
+
+		assertTopScore(fuzzyScore, 'title', 1, 'files.trimTrailingWhitespace', 'window.title');
+	});
+
+	test('Unexpected suggestion scoring, #28791', function () {
+		assertTopScore(fuzzyScore, '_lines', 1, '_lineStarts', '_lines');
+		assertTopScore(fuzzyScore, '_lines', 1, '_lineS', '_lines');
+		assertTopScore(fuzzyScore, '_lineS', 0, '_lineS', '_lines');
+	});
+
+	test('nextTypoPermutation', function () {
+
+		function assertTypos(pattern: string, ...variants: string[]) {
+			let pos = 1;
+			for (const expected of variants) {
+				const actual = nextTypoPermutation(pattern, pos);
+				assert.equal(actual, expected);
+				pos += 1;
+			}
+			assert.equal(nextTypoPermutation(pattern, pos), undefined);
+		}
+
+		assertTypos('abc', 'acb');
+		assertTypos('foboar', 'fbooar', 'foobar', 'fobaor', 'fobora');
+	});
+
+	test('fuzzyScoreGraceful', function () {
+
+		assertMatches('tkb', 'the_black_knight', '^the_^black_^knight', fuzzyScoreGraceful);
+		assertMatches('tkbk', 'the_black_knight', '^the_^blac^k_^knight', fuzzyScoreGraceful);
+		assertMatches('tkkb', 'the_black_knight', undefined, fuzzyScoreGraceful);
+		assertMatches('tkb', 'no_match', undefined, fuzzyScoreGraceful);
 	});
 });

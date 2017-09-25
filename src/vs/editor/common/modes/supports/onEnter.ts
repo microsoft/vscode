@@ -23,10 +23,6 @@ interface IProcessedBracketPair {
 
 export class OnEnterSupport {
 
-	private static _INDENT: EnterAction = { indentAction: IndentAction.Indent };
-	private static _INDENT_OUTDENT: EnterAction = { indentAction: IndentAction.IndentOutdent };
-	private static _OUTDENT: EnterAction = { indentAction: IndentAction.Outdent };
-
 	private readonly _brackets: IProcessedBracketPair[];
 	private readonly _indentationRules: IndentationRule;
 	private readonly _regExpRules: OnEnterRule[];
@@ -71,36 +67,18 @@ export class OnEnterSupport {
 			for (let i = 0, len = this._brackets.length; i < len; i++) {
 				let bracket = this._brackets[i];
 				if (bracket.openRegExp.test(beforeEnterText) && bracket.closeRegExp.test(afterEnterText)) {
-					return OnEnterSupport._INDENT_OUTDENT;
+					return { indentAction: IndentAction.IndentOutdent };
 				}
 			}
 		}
 
-		// (3): Indentation Support
-		if (this._indentationRules) {
-			if (this._indentationRules.increaseIndentPattern && this._indentationRules.increaseIndentPattern.test(beforeEnterText)) {
-				return OnEnterSupport._INDENT;
-			}
-			if (this._indentationRules.indentNextLinePattern && this._indentationRules.indentNextLinePattern.test(beforeEnterText)) {
-				return OnEnterSupport._INDENT;
-			}
-			if (/^\s/.test(beforeEnterText)) {
-				// No reason to run regular expressions if there is nothing to outdent from
-				if (this._indentationRules.decreaseIndentPattern && this._indentationRules.decreaseIndentPattern.test(afterEnterText)) {
-					return OnEnterSupport._OUTDENT;
-				}
-				if (this._indentationRules.indentNextLinePattern && this._indentationRules.indentNextLinePattern.test(oneLineAboveText)) {
-					return OnEnterSupport._OUTDENT;
-				}
-			}
-		}
 
 		// (4): Open bracket based logic
 		if (beforeEnterText.length > 0) {
 			for (let i = 0, len = this._brackets.length; i < len; i++) {
 				let bracket = this._brackets[i];
 				if (bracket.openRegExp.test(beforeEnterText)) {
-					return OnEnterSupport._INDENT;
+					return { indentAction: IndentAction.Indent };
 				}
 			}
 		}

@@ -7,12 +7,13 @@ import * as nls from 'vs/nls';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import * as dom from 'vs/base/browser/dom';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { DefaultController, ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
-import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
+import { DefaultController, ICancelableEvent, ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
+import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IContentWidget, ICodeEditor, IContentWidgetPosition, ContentWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
@@ -20,10 +21,14 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IDebugService, IExpression, IExpressionContainer } from 'vs/workbench/parts/debug/common/debug';
 import { Expression } from 'vs/workbench/parts/debug/common/debugModel';
 import { VariablesRenderer, renderExpressionValue, VariablesDataSource } from 'vs/workbench/parts/debug/electron-browser/debugViewer';
+import { IListService } from 'vs/platform/list/browser/listService';
+import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { attachListStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
 
 const $ = dom.$;
 const MAX_ELEMENTS_SHOWN = 18;
-const MAX_VALUE_RENDER_LENGTH_IN_HOVER = 4096;
 
 export class DebugHoverWidget implements IContentWidget {
 
@@ -42,15 +47,25 @@ export class DebugHoverWidget implements IContentWidget {
 	private valueContainer: HTMLElement;
 	private stoleFocus: boolean;
 	private toDispose: lifecycle.IDisposable[];
+	private scrollbar: DomScrollableElement;
 
-	constructor(private editor: ICodeEditor, private debugService: IDebugService, instantiationService: IInstantiationService) {
+	constructor(
+		private editor: ICodeEditor,
+		private debugService: IDebugService,
+		private listService: IListService,
+		instantiationService: IInstantiationService,
+		private themeService: IThemeService
+	) {
 		this.toDispose = [];
 		this.create(instantiationService);
 		this.registerListeners();
 
-		this.valueContainer = dom.append(this.domNode, $('.value'));
+		this.valueContainer = $('.value');
 		this.valueContainer.tabIndex = 0;
 		this.valueContainer.setAttribute('role', 'tooltip');
+		this.scrollbar = new DomScrollableElement(this.valueContainer, { horizontal: ScrollbarVisibility.Hidden });
+		this.domNode.appendChild(this.scrollbar.getDomNode());
+		this.toDispose.push(this.scrollbar);
 
 		this._isVisible = false;
 		this.showAtPosition = null;
@@ -73,15 +88,27 @@ export class DebugHoverWidget implements IContentWidget {
 		}, {
 				indentPixels: 6,
 				twistiePixels: 15,
-				ariaLabel: nls.localize('treeAriaLabel', "Debug Hover")
+				ariaLabel: nls.localize('treeAriaLabel', "Debug Hover"),
+				keyboardSupport: false
 			});
+
+		this.toDispose.push(attachListStyler(this.tree, this.themeService));
+		this.toDispose.push(this.listService.register(this.tree));
+		this.toDispose.push(attachStylerCallback(this.themeService, { editorHoverBackground, editorHoverBorder }, colors => {
+			this.domNode.style.backgroundColor = colors.editorHoverBackground;
+			if (colors.editorHoverBorder) {
+				this.domNode.style.border = `1px solid ${colors.editorHoverBorder}`;
+			} else {
+				this.domNode.style.border = null;
+			}
+		}));
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.tree.addListener2('item:expanded', () => {
+		this.toDispose.push(this.tree.addListener('item:expanded', () => {
 			this.layoutTree();
 		}));
-		this.toDispose.push(this.tree.addListener2('item:collapsed', () => {
+		this.toDispose.push(this.tree.addListener('item:collapsed', () => {
 			this.layoutTree();
 		}));
 
@@ -110,13 +137,13 @@ export class DebugHoverWidget implements IContentWidget {
 	}
 
 	private getExactExpressionRange(lineContent: string, range: Range): Range {
-		let matchingExpression = undefined;
+		let matchingExpression: string = undefined;
 		let startOffset = 0;
 
 		// Some example supported expressions: myVar.prop, a.b.c.d, myVar?.prop, myVar->prop, MyClass::StaticProp, *myVar
 		// Match any character except a set of characters which often break interesting sub-expressions
 		let expression: RegExp = /([^()\[\]{}<>\s+\-/%~#^;=|,`!]|\->)+/g;
-		let result = undefined;
+		let result: RegExpExecArray = undefined;
 
 		// First find the full expression under the cursor
 		while (result = expression.exec(lineContent)) {
@@ -134,7 +161,7 @@ export class DebugHoverWidget implements IContentWidget {
 		// For example in expression 'a.b.c.d', if the focus was under 'b', 'a.b' would be evaluated.
 		if (matchingExpression) {
 			let subExpression: RegExp = /\w+/g;
-			let subExpressionResult = undefined;
+			let subExpressionResult: RegExpExecArray = undefined;
 			while (subExpressionResult = subExpression.exec(matchingExpression)) {
 				let subEnd = subExpressionResult.index + 1 + startOffset + subExpressionResult[0].length;
 				if (subEnd >= range.endColumn) {
@@ -152,22 +179,22 @@ export class DebugHoverWidget implements IContentWidget {
 			new Range(range.startLineNumber, 0, range.endLineNumber, 0);
 	}
 
-	public showAt(range: Range, hoveringOver: string, focus: boolean): TPromise<void> {
+	public showAt(range: Range, focus: boolean): TPromise<void> {
 		const pos = range.getStartPosition();
-		const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
-		if (!hoveringOver || !focusedStackFrame || (focusedStackFrame.source.uri.toString() !== this.editor.getModel().uri.toString())) {
-			return;
-		}
 
 		const process = this.debugService.getViewModel().focusedProcess;
 		const lineContent = this.editor.getModel().getLineContent(pos.lineNumber);
 		const expressionRange = this.getExactExpressionRange(lineContent, range);
 		// use regex to extract the sub-expression #9821
 		const matchingExpression = lineContent.substring(expressionRange.startColumn - 1, expressionRange.endColumn);
+		if (!matchingExpression) {
+			return TPromise.as(this.hide());
+		}
+
 		let promise: TPromise<IExpression>;
-		if (process.session.configuration.capabilities.supportsEvaluateForHovers) {
+		if (process.session.capabilities.supportsEvaluateForHovers) {
 			const result = new Expression(matchingExpression);
-			promise = result.evaluate(process, focusedStackFrame, 'hover').then(() => result);
+			promise = result.evaluate(process, this.debugService.getViewModel().focusedStackFrame, 'hover').then(() => result);
 		} else {
 			promise = this.findExpressionInStackFrame(matchingExpression.split('.').map(word => word.trim()).filter(word => !!word), expressionRange);
 		}
@@ -175,7 +202,7 @@ export class DebugHoverWidget implements IContentWidget {
 		return promise.then(expression => {
 			if (!expression || (expression instanceof Expression && !expression.available)) {
 				this.hide();
-				return;
+				return undefined;
 			}
 
 			this.highlightDecorations = this.editor.deltaDecorations(this.highlightDecorations, [{
@@ -190,10 +217,13 @@ export class DebugHoverWidget implements IContentWidget {
 	}
 
 	private doFindExpression(container: IExpressionContainer, namesToFind: string[]): TPromise<IExpression> {
-		return container.getChildren(this.debugService).then(children => {
+		if (!container) {
+			return TPromise.as(null);
+		}
+
+		return container.getChildren().then(children => {
 			// look for our variable in the list. First find the parents of the hovered variable if there are any.
-			// some languages pass the type as part of the name, so need to check if the last word of the name matches.
-			const filtered = children.filter(v => typeof v.name === 'string' && (namesToFind[0] === v.name || namesToFind[0] === v.name.substr(v.name.lastIndexOf(' ') + 1)));
+			const filtered = children.filter(v => namesToFind[0] === v.name);
 			if (filtered.length !== 1) {
 				return null;
 			}
@@ -207,9 +237,7 @@ export class DebugHoverWidget implements IContentWidget {
 	}
 
 	private findExpressionInStackFrame(namesToFind: string[], expressionRange: Range): TPromise<IExpression> {
-		return this.debugService.getViewModel().focusedStackFrame.getScopes()
-			// no expensive scopes and if a range of scope is defined it needs to contain the variable
-			.then(scopes => scopes.filter(scope => !scope.expensive && (!scope.range || Range.containsRange(scope.range, expressionRange))))
+		return this.debugService.getViewModel().focusedStackFrame.getMostSpecificScopes(expressionRange)
 			.then(scopes => TPromise.join(scopes.map(scope => this.doFindExpression(scope, namesToFind))))
 			.then(expressions => expressions.filter(exp => !!exp))
 			// only show if all expressions found have the same value
@@ -226,11 +254,12 @@ export class DebugHoverWidget implements IContentWidget {
 			this.valueContainer.hidden = false;
 			renderExpressionValue(expression, this.valueContainer, {
 				showChanged: false,
-				maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_HOVER,
-				preserveWhitespace: true
+				preserveWhitespace: true,
+				colorize: true
 			});
 			this.valueContainer.title = '';
 			this.editor.layoutContentWidget(this);
+			this.scrollbar.scanDomNode();
 			if (focus) {
 				this.editor.render();
 				this.valueContainer.focus();
@@ -247,6 +276,7 @@ export class DebugHoverWidget implements IContentWidget {
 			this.complexValueTitle.title = expression.value;
 			this.layoutTree();
 			this.editor.layoutContentWidget(this);
+			this.scrollbar.scanDomNode();
 			if (focus) {
 				this.editor.render();
 				this.tree.DOMFocus();
@@ -305,7 +335,7 @@ export class DebugHoverWidget implements IContentWidget {
 class DebugHoverController extends DefaultController {
 
 	constructor(private editor: ICodeEditor) {
-		super();
+		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP, keyboardSupport: false });
 	}
 
 	protected onLeftClick(tree: ITree, element: any, eventish: ICancelableEvent, origin = 'mouse'): boolean {

@@ -79,6 +79,7 @@ export class EditStack {
 			onUnexpectedError(e);
 			this.currentOpenStackElement.afterCursorState = null;
 		}
+
 		this.currentOpenStackElement.afterVersionId = this.model.getVersionId();
 		return this.currentOpenStackElement.afterCursorState;
 	}

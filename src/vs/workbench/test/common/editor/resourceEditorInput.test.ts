@@ -10,7 +10,7 @@ import URI from 'vs/base/common/uri';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { workbenchInstantiationService } from 'vs/test/utils/servicesTestUtils';
+import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 
@@ -32,16 +32,14 @@ suite('Workbench - ResourceEditorInput', () => {
 		accessor = instantiationService.createInstance(ServiceAccessor);
 	});
 
-	test('simple', function (done) {
-		let resource = URI.from({ scheme: 'inMemory', authority: null, path: 'thePath' });
+	test('simple', function () {
+		let resource = URI.from({ scheme: 'inmemory', authority: null, path: 'thePath' });
 		accessor.modelService.createModel('function test() {}', accessor.modeService.getOrCreateMode('text'), resource);
 		let input: ResourceEditorInput = instantiationService.createInstance(ResourceEditorInput, 'The Name', 'The Description', resource);
 
-		input.resolve().then((model: ResourceEditorModel) => {
+		return input.resolve().then((model: ResourceEditorModel) => {
 			assert.ok(model);
 			assert.equal(model.getValue(), 'function test() {}');
-
-			done();
 		});
 	});
 });

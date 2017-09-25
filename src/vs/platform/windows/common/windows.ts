@@ -8,8 +8,29 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
+import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
+import { IProcessEnvironment } from 'vs/base/common/platform';
+import { ParsedArgs } from 'vs/platform/environment/common/environment';
+import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IRecentlyOpened } from 'vs/platform/history/common/history';
+import { ICommandAction } from 'vs/platform/actions/common/actions';
 
 export const IWindowsService = createDecorator<IWindowsService>('windowsService');
+
+export interface INativeOpenDialogOptions {
+	windowId?: number;
+	forceNewWindow?: boolean;
+
+	dialogOptions?: Electron.OpenDialogOptions;
+
+	telemetryEventName?: string;
+	telemetryExtraData?: ITelemetryData;
+}
+
+export interface IEnterWorkspaceResult {
+	workspace: IWorkspaceIdentifier;
+	backupPath: string;
+}
 
 export interface IWindowsService {
 
@@ -17,41 +38,61 @@ export interface IWindowsService {
 
 	onWindowOpen: Event<number>;
 	onWindowFocus: Event<number>;
+	onWindowBlur: Event<number>;
 
-	openFileFolderPicker(windowId: number, forceNewWindow?: boolean): TPromise<void>;
-	openFilePicker(windowId: number, forceNewWindow?: boolean, path?: string): TPromise<void>;
-	openFolderPicker(windowId: number, forceNewWindow?: boolean): TPromise<void>;
+	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
+	pickFileAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
+	pickFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	reloadWindow(windowId: number): TPromise<void>;
 	openDevTools(windowId: number): TPromise<void>;
 	toggleDevTools(windowId: number): TPromise<void>;
-	// TODO@joao: rename, shouldn't this be closeWindow?
-	closeFolder(windowId: number): TPromise<void>;
+	closeWorkspace(windowId: number): TPromise<void>;
+	openWorkspace(windowId: number): TPromise<void>;
+	createAndEnterWorkspace(windowId: number, folders?: string[], path?: string): TPromise<IEnterWorkspaceResult>;
+	saveAndEnterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult>;
 	toggleFullScreen(windowId: number): TPromise<void>;
 	setRepresentedFilename(windowId: number, fileName: string): TPromise<void>;
-	addToRecentlyOpen(paths: { path: string, isFile?: boolean }[]): TPromise<void>;
-	removeFromRecentlyOpen(paths: string[]): TPromise<void>;
-	getRecentlyOpen(windowId: number): TPromise<{ files: string[]; folders: string[]; }>;
+	addRecentlyOpened(files: string[]): TPromise<void>;
+	removeFromRecentlyOpened(paths: string[]): TPromise<void>;
+	clearRecentlyOpened(): TPromise<void>;
+	getRecentlyOpened(windowId: number): TPromise<IRecentlyOpened>;
 	focusWindow(windowId: number): TPromise<void>;
+	closeWindow(windowId: number): TPromise<void>;
+	isFocused(windowId: number): TPromise<boolean>;
 	isMaximized(windowId: number): TPromise<boolean>;
 	maximizeWindow(windowId: number): TPromise<void>;
 	unmaximizeWindow(windowId: number): TPromise<void>;
+	onWindowTitleDoubleClick(windowId: number): TPromise<void>;
 	setDocumentEdited(windowId: number, flag: boolean): TPromise<void>;
-	toggleMenuBar(windowId: number): TPromise<void>;
+	quit(): TPromise<void>;
+	relaunch(options: { addArgs?: string[], removeArgs?: string[] }): TPromise<void>;
+
+	// macOS Native Tabs
+	showPreviousWindowTab(): TPromise<void>;
+	showNextWindowTab(): TPromise<void>;
+	moveWindowTabToNewWindow(): TPromise<void>;
+	mergeAllWindowTabs(): TPromise<void>;
+	toggleWindowTabsBar(): TPromise<void>;
+
+	// macOS TouchBar
+	updateTouchBar(windowId: number, items: ICommandAction[][]): TPromise<void>;
+
+	// Shared process
+	whenSharedProcessReady(): TPromise<void>;
+	toggleSharedProcess(): TPromise<void>;
 
 	// Global methods
-	// TODO@joao: rename, shouldn't this be openWindow?
-	windowOpen(paths: string[], forceNewWindow?: boolean): TPromise<void>;
+	openWindow(paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean; }): TPromise<void>;
 	openNewWindow(): TPromise<void>;
 	showWindow(windowId: number): TPromise<void>;
-	getWindows(): TPromise<{ id: number; path: string; title: string; }[]>;
+	getWindows(): TPromise<{ id: number; workspace?: IWorkspaceIdentifier; folderPath?: string; title: string; filename?: string; }[]>;
+	getWindowCount(): TPromise<number>;
 	log(severity: string, ...messages: string[]): TPromise<void>;
-	// TODO@joao: what?
-	closeExtensionHostWindow(extensionDevelopmentPath: string): TPromise<void>;
 	showItemInFolder(path: string): TPromise<void>;
 
 	// This needs to be handled from browser process to prevent
 	// foreground ordering issues on Windows
-	openExternal(url: string): TPromise<void>;
+	openExternal(url: string): TPromise<boolean>;
 
 	// TODO: this is a bit backwards
 	startCrashReporter(config: Electron.CrashReporterStartOptions): TPromise<void>;
@@ -63,23 +104,157 @@ export interface IWindowService {
 
 	_serviceBrand: any;
 
+	onDidChangeFocus: Event<boolean>;
+
 	getCurrentWindowId(): number;
-	openFileFolderPicker(forceNewWindow?: boolean): TPromise<void>;
-	openFilePicker(forceNewWindow?: boolean, path?: string): TPromise<void>;
-	openFolderPicker(forceNewWindow?: boolean): TPromise<void>;
+	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
+	pickFileAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
+	pickFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	reloadWindow(): TPromise<void>;
 	openDevTools(): TPromise<void>;
 	toggleDevTools(): TPromise<void>;
-	closeFolder(): TPromise<void>;
+	closeWorkspace(): TPromise<void>;
+	openWorkspace(): TPromise<void>;
+	updateTouchBar(items: ICommandAction[][]): TPromise<void>;
+	createAndEnterWorkspace(folders?: string[], path?: string): TPromise<IEnterWorkspaceResult>;
+	saveAndEnterWorkspace(path: string): TPromise<IEnterWorkspaceResult>;
 	toggleFullScreen(): TPromise<void>;
 	setRepresentedFilename(fileName: string): TPromise<void>;
-	addToRecentlyOpen(paths: { path: string, isFile?: boolean }[]): TPromise<void>;
-	removeFromRecentlyOpen(paths: string[]): TPromise<void>;
-	getRecentlyOpen(): TPromise<{ files: string[]; folders: string[]; }>;
+	getRecentlyOpened(): TPromise<IRecentlyOpened>;
 	focusWindow(): TPromise<void>;
+	closeWindow(): TPromise<void>;
+	isFocused(): TPromise<boolean>;
 	setDocumentEdited(flag: boolean): TPromise<void>;
-	toggleMenuBar(): TPromise<void>;
 	isMaximized(): TPromise<boolean>;
 	maximizeWindow(): TPromise<void>;
 	unmaximizeWindow(): TPromise<void>;
+	onWindowTitleDoubleClick(): TPromise<void>;
+	show(): TPromise<void>;
+	showMessageBox(options: Electron.MessageBoxOptions): number;
+	showSaveDialog(options: Electron.SaveDialogOptions, callback?: (fileName: string) => void): string;
+	showOpenDialog(options: Electron.OpenDialogOptions, callback?: (fileNames: string[]) => void): string[];
+}
+
+export type MenuBarVisibility = 'default' | 'visible' | 'toggle' | 'hidden';
+
+export interface IWindowsConfiguration {
+	window: IWindowSettings;
+}
+
+export interface IWindowSettings {
+	openFilesInNewWindow: 'on' | 'off' | 'default';
+	openFoldersInNewWindow: 'on' | 'off' | 'default';
+	restoreWindows: 'all' | 'folders' | 'one' | 'none';
+	reopenFolders: 'all' | 'one' | 'none'; // TODO@Ben deprecated
+	restoreFullscreen: boolean;
+	zoomLevel: number;
+	titleBarStyle: 'native' | 'custom';
+	autoDetectHighContrast: boolean;
+	menuBarVisibility: MenuBarVisibility;
+	newWindowDimensions: 'default' | 'inherit' | 'maximized' | 'fullscreen';
+	nativeTabs: boolean;
+	enableMenuBarMnemonics: boolean;
+	closeWhenEmpty: boolean;
+}
+
+export enum OpenContext {
+
+	// opening when running from the command line
+	CLI,
+
+	// macOS only: opening from the dock (also when opening files to a running instance from desktop)
+	DOCK,
+
+	// opening from the main application window
+	MENU,
+
+	// opening from a file or folder dialog
+	DIALOG,
+
+	// opening from the OS's UI
+	DESKTOP,
+
+	// opening through the API
+	API
+}
+
+export enum ReadyState {
+
+	/**
+	 * This window has not loaded any HTML yet
+	 */
+	NONE,
+
+	/**
+	 * This window is loading HTML
+	 */
+	LOADING,
+
+	/**
+	 * This window is navigating to another HTML
+	 */
+	NAVIGATING,
+
+	/**
+	 * This window is done loading HTML
+	 */
+	READY
+}
+
+export interface IPath {
+
+	// the file path to open within a Code instance
+	filePath?: string;
+
+	// the line number in the file path to open
+	lineNumber?: number;
+
+	// the column number in the file path to open
+	columnNumber?: number;
+}
+
+export interface IPathsToWaitFor {
+	paths: IPath[];
+	waitMarkerFilePath: string;
+}
+
+export interface IOpenFileRequest {
+	filesToOpen?: IPath[];
+	filesToCreate?: IPath[];
+	filesToDiff?: IPath[];
+	filesToWait?: IPathsToWaitFor;
+}
+
+export interface IAddFoldersRequest {
+	foldersToAdd: IPath[];
+}
+
+export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
+	appRoot: string;
+	execPath: string;
+	isInitialStartup?: boolean;
+
+	userEnv: IProcessEnvironment;
+	nodeCachedDataDir: string;
+
+	backupPath?: string;
+
+	workspace?: IWorkspaceIdentifier;
+	folderPath?: string;
+
+	zoomLevel?: number;
+	fullscreen?: boolean;
+	highContrast?: boolean;
+	baseTheme?: string;
+	backgroundColor?: string;
+	accessibilitySupport?: boolean;
+
+	perfStartTime?: number;
+	perfAppReady?: number;
+	perfWindowLoadTime?: number;
+}
+
+export interface IRunActionInWindowRequest {
+	id: string;
+	from: 'menu' | 'touchbar' | 'mouse';
 }

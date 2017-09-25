@@ -21,7 +21,7 @@ export function limitByIndent(ranges: IFoldingRange[], maxEntries: number): IFol
 		return ranges;
 	}
 
-	let indentOccurrences = [];
+	let indentOccurrences: number[] = [];
 	ranges.forEach(r => {
 		if (r.indent < 1000) {
 			indentOccurrences[r.indent] = (indentOccurrences[r.indent] || 0) + 1;

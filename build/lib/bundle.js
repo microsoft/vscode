@@ -1,11 +1,12 @@
+"use strict";
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-"use strict";
-var fs = require('fs');
-var path = require('path');
-var vm = require('vm');
+Object.defineProperty(exports, "__esModule", { value: true });
+var fs = require("fs");
+var path = require("path");
+var vm = require("vm");
 /**
  * Bundle `entryPoints` given config `config`.
  */
@@ -30,6 +31,9 @@ function bundle(entryPoints, config, callback) {
     r.call({}, require, loaderModule, loaderModule.exports);
     var loader = loaderModule.exports;
     config.isBuild = true;
+    config.paths = config.paths || {};
+    config.paths['vs/nls'] = 'out-build/vs/nls.build';
+    config.paths['vs/css'] = 'out-build/vs/css.build';
     loader.config(config);
     loader(['require'], function (localRequire) {
         var resolvePath = function (path) {
@@ -114,6 +118,7 @@ function emitEntryPoints(modules, entryPoints) {
         }
     });
     return {
+        // TODO@TS 2.1.2
         files: extractStrings(removeDuplicateTSBoilerplate(result)),
         bundleData: bundleData
     };
@@ -186,7 +191,7 @@ function extractStrings(destFiles) {
             path: null,
             contents: [
                 '(function() {',
-                ("var __m = " + JSON.stringify(sortedByUseModules) + ";"),
+                "var __m = " + JSON.stringify(sortedByUseModules) + ";",
                 "var __M = function(deps) {",
                 "  var result = [];",
                 "  for (var i = 0, len = deps.length; i < len; i++) {",
@@ -206,7 +211,7 @@ function extractStrings(destFiles) {
 function removeDuplicateTSBoilerplate(destFiles) {
     // Taken from typescript compiler => emitFiles
     var BOILERPLATE = [
-        { start: /^var __extends/, end: /^};$/ },
+        { start: /^var __extends/, end: /^}\)\(\);$/ },
         { start: /^var __assign/, end: /^};$/ },
         { start: /^var __decorate/, end: /^};$/ },
         { start: /^var __metadata/, end: /^};$/ },

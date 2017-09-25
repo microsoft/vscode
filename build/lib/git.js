@@ -2,9 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-"use strict";
-var path = require('path');
-var fs = require('fs');
+'use strict';
+Object.defineProperty(exports, "__esModule", { value: true });
+var path = require("path");
+var fs = require("fs");
 /**
  * Returns the sha1 commit version of a repository or undefined in case of failure.
  */
@@ -31,6 +32,7 @@ function getVersion(repo) {
         return fs.readFileSync(refPath, 'utf8').trim();
     }
     catch (e) {
+        // noop
     }
     var packedRefsPath = path.join(git, 'packed-refs');
     var refsRaw;

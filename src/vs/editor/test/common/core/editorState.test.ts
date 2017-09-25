@@ -7,8 +7,8 @@
 
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import { CodeEditorStateFlag, ICommonCodeEditor, IModel } from 'vs/editor/common/editorCommon';
-import { EditorState } from 'vs/editor/common/core/editorState';
+import { ICommonCodeEditor, IModel } from 'vs/editor/common/editorCommon';
+import { EditorState, CodeEditorStateFlag } from 'vs/editor/common/core/editorState';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
 
@@ -21,10 +21,12 @@ interface IStubEditorState {
 
 suite('Editor Core - Editor State', () => {
 
-	const allFlags = Object.keys(CodeEditorStateFlag)
-		.map(k => CodeEditorStateFlag[k])
-		.filter(v => typeof v === 'number') as number[];
-
+	const allFlags = (
+		CodeEditorStateFlag.Value
+		| CodeEditorStateFlag.Selection
+		| CodeEditorStateFlag.Position
+		| CodeEditorStateFlag.Scroll
+	);
 
 	test('empty editor state should be valid', () => {
 		let result = validate({}, {});

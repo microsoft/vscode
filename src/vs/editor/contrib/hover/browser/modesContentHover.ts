@@ -4,30 +4,42 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/css!vs/base/browser/ui/progressbar/progressbar';
 import * as nls from 'vs/nls';
-import URI from 'vs/base/common/uri';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { $ } from 'vs/base/browser/dom';
+import * as dom from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { renderMarkedString } from 'vs/base/browser/htmlContentRenderer';
-import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { Range } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
-import { IRange } from 'vs/editor/common/editorCommon';
-import { HoverProviderRegistry, Hover } from 'vs/editor/common/modes';
-import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
+import { HoverProviderRegistry, Hover, IColor, DocumentColorProvider } from 'vs/editor/common/modes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { getHover } from '../common/hover';
 import { HoverOperation, IHoverComputer } from './hoverOperation';
 import { ContentHoverWidget } from './hoverWidgets';
-import { textToMarkedString, MarkedString } from 'vs/base/common/htmlContent';
+import { IMarkdownString, MarkdownString, isEmptyMarkdownString } from 'vs/base/common/htmlContent';
+import { MarkdownRenderer } from 'vs/editor/contrib/markdown/browser/markdownRenderer';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/browser/colorPickerModel';
+import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
+import { ColorDetector } from 'vs/editor/contrib/colorPicker/browser/colorDetector';
+import { Color, RGBA } from 'vs/base/common/color';
+import { IDisposable, empty as EmptyDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
+import { getColorPresentations } from 'vs/editor/contrib/colorPicker/common/color';
+const $ = dom.$;
 
-class ModesContentComputer implements IHoverComputer<Hover[]> {
+class ColorHover {
+
+	constructor(
+		public readonly range: IRange,
+		public readonly color: IColor,
+		public readonly provider: DocumentColorProvider
+	) { }
+}
+
+type HoverPart = Hover | ColorHover;
+
+class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 
 	private _editor: ICodeEditor;
-	private _result: Hover[];
+	private _result: HoverPart[];
 	private _range: Range;
 
 	constructor(editor: ICodeEditor) {
@@ -44,7 +56,7 @@ class ModesContentComputer implements IHoverComputer<Hover[]> {
 		this._result = [];
 	}
 
-	computeAsync(): TPromise<Hover[]> {
+	computeAsync(): TPromise<HoverPart[]> {
 		const model = this._editor.getModel();
 
 		if (!HoverProviderRegistry.has(model)) {
@@ -57,7 +69,7 @@ class ModesContentComputer implements IHoverComputer<Hover[]> {
 		));
 	}
 
-	computeSync(): Hover[] {
+	computeSync(): HoverPart[] {
 		const lineNumber = this._range.startLineNumber;
 
 		if (lineNumber > this._editor.getModel().getLineCount()) {
@@ -65,59 +77,77 @@ class ModesContentComputer implements IHoverComputer<Hover[]> {
 			return [];
 		}
 
-		const hasHoverContent = (contents: MarkedString | MarkedString[]) => {
-			return contents && (!Array.isArray(contents) || (<MarkedString[]>contents).length > 0);
-		};
-
+		const colorDetector = ColorDetector.get(this._editor);
 		const maxColumn = this._editor.getModel().getLineMaxColumn(lineNumber);
 		const lineDecorations = this._editor.getLineDecorations(lineNumber);
+		let didFindColor = false;
 
 		const result = lineDecorations.map(d => {
 			const startColumn = (d.range.startLineNumber === lineNumber) ? d.range.startColumn : 1;
 			const endColumn = (d.range.endLineNumber === lineNumber) ? d.range.endColumn : maxColumn;
 
-			if (startColumn > this._range.startColumn || this._range.endColumn > endColumn || !hasHoverContent(d.options.hoverMessage)) {
+			if (startColumn > this._range.startColumn || this._range.endColumn > endColumn) {
 				return null;
 			}
 
 			const range = new Range(this._range.startLineNumber, startColumn, this._range.startLineNumber, endColumn);
-			let contents: MarkedString[];
+			const colorData = colorDetector.getColorData(d.range.getStartPosition());
 
-			if (d.options.hoverMessage) {
-				if (Array.isArray(d.options.hoverMessage)) {
-					contents = [...d.options.hoverMessage];
-				} else {
-					contents = [d.options.hoverMessage];
+			if (!didFindColor && colorData) {
+				didFindColor = true;
+
+				const { color } = colorData.colorInfo;
+				return new ColorHover(d.range, color, colorData.provider);
+			} else {
+				if (isEmptyMarkdownString(d.options.hoverMessage)) {
+					return null;
 				}
-			}
 
-			return { contents, range };
+				let contents: IMarkdownString[];
+
+				if (d.options.hoverMessage) {
+					if (Array.isArray(d.options.hoverMessage)) {
+						contents = [...d.options.hoverMessage];
+					} else {
+						contents = [d.options.hoverMessage];
+					}
+				}
+
+				return { contents, range };
+			}
 		});
 
 		return result.filter(d => !!d);
 	}
 
-	onResult(result: Hover[], isFromSynchronousComputation: boolean): void {
+	onResult(result: HoverPart[], isFromSynchronousComputation: boolean): void {
 		// Always put synchronous messages before asynchronous ones
 		if (isFromSynchronousComputation) {
-			this._result = result.concat(this._result);
+			this._result = result.concat(this._result.sort((a, b) => {
+				if (a instanceof ColorHover) { // sort picker messages at to the top
+					return -1;
+				} else if (b instanceof ColorHover) {
+					return 1;
+				}
+				return 0;
+			}));
 		} else {
 			this._result = this._result.concat(result);
 		}
 	}
 
-	getResult(): Hover[] {
+	getResult(): HoverPart[] {
 		return this._result.slice(0);
 	}
 
-	getResultWithLoadingMessage(): Hover[] {
+	getResultWithLoadingMessage(): HoverPart[] {
 		return this._result.slice(0).concat([this._getLoadingMessage()]);
 	}
 
-	private _getLoadingMessage(): Hover {
+	private _getLoadingMessage(): HoverPart {
 		return {
 			range: this._range,
-			contents: [textToMarkedString(nls.localize('modesContentHover.loading', "Loading..."))]
+			contents: [new MarkdownString().appendText(nls.localize('modesContentHover.loading', "Loading..."))]
 		};
 	}
 }
@@ -126,35 +156,50 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 	static ID = 'editor.contrib.modesContentHoverWidget';
 
-	private _messages: Hover[];
+	private _messages: HoverPart[];
 	private _lastRange: Range;
 	private _computer: ModesContentComputer;
-	private _hoverOperation: HoverOperation<Hover[]>;
+	private _hoverOperation: HoverOperation<HoverPart[]>;
 	private _highlightDecorations: string[];
 	private _isChangingDecorations: boolean;
-	private _openerService: IOpenerService;
-	private _modeService: IModeService;
+	private _markdownRenderer: MarkdownRenderer;
 	private _shouldFocus: boolean;
+	private _colorPicker: ColorPickerWidget;
 
-	constructor(editor: ICodeEditor, openerService: IOpenerService, modeService: IModeService) {
+	private renderDisposable: IDisposable = EmptyDisposable;
+	private toDispose: IDisposable[];
+
+	constructor(editor: ICodeEditor, markdownRenderner: MarkdownRenderer) {
 		super(ModesContentHoverWidget.ID, editor);
 
 		this._computer = new ModesContentComputer(this._editor);
 		this._highlightDecorations = [];
 		this._isChangingDecorations = false;
-		this._openerService = openerService || NullOpenerService;
-		this._modeService = modeService;
+		this._markdownRenderer = markdownRenderner;
 
 		this._hoverOperation = new HoverOperation(
 			this._computer,
-			(result: Hover[]) => this._withResult(result, true),
+			result => this._withResult(result, true),
 			null,
-			(result: any) => this._withResult(result, false)
+			result => this._withResult(result, false)
 		);
+
+		this.toDispose = [];
+		this.toDispose.push(dom.addStandardDisposableListener(this.getDomNode(), dom.EventType.FOCUS, () => {
+			if (this._colorPicker) {
+				dom.addClass(this.getDomNode(), 'colorpicker-hover');
+			}
+		}));
+		this.toDispose.push(dom.addStandardDisposableListener(this.getDomNode(), dom.EventType.BLUR, () => {
+			dom.removeClass(this.getDomNode(), 'colorpicker-hover');
+		}));
 	}
 
 	dispose(): void {
+		this.renderDisposable.dispose();
+		this.renderDisposable = EmptyDisposable;
 		this._hoverOperation.cancel();
+		this.toDispose = dispose(this.toDispose);
 		super.dispose();
 	}
 
@@ -167,7 +212,10 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			// we need to recompute the displayed text
 			this._hoverOperation.cancel();
 			this._computer.clearResult();
-			this._hoverOperation.start();
+
+			if (!this._colorPicker) { // TODO@Michel ensure that displayed text for other decorations is computed even if color picker is in place
+				this._hoverOperation.start();
+			}
 		}
 	}
 
@@ -186,7 +234,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			if (this._showAtPosition.lineNumber !== range.startLineNumber) {
 				this.hide();
 			} else {
-				var filteredMessages: Hover[] = [];
+				var filteredMessages: HoverPart[] = [];
 				for (var i = 0, len = this._messages.length; i < len; i++) {
 					var msg = this._messages[i];
 					var rng = msg.range;
@@ -215,9 +263,19 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		this._isChangingDecorations = true;
 		this._highlightDecorations = this._editor.deltaDecorations(this._highlightDecorations, []);
 		this._isChangingDecorations = false;
+		this.renderDisposable.dispose();
+		this.renderDisposable = EmptyDisposable;
+		this._colorPicker = null;
 	}
 
-	_withResult(result: Hover[], complete: boolean): void {
+	isColorPickerVisible(): boolean {
+		if (this._colorPicker) {
+			return true;
+		}
+		return false;
+	}
+
+	private _withResult(result: HoverPart[], complete: boolean): void {
 		this._messages = result;
 
 		if (this._lastRange && this._messages.length > 0) {
@@ -227,13 +285,16 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		}
 	}
 
-	private _renderMessages(renderRange: IRange, messages: Hover[]): void {
+	private _renderMessages(renderRange: Range, messages: HoverPart[]): void {
+		this.renderDisposable.dispose();
+		this._colorPicker = null;
 
 		// update column from which to show
 		var renderColumn = Number.MAX_VALUE,
 			highlightRange = messages[0].range,
 			fragment = document.createDocumentFragment();
 
+		let containColorPicker = false;
 		messages.forEach((msg) => {
 			if (!msg.range) {
 				return;
@@ -242,46 +303,106 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			renderColumn = Math.min(renderColumn, msg.range.startColumn);
 			highlightRange = Range.plusRange(highlightRange, msg.range);
 
-			msg.contents
-				.filter(contents => !!contents)
-				.forEach(contents => {
-					const renderedContents = renderMarkedString(contents, {
-						actionCallback: (content) => {
-							this._openerService.open(URI.parse(content)).then(void 0, onUnexpectedError);
-						},
-						codeBlockRenderer: (languageAlias, value): string | TPromise<string> => {
-							// In markdown,
-							// it is possible that we stumble upon language aliases (e.g.js instead of javascript)
-							// it is possible no alias is given in which case we fall back to the current editor lang
-							const modeId = languageAlias
-								? this._modeService.getModeIdForLanguageName(languageAlias)
-								: this._editor.getModel().getModeId();
-
-							return this._modeService.getOrCreateMode(modeId).then(_ => {
-								return `<div class="code">${tokenizeToString(value, modeId)}</div>`;
-							});
-						}
+			if (!(msg instanceof ColorHover)) {
+				msg.contents
+					.filter(contents => !isEmptyMarkdownString(contents))
+					.forEach(contents => {
+						const renderedContents = this._markdownRenderer.render(contents);
+						fragment.appendChild($('div.hover-row', null, renderedContents));
 					});
+			} else {
+				containColorPicker = true;
 
-					fragment.appendChild($('div.hover-row', null, renderedContents));
+				const { red, green, blue, alpha } = msg.color;
+				const rgba = new RGBA(red * 255, green * 255, blue * 255, alpha);
+				const color = new Color(rgba);
+
+				const editorModel = this._editor.getModel();
+				let range = new Range(msg.range.startLineNumber, msg.range.startColumn, msg.range.endLineNumber, msg.range.endColumn);
+				let colorInfo = { range: msg.range, color: msg.color };
+
+				// create blank olor picker model and widget first to ensure it's positioned correctly.
+				const model = new ColorPickerModel(color, [], 0);
+				const widget = new ColorPickerWidget(fragment, model, this._editor.getConfiguration().pixelRatio);
+
+				getColorPresentations(editorModel, colorInfo, msg.provider).then(colorPresentations => {
+					model.colorPresentations = colorPresentations;
+					const originalText = this._editor.getModel().getValueInRange(msg.range);
+					model.guessColorPresentation(color, originalText);
+
+					const updateEditorModel = () => {
+						let textEdits;
+						let newRange;
+						if (model.presentation.textEdit) {
+							textEdits = [model.presentation.textEdit];
+							newRange = new Range(
+								model.presentation.textEdit.range.startLineNumber,
+								model.presentation.textEdit.range.startColumn,
+								model.presentation.textEdit.range.endLineNumber,
+								model.presentation.textEdit.range.endColumn
+							);
+							newRange = newRange.setEndPosition(newRange.endLineNumber, newRange.startColumn + model.presentation.textEdit.text.length);
+						} else {
+							textEdits = [{ identifier: null, range, text: model.presentation.label, forceMoveMarkers: false }];
+							newRange = range.setEndPosition(range.endLineNumber, range.startColumn + model.presentation.label.length);
+						}
+
+						editorModel.pushEditOperations([], textEdits, () => []);
+
+						if (model.presentation.additionalTextEdits) {
+							textEdits = [...model.presentation.additionalTextEdits];
+							editorModel.pushEditOperations([], textEdits, () => []);
+							this.hide();
+						}
+						this._editor.pushUndoStop();
+						range = newRange;
+					};
+
+					const updateColorPresentations = (color: Color) => {
+						return getColorPresentations(editorModel, {
+							range: range,
+							color: {
+								red: color.rgba.r / 255,
+								green: color.rgba.g / 255,
+								blue: color.rgba.b / 255,
+								alpha: color.rgba.a
+							}
+						}, msg.provider).then((colorPresentations) => {
+							model.colorPresentations = colorPresentations;
+						});
+					};
+
+					const colorListener = model.onColorFlushed((color: Color) => {
+						updateColorPresentations(color).then(updateEditorModel);
+					});
+					const colorChangeListener = model.onDidChangeColor(updateColorPresentations);
+
+					this._colorPicker = widget;
+					this.showAt(new Position(renderRange.startLineNumber, renderColumn), this._shouldFocus);
+					this.updateContents(fragment);
+					this._colorPicker.layout();
+
+					this.renderDisposable = combinedDisposable([colorListener, colorChangeListener, widget]);
 				});
+			}
 		});
 
 		// show
-		this.showAt({
-			lineNumber: renderRange.startLineNumber,
-			column: renderColumn
-		}, this._shouldFocus);
 
-		this.updateContents(fragment);
+		if (!containColorPicker) {
+			this.showAt(new Position(renderRange.startLineNumber, renderColumn), this._shouldFocus);
+			this.updateContents(fragment);
+		}
 
 		this._isChangingDecorations = true;
 		this._highlightDecorations = this._editor.deltaDecorations(this._highlightDecorations, [{
 			range: highlightRange,
-			options: {
-				className: 'hoverHighlight'
-			}
+			options: ModesContentHoverWidget._DECORATION_OPTIONS
 		}]);
 		this._isChangingDecorations = false;
 	}
+
+	private static _DECORATION_OPTIONS = ModelDecorationOptions.register({
+		className: 'hoverHighlight'
+	});
 }

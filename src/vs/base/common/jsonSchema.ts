@@ -22,7 +22,7 @@ export interface IJSONSchema {
 	minItems?: number;
 	maxItems?: number;
 	uniqueItems?: boolean;
-	additionalItems?: boolean;
+	additionalItems?: boolean | IJSONSchema;
 	pattern?: string;
 	minLength?: number;
 	maxLength?: number;
@@ -40,11 +40,21 @@ export interface IJSONSchema {
 	enum?: any[];
 	format?: string;
 
-	defaultSnippets?: { label?: string; description?: string; body: any; }[]; // VSCode extension
+	defaultSnippets?: IJSONSchemaSnippet[]; // VSCode extension
 	errorMessage?: string; // VSCode extension
-	deprecatedMessage?: string; // VSCode extension
+	patternErrorMessage?: string; // VSCode extension
+	deprecationMessage?: string; // VSCode extension
+	enumDescriptions?: string[]; // VSCode extension
+	doNotSuggest?: boolean; // VSCode extension
 }
 
 export interface IJSONSchemaMap {
 	[name: string]: IJSONSchema;
+}
+
+export interface IJSONSchemaSnippet {
+	label?: string;
+	description?: string;
+	body?: any; // a object that will be JSON stringified
+	bodyText?: string; // an already stringified JSON object that can contain new lines (\n) and tabs (\t)
 }

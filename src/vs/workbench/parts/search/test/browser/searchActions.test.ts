@@ -6,15 +6,20 @@
 
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import { TestInstantiationService, stubFunction } from 'vs/test/utils/instantiationTestUtils';
+import { TestInstantiationService, stubFunction } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { Match, FileMatch, FileMatchOrMatch } from 'vs/workbench/parts/search/common/searchModel';
 import { ReplaceAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { ArrayNavigator } from 'vs/base/common/iterator';
 import { IFileMatch } from 'vs/platform/search/common/search';
-import { createMockModelService } from 'vs/test/utils/servicesTestUtils';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
+import { OS } from 'vs/base/common/platform';
+import { Keybinding } from 'vs/base/common/keyCodes';
 
 suite('Search Actions', () => {
 
@@ -23,8 +28,10 @@ suite('Search Actions', () => {
 
 	setup(() => {
 		instantiationService = new TestInstantiationService();
-		instantiationService.stub(IModelService, createMockModelService(instantiationService));
-		instantiationService.stub(IKeybindingService);
+		instantiationService.stub(IModelService, stubModelService(instantiationService));
+		instantiationService.stub(IKeybindingService, {});
+		instantiationService.stub(IKeybindingService, 'resolveKeybinding', (keybinding: Keybinding) => [new USLayoutResolvedKeybinding(keybinding, OS)]);
+		instantiationService.stub(IKeybindingService, 'lookupKeybinding', (id: string) => null);
 		counter = 0;
 	});
 
@@ -124,7 +131,7 @@ suite('Search Actions', () => {
 			resource: URI.file('somepath' + ++counter),
 			lineMatches: []
 		};
-		return instantiationService.createInstance(FileMatch, null, null, rawMatch);
+		return instantiationService.createInstance(FileMatch, null, null, null, rawMatch);
 	}
 
 	function aMatch(fileMatch: FileMatch): Match {
@@ -135,5 +142,10 @@ suite('Search Actions', () => {
 
 	function aTree(elements: FileMatchOrMatch[]): any {
 		return stubFunction(Tree, 'getNavigator', () => { return new ArrayNavigator(elements); });
+	}
+
+	function stubModelService(instantiationService: TestInstantiationService): IModelService {
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		return instantiationService.createInstance(ModelServiceImpl);
 	}
 });

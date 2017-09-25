@@ -30,7 +30,6 @@ export interface IDomEvent {
 	(element: EventHandler, type: 'MSPointerUp', useCapture?: boolean): _Event<MSPointerEvent>;
 	(element: EventHandler, type: 'abort', useCapture?: boolean): _Event<UIEvent>;
 	(element: EventHandler, type: 'activate', useCapture?: boolean): _Event<UIEvent>;
-	(element: EventHandler, type: 'ariarequest', useCapture?: boolean): _Event<AriaRequestEvent>;
 	(element: EventHandler, type: 'beforeactivate', useCapture?: boolean): _Event<UIEvent>;
 	(element: EventHandler, type: 'beforecopy', useCapture?: boolean): _Event<DragEvent>;
 	(element: EventHandler, type: 'beforecut', useCapture?: boolean): _Event<DragEvent>;
@@ -41,7 +40,6 @@ export interface IDomEvent {
 	(element: EventHandler, type: 'canplaythrough', useCapture?: boolean): _Event<Event>;
 	(element: EventHandler, type: 'change', useCapture?: boolean): _Event<Event>;
 	(element: EventHandler, type: 'click', useCapture?: boolean): _Event<MouseEvent>;
-	(element: EventHandler, type: 'command', useCapture?: boolean): _Event<CommandEvent>;
 	(element: EventHandler, type: 'contextmenu', useCapture?: boolean): _Event<PointerEvent>;
 	(element: EventHandler, type: 'copy', useCapture?: boolean): _Event<DragEvent>;
 	(element: EventHandler, type: 'cuechange', useCapture?: boolean): _Event<Event>;
@@ -114,14 +112,14 @@ export interface IDomEvent {
 	(element: EventHandler, type: string, useCapture?: boolean): _Event<any>;
 }
 
-export const domEvent: IDomEvent = (element: EventHandler, type: string, useCapture?) => {
+export const domEvent: IDomEvent = (element: EventHandler, type: string, useCapture?: boolean) => {
 	const fn = e => emitter.fire(e);
 	const emitter = new Emitter<any>({
 		onFirstListenerAdd: () => {
-			element.addEventListener(type, fn);
+			element.addEventListener(type, fn, useCapture);
 		},
 		onLastListenerRemove: () => {
-			element.removeEventListener(type, fn);
+			element.removeEventListener(type, fn, useCapture);
 		}
 	});
 

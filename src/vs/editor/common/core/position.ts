@@ -4,7 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IPosition } from 'vs/editor/common/editorCommon';
+/**
+ * A position in the editor. This interface is suitable for serialization.
+ */
+export interface IPosition {
+	/**
+	 * line number (starts at 1)
+	 */
+	readonly lineNumber: number;
+	/**
+	 * column (the first character in a line is between column 1 and column 2)
+	 */
+	readonly column: number;
+}
 
 /**
  * A position in the editor.
@@ -88,6 +100,22 @@ export class Position {
 			return false;
 		}
 		return a.column <= b.column;
+	}
+
+	/**
+	 * A function that compares positions, useful for sorting
+	 */
+	public static compare(a: IPosition, b: IPosition): number {
+		let aLineNumber = a.lineNumber | 0;
+		let bLineNumber = b.lineNumber | 0;
+
+		if (aLineNumber === bLineNumber) {
+			let aColumn = a.column | 0;
+			let bColumn = b.column | 0;
+			return aColumn - bColumn;
+		}
+
+		return aLineNumber - bLineNumber;
 	}
 
 	/**

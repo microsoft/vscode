@@ -14,19 +14,23 @@
 	transition: opacity 0.5s;
 }
 
-.monaco-editor .margin-view-overlays:hover .folding {
+.monaco-editor .margin-view-overlays .folding {
 	background-image: url('arrow-expand.svg');
+}
+
+.monaco-editor.hc-black .margin-view-overlays .folding,
+.monaco-editor.vs-dark .margin-view-overlays .folding {
+	background-image: url('arrow-expand-dark.svg');
+}
+
+.monaco-editor .margin-view-overlays:hover .folding,
+.monaco-editor.alwaysShowFoldIcons .margin-view-overlays .folding {
 	opacity: 1;
 }
 
 .monaco-editor .margin-view-overlays .folding.collapsed {
 	background-image: url('arrow-collapse.svg');
 	opacity: 1;
-}
-
-.monaco-editor.hc-black .margin-view-overlays:hover .folding,
-.monaco-editor.vs-dark .margin-view-overlays:hover .folding {
-	background-image: url('arrow-expand-dark.svg');
 }
 
 .monaco-editor.hc-black .margin-view-overlays .folding.collapsed,

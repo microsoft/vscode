@@ -10,7 +10,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { isObject } from 'vs/base/common/types';
-import { isChrome, isWebKit } from 'vs/base/browser/browser';
+import * as browser from 'vs/base/browser/browser';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { CharCode } from 'vs/base/common/charCode';
@@ -56,183 +56,176 @@ export function isInDOM(node: Node): boolean {
 	return false;
 }
 
-let lastStart: number, lastEnd: number;
+const _manualClassList = new class {
 
-function _findClassName(node: HTMLElement, className: string): void {
+	private _lastStart: number;
+	private _lastEnd: number;
 
-	let classes = node.className;
-	if (!classes) {
-		lastStart = -1;
-		return;
-	}
+	private _findClassName(node: HTMLElement, className: string): void {
 
-	className = className.trim();
-
-	let classesLen = classes.length,
-		classLen = className.length;
-
-	if (classLen === 0) {
-		lastStart = -1;
-		return;
-	}
-
-	if (classesLen < classLen) {
-		lastStart = -1;
-		return;
-	}
-
-	if (classes === className) {
-		lastStart = 0;
-		lastEnd = classesLen;
-		return;
-	}
-
-	let idx = -1,
-		idxEnd: number;
-
-	while ((idx = classes.indexOf(className, idx + 1)) >= 0) {
-
-		idxEnd = idx + classLen;
-
-		// a class that is followed by another class
-		if ((idx === 0 || classes.charCodeAt(idx - 1) === CharCode.Space) && classes.charCodeAt(idxEnd) === CharCode.Space) {
-			lastStart = idx;
-			lastEnd = idxEnd + 1;
+		let classes = node.className;
+		if (!classes) {
+			this._lastStart = -1;
 			return;
 		}
 
-		// last class
-		if (idx > 0 && classes.charCodeAt(idx - 1) === CharCode.Space && idxEnd === classesLen) {
-			lastStart = idx - 1;
-			lastEnd = idxEnd;
+		className = className.trim();
+
+		let classesLen = classes.length,
+			classLen = className.length;
+
+		if (classLen === 0) {
+			this._lastStart = -1;
 			return;
 		}
 
-		// equal - duplicate of cmp above
-		if (idx === 0 && idxEnd === classesLen) {
-			lastStart = 0;
-			lastEnd = idxEnd;
+		if (classesLen < classLen) {
+			this._lastStart = -1;
 			return;
 		}
+
+		if (classes === className) {
+			this._lastStart = 0;
+			this._lastEnd = classesLen;
+			return;
+		}
+
+		let idx = -1,
+			idxEnd: number;
+
+		while ((idx = classes.indexOf(className, idx + 1)) >= 0) {
+
+			idxEnd = idx + classLen;
+
+			// a class that is followed by another class
+			if ((idx === 0 || classes.charCodeAt(idx - 1) === CharCode.Space) && classes.charCodeAt(idxEnd) === CharCode.Space) {
+				this._lastStart = idx;
+				this._lastEnd = idxEnd + 1;
+				return;
+			}
+
+			// last class
+			if (idx > 0 && classes.charCodeAt(idx - 1) === CharCode.Space && idxEnd === classesLen) {
+				this._lastStart = idx - 1;
+				this._lastEnd = idxEnd;
+				return;
+			}
+
+			// equal - duplicate of cmp above
+			if (idx === 0 && idxEnd === classesLen) {
+				this._lastStart = 0;
+				this._lastEnd = idxEnd;
+				return;
+			}
+		}
+
+		this._lastStart = -1;
 	}
 
-	lastStart = -1;
-}
+	hasClass(node: HTMLElement, className: string): boolean {
+		this._findClassName(node, className);
+		return this._lastStart !== -1;
+	}
 
-/**
- * @param node a dom node
- * @param className a class name
- * @return true if the className attribute of the provided node contains the provided className
- */
-export function hasClass(node: HTMLElement, className: string): boolean {
-	_findClassName(node, className);
-	return lastStart !== -1;
-}
-
-/**
- * Adds the provided className to the provided node. This is a no-op
- * if the class is already set.
- * @param node a dom node
- * @param className a class name
- */
-export function addClass(node: HTMLElement, className: string): void {
-	if (!node.className) { // doesn't have it for sure
-		node.className = className;
-	} else {
-		_findClassName(node, className); // see if it's already there
-		if (lastStart === -1) {
-			node.className = node.className + ' ' + className;
+	addClass(node: HTMLElement, className: string): void {
+		if (!node.className) { // doesn't have it for sure
+			node.className = className;
+		} else {
+			this._findClassName(node, className); // see if it's already there
+			if (this._lastStart === -1) {
+				node.className = node.className + ' ' + className;
+			}
 		}
 	}
-}
 
-/**
- * Removes the className for the provided node. This is a no-op
- * if the class isn't present.
- * @param node a dom node
- * @param className a class name
- */
-export function removeClass(node: HTMLElement, className: string): void {
-	_findClassName(node, className);
-	if (lastStart === -1) {
-		return; // Prevent styles invalidation if not necessary
-	} else {
-		node.className = node.className.substring(0, lastStart) + node.className.substring(lastEnd);
+	removeClass(node: HTMLElement, className: string): void {
+		this._findClassName(node, className);
+		if (this._lastStart === -1) {
+			return; // Prevent styles invalidation if not necessary
+		} else {
+			node.className = node.className.substring(0, this._lastStart) + node.className.substring(this._lastEnd);
+		}
 	}
-}
 
-/**
- * @param node a dom node
- * @param className a class name
- * @param shouldHaveIt
- */
-export function toggleClass(node: HTMLElement, className: string, shouldHaveIt?: boolean): void {
-	_findClassName(node, className);
-	if (lastStart !== -1 && (shouldHaveIt === void 0 || !shouldHaveIt)) {
-		removeClass(node, className);
+	toggleClass(node: HTMLElement, className: string, shouldHaveIt?: boolean): void {
+		this._findClassName(node, className);
+		if (this._lastStart !== -1 && (shouldHaveIt === void 0 || !shouldHaveIt)) {
+			this.removeClass(node, className);
+		}
+		if (this._lastStart === -1 && (shouldHaveIt === void 0 || shouldHaveIt)) {
+			this.addClass(node, className);
+		}
 	}
-	if (lastStart === -1 && (shouldHaveIt === void 0 || shouldHaveIt)) {
-		addClass(node, className);
+};
+
+const _nativeClassList = new class {
+	hasClass(node: HTMLElement, className: string): boolean {
+		return className && node.classList && node.classList.contains(className);
 	}
-}
 
-class DomListener extends Disposable {
+	addClass(node: HTMLElement, className: string): void {
+		if (className && node.classList) {
+			node.classList.add(className);
+		}
+	}
 
-	private _usedAddEventListener: boolean;
-	private _wrapHandler: (e: any) => void;
-	private _node: any;
-	private _type: string;
-	private _useCapture: boolean;
+	removeClass(node: HTMLElement, className: string): void {
+		if (className && node.classList) {
+			node.classList.remove(className);
+		}
+	}
 
-	constructor(node: Element | Window | Document, type: string, handler: (e: any) => void, useCapture?: boolean) {
-		super();
+	toggleClass(node: HTMLElement, className: string, shouldHaveIt?: boolean): void {
+		if (node.classList) {
+			node.classList.toggle(className, shouldHaveIt);
+		}
+	}
+};
 
+// In IE11 there is only partial support for `classList` which makes us keep our
+// custom implementation. Otherwise use the native implementation, see: http://caniuse.com/#search=classlist
+const _classList = browser.isIE ? _manualClassList : _nativeClassList;
+export const hasClass: (node: HTMLElement, className: string) => boolean = _classList.hasClass.bind(_classList);
+export const addClass: (node: HTMLElement, className: string) => void = _classList.addClass.bind(_classList);
+export const removeClass: (node: HTMLElement, className: string) => void = _classList.removeClass.bind(_classList);
+export const toggleClass: (node: HTMLElement, className: string, shouldHaveIt?: boolean) => void = _classList.toggleClass.bind(_classList);
+
+class DomListener implements IDisposable {
+
+	private _handler: (e: any) => void;
+	private _node: Element | Window | Document;
+	private readonly _type: string;
+	private readonly _useCapture: boolean;
+
+	constructor(node: Element | Window | Document, type: string, handler: (e: any) => void, useCapture: boolean) {
 		this._node = node;
 		this._type = type;
+		this._handler = handler;
 		this._useCapture = (useCapture || false);
-
-		this._wrapHandler = (e) => {
-			e = e || window.event;
-			handler(e);
-		};
-
-		if (typeof this._node.addEventListener === 'function') {
-			this._usedAddEventListener = true;
-			this._node.addEventListener(this._type, this._wrapHandler, this._useCapture);
-		} else {
-			this._usedAddEventListener = false;
-			this._node.attachEvent('on' + this._type, this._wrapHandler);
-		}
+		this._node.addEventListener(this._type, this._handler, this._useCapture);
 	}
 
 	public dispose(): void {
-		if (!this._wrapHandler) {
+		if (!this._handler) {
 			// Already disposed
 			return;
 		}
 
-		if (this._usedAddEventListener) {
-			this._node.removeEventListener(this._type, this._wrapHandler, this._useCapture);
-		} else {
-			this._node.detachEvent('on' + this._type, this._wrapHandler);
-		}
+		this._node.removeEventListener(this._type, this._handler, this._useCapture);
 
 		// Prevent leakers from holding on to the dom or handler func
 		this._node = null;
-		this._wrapHandler = null;
+		this._handler = null;
 	}
 }
 
-export function addDisposableListener(node: Element, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
-export function addDisposableListener(node: Element | Window, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
-export function addDisposableListener(node: Window, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
-export function addDisposableListener(node: Document, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
-export function addDisposableListener(node: any, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+export function addDisposableListener(node: Element | Window | Document, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable {
 	return new DomListener(node, type, handler, useCapture);
 }
 
 export interface IAddStandardDisposableListenerSignature {
 	(node: HTMLElement, type: 'click', handler: (event: IMouseEvent) => void, useCapture?: boolean): IDisposable;
+	(node: HTMLElement, type: 'mousedown', handler: (event: IMouseEvent) => void, useCapture?: boolean): IDisposable;
 	(node: HTMLElement, type: 'keydown', handler: (event: IKeyboardEvent) => void, useCapture?: boolean): IDisposable;
 	(node: HTMLElement, type: 'keypress', handler: (event: IKeyboardEvent) => void, useCapture?: boolean): IDisposable;
 	(node: HTMLElement, type: 'keyup', handler: (event: IKeyboardEvent) => void, useCapture?: boolean): IDisposable;
@@ -251,27 +244,13 @@ function _wrapAsStandardKeyboardEvent(handler: (e: IKeyboardEvent) => void): (e:
 export let addStandardDisposableListener: IAddStandardDisposableListenerSignature = function addStandardDisposableListener(node: HTMLElement, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable {
 	let wrapHandler = handler;
 
-	if (type === 'click') {
+	if (type === 'click' || type === 'mousedown') {
 		wrapHandler = _wrapAsStandardMouseEvent(handler);
 	} else if (type === 'keydown' || type === 'keypress' || type === 'keyup') {
 		wrapHandler = _wrapAsStandardKeyboardEvent(handler);
 	}
 
-	node.addEventListener(type, wrapHandler, useCapture || false);
-	return {
-		dispose: function () {
-			if (!wrapHandler) {
-				// Already removed
-				return;
-			}
-			node.removeEventListener(type, wrapHandler, useCapture || false);
-
-			// Prevent leakers from holding on to the dom node or handler func
-			wrapHandler = null;
-			node = null;
-			handler = null;
-		}
-	};
+	return addDisposableListener(node, type, wrapHandler, useCapture);
 };
 
 export function addDisposableNonBubblingMouseOutListener(node: Element, handler: (event: MouseEvent) => void): IDisposable {
@@ -413,21 +392,7 @@ class AnimationFrameQueueItem implements IDisposable {
 
 		if (!animFrameRequested) {
 			animFrameRequested = true;
-
-			// TODO@Alex: also check if it is electron
-			if (isChrome) {
-				let handle: number;
-				_animationFrame.request(function () {
-					clearTimeout(handle);
-					animationFrameRunner();
-				});
-				// This is a fallback in-case chrome dropped
-				// the request for an animation frame. This
-				// is sick but was spotted in the wild
-				handle = setTimeout(animationFrameRunner, 1000);
-			} else {
-				_animationFrame.request(animationFrameRunner);
-			}
+			_animationFrame.request(animationFrameRunner);
 		}
 
 		return item;
@@ -444,9 +409,9 @@ class AnimationFrameQueueItem implements IDisposable {
 	};
 })();
 
-/// <summary>
-/// Add a throttled listener. `handler` is fired at most every 16ms or with the next animation frame (if browser supports it).
-/// </summary>
+/**
+ * Add a throttled listener. `handler` is fired at most every 16ms or with the next animation frame (if browser supports it).
+ */
 export interface IEventMerger<R> {
 	(lastEvent: R, currentEvent: Event): R;
 }
@@ -461,7 +426,7 @@ class TimeoutThrottledDomListener<R> extends Disposable {
 	constructor(node: any, type: string, handler: (event: R) => void, eventMerger: IEventMerger<R> = <any>DEFAULT_EVENT_MERGER, minimumTimeMs: number = MINIMUM_TIME_MS) {
 		super();
 
-		let lastEvent = null;
+		let lastEvent: R = null;
 		let lastHandlerTime = 0;
 		let timeout = this._register(new TimeoutTimer());
 
@@ -718,11 +683,11 @@ export function findParentWithClass(node: HTMLElement, clazz: string, stopAtClaz
 	return null;
 }
 
-export function createStyleSheet(): HTMLStyleElement {
+export function createStyleSheet(container: HTMLElement = document.getElementsByTagName('head')[0]): HTMLStyleElement {
 	let style = document.createElement('style');
 	style.type = 'text/css';
 	style.media = 'screen';
-	document.getElementsByTagName('head')[0].appendChild(style);
+	container.appendChild(style);
 	return style;
 }
 
@@ -745,7 +710,7 @@ export function createCSSRule(selector: string, cssText: string, style: HTMLStyl
 		return;
 	}
 
-	(<any>style.sheet).insertRule(selector + '{' + cssText + '}', 0);
+	(<CSSStyleSheet>style.sheet).insertRule(selector + '{' + cssText + '}', 0);
 }
 
 export function getCSSRule(selector: string, style: HTMLStyleElement = sharedStyle): any {
@@ -774,8 +739,7 @@ export function removeCSSRulesContainingSelector(ruleName: string, style = share
 	let toDelete: number[] = [];
 	for (let i = 0; i < rules.length; i++) {
 		let rule = rules[i];
-		let normalizedSelectorText = rule.selectorText.replace(/::/gi, ':');
-		if (normalizedSelectorText.indexOf(ruleName) !== -1) {
+		if (rule.selectorText.indexOf(ruleName) !== -1) {
 			toDelete.push(i);
 		}
 	}
@@ -795,6 +759,7 @@ export function isHTMLElement(o: any): o is HTMLElement {
 export const EventType = {
 	// Mouse
 	CLICK: 'click',
+	AUXCLICK: 'auxclick', // >= Chrome 56
 	DBLCLICK: 'dblclick',
 	MOUSE_UP: 'mouseup',
 	MOUSE_DOWN: 'mousedown',
@@ -833,9 +798,9 @@ export const EventType = {
 	DROP: 'drop',
 	DRAG_END: 'dragend',
 	// Animation
-	ANIMATION_START: isWebKit ? 'webkitAnimationStart' : 'animationstart',
-	ANIMATION_END: isWebKit ? 'webkitAnimationEnd' : 'animationend',
-	ANIMATION_ITERATION: isWebKit ? 'webkitAnimationIteration' : 'animationiteration'
+	ANIMATION_START: browser.isWebKit ? 'webkitAnimationStart' : 'animationstart',
+	ANIMATION_END: browser.isWebKit ? 'webkitAnimationEnd' : 'animationend',
+	ANIMATION_ITERATION: browser.isWebKit ? 'webkitAnimationIteration' : 'animationiteration'
 };
 
 export interface EventLike {
@@ -899,7 +864,7 @@ class FocusTracker extends Disposable implements IFocusTracker {
 
 		this._eventEmitter = this._register(new EventEmitter());
 
-		let onFocus = (event) => {
+		let onFocus = (event: Event) => {
 			loosingFocus = false;
 			if (!hasFocus) {
 				hasFocus = true;
@@ -907,7 +872,7 @@ class FocusTracker extends Disposable implements IFocusTracker {
 			}
 		};
 
-		let onBlur = (event) => {
+		let onBlur = (event: Event) => {
 			if (hasFocus) {
 				loosingFocus = true;
 				window.setTimeout(() => {
@@ -925,11 +890,11 @@ class FocusTracker extends Disposable implements IFocusTracker {
 	}
 
 	public addFocusListener(fn: () => void): IDisposable {
-		return this._eventEmitter.addListener2('focus', fn);
+		return this._eventEmitter.addListener('focus', fn);
 	}
 
 	public addBlurListener(fn: () => void): IDisposable {
-		return this._eventEmitter.addListener2('blur', fn);
+		return this._eventEmitter.addListener('blur', fn);
 	}
 }
 
@@ -1075,4 +1040,17 @@ export function domContentLoaded(): TPromise<any> {
 			window.addEventListener('DOMContentLoaded', c, false);
 		}
 	});
+}
+
+/**
+ * Find a value usable for a dom node size such that the likelihood that it would be
+ * displayed with constant screen pixels size is as high as possible.
+ *
+ * e.g. We would desire for the cursors to be 2px (CSS px) wide. Under a devicePixelRatio
+ * of 1.25, the cursor will be 2.5 screen pixels wide. Depending on how the dom node aligns/"snaps"
+ * with the screen pixels, it will sometimes be rendered with 2 screen pixels, and sometimes with 3 screen pixels.
+ */
+export function computeScreenAwareSize(cssPx: number): number {
+	const screenPx = window.devicePixelRatio * cssPx;
+	return Math.max(1, Math.floor(screenPx)) / window.devicePixelRatio;
 }

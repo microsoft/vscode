@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import { TrimTrailingWhitespaceCommand, trimTrailingWhitespace } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
-import { IIdentifiedSingleEditOperation, IPosition } from 'vs/editor/common/editorCommon';
+import { IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
 import { createInsertDeleteSingleEditOp, createSingleEditOp, getEditOperation } from 'vs/editor/test/common/commands/commandTestUtils';
 import { withEditorModel } from 'vs/editor/test/common/editorTestUtils';
 
@@ -20,7 +20,7 @@ function assertTrimTrailingWhitespaceCommand(text: string[], expected: IIdentifi
 	});
 }
 
-function assertTrimTrailingWhitespace(text: string[], cursors: IPosition[], expected: IIdentifiedSingleEditOperation[]): void {
+function assertTrimTrailingWhitespace(text: string[], cursors: Position[], expected: IIdentifiedSingleEditOperation[]): void {
 	return withEditorModel(text, (model) => {
 		var actual = trimTrailingWhitespace(model, cursors);
 		assert.deepEqual(actual, expected);

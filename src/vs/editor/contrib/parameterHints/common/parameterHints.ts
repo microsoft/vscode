@@ -6,7 +6,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { IReadOnlyModel } from 'vs/editor/common/editorCommon';
 import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { SignatureHelp, SignatureHelpProviderRegistry } from 'vs/editor/common/modes';
@@ -28,12 +28,12 @@ export function provideSignatureHelp(model: IReadOnlyModel, position: Position):
 
 		if (result) {
 			// stop when there is a result
-			return;
+			return undefined;
 		}
 
 		return asWinJsPromise(token => support.provideSignatureHelp(model, position, token)).then(thisResult => {
 			result = thisResult;
-		}, onUnexpectedError);
+		}, onUnexpectedExternalError);
 
 	})).then(() => result);
 }

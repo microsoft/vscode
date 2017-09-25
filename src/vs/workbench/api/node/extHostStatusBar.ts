@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/statusbar/common/statusbar';
-import { StatusBarAlignment as ExtHostStatusBarAlignment, Disposable } from './extHostTypes';
+import { StatusBarAlignment as ExtHostStatusBarAlignment, Disposable, ThemeColor } from './extHostTypes';
 import { StatusBarItem, StatusBarAlignment } from 'vscode';
-import { MainContext, MainThreadStatusBarShape } from './extHost.protocol';
+import { MainContext, MainThreadStatusBarShape, IMainContext } from './extHost.protocol';
 
 export class ExtHostStatusBarEntry implements StatusBarItem {
 	private static ID_GEN = 0;
@@ -21,17 +20,20 @@ export class ExtHostStatusBarEntry implements StatusBarItem {
 
 	private _text: string;
 	private _tooltip: string;
-	private _color: string;
+	private _color: string | ThemeColor;
 	private _command: string;
 
 	private _timeoutHandle: number;
 	private _proxy: MainThreadStatusBarShape;
 
-	constructor(proxy: MainThreadStatusBarShape, alignment: ExtHostStatusBarAlignment = ExtHostStatusBarAlignment.Left, priority?: number) {
+	private _extensionId: string;
+
+	constructor(proxy: MainThreadStatusBarShape, extensionId: string, alignment: ExtHostStatusBarAlignment = ExtHostStatusBarAlignment.Left, priority?: number) {
 		this._id = ExtHostStatusBarEntry.ID_GEN++;
 		this._proxy = proxy;
 		this._alignment = alignment;
 		this._priority = priority;
+		this._extensionId = extensionId;
 	}
 
 	public get id(): number {
@@ -54,7 +56,7 @@ export class ExtHostStatusBarEntry implements StatusBarItem {
 		return this._tooltip;
 	}
 
-	public get color(): string {
+	public get color(): string | ThemeColor {
 		return this._color;
 	}
 
@@ -72,7 +74,7 @@ export class ExtHostStatusBarEntry implements StatusBarItem {
 		this.update();
 	}
 
-	public set color(color: string) {
+	public set color(color: string | ThemeColor) {
 		this._color = color;
 		this.update();
 	}
@@ -105,7 +107,7 @@ export class ExtHostStatusBarEntry implements StatusBarItem {
 			this._timeoutHandle = undefined;
 
 			// Set to status bar
-			this._proxy.$setEntry(this.id, this.text, this.tooltip, this.command, this.color,
+			this._proxy.$setEntry(this.id, this._extensionId, this.text, this.tooltip, this.command, this.color,
 				this._alignment === ExtHostStatusBarAlignment.Left ? MainThreadStatusBarAlignment.LEFT : MainThreadStatusBarAlignment.RIGHT,
 				this._priority);
 		}, 0);
@@ -123,7 +125,7 @@ class StatusBarMessage {
 	private _messages: { message: string }[] = [];
 
 	constructor(statusBar: ExtHostStatusBar) {
-		this._item = statusBar.createStatusBarEntry(ExtHostStatusBarAlignment.Left, Number.MIN_VALUE);
+		this._item = statusBar.createStatusBarEntry(void 0, ExtHostStatusBarAlignment.Left, Number.MIN_VALUE);
 	}
 
 	dispose() {
@@ -160,13 +162,13 @@ export class ExtHostStatusBar {
 	private _proxy: MainThreadStatusBarShape;
 	private _statusMessage: StatusBarMessage;
 
-	constructor(threadService: IThreadService) {
-		this._proxy = threadService.get(MainContext.MainThreadStatusBar);
+	constructor(mainContext: IMainContext) {
+		this._proxy = mainContext.get(MainContext.MainThreadStatusBar);
 		this._statusMessage = new StatusBarMessage(this);
 	}
 
-	createStatusBarEntry(alignment?: ExtHostStatusBarAlignment, priority?: number): StatusBarItem {
-		return new ExtHostStatusBarEntry(this._proxy, alignment, priority);
+	createStatusBarEntry(extensionId: string, alignment?: ExtHostStatusBarAlignment, priority?: number): StatusBarItem {
+		return new ExtHostStatusBarEntry(this._proxy, extensionId, alignment, priority);
 	}
 
 	setStatusBarMessage(text: string, timeoutOrThenable?: number | Thenable<any>): Disposable {

@@ -18,10 +18,10 @@ interface IJSONValidationExtensionPoint {
 let configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IJSONValidationExtensionPoint[]>('jsonValidation', [], {
 	description: nls.localize('contributes.jsonValidation', 'Contributes json schema configuration.'),
 	type: 'array',
-	defaultSnippets: [{ body: [{ fileMatch: '{{file.json}}', url: '{{url}}' }] }],
+	defaultSnippets: [{ body: [{ fileMatch: '${1:file.json}', url: '${2:url}' }] }],
 	items: {
 		type: 'object',
-		defaultSnippets: [{ body: { fileMatch: '{{file.json}}', url: '{{url}}' } }],
+		defaultSnippets: [{ body: { fileMatch: '${1:file.json}', url: '${2:url}' } }],
 		properties: {
 			fileMatch: {
 				type: 'string',
@@ -39,10 +39,10 @@ export class JSONValidationExtensionPoint {
 
 	constructor() {
 		configurationExtPoint.setHandler((extensions) => {
-			for (var i = 0; i < extensions.length; i++) {
-				var extensionValue = <IJSONValidationExtensionPoint[]>extensions[i].value;
-				var collector = extensions[i].collector;
-				var extensionPath = extensions[i].description.extensionFolderPath;
+			for (let i = 0; i < extensions.length; i++) {
+				const extensionValue = <IJSONValidationExtensionPoint[]>extensions[i].value;
+				const collector = extensions[i].collector;
+				const extensionPath = extensions[i].description.extensionFolderPath;
 
 				if (!extensionValue || !Array.isArray(extensionValue)) {
 					collector.error(nls.localize('invalid.jsonValidation', "'configuration.jsonValidation' must be a array"));

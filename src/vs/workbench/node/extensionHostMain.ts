@@ -5,28 +5,46 @@
 
 'use strict';
 
-import * as fs from 'fs';
-import * as crypto from 'crypto';
 import nls = require('vs/nls');
 import pfs = require('vs/base/node/pfs');
 import { TPromise } from 'vs/base/common/winjs.base';
-import paths = require('vs/base/common/paths');
-import { createApiFactory, defineAPI } from 'vs/workbench/api/node/extHost.api.impl';
-import { IMainProcessExtHostIPC } from 'vs/platform/extensions/common/ipcRemoteCom';
+import { join } from 'path';
+import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
-import { ExtHostThreadService } from 'vs/workbench/services/thread/common/extHostThreadService';
-import { RemoteTelemetryService } from 'vs/workbench/api/node/extHostTelemetry';
-import { IWorkspaceContextService, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IInitData, IEnvironment, MainContext } from 'vs/workbench/api/node/extHost.protocol';
+import { ExtHostThreadService } from 'vs/workbench/services/thread/node/extHostThreadService';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { QueryType, ISearchQuery } from 'vs/platform/search/common/search';
+import { DiskSearch } from 'vs/workbench/services/search/node/searchService';
+import { IInitData, IEnvironment, IWorkspaceData, MainContext } from 'vs/workbench/api/node/extHost.protocol';
 import * as errors from 'vs/base/common/errors';
+import * as watchdog from 'native-watchdog';
+import * as glob from 'vs/base/common/glob';
 
-const nativeExit = process.exit.bind(process);
+// const nativeExit = process.exit.bind(process);
 process.exit = function () {
 	const err = new Error('An extension called process.exit() and this was prevented.');
-	console.warn((<any>err).stack);
+	console.warn(err.stack);
 };
 export function exit(code?: number) {
-	nativeExit(code);
+	//nativeExit(code);
+
+	// TODO@electron
+	// See https://github.com/Microsoft/vscode/issues/32990
+	// calling process.exit() does not exit the process when the process is being debugged
+	// It waits for the debugger to disconnect, but in our version, the debugger does not
+	// receive an event that the process desires to exit such that it can disconnect.
+
+	// Do exactly what node.js would have done, minus the wait for the debugger part
+
+	if (code || code === 0) {
+		process.exitCode = code;
+	}
+
+	if (!(<any>process)._exiting) {
+		(<any>process)._exiting = true;
+		process.emit('exit', process.exitCode || 0);
+	}
+	watchdog.exit(process.exitCode || 0);
 }
 
 interface ITestRunner {
@@ -35,83 +53,56 @@ interface ITestRunner {
 
 export class ExtensionHostMain {
 
-	private _isTerminating: boolean;
-	private _contextService: IWorkspaceContextService;
+	private _isTerminating: boolean = false;
+	private _diskSearch: DiskSearch;
+	private _workspace: IWorkspaceData;
 	private _environment: IEnvironment;
 	private _extensionService: ExtHostExtensionService;
 
-	constructor(remoteCom: IMainProcessExtHostIPC, initData: IInitData) {
-		this._isTerminating = false;
-
+	constructor(rpcProtocol: RPCProtocol, initData: IInitData) {
 		this._environment = initData.environment;
+		this._workspace = initData.workspace;
 
-		this._contextService = new WorkspaceContextService(initData.contextService.workspace);
-		const workspaceStoragePath = this._getOrCreateWorkspaceStoragePath();
+		// services
+		const threadService = new ExtHostThreadService(rpcProtocol);
+		this._extensionService = new ExtHostExtensionService(initData, threadService);
 
-		const threadService = new ExtHostThreadService(remoteCom);
+		// error forwarding and stack trace scanning
+		const extensionErrors = new WeakMap<Error, IExtensionDescription>();
+		this._extensionService.getExtensionPathIndex().then(map => {
+			(<any>Error).prepareStackTrace = (error: Error, stackTrace: errors.V8CallSite[]) => {
+				let stackTraceMessage = '';
+				let extension: IExtensionDescription;
+				let fileName: string;
+				for (const call of stackTrace) {
+					stackTraceMessage += `\n\tat ${call.toString()}`;
+					fileName = call.getFileName();
+					if (!extension && fileName) {
+						extension = map.findSubstr(fileName);
+					}
 
-		const telemetryService = new RemoteTelemetryService('pluginHostTelemetry', threadService);
-
-		this._extensionService = new ExtHostExtensionService(initData.extensions, threadService, telemetryService, { _serviceBrand: 'optionalArgs', workspaceStoragePath });
-
-		// Error forwarding
+				}
+				extensionErrors.set(error, extension);
+				return `${error.name || 'Error'}: ${error.message || ''}${stackTraceMessage}`;
+			};
+		});
 		const mainThreadErrors = threadService.get(MainContext.MainThreadErrors);
-		errors.setUnexpectedErrorHandler(err => mainThreadErrors.onUnexpectedExtHostError(errors.transformErrorForSerialization(err)));
+		errors.setUnexpectedErrorHandler(err => {
+			const data = errors.transformErrorForSerialization(err);
+			const extension = extensionErrors.get(err);
+			mainThreadErrors.$onUnexpectedError(data, extension && extension.id);
+		});
 
-		// Create the ext host API
-		const factory = createApiFactory(initData, threadService, this._extensionService, this._contextService);
-		defineAPI(factory, this._extensionService);
-	}
-
-	private _getOrCreateWorkspaceStoragePath(): string {
-		let workspaceStoragePath: string;
-
-		const workspace = this._contextService.getWorkspace();
-
-		function rmkDir(directory: string): boolean {
-			try {
-				fs.mkdirSync(directory);
-				return true;
-			} catch (err) {
-				if (err.code === 'ENOENT') {
-					if (rmkDir(paths.dirname(directory))) {
-						fs.mkdirSync(directory);
-						return true;
-					}
-				} else {
-					return fs.statSync(directory).isDirectory();
-				}
-			}
-		}
-
-		if (workspace) {
-			const hash = crypto.createHash('md5');
-			hash.update(workspace.resource.fsPath);
-			if (workspace.uid) {
-				hash.update(workspace.uid.toString());
-			}
-			workspaceStoragePath = paths.join(this._environment.appSettingsHome, 'workspaceStorage', hash.digest('hex'));
-			if (!fs.existsSync(workspaceStoragePath)) {
-				try {
-					if (rmkDir(workspaceStoragePath)) {
-						fs.writeFileSync(paths.join(workspaceStoragePath, 'meta.json'), JSON.stringify({
-							workspacePath: workspace.resource.fsPath,
-							uid: workspace.uid ? workspace.uid : null
-						}, null, 4));
-					} else {
-						workspaceStoragePath = undefined;
-					}
-				} catch (err) {
-					workspaceStoragePath = undefined;
-				}
-			}
-		}
-
-		return workspaceStoragePath;
+		// Configure the watchdog to kill our process if the JS event loop is unresponsive for more than 10s
+		// if (!initData.environment.isExtensionDevelopmentDebug) {
+		// 	watchdog.start(10000);
+		// }
 	}
 
 	public start(): TPromise<void> {
-		return this.handleEagerExtensions().then(() => this.handleExtensionTests());
+		return this._extensionService.onExtensionAPIReady()
+			.then(() => this.handleEagerExtensions())
+			.then(() => this.handleExtensionTests());
 	}
 
 	public terminate(): void {
@@ -148,50 +139,102 @@ export class ExtensionHostMain {
 
 	// Handle "eager" activation extensions
 	private handleEagerExtensions(): TPromise<void> {
-		this._extensionService.activateByEvent('*').then(null, (err) => {
+		this._extensionService.activateByEvent('*', true).then(null, (err) => {
 			console.error(err);
 		});
 		return this.handleWorkspaceContainsEagerExtensions();
 	}
 
 	private handleWorkspaceContainsEagerExtensions(): TPromise<void> {
-		let workspace = this._contextService.getWorkspace();
-		if (!workspace || !workspace.resource) {
+		if (!this._workspace || this._workspace.folders.length === 0) {
 			return TPromise.as(null);
 		}
 
-		const folderPath = workspace.resource.fsPath;
+		return TPromise.join(
+			this._extensionService.getAllExtensionDescriptions().map((desc) => {
+				return this.handleWorkspaceContainsEagerExtension(desc);
+			})
+		).then(() => { });
+	}
 
-		const desiredFilesMap: {
-			[filename: string]: boolean;
-		} = {};
+	private handleWorkspaceContainsEagerExtension(desc: IExtensionDescription): TPromise<void> {
+		let activationEvents = desc.activationEvents;
+		if (!activationEvents) {
+			return TPromise.as(void 0);
+		}
 
-		this._extensionService.getAllExtensionDescriptions().forEach((desc) => {
-			let activationEvents = desc.activationEvents;
-			if (!activationEvents) {
-				return;
-			}
+		const fileNames: string[] = [];
+		const globPatterns: string[] = [];
 
-			for (let i = 0; i < activationEvents.length; i++) {
-				if (/^workspaceContains:/.test(activationEvents[i])) {
-					let fileName = activationEvents[i].substr('workspaceContains:'.length);
-					desiredFilesMap[fileName] = true;
+		for (let i = 0; i < activationEvents.length; i++) {
+			if (/^workspaceContains:/.test(activationEvents[i])) {
+				let fileNameOrGlob = activationEvents[i].substr('workspaceContains:'.length);
+				if (fileNameOrGlob.indexOf('*') >= 0 || fileNameOrGlob.indexOf('?') >= 0) {
+					globPatterns.push(fileNameOrGlob);
+				} else {
+					fileNames.push(fileNameOrGlob);
 				}
 			}
+		}
+
+		if (fileNames.length === 0 && globPatterns.length === 0) {
+			return TPromise.as(void 0);
+		}
+
+		let fileNamePromise = TPromise.join(fileNames.map((fileName) => this.activateIfFileName(desc.id, fileName))).then(() => { });
+		let globPatternPromise = this.activateIfGlobPatterns(desc.id, globPatterns);
+
+		return TPromise.join([fileNamePromise, globPatternPromise]).then(() => { });
+	}
+
+	private async activateIfFileName(extensionId: string, fileName: string): TPromise<void> {
+		// find exact path
+
+		for (const { uri } of this._workspace.folders) {
+			if (await pfs.exists(join(uri.fsPath, fileName))) {
+				// the file was found
+				return (
+					this._extensionService.activateById(extensionId, true)
+						.done(null, err => console.error(err))
+				);
+			}
+		}
+
+		return undefined;
+	}
+
+	private async activateIfGlobPatterns(extensionId: string, globPatterns: string[]): TPromise<void> {
+		if (globPatterns.length === 0) {
+			return TPromise.as(void 0);
+		}
+
+		if (!this._diskSearch) {
+			// Shut down this search process after 1s
+			this._diskSearch = new DiskSearch(false, 1000);
+		}
+
+		let includes: glob.IExpression = {};
+		globPatterns.forEach((globPattern) => {
+			includes[globPattern] = true;
 		});
 
-		const fileNames = Object.keys(desiredFilesMap);
+		const query: ISearchQuery = {
+			folderQueries: this._workspace.folders.map(folder => ({ folder: folder.uri })),
+			type: QueryType.File,
+			maxResults: 1,
+			includePattern: includes
+		};
 
-		return TPromise.join(fileNames.map(f => pfs.exists(paths.join(folderPath, f)))).then(exists => {
-			fileNames
-				.filter((f, i) => exists[i])
-				.forEach(fileName => {
-					const activationEvent = `workspaceContains:${fileName}`;
+		let result = await this._diskSearch.search(query);
+		if (result.results.length > 0) {
+			// a file was found matching one of the glob patterns
+			return (
+				this._extensionService.activateById(extensionId, true)
+					.done(null, err => console.error(err))
+			);
+		}
 
-					this._extensionService.activateByEvent(activationEvent)
-						.done(null, err => console.error(err));
-				});
-		});
+		return TPromise.as(void 0);
 	}
 
 	private handleExtensionTests(): TPromise<void> {
@@ -229,7 +272,7 @@ export class ExtensionHostMain {
 			this.gracefulExit(1 /* ERROR */);
 		}
 
-		return TPromise.wrapError<void>(requireError ? requireError.toString() : nls.localize('extensionTestError', "Path {0} does not point to a valid extension test runner.", this._environment.extensionTestsPath));
+		return TPromise.wrapError<void>(new Error(requireError ? requireError.toString() : nls.localize('extensionTestError', "Path {0} does not point to a valid extension test runner.", this._environment.extensionTestsPath)));
 	}
 
 	private gracefulExit(code: number): void {

@@ -4,20 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { LanguageModelCache } from '../languageModelCache';
-import { LanguageService as HTMLLanguageService, HTMLDocument, DocumentContext, FormattingOptions } from 'vscode-html-languageservice';
+import { getLanguageModelCache } from '../languageModelCache';
+import { LanguageService as HTMLLanguageService, HTMLDocument, DocumentContext, FormattingOptions, HTMLFormatConfiguration } from 'vscode-html-languageservice';
 import { TextDocument, Position, Range } from 'vscode-languageserver-types';
-import { LanguageMode } from './languageModes';
+import { LanguageMode, Settings } from './languageModes';
 
-export function getHTMLMode(htmlLanguageService: HTMLLanguageService, htmlDocuments: LanguageModelCache<HTMLDocument>): LanguageMode {
-	let settings: any = {};
-
+export function getHTMLMode(htmlLanguageService: HTMLLanguageService): LanguageMode {
+	let globalSettings: Settings = {};
+	let htmlDocuments = getLanguageModelCache<HTMLDocument>(10, 60, document => htmlLanguageService.parseHTMLDocument(document));
 	return {
-		configure(options: any) {
-			settings = options && options.html;
+		getId() {
+			return 'html';
 		},
-		doComplete(document: TextDocument, position: Position) {
+		configure(options: any) {
+			globalSettings = options;
+		},
+		doComplete(document: TextDocument, position: Position, settings: Settings = globalSettings) {
 			let options = settings && settings.html && settings.html.suggest;
+			let doAutoComplete = settings && settings.html && settings.html.autoClosingTags;
+			if (doAutoComplete) {
+				options.hideAutoCompleteProposals = true;
+			}
 			return htmlLanguageService.doComplete(document, position, htmlDocuments.get(document), options);
 		},
 		doHover(document: TextDocument, position: Position) {
@@ -29,14 +36,31 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, htmlDocume
 		findDocumentLinks(document: TextDocument, documentContext: DocumentContext) {
 			return htmlLanguageService.findDocumentLinks(document, documentContext);
 		},
-		format(document: TextDocument, range: Range, formatParams: FormattingOptions) {
-			let formatSettings = settings && settings.format;
-			if (!formatSettings) {
-				formatSettings = formatParams;
+		findDocumentSymbols(document: TextDocument) {
+			return htmlLanguageService.findDocumentSymbols(document, htmlDocuments.get(document));
+		},
+		format(document: TextDocument, range: Range, formatParams: FormattingOptions, settings: Settings = globalSettings) {
+			let formatSettings: HTMLFormatConfiguration = settings && settings.html && settings.html.format;
+			if (formatSettings) {
+				formatSettings = merge(formatSettings, {});
 			} else {
-				formatSettings = merge(formatParams, merge(formatSettings, {}));
+				formatSettings = {};
 			}
+			if (formatSettings.contentUnformatted) {
+				formatSettings.contentUnformatted = formatSettings.contentUnformatted + ',script';
+			} else {
+				formatSettings.contentUnformatted = 'script';
+			}
+			formatSettings = merge(formatParams, formatSettings);
 			return htmlLanguageService.format(document, range, formatSettings);
+		},
+		doAutoClose(document: TextDocument, position: Position) {
+			let offset = document.offsetAt(position);
+			let text = document.getText();
+			if (offset > 0 && text.charAt(offset - 1).match(/[>\/]/g)) {
+				return htmlLanguageService.doTagComplete(document, position, htmlDocuments.get(document));
+			}
+			return null;
 		},
 		onDocumentRemoved(document: TextDocument) {
 			htmlDocuments.onDocumentRemoved(document);

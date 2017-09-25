@@ -3,34 +3,48 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
-import strings = require('vs/base/common/strings');
-import platform = require('vs/base/common/platform');
-import errors = require('vs/base/common/errors');
-import paths = require('vs/base/common/paths');
-import dom = require('vs/base/browser/dom');
-import { $ } from 'vs/base/browser/builder';
+import * as nls from 'vs/nls';
+import * as paths from 'vs/base/common/paths';
+import * as DOM from 'vs/base/browser/dom';
+import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
-import { ActionsRenderer } from 'vs/base/parts/tree/browser/actionsRenderer';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { FileLabel } from 'vs/workbench/browser/labels';
-import { LeftRightWidget, IRenderer } from 'vs/base/browser/ui/leftRightWidget/leftRightWidget';
-import { ITree, IElementCallback, IDataSource, ISorter, IAccessibilityProvider, IFilter } from 'vs/base/parts/tree/browser/tree';
-import { ClickBehavior, DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
-import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegistry';
-import { Match, SearchResult, FileMatch, FileMatchOrMatch, SearchModel } from 'vs/workbench/parts/search/common/searchModel';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { ITree, IDataSource, ISorter, IAccessibilityProvider, IFilter, IRenderer } from 'vs/base/parts/tree/browser/tree';
+import { Match, SearchResult, FileMatch, FileMatchOrMatch, SearchModel, FolderMatch } from 'vs/workbench/parts/search/common/searchModel';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { Range } from 'vs/editor/common/core/range';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { SearchViewlet } from 'vs/workbench/parts/search/browser/searchViewlet';
 import { RemoveAction, ReplaceAllAction, ReplaceAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { getPathLabel } from 'vs/base/common/labels';
+import { FileKind } from 'vs/platform/files/common/files';
 
 export class SearchDataSource implements IDataSource {
 
+	private static AUTOEXPAND_CHILD_LIMIT = 10;
+
+	private includeFolderMatch: boolean;
+	private listener: IDisposable;
+
+	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
+		this.updateIncludeFolderMatch();
+		this.listener = this.contextService.onDidChangeWorkbenchState(() => this.updateIncludeFolderMatch());
+	}
+
+	private updateIncludeFolderMatch(): void {
+		this.includeFolderMatch = (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE);
+	}
+
 	public getId(tree: ITree, element: any): string {
+		if (element instanceof FolderMatch) {
+			return element.id();
+		}
+
 		if (element instanceof FileMatch) {
 			return element.id();
 		}
@@ -42,20 +56,27 @@ export class SearchDataSource implements IDataSource {
 		return 'root';
 	}
 
-	public getChildren(tree: ITree, element: any): TPromise<any[]> {
-		let value: any[] = [];
-
+	private _getChildren(element: any): any[] {
 		if (element instanceof FileMatch) {
-			value = element.matches();
+			return element.matches();
+		} else if (element instanceof FolderMatch) {
+			return element.matches();
 		} else if (element instanceof SearchResult) {
-			value = element.matches();
+			const folderMatches = element.folderMatches();
+			return folderMatches.length > 2 ? // "Other files" + workspace folder = 2
+				folderMatches.filter(fm => !fm.isEmpty()) :
+				element.matches();
 		}
 
-		return TPromise.as(value);
+		return [];
+	}
+
+	public getChildren(tree: ITree, element: any): TPromise<any[]> {
+		return TPromise.as(this._getChildren(element));
 	}
 
 	public hasChildren(tree: ITree, element: any): boolean {
-		return element instanceof FileMatch || element instanceof SearchResult;
+		return element instanceof FileMatch || element instanceof FolderMatch || element instanceof SearchResult;
 	}
 
 	public getParent(tree: ITree, element: any): TPromise<any> {
@@ -64,16 +85,34 @@ export class SearchDataSource implements IDataSource {
 		if (element instanceof Match) {
 			value = element.parent();
 		} else if (element instanceof FileMatch) {
+			value = this.includeFolderMatch ? element.parent() : element.parent().parent();
+		} else if (element instanceof FolderMatch) {
 			value = element.parent();
 		}
 
 		return TPromise.as(value);
+	}
+
+	public shouldAutoexpand(tree: ITree, element: any): boolean {
+		const numChildren = this._getChildren(element).length;
+		if (numChildren <= 0) {
+			return false;
+		}
+		return numChildren < SearchDataSource.AUTOEXPAND_CHILD_LIMIT || element instanceof FolderMatch;
+	}
+
+	public dispose(): void {
+		this.listener = dispose(this.listener);
 	}
 }
 
 export class SearchSorter implements ISorter {
 
 	public compare(tree: ITree, elementA: FileMatchOrMatch, elementB: FileMatchOrMatch): number {
+		if (elementA instanceof FolderMatch && elementB instanceof FolderMatch) {
+			return elementA.index() - elementB.index();
+		}
+
 		if (elementA instanceof FileMatch && elementB instanceof FileMatch) {
 			return elementA.resource().fsPath.localeCompare(elementB.resource().fsPath) || elementA.name().localeCompare(elementB.name());
 		}
@@ -81,113 +120,187 @@ export class SearchSorter implements ISorter {
 		if (elementA instanceof Match && elementB instanceof Match) {
 			return Range.compareRangesUsingStarts(elementA.range(), elementB.range());
 		}
+
+		return undefined;
 	}
 }
 
-class SearchActionProvider extends ContributableActionProvider {
+interface IFolderMatchTemplate {
+	label: FileLabel;
+	badge: CountBadge;
+	actions: ActionBar;
+}
 
-	constructor(private viewlet: SearchViewlet, @IInstantiationService private instantiationService: IInstantiationService) {
+interface IFileMatchTemplate {
+	label: FileLabel;
+	badge: CountBadge;
+	actions: ActionBar;
+}
+
+interface IMatchTemplate {
+	parent: HTMLElement;
+	before: HTMLElement;
+	match: HTMLElement;
+	replace: HTMLElement;
+	after: HTMLElement;
+	actions: ActionBar;
+}
+
+export class SearchRenderer extends Disposable implements IRenderer {
+
+	private static FOLDER_MATCH_TEMPLATE_ID = 'folderMatch';
+	private static FILE_MATCH_TEMPLATE_ID = 'fileMatch';
+	private static MATCH_TEMPLATE_ID = 'match';
+
+	constructor(
+		actionRunner: IActionRunner,
+		private viewlet: SearchViewlet,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IThemeService private themeService: IThemeService
+	) {
 		super();
 	}
 
-	public hasActions(tree: ITree, element: any): boolean {
-		let input = <SearchResult>tree.getInput();
-		return element instanceof FileMatch || (input.searchModel.isReplaceActive() || element instanceof Match) || super.hasActions(tree, element);
-	}
-
-	public getActions(tree: ITree, element: any): TPromise<IAction[]> {
-		return super.getActions(tree, element).then(actions => {
-			let input = <SearchResult>tree.getInput();
-			if (element instanceof FileMatch) {
-				actions.unshift(new RemoveAction(tree, element));
-				if (input.searchModel.isReplaceActive() && element.count() > 0) {
-					actions.unshift(this.instantiationService.createInstance(ReplaceAllAction, tree, element, this.viewlet));
-				}
-			}
-			if (element instanceof Match) {
-				if (input.searchModel.isReplaceActive()) {
-					actions.unshift(this.instantiationService.createInstance(ReplaceAction, tree, element, this.viewlet), new RemoveAction(tree, element));
-				}
-			}
-
-			return actions;
-		});
-	}
-}
-
-export class SearchRenderer extends ActionsRenderer {
-
-	constructor(actionRunner: IActionRunner, viewlet: SearchViewlet, @IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IInstantiationService private instantiationService: IInstantiationService) {
-		super({
-			actionProvider: instantiationService.createInstance(SearchActionProvider, viewlet),
-			actionRunner: actionRunner
-		});
-	}
-
-	public getContentHeight(tree: ITree, element: any): number {
+	public getHeight(tree: ITree, element: any): number {
 		return 22;
 	}
 
-	public renderContents(tree: ITree, element: FileMatchOrMatch, domElement: HTMLElement, previousCleanupFn: IElementCallback): IElementCallback {
+	public getTemplateId(tree: ITree, element: any): string {
+		if (element instanceof FolderMatch) {
+			return SearchRenderer.FOLDER_MATCH_TEMPLATE_ID;
+		} else if (element instanceof FileMatch) {
+			return SearchRenderer.FILE_MATCH_TEMPLATE_ID;
+		} else if (element instanceof Match) {
+			return SearchRenderer.MATCH_TEMPLATE_ID;
+		}
+		return null;
+	}
 
-		// File
-		if (element instanceof FileMatch) {
-			let fileMatch = <FileMatch>element;
-			let container = $('.filematch');
-			let leftRenderer: IRenderer;
-			let rightRenderer: IRenderer;
-			let widget: LeftRightWidget;
-
-			leftRenderer = (left: HTMLElement): any => {
-				const label = this.instantiationService.createInstance(FileLabel, left, void 0);
-				label.setFile(fileMatch.resource());
-
-				return () => label.dispose();
-			};
-
-			rightRenderer = (right: HTMLElement) => {
-				let len = fileMatch.count();
-
-				return new CountBadge(right, len, len > 1 ? nls.localize('searchMatches', "{0} matches found", len) : nls.localize('searchMatch', "{0} match found", len));
-			};
-
-			widget = new LeftRightWidget(container, leftRenderer, rightRenderer);
-
-			container.appendTo(domElement);
-
-			return widget.dispose.bind(widget);
+	public renderTemplate(tree: ITree, templateId: string, container: HTMLElement): any {
+		if (templateId === SearchRenderer.FOLDER_MATCH_TEMPLATE_ID) {
+			return this.renderFolderMatchTemplate(tree, templateId, container);
 		}
 
-		// Match
-		else if (element instanceof Match) {
-			dom.addClass(domElement, 'linematch');
-			let match = <Match>element;
-			let elements: string[] = [];
-			let preview = match.preview();
+		if (templateId === SearchRenderer.FILE_MATCH_TEMPLATE_ID) {
+			return this.renderFileMatchTemplate(tree, templateId, container);
+		}
 
-			elements.push('<span>');
-			elements.push(strings.escape(preview.before));
-			let searchModel: SearchModel = (<SearchResult>tree.getInput()).searchModel;
-
-			let showReplaceText = searchModel.isReplaceActive() && !!searchModel.replaceString;
-			elements.push('</span><span class="' + (showReplaceText ? 'replace ' : '') + 'findInFileMatch">');
-			elements.push(strings.escape(preview.inside));
-			if (showReplaceText) {
-				elements.push('</span><span class="replaceMatch">');
-				elements.push(strings.escape(match.replaceString));
-			}
-			elements.push('</span><span>');
-			elements.push(strings.escape(preview.after));
-			elements.push('</span>');
-
-			$('a.plain')
-				.innerHtml(elements.join(strings.empty))
-				.title((preview.before + (showReplaceText ? match.replaceString : preview.inside) + preview.after).trim().substr(0, 999))
-				.appendTo(domElement);
+		if (templateId === SearchRenderer.MATCH_TEMPLATE_ID) {
+			return this.renderMatchTemplate(tree, templateId, container);
 		}
 
 		return null;
+	}
+
+	public renderElement(tree: ITree, element: any, templateId: string, templateData: any): void {
+		if (SearchRenderer.FOLDER_MATCH_TEMPLATE_ID === templateId) {
+			this.renderFolderMatch(tree, <FolderMatch>element, <IFolderMatchTemplate>templateData);
+		} else if (SearchRenderer.FILE_MATCH_TEMPLATE_ID === templateId) {
+			this.renderFileMatch(tree, <FileMatch>element, <IFileMatchTemplate>templateData);
+		} else if (SearchRenderer.MATCH_TEMPLATE_ID === templateId) {
+			this.renderMatch(tree, <Match>element, <IMatchTemplate>templateData);
+		}
+	}
+
+	private renderFolderMatchTemplate(tree: ITree, templateId: string, container: HTMLElement): IFolderMatchTemplate {
+		let folderMatchElement = DOM.append(container, DOM.$('.foldermatch'));
+		const label = this.instantiationService.createInstance(FileLabel, folderMatchElement, void 0);
+		const badge = new CountBadge(DOM.append(folderMatchElement, DOM.$('.badge')));
+		this._register(attachBadgeStyler(badge, this.themeService));
+		const actions = new ActionBar(folderMatchElement, { animated: false });
+		return { label, badge, actions };
+	}
+
+	private renderFileMatchTemplate(tree: ITree, templateId: string, container: HTMLElement): IFileMatchTemplate {
+		let fileMatchElement = DOM.append(container, DOM.$('.filematch'));
+		const label = this.instantiationService.createInstance(FileLabel, fileMatchElement, void 0);
+		const badge = new CountBadge(DOM.append(fileMatchElement, DOM.$('.badge')));
+		this._register(attachBadgeStyler(badge, this.themeService));
+		const actions = new ActionBar(fileMatchElement, { animated: false });
+		return { label, badge, actions };
+	}
+
+	private renderMatchTemplate(tree: ITree, templateId: string, container: HTMLElement): IMatchTemplate {
+		DOM.addClass(container, 'linematch');
+
+		const parent = DOM.append(container, DOM.$('a.plain.match'));
+		const before = DOM.append(parent, DOM.$('span'));
+		const match = DOM.append(parent, DOM.$('span.findInFileMatch'));
+		const replace = DOM.append(parent, DOM.$('span.replaceMatch'));
+		const after = DOM.append(parent, DOM.$('span'));
+		const actions = new ActionBar(container, { animated: false });
+
+		return {
+			parent,
+			before,
+			match,
+			replace,
+			after,
+			actions
+		};
+	}
+
+	private renderFolderMatch(tree: ITree, folderMatch: FolderMatch, templateData: IFolderMatchTemplate): void {
+		if (folderMatch.hasRoot()) {
+			templateData.label.setFile(folderMatch.resource(), { fileKind: FileKind.ROOT_FOLDER });
+		} else {
+			templateData.label.setValue(nls.localize('searchFolderMatch.other.label', "Other files"));
+		}
+		let count = folderMatch.fileCount();
+		templateData.badge.setCount(count);
+		templateData.badge.setTitleFormat(count > 1 ? nls.localize('searchFileMatches', "{0} files found", count) : nls.localize('searchFileMatch', "{0} file found", count));
+
+		templateData.actions.clear();
+		templateData.actions.push([new RemoveAction(tree, folderMatch)], { icon: true, label: false });
+	}
+
+	private renderFileMatch(tree: ITree, fileMatch: FileMatch, templateData: IFileMatchTemplate): void {
+		const folderMatch = fileMatch.parent();
+		const root = folderMatch.hasRoot() ? folderMatch.resource() : undefined;
+		templateData.label.setFile(fileMatch.resource(), { root });
+		let count = fileMatch.count();
+		templateData.badge.setCount(count);
+		templateData.badge.setTitleFormat(count > 1 ? nls.localize('searchMatches', "{0} matches found", count) : nls.localize('searchMatch', "{0} match found", count));
+
+		let input = <SearchResult>tree.getInput();
+		templateData.actions.clear();
+
+		const actions: IAction[] = [];
+		if (input.searchModel.isReplaceActive() && count > 0) {
+			actions.push(this.instantiationService.createInstance(ReplaceAllAction, tree, fileMatch, this.viewlet));
+		}
+		actions.push(new RemoveAction(tree, fileMatch));
+		templateData.actions.push(actions, { icon: true, label: false });
+	}
+
+	private renderMatch(tree: ITree, match: Match, templateData: IMatchTemplate): void {
+		let preview = match.preview();
+		const searchModel: SearchModel = (<SearchResult>tree.getInput()).searchModel;
+		const replace = searchModel.isReplaceActive() && !!searchModel.replaceString;
+
+		templateData.before.textContent = preview.before;
+		templateData.match.textContent = preview.inside;
+		DOM.toggleClass(templateData.match, 'replace', replace);
+		templateData.replace.textContent = replace ? match.replaceString : '';
+		templateData.after.textContent = preview.after;
+		templateData.parent.title = (preview.before + (replace ? match.replaceString : preview.inside) + preview.after).trim().substr(0, 999);
+
+		templateData.actions.clear();
+		if (searchModel.isReplaceActive()) {
+			templateData.actions.push([this.instantiationService.createInstance(ReplaceAction, tree, match, this.viewlet), new RemoveAction(tree, match)], { icon: true, label: false });
+		} else {
+			templateData.actions.push([new RemoveAction(tree, match)], { icon: true, label: false });
+		}
+	}
+
+	public disposeTemplate(tree: ITree, templateId: string, templateData: any): void {
+		if (SearchRenderer.FOLDER_MATCH_TEMPLATE_ID === templateId) {
+			(<IFolderMatchTemplate>templateData).label.dispose();
+		}
+		if (SearchRenderer.FILE_MATCH_TEMPLATE_ID === templateId) {
+			(<IFileMatchTemplate>templateData).label.dispose();
+		}
 	}
 }
 
@@ -197,106 +310,34 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider {
 	}
 
 	public getAriaLabel(tree: ITree, element: FileMatchOrMatch): string {
+		if (element instanceof FolderMatch) {
+			return nls.localize('folderMatchAriaLabel', "{0} matches in folder root {1}, Search result", element.count(), element.name());
+		}
+
 		if (element instanceof FileMatch) {
-			const path = this.contextService.toWorkspaceRelativePath(element.resource()) || element.resource().fsPath;
+			const path = getPathLabel(element.resource(), this.contextService) || element.resource().fsPath;
 
 			return nls.localize('fileMatchAriaLabel', "{0} matches in file {1} of folder {2}, Search result", element.count(), element.name(), paths.dirname(path));
 		}
 
 		if (element instanceof Match) {
-			let match = <Match>element;
-			let input = <SearchResult>tree.getInput();
-			if (input.searchModel.isReplaceActive()) {
-				let preview = match.preview();
-				return nls.localize('replacePreviewResultAria', "Replace preview result, {0}", preview.before + match.replaceString + preview.after);
+			const match = <Match>element;
+			const searchModel: SearchModel = (<SearchResult>tree.getInput()).searchModel;
+			const replace = searchModel.isReplaceActive() && !!searchModel.replaceString;
+			const matchString = match.getMatchString();
+			const range = match.range();
+			if (replace) {
+				return nls.localize('replacePreviewResultAria', "Replace term {0} with {1} at column position {2} in line with text {3}", matchString, match.replaceString, range.startColumn + 1, match.text());
 			}
-			return nls.localize('searchResultAria', "{0}, Search result", match.text());
+			return nls.localize('searchResultAria', "Found term {0} at column position {1} in line with text {2}", matchString, range.startColumn + 1, match.text());
 		}
-	}
-}
-
-export class SearchController extends DefaultController {
-
-	constructor(private viewlet: SearchViewlet, @IInstantiationService private instantiationService: IInstantiationService) {
-		super({ clickBehavior: ClickBehavior.ON_MOUSE_DOWN });
-
-		if (platform.isMacintosh) {
-			this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Backspace, (tree: ITree, event: any) => { this.onDelete(tree, event); });
-			this.upKeyBindingDispatcher.set(KeyMod.WinCtrl | KeyCode.Enter, this.onEnter.bind(this));
-		} else {
-			this.downKeyBindingDispatcher.set(KeyCode.Delete, (tree: ITree, event: any) => { this.onDelete(tree, event); });
-			this.upKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Enter, this.onEnter.bind(this));
-		}
-
-		this.downKeyBindingDispatcher.set(ReplaceAllAction.KEY_BINDING, (tree: ITree, event: any) => { this.onReplaceAll(tree, event); });
-		this.downKeyBindingDispatcher.set(ReplaceAction.KEY_BINDING, (tree: ITree, event: any) => { this.onReplace(tree, event); });
-		this.downKeyBindingDispatcher.set(KeyCode.Escape, (tree: ITree, event: any) => { this.onEscape(tree, event); });
-	}
-
-	protected onEscape(tree: ITree, event: IKeyboardEvent): boolean {
-		if (this.viewlet.cancelSearch()) {
-			return true;
-		}
-
-		return super.onEscape(tree, event);
-	}
-
-	private onDelete(tree: ITree, event: IKeyboardEvent): boolean {
-		let input = <SearchResult>tree.getInput();
-		let result = false;
-		let element = tree.getFocus();
-		if (element instanceof FileMatch ||
-			(element instanceof Match && input.searchModel.isReplaceActive())) {
-			new RemoveAction(tree, element).run().done(null, errors.onUnexpectedError);
-			result = true;
-		}
-
-		return result;
-	}
-
-	private onReplace(tree: ITree, event: IKeyboardEvent): boolean {
-		let input = <SearchResult>tree.getInput();
-		let result = false;
-		let element = tree.getFocus();
-		if (element instanceof Match && input.searchModel.isReplaceActive()) {
-			this.instantiationService.createInstance(ReplaceAction, tree, element, this.viewlet).run().done(null, errors.onUnexpectedError);
-			result = true;
-		}
-
-		return result;
-	}
-
-	private onReplaceAll(tree: ITree, event: IKeyboardEvent): boolean {
-		let result = false;
-		let element = tree.getFocus();
-		if (element instanceof FileMatch && element.count() > 0) {
-			this.instantiationService.createInstance(ReplaceAllAction, tree, element, this.viewlet).run().done(null, errors.onUnexpectedError);
-			result = true;
-		}
-
-		return result;
-	}
-
-	protected onUp(tree: ITree, event: IKeyboardEvent): boolean {
-		if (tree.getNavigator().first() === tree.getFocus()) {
-			this.viewlet.moveFocusFromResults();
-			return true;
-		}
-		return super.onUp(tree, event);
-	}
-
-	protected onSpace(tree: ITree, event: IKeyboardEvent): boolean {
-		let element = tree.getFocus();
-		if (element instanceof Match) {
-			return this.onEnter(tree, event);
-		}
-		super.onSpace(tree, event);
+		return undefined;
 	}
 }
 
 export class SearchFilter implements IFilter {
 
 	public isVisible(tree: ITree, element: any): boolean {
-		return !(element instanceof FileMatch) || element.matches().length > 0;
+		return !(element instanceof FileMatch || element instanceof FolderMatch) || element.matches().length > 0;
 	}
 }
