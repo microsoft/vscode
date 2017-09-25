@@ -119,7 +119,12 @@ export class LanguageConfigurationFileHandler {
 		}
 
 		if (configuration.folding) {
-			richEditConfig.folding = configuration.folding;
+			let markers = configuration.folding.markers;
+
+			richEditConfig.folding = {
+				offSide: configuration.folding.offSide,
+				markers: markers ? { start: new RegExp(markers.start), end: new RegExp(markers.end) } : void 0
+			};
 		}
 
 		LanguageConfigurationRegistry.register(languageIdentifier, richEditConfig);
@@ -390,6 +395,20 @@ const schema: IJSONSchema = {
 				offSide: {
 					type: 'boolean',
 					description: nls.localize('schema.folding.offSide', 'A language adheres to the off-side rule if blocks in that language are expressed by their indentation. If set, empty lines belong to the subsequent block.'),
+				},
+				markers: {
+					type: 'object',
+					description: nls.localize('schema.folding.markers', 'Language specific folding markers such as \'#region\' and \'#endregion\'. The start and end regexes will be tested against the contents of all lines and must be designed efficiently'),
+					properties: {
+						start: {
+							type: 'string',
+							description: nls.localize('schema.folding.markers.start', 'The RegExp pattern for the start marker. The regexp must start with \'^\'.')
+						},
+						end: {
+							type: 'string',
+							description: nls.localize('schema.folding.markers.end', 'The RegExp pattern for the end marker. The regexp must start with \'^\'.')
+						},
+					}
 				}
 			}
 		}

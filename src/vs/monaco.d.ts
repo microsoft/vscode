@@ -4362,6 +4362,17 @@ declare module monaco.languages {
 	}
 
 	/**
+	 * Describes language specific folding markers such as '#region' and '#endregion'.
+	 * The start and end regexes will be tested against the contents of all lines and must be designed efficiently:
+	 * - the regex should start with '^'
+	 * - regexp flags (i, g) are ignored
+	 */
+	export interface FoldingMarkers {
+		start: RegExp;
+		end: RegExp;
+	}
+
+	/**
 	 * Describes folding rules for a language.
 	 */
 	export interface FoldingRules {
@@ -4372,6 +4383,10 @@ declare module monaco.languages {
 		 * If not set, `false` is used and empty lines belong to the previous block.
 		 */
 		offSide?: boolean;
+		/**
+		 * Region markers used by the language.
+		 */
+		markers?: FoldingMarkers;
 	}
 
 	/**

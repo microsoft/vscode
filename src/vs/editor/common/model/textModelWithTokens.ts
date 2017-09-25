@@ -845,7 +845,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		if (!this._indentRanges) {
 			let foldingRules = LanguageConfigurationRegistry.getFoldingRules(this._languageIdentifier.id);
 			let offSide = foldingRules && foldingRules.offSide;
-			let markers = foldingRules && foldingRules['markers'];
+			let markers = foldingRules && foldingRules.markers;
 			this._indentRanges = computeRanges(this, offSide, markers);
 		}
 		return this._indentRanges;

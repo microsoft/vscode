@@ -6,6 +6,7 @@
 'use strict';
 
 import { ITextModel } from 'vs/editor/common/editorCommon';
+import { FoldingMarkers } from 'vs/editor/common/modes/languageConfiguration';
 
 export class IndentRange {
 	_indentRangeBrand: void;
@@ -31,23 +32,15 @@ export class IndentRange {
 	}
 }
 
-export interface FoldMarkers {
-	start: string;
-	end: string;
-	indent?: number;
-}
-
 interface PreviousRegion { indent: number; line: number; marker: RegExp; };
 
-export function computeRanges(model: ITextModel, offSide: boolean, markers?: FoldMarkers, minimumRangeSize: number = 1): IndentRange[] {
+export function computeRanges(model: ITextModel, offSide: boolean, markers?: FoldingMarkers, minimumRangeSize: number = 1): IndentRange[] {
 
 	let result: IndentRange[] = [];
 
 	let pattern = void 0;
-	let patternIndent = -1;
 	if (markers) {
-		pattern = new RegExp(`(${markers.start})|(?:${markers.end})`);
-		patternIndent = typeof markers.indent === 'number' ? markers.indent : -1;
+		pattern = new RegExp(`(${markers.start.source})|(?:${markers.end.source})`);
 	}
 
 	let previousRegions: PreviousRegion[] = [];
@@ -64,7 +57,7 @@ export function computeRanges(model: ITextModel, offSide: boolean, markers?: Fol
 			continue; // only whitespace
 		}
 		let m;
-		if (pattern && (patternIndent === -1 || patternIndent === indent) && (m = model.getLineContent(line).match(pattern))) {
+		if (pattern && (m = model.getLineContent(line).match(pattern))) {
 			// folding pattern match
 			if (m[1]) { // start pattern match
 				if (previous.indent >= 0 && !previous.marker) {

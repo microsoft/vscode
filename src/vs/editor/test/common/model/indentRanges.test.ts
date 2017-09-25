@@ -7,7 +7,8 @@
 
 import * as assert from 'assert';
 import { Model } from 'vs/editor/common/model/model';
-import { computeRanges, FoldMarkers } from 'vs/editor/common/model/indentRanges';
+import { computeRanges } from 'vs/editor/common/model/indentRanges';
+import { FoldingMarkers } from 'vs/editor/common/modes/languageConfiguration';
 
 export interface IndentRange {
 	startLineNumber: number;
@@ -16,7 +17,7 @@ export interface IndentRange {
 	marker: boolean;
 }
 
-function assertRanges(lines: string[], expected: IndentRange[], offside: boolean, markers?: FoldMarkers): void {
+function assertRanges(lines: string[], expected: IndentRange[], offside: boolean, markers?: FoldingMarkers): void {
 	let model = Model.createFromString(lines.join('\n'));
 	let actual = computeRanges(model, offside, markers);
 	actual.sort((r1, r2) => r1.startLineNumber - r2.startLineNumber);
@@ -144,9 +145,9 @@ function r(startLineNumber: number, endLineNumber: number, indent: number, marke
 // 	});
 // });
 
-let foldPattern: FoldMarkers = {
-	start: '^\\s*#region',
-	end: '^\\s*#endregion'
+let markers: FoldingMarkers = {
+	start: /^\\s*#region/,
+	end: /^\\s*#endregion/
 };
 
 suite('Folding with regions', () => {
@@ -160,7 +161,7 @@ suite('Folding with regions', () => {
 		/* 6*/	'  }',
 		/* 7*/	'  #endregion',
 		/* 8*/	'}',
-		], [r(1, 7, 0), r(2, 7, 2, true), r(3, 5, 2)], false, foldPattern);
+		], [r(1, 7, 0), r(2, 7, 2, true), r(3, 5, 2)], false, markers);
 	});
 	test('Inside region, not indented', () => {
 		assertRanges([
@@ -172,7 +173,7 @@ suite('Folding with regions', () => {
 		/* 6*/	'  }',
 		/* 7*/	'#endregion',
 		/* 8*/	'',
-		], [r(2, 7, 0, true), r(3, 6, 0)], false, foldPattern);
+		], [r(2, 7, 0, true), r(3, 6, 0)], false, markers);
 	});
 	test('Empty Regions', () => {
 		assertRanges([
@@ -183,7 +184,7 @@ suite('Folding with regions', () => {
 		/* 5*/	'',
 		/* 6*/	'#endregion',
 		/* 7*/	'var y;',
-		], [r(2, 3, 0, true), r(4, 6, 0, true)], false, foldPattern);
+		], [r(2, 3, 0, true), r(4, 6, 0, true)], false, markers);
 	});
 	test('Nested Regions', () => {
 		assertRanges([
@@ -194,7 +195,7 @@ suite('Folding with regions', () => {
 		/* 5*/	'#endregion',
 		/* 6*/	'#endregion',
 		/* 7*/	'var y;',
-		], [r(2, 6, 0, true), r(3, 5, 0, true)], false, foldPattern);
+		], [r(2, 6, 0, true), r(3, 5, 0, true)], false, markers);
 	});
 	test('Nested Regions 2', () => {
 		assertRanges([
@@ -207,7 +208,7 @@ suite('Folding with regions', () => {
 		/* 7*/	'  // comment',
 		/* 8*/	'  #endregion',
 		/* 9*/	'}',
-		], [r(1, 8, 0), r(2, 8, 2, true), r(4, 6, 2, true)], false, foldPattern);
+		], [r(1, 8, 0), r(2, 8, 2, true), r(4, 6, 2, true)], false, markers);
 	});
 	test('Incomplete Regions', () => {
 		assertRanges([
@@ -215,7 +216,7 @@ suite('Folding with regions', () => {
 		/* 2*/	'#region',
 		/* 3*/	'  // comment',
 		/* 4*/	'}',
-		], [], false, foldPattern);
+		], [], false, markers);
 	});
 	test('Incomplete Regions', () => {
 		assertRanges([
@@ -227,7 +228,7 @@ suite('Folding with regions', () => {
 		/* 6*/	'#endregion',
 		/* 7*/	'#endregion',
 		/* 8*/	' // hello',
-		], [r(3, 7, 0, true), r(4, 6, 0, true)], false, foldPattern);
+		], [r(3, 7, 0, true), r(4, 6, 0, true)], false, markers);
 	});
 	test('Indented region before', () => {
 		assertRanges([
@@ -237,7 +238,7 @@ suite('Folding with regions', () => {
 		/* 4*/	'#region',
 		/* 5*/	'  // comment',
 		/* 6*/	'#endregion',
-		], [r(1, 3, 0), r(4, 6, 0, true)], false, foldPattern);
+		], [r(1, 3, 0), r(4, 6, 0, true)], false, markers);
 	});
 	test('Indented region before 2', () => {
 		assertRanges([
@@ -247,7 +248,7 @@ suite('Folding with regions', () => {
 		/* 4*/	'    #region',
 		/* 5*/	'      // comment',
 		/* 6*/	'    #endregion',
-		], [r(1, 6, 0), r(2, 6, 2), r(4, 6, 4, true)], false, foldPattern);
+		], [r(1, 6, 0), r(2, 6, 2), r(4, 6, 4, true)], false, markers);
 	});
 	test('Indented region in-between', () => {
 		assertRanges([
@@ -257,7 +258,7 @@ suite('Folding with regions', () => {
 		/* 4*/	'    return;',
 		/* 5*/	'',
 		/* 6*/	'#endregion',
-		], [r(1, 6, 0, true), r(3, 5, 2)], false, foldPattern);
+		], [r(1, 6, 0, true), r(3, 5, 2)], false, markers);
 	});
 	test('Indented region after', () => {
 		assertRanges([
@@ -267,6 +268,6 @@ suite('Folding with regions', () => {
 		/* 4*/	'#endregion',
 		/* 5*/	'  if (x)',
 		/* 6*/	'    return;',
-		], [r(1, 4, 0, true), r(5, 6, 2)], false, foldPattern);
+		], [r(1, 4, 0, true), r(5, 6, 2)], false, markers);
 	});
 });
