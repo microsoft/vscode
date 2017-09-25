@@ -75,9 +75,11 @@ export class InstallAction extends Action {
 		if (this.extension.state === ExtensionState.Installing) {
 			this.label = InstallAction.InstallingLabel;
 			this.class = InstallAction.InstallingClass;
+			this.tooltip = InstallAction.InstallingLabel;
 		} else {
 			this.label = InstallAction.InstallLabel;
 			this.class = InstallAction.Class;
+			this.tooltip = InstallAction.InstallLabel;
 		}
 	}
 
@@ -194,22 +196,27 @@ export class CombinedInstallAction extends Action {
 			this.enabled = true;
 			this.label = this.installAction.label;
 			this.class = this.installAction.class;
+			this.tooltip = this.installAction.tooltip;
 		} else if (this.uninstallAction.enabled) {
 			this.enabled = true;
 			this.label = this.uninstallAction.label;
 			this.class = this.uninstallAction.class;
+			this.tooltip = this.uninstallAction.tooltip;
 		} else if (this.extension.state === ExtensionState.Installing) {
 			this.enabled = false;
 			this.label = this.installAction.label;
 			this.class = this.installAction.class;
+			this.tooltip = this.installAction.tooltip;
 		} else if (this.extension.state === ExtensionState.Uninstalling) {
 			this.enabled = false;
 			this.label = this.uninstallAction.label;
 			this.class = this.uninstallAction.class;
+			this.tooltip = this.uninstallAction.tooltip;
 		} else {
 			this.enabled = false;
 			this.label = this.installAction.label;
 			this.class = this.installAction.class;
+			this.tooltip = this.installAction.tooltip;
 		}
 	}
 
