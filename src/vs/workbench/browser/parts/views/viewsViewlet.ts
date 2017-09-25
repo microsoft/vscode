@@ -394,6 +394,8 @@ export class ViewsViewlet extends PanelViewlet {
 			if (toRemove.length) {
 				for (const viewDescriptor of toRemove) {
 					let view = this.getView(viewDescriptor.id);
+					const viewState = this.updateViewStateSize(view);
+					this.viewsStates.set(view.id, viewState);
 					this.removePanel(view);
 					this.viewsViewletPanels.splice(this.viewsViewletPanels.indexOf(view), 1);
 				}
