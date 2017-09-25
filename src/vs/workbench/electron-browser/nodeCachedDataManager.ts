@@ -33,11 +33,11 @@ export class NodeCachedDataManager {
 			// log each failure separately
 			if (err) {
 				/* __GDPR__
-				   "cachedDataError" : {
-					  "errorCode" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-					  "path": { "classification": "CustomerContent", "purpose": "PerformanceAndHealth" }
-				   }
-				 */
+					"cachedDataError" : {
+						"errorCode" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+						"path": { "classification": "CustomerContent", "purpose": "PerformanceAndHealth" }
+					}
+				*/
 				this._telemetryService.publicLog('cachedDataError', {
 					errorCode: err.errorCode,
 					path: basename(err.path)
@@ -47,12 +47,12 @@ export class NodeCachedDataManager {
 
 		// log summary
 		/* __GDPR__
-		   "cachedDataInfo" : {
-			  "didRequestCachedData" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-			  "didRejectCachedData": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-			  "didProduceCachedData": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-		   }
-		 */
+			"cachedDataInfo" : {
+				"didRequestCachedData" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"didRejectCachedData": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"didProduceCachedData": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+			}
+		*/
 		this._telemetryService.publicLog('cachedDataInfo', {
 			didRequestCachedData: Boolean(global.require.getConfig().nodeCachedDataDir),
 			didRejectCachedData,

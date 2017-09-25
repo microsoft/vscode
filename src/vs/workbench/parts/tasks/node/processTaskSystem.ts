@@ -147,23 +147,23 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 			let result = this.doExecuteTask(task, telemetryEvent);
 			result.promise = result.promise.then((success) => {
 				/* __GDPR__
-				   "taskService" : {
-					   "${include}": [
-						  "${TelemetryEvent}"
-					   ]
-				   }
-				 */
+					"taskService" : {
+						"${include}": [
+							"${TelemetryEvent}"
+						]
+					}
+				*/
 				this.telemetryService.publicLog(ProcessTaskSystem.TelemetryEventName, telemetryEvent);
 				return success;
 			}, (err: any) => {
 				telemetryEvent.success = false;
 				/* __GDPR__
-				   "taskService" : {
-					   "${include}": [
-						  "${TelemetryEvent}"
-					   ]
-				   }
-				 */
+					"taskService" : {
+						"${include}": [
+							"${TelemetryEvent}"
+						]
+					}
+				*/
 				this.telemetryService.publicLog(ProcessTaskSystem.TelemetryEventName, telemetryEvent);
 				return TPromise.wrapError<ITaskSummary>(err);
 			});
@@ -171,12 +171,12 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 		} catch (err) {
 			telemetryEvent.success = false;
 			/* __GDPR__
-			   "taskService" : {
-				   "${include}": [
-					  "${TelemetryEvent}"
-				   ]
-			   }
-			 */
+				"taskService" : {
+					"${include}": [
+						"${TelemetryEvent}"
+					]
+				}
+			*/
 			this.telemetryService.publicLog(ProcessTaskSystem.TelemetryEventName, telemetryEvent);
 			if (err instanceof TaskError) {
 				throw err;

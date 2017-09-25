@@ -366,14 +366,13 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private loadWithContent(content: IRawTextContent | IContent, backup?: URI): TPromise<TextFileEditorModel> {
 		diag('load() - resolved content', this.resource, new Date());
 
-		// Telemetry
 		/* __GDPR__
-		   "fileGet" : {
-			  "mimeType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "path": { "classification": "CustomerContent", "purpose": "FeatureInsight" }
-		   }
-		 */
+			"fileGet" : {
+				"mimeType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"path": { "classification": "CustomerContent", "purpose": "FeatureInsight" }
+			}
+		*/
 		this.telemetryService.publicLog('fileGet', { mimeType: guessMimeTypes(this.resource.fsPath).join(', '), ext: paths.extname(this.resource.fsPath), path: anonymize(this.resource.fsPath) });
 
 		// Update our resolved disk stat model
@@ -706,16 +705,16 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				// Telemetry
 				if (this.isSettingsFile()) {
 					/* __GDPR__
-					   "settingsWritten" : {}
-					 */
+						"settingsWritten" : {}
+					*/
 					this.telemetryService.publicLog('settingsWritten'); // Do not log write to user settings.json and .vscode folder as a filePUT event as it ruins our JSON usage data
 				} else {
 					/* __GDPR__
-					   "filePUT" : {
-						  "mimeType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						  "ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-					   }
-					 */
+						"filePUT" : {
+							"mimeType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							"ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						}
+					*/
 					this.telemetryService.publicLog('filePUT', { mimeType: guessMimeTypes(this.resource.fsPath).join(', '), ext: paths.extname(this.lastResolvedDiskStat.resource.fsPath) });
 				}
 

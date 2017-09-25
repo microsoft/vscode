@@ -165,16 +165,16 @@ export class RawDebugSession extends V8Protocol implements debug.ISession {
 				const telemetryMessage = error ? debug.formatPII(error.format, true, error.variables) : errorMessage;
 				if (error && error.sendTelemetry) {
 					/* __GDPR__
-					   "debugProtocolErrorResponse" : {
-						  "error" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-					   }
-					 */
+						"debugProtocolErrorResponse" : {
+							"error" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						}
+					*/
 					this.telemetryService.publicLog('debugProtocolErrorResponse', { error: telemetryMessage });
 					if (this.customTelemetryService) {
 						/* __GDPR__TODO__
-						 * The message is sent in the name of the adapter but the adapter doesn't know about it. However, since adapters are an open-ended set,
-						 * we can not declared the events statically either.
-						 */
+							The message is sent in the name of the adapter but the adapter doesn't know about it.
+							However, since adapters are an open-ended set, we can not declared the events statically either.
+						*/
 						this.customTelemetryService.publicLog('debugProtocolErrorResponse', { error: telemetryMessage });
 					}
 				}

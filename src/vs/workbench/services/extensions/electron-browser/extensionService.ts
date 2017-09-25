@@ -301,11 +301,11 @@ export class ExtensionService implements IExtensionService {
 			];
 
 			/* __GDPR__
-			   "extensionsScanned" : {
-				  "totalCount" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				  "disabledCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-			   }
-			 */
+				"extensionsScanned" : {
+					"totalCount" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+					"disabledCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+				}
+			*/
 			this._telemetryService.publicLog('extensionsScanned', {
 				totalCount: installedExtensions.length,
 				disabledCount: disabledExtensions.length
@@ -354,13 +354,13 @@ export class ExtensionService implements IExtensionService {
 		if (!this._isDev && msg.extensionId) {
 			const { type, extensionId, extensionPointId, message } = msg;
 			/* __GDPR__
-			   "extensionsMessage" : {
-				  "type" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				  "extensionId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				  "extensionPointId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				  "message": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-			   }
-			 */
+				"extensionsMessage" : {
+					"type" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+					"extensionId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+					"extensionPointId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+					"message": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+				}
+			*/
 			this._telemetryService.publicLog('extensionsMessage', {
 				type, extensionId, extensionPointId, message
 			});

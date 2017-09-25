@@ -550,8 +550,8 @@ export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 
 	public run(): TPromise<any> {
 		/* __GDPR__
-		   "replaceAll.action.selected" : {}
-		 */
+			"replaceAll.action.selected" : {}
+		*/
 		this.telemetryService.publicLog('replaceAll.action.selected');
 		let nextFocusElement = this.getElementToFocusAfterRemoved(this.viewer, this.fileMatch);
 		return this.fileMatch.parent().replace(this.fileMatch).then(() => {
@@ -577,8 +577,8 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 	public run(): TPromise<any> {
 		this.enabled = false;
 		/* __GDPR__
-		   "replace.action.selected" : {}
-		 */
+			"replace.action.selected" : {}
+		*/
 		this.telemetryService.publicLog('replace.action.selected');
 
 		return this.element.parent().replace(this.element).then(() => {

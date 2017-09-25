@@ -316,10 +316,10 @@ export class ExtensionsListView extends ViewsViewletPanel {
 					.filter(name => name.toLowerCase().indexOf(value) > -1);
 
 				/* __GDPR__
-				   "extensionRecommendations:open" : {
-					  "count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				   }
-				 */
+					"extensionRecommendations:open" : {
+						"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
 				this.telemetryService.publicLog('extensionRecommendations:open', { count: names.length });
 
 				if (!names.length) {
@@ -340,10 +340,10 @@ export class ExtensionsListView extends ViewsViewletPanel {
 			.then(recommendations => {
 				const names = recommendations.filter(name => name.toLowerCase().indexOf(value) > -1);
 				/* __GDPR__
-				   "extensionWorkspaceRecommendations:open" : {
-					  "count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				   }
-				 */
+					"extensionWorkspaceRecommendations:open" : {
+						"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
 				this.telemetryService.publicLog('extensionWorkspaceRecommendations:open', { count: names.length });
 
 				if (!names.length) {
@@ -360,10 +360,10 @@ export class ExtensionsListView extends ViewsViewletPanel {
 		const names = this.tipsService.getKeymapRecommendations()
 			.filter(name => name.toLowerCase().indexOf(value) > -1);
 		/* __GDPR__
-		   "extensionKeymapRecommendations:open" : {
-			  "count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-		   }
-		 */
+			"extensionKeymapRecommendations:open" : {
+				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		this.telemetryService.publicLog('extensionKeymapRecommendations:open', { count: names.length });
 
 		if (!names.length) {

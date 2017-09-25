@@ -42,8 +42,8 @@ export class ToggleMarkersPanelAction extends TogglePanelAction {
 		let promise = super.run();
 		if (this.isPanelFocused()) {
 			/* __GDPR__
-			   "problems.used" : {}
-			 */
+				"problems.used" : {}
+			*/
 			this.telemetryService.publicLog('problems.used');
 		}
 		return promise;
@@ -67,8 +67,8 @@ export class ToggleErrorsAndWarningsAction extends TogglePanelAction {
 		let promise = super.run();
 		if (this.isPanelFocused()) {
 			/* __GDPR__
-			   "problems.used" : {}
-			 */
+				"problems.used" : {}
+			*/
 			this.telemetryService.publicLog('problems.used');
 		}
 		return promise;
@@ -84,8 +84,8 @@ export class CollapseAllAction extends TreeCollapseAction {
 
 	public run(context?: any): TPromise<any> {
 		/* __GDPR__
-		   "problems.collapseAll.used" : {}
-		 */
+			"problems.collapseAll.used" : {}
+		*/
 		this.telemetryService.publicLog('problems.collapseAll.used');
 		return super.run(context);
 	}
@@ -142,12 +142,12 @@ export class FilterInputBoxActionItem extends BaseActionItem {
 		data['warnings'] = this.markersPanel.markersModel.filterOptions.filterWarnings;
 		data['infos'] = this.markersPanel.markersModel.filterOptions.filterInfos;
 		/* __GDPR__
-		   "problems.filter" : {
-			  "errors" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "warnings": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "infos": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-		   }
-		 */
+			"problems.filter" : {
+				"errors" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"warnings": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"infos": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		this.telemetryService.publicLog('problems.filter', data);
 	}
 

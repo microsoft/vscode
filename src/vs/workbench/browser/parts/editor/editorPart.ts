@@ -167,12 +167,12 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			this.revealIfOpen = editorConfig.revealIfOpen;
 
 			/* __GDPR__
-			   "workbenchEditorConfiguration" : {
+				"workbenchEditorConfiguration" : {
 					"${include}": [
-					   "${IWorkbenchEditorConfiguration}"
+						"${IWorkbenchEditorConfiguration}"
 					]
-			   }
-			 */
+				}
+			*/
 			this.telemetryService.publicLog('workbenchEditorConfiguration', editorConfig);
 		} else {
 			this.tabOptions = {
@@ -256,23 +256,23 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	private onEditorOpened(identifier: EditorIdentifier): void {
 		/* __GDPR__
-		   "editorOpened" : {
-			   "${include}": [
-				  "${EditorTelemetryDescriptor}"
-			   ]
-		   }
-		 */
+			"editorOpened" : {
+				"${include}": [
+					"${EditorTelemetryDescriptor}"
+				]
+			}
+		*/
 		this.telemetryService.publicLog('editorOpened', identifier.editor.getTelemetryDescriptor());
 	}
 
 	private onEditorClosed(event: EditorCloseEvent): void {
 		/* __GDPR__
-		   "editorClosed" : {
-			   "${include}": [
-				  "${EditorTelemetryDescriptor}"
-			   ]
-		   }
-		 */
+			"editorClosed" : {
+				"${include}": [
+					"${EditorTelemetryDescriptor}"
+				]
+			}
+		*/
 		this.telemetryService.publicLog('editorClosed', event.editor.getTelemetryDescriptor());
 	}
 
@@ -341,10 +341,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		// Opened to the side
 		if (position !== Position.ONE) {
 			/* __GDPR__
-			   "workbenchSideEditorOpened" : {
-				  "position" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			   }
-			 */
+				"workbenchSideEditorOpened" : {
+					"position" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
 			this.telemetryService.publicLog('workbenchSideEditorOpened', { position: position });
 		}
 

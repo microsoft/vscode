@@ -71,8 +71,8 @@ class UnsupportedWorkspaceSettingsContribution implements IWorkbenchContribution
 
 		const openWorkspaceSettings = new Action('unsupportedWorkspaceSettings.openWorkspaceSettings', nls.localize('openWorkspaceSettings', 'Open Workspace Settings'), '', true, () => {
 			/* __GDPR__
-			   "workspace.settings.unsupported.review" : {}
-			 */
+				"workspace.settings.unsupported.review" : {}
+			*/
 			this.telemetryService.publicLog('workspace.settings.unsupported.review');
 			this.rememberWarningWasShown();
 			return this.preferencesService.openWorkspaceSettings();
@@ -80,8 +80,8 @@ class UnsupportedWorkspaceSettingsContribution implements IWorkbenchContribution
 
 		const openDocumentation = new Action('unsupportedWorkspaceSettings.openDocumentation', nls.localize('openDocumentation', 'Learn More'), '', true, () => {
 			/* __GDPR__
-			   "workspace.settings.unsupported.documentation" : {}
-			 */
+				"workspace.settings.unsupported.documentation" : {}
+			*/
 			this.telemetryService.publicLog('workspace.settings.unsupported.documentation');
 			this.rememberWarningWasShown();
 			window.open('https://go.microsoft.com/fwlink/?linkid=839878'); // Don't change link.
@@ -90,8 +90,8 @@ class UnsupportedWorkspaceSettingsContribution implements IWorkbenchContribution
 
 		const close = new Action('unsupportedWorkspaceSettings.Ignore', nls.localize('ignore', 'Ignore'), '', true, () => {
 			/* __GDPR__
-			   "workspace.settings.unsupported.ignore" : {}
-			 */
+				"workspace.settings.unsupported.ignore" : {}
+			*/
 			this.telemetryService.publicLog('workspace.settings.unsupported.ignore');
 			this.rememberWarningWasShown();
 			return TPromise.as(true);
@@ -100,8 +100,8 @@ class UnsupportedWorkspaceSettingsContribution implements IWorkbenchContribution
 		const actions = [openWorkspaceSettings, openDocumentation, close];
 		this.messageService.show(Severity.Warning, { message, actions });
 		/* __GDPR__
-		   "workspace.settings.unsupported.warning" : {}
-		 */
+			"workspace.settings.unsupported.warning" : {}
+		*/
 		this.telemetryService.publicLog('workspace.settings.unsupported.warning');
 	}
 }

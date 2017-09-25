@@ -146,14 +146,14 @@ export function createApiFactory(
 				}
 				this._seen.add(apiName);
 				/* __GDPR__
-				   "apiUsage" : {
-					  "name" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					  "extension": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					  "${include}": [
-						 "${MainThreadData}"
-					  ]
-				   }
-				 */
+					"apiUsage" : {
+						"name" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"extension": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"${include}": [
+							"${MainThreadData}"
+						]
+					}
+				*/
 				return mainThreadTelemetry.$publicLog('apiUsage', {
 					name: apiName,
 					extension: extension.id
@@ -504,15 +504,15 @@ export function createApiFactory(
 			},
 			createSourceControl(id: string, label: string, rootUri?: vscode.Uri) {
 				/* __GDPR__
-				   "registerSCMProvider" : {
-					  "extensionId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					  "providerId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-					  "providerLabel": { "classification": "PublicPersonalData", "purpose": "FeatureInsight" },
-					  "${include}": [
-						 "${MainThreadData}"
-					  ]
-				   }
-				 */
+					"registerSCMProvider" : {
+						"extensionId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"providerId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+						"providerLabel": { "classification": "PublicPersonalData", "purpose": "FeatureInsight" },
+						"${include}": [
+							"${MainThreadData}"
+						]
+					}
+				*/
 				mainThreadTelemetry.$publicLog('registerSCMProvider', {
 					extensionId: extension.id,
 					providerId: id,

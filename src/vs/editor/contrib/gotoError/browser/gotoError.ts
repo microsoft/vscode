@@ -407,13 +407,13 @@ class MarkerNavigationAction extends EditorAction {
 
 		let model = controller.getOrCreateModel();
 		/* __GDPR__
-		   "zoneWidgetShown" : {
-			  "mode" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "${include}": [
-				 "${EditorTelemetryData}"
-			  ]
-		   }
-		 */
+			"zoneWidgetShown" : {
+				"mode" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"${include}": [
+					"${EditorTelemetryData}"
+				]
+			}
+		*/
 		telemetryService.publicLog('zoneWidgetShown', { mode: 'go to error', ...editor.getTelemetryData() });
 		if (model) {
 			if (this._isNext) {

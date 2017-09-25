@@ -419,12 +419,12 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 	open(extension: IExtension, sideByside: boolean = false): TPromise<any> {
 		/* __GDPR__
-		   "extensionGallery:open" : {
-			   "${include}": [
-				  "${GalleryExtensionTelemetryData}"
-			   ]
-		   }
-		 */
+			"extensionGallery:open" : {
+				"${include}": [
+					"${GalleryExtensionTelemetryData}"
+				]
+			}
+		*/
 		this.telemetryService.publicLog('extensionGallery:open', extension.telemetryData);
 		return this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension), null, sideByside);
 	}
@@ -535,19 +535,19 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 		return this.promptAndSetEnablement(extension, enable, workspace).then(reload => {
 			/* __GDPR__
-			   "extension:enabled" : {
-				   "${include}": [
-					  "${GalleryExtensionTelemetryData}"
-				   ]
-			   }
-			 */
+				"extension:enabled" : {
+					"${include}": [
+						"${GalleryExtensionTelemetryData}"
+					]
+				}
+			*/
 			/* __GDPR__
-			   "extension:disable" : {
-				   "${include}": [
-					  "${GalleryExtensionTelemetryData}"
-				   ]
-			   }
-			 */
+				"extension:disable" : {
+					"${include}": [
+						"${GalleryExtensionTelemetryData}"
+					]
+				}
+			*/
 			this.telemetryService.publicLog(enable ? 'extension:enable' : 'extension:disable', extension.telemetryData);
 		});
 	}
@@ -816,35 +816,35 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		const eventName = toTelemetryEventName(active.operation);
 
 		/* __GDPR__
-		   "extensionGallery:install" : {
-			  "success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-			  "duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-			  "errorcode": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-			  "${include}": [
-				 "${GalleryExtensionTelemetryData}"
-			  ]
-		   }
-		 */
+			"extensionGallery:install" : {
+				"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"errorcode": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+				"${include}": [
+					"${GalleryExtensionTelemetryData}"
+				]
+			}
+		*/
 		/* __GDPR__
-		   "extensionGallery:update" : {
-			  "success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-			  "duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-			  "errorcode": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-			  "${include}": [
-				 "${GalleryExtensionTelemetryData}"
-			  ]
-		   }
-		 */
+			"extensionGallery:update" : {
+				"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"errorcode": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+				"${include}": [
+					"${GalleryExtensionTelemetryData}"
+				]
+			}
+		*/
 		/* __GDPR__
-		   "extensionGallery:uninstall" : {
-			  "success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-			  "duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-			  "errorcode": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-			  "${include}": [
-				 "${GalleryExtensionTelemetryData}"
-			  ]
-		   }
-		 */
+			"extensionGallery:uninstall" : {
+				"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"errorcode": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+				"${include}": [
+					"${GalleryExtensionTelemetryData}"
+				]
+			}
+		*/
 		this.telemetryService.publicLog(eventName, assign(data, { success: !errorcode, duration, errorcode }));
 	}
 

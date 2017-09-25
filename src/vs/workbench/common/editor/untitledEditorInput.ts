@@ -255,10 +255,10 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		descriptor['resource'] = telemetryURIDescriptor(this.getResource());
 
 		/* __GDPR__FRAGMENT__
-		   "EditorTelemetryDescriptor" : {
-			  "resource": { "${inline}": [ "${URIDescriptor}" ] }
-		   }
-		 */
+			"EditorTelemetryDescriptor" : {
+				"resource": { "${inline}": [ "${URIDescriptor}" ] }
+			}
+		*/
 		return descriptor;
 	}
 

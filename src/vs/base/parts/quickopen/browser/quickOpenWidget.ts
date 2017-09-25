@@ -533,12 +533,12 @@ export class QuickOpenWidget implements IModelProvider {
 			const indexOfAcceptedElement = this.model.entries.indexOf(value);
 			const entriesCount = this.model.entries.length;
 			/* __GDPR__
-			   "quickOpenWidgetItemAccepted" : {
-				  "index" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				  "count": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				  "isQuickNavigate": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			   }
-			 */
+				"quickOpenWidgetItemAccepted" : {
+					"index" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"count": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"isQuickNavigate": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
 			this.usageLogger.publicLog('quickOpenWidgetItemAccepted', { index: indexOfAcceptedElement, count: entriesCount, isQuickNavigate: this.quickNavigateConfiguration ? true : false });
 		}
 
@@ -781,11 +781,11 @@ export class QuickOpenWidget implements IModelProvider {
 				const entriesCount = this.model.entries.filter(e => this.isElementVisible(this.model, e)).length;
 				if (this.usageLogger) {
 					/* __GDPR__
-					   "quickOpenWidgetCancelled" : {
-						  "count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						  "isQuickNavigate": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-					   }
-					 */
+						"quickOpenWidgetCancelled" : {
+							"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							"isQuickNavigate": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						}
+					*/
 					this.usageLogger.publicLog('quickOpenWidgetCancelled', { count: entriesCount, isQuickNavigate: this.quickNavigateConfiguration ? true : false });
 				}
 			}

@@ -7,10 +7,10 @@
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 
 /* __GDPR__FRAGMENT__
-   "IQuickNavigateConfiguration" : {
-	  "keybindings" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-   }
- */
+	"IQuickNavigateConfiguration" : {
+		"keybindings" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	}
+*/
 export interface IQuickNavigateConfiguration {
 	keybindings: ResolvedKeybinding[];
 }

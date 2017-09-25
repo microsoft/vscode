@@ -278,10 +278,10 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		descriptor['resource'] = telemetryURIDescriptor(this.getResource());
 
 		/* __GDPR__FRAGMENT__
-		   "EditorTelemetryDescriptor" : {
-			  "resource": { "${inline}": [ "${URIDescriptor}" ] }
-		   }
-		 */
+			"EditorTelemetryDescriptor" : {
+				"resource": { "${inline}": [ "${URIDescriptor}" ] }
+			}
+		*/
 		return descriptor;
 	}
 

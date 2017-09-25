@@ -411,12 +411,12 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 					exitCode: summary.exitCode
 				};
 				/* __GDPR__
-				   "taskService" : {
-					   "${include}": [
-						  "${TelemetryEvent}"
-					   ]
+					"taskService" : {
+						"${include}": [
+							"${TelemetryEvent}"
+						]
 					}
-				 */
+				*/
 				this.telemetryService.publicLog(TerminalTaskSystem.TelemetryEventName, telemetryEvent);
 			} catch (error) {
 			}
@@ -431,12 +431,12 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 					success: false
 				};
 				/* __GDPR__
-				   "taskService" : {
-					   "${include}": [
-						  "${TelemetryEvent}"
-					   ]
-				   }
-				 */
+					"taskService" : {
+						"${include}": [
+							"${TelemetryEvent}"
+						]
+					}
+				*/
 				this.telemetryService.publicLog(TerminalTaskSystem.TelemetryEventName, telemetryEvent);
 			} catch (error) {
 			}

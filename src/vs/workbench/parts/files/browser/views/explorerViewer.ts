@@ -538,11 +538,11 @@ export class FileController extends DefaultController {
 	public openEditor(stat: FileStat, options: { preserveFocus: boolean; sideBySide: boolean; pinned: boolean; }): void {
 		if (stat && !stat.isDirectory) {
 			/* __GDPR__
-			   "workbenchActionExecuted" : {
-				  "id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				  "from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			   }
-			 */
+				"workbenchActionExecuted" : {
+					"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
 			this.telemetryService.publicLog('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'explorer' });
 
 			this.editorService.openEditor({ resource: stat.resource, options }, options.sideBySide).done(null, errors.onUnexpectedError);

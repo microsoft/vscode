@@ -242,8 +242,8 @@ export class ExcludePatternInputWidget extends PatternInputWidget {
 			isChecked: false,
 			onChange: (viaKeyboard) => {
 				/* __GDPR__
-				   "search.useIgnoreFiles.toggled" : {}
-				 */
+					"search.useIgnoreFiles.toggled" : {}
+				*/
 				this.telemetryService.publicLog('search.useIgnoreFiles.toggled');
 				this.onOptionChange(null);
 				if (!viaKeyboard) {
@@ -259,8 +259,8 @@ export class ExcludePatternInputWidget extends PatternInputWidget {
 			isChecked: false,
 			onChange: (viaKeyboard) => {
 				/* __GDPR__
-				   "search.useExcludeSettings.toggled" : {}
-				 */
+					"search.useExcludeSettings.toggled" : {}
+				*/
 				this.telemetryService.publicLog('search.useExcludeSettings.toggled');
 				this.onOptionChange(null);
 				if (!viaKeyboard) {
