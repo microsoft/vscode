@@ -194,7 +194,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 				this.toDispose.push(this.textEditorModel.onDidChangeContent(() => this.onModelContentChanged()));
 
 				// Listen to mode changes
-				this.toDispose.push(this.textEditorModel.onDidChangeLanguage(() => this.onModelModeChanged()));
+				this.toDispose.push(this.textEditorModel.onDidChangeLanguage(() => this.onConfigurationChange())); // mode change can have impact on config
 
 				return model;
 			});
@@ -232,10 +232,6 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 
 		// Handle content change event buffered
 		this.contentChangeEventScheduler.schedule();
-	}
-
-	private onModelModeChanged(): void {
-		this.onConfigurationChange(); // mode change can have impact on config
 	}
 
 	public dispose(): void {
