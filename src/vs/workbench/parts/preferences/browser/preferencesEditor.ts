@@ -238,12 +238,12 @@ export class PreferencesEditor extends BaseEditor {
 	}
 
 	private getSettingsConfigurationTarget(resource: URI): ConfigurationTarget {
-		if (this.preferencesService.userSettingsResource.fsPath === resource.fsPath) {
+		if (this.preferencesService.userSettingsResource.toString() === resource.toString()) {
 			return ConfigurationTarget.USER;
 		}
 
 		const workspaceSettingsResource = this.preferencesService.workspaceSettingsResource;
-		if (workspaceSettingsResource && workspaceSettingsResource.fsPath === resource.fsPath) {
+		if (workspaceSettingsResource && workspaceSettingsResource.toString() === resource.toString()) {
 			return ConfigurationTarget.WORKSPACE;
 		}
 
@@ -255,10 +255,10 @@ export class PreferencesEditor extends BaseEditor {
 	}
 
 	private getSettingsConfigurationTargetUri(resource: URI): URI {
-		if (this.preferencesService.userSettingsResource.fsPath === resource.fsPath) {
+		if (this.preferencesService.userSettingsResource.toString() === resource.toString()) {
 			return resource;
 		}
-		if (this.preferencesService.workspaceSettingsResource.fsPath === resource.fsPath) {
+		if (this.preferencesService.workspaceSettingsResource.toString() === resource.toString()) {
 			return resource;
 		}
 
@@ -911,17 +911,17 @@ class SettingsEditorContribution extends AbstractSettingsEditorContribution impl
 			return false;
 		}
 
-		if (this.preferencesService.userSettingsResource && this.preferencesService.userSettingsResource.fsPath === model.uri.fsPath) {
+		if (this.preferencesService.userSettingsResource && this.preferencesService.userSettingsResource.toString() === model.uri.toString()) {
 			return true;
 		}
 
-		if (this.preferencesService.workspaceSettingsResource && this.preferencesService.workspaceSettingsResource.fsPath === model.uri.fsPath) {
+		if (this.preferencesService.workspaceSettingsResource && this.preferencesService.workspaceSettingsResource.toString() === model.uri.toString()) {
 			return true;
 		}
 
 		for (const folder of this.workspaceContextService.getWorkspace().folders) {
 			const folderSettingsResource = this.preferencesService.getFolderSettingsResource(folder.uri);
-			if (folderSettingsResource && folderSettingsResource.fsPath === model.uri.fsPath) {
+			if (folderSettingsResource && folderSettingsResource.toString() === model.uri.toString()) {
 				return true;
 			}
 		}
