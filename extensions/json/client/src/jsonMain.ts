@@ -21,6 +21,10 @@ namespace VSCodeContentRequest {
 	export const type: RequestType<string, string, any, any> = new RequestType('vscode/content');
 }
 
+namespace SchemaContentChangeNotification {
+	export const type: NotificationType<string, any> = new NotificationType('json/schemaContent');
+}
+
 export interface ISchemaAssociations {
 	[pattern: string]: string[];
 }
@@ -58,9 +62,11 @@ interface JSONSchemaSettings {
 
 export function activate(context: ExtensionContext) {
 
+	let toDispose = context.subscriptions;
+
 	let packageInfo = getPackageInfo(context);
 	let telemetryReporter: TelemetryReporter = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
-	context.subscriptions.push(telemetryReporter);
+	toDispose.push(telemetryReporter);
 
 	// The server is implemented in node
 	let serverModule = context.asAbsolutePath(path.join('server', 'out', 'jsonServerMain.js'));
@@ -97,6 +103,7 @@ export function activate(context: ExtensionContext) {
 	client.registerFeature(new ConfigurationFeature(client));
 
 	let disposable = client.start();
+	toDispose.push(disposable);
 	client.onReady().then(() => {
 		client.onTelemetry(e => {
 			if (telemetryReporter) {
@@ -114,10 +121,18 @@ export function activate(context: ExtensionContext) {
 			});
 		});
 
+		let handleContentChange = (uri: Uri) => {
+			if (uri.scheme === 'vscode' && uri.authority === 'schemas') {
+				client.sendNotification(SchemaContentChangeNotification.type, uri.toString());
+			}
+		};
+		toDispose.push(workspace.onDidChangeTextDocument(e => handleContentChange(e.document.uri)));
+		toDispose.push(workspace.onDidCloseTextDocument(d => handleContentChange(d.uri)));
+
 		client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context));
 
 		// register color provider
-		context.subscriptions.push(languages.registerColorProvider(documentSelector, {
+		toDispose.push(languages.registerColorProvider(documentSelector, {
 			provideDocumentColors(document: TextDocument): Thenable<ColorInformation[]> {
 				let params: DocumentColorParams = {
 					textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document)
@@ -146,10 +161,6 @@ export function activate(context: ExtensionContext) {
 			}
 		}));
 	});
-
-	// Push the disposable to the context's subscriptions so that the
-	// client can be deactivated on extension deactivation
-	context.subscriptions.push(disposable);
 
 	languages.setLanguageConfiguration('json', {
 		wordPattern: /("(?:[^\\\"]*(?:\\.)?)*"?)|[^\s{}\[\],:]+/,
