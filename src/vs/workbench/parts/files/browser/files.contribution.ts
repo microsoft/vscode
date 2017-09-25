@@ -14,7 +14,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Configur
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory, EditorInput, IFileEditorInput } from 'vs/workbench/common/editor';
-import { AutoSaveConfiguration, HotExitConfiguration, SUPPORTED_ENCODINGS, IFilesConfiguration } from 'vs/platform/files/common/files';
+import { AutoSaveConfiguration, HotExitConfiguration, SUPPORTED_ENCODINGS } from 'vs/platform/files/common/files';
 import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { FILE_EDITOR_INPUT_ID, VIEWLET_ID, SortOrderConfiguration } from 'vs/workbench/parts/files/common/files';
 import { FileEditorTracker } from 'vs/workbench/parts/files/common/editors/fileEditorTracker';
@@ -122,21 +122,11 @@ class FileEditorInputFactory implements IEditorInputFactory {
 		const resource = fileEditorInput.getResource();
 		const fileInput: ISerializedFileInput = {
 			resource: resource.toString(), // Keep for backwards compatibility
-			resourceJSON: resource.toJSON()
+			resourceJSON: resource.toJSON(),
+			encoding: fileEditorInput.getEncoding()
 		};
 
-		const encoding = fileEditorInput.getPreferredEncoding();
-		if (encoding && encoding !== this.getConfiguredEncoding(resource)) {
-			fileInput.encoding = encoding;
-		}
-
 		return JSON.stringify(fileInput);
-	}
-
-	private getConfiguredEncoding(resource: URI): string {
-		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>(resource);
-
-		return configuration && configuration.files && configuration.files.encoding;
 	}
 
 	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): FileEditorInput {
