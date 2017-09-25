@@ -1725,9 +1725,6 @@ class ConfigurationParser {
 	public run(fileConfig: ExternalTaskRunnerConfiguration): ParseResult {
 		let engine = ExecutionEngine.from(fileConfig);
 		let schemaVersion = JsonSchemaVersion.from(fileConfig);
-		if (engine === Tasks.ExecutionEngine.Terminal) {
-			this.problemReporter.clearOutput();
-		}
 		let context: ParseContext = {
 			workspaceFolder: this.workspaceFolder,
 			problemReporter: this.problemReporter,
