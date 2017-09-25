@@ -52,7 +52,6 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL, EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL, EXTENSION_RELOAD_BROADCAST_CHANNEL } from 'vs/platform/extensions/common/extensionHost';
 import { IBroadcastService, IBroadcast } from 'vs/platform/broadcast/electron-browser/broadcastService';
 import { IRemoteConsoleLog, parse, getFirstFrame } from 'vs/base/node/console';
-import { SimpleSource } from 'vs/workbench/parts/debug/common/debugSource';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
@@ -169,12 +168,18 @@ export class DebugService implements debug.IDebugService {
 			let sev = extensionOutput.severity === 'warn' ? severity.Warning : extensionOutput.severity === 'error' ? severity.Error : severity.Info;
 
 			const { args, stack } = parse(extensionOutput);
-
 			let source: debug.IReplElementSource;
 			if (stack) {
 				const frame = getFirstFrame(stack);
 				if (frame) {
-					source = new SimpleSource(frame.uri, frame.line, frame.column);
+					source = {
+						column: frame.column,
+						lineNumber: frame.line,
+						source: process.getSource({
+							name: resources.basenameOrAuthority(frame.uri),
+							path: frame.uri.fsPath
+						})
+					};
 				}
 			}
 

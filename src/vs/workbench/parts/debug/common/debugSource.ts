@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import uri from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/paths';
-import { DEBUG_SCHEME, IReplElementSource } from 'vs/workbench/parts/debug/common/debug';
+import { DEBUG_SCHEME } from 'vs/workbench/parts/debug/common/debug';
 import { IRange } from 'vs/editor/common/core/range';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -18,25 +18,6 @@ export interface ISource {
 	name: string;
 
 	openInEditor(editorService: IWorkbenchEditorService, selection: IRange, preserveFocus?: boolean, sideBySide?: boolean): TPromise<any>;
-}
-
-export class SimpleSource implements IReplElementSource {
-
-	public readonly source: ISource;
-
-	constructor(public readonly uri: uri, public readonly lineNumber: number, public readonly column: number) {
-		this.source = {
-			name: paths.basename(uri.fsPath),
-			uri,
-			openInEditor: (editorService: IWorkbenchEditorService, selection: IRange, preserveFocus?: boolean, sideBySide?: boolean) => openInEditor(
-				this.uri,
-				editorService,
-				{ startColumn: this.column, startLineNumber: this.lineNumber } as IRange,
-				preserveFocus,
-				sideBySide
-			)
-		};
-	}
 }
 
 export class Source implements ISource {
@@ -82,32 +63,16 @@ export class Source implements ISource {
 	}
 
 	public openInEditor(editorService: IWorkbenchEditorService, selection: IRange, preserveFocus?: boolean, sideBySide?: boolean): TPromise<any> {
-		if (!this.available) {
-			return TPromise.as(null);
-		}
-
-		return openInEditor(this.uri, editorService, selection, preserveFocus, sideBySide, !preserveFocus && !this.inMemory, this.origin);
+		return !this.available ? TPromise.as(null) : editorService.openEditor({
+			resource: this.uri,
+			description: this.origin,
+			options: {
+				preserveFocus,
+				selection,
+				revealIfVisible: true,
+				revealInCenterIfOutsideViewport: true,
+				pinned: !preserveFocus && !this.inMemory
+			}
+		}, sideBySide);
 	}
-}
-
-function openInEditor(
-	uri: uri,
-	editorService: IWorkbenchEditorService,
-	selection: IRange,
-	preserveFocus?: boolean,
-	sideBySide?: boolean,
-	pinned?: boolean,
-	description?: string
-): TPromise<any> {
-	return editorService.openEditor({
-		resource: uri,
-		description,
-		options: {
-			preserveFocus,
-			selection,
-			revealIfVisible: true,
-			revealInCenterIfOutsideViewport: true,
-			pinned: typeof pinned === 'boolean' ? pinned : !preserveFocus
-		}
-	}, sideBySide);
 }
