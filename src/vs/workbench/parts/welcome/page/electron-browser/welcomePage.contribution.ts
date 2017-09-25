@@ -13,6 +13,9 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 
+// TODO@bpasero - remove, fix dependencies in editor land
+import 'vs/workbench/browser/parts/editor/baseEditor';
+
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({
 		'id': 'workbench',
