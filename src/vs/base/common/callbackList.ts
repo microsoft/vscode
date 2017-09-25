@@ -6,21 +6,47 @@
 
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { LinkedList } from 'vs/base/common/linkedList';
 
 export default class CallbackList {
 
-	private _callbacks: LinkedList<[Function, any]>;
+	private _callbacks: Function[];
+	private _contexts: any[];
 
-	public add(callback: Function, context: any = null, bucket?: IDisposable[]): () => void {
+	public add(callback: Function, context: any = null, bucket?: IDisposable[]): void {
 		if (!this._callbacks) {
-			this._callbacks = new LinkedList<[Function, any]>();
+			this._callbacks = [];
+			this._contexts = [];
 		}
-		const remove = this._callbacks.insert([callback, context]);
+		this._callbacks.push(callback);
+		this._contexts.push(context);
+
 		if (Array.isArray(bucket)) {
-			bucket.push({ dispose: remove });
+			bucket.push({ dispose: () => this.remove(callback, context) });
 		}
-		return remove;
+	}
+
+	public remove(callback: Function, context: any = null): void {
+		if (!this._callbacks) {
+			return;
+		}
+
+		let foundCallbackWithDifferentContext = false;
+		for (let i = 0, len = this._callbacks.length; i < len; i++) {
+			if (this._callbacks[i] === callback) {
+				if (this._contexts[i] === context) {
+					// callback & context match => remove it
+					this._callbacks.splice(i, 1);
+					this._contexts.splice(i, 1);
+					return;
+				} else {
+					foundCallbackWithDifferentContext = true;
+				}
+			}
+		}
+
+		if (foundCallbackWithDifferentContext) {
+			throw new Error('When adding a listener with a context, you should remove it with the same context');
+		}
 	}
 
 	public invoke(...args: any[]): any[] {
@@ -28,12 +54,13 @@ export default class CallbackList {
 			return undefined;
 		}
 
-		const ret: any[] = [];
-		const elements = this._callbacks.toArray();
+		const ret: any[] = [],
+			callbacks = this._callbacks.slice(0),
+			contexts = this._contexts.slice(0);
 
-		for (const [callback, context] of elements) {
+		for (let i = 0, len = callbacks.length; i < len; i++) {
 			try {
-				ret.push(callback.apply(context, args));
+				ret.push(callbacks[i].apply(contexts[i], args));
 			} catch (e) {
 				onUnexpectedError(e);
 			}
@@ -41,20 +68,19 @@ export default class CallbackList {
 		return ret;
 	}
 
+	public isEmpty(): boolean {
+		return !this._callbacks || this._callbacks.length === 0;
+	}
+
 	public entries(): [Function, any][] {
 		if (!this._callbacks) {
 			return [];
 		}
-		return this._callbacks
-			? this._callbacks.toArray()
-			: [];
-	}
-
-	public isEmpty(): boolean {
-		return !this._callbacks || this._callbacks.isEmpty();
+		return this._callbacks.map((fn, index) => <[Function, any]>[fn, this._contexts[index]]);
 	}
 
 	public dispose(): void {
 		this._callbacks = undefined;
+		this._contexts = undefined;
 	}
 }

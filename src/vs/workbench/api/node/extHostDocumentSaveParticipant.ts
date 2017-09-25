@@ -37,8 +37,12 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 
 	get onWillSaveTextDocumentEvent(): Event<vscode.TextDocumentWillSaveEvent> {
 		return (listener, thisArg, disposables) => {
-			const remove = this._callbacks.add(listener, thisArg);
-			const result = { dispose: remove };
+			this._callbacks.add(listener, thisArg);
+			const result = {
+				dispose: () => {
+					this._callbacks.remove(listener, thisArg);
+				}
+			};
 			if (Array.isArray(disposables)) {
 				disposables.push(result);
 			}
