@@ -24,7 +24,7 @@ export interface ICompletionItem extends ISuggestionItem {
 	  "textCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
    }
  */
-// __GDPR__TODO: This is an extensible structure which can not be statically declared.
+// __GDPR__TODO__: This is a dynamically extensible structure which can not be declared statically.
 export interface ICompletionStats {
 	suggestionCount: number;
 	snippetCount: number;
