@@ -226,7 +226,7 @@ export class QueryBuilder {
 				if (matchingRoots.length) {
 					return matchingRoots.map(root => {
 						return relativeSearchPathMatch[2] ?
-							root.uri.with({ path: paths.normalize(paths.join(root.uri.fsPath, relativeSearchPathMatch[2])) }) :
+							root.uri.with({ path: paths.normalize(paths.join(root.uri.path, relativeSearchPathMatch[2])) }) :
 							root.uri;
 					});
 				} else {
