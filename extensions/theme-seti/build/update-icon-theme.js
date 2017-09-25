@@ -131,7 +131,7 @@ function darkenColor(color) {
 }
 
 function getLanguageMappings() {
-	let langMappings = {}
+	let langMappings = {};
 	var allExtensions = fs.readdirSync('..');
 	for (var i= 0; i < allExtensions.length; i++) {
 		let dirPath = path.join('..', allExtensions[i], 'package.json');
