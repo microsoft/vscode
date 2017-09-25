@@ -439,12 +439,12 @@ export function createApiFactory(
 				let uriPromise: TPromise<URI>;
 
 				let options = uriOrFileNameOrOptions as { language?: string; content?: string; };
-				if (!options || (options && (typeof options.language === 'string' || typeof options.content === 'string'))) {
-					uriPromise = extHostDocuments.createDocumentData(options);
-				} else if (typeof uriOrFileNameOrOptions === 'string') {
+				if (typeof uriOrFileNameOrOptions === 'string') {
 					uriPromise = TPromise.as(URI.file(uriOrFileNameOrOptions));
 				} else if (uriOrFileNameOrOptions instanceof URI) {
 					uriPromise = TPromise.as(<URI>uriOrFileNameOrOptions);
+				} else if (!options || typeof options === 'object') {
+					uriPromise = extHostDocuments.createDocumentData(options);
 				} else {
 					throw new Error('illegal argument - uriOrFileNameOrOptions');
 				}
