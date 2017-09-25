@@ -28,3 +28,7 @@ By default, screenshots are not captured. To run tests with screenshots use the 
 
 - Beware of **focus**. Never depend on DOM elements having focus using `.focused` classes or `:focus` pseudo-classes, since they will lose that state as soon as another window appears on top of the running VS Code window.
   A safe approach which avoids this problem is to use the `waitForActiveElement` API. Many tests use this whenever they need to wait for a specific element to _have focus_.
+
+- **Never** wait longer than a couple of seconds for anything, unless it's justified. Think of it as a human
+  using Code. Would a human take 10 minutes to run through the Search viewlet smoke test? Then, the computer
+  should even be faster. **Don't** use `setTimeout` just because. Think about what you should wait for in the DOM to be ready, then wait for that instead.
