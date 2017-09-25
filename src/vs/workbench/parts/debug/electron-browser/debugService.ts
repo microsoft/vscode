@@ -229,7 +229,7 @@ export class DebugService implements debug.IDebugService {
 		}
 	}
 
-	private tryToAutoFocusStackFrame(thread: debug.IThread): TPromise<any> {
+	private autoFocusAndOpenStackFrame(thread: debug.IThread): TPromise<any> {
 		const callStack = thread.getCallStack();
 		if (!callStack.length || (this.viewModel.focusedStackFrame && this.viewModel.focusedStackFrame.thread.threadId === thread.threadId)) {
 			return TPromise.as(null);
@@ -280,7 +280,7 @@ export class DebugService implements debug.IDebugService {
 					// Call fetch call stack twice, the first only return the top stack frame.
 					// Second retrieves the rest of the call stack. For performance reasons #25605
 					this.model.fetchCallStack(thread).then(() => {
-						return this.tryToAutoFocusStackFrame(thread);
+						return this.autoFocusAndOpenStackFrame(thread);
 					});
 				}
 			}, errors.onUnexpectedError);
@@ -309,7 +309,9 @@ export class DebugService implements debug.IDebugService {
 			const threadId = event.body.allThreadsContinued !== false ? undefined : event.body.threadId;
 			this.model.clearThreads(session.getId(), false, threadId);
 			if (this.viewModel.focusedProcess.getId() === session.getId()) {
-				this.focusStackFrameAndEvaluate(null, this.viewModel.focusedProcess).done(null, errors.onUnexpectedError);
+				this.focusStackFrameAndEvaluate(undefined).done(() => {
+					return this.viewModel.focusedStackFrame ? this.viewModel.focusedStackFrame.openInEditor(this.editorService, true) : undefined;
+				}, errors.onUnexpectedError);
 			}
 			this.updateStateAndEmit(session.getId(), debug.State.Running);
 		}));
@@ -520,7 +522,11 @@ export class DebugService implements debug.IDebugService {
 	public focusStackFrameAndEvaluate(stackFrame: debug.IStackFrame, process?: debug.IProcess, explicit?: boolean): TPromise<void> {
 		if (!process) {
 			const processes = this.model.getProcesses();
-			process = stackFrame ? stackFrame.thread.process : processes.length ? processes[0] : null;
+			if (stackFrame) {
+				process = stackFrame.thread.process;
+			} else if (processes.length > 0) {
+				process = processes.filter(p => p.getAllThreads().some(t => t.stopped)).shift() || processes[0];
+			}
 		}
 		if (!stackFrame) {
 			const threads = process ? process.getAllThreads() : null;
