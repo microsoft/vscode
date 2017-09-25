@@ -817,7 +817,9 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 		/* __GDPR__
 		   "extensionGallery:install" : {
-			  "duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+			  "duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+			  "errorcode": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 			  "${include}": [
 				 "${GalleryExtensionTelemetryData}"
 			  ]
@@ -825,7 +827,9 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		 */
 		/* __GDPR__
 		   "extensionGallery:update" : {
-			  "duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+			  "duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+			  "errorcode": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 			  "${include}": [
 				 "${GalleryExtensionTelemetryData}"
 			  ]
@@ -833,7 +837,9 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		 */
 		/* __GDPR__
 		   "extensionGallery:uninstall" : {
-			  "duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+			  "duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+			  "errorcode": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 			  "${include}": [
 				 "${GalleryExtensionTelemetryData}"
 			  ]
