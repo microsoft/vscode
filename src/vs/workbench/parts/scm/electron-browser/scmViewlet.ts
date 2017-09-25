@@ -550,7 +550,7 @@ export class RepositoryPanel extends ViewletPanel {
 	focus(): void {
 		super.focus();
 
-		if (this.expanded) {
+		if (this.isExpanded()) {
 			this.inputBox.focus();
 		}
 	}

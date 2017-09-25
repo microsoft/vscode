@@ -97,13 +97,13 @@ export const revealInExplorerCommand = (accessor: ServicesAccessor, resource: UR
 		if (isInsideWorkspace) {
 			const explorerView = viewlet.getExplorerView();
 			if (explorerView) {
-				explorerView.expand();
+				explorerView.setExpanded(true);
 				explorerView.select(resource, true);
 			}
 		} else {
 			const openEditorsView = viewlet.getOpenEditorsView();
 			if (openEditorsView) {
-				openEditorsView.expand();
+				openEditorsView.setExpanded(true);
 			}
 		}
 	});

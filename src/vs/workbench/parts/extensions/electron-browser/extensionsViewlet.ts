@@ -46,7 +46,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { inputForeground, inputBackground, inputBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ViewsRegistry, ViewLocation, IViewDescriptor } from 'vs/workbench/browser/parts/views/viewsRegistry';
-import { PersistentViewsViewlet, IViewletView } from 'vs/workbench/browser/parts/views/views';
+import { PersistentViewsViewlet, ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService, ContextKeyExpr, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -136,7 +136,7 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 			name: localize('marketPlace', "Marketplace"),
 			location: ViewLocation.Extensions,
 			ctor: ExtensionsListView,
-			when: ContextKeyExpr.and(ContextKeyExpr.has('extensionsViewletVisible'), ContextKeyExpr.has('searchExtensions'), ContextKeyExpr.not('searchInstalledExtensions')),
+			when: ContextKeyExpr.and(ContextKeyExpr.has('searchExtensions'), ContextKeyExpr.not('searchInstalledExtensions')),
 			size: 100
 		};
 	}
@@ -147,7 +147,7 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 			name: localize('installedExtensions', "Installed"),
 			location: ViewLocation.Extensions,
 			ctor: InstalledExtensionsView,
-			when: ContextKeyExpr.and(ContextKeyExpr.has('extensionsViewletVisible'), ContextKeyExpr.not('searchExtensions')),
+			when: ContextKeyExpr.and(ContextKeyExpr.not('searchExtensions')),
 			size: 50
 		};
 	}
@@ -158,7 +158,7 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 			name: localize('searchInstalledExtensions', "Installed"),
 			location: ViewLocation.Extensions,
 			ctor: InstalledExtensionsView,
-			when: ContextKeyExpr.and(ContextKeyExpr.has('extensionsViewletVisible'), ContextKeyExpr.has('searchInstalledExtensions')),
+			when: ContextKeyExpr.and(ContextKeyExpr.has('searchInstalledExtensions')),
 			size: 50
 		};
 	}
@@ -169,13 +169,13 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 			name: localize('recommendedExtensions', "Recommended"),
 			location: ViewLocation.Extensions,
 			ctor: RecommendedExtensionsView,
-			when: ContextKeyExpr.and(ContextKeyExpr.has('extensionsViewletVisible'), ContextKeyExpr.not('searchExtensions')),
+			when: ContextKeyExpr.and(ContextKeyExpr.not('searchExtensions')),
 			size: 50,
 			canToggleVisibility: true
 		};
 	}
 
-	create(parent: Builder): TPromise<void> {
+	async create(parent: Builder): TPromise<void> {
 		parent.addClass('extensions-viewlet');
 		this.root = parent.getHTMLElement();
 
@@ -204,14 +204,14 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 
 		this.onSearchChange = mapEvent(onSearchInput, e => e.target.value);
 
-		return this.extensionManagementService.getInstalled(LocalExtensionType.User)
-			.then(installed => {
-				if (installed.length === 0) {
-					this.searchBox.value = '@sort:installs';
-					this.searchExtensionsContextKey.set(true);
-				}
-				return super.create(new Builder(this.extensionsBox));
-			});
+		await super.create(new Builder(this.extensionsBox));
+
+		const installed = await this.extensionManagementService.getInstalled(LocalExtensionType.User);
+
+		if (installed.length === 0) {
+			this.searchBox.value = '@sort:installs';
+			this.searchExtensionsContextKey.set(true);
+		}
 	}
 
 	public updateStyles(): void {
@@ -310,7 +310,7 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 		await this.updateViews([], !!value);
 	}
 
-	protected async updateViews(unregisteredViews: IViewDescriptor[] = [], showAll = false): TPromise<IViewletView[]> {
+	protected async updateViews(unregisteredViews: IViewDescriptor[] = [], showAll = false): TPromise<ViewsViewletPanel[]> {
 		const created = await super.updateViews();
 		const toShow = showAll ? this.views : created;
 		if (toShow.length) {

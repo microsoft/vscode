@@ -497,7 +497,7 @@ export abstract class BaseGlobalNewAction extends Action {
 				}
 
 				if (!explorerView.isExpanded()) {
-					explorerView.expand();
+					explorerView.setExpanded(true);
 				}
 
 				const action = this.toDispose = this.instantiationService.createInstance(this.getAction(), explorerView.getViewer(), null);
@@ -1716,7 +1716,7 @@ export class FocusOpenEditorsView extends Action {
 		return this.viewletService.openViewlet(VIEWLET_ID, true).then((viewlet: ExplorerViewlet) => {
 			const openEditorsView = viewlet.getOpenEditorsView();
 			if (openEditorsView) {
-				openEditorsView.expand();
+				openEditorsView.setExpanded(true);
 				openEditorsView.getViewer().DOMFocus();
 			}
 		});
@@ -1740,7 +1740,7 @@ export class FocusFilesExplorer extends Action {
 		return this.viewletService.openViewlet(VIEWLET_ID, true).then((viewlet: ExplorerViewlet) => {
 			const view = viewlet.getExplorerView();
 			if (view) {
-				view.expand();
+				view.setExpanded(true);
 				view.getViewer().DOMFocus();
 			}
 		});
