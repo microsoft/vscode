@@ -228,7 +228,7 @@ export class PreferencesEditor extends BaseEditor {
 
 	private updateInput(oldInput: PreferencesEditorInput, newInput: PreferencesEditorInput, options?: EditorOptions): TPromise<void> {
 		const resource = toResource(newInput.master);
-		this.settingsTargetsWidget.setTarget(this.getSettingsConfigurationTargetUri(resource), this.getSettingsConfigurationTarget(resource));
+		this.settingsTargetsWidget.updateTargets(this.getSettingsConfigurationTargetUri(resource), this.getSettingsConfigurationTarget(resource));
 
 		return this.sideBySidePreferencesWidget.setInput(<DefaultPreferencesEditorInput>newInput.details, <EditorInput>newInput.master, options).then(({ defaultPreferencesRenderer, editablePreferencesRenderer }) => {
 			this.preferencesRenderers.defaultPreferencesRenderer = defaultPreferencesRenderer;
@@ -278,9 +278,14 @@ export class PreferencesEditor extends BaseEditor {
 
 	private onWorkbenchStateChanged(): void {
 		if (this.input) {
-			const settingsResource = toResource((<PreferencesEditorInput>this.input).master);
-			const target = this.getSettingsConfigurationTarget(settingsResource);
-			if (target !== ConfigurationTarget.USER) {
+			const editableSettingsResource = toResource((<PreferencesEditorInput>this.input).master);
+			const newConfigurationTarget = this.getSettingsConfigurationTarget(editableSettingsResource);
+			if (newConfigurationTarget) {
+				if (newConfigurationTarget !== this.settingsTargetsWidget.configurationTarget) {
+					// Update the editor if the configuration target of the settings resource changed
+					this.switchSettings(editableSettingsResource);
+				}
+			} else {
 				this.switchSettings(this.preferencesService.userSettingsResource);
 			}
 		}
@@ -798,7 +803,7 @@ abstract class AbstractSettingsEditorContribution extends Disposable {
 		return TPromise.as(null);
 	}
 
-	private _onModelChanged(): void {
+	protected _onModelChanged(): void {
 		const model = this.editor.getModel();
 		this.disposePreferencesRenderer();
 		if (model) {
@@ -874,6 +879,15 @@ class DefaultSettingsEditorContribution extends AbstractSettingsEditorContributi
 class SettingsEditorContribution extends AbstractSettingsEditorContribution implements ISettingsEditorContribution {
 
 	static ID: string = 'editor.contrib.settings';
+
+	constructor(editor: ICodeEditor,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IPreferencesService preferencesService: IPreferencesService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService
+	) {
+		super(editor, instantiationService, preferencesService, workspaceContextService);
+		this._register(this.workspaceContextService.onDidChangeWorkbenchState(() => this._onModelChanged()));
+	}
 
 	getId(): string {
 		return SettingsEditorContribution.ID;

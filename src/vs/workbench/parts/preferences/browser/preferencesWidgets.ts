@@ -271,7 +271,7 @@ export class SettingsTargetsWidget extends Widget {
 
 	private borderColor: Color;
 
-	constructor(parent: HTMLElement, private uri: URI, private target: ConfigurationTarget,
+	constructor(parent: HTMLElement, private _uri: URI, private _configuartionTarget: ConfigurationTarget,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
@@ -285,9 +285,13 @@ export class SettingsTargetsWidget extends Widget {
 		}));
 	}
 
-	public setTarget(uri: URI, target: ConfigurationTarget): void {
-		this.uri = uri;
-		this.target = target;
+	get configurationTarget(): ConfigurationTarget {
+		return this._configuartionTarget;
+	}
+
+	public updateTargets(uri: URI, configuartionTarget: ConfigurationTarget): void {
+		this._uri = uri;
+		this._configuartionTarget = configuartionTarget;
 		this.updateLabel();
 	}
 
@@ -308,8 +312,8 @@ export class SettingsTargetsWidget extends Widget {
 	}
 
 	private updateLabel(): void {
-		this.targetLabel.textContent = getSettingsTargetName(this.target, this.uri, this.workspaceContextService);
-		const details = ConfigurationTarget.FOLDER === this.target ? localize('folderSettingsDetails', "Folder Settings") : '';
+		this.targetLabel.textContent = getSettingsTargetName(this._configuartionTarget, this._uri, this.workspaceContextService);
+		const details = ConfigurationTarget.FOLDER === this._configuartionTarget ? localize('folderSettingsDetails', "Folder Settings") : '';
 		this.targetDetails.textContent = details;
 		DOM.toggleClass(this.targetDetails, 'empty', !details);
 	}
@@ -332,7 +336,7 @@ export class SettingsTargetsWidget extends Widget {
 		actions.push(<IAction>{
 			id: 'userSettingsTarget',
 			label: getSettingsTargetName(ConfigurationTarget.USER, userSettingsResource, this.workspaceContextService),
-			checked: this.uri.toString() === userSettingsResource.toString(),
+			checked: this._uri.toString() === userSettingsResource.toString(),
 			enabled: true,
 			run: () => this.onTargetClicked(userSettingsResource)
 		});
@@ -342,7 +346,7 @@ export class SettingsTargetsWidget extends Widget {
 			actions.push(<IAction>{
 				id: 'workspaceSettingsTarget',
 				label: getSettingsTargetName(ConfigurationTarget.WORKSPACE, workspaceSettingsResource, this.workspaceContextService),
-				checked: this.uri.toString() === workspaceSettingsResource.toString(),
+				checked: this._uri.toString() === workspaceSettingsResource.toString(),
 				enabled: true,
 				run: () => this.onTargetClicked(workspaceSettingsResource)
 			});
@@ -355,7 +359,7 @@ export class SettingsTargetsWidget extends Widget {
 				return <IAction>{
 					id: 'folderSettingsTarget' + index,
 					label: getSettingsTargetName(ConfigurationTarget.FOLDER, folder.uri, this.workspaceContextService),
-					checked: this.uri.toString() === folder.uri.toString(),
+					checked: this._uri.toString() === folder.uri.toString(),
 					enabled: true,
 					run: () => this.onTargetClicked(folder.uri)
 				};
@@ -366,7 +370,7 @@ export class SettingsTargetsWidget extends Widget {
 	}
 
 	private onTargetClicked(target: URI): void {
-		if (this.uri.toString() === target.toString()) {
+		if (this._uri.toString() === target.toString()) {
 			return;
 		}
 		this._onDidTargetChange.fire(target);
