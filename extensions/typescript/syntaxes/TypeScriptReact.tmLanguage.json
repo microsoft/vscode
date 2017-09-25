@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/d0127499baf6daf7c0b8e18ad50d6aaea140ed78",
+	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/2dea76a2bd6c522cf824168c8a2d3cd05196069d",
 	"name": "TypeScriptReact",
 	"scopeName": "source.tsx",
 	"fileTypes": [
@@ -3709,7 +3709,7 @@
 					}
 				},
 				{
-					"match": "(?x)\n((@)see)\n\\s+\n(?:\n  # URL\n  (\n    (?!\n      # Avoid matching bare URIs (also acceptable as links)\n      https?://\n      |\n      # Avoid matching {@inline tags}; we match those below\n      (?:\\[[^\\[\\]]*\\])? # Possible description [preceding]{@tag}\n      {@(?:link|linkcode|linkplain|tutorial)\\b\n    )\n    # Matched namepath\n    (?:[^\\s*]|\\*[^/])+\n  )\n  |\n  # JSDoc namepath\n  (\n    (?!https?://)\n    (?:[^@\\s*/]|\\*[^/])+\n  )\n)",
+					"match": "(?x)\n((@)see)\n\\s+\n(?:\n  # URL\n  (\n    (?=https?://)\n    (?:[^\\s*]|\\*[^/])+\n  )\n  |\n  # JSDoc namepath\n  (\n    (?!\n      # Avoid matching bare URIs (also acceptable as links)\n      https?://\n      |\n      # Avoid matching {@inline tags}; we match those below\n      (?:\\[[^\\[\\]]*\\])? # Possible description [preceding]{@tag}\n      {@(?:link|linkcode|linkplain|tutorial)\\b\n    )\n    # Matched namepath\n    (?:[^@\\s*/]|\\*[^/])+\n  )\n)",
 					"captures": {
 						"1": {
 							"name": "storage.type.class.jsdoc"
@@ -3726,7 +3726,7 @@
 					}
 				},
 				{
-					"match": "(?x)\n((@)template)\n\\s+\n# One or more valid identifiers\n(?:\n  ([A-Za-z_$]        # First character: non-numeric word character\n  [\\w$.\\[\\]]*)       # Rest of identifier\n  (?:                # Possible list of additional identifiers\n    \\s* (,) \\s*\n    ([A-Za-z_$]\n    [\\w$.\\[\\]]*)\n  )*\n)",
+					"match": "(?x)\n((@)template)\n\\s+\n# One or more valid identifiers\n(\n  [A-Za-z_$]         # First character: non-numeric word character\n  [\\w$.\\[\\]]*        # Rest of identifier\n  (?:                # Possible list of additional identifiers\n    \\s* , \\s*\n    [A-Za-z_$]\n    [\\w$.\\[\\]]*\n  )*\n)",
 					"captures": {
 						"1": {
 							"name": "storage.type.class.jsdoc"
@@ -3735,12 +3735,6 @@
 							"name": "punctuation.definition.block.tag.jsdoc"
 						},
 						"3": {
-							"name": "variable.other.jsdoc"
-						},
-						"4": {
-							"name": "punctuation.delimiter.object.comma.jsdoc"
-						},
-						"5": {
 							"name": "variable.other.jsdoc"
 						}
 					}
@@ -3801,7 +3795,7 @@
 						},
 						{
 							"name": "variable.other.jsdoc",
-							"match": "(?x)\n(\\[)\\s*\n[\\w$]+\n(?:\n  (?:\\[\\])?                                        # Foo[ ].bar properties within an array\n  \\.                                                # Foo.Bar namespaced parameter\n  [\\w$]+\n)*\n(?:\n  \\s*\n  (=)                                                # [foo=bar] Default parameter value\n  \\s*\n  (\n    # The inner regexes are to stop the match early at */ and to not stop at escaped quotes\n    (?:\n      \"(?:(?:\\*(?!/))|(?:\\\\(?!\"))|[^*\\\\])*?\" |  # [foo=\"bar\"] Double-quoted\n      '(?:(?:\\*(?!/))|(?:\\\\(?!'))|[^*\\\\])*?' |  # [foo='bar'] Single-quoted\n      \\[ (?:(?:\\*(?!/))|[^*])*? \\] |              # [foo=[1,2]] Array literal\n      (?:(?:\\*(?!/))|[^*])*?                        # Everything else\n    )*\n  )\n)?\n\\s*(?:(\\])((?:[^*\\s]|\\*[^\\s/])+)?|(?=\\*/))",
+							"match": "(?x)\n(\\[)\\s*\n[\\w$]+\n(?:\n  (?:\\[\\])?                                        # Foo[ ].bar properties within an array\n  \\.                                                # Foo.Bar namespaced parameter\n  [\\w$]+\n)*\n(?:\n  \\s*\n  (=)                                                # [foo=bar] Default parameter value\n  \\s*\n  (\n    # The inner regexes are to stop the match early at */ and to not stop at escaped quotes\n    (?>\n      \"(?:(?:\\*(?!/))|(?:\\\\(?!\"))|[^*\\\\])*?\" |                      # [foo=\"bar\"] Double-quoted\n      '(?:(?:\\*(?!/))|(?:\\\\(?!'))|[^*\\\\])*?' |                      # [foo='bar'] Single-quoted\n      \\[ (?:(?:\\*(?!/))|[^*])*? \\] |                                # [foo=[1,2]] Array literal\n      (?:(?:\\*(?!/))|\\s(?!\\s*\\])|\\[.*?(?:\\]|(?=\\*/))|[^*\\s\\[\\]])*   # Everything else\n    )*\n  )\n)?\n\\s*(?:(\\])((?:[^*\\s]|\\*[^\\s/])+)?|(?=\\*/))",
 							"captures": {
 								"1": {
 									"name": "punctuation.definition.optional-value.begin.bracket.square.jsdoc"
@@ -3818,33 +3812,12 @@
 								"5": {
 									"name": "invalid.illegal.syntax.jsdoc"
 								}
-							},
-							"begin": "\\[",
-							"end": "\\]|(?=\\*/)",
-							"patterns": [
-								{
-									"match": "(=)((?:[^\\]*]|\\*[^/])*)",
-									"captures": {
-										"1": {
-											"name": "keyword.operator.assignment.jsdoc"
-										},
-										"2": {
-											"name": "source.embedded.tsx"
-										}
-									}
-								},
-								{
-									"include": "#brackets"
-								},
-								{
-									"include": "#quotes"
-								}
-							]
+							}
 						}
 					]
 				},
 				{
-					"begin": "((@)(?:define|enum|exception|implements|modifies|namespace|private|protected|returns?|suppress|throws|type))\\s+(?={)",
+					"begin": "(?x)\n(\n  (@)\n  (?:define|enum|exception|export|extends|lends|implements|modifies\n  |namespace|private|protected|returns?|suppress|this|throws|type\n  |yields?)\n)\n\\s+(?={)",
 					"beginCaptures": {
 						"1": {
 							"name": "storage.type.class.jsdoc"
@@ -3917,7 +3890,7 @@
 				},
 				{
 					"name": "storage.type.class.jsdoc",
-					"match": "(?x) (@) (?:abstract|access|alias|api|arg|argument|async|attribute|augments|author|beta|borrows|bubbles |callback|chainable|class|classdesc|code|config|const|constant|constructor|constructs|copyright |default|defaultvalue|define|deprecated|desc|description|dict|emits|enum|event|example|exception |exports?|extends|extension(?:_?for)?|external|externs|file|fileoverview|final|fires|for|func |function|global|host|ignore|implements|implicitCast|inherit[Dd]oc|inner|instance|interface |internal|kind|lends|license|listens|main|member|memberof!?|method|mixes|mixins?|modifies|module |name|namespace|noalias|nocollapse|nocompile|nosideeffects|override|overview|package|param|preserve |private|prop|property|protected|public|read[Oo]nly|record|require[ds]|returns?|see|since|static |struct|submodule|summary|suppress|template|this|throws|todo|tutorial|type|typedef|unrestricted |uses|var|variation|version|virtual|writeOnce) \\b",
+					"match": "(?x) (@) (?:abstract|access|alias|api|arg|argument|async|attribute|augments|author|beta|borrows|bubbles |callback|chainable|class|classdesc|code|config|const|constant|constructor|constructs|copyright |default|defaultvalue|define|deprecated|desc|description|dict|emits|enum|event|example|exception |exports?|extends|extension(?:_?for)?|external|externs|file|fileoverview|final|fires|for|func |function|generator|global|hideconstructor|host|ignore|implements|implicitCast|inherit[Dd]oc |inner|instance|interface|internal|kind|lends|license|listens|main|member|memberof!?|method |mixes|mixins?|modifies|module|name|namespace|noalias|nocollapse|nocompile|nosideeffects |override|overview|package|param|polymer(?:Behavior)?|preserve|private|prop|property|protected |public|read[Oo]nly|record|require[ds]|returns?|see|since|static|struct|submodule|summary |suppress|template|this|throws|todo|tutorial|type|typedef|unrestricted|uses|var|variation |version|virtual|writeOnce|yields?) \\b",
 					"captures": {
 						"1": {
 							"name": "punctuation.definition.block.tag.jsdoc"
@@ -4007,28 +3980,6 @@
 									"name": "punctuation.separator.pipe.jsdoc"
 								}
 							}
-						}
-					]
-				}
-			]
-		},
-		"quotes": {
-			"patterns": [
-				{
-					"begin": "'",
-					"end": "'|(?=\\*/)",
-					"patterns": [
-						{
-							"include": "#quotes"
-						}
-					]
-				},
-				{
-					"begin": "\"",
-					"end": "\"|(?=\\*/)",
-					"patterns": [
-						{
-							"include": "#quotes"
 						}
 					]
 				}
