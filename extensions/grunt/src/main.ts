@@ -187,7 +187,7 @@ class FolderDetector {
 			if (err.stdout) {
 				channel.appendLine(err.stdout);
 			}
-			channel.appendLine(localize('execFailed', 'Auto detecting Grunt failed with error: {0}', err.error ? err.error.toString() : 'unknown'));
+			channel.appendLine(localize('execFailed', 'Auto detecting Grunt for folder {0} failed with error: {1}', this.workspaceFolder.name, err.error ? err.error.toString() : 'unknown'));
 			channel.show(true);
 			return emptyTasks;
 		}

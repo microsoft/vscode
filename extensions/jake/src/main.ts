@@ -56,7 +56,7 @@ function isTestTask(name: string): boolean {
 let _channel: vscode.OutputChannel;
 function getOutputChannel(): vscode.OutputChannel {
 	if (!_channel) {
-		_channel = vscode.window.createOutputChannel('Gulp Auto Detection');
+		_channel = vscode.window.createOutputChannel('Jake Auto Detection');
 	}
 	return _channel;
 }
@@ -164,7 +164,7 @@ class FolderDetector {
 			if (err.stdout) {
 				channel.appendLine(err.stdout);
 			}
-			channel.appendLine(localize('execFailed', 'Auto detecting Jake failed with error: {0}', err.error ? err.error.toString() : 'unknown'));
+			channel.appendLine(localize('execFailed', 'Auto detecting Jake for folder {0} failed with error: {1}', this.workspaceFolder.name, err.error ? err.error.toString() : 'unknown'));
 			channel.show(true);
 			return emptyTasks;
 		}
