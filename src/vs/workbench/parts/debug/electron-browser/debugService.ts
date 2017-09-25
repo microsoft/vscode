@@ -51,7 +51,7 @@ import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/p
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL, EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL, EXTENSION_RELOAD_BROADCAST_CHANNEL } from 'vs/platform/extensions/common/extensionHost';
 import { IBroadcastService, IBroadcast } from 'vs/platform/broadcast/electron-browser/broadcastService';
-import { IRemoteConsoleLog, parse } from 'vs/base/node/console';
+import { IRemoteConsoleLog, parse, getFirstFrame } from 'vs/base/node/console';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
@@ -167,7 +167,21 @@ export class DebugService implements debug.IDebugService {
 			let extensionOutput: IRemoteConsoleLog = broadcast.payload.logEntry;
 			let sev = extensionOutput.severity === 'warn' ? severity.Warning : extensionOutput.severity === 'error' ? severity.Error : severity.Info;
 
-			const { args } = parse(extensionOutput);
+			const { args, stack } = parse(extensionOutput);
+			let source: debug.IReplElementSource;
+			if (stack) {
+				const frame = getFirstFrame(stack);
+				if (frame) {
+					source = {
+						column: frame.column,
+						lineNumber: frame.line,
+						source: process.getSource({
+							name: resources.basenameOrAuthority(frame.uri),
+							path: frame.uri.fsPath
+						})
+					};
+				}
+			}
 
 			// add output for each argument logged
 			let simpleVals: any[] = [];
@@ -189,12 +203,12 @@ export class DebugService implements debug.IDebugService {
 
 					// flush any existing simple values logged
 					if (simpleVals.length) {
-						this.logToRepl(simpleVals.join(' '), sev);
+						this.logToRepl(simpleVals.join(' '), sev, source);
 						simpleVals = [];
 					}
 
 					// show object
-					this.logToRepl(new OutputNameValueElement((<any>a).prototype, a, undefined, nls.localize('snapshotObj', "Only primitive values are shown for this object.")), sev);
+					this.logToRepl(new OutputNameValueElement((<any>a).prototype, a, undefined, nls.localize('snapshotObj', "Only primitive values are shown for this object.")), sev, source);
 				}
 
 				// string: watch out for % replacement directive
@@ -224,7 +238,7 @@ export class DebugService implements debug.IDebugService {
 			// flush simple values
 			// always append a new line for output coming from an extension such that separate logs go to separate lines #23695
 			if (simpleVals.length) {
-				this.logToRepl(simpleVals.join(' ') + '\n', sev);
+				this.logToRepl(simpleVals.join(' ') + '\n', sev, source);
 			}
 		}
 	}
