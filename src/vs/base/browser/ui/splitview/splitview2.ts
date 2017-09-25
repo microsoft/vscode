@@ -81,7 +81,7 @@ export class SplitView implements IDisposable {
 		// Add view
 		const container = dom.$('.split-view-view');
 
-		if (this.viewItems.length === 1) {
+		if (index === this.viewItems.length) {
 			this.el.appendChild(container);
 		} else {
 			this.el.insertBefore(container, this.el.children.item(index));
