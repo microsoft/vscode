@@ -414,7 +414,8 @@ export class ViewsViewlet extends PanelViewlet {
 					});
 				toCreate.push(view);
 
-				this.addPanel(view, viewState ? viewState.size : 200, index);
+				const size = viewState ? viewState.size : (viewDescriptor.size || 200);
+				this.addPanel(view, size, index);
 				this.viewsViewletPanels.splice(index, 0, view);
 			}
 
