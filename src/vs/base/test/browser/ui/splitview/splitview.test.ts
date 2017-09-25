@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { Emitter } from 'vs/base/common/event';
-import { SplitView, IView, Orientation } from 'vs/base/browser/ui/splitview/splitview2';
+import { SplitView, IView, Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { Sash } from 'vs/base/browser/ui/sash/sash';
 
 class TestView implements IView {

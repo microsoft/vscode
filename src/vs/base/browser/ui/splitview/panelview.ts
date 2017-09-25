@@ -14,7 +14,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { $, append, addClass, removeClass, toggleClass, trackFocus } from 'vs/base/browser/dom';
 import { firstIndex } from 'vs/base/common/arrays';
 import { Color, RGBA } from 'vs/base/common/color';
-import { SplitView, IView } from './splitview2';
+import { SplitView, IView } from './splitview';
 
 export interface IPanelOptions {
 	ariaHeaderLabel?: string;
