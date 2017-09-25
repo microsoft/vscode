@@ -182,6 +182,7 @@ function validateProperties(configuration: IConfigurationNode, collector: Extens
 			const message = validateProperty(key);
 			const propertyConfiguration = configuration.properties[key];
 			propertyConfiguration.scope = propertyConfiguration.scope && propertyConfiguration.scope.toString() === 'resource' ? ConfigurationScope.RESOURCE : ConfigurationScope.WINDOW;
+			propertyConfiguration.isFromExtensions = true;
 			if (message) {
 				collector.warn(message);
 				delete properties[key];
