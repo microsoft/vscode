@@ -537,10 +537,10 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 				this.workspace.folders = configuredFolders;
 				this.onFoldersChanged()
 					.then(configurationChanged => {
-						this._onDidChangeWorkspaceFolders.fire(changes);
 						if (configurationChanged) {
 							this.triggerConfigurationChange();
 						}
+						this._onDidChangeWorkspaceFolders.fire(changes);
 					});
 			} else {
 				const configurationChanged = this.updateWorkspaceConfiguration(true);
