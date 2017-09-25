@@ -69,6 +69,12 @@ class ConfigureLocaleAction extends Action {
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ConfigureLocaleAction, ConfigureLocaleAction.ID, ConfigureLocaleAction.LABEL), 'Configure Language');
 
+let enumValues: string[] = ['de', 'en', 'en-US', 'es', 'fr', 'it', 'ja', 'ko', 'ru', 'zh-CN', 'zh-TW'];
+import product from 'vs/platform/node/product';
+if (product.quality !== 'stable') {
+	enumValues.push('hu');
+}
+
 const schemaId = 'vscode://schemas/locale';
 // Keep en-US since we generated files with that content.
 const schema: IJSONSchema =
@@ -83,7 +89,7 @@ const schema: IJSONSchema =
 		properties: {
 			locale: {
 				type: 'string',
-				enum: ['de', 'en', 'en-US', 'es', 'fr', 'it', 'ja', 'ko', 'ru', 'zh-CN', 'zh-TW'],
+				enum: enumValues,
 				description: nls.localize('JsonSchema.locale', 'The UI Language to use.')
 			}
 		}
