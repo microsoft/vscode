@@ -6,17 +6,16 @@
 
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
-import { ISearchService, QueryType, ISearchQuery, ISearchProgressItem, ISearchComplete } from 'vs/platform/search/common/search';
+import { ISearchService, QueryType, ISearchQuery, IFolderQuery } from 'vs/platform/search/common/search';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { TPromise, PPromise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { MainThreadWorkspaceShape, ExtHostWorkspaceShape, ExtHostContext, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
-import { RemoteFileService } from 'vs/workbench/services/files/electron-browser/remoteFileService';
-import { Emitter } from 'vs/base/common/event';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { IExperimentService } from 'vs/platform/telemetry/common/experiments';
+import { IRelativePattern } from 'vs/base/common/glob';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
@@ -30,11 +29,12 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		@ISearchService private readonly _searchService: ISearchService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
-		@IExperimentService private experimentService: IExperimentService,
+		@IExperimentService private _experimentService: IExperimentService,
 		@IFileService private readonly _fileService: IFileService
 	) {
 		this._proxy = extHostContext.get(ExtHostContext.ExtHostWorkspace);
-		this._contextService.onDidChangeWorkbenchState(this._onDidChangeWorkspaceState, this, this._toDispose);
+		this._contextService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspace, this, this._toDispose);
+		this._contextService.onDidChangeWorkbenchState(this._onDidChangeWorkspace, this, this._toDispose);
 	}
 
 	dispose(): void {
@@ -48,24 +48,32 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	// --- workspace ---
 
-	private _onDidChangeWorkspaceState(): void {
+	private _onDidChangeWorkspace(): void {
 		this._proxy.$acceptWorkspaceData(this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : this._contextService.getWorkspace());
 	}
 
 	// --- search ---
 
-	$startSearch(include: string, exclude: string, maxResults: number, requestId: number): Thenable<URI[]> {
+	$startSearch(include: string | IRelativePattern, exclude: string | IRelativePattern, maxResults: number, requestId: number): Thenable<URI[]> {
 		const workspace = this._contextService.getWorkspace();
 		if (!workspace.folders.length) {
 			return undefined;
 		}
+
+		let folderQueries: IFolderQuery[];
+		if (typeof include === 'string' || !include) {
+			folderQueries = workspace.folders.map(folder => ({ folder: folder.uri })); // absolute pattern: search across all folders
+		} else {
+			folderQueries = [{ folder: URI.file(include.base) }]; // relative pattern: search only in base folder
+		}
+
 		const query: ISearchQuery = {
-			folderQueries: workspace.folders.map(folder => ({ folder: folder.uri })),
+			folderQueries,
 			type: QueryType.File,
 			maxResults,
-			includePattern: { [include]: true },
-			excludePattern: { [exclude]: true },
-			useRipgrep: this.experimentService.getExperiments().ripgrepQuickSearch
+			includePattern: { [typeof include === 'string' ? include : !!include ? include.pattern : undefined]: true },
+			excludePattern: { [typeof exclude === 'string' ? exclude : !!exclude ? exclude.pattern : undefined]: true },
+			useRipgrep: this._experimentService.getExperiments().ripgrepQuickSearch
 		};
 		this._searchService.extendQuery(query);
 
@@ -101,82 +109,6 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		return this._textFileService.saveAll(includeUntitled).then(result => {
 			return result.results.every(each => each.success === true);
 		});
-	}
-
-	// --- EXPERIMENT: workspace provider
-
-	private _idPool: number = 0;
-	private readonly _provider = new Map<number, [IDisposable, Emitter<URI>]>();
-	private readonly _searchSessions = new Map<number, { resolve: (result: ISearchComplete) => void, reject: Function, progress: (item: ISearchProgressItem) => void, matches: URI[] }>();
-
-	$registerFileSystemProvider(handle: number, authority: string): void {
-		if (!(this._fileService instanceof RemoteFileService)) {
-			throw new Error();
-		}
-		const emitter = new Emitter<URI>();
-		const provider = {
-			onDidChange: emitter.event,
-			resolve: (resource: URI) => {
-				return this._proxy.$resolveFile(handle, resource);
-			},
-			update: (resource: URI, value: string) => {
-				return this._proxy.$storeFile(handle, resource, value);
-			}
-		};
-		const searchProvider = {
-			search: (query: ISearchQuery) => {
-				if (query.type !== QueryType.File) {
-					return undefined;
-				}
-				const session = ++this._idPool;
-				return new PPromise<any, any>((resolve, reject, progress) => {
-					this._searchSessions.set(session, { resolve, reject, progress, matches: [] });
-					this._proxy.$startSearch(handle, session, query.filePattern);
-				}, () => {
-					this._proxy.$cancelSearch(handle, session);
-				});
-			}
-		};
-		const registrations = combinedDisposable([
-			this._fileService.registerProvider(authority, provider),
-			this._searchService.registerSearchResultProvider(searchProvider),
-		]);
-		this._provider.set(handle, [registrations, emitter]);
-	}
-
-	$unregisterFileSystemProvider(handle: number): void {
-		if (this._provider.has(handle)) {
-			dispose(this._provider.get(handle)[0]);
-			this._provider.delete(handle);
-		}
-	}
-
-	$onFileSystemChange(handle: number, resource: URI) {
-		const [, emitter] = this._provider.get(handle);
-		emitter.fire(resource);
-	};
-
-	$updateSearchSession(session: number, data: URI): void {
-		if (this._searchSessions.has(session)) {
-			this._searchSessions.get(session).progress({ resource: data });
-			this._searchSessions.get(session).matches.push(data);
-		}
-	}
-
-	$finishSearchSession(session: number, err?: any): void {
-		if (this._searchSessions.has(session)) {
-			const { matches, resolve, reject } = this._searchSessions.get(session);
-			this._searchSessions.delete(session);
-			if (err) {
-				reject(err);
-			} else {
-				resolve({
-					limitHit: false,
-					stats: undefined,
-					results: matches.map(resource => ({ resource }))
-				});
-			}
-		}
 	}
 }
 

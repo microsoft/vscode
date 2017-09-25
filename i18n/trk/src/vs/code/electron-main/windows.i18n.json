@@ -17,6 +17,8 @@
 	"open": "Aç",
 	"openFolder": "Klasör Aç",
 	"openFile": "Dosya Aç",
+	"workspaceOpenedMessage": "Çalışma alanı '{0}' kaydedilemiyor",
+	"workspaceOpenedDetail": "Çalışma alanı zaten başka bir pencerede açılmış. Lütfen ilk olarak o pencereyi kapatın ve tekrar deneyin.",
 	"openWorkspace": "&&Aç",
 	"openWorkspaceTitle": "Çalışma Alanı Aç",
 	"save": "&&Kaydet",

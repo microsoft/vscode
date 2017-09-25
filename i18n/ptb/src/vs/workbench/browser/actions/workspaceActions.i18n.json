@@ -14,7 +14,6 @@
 	"selectWorkspace": "Selecionar pastas para espaço de trabalho",
 	"removeFolderFromWorkspace": "Remover pasta da área de trabalho",
 	"saveWorkspaceAsAction": "Salvar o espaço de trabalho como...",
-	"saveEmptyWorkspaceNotSupported": "Por favor, abra um espaço de trabalho antes de salvar.",
 	"save": "&&Salvar",
 	"saveWorkspace": "Salvar o espaço de trabalho",
 	"openWorkspaceAction": "Abrir o Espaço de Trabalho...",

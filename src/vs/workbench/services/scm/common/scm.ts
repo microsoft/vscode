@@ -88,7 +88,6 @@ export interface ISCMService {
 	readonly _serviceBrand: any;
 	readonly onDidAddRepository: Event<ISCMRepository>;
 	readonly onDidRemoveRepository: Event<ISCMRepository>;
-	readonly onDidChangeRepository: Event<ISCMRepository>;
 
 	readonly repositories: ISCMRepository[];
 

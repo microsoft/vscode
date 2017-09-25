@@ -14,8 +14,8 @@ import { resolveCommonProperties, machineIdStorageKey } from '../node/commonProp
 
 const SQM_KEY: string = '\\Software\\Microsoft\\SQMClient';
 
-export function resolveWorkbenchCommonProperties(storageService: IStorageService, commit: string, version: string): TPromise<{ [name: string]: string }> {
-	return resolveCommonProperties(commit, version).then(result => {
+export function resolveWorkbenchCommonProperties(storageService: IStorageService, commit: string, version: string, source: string): TPromise<{ [name: string]: string }> {
+	return resolveCommonProperties(commit, version, source).then(result => {
 		result['common.version.shell'] = process.versions && (<any>process).versions['electron'];
 		result['common.version.renderer'] = process.versions && (<any>process).versions['chrome'];
 		result['common.osVersion'] = os.release();

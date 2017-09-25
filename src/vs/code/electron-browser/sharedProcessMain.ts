@@ -35,6 +35,7 @@ import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
 import { ipcRenderer } from 'electron';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { StorageService, inMemoryLocalStorageInstance } from 'vs/platform/storage/common/storageService';
+import { createSharedProcessContributions } from 'vs/code/electron-browser/contrib/contributions';
 
 interface ISharedProcessInitData {
 	sharedIPCHandle: string;
@@ -98,7 +99,7 @@ function main(server: Server, initData: ISharedProcessInitData): void {
 		server.registerChannel('telemetryAppender', new TelemetryAppenderChannel(appender));
 
 		const services = new ServiceCollection();
-		const { appRoot, extensionsPath, extensionDevelopmentPath, isBuilt, extensionTestsPath } = accessor.get(IEnvironmentService);
+		const { appRoot, extensionsPath, extensionDevelopmentPath, isBuilt, extensionTestsPath, installSource } = accessor.get(IEnvironmentService);
 
 		if (isBuilt && !extensionDevelopmentPath && product.enableTelemetry) {
 			const disableStorage = !!extensionTestsPath; // never keep any state when running extension tests!
@@ -107,7 +108,7 @@ function main(server: Server, initData: ISharedProcessInitData): void {
 
 			const config: ITelemetryServiceConfig = {
 				appender,
-				commonProperties: resolveCommonProperties(product.commit, pkg.version)
+				commonProperties: resolveCommonProperties(product.commit, pkg.version, installSource)
 					.then(result => Object.defineProperty(result, 'common.machineId', {
 						get: () => storageService.get(machineIdStorageKey),
 						enumerable: true
@@ -132,6 +133,8 @@ function main(server: Server, initData: ISharedProcessInitData): void {
 
 			// clean up deprecated extensions
 			(extensionManagementService as ExtensionManagementService).removeDeprecatedExtensions();
+
+			createSharedProcessContributions(instantiationService2);
 		});
 	});
 }

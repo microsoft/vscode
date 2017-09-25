@@ -19,9 +19,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
-import { IWindowSettings, MenuBarVisibility, IWindowConfiguration, ReadyState } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, MenuBarVisibility, IWindowConfiguration, ReadyState, IRunActionInWindowRequest } from 'vs/platform/windows/common/windows';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { KeyboardLayoutMonitor } from 'vs/code/electron-main/keyboard';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspaceIdentifier, IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
@@ -66,6 +65,10 @@ interface IWorkbenchEditorConfiguration {
 	};
 }
 
+interface ITouchBarSegment extends Electron.SegmentedControlSegment {
+	id: string;
+}
+
 export class CodeWindow implements ICodeWindow {
 
 	public static themeStorageKey = 'theme';
@@ -94,6 +97,8 @@ export class CodeWindow implements ICodeWindow {
 	private currentConfig: IWindowConfiguration;
 	private pendingLoadConfig: IWindowConfiguration;
 
+	private touchBarGroups: Electron.TouchBarSegmentedControl[];
+
 	constructor(
 		config: IWindowCreationOptions,
 		@ILogService private logService: ILogService,
@@ -103,6 +108,7 @@ export class CodeWindow implements ICodeWindow {
 		@IWorkspacesMainService private workspaceService: IWorkspacesMainService,
 		@IBackupMainService private backupService: IBackupMainService
 	) {
+		this.touchBarGroups = [];
 		this._lastFocusTime = -1;
 		this._readyState = ReadyState.NONE;
 		this.whenReadyCallbacks = [];
@@ -113,6 +119,9 @@ export class CodeWindow implements ICodeWindow {
 
 		// respect configured menu bar visibility
 		this.onConfigurationUpdated();
+
+		// macOS: touch bar support
+		this.createTouchBar();
 
 		// Eventing
 		this.registerListeners();
@@ -440,9 +449,9 @@ export class CodeWindow implements ICodeWindow {
 			}
 
 			if (cmd === back) {
-				this.send('vscode:runAction', acrossEditors ? 'workbench.action.openPreviousRecentlyUsedEditor' : 'workbench.action.navigateBack');
+				this.send('vscode:runAction', { id: acrossEditors ? 'workbench.action.openPreviousRecentlyUsedEditor' : 'workbench.action.navigateBack', from: 'mouse' } as IRunActionInWindowRequest);
 			} else if (cmd === forward) {
-				this.send('vscode:runAction', acrossEditors ? 'workbench.action.openNextRecentlyUsedEditor' : 'workbench.action.navigateForward');
+				this.send('vscode:runAction', { id: acrossEditors ? 'workbench.action.openNextRecentlyUsedEditor' : 'workbench.action.navigateForward', from: 'mouse' } as IRunActionInWindowRequest);
 			}
 		});
 	}
@@ -546,9 +555,6 @@ export class CodeWindow implements ICodeWindow {
 		// Set Accessibility Config
 		windowConfiguration.highContrast = isWindows && systemPreferences.isInvertedColorScheme() && (!windowConfig || windowConfig.autoDetectHighContrast);
 		windowConfiguration.accessibilitySupport = app.isAccessibilitySupportEnabled();
-
-		// Set Keyboard Config
-		windowConfiguration.isISOKeyboard = KeyboardLayoutMonitor.INSTANCE.isISOKeyboard();
 
 		// Theme
 		windowConfiguration.baseTheme = this.getBaseTheme();
@@ -858,49 +864,71 @@ export class CodeWindow implements ICodeWindow {
 		this._win.webContents.send(channel, ...args);
 	}
 
-	public updateTouchBar(items: ICommandAction[][]): void {
+	public updateTouchBar(groups: ICommandAction[][]): void {
 		if (!isMacintosh) {
 			return; // only supported on macOS
 		}
 
-		const groups: (Electron.TouchBarGroup | Electron.TouchBarSpacer)[] = [];
+		// Update segments for all groups. Setting the segments property
+		// of the group directly prevents ugly flickering from happening
+		this.touchBarGroups.forEach((touchBarGroup, index) => {
+			const commands = groups[index];
+			touchBarGroup.segments = this.createTouchBarGroupSegments(commands);
+		});
+	}
 
-		items.forEach(itemGroup => {
-			if (itemGroup.length) {
+	private createTouchBar(): void {
+		if (!isMacintosh) {
+			return; // only supported on macOS
+		}
 
-				// Group Segments
-				const groupSegments = itemGroup.map(item => {
-					let icon: Electron.NativeImage;
-					if (item.iconPath) {
-						icon = nativeImage.createFromPath(item.iconPath);
-						if (icon.isEmpty()) {
-							icon = void 0;
-						}
-					}
+		// To avoid flickering, we try to reuse the touch bar group
+		// as much as possible by creating a large number of groups
+		// for reusing later.
+		for (let i = 0; i < 10; i++) {
+			const groupTouchBar = this.createTouchBarGroup();
+			this.touchBarGroups.push(groupTouchBar);
+		}
 
-					return {
-						label: !icon ? item.title as string : void 0,
-						icon
-					};
-				});
+		this._win.setTouchBar(new TouchBar({ items: this.touchBarGroups }));
+	}
 
-				// Group Touch Bar
-				const groupTouchBar = new TouchBar.TouchBarSegmentedControl({
-					segments: groupSegments,
-					mode: 'buttons',
-					segmentStyle: 'automatic',
-					change: (selectedIndex) => {
-						this.sendWhenReady('vscode:runAction', itemGroup[selectedIndex].id);
-					}
-				});
+	private createTouchBarGroup(items: ICommandAction[] = []): Electron.TouchBarSegmentedControl {
 
-				// Push and add small space between groups
-				groups.push(groupTouchBar);
-				groups.push(new TouchBar.TouchBarSpacer({ size: 'small' }));
+		// Group Segments
+		const segments = this.createTouchBarGroupSegments(items);
+
+		// Group Control
+		const control = new TouchBar.TouchBarSegmentedControl({
+			segments,
+			mode: 'buttons',
+			segmentStyle: 'automatic',
+			change: (selectedIndex) => {
+				this.sendWhenReady('vscode:runAction', { id: (control.segments[selectedIndex] as ITouchBarSegment).id, from: 'touchbar' });
 			}
 		});
 
-		this._win.setTouchBar(new TouchBar({ items: groups }));
+		return control;
+	}
+
+	private createTouchBarGroupSegments(items: ICommandAction[] = []): ITouchBarSegment[] {
+		const segments: ITouchBarSegment[] = items.map(item => {
+			let icon: Electron.NativeImage;
+			if (item.iconPath) {
+				icon = nativeImage.createFromPath(item.iconPath);
+				if (icon.isEmpty()) {
+					icon = void 0;
+				}
+			}
+
+			return {
+				id: item.id,
+				label: !icon ? item.title as string : void 0,
+				icon
+			};
+		});
+
+		return segments;
 	}
 
 	public dispose(): void {

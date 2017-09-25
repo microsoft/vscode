@@ -6,6 +6,7 @@
 {
 	"badgeTitle": "{0} - {1}",
 	"titleKeybinding": "{0} ({1})",
+	"removeFromActivityBar": "アクティビティ バーから非表示",
 	"keepInActivityBar": "アクティビティ バーに保持",
 	"additionalViews": "その他のビュー",
 	"numberBadge": "{0} ({1})",

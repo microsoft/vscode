@@ -17,6 +17,8 @@
 	"open": "開く",
 	"openFolder": "フォルダーを開く",
 	"openFile": "ファイルを開く",
+	"workspaceOpenedMessage": "ワークスペース '{0}' を保存できません",
+	"workspaceOpenedDetail": "ワークスペースは既に別のウィンドウで開いています。最初にそのウィンドウを閉じててから、もう一度やり直してください。",
 	"openWorkspace": "開く(&&O)",
 	"openWorkspaceTitle": "ワークスペースを開く",
 	"save": "保存(&&S)",

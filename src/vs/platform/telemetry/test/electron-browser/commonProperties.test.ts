@@ -14,6 +14,7 @@ suite('Telemetry - common properties', function () {
 
 	const commit = void 0;
 	const version = void 0;
+	const source = void 0;
 	let storageService;
 
 	setup(() => {
@@ -22,7 +23,7 @@ suite('Telemetry - common properties', function () {
 
 	test('default', function () {
 
-		return resolveWorkbenchCommonProperties(storageService, commit, version).then(props => {
+		return resolveWorkbenchCommonProperties(storageService, commit, version, source).then(props => {
 
 			assert.ok('commitHash' in props);
 			assert.ok('sessionID' in props);
@@ -37,6 +38,7 @@ suite('Telemetry - common properties', function () {
 			// assert.ok('common.version.renderer' in first.data);
 			assert.ok('common.osVersion' in props, 'osVersion');
 			assert.ok('version' in props);
+			assert.ok('common.source' in props);
 
 			assert.ok('common.firstSessionDate' in props, 'firstSessionDate');
 			assert.ok('common.lastSessionDate' in props, 'lastSessionDate'); // conditional, see below, 'lastSessionDate'ow
@@ -57,7 +59,7 @@ suite('Telemetry - common properties', function () {
 
 		storageService.store('telemetry.lastSessionDate', new Date().toUTCString());
 
-		return resolveWorkbenchCommonProperties(storageService, commit, version).then(props => {
+		return resolveWorkbenchCommonProperties(storageService, commit, version, source).then(props => {
 
 			assert.ok('common.lastSessionDate' in props); // conditional, see below
 			assert.ok('common.isNewSession' in props);
@@ -66,7 +68,7 @@ suite('Telemetry - common properties', function () {
 	});
 
 	test('values chance on ask', function () {
-		return resolveWorkbenchCommonProperties(storageService, commit, version).then(props => {
+		return resolveWorkbenchCommonProperties(storageService, commit, version, source).then(props => {
 			let value1 = props['common.sequence'];
 			let value2 = props['common.sequence'];
 			assert.ok(value1 !== value2, 'seq');

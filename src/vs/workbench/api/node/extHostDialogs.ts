@@ -17,13 +17,13 @@ export class ExtHostDialogs {
 	}
 
 	showOpenDialog(options: vscode.OpenDialogOptions): Thenable<URI[]> {
-		return this._proxy.$showOpenDialog(<any>options).then(filepaths => {
+		return this._proxy.$showOpenDialog(options).then(filepaths => {
 			return filepaths && filepaths.map(URI.file);
 		});
 	}
 
 	showSaveDialog(options: vscode.SaveDialogOptions): Thenable<URI> {
-		return this._proxy.$showSaveDialog(<any>options).then(filepath => {
+		return this._proxy.$showSaveDialog(options).then(filepath => {
 			return filepath && URI.file(filepath);
 		});
 	}

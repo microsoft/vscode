@@ -27,7 +27,6 @@ import 'vs/workbench/browser/actions/toggleEditorLayout';
 import 'vs/workbench/browser/actions/toggleZenMode';
 import 'vs/workbench/parts/preferences/browser/preferences.contribution';
 import 'vs/workbench/parts/preferences/browser/keybindingsEditorContribution';
-import 'vs/workbench/browser/actions/configureLocale';
 
 import 'vs/workbench/browser/parts/quickopen/quickopen.contribution';
 import 'vs/workbench/parts/quickopen/browser/quickopen.contribution';
@@ -73,6 +72,7 @@ import 'vs/workbench/parts/terminal/browser/terminalQuickOpen';
 import 'vs/workbench/parts/terminal/electron-browser/terminalPanel'; // can be packaged separately
 
 import 'vs/workbench/electron-browser/workbench';
+import 'vs/workbench/electron-browser/configureLocale';
 
 import 'vs/workbench/parts/trust/electron-browser/unsupportedWorkspaceSettings.contribution';
 

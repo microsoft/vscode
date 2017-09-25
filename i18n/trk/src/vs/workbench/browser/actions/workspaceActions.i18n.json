@@ -14,9 +14,9 @@
 	"selectWorkspace": "Çalışma Alanı İçin Klasörleri Seçin",
 	"removeFolderFromWorkspace": "Çalışma Alanından Klasör Kaldır",
 	"saveWorkspaceAsAction": "Çalışma Alanını Farklı Kaydet...",
-	"saveEmptyWorkspaceNotSupported": "Lütfen kaydetmek için ilk olarak bir çalışma alanı açın.",
 	"save": "&&Kaydet",
 	"saveWorkspace": "Çalışma Alanını Kaydet",
 	"openWorkspaceAction": "Çalışma Alanı Aç...",
-	"openWorkspaceConfigFile": "Çalışma Alanı Yapılandırma Dosyasını Aç"
+	"openWorkspaceConfigFile": "Çalışma Alanı Yapılandırma Dosyasını Aç",
+	"workspaceFolderPickerPlaceholder": "Çalışma alanı klasörü seçin"
 }

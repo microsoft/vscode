@@ -116,6 +116,17 @@ class WordHighlighter {
 		this.renderDecorationsTimer = -1;
 	}
 
+	public hasDecorations(): boolean {
+		return (this._decorationIds.length > 0);
+	}
+
+	public restore(): void {
+		if (!this.occurrencesHighlight) {
+			return;
+		}
+		this._run();
+	}
+
 	private _removeDecorations(): void {
 		if (this._decorationIds.length > 0) {
 			// remove decorations
@@ -162,6 +173,10 @@ class WordHighlighter {
 			return;
 		}
 
+		this._run();
+	}
+
+	private _run(): void {
 		// no providers for this model
 		if (!DocumentHighlightProviderRegistry.has(this.model)) {
 			this._stopAll();
@@ -342,6 +357,19 @@ class WordHighlighterContribution implements editorCommon.IEditorContribution {
 
 	public getId(): string {
 		return WordHighlighterContribution.ID;
+	}
+
+	public saveViewState(): boolean {
+		if (this.wordHighligher.hasDecorations()) {
+			return true;
+		}
+		return false;
+	}
+
+	public restoreViewState(state: boolean | undefined): void {
+		if (state) {
+			this.wordHighligher.restore();
+		}
 	}
 
 	public dispose(): void {

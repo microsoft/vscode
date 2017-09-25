@@ -720,7 +720,10 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 			if (input instanceof EditorInput) {
 				const factory = registry.getEditorInputFactory(input.getTypeId());
 				if (factory) {
-					return { editorInputJSON: { typeId: input.getTypeId(), deserialized: factory.serialize(input) } } as ISerializedEditorHistoryEntry;
+					const deserialized = factory.serialize(input);
+					if (deserialized) {
+						return { editorInputJSON: { typeId: input.getTypeId(), deserialized } } as ISerializedEditorHistoryEntry;
+					}
 				}
 			}
 
@@ -754,10 +757,11 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 			}
 
 			// Editor input: via factory
-			if (serializedEditorHistoryEntry.editorInputJSON) {
-				const factory = registry.getEditorInputFactory(serializedEditorHistoryEntry.editorInputJSON.typeId);
+			const { editorInputJSON } = serializedEditorHistoryEntry;
+			if (editorInputJSON && editorInputJSON.deserialized) {
+				const factory = registry.getEditorInputFactory(editorInputJSON.typeId);
 				if (factory) {
-					return factory.deserialize(this.instantiationService, serializedEditorHistoryEntry.editorInputJSON.deserialized);
+					return factory.deserialize(this.instantiationService, editorInputJSON.deserialized);
 				}
 			}
 

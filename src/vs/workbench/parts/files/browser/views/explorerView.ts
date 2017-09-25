@@ -10,8 +10,8 @@ import { Builder, $ } from 'vs/base/browser/builder';
 import URI from 'vs/base/common/uri';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import errors = require('vs/base/common/errors');
-import labels = require('vs/base/common/labels');
 import paths = require('vs/base/common/paths');
+import resources = require('vs/base/common/resources');
 import glob = require('vs/base/common/glob');
 import { Action, IAction } from 'vs/base/common/actions';
 import { prepareActions } from 'vs/workbench/browser/actions';
@@ -32,7 +32,7 @@ import { FileStat, Model } from 'vs/workbench/parts/files/common/explorerModel';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -131,8 +131,7 @@ export class ExplorerView extends ViewsViewletPanel {
 		const titleElement = container.querySelector('.title') as HTMLElement;
 		const setHeader = () => {
 			const workspace = this.contextService.getWorkspace();
-
-			const title = workspace.folders.map(folder => labels.getPathLabel(folder.uri.fsPath, void 0, this.environmentService)).join();
+			const title = workspace.folders.map(folder => folder.name).join();
 			titleElement.textContent = this.name;
 			titleElement.title = title;
 		};
@@ -165,7 +164,7 @@ export class ExplorerView extends ViewsViewletPanel {
 		};
 
 		this.disposables.push(this.themeService.onDidFileIconThemeChange(onFileIconThemeChange));
-		this.disposables.push(this.contextService.onDidChangeWorkspaceFolders(() => this.refreshFromEvent()));
+		this.disposables.push(this.contextService.onDidChangeWorkspaceFolders(e => this.refreshFromEvent(e.added)));
 		onFileIconThemeChange(this.themeService.getFileIconTheme());
 	}
 
@@ -193,7 +192,11 @@ export class ExplorerView extends ViewsViewletPanel {
 		this.onConfigurationUpdated(configuration);
 
 		// Load and Fill Viewer
-		return this.doRefresh().then(() => {
+		let targetsToExpand = [];
+		if (this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES]) {
+			targetsToExpand = this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES].map((e: string) => URI.parse(e));
+		}
+		return this.doRefresh(targetsToExpand).then(() => {
 
 			// When the explorer viewer is loaded, listen to changes to the editor input
 			this.disposables.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
@@ -366,7 +369,7 @@ export class ExplorerView extends ViewsViewletPanel {
 		}
 
 		// check for files
-		return toResource(input, { supportSideBySide: true, filter: 'file' });
+		return toResource(input, { supportSideBySide: true });
 	}
 
 	private get isCreated(): boolean {
@@ -457,7 +460,7 @@ export class ExplorerView extends ViewsViewletPanel {
 		// Add
 		if (e.operation === FileOperation.CREATE || e.operation === FileOperation.IMPORT || e.operation === FileOperation.COPY) {
 			const addedElement = e.target;
-			const parentResource = URI.file(paths.dirname(addedElement.resource.fsPath));
+			const parentResource = resources.dirname(addedElement.resource);
 			const parents = this.model.findAll(parentResource);
 
 			if (parents.length) {
@@ -492,8 +495,8 @@ export class ExplorerView extends ViewsViewletPanel {
 			const oldResource = e.resource;
 			const newElement = e.target;
 
-			const oldParentResource = URI.file(paths.dirname(oldResource.fsPath));
-			const newParentResource = URI.file(paths.dirname(newElement.resource.fsPath));
+			const oldParentResource = resources.dirname(oldResource);
+			const newParentResource = resources.dirname(newElement.resource);
 
 			// Only update focus if renamed/moved element is selected
 			let restoreFocus = false;
@@ -677,11 +680,11 @@ export class ExplorerView extends ViewsViewletPanel {
 		}));
 	}
 
-	private refreshFromEvent(): void {
+	private refreshFromEvent(newRoots: IWorkspaceFolder[] = []): void {
 		if (this.isVisible()) {
 			this.explorerRefreshDelayer.trigger(() => {
 				if (!this.explorerViewer.getHighlight()) {
-					return this.doRefresh();
+					return this.doRefresh(newRoots.map(r => r.uri));
 				}
 
 				return TPromise.as(null);
@@ -723,19 +726,12 @@ export class ExplorerView extends ViewsViewletPanel {
 		});
 	}
 
-	private doRefresh(): TPromise<void> {
+	private doRefresh(targetsToExpand: URI[] = []): TPromise<void> {
 		const targetsToResolve: { root: FileStat, resource: URI, options: { resolveTo: URI[] } }[] = [];
 		this.model.roots.forEach(root => {
 			const rootAndTargets = { root, resource: root.resource, options: { resolveTo: [] } };
 			targetsToResolve.push(rootAndTargets);
 		});
-
-		let targetsToExpand: URI[] = [];
-		if (this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES]) {
-			targetsToExpand = this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES].map((e: string) => URI.parse(e));
-		} else if (this.model.roots.length === 1) {
-			targetsToExpand = this.model.roots.map(root => root.resource); // always expand if there is just one root
-		}
 
 		// First time refresh: Receive target through active editor input or selection and also include settings from previous session
 		if (!this.isCreated) {
@@ -774,7 +770,7 @@ export class ExplorerView extends ViewsViewletPanel {
 
 				return FileStat.create({
 					resource: targetsToResolve[index].resource,
-					name: paths.basename(targetsToResolve[index].resource.fsPath),
+					name: resources.basenameOrAuthority(targetsToResolve[index].resource),
 					mtime: 0,
 					etag: undefined,
 					isDirectory: true,
@@ -785,15 +781,10 @@ export class ExplorerView extends ViewsViewletPanel {
 			modelStats.forEach((modelStat, index) => FileStat.mergeLocalWithDisk(modelStat, this.model.roots[index]));
 
 			const input = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? this.model.roots[0] : this.model;
+			const statsToExpand = this.explorerViewer.getExpandedElements().concat(targetsToExpand.map(target => this.model.findClosest(target)));
 			if (input === this.explorerViewer.getInput()) {
-				return this.explorerViewer.refresh();
+				return this.explorerViewer.refresh().then(() => this.explorerViewer.expandAll(statsToExpand));
 			}
-
-			// Preserve expanded elements if tree input changed.
-			// If it is a brand new tree just expand elements from memento
-			const expanded = this.explorerViewer.getExpandedElements();
-			const statsToExpand = expanded.length ? [this.model.roots[0]].concat(expanded) :
-				targetsToExpand.map(expand => this.model.findClosest(expand));
 
 			// Display roots only when multi folder workspace
 			// Make sure to expand all folders that where expanded in the previous session
@@ -815,7 +806,7 @@ export class ExplorerView extends ViewsViewletPanel {
 				// Drop those path which are parents of the current one
 				for (let i = resolvedDirectories.length - 1; i >= 0; i--) {
 					const resource = resolvedDirectories[i];
-					if (paths.isEqualOrParent(stat.resource.fsPath, resource.fsPath, !isLinux /* ignorecase */)) {
+					if (resources.isEqualOrParent(stat.resource, resource, !isLinux /* ignorecase */)) {
 						resolvedDirectories.splice(i);
 					}
 				}

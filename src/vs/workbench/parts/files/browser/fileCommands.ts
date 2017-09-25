@@ -22,7 +22,6 @@ import { FileStat, OpenEditor } from 'vs/workbench/parts/files/common/explorerMo
 import errors = require('vs/base/common/errors');
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import labels = require('vs/base/common/labels');
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IMessageService } from 'vs/platform/message/common/message';
 
@@ -44,7 +43,7 @@ export const copyPathCommand = (accessor: ServicesAccessor, resource?: URI) => {
 
 	if (resource) {
 		const clipboardService = accessor.get(IClipboardService);
-		clipboardService.writeText(labels.getPathLabel(resource));
+		clipboardService.writeText(resource.scheme === 'file' ? resource.fsPath : resource.toString());
 	} else {
 		const messageService = accessor.get(IMessageService);
 		messageService.show(severity.Info, nls.localize('openFileToCopy', "Open a file first to copy its path"));

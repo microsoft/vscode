@@ -11,7 +11,7 @@ import { IConfigurationService, getConfigurationValue, IConfigurationOverrides, 
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { ConfigurationResolverService } from 'vs/workbench/services/configurationResolver/node/configurationResolverService';
-import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { TestEnvironmentService, TestEditorService } from 'vs/workbench/test/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
@@ -20,7 +20,7 @@ suite('Configuration Resolver Service', () => {
 	let envVariables: { [key: string]: string } = { key1: 'Value for Key1', key2: 'Value for Key2' };
 	let mockCommandService: MockCommandService;
 	let editorService: TestEditorService;
-	let workspace: WorkspaceFolder;
+	let workspace: IWorkspaceFolder;
 
 
 	setup(() => {
@@ -30,7 +30,7 @@ suite('Configuration Resolver Service', () => {
 			uri: uri.parse('file:///VSCode/workspaceLocation'),
 			name: 'hey',
 			index: 0,
-			raw: undefined
+			toResource: () => null
 		};
 		configurationResolverService = new ConfigurationResolverService(envVariables, editorService, TestEnvironmentService, new TestConfigurationService(), mockCommandService);
 	});

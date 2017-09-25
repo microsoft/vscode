@@ -88,6 +88,7 @@
 	"accessibilitySupport": "控制編輯器是否應於已為螢幕助讀程式最佳化的模式中執行。",
 	"links": "控制編輯器是否應偵測連結且讓它可點擊",
 	"colorDecorators": "控制編輯器是否應轉譯內嵌色彩裝飾項目與色彩選擇器。",
+	"codeActions": "啟用程式動作燈泡提示",
 	"sideBySide": "控制 Diff 編輯器要並排或內嵌顯示差異",
 	"ignoreTrimWhitespace": "控制 Diff 編輯器是否將開頭或尾端空白字元的變更顯示為差異",
 	"renderIndicators": "控制 Diff 編輯器是否要為新增的/移除的變更顯示 +/- 標記",

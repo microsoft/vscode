@@ -88,6 +88,7 @@
 	"accessibilitySupport": "Steuert, ob der Editor in einem Modus ausgeführt werden soll, in dem er für die Sprachausgabe optimiert wird.",
 	"links": "Steuert, ob der Editor Links erkennen und anklickbar machen soll",
 	"colorDecorators": "Steuert, ob der Editor die Inline-Farbdecorators und die Farbauswahl rendern soll.",
+	"codeActions": "Ermöglicht die Code-Aktion \"lightbulb\"",
 	"sideBySide": "Steuert, ob der Diff-Editor das Diff nebeneinander oder inline anzeigt.",
 	"ignoreTrimWhitespace": "Steuert, ob der Diff-Editor Änderungen in führenden oder nachgestellten Leerzeichen als Diffs anzeigt.",
 	"renderIndicators": "Steuert, ob der Diff-Editor die Indikatoren \"+\" und \"-\" für hinzugefügte/entfernte Änderungen anzeigt.",

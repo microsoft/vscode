@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
 import * as uuid from 'vs/base/common/uuid';
 import { networkInterfaces } from 'os';
-import { TrieMap } from 'vs/base/common/map';
+import { StringTrieMap } from 'vs/base/common/map';
 
 // http://www.techrepublic.com/blog/data-center/mac-address-scorecard-for-common-virtual-machine-platforms/
 // VMware ESX 3, Server, Workstation, Player	00-50-56, 00-0C-29, 00-05-69
@@ -23,12 +23,12 @@ import { TrieMap } from 'vs/base/common/map';
 // Sun xVM VirtualBox	08-00-27
 export const virtualMachineHint: { value(): number } = new class {
 
-	private _virtualMachineOUIs: TrieMap<boolean>;
+	private _virtualMachineOUIs: StringTrieMap<boolean>;
 	private _value: number;
 
 	private _isVirtualMachineMacAdress(mac: string): boolean {
 		if (!this._virtualMachineOUIs) {
-			this._virtualMachineOUIs = new TrieMap<boolean>(s => s.split(/[-:]/));
+			this._virtualMachineOUIs = new StringTrieMap<boolean>(s => s.split(/[-:]/));
 			// this._virtualMachineOUIs.insert('00-00-00', true);
 			this._virtualMachineOUIs.insert('00-50-56', true);
 			this._virtualMachineOUIs.insert('00-0C-29', true);

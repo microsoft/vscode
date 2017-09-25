@@ -117,7 +117,7 @@ export function activate(context: vscode.ExtensionContext) {
 		logger.log('revealLine', { uri, sourceUri: sourceUri.toString(), line });
 
 		vscode.window.visibleTextEditors
-			.filter(editor => isMarkdownFile(editor.document) && editor.document.uri.fsPath === sourceUri.fsPath)
+			.filter(editor => isMarkdownFile(editor.document) && editor.document.uri.toString() === sourceUri.toString())
 			.forEach(editor => {
 				const sourceLine = Math.floor(line);
 				const fraction = line - sourceLine;
@@ -253,7 +253,7 @@ function showPreview(cspArbiter: ExtensionContentSecurityPolicyArbiter, uri?: vs
 	const thenable = vscode.commands.executeCommand('vscode.previewHtml',
 		getMarkdownUri(resource),
 		getViewColumn(sideBySide),
-		`Preview '${path.basename(resource.fsPath)}'`,
+		localize('previewTitle', 'Preview {0}', path.basename(resource.fsPath)),
 		{
 			allowScripts: true,
 			allowSvgs: cspArbiter.shouldAllowSvgsForResource(resource)
@@ -296,7 +296,7 @@ function showSource(mdUri: vscode.Uri) {
 
 	const docUri = vscode.Uri.parse(mdUri.query);
 	for (const editor of vscode.window.visibleTextEditors) {
-		if (editor.document.uri.scheme === docUri.scheme && editor.document.uri.fsPath === docUri.fsPath) {
+		if (editor.document.uri.scheme === docUri.scheme && editor.document.uri.toString() === docUri.toString()) {
 			return vscode.window.showTextDocument(editor.document, editor.viewColumn);
 		}
 	}

@@ -33,8 +33,9 @@ import { IWorkspaceConfigurationService } from 'vs/workbench/services/configurat
 import { ICrashReporterService } from 'vs/workbench/services/crashReporter/common/crashReporterService';
 import { IBroadcastService, IBroadcast } from 'vs/platform/broadcast/electron-browser/broadcastService';
 import { isEqual } from 'vs/base/common/paths';
-import { EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL, EXTENSION_RELOAD_BROADCAST_CHANNEL, ILogEntry, EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL } from 'vs/platform/extensions/common/extensionHost';
+import { EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL, EXTENSION_RELOAD_BROADCAST_CHANNEL, EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL } from 'vs/platform/extensions/common/extensionHost';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IRemoteConsoleLog, log, parse } from 'vs/base/node/console';
 
 export class ExtensionHostProcessWorker {
 
@@ -142,7 +143,8 @@ export class ExtensionHostProcessWorker {
 						VSCODE_WINDOW_ID: String(this._windowService.getCurrentWindowId()),
 						VSCODE_IPC_HOOK_EXTHOST: pipeName,
 						VSCODE_HANDLES_UNCAUGHT_ERRORS: true,
-						ELECTRON_NO_ASAR: '1'
+						ELECTRON_NO_ASAR: '1',
+						VSCODE_LOG_STACK: !this._isExtensionDevTestFromCli && (this._isExtensionDevHost || !this._environmentService.isBuilt || product.quality !== 'stable' || this._environmentService.verbose)
 					}),
 					// We only detach the extension host on windows. Linux and Mac orphan by default
 					// and detach under Linux and Mac create another process group.
@@ -195,8 +197,8 @@ export class ExtensionHostProcessWorker {
 
 				// Support logging from extension host
 				this._extensionHostProcess.on('message', msg => {
-					if (msg && (<ILogEntry>msg).type === '__$console') {
-						this._logExtensionHostMessage(<ILogEntry>msg);
+					if (msg && (<IRemoteConsoleLog>msg).type === '__$console') {
+						this._logExtensionHostMessage(<IRemoteConsoleLog>msg);
 					}
 				});
 
@@ -365,33 +367,16 @@ export class ExtensionHostProcessWorker {
 		});
 	}
 
-	private _logExtensionHostMessage(logEntry: ILogEntry) {
-		let args = [];
-		try {
-			let parsed = JSON.parse(logEntry.arguments);
-			args.push(...Object.getOwnPropertyNames(parsed).map(o => parsed[o]));
-		} catch (error) {
-			args.push(logEntry.arguments);
-		}
-
-		// If the first argument is a string, check for % which indicates that the message
-		// uses substitution for variables. In this case, we cannot just inject our colored
-		// [Extension Host] to the front because it breaks substitution.
-		let consoleArgs = [];
-		if (typeof args[0] === 'string' && args[0].indexOf('%') >= 0) {
-			consoleArgs = [`%c[Extension Host]%c ${args[0]}`, 'color: blue', 'color: black', ...args.slice(1)];
-		} else {
-			consoleArgs = ['%c[Extension Host]', 'color: blue', ...args];
-		}
+	private _logExtensionHostMessage(entry: IRemoteConsoleLog) {
 
 		// Send to local console unless we run tests from cli
 		if (!this._isExtensionDevTestFromCli) {
-			console[logEntry.severity].apply(console, consoleArgs);
+			log(entry, 'Extension Host');
 		}
 
 		// Log on main side if running tests from cli
 		if (this._isExtensionDevTestFromCli) {
-			this._windowsService.log(logEntry.severity, ...args);
+			this._windowsService.log(entry.severity, ...parse(entry).args);
 		}
 
 		// Broadcast to other windows if we are in development mode
@@ -399,7 +384,7 @@ export class ExtensionHostProcessWorker {
 			this._broadcastService.broadcast({
 				channel: EXTENSION_LOG_BROADCAST_CHANNEL,
 				payload: {
-					logEntry,
+					logEntry: entry,
 					debugId: this._environmentService.debugExtensionHost.debugId
 				}
 			});

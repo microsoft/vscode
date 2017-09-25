@@ -171,8 +171,6 @@
 	"miRunningTask": "Показать выполняющ&&иеся задачи...",
 	"miRestartTask": "П&&ерезапустить запущенную задачу...",
 	"miTerminateTask": "&&Завершить задачу...",
-	"miConfigureTask": "&&Настроить задачи",
-	"miConfigureBuildTask": "Настроить задачу сборки по у&&молчанию",
 	"accessibilityOptionsWindowTitle": "Специальные возможности",
 	"miRestartToUpdate": "Перезапустить программу для обновления...",
 	"miCheckingForUpdates": "Идет проверка наличия обновлений...",

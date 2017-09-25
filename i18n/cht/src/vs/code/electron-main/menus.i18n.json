@@ -171,8 +171,6 @@
 	"miRunningTask": "顯示執行中的工作(&&G)...",
 	"miRestartTask": "重新開始執行工作(&&E)...",
 	"miTerminateTask": "終止工作(&&T)...",
-	"miConfigureTask": "設定工作(&&C)",
-	"miConfigureBuildTask": "設定預設建置工作(&&F)",
 	"accessibilityOptionsWindowTitle": "協助工具選項",
 	"miRestartToUpdate": "重新啟動以更新...",
 	"miCheckingForUpdates": "正在查看是否有更新...",

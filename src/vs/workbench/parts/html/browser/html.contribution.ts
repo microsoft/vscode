@@ -27,7 +27,7 @@ function getActivePreviewsForResource(accessor: ServicesAccessor, resource: URI 
 	return accessor.get(IWorkbenchEditorService).getVisibleEditors()
 		.filter(c => c instanceof HtmlPreviewPart && c.model)
 		.map(e => e as HtmlPreviewPart)
-		.filter(e => e.model.uri.scheme === uri.scheme && e.model.uri.fsPath === uri.fsPath);
+		.filter(e => e.model.uri.scheme === uri.scheme && e.model.uri.toString() === uri.toString());
 }
 
 // --- Register Editor

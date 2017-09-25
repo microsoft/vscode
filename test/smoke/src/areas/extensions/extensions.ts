@@ -12,26 +12,25 @@ export class Extensions extends Viewlet {
 		super(spectron);
 	}
 
-	public async openExtensionsViewlet(): Promise<any> {
+	async openExtensionsViewlet(): Promise<any> {
 		await this.spectron.command('workbench.view.extensions');
 		await this.waitForExtensionsViewlet();
 	}
 
-	public async waitForExtensionsViewlet(): Promise<any> {
-		await this.spectron.client.waitForElement('div.extensions-viewlet[id="workbench.view.extensions"] .search-box.synthetic-focus');
+	async waitForExtensionsViewlet(): Promise<any> {
+		await this.spectron.client.waitForActiveElement('div.extensions-viewlet[id="workbench.view.extensions"] input.search-box');
 	}
 
-	public async searchForExtension(name: string): Promise<any> {
+	async searchForExtension(name: string): Promise<any> {
 		const searchBoxSelector = 'div.extensions-viewlet[id="workbench.view.extensions"] .search-box';
 
 		await this.spectron.client.clearElement(searchBoxSelector);
 		await this.spectron.client.click(searchBoxSelector);
-		await this.spectron.client.waitForElement('div.extensions-viewlet[id="workbench.view.extensions"] .search-box.synthetic-focus');
+		await this.spectron.client.waitForActiveElement('div.extensions-viewlet[id="workbench.view.extensions"] input.search-box');
 		await this.spectron.client.keys(name);
-
 	}
 
-	public async installExtension(name: string): Promise<boolean> {
+	async installExtension(name: string): Promise<boolean> {
 		await this.searchForExtension(name);
 
 		// we might want to wait for a while longer since the Marketplace can be slow

@@ -7,7 +7,7 @@ import uri from 'vs/base/common/uri';
 import Event, { Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
-import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 export class MockDebugService implements debug.IDebugService {
 	public _serviceBrand: any;
@@ -88,11 +88,11 @@ export class MockDebugService implements debug.IDebugService {
 		return TPromise.as(null);
 	}
 
-	public startDebugging(root: WorkspaceFolder, configOrName?: debug.IConfig | string, noDebug?: boolean): TPromise<any> {
+	public startDebugging(root: IWorkspaceFolder, configOrName?: debug.IConfig | string, noDebug?: boolean): TPromise<any> {
 		return TPromise.as(null);
 	}
 
-	public createProcess(root: WorkspaceFolder, config: debug.IConfig): TPromise<any> {
+	public createProcess(root: IWorkspaceFolder, config: debug.IConfig): TPromise<any> {
 		return TPromise.as(null);
 	}
 
@@ -129,7 +129,7 @@ export class MockSession implements debug.ISession {
 		return 'mockrawsession';
 	}
 
-	public root: WorkspaceFolder;
+	public root: IWorkspaceFolder;
 
 	public getLengthInSeconds(): number {
 		return 100;

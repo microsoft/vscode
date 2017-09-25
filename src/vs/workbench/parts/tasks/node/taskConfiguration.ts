@@ -20,7 +20,7 @@ import {
 	isNamedProblemMatcher, ProblemMatcherRegistry
 } from 'vs/platform/markers/common/problemMatcher';
 
-import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 import * as Tasks from '../common/tasks';
 import { TaskDefinitionRegistry } from '../common/taskDefinitionRegistry';
@@ -563,7 +563,7 @@ function _freeze<T>(this: void, target: T, properties: MetaData<T, any>[]): Read
 }
 
 interface ParseContext {
-	workspaceFolder: WorkspaceFolder;
+	workspaceFolder: IWorkspaceFolder;
 	problemReporter: IProblemReporter;
 	namedProblemMatchers: IStringDictionary<NamedProblemMatcher>;
 	uuidMap: UUIDMap;
@@ -1154,12 +1154,42 @@ namespace ConfiguringTask {
 			identifier = {
 				type
 			};
-			Object.keys(typeDeclaration.properties).forEach((property) => {
+			let properties = typeDeclaration.properties;
+			let required: Set<string> = new Set();
+			if (Array.isArray(typeDeclaration.required)) {
+				typeDeclaration.required.forEach(element => Types.isString(element) ? required.add(element) : required);
+			}
+			for (let property of Object.keys(properties)) {
 				let value = external[property];
 				if (value !== void 0 && value !== null) {
 					identifier[property] = value;
+				} else if (required.has(property)) {
+					let schema = properties[property];
+					if (schema.default !== void 0) {
+						identifier[property] = Objects.deepClone(schema.default);
+					} else {
+						switch (schema.type) {
+							case 'boolean':
+								identifier[property] = false;
+								break;
+							case 'number':
+							case 'integer':
+								identifier[property] = 0;
+								break;
+							case 'string':
+								identifier[property] = '';
+								break;
+							default:
+								let message = nls.localize(
+									'ConfigurationParser.missingRequiredProperty',
+									'Error: the task configuration \'{0}\' missed the required property \'{1}\'. The task configuration will be ignored.', JSON.stringify(external, undefined, 0), property
+								);
+								context.problemReporter.error(message);
+								return undefined;
+						}
+					}
 				}
-			});
+			}
 		}
 		let taskIdentifier = TaskIdentifier.from(identifier);
 		let configElement: Tasks.TaskSourceConfigElement = {
@@ -1682,11 +1712,11 @@ class UUIDMap {
 
 class ConfigurationParser {
 
-	private workspaceFolder: WorkspaceFolder;
+	private workspaceFolder: IWorkspaceFolder;
 	private problemReporter: IProblemReporter;
 	private uuidMap: UUIDMap;
 
-	constructor(workspaceFolder: WorkspaceFolder, problemReporter: IProblemReporter, uuidMap: UUIDMap) {
+	constructor(workspaceFolder: IWorkspaceFolder, problemReporter: IProblemReporter, uuidMap: UUIDMap) {
 		this.workspaceFolder = workspaceFolder;
 		this.problemReporter = problemReporter;
 		this.uuidMap = uuidMap;
@@ -1791,7 +1821,7 @@ class ConfigurationParser {
 }
 
 let uuidMaps: Map<string, UUIDMap> = new Map();
-export function parse(workspaceFolder: WorkspaceFolder, configuration: ExternalTaskRunnerConfiguration, logger: IProblemReporter): ParseResult {
+export function parse(workspaceFolder: IWorkspaceFolder, configuration: ExternalTaskRunnerConfiguration, logger: IProblemReporter): ParseResult {
 	let uuidMap = uuidMaps.get(workspaceFolder.uri.toString());
 	if (!uuidMap) {
 		uuidMap = new UUIDMap();

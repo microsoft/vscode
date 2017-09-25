@@ -14,9 +14,9 @@
 	"selectWorkspace": "Sélectionner les dossiers pour l’espace de travail",
 	"removeFolderFromWorkspace": "Supprimer le dossier de l'espace de travail",
 	"saveWorkspaceAsAction": "Enregistrer l’espace de travail sous...",
-	"saveEmptyWorkspaceNotSupported": "Veuillez d’abord ouvrir un espace de travail pour enregistrer.",
 	"save": "&&Enregistrer",
 	"saveWorkspace": "Enregistrer l’espace de travail",
 	"openWorkspaceAction": "Ouvrir un espace de travail...",
-	"openWorkspaceConfigFile": "Ouvrir le Fichier de Configuration d’espace de travail"
+	"openWorkspaceConfigFile": "Ouvrir le Fichier de Configuration d’espace de travail",
+	"workspaceFolderPickerPlaceholder": "Sélectionner le dossier de l’espace de travail"
 }
