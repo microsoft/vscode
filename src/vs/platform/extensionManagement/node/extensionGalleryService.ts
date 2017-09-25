@@ -264,12 +264,12 @@ function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUr
 			engine: getEngine(version)
 		},
 		/* __GDPR__FRAGMENT__
-		   "GalleryExtensionTelemetryData2" : {
-			  "index" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "searchText": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "querySource": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-		   }
-		 */
+			"GalleryExtensionTelemetryData2" : {
+				"index" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"searchText": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"querySource": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		telemetryData: {
 			index: ((query.pageNumber - 1) * query.pageSize) + index,
 			searchText: query.searchText,
@@ -319,11 +319,11 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		const pageSize = getOrDefault(options, o => o.pageSize, 50);
 
 		/* __GDPR__
-		   "galleryService:query" : {
-			  "type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "text": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-		   }
-		 */
+			"galleryService:query" : {
+				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"text": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		this.telemetryService.publicLog('galleryService:query', { type, text });
 
 		let query = new Query()
@@ -440,13 +440,13 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			const data = getGalleryExtensionTelemetryData(extension);
 			const startTime = new Date().getTime();
 			/* __GDPR__
-			   "galleryService:downloadVSIX" : {
-				  "duration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				  "${include}": [
-					 "${GalleryExtensionTelemetryData}"
-				  ]
-			   }
-			 */
+				"galleryService:downloadVSIX" : {
+					"duration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+					"${include}": [
+						"${GalleryExtensionTelemetryData}"
+					]
+				}
+			*/
 			const log = (duration: number) => this.telemetryService.publicLog('galleryService:downloadVSIX', assign(data, { duration }));
 
 			return this.getAsset(extension.assets.download)
@@ -588,19 +588,19 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 
 				const message = getErrorMessage(err);
 				/* __GDPR__
-				   "galleryService:requestError" : {
-					  "url" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					  "cdn": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					  "message": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				   }
-				 */
+					"galleryService:requestError" : {
+						"url" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"cdn": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"message": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
 				this.telemetryService.publicLog('galleryService:requestError', { url, cdn: true, message });
 				/* __GDPR__
-				   "galleryService:cdnFallback" : {
-					  "url" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					  "message": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				   }
-				 */
+					"galleryService:cdnFallback" : {
+						"url" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"message": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
 				this.telemetryService.publicLog('galleryService:cdnFallback', { url, message });
 
 				const fallbackOptions = assign({}, options, { url: fallbackUrl });
@@ -611,12 +611,12 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 
 					const message = getErrorMessage(err);
 					/* __GDPR__
-					   "galleryService:requestError" : {
-						  "url" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						  "cdn": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						  "message": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-					   }
-					 */
+						"galleryService:requestError" : {
+							"url" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							"cdn": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							"message": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						}
+					*/
 					this.telemetryService.publicLog('galleryService:requestError', { url: fallbackUrl, cdn: false, message });
 					return TPromise.wrapError<IRequestContext>(err);
 				});

@@ -282,12 +282,12 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	private _doActivateExtension(extensionDescription: IExtensionDescription, startup: boolean): TPromise<ActivatedExtension> {
 		let event = getTelemetryActivationEvent(extensionDescription);
 		/* __GDPR__
-		   "activatePlugin" : {
-			   "${include}": [
-				  "${TelemetryActivationEvent}"
-			   ]
-		   }
-		 */
+			"activatePlugin" : {
+				"${include}": [
+					"${TelemetryActivationEvent}"
+				]
+			}
+		*/
 		this._mainThreadTelemetry.$publicLog('activatePlugin', event);
 		if (!extensionDescription.main) {
 			// Treat the extension as being empty => NOT AN ERROR CASE
@@ -388,20 +388,20 @@ function loadCommonJSModule<T>(modulePath: string, activationTimesBuilder: Exten
 
 function getTelemetryActivationEvent(extensionDescription: IExtensionDescription): any {
 	/* __GDPR__FRAGMENT__
-	   "TelemetryActivationEvent" : {
-		   "id": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-		   "name": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-		   "publisherDisplayName": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-		   "activationEvents": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		   "isBuiltin": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		   "${wildcard}": [
-			   {
-			      "${prefix}": "contribution.",
-			      "${classification}": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			   }
+		"TelemetryActivationEvent" : {
+			"id": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+			"name": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+			"publisherDisplayName": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+			"activationEvents": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"isBuiltin": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"${wildcard}": [
+				{
+					"${prefix}": "contribution.",
+					"${classification}": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
 			]
-	   }
-	 */
+		}
+	*/
 	let event = {
 		id: extensionDescription.id,
 		name: extensionDescription.name,

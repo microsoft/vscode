@@ -412,8 +412,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	public addLaunchConfiguration(): TPromise<any> {
 		/* __GDPR__
-		   "debug/addLaunchConfiguration" : {}
-		 */
+			"debug/addLaunchConfiguration" : {}
+		*/
 		this.telemetryService.publicLog('debug/addLaunchConfiguration');
 		let configurationsArrayPosition: Position;
 		const model = this.editor.getModel();

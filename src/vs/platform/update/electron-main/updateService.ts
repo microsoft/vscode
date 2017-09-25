@@ -165,10 +165,10 @@ export class UpdateService implements IUpdateService {
 				this._onUpdateNotAvailable.fire(explicit);
 				this.state = State.Idle;
 				/* __GDPR__
-				   "update:notAvailable" : {
-					  "explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				   }
-				 */
+					"update:notAvailable" : {
+						"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
 				this.telemetryService.publicLog('update:notAvailable', { explicit });
 
 			} else if (update.url) {
@@ -183,12 +183,12 @@ export class UpdateService implements IUpdateService {
 				this._onUpdateAvailable.fire({ url: update.url, version: update.version });
 				this.state = State.UpdateAvailable;
 				/* __GDPR__
-				   "update:available" : {
-					  "explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					  "version": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					  "currentVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				   }
-				 */
+					"update:available" : {
+						"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"version": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"currentVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
 				this.telemetryService.publicLog('update:available', { explicit, version: update.version, currentVersion: product.commit });
 
 			} else {
@@ -202,10 +202,10 @@ export class UpdateService implements IUpdateService {
 				this._onUpdateReady.fire(data);
 				this.state = State.UpdateDownloaded;
 				/* __GDPR__
-				   "update:downloaded" : {
-					  "version" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				   }
-				 */
+					"update:downloaded" : {
+						"version" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
 				this.telemetryService.publicLog('update:downloaded', { version: update.version });
 			}
 

@@ -162,11 +162,11 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 			this._disposables.push({
 				dispose: () => {
 					/* __GDPR__
-					   "zoneWidgetShown" : {
-						  "mode" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						  "elapsedTime": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-					   }
-					 */
+						"zoneWidgetShown" : {
+							"mode" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							"elapsedTime": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						}
+					*/
 					this._telemetryService.publicLog('zoneWidgetShown', {
 						mode: 'reference search',
 						elapsedTime: Date.now() - startTime
@@ -198,11 +198,11 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		const mode = this._editor.getModel().getLanguageIdentifier().language;
 
 		/* __GDPR__
-		   "findReferences" : {
-			  "durarion" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-			  "mode": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-		   }
-		 */
+			"findReferences" : {
+				"durarion" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"mode": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		onDone(duration => this._telemetryService.publicLog('findReferences', {
 			duration,
 			mode

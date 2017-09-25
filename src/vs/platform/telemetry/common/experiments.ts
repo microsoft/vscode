@@ -9,10 +9,10 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 /* __GDPR__FRAGMENT__
-   "IExperiments" : {
-	  "deployToAzureQuickLink" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-   }
- */
+	"IExperiments" : {
+		"deployToAzureQuickLink" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	}
+*/
 export interface IExperiments {
 	ripgrepQuickSearch: boolean;
 }

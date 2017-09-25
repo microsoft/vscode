@@ -854,8 +854,8 @@ export class SearchViewlet extends Viewlet {
 
 	public toggleQueryDetails(moveFocus?: boolean, show?: boolean, skipLayout?: boolean, reverse?: boolean): void {
 		/* __GDPR__
-		   "search.toggleQueryDetails" : {}
-		 */
+			"search.toggleQueryDetails" : {}
+		*/
 		this.telemetryService.publicLog('search.toggleQueryDetails');
 
 		let cls = 'more';
@@ -1333,8 +1333,8 @@ export class SearchViewlet extends Viewlet {
 		}
 
 		/* __GDPR__
-		   "searchResultChosen" : {}
-		 */
+			"searchResultChosen" : {}
+		*/
 		this.telemetryService.publicLog('searchResultChosen');
 
 		return (this.viewModel.isReplaceActive() && !!this.viewModel.replaceString) ?

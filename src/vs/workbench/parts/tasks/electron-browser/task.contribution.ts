@@ -1099,10 +1099,10 @@ class TaskService extends EventEmitter implements ITaskService {
 				properties: properties ? Object.getOwnPropertyNames(properties) : []
 			};
 			/* __GDPR__
-			   "taskService.customize" : {
-				  "properties" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			   }
-			 */
+				"taskService.customize" : {
+					"properties" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
 			this.telemetryService.publicLog(TaskService.CustomizationTelemetryEventName, event);
 			if (openConfig) {
 				let resource = workspaceFolder.toResource('.vscode/tasks.json');

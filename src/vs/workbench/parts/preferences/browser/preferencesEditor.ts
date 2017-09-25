@@ -324,11 +324,11 @@ export class PreferencesEditor extends BaseEditor {
 			};
 			this.latestEmptyFilters = [];
 			/* __GDPR__
-			   "defaultSettings.filter" : {
-				  "filter": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				  "emptyFilters" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			   }
-			 */
+				"defaultSettings.filter" : {
+					"filter": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"emptyFilters" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
 			this.telemetryService.publicLog('defaultSettings.filter', data);
 		}
 	}

@@ -37,15 +37,15 @@ export class TaskError {
 }
 
 /* __GDPR__FRAGMENT__
-   "TelemetryEvent" : {
+	"TelemetryEvent" : {
 		"trigger" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"runner": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"taskKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"command": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"success": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"exitCode": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-}
- */
+	}
+*/
 export interface TelemetryEvent {
 	// How the task got trigger. Is either shortcut or command
 	trigger: string;

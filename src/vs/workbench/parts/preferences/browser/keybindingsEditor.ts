@@ -522,11 +522,11 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			};
 			this.latestEmptyFilters = [];
 			/* __GDPR__
-			   "keybindings.filter" : {
-				  "filter": { "classification": "CustomerContent", "purpose": "FeatureInsight" },
-				  "emptyFilters" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			   }
-			 */
+				"keybindings.filter" : {
+					"filter": { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+					"emptyFilters" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
 			this.telemetryService.publicLog('keybindings.filter', data);
 		}
 	}

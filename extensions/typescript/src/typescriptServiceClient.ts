@@ -387,10 +387,10 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 						this.error('Starting TSServer failed with error.', err);
 						window.showErrorMessage(localize('serverCouldNotBeStarted', 'TypeScript language server couldn\'t be started. Error message is: {0}', err.message || err));
 						/* __GDPR__
-						   "error" : {
-							  "message": { "classification": "CustomerContent", "purpose": "PerformanceAndHealth" }
-						   }
-						 */
+							"error" : {
+								"message": { "classification": "CustomerContent", "purpose": "PerformanceAndHealth" }
+							}
+						*/
 						this.logTelemetry('error', { message: err.message });
 						return;
 					}
@@ -402,8 +402,8 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 							this.error(`TSServer log file: ${this.tsServerLogFile}`);
 						}
 						/* __GDPR__
-						   "tsserver.error" : {}
-						 */
+							"tsserver.error" : {}
+						*/
 						this.logTelemetry('tsserver.error');
 						this.serviceExited(false);
 					});
@@ -413,10 +413,10 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 						} else {
 							this.error(`TSServer exited with code: ${code}`);
 							/* __GDPR__
-							   "tsserver.exitWithCode" : {
-								  "code" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-							   }
-							 */
+								"tsserver.exitWithCode" : {
+									"code" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+								}
+							*/
 							this.logTelemetry('tsserver.exitWithCode', { code: code });
 						}
 
@@ -562,8 +562,8 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 							isCloseAffordance: true
 						});
 					/* __GDPR__
-					   "serviceExited" : {}
-					 */
+						"serviceExited" : {}
+					*/
 					this.logTelemetry('serviceExited');
 				} else if (diff < 60 * 1000 /* 1 Minutes */) {
 					this.lastStart = Date.now();
@@ -852,12 +852,12 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				break;
 		}
 		/* __GDPR__
-		   "typingsInstalled" : {
-			  "installedPackages" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-			  "installSuccess": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-			  "typingsInstallerVersion": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-		   }
-		 */
+			"typingsInstalled" : {
+				"installedPackages" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+				"installSuccess": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"typingsInstallerVersion": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+			}
+		*/
 		// __GDPR__COMMENT__: Other events are defined by TypeScript.
 		this.logTelemetry(telemetryData.telemetryEventName, properties);
 	}

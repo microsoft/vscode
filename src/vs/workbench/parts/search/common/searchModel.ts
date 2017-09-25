@@ -569,10 +569,10 @@ export class SearchResult extends Disposable {
 		const promise = this.replaceService.replace(this.matches(), progressRunner);
 		const onDone = stopwatch(fromPromise(promise));
 		/* __GDPR__
-		   "replaceAll.started" : {
-			  "duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-		   }
-		 */
+			"replaceAll.started" : {
+				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+			}
+		*/
 		onDone(duration => this.telemetryService.publicLog('replaceAll.started', { duration }));
 
 		return promise.then(() => {
@@ -731,20 +731,20 @@ export class SearchModel extends Disposable {
 		const onFirstRender = any(onDone, progressEmitter.event);
 		const onFirstRenderStopwatch = stopwatch(onFirstRender);
 		/* __GDPR__
-		   "searchResultsFirstRender" : {
-			  "duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-		   }
-		 */
+			"searchResultsFirstRender" : {
+				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+			}
+		*/
 		onFirstRenderStopwatch(duration => this.telemetryService.publicLog('searchResultsFirstRender', { duration }));
 
 		const onDoneStopwatch = stopwatch(onDone);
 		const start = Date.now();
 
 		/* __GDPR__
-		   "searchResultsFinished" : {
-			  "duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-		   }
-		 */
+			"searchResultsFinished" : {
+				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+			}
+		*/
 		onDoneStopwatch(duration => this.telemetryService.publicLog('searchResultsFinished', { duration }));
 
 		const currentRequest = this.currentRequest;
@@ -770,14 +770,14 @@ export class SearchModel extends Disposable {
 		const options: IPatternInfo = objects.assign({}, this._searchQuery.contentPattern);
 		delete options.pattern;
 		/* __GDPR__
-		   "searchresultsShown" : {
-			  "count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "fileCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "options": { "${inline}": [ "${IPatternInfo}" ] },
-			  "duration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-			  "useRipgrep": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-		   }
-		 */
+			"searchresultsShown" : {
+				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"fileCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"options": { "${inline}": [ "${IPatternInfo}" ] },
+				"duration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"useRipgrep": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		this.telemetryService.publicLog('searchResultsShown', {
 			count: this._searchResult.count(),
 			fileCount: this._searchResult.fileCount(),

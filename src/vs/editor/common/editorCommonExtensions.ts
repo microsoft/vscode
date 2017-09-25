@@ -195,14 +195,14 @@ export abstract class EditorAction extends EditorCommand {
 
 	protected reportTelemetry(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor) {
 		/* __GDPR__
-		   "editorActionInvoked" : {
-			  "name" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "id": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "${include}": [
-				 "${EditorTelemetryData}"
-			  ]
-		   }
-		 */
+			"editorActionInvoked" : {
+				"name" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"id": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"${include}": [
+					"${EditorTelemetryData}"
+				]
+			}
+		*/
 		accessor.get(ITelemetryService).publicLog('editorActionInvoked', { name: this.label, id: this.id, ...editor.getTelemetryData() });
 	}
 

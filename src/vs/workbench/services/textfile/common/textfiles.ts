@@ -101,12 +101,12 @@ export interface IResult {
 }
 
 /* __GDPR__FRAGMENT__
-   "IAutoSaveConfiguration" : {
-	  "autoSaveDelay" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-	  "autoSaveFocusChange": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-	  "autoSaveApplicationChange": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-   }
- */
+	"IAutoSaveConfiguration" : {
+		"autoSaveDelay" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		"autoSaveFocusChange": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		"autoSaveApplicationChange": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	}
+*/
 export interface IAutoSaveConfiguration {
 	autoSaveDelay: number;
 	autoSaveFocusChange: boolean;

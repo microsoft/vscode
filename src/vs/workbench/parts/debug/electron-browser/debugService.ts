@@ -609,8 +609,8 @@ export class DebugService implements debug.IDebugService {
 
 	public addReplExpression(name: string): TPromise<void> {
 		/* __GDPR__
-		   "debugService/addReplExpression" : {}
-		 */
+			"debugService/addReplExpression" : {}
+		*/
 		this.telemetryService.publicLog('debugService/addReplExpression');
 		return this.model.addReplExpression(this.viewModel.focusedProcess, this.viewModel.focusedStackFrame, name)
 			// Evaluate all watch expressions and fetch variables again since repl evaluation might have changed some.
@@ -914,16 +914,16 @@ export class DebugService implements debug.IDebugService {
 				this.updateStateAndEmit(session.getId(), debug.State.Running);
 
 				/* __GDPR__
-				   "debugSessionStart" : {
-					  "type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					  "breakpointCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					  "exceptionBreakpoints": { "classification": "CustomerContent", "purpose": "FeatureInsight" },
-					  "watchExpressionsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					  "extensionName": { "classification": "PublicPersonalData", "purpose": "FeatureInsight" },
-					  "isBuiltin": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					  "launchJsonExists": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				   }
-				 */
+					"debugSessionStart" : {
+						"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"breakpointCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"exceptionBreakpoints": { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+						"watchExpressionsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"extensionName": { "classification": "PublicPersonalData", "purpose": "FeatureInsight" },
+						"isBuiltin": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"launchJsonExists": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
 				return this.telemetryService.publicLog('debugSessionStart', {
 					type: configuration.type,
 					breakpointCount: this.model.getBreakpoints().length,
@@ -941,11 +941,11 @@ export class DebugService implements debug.IDebugService {
 
 				const errorMessage = error instanceof Error ? error.message : error;
 				/* __GDPR__
-				   "debugMisconfiguration" : {
-					  "type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					  "error": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				   }
-				 */
+					"debugMisconfiguration" : {
+						"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"error": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
 				this.telemetryService.publicLog('debugMisconfiguration', { type: configuration ? configuration.type : undefined, error: errorMessage });
 				this.updateStateAndEmit(session.getId(), debug.State.Inactive);
 				if (!session.disconnected) {
@@ -1061,14 +1061,14 @@ export class DebugService implements debug.IDebugService {
 		const bpsExist = this.model.getBreakpoints().length > 0;
 		const process = this.model.getProcesses().filter(p => p.getId() === session.getId()).pop();
 		/* __GDPR__
-		   "debugSessionStop" : {
-			  "type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "success": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "sessionLengthInSeconds": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "breakpointCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "watchExpressionsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-		   }
-		 */
+			"debugSessionStop" : {
+				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"success": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"sessionLengthInSeconds": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"breakpointCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"watchExpressionsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		this.telemetryService.publicLog('debugSessionStop', {
 			type: process && process.configuration.type,
 			success: session.emittedStopped || !bpsExist,

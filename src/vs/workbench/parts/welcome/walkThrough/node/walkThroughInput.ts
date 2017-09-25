@@ -94,11 +94,11 @@ export class WalkThroughInput extends EditorInput {
 		descriptor['target'] = this.getTelemetryFrom();
 		descriptor['resource'] = telemetryURIDescriptor(this.options.resource);
 		/* __GDPR__FRAGMENT__
-		   "EditorTelemetryDescriptor" : {
-			  "target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "resource": { "${inline}": [ "${URIDescriptor}" ] }
-		   }
-		 */
+			"EditorTelemetryDescriptor" : {
+				"target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"resource": { "${inline}": [ "${URIDescriptor}" ] }
+			}
+		*/
 		return descriptor;
 	}
 
@@ -172,10 +172,10 @@ export class WalkThroughInput extends EditorInput {
 		if (!this.resolveTime) {
 			this.resolveTime = Date.now();
 			/* __GDPR__
-			   "resolvingInput" : {
-				  "target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			   }
-			 */
+				"resolvingInput" : {
+					"target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
 			this.telemetryService.publicLog('resolvingInput', {
 				target: this.getTelemetryFrom(),
 			});
@@ -185,14 +185,14 @@ export class WalkThroughInput extends EditorInput {
 	private disposeTelemetry(reason?: ShutdownReason) {
 		if (this.resolveTime) {
 			/* __GDPR__
-			   "disposingInput" : {
-				  "target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				  "timeSpent": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				  "reason": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				  "maxTopScroll": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				  "maxBottomScroll": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			   }
-			 */
+				"disposingInput" : {
+					"target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"timeSpent": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+					"reason": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"maxTopScroll": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"maxBottomScroll": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
 			this.telemetryService.publicLog('disposingInput', {
 				target: this.getTelemetryFrom(),
 				timeSpent: (Date.now() - this.resolveTime) / 60,

@@ -69,23 +69,23 @@ export class KeymapExtensions implements IWorkbenchContribution {
 
 	private promptForDisablingOtherKeymaps(newKeymap: IExtensionStatus, oldKeymaps: IExtensionStatus[]): TPromise<void> {
 		/* __GDPR__FRAGMENT__
-		   "KeyMapsData" : {
-			  "newKeymap" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "oldKeymaps": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-		   }
-		 */
+			"KeyMapsData" : {
+				"newKeymap" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"oldKeymaps": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		const telemetryData: { [key: string]: any; } = {
 			newKeymap: newKeymap.identifier,
 			oldKeymaps: oldKeymaps.map(k => k.identifier)
 		};
 
 		/* __GDPR__
-		   "disableOtherKeymapsConfirmation" : {
-			   "${include}": [
-				  "${KeyMapsData}"
-			   ]
-		   }
-		 */
+			"disableOtherKeymapsConfirmation" : {
+				"${include}": [
+					"${KeyMapsData}"
+				]
+			}
+		*/
 		this.telemetryService.publicLog('disableOtherKeymapsConfirmation', telemetryData);
 		const message = localize('disableOtherKeymapsConfirmation', "Disable other keymaps ({0}) to avoid conflicts between keybindings?", oldKeymaps.map(k => `'${k.local.manifest.displayName}'`).join(', '));
 		const options = [
@@ -97,13 +97,13 @@ export class KeymapExtensions implements IWorkbenchContribution {
 				const confirmed = value === 0;
 				telemetryData['confirmed'] = confirmed;
 				/* __GDPR__
-				   "disableOtherKeymaps" : {
-					  "confirmed" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					  "${include}": [
-						 "${KeyMapsData}"
-					  ]
-				   }
-				 */
+					"disableOtherKeymaps" : {
+						"confirmed" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"${include}": [
+							"${KeyMapsData}"
+						]
+					}
+				*/
 				this.telemetryService.publicLog('disableOtherKeymaps', telemetryData);
 				if (confirmed) {
 					return TPromise.join(oldKeymaps.map(keymap => {
@@ -176,18 +176,18 @@ export class BetterMergeDisabled implements IWorkbenchContribution {
 			if (storageService.getBoolean(BetterMergeDisabledNowKey, StorageScope.GLOBAL, false)) {
 				storageService.remove(BetterMergeDisabledNowKey, StorageScope.GLOBAL);
 				/* __GDPR__
-				   "betterMergeDisabled" : {}
-				 */
+					"betterMergeDisabled" : {}
+				*/
 				telemetryService.publicLog('betterMergeDisabled');
 				messageService.show(Severity.Info, {
 					message: localize('betterMergeDisabled', "The Better Merge extension is now built-in, the installed extension was disabled and can be uninstalled."),
 					actions: [
 						new Action('uninstall', localize('uninstall', "Uninstall"), null, true, () => {
 							/* __GDPR__
-							   "betterMergeUninstall" : {
-								  "outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-							   }
-							 */
+								"betterMergeUninstall" : {
+									"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+								}
+							*/
 							telemetryService.publicLog('betterMergeUninstall', {
 								outcome: 'uninstall',
 							});
@@ -198,10 +198,10 @@ export class BetterMergeDisabled implements IWorkbenchContribution {
 						}),
 						new Action('later', localize('later', "Later"), null, true, () => {
 							/* __GDPR__
-							   "betterMergeUninstall" : {
-								  "outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-							   }
-							 */
+								"betterMergeUninstall" : {
+									"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+								}
+							*/
 							telemetryService.publicLog('betterMergeUninstall', {
 								outcome: 'later',
 							});

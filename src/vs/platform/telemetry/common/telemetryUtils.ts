@@ -67,12 +67,12 @@ export function anonymize(input: string): string {
 }
 
 /* __GDPR__FRAGMENT__
-   "URIDescriptor" : {
-	  "mimeType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-	  "ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-	  "path": { "classification": "CustomerContent", "purpose": "FeatureInsight" }
-   }
- */
+	"URIDescriptor" : {
+		"mimeType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		"ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		"path": { "classification": "CustomerContent", "purpose": "FeatureInsight" }
+	}
+*/
 export interface URIDescriptor {
 	mimeType?: string;
 	ext?: string;
@@ -188,21 +188,21 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
 	return configurationService.onDidUpdateConfiguration(event => {
 		if (event.source !== ConfigurationSource.Default) {
 			/* __GDPR__
-			   "updateConfiguration" : {
-				  "configurationSource" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				  "configurationKeys": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			   }
-			 */
+				"updateConfiguration" : {
+					"configurationSource" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"configurationKeys": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
 			telemetryService.publicLog('updateConfiguration', {
 				configurationSource: ConfigurationSource[event.source],
 				configurationKeys: flattenKeys(event.sourceConfig)
 			});
 			/* __GDPR__
-			   "updateConfigurationValues" : {
-				  "configurationSource" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				  "configurationValues": { "classification": "CustomerContent", "purpose": "FeatureInsight" }
-			   }
-			 */
+				"updateConfigurationValues" : {
+					"configurationSource" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"configurationValues": { "classification": "CustomerContent", "purpose": "FeatureInsight" }
+				}
+			*/
 			telemetryService.publicLog('updateConfigurationValues', {
 				configurationSource: ConfigurationSource[event.source],
 				configurationValues: flattenValues(event.sourceConfig, configurationValueWhitelist)
@@ -214,10 +214,10 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
 export function lifecycleTelemetry(telemetryService: ITelemetryService, lifecycleService: ILifecycleService): IDisposable {
 	return lifecycleService.onShutdown(event => {
 		/* __GDPR__
-		   "shutdown" : {
-			  "reason" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-		   }
-		 */
+			"shutdown" : {
+				"reason" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		telemetryService.publicLog('shutdown', { reason: ShutdownReason[event] });
 	});
 }
@@ -226,10 +226,10 @@ export function keybindingsTelemetry(telemetryService: ITelemetryService, keybin
 	return keybindingService.onDidUpdateKeybindings(event => {
 		if (event.source === KeybindingSource.User && event.keybindings) {
 			/* __GDPR__
-			   "updateKeybindings" : {
-				   "bindings": { "classification": "CustomerContent", "purpose": "FeatureInsight" }
-			   }
-			 */
+				"updateKeybindings" : {
+					"bindings": { "classification": "CustomerContent", "purpose": "FeatureInsight" }
+				}
+			*/
 			telemetryService.publicLog('updateKeybindings', {
 				bindings: event.keybindings.map(binding => ({
 					key: binding.key,

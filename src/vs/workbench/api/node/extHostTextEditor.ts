@@ -596,14 +596,14 @@ export class ExtHostTextEditor2 extends ExtHostTextEditor {
 						const extension = index.findSubstr(call.getFileName());
 						if (extension) {
 							/* __GDPR__
-							   "usesCommandLink" : {
-								  "extension" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								  "from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								  "${include}": [
-									 "${MainThreadData}"
-								  ]
-							   }
-							 */
+								"usesCommandLink" : {
+									"extension" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+									"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+									"${include}": [
+										"${MainThreadData}"
+									]
+								}
+							*/
 							this._mainThreadTelemetry.$publicLog('usesCommandLink', {
 								extension: extension.id,
 								from: 'decoration',

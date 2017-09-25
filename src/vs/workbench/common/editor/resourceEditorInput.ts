@@ -73,10 +73,10 @@ export class ResourceEditorInput extends EditorInput {
 		descriptor['resource'] = telemetryURIDescriptor(this.resource);
 
 		/* __GDPR__FRAGMENT__
-		   "EditorTelemetryDescriptor" : {
-			  "resource": { "${inline}": [ "${URIDescriptor}" ] }
-		   }
-		 */
+			"EditorTelemetryDescriptor" : {
+				"resource": { "${inline}": [ "${URIDescriptor}" ] }
+			}
+		*/
 		return descriptor;
 	}
 

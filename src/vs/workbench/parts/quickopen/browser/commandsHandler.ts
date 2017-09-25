@@ -298,11 +298,11 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 			if (action && (!(action instanceof Action) || action.enabled)) {
 				try {
 					/* __GDPR__
-					   "workbenchActionExecuted" : {
-						  "id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						  "from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-					   }
-					 */
+						"workbenchActionExecuted" : {
+							"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						}
+					*/
 					this.telemetryService.publicLog('workbenchActionExecuted', { id: action.id, from: 'quick open' });
 					(action.run() || TPromise.as(null)).done(() => {
 						if (action instanceof Action) {
