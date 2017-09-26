@@ -55,6 +55,7 @@ function prepareDebPackage(arch) {
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
 			.pipe(replace('@@NAME_SHORT@@', product.nameShort))
 			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(replace('@@ICON@@', product.applicationName))
 			.pipe(rename('usr/share/applications/' + product.applicationName + '.desktop'));
 
 		const appdata = gulp.src('resources/linux/code.appdata.xml', { base: '.' })
@@ -131,6 +132,7 @@ function prepareRpmPackage(arch) {
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
 			.pipe(replace('@@NAME_SHORT@@', product.nameShort))
 			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(replace('@@ICON@@', product.applicationName))
 			.pipe(rename('BUILD/usr/share/applications/' + product.applicationName + '.desktop'));
 
 		const appdata = gulp.src('resources/linux/code.appdata.xml', { base: '.' })
@@ -176,6 +178,51 @@ function buildRpmPackage(arch) {
 		'mkdir -p ' + destination,
 		'HOME="$(pwd)/' + destination + '" fakeroot rpmbuild -bb ' + rpmBuildPath + '/SPECS/' + product.applicationName + '.spec --target=' + rpmArch,
 		'cp "' + rpmOut + '/$(ls ' + rpmOut + ')" ' + destination + '/'
+	]);
+}
+function getSnapBuildPath(arch) {
+	return `.build/linux/snap/${arch}/${product.applicationName}-${arch}`;
+}
+
+function prepareSnapPackage(arch) {
+	const binaryDir = '../VSCode-linux-' + arch;
+	const destination = getSnapBuildPath(arch);
+
+	return function () {
+		const desktop = gulp.src('resources/linux/code.desktop', { base: '.' })
+			.pipe(replace('@@NAME_LONG@@', product.nameLong))
+			.pipe(replace('@@NAME_SHORT@@', product.nameShort))
+			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(replace('@@ICON@@', `/usr/share/pixmaps/${product.applicationName}.png`))
+			.pipe(rename(`usr/share/applications/${product.applicationName}.desktop`));
+
+		const icon = gulp.src('resources/linux/code.png', { base: '.' })
+			.pipe(rename(`usr/share/pixmaps/${product.applicationName}.png`));
+
+		const code = gulp.src(binaryDir + '/**/*', { base: binaryDir })
+			.pipe(rename(function (p) { p.dirname = 'usr/share/' + product.applicationName + '/' + p.dirname; }));
+
+		const snapcraft = gulp.src('resources/linux/snap/snapcraft.yaml', { base: '.' })
+			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(replace('@@VERSION@@', packageJson.version))
+			.pipe(replace('@@EPOCH@@', linuxPackageRevision))
+			.pipe(rename('snap/snapcraft.yaml'));
+
+		const electronLaunch = gulp.src('resources/linux/snap/electron-launch', { base: '.' })
+			.pipe(rename('electron-launch'));
+
+		const all = es.merge(desktop, icon, code, snapcraft, electronLaunch);
+
+		return all.pipe(vfs.dest(destination));
+	};
+}
+
+function buildSnapPackage(arch) {
+	const snapBuildPath = getSnapBuildPath(arch);
+
+	return shell.task([
+		`chmod +x ${snapBuildPath}/electron-launch`,
+		`cd ${snapBuildPath} && snapcraft snap`
 	]);
 }
 
@@ -272,6 +319,10 @@ gulp.task('vscode-linux-arm-prepare-rpm', ['clean-vscode-linux-arm-rpm'], prepar
 gulp.task('vscode-linux-ia32-build-rpm', ['vscode-linux-ia32-prepare-rpm'], buildRpmPackage('ia32'));
 gulp.task('vscode-linux-x64-build-rpm', ['vscode-linux-x64-prepare-rpm'], buildRpmPackage('x64'));
 gulp.task('vscode-linux-arm-build-rpm', ['vscode-linux-arm-prepare-rpm'], buildRpmPackage('arm'));
+
+gulp.task('clean-vscode-linux-x64-snap', util.rimraf('.build/linux/snap/x64'));
+gulp.task('vscode-linux-x64-prepare-snap', ['clean-vscode-linux-x64-snap'], prepareSnapPackage('x64'));
+gulp.task('vscode-linux-x64-build-snap', ['vscode-linux-x64-prepare-snap'], buildSnapPackage('x64'));
 
 gulp.task('clean-vscode-linux-ia32-flatpak', util.rimraf('.build/linux/flatpak/i386'));
 gulp.task('clean-vscode-linux-x64-flatpak', util.rimraf('.build/linux/flatpak/x86_64'));
