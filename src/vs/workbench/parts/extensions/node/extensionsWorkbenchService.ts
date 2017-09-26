@@ -819,7 +819,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			"extensionGallery:install" : {
 				"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				"errorcode": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+				"errorcode": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 				"${include}": [
 					"${GalleryExtensionTelemetryData}"
 				]
@@ -829,7 +829,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			"extensionGallery:update" : {
 				"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				"errorcode": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+				"errorcode": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 				"${include}": [
 					"${GalleryExtensionTelemetryData}"
 				]
@@ -839,7 +839,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			"extensionGallery:uninstall" : {
 				"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				"errorcode": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+				"errorcode": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 				"${include}": [
 					"${GalleryExtensionTelemetryData}"
 				]
