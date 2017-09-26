@@ -9,6 +9,9 @@ step "Build Debian package" \
 step "Build RPM package" \
 	npm run gulp -- "vscode-linux-$ARCH-build-rpm"
 
+step "Build snap package" \
+	npm run gulp -- "vscode-linux-$ARCH-build-snap"
+
 (cd $BUILD_SOURCESDIRECTORY/build/tfs/common && \
 	step "Install build dependencies" \
 	npm install --unsafe-perm)
