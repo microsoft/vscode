@@ -12,8 +12,7 @@ import { SpectronApplication } from './application';
  */
 export class SpectronClient {
 
-	// windows is kinda slow
-	private readonly retryCount = process.platform === 'win32' ? 100 : 50;
+	private readonly retryCount = 100;
 	private readonly retryDuration = 100; // in milliseconds
 
 	constructor(public spectron: Application, private application: SpectronApplication) {
