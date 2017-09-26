@@ -15,13 +15,15 @@ import { EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry,
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { Position, IEditor, Direction, IResourceInput, IEditorInput } from 'vs/platform/editor/common/editor';
+import { Position, IEditor, Direction, IResourceInput, IEditorInput, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorGroupService, GroupArrangement } from 'vs/workbench/services/group/common/groupService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { TextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export class SplitEditorAction extends Action {
 
@@ -817,6 +819,38 @@ export class CloseEditorsInGroupAction extends Action {
 		}
 
 		return TPromise.as(false);
+	}
+}
+
+export class DuplicateEditorAction extends Action {
+	public static ID = 'workbench.action.duplicateEditor';
+	public static LABEL = nls.localize('duplicateEditors', "Duplicate Editor");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+	) {
+		super(id, label, 'duplicate-editor-action');
+	}
+
+	public run(context?: IEditorContext): TPromise<any> {
+		var activeEditor = this.editorService.getActiveEditor() as TextResourceEditor;
+		if (!(activeEditor instanceof TextResourceEditor)) { return TPromise.as(false); }
+
+		var codeEditor = activeEditor.getControl() as ICodeEditor;
+		const currentCodeEditorValue = codeEditor.getValue();
+		const currentLanguageID = codeEditor.getModel().getLanguageIdentifier();
+		const cursorPosition = codeEditor.getPosition();
+
+		this.editorService.openEditor({ options: { pinned: true } } as IUntitledResourceInput);
+		activeEditor = this.editorService.getActiveEditor() as TextResourceEditor;
+		codeEditor = activeEditor.getControl() as ICodeEditor;
+		codeEditor.setValue(currentCodeEditorValue);
+		codeEditor.getModel().setMode(currentLanguageID);
+		codeEditor.setPosition(cursorPosition);
+
+		return TPromise.as(true);
 	}
 }
 

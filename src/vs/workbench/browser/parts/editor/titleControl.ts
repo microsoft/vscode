@@ -32,7 +32,7 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { CloseEditorsInGroupAction, SplitEditorAction, CloseEditorAction, KeepEditorAction, CloseOtherEditorsInGroupAction, CloseRightEditorsInGroupAction, ShowEditorsInGroupAction, CloseUnmodifiedEditorsInGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
+import { CloseEditorsInGroupAction, SplitEditorAction, CloseEditorAction, KeepEditorAction, CloseOtherEditorsInGroupAction, CloseRightEditorsInGroupAction, ShowEditorsInGroupAction, CloseUnmodifiedEditorsInGroupAction, DuplicateEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createActionItem, fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IMenuService, MenuId, IMenu, ExecuteCommandAction } from 'vs/platform/actions/common/actions';
@@ -45,6 +45,7 @@ import { extname } from 'vs/base/common/paths';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import URI from 'vs/base/common/uri';
+import { TextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
 
 export interface IToolbarActions {
 	primary: IAction[];
@@ -79,6 +80,7 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 	protected closeRightEditorsAction: CloseRightEditorsInGroupAction;
 	protected closeUnmodifiedEditorsInGroupAction: CloseUnmodifiedEditorsInGroupAction;
 	protected closeEditorsInGroupAction: CloseEditorsInGroupAction;
+	protected duplicateEditorAction: DuplicateEditorAction;
 	protected splitEditorAction: SplitEditorAction;
 	protected showEditorsInGroupAction: ShowEditorsInGroupAction;
 
@@ -236,6 +238,7 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 		this.closeRightEditorsAction = services.createInstance(CloseRightEditorsInGroupAction, CloseRightEditorsInGroupAction.ID, nls.localize('closeRight', "Close to the Right"));
 		this.closeEditorsInGroupAction = services.createInstance(CloseEditorsInGroupAction, CloseEditorsInGroupAction.ID, nls.localize('closeAll', "Close All"));
 		this.closeUnmodifiedEditorsInGroupAction = services.createInstance(CloseUnmodifiedEditorsInGroupAction, CloseUnmodifiedEditorsInGroupAction.ID, nls.localize('closeAllUnmodified', "Close Unmodified"));
+		this.duplicateEditorAction = services.createInstance(DuplicateEditorAction, DuplicateEditorAction.ID, nls.localize('duplicate', "Duplicate"));
 		this.pinEditorAction = services.createInstance(KeepEditorAction, KeepEditorAction.ID, nls.localize('keepOpen', "Keep Open"));
 		this.showEditorsInGroupAction = services.createInstance(ShowEditorsInGroupAction, ShowEditorsInGroupAction.ID, nls.localize('showOpenedEditors', "Show Opened Editors"));
 		this.splitEditorAction = services.createInstance(SplitEditorAction, SplitEditorAction.ID, SplitEditorAction.LABEL);
@@ -259,12 +262,6 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 
 			// Log in telemetry
 			if (this.telemetryService) {
-				/* __GDPR__
-					"workbenchActionExecuted" : {
-						"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-					}
-				*/
 				this.telemetryService.publicLog('workbenchActionExecuted', { id: e.action.id, from: 'editorPart' });
 			}
 		}));
@@ -376,6 +373,7 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 		const primaryEditorActionIds = primaryEditorActions.map(a => a.id);
 		if (!tabOptions.showTabs) {
 			primaryEditorActionIds.push(this.closeEditorAction.id); // always show "Close" when tabs are disabled
+			primaryEditorActionIds.push(this.duplicateEditorAction.id);
 		}
 
 		const secondaryEditorActionIds = secondaryEditorActions.map(a => a.id);
@@ -390,6 +388,7 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 
 			if (!tabOptions.showTabs) {
 				this.editorActionsToolbar.addPrimaryAction(this.closeEditorAction)();
+				this.editorActionsToolbar.addPrimaryAction(this.duplicateEditorAction)();
 			}
 
 			this.currentPrimaryEditorActionIds = primaryEditorActionIds;
@@ -458,6 +457,11 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 		actions.push(this.closeUnmodifiedEditorsInGroupAction);
 		actions.push(this.closeEditorsInGroupAction);
 
+		let activeEditor = this.editorService.getActiveEditor();
+		if (identifier.editor === activeEditor.input && activeEditor instanceof TextResourceEditor) {
+			actions.push(this.duplicateEditorAction);
+		}
+
 		if (tabOptions.previewEditors) {
 			actions.push(new Separator(), this.pinEditorAction);
 		}
@@ -480,6 +484,7 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 			this.closeUnmodifiedEditorsInGroupAction,
 			this.closeOtherEditorsAction,
 			this.closeEditorsInGroupAction,
+			this.duplicateEditorAction,
 			this.pinEditorAction
 		].forEach((action) => {
 			action.dispose();
