@@ -770,7 +770,7 @@ export class SearchModel extends Disposable {
 		const options: IPatternInfo = objects.assign({}, this._searchQuery.contentPattern);
 		delete options.pattern;
 		/* __GDPR__
-			"searchresultsShown" : {
+			"searchResultsShown" : {
 				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"fileCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"options": { "${inline}": [ "${IPatternInfo}" ] },
