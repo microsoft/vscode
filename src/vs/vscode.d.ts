@@ -1658,6 +1658,11 @@ declare module 'vscode' {
 		validateInput?(value: string): string | undefined | null;
 	}
 
+	/**
+	 * A relative pattern is a helper to construct glob patterns that are matched
+	 * relatively to a base path. The base path can either be an absolute file path
+	 * or a [workspace folder](#WorkspaceFolder).
+	 */
 	class RelativePattern {
 
 		/**
@@ -1674,6 +1679,13 @@ declare module 'vscode' {
 		 */
 		pattern: string;
 
+		/**
+		 * Creates a new relative pattern object with provided base path and pattern to match.
+		 *
+		 * @param pattern A file glob pattern like `*.{ts,js}` that will be matched on file paths
+		 * relative to the base path.
+		 * @param base A base file path to which the pattern will be matched against relatively.
+		 */
 		constructor(pattern: string, base: WorkspaceFolder | string)
 	}
 
