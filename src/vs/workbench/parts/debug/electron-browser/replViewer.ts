@@ -244,7 +244,8 @@ export class ReplExpressionsRenderer implements IRenderer {
 
 		// value
 		dom.clearNode(templateData.value);
-		templateData.value.className = '';
+		// Reset classes to clear ansi decorations since templates are reused
+		templateData.value.className = 'value';
 		let result = this.handleANSIOutput(output.value);
 		if (typeof result === 'string') {
 			renderExpressionValue(result, templateData.value, {
