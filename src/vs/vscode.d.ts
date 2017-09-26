@@ -4378,7 +4378,7 @@ declare module 'vscode' {
 		 * to control options of the editor is being shown. Might change the [active editor](#window.activeTextEditor).
 		 *
 		 * @param document A text document to be shown.
-		 * @param options [Editor options](#ShowTextDocumentOptions) to configure the behavior of showing the [editor](#TextEditor).
+		 * @param options [Editor options](#TextDocumentShowOptions) to configure the behavior of showing the [editor](#TextEditor).
 		 * @return A promise that resolves to an [editor](#TextEditor).
 		 */
 		export function showTextDocument(document: TextDocument, options?: TextDocumentShowOptions): Thenable<TextEditor>;
@@ -4389,7 +4389,7 @@ declare module 'vscode' {
 		 * @see [openTextDocument](#openTextDocument)
 		 *
 		 * @param uri A resource identifier.
-		 * @param options [Editor options](#ShowTextDocumentOptions) to configure the behavior of showing the [editor](#TextEditor).
+		 * @param options [Editor options](#TextDocumentShowOptions) to configure the behavior of showing the [editor](#TextEditor).
 		 * @return A promise that resolves to an [editor](#TextEditor).
 		 */
 		export function showTextDocument(uri: Uri, options?: TextDocumentShowOptions): Thenable<TextEditor>;
