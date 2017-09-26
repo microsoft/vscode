@@ -62,12 +62,6 @@ export class TreeView extends ViewsViewletPanel {
 		}
 	}
 
-	public renderHeader(container: HTMLElement): void {
-		const titleDiv = $('div.title').appendTo(container);
-		$('span').text(this.options.name).appendTo(titleDiv);
-		super.renderHeader(container);
-	}
-
 	public renderBody(container: HTMLElement): void {
 		this.treeContainer = super.renderViewTree(container);
 		DOM.addClass(this.treeContainer, 'tree-explorer-viewlet-tree-view');
