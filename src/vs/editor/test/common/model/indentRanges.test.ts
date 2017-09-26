@@ -146,8 +146,8 @@ function r(startLineNumber: number, endLineNumber: number, indent: number, marke
 // });
 
 let markers: FoldingMarkers = {
-	start: /^\\s*#region/,
-	end: /^\\s*#endregion/
+	start: /^\s*#region/,
+	end: /^\s*#endregion/
 };
 
 suite('Folding with regions', () => {
