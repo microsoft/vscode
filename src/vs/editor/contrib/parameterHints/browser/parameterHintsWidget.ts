@@ -218,9 +218,6 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		this.element = $('.editor-widget.parameter-hints-widget');
 		const wrapper = dom.append(this.element, $('.wrapper'));
 
-		const onClick = stop(domEvent(this.element, 'click'));
-		onClick(this.next, this, this.disposables);
-
 		const buttons = dom.append(wrapper, $('.buttons'));
 		const previous = dom.append(buttons, $('.button.previous'));
 		const next = dom.append(buttons, $('.button.next'));
