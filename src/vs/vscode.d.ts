@@ -1666,7 +1666,7 @@ declare module 'vscode' {
 	class RelativePattern {
 
 		/**
-		 * A base file path to which the pattern will be matched against relatively.
+		 * A base file path to which this pattern will be matched against relatively.
 		 */
 		base: string;
 
@@ -1680,9 +1680,10 @@ declare module 'vscode' {
 		pattern: string;
 
 		/**
-		 * Creates a new relative pattern object with provided base path and pattern to match.
+		 * Creates a new relative pattern object with a base path and pattern to match. This pattern
+		 * will be matched on file paths relative to the base path.
 		 *
-		 * @param base A base file path to which the pattern will be matched against relatively.
+		 * @param base A base file path to which this pattern will be matched against relatively.
 		 * @param pattern A file glob pattern like `*.{ts,js}` that will be matched on file paths
 		 * relative to the base path.
 		 */
