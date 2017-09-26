@@ -1748,7 +1748,7 @@ export class InternalEditorOptionsFactory {
 				renderControlCharacters: (accessibilityIsOn ? false : opts.viewInfo.renderControlCharacters), // DISABLED WHEN SCREEN READER IS ATTACHED
 				fontLigatures: (accessibilityIsOn ? false : opts.viewInfo.fontLigatures), // DISABLED WHEN SCREEN READER IS ATTACHED
 				renderIndentGuides: (accessibilityIsOn ? false : opts.viewInfo.renderIndentGuides), // DISABLED WHEN SCREEN READER IS ATTACHED
-				renderLineHighlight: (accessibilityIsOn ? 'none' : opts.viewInfo.renderLineHighlight), // DISABLED WHEN SCREEN READER IS ATTACHED
+				renderLineHighlight: opts.viewInfo.renderLineHighlight,
 				scrollbar: opts.viewInfo.scrollbar,
 				minimap: {
 					enabled: (accessibilityIsOn ? false : opts.viewInfo.minimap.enabled), // DISABLED WHEN SCREEN READER IS ATTACHED
