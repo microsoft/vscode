@@ -49,6 +49,11 @@ RPM_PATH="$REPO/.build/linux/rpm/$RPM_ARCH/$RPM_FILENAME"
 step "Publish RPM package" \
 	node build/tfs/common/publish.js $VSCODE_QUALITY $PLATFORM_RPM package $RPM_FILENAME $VERSION true $RPM_PATH
 
+SNAP_FILENAME="$(ls $REPO/.build/linux/snap/$ARCH/ | grep .snap)"
+SNAP_PATH="$REPO/.build/linux/snap/$ARCH/$SNAP_FILENAME"
+echo 'SNAP_PATH'
+echo $SNAP_PATH
+
 if [ -z "$VSCODE_QUALITY" ]; then
 	echo "VSCODE_QUALITY is not set, skipping repo package publish"
 else
