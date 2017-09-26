@@ -168,7 +168,7 @@ configurationRegistry.registerConfiguration({
 	'properties': {
 		'files.exclude': {
 			'type': 'object',
-			'description': nls.localize('exclude', "Configure glob patterns for excluding files and folders."),
+			'description': nls.localize('exclude', "Configure glob patterns for excluding files and folders. For example, the files explorer decides which files and folders to show or hide based on this setting."),
 			'default': { '**/.git': true, '**/.svn': true, '**/.hg': true, '**/CVS': true, '**/.DS_Store': true },
 			'scope': ConfigurationScope.RESOURCE,
 			'additionalProperties': {
