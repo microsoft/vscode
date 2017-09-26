@@ -1451,8 +1451,8 @@ export class RelativePattern implements IRelativePattern {
 	base: string;
 	pattern: string;
 
-	constructor(pattern: string, base: vscode.WorkspaceFolder | string) {
-		this.pattern = pattern;
+	constructor(base: vscode.WorkspaceFolder | string, pattern: string) {
 		this.base = typeof base === 'string' ? base : base.uri.fsPath;
+		this.pattern = pattern;
 	}
 }

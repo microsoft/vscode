@@ -1682,11 +1682,11 @@ declare module 'vscode' {
 		/**
 		 * Creates a new relative pattern object with provided base path and pattern to match.
 		 *
+		 * @param base A base file path to which the pattern will be matched against relatively.
 		 * @param pattern A file glob pattern like `*.{ts,js}` that will be matched on file paths
 		 * relative to the base path.
-		 * @param base A base file path to which the pattern will be matched against relatively.
 		 */
-		constructor(pattern: string, base: WorkspaceFolder | string)
+		constructor(base: WorkspaceFolder | string, pattern: string)
 	}
 
 	/**
