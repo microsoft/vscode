@@ -22,7 +22,7 @@ export function resolveCommonProperties(commit: string, version: string, source:
 	result['version'] = version;
 	// __GDPR__COMMON__ "common.osVersion" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['common.osVersion'] = os.release();
-	// __GDPR__COMMON__ "common.platfrom" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	// __GDPR__COMMON__ "common.platform" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['common.platform'] = Platform.Platform[Platform.platform];
 	// __GDPR__COMMON__ "common.nodePlatform" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['common.nodePlatform'] = process.platform;

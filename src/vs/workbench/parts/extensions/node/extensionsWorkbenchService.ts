@@ -535,7 +535,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 		return this.promptAndSetEnablement(extension, enable, workspace).then(reload => {
 			/* __GDPR__
-				"extension:enabled" : {
+				"extension:enable" : {
 					"${include}": [
 						"${GalleryExtensionTelemetryData}"
 					]
