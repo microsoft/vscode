@@ -17,7 +17,7 @@ describe('Editor', () => {
 		await app.workbench.quickopen.openFile('www');
 
 		await app.workbench.editor.openOutline();
-		await app.workbench.quickopen.waitForQuickOpenElements(names => names.length === 12);
+		await app.workbench.quickopen.waitForQuickOpenElements(names => names.length >= 6);
 	});
 
 	it(`finds 'All References' to 'app'`, async function () {
