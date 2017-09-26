@@ -447,15 +447,15 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 	private createTerminal(task: CustomTask | ContributedTask): [ITerminalInstance, string] {
 		let options = this.resolveOptions(task, task.command.options);
 		let { command, args } = this.resolveCommandAndArgs(task);
-		let terminalName = nls.localize('TerminalTaskSystem.terminalName', 'Task - {0}', task.name);
+		let workspaceFolder = Task.getWorkspaceFolder(task);
+		let needsFolderQualification = workspaceFolder && this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE;
+		let terminalName = nls.localize('TerminalTaskSystem.terminalName', 'Task - {0}', needsFolderQualification ? Task.getQualifiedLabel(task) : task.name);
 		let waitOnExit: boolean | string = false;
 		if (task.command.presentation.reveal !== RevealKind.Never || !task.isBackground) {
 			waitOnExit = nls.localize('reuseTerminal', 'Terminal will be reused by tasks, press any key to close it.');
 		};
 		let shellLaunchConfig: IShellLaunchConfig = undefined;
 		let isShellCommand = task.command.runtime === RuntimeType.Shell;
-		let workspaceFolder = Task.getWorkspaceFolder(task);
-		let needsFolderQualification = workspaceFolder && this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE;
 		if (isShellCommand) {
 			if (Platform.isWindows && ((options.cwd && TPath.isUNC(options.cwd)) || (!options.cwd && TPath.isUNC(process.cwd())))) {
 				throw new TaskError(Severity.Error, nls.localize('TerminalTaskSystem', 'Can\'t execute a shell command on an UNC drive.'), TaskErrors.UnknownError);
