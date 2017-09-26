@@ -105,7 +105,7 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 
 		if (action.commands && action.commands.length) {
 			for (const command of action.commands) {
-				const response = await this.client.execute('applyCodeFixCommand', { file, action: command });
+				const response = await this.client.execute('applyCodeFixCommand', { file, command });
 				if (!response || !response.body) {
 					return false;
 				}
