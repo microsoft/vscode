@@ -266,6 +266,7 @@ export class EditorStatus implements IStatusbarItem {
 	private activeEditorListeners: IDisposable[];
 	private delayedRender: IDisposable;
 	private toRender: StateChange;
+	private lastScreenReaderExplanation: ScreenReaderDetectedExplanation;
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -280,6 +281,7 @@ export class EditorStatus implements IStatusbarItem {
 		this.toDispose = [];
 		this.activeEditorListeners = [];
 		this.state = new State();
+		this.lastScreenReaderExplanation = null;
 	}
 
 	public render(container: HTMLElement): IDisposable {
@@ -477,7 +479,7 @@ export class EditorStatus implements IStatusbarItem {
 	}
 
 	private onScreenReaderModeClick(): void {
-		this.instantiationService.createInstance(ScreenReaderDetectedExplanation, this.screenRedearModeElement);
+		this.lastScreenReaderExplanation = this.instantiationService.createInstance(ScreenReaderDetectedExplanation, this.screenRedearModeElement);
 	}
 
 	private onSelectionClick(): void {
@@ -640,6 +642,11 @@ export class EditorStatus implements IStatusbarItem {
 			}
 
 			screenReaderMode = (editorWidget.getConfiguration().accessibilitySupport === AccessibilitySupport.Enabled);
+		}
+
+		if (screenReaderMode === false && this.lastScreenReaderExplanation) {
+			this.lastScreenReaderExplanation.hide();
+			this.lastScreenReaderExplanation = null;
 		}
 
 		this.updateState({ screenReaderMode: screenReaderMode });
@@ -1213,7 +1220,8 @@ export class ChangeEncodingAction extends Action {
 
 class ScreenReaderDetectedExplanation {
 
-	private toDispose: IDisposable[];
+	private _isDisposed: boolean;
+	private _toDispose: IDisposable[];
 
 	constructor(
 		anchorElement: HTMLElement,
@@ -1221,7 +1229,8 @@ class ScreenReaderDetectedExplanation {
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IConfigurationEditingService private readonly configurationEditingService: IConfigurationEditingService,
 	) {
-		this.toDispose = [];
+		this._isDisposed = false;
+		this._toDispose = [];
 
 		this.contextViewService.showContextView({
 			getAnchor: () => anchorElement,
@@ -1240,7 +1249,15 @@ class ScreenReaderDetectedExplanation {
 	}
 
 	public dispose(): void {
-		this.toDispose = dispose(this.toDispose);
+		this._isDisposed = true;
+		this._toDispose = dispose(this._toDispose);
+	}
+
+	public hide(): void {
+		if (this._isDisposed) {
+			return;
+		}
+		this.contextViewService.hideContextView();
 	}
 
 	protected renderContents(container: HTMLElement): IDisposable {
@@ -1252,7 +1269,7 @@ class ScreenReaderDetectedExplanation {
 		domNode.appendChild(title);
 
 		const closeBtn = $('div.cancel');
-		this.toDispose.push(addDisposableListener(closeBtn, 'click', () => {
+		this._toDispose.push(addDisposableListener(closeBtn, 'click', () => {
 			this.contextViewService.hideContextView();
 		}));
 		domNode.appendChild(closeBtn);
@@ -1261,7 +1278,7 @@ class ScreenReaderDetectedExplanation {
 		domNode.appendChild(question);
 
 		const yesBtn = $('div.button', {}, nls.localize('screenReaderDetectedExplanation.answerYes', "Yes"));
-		this.toDispose.push(addDisposableListener(yesBtn, 'click', () => {
+		this._toDispose.push(addDisposableListener(yesBtn, 'click', () => {
 			this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, {
 				key: 'editor.accessibilitySupport',
 				value: 'on'
@@ -1271,7 +1288,7 @@ class ScreenReaderDetectedExplanation {
 		domNode.appendChild(yesBtn);
 
 		const noBtn = $('div.button', {}, nls.localize('screenReaderDetectedExplanation.answerNo', "No"));
-		this.toDispose.push(addDisposableListener(noBtn, 'click', () => {
+		this._toDispose.push(addDisposableListener(noBtn, 'click', () => {
 			this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, {
 				key: 'editor.accessibilitySupport',
 				value: 'off'
@@ -1298,7 +1315,7 @@ class ScreenReaderDetectedExplanation {
 
 		container.appendChild(domNode);
 
-		this.toDispose.push(attachStylerCallback(this.themeService, { widgetShadow, editorWidgetBackground }, colors => {
+		this._toDispose.push(attachStylerCallback(this.themeService, { widgetShadow, editorWidgetBackground }, colors => {
 			domNode.style.backgroundColor = colors.editorWidgetBackground;
 			if (colors.widgetShadow) {
 				domNode.style.boxShadow = `0 2px 8px ${colors.widgetShadow}`;
