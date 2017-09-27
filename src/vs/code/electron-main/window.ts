@@ -734,7 +734,13 @@ export class CodeWindow implements ICodeWindow {
 		// Multi Monitor (non-fullscreen): be less strict because metrics can be crazy
 		const bounds = { x: state.x, y: state.y, width: state.width, height: state.height };
 		const display = screen.getDisplayMatching(bounds);
-		if (display && display.bounds.x + display.bounds.width > bounds.x && display.bounds.y + display.bounds.height > bounds.y) {
+		if (
+			display &&												// we have a display matching the desired bounds
+			bounds.x < display.bounds.x + display.bounds.width &&	// prevent window from falling out of the screen to the right
+			bounds.y < display.bounds.y + display.bounds.height &&	// prevent window from falling out of the screen to the bottom
+			bounds.x + bounds.width > display.bounds.x &&			// prevent window from falling out of the screen to the left
+			bounds.y + bounds.height > display.bounds.y				// prevent window from falling out of the scree nto the top
+		) {
 			if (state.mode === WindowMode.Maximized) {
 				const defaults = defaultWindowState(WindowMode.Maximized); // when maximized, make sure we have good values when the user restores the window
 				defaults.x = state.x; // carefull to keep x/y position so that the window ends up on the correct monitor
