@@ -235,7 +235,7 @@ const nlsMultiSelection = nls.localize('multiSelection', "{0} selections");
 const nlsEOLLF = nls.localize('endOfLineLineFeed', "LF");
 const nlsEOLCRLF = nls.localize('endOfLineCarriageReturnLineFeed', "CRLF");
 const nlsTabFocusMode = nls.localize('tabFocusModeEnabled', "Tab Moves Focus");
-const nlsScreenReaderDetected = nls.localize('screenReaderDetected', "Screen Reader Detected");
+const nlsScreenReaderDetected = nls.localize('screenReaderDetected', "Screen Reader Optimized");
 const nlsScreenReaderDetectedTitle = nls.localize('screenReaderDetectedExtra', "If you are not using a Screen Reader, please change the setting `editor.accessibilitySupport` to \"off\".");
 
 function _setDisplay(el: HTMLElement, desiredValue: string): void {
@@ -1265,7 +1265,7 @@ class ScreenReaderDetectedExplanation {
 			'aria-hidden': 'true'
 		});
 
-		const title = $('h2.title', {}, nls.localize('screenReaderDetectedExplanation.title', "Screen Reader Detected"));
+		const title = $('h2.title', {}, nls.localize('screenReaderDetectedExplanation.title', "Screen Reader Optimized"));
 		domNode.appendChild(title);
 
 		const closeBtn = $('div.cancel');
@@ -1310,7 +1310,7 @@ class ScreenReaderDetectedExplanation {
 		const explanation1 = $('p.body1', {}, nls.localize('screenReaderDetectedExplanation.body1', "VS Code is now optimized for usage with a screen reader."));
 		domNode.appendChild(explanation1);
 
-		const explanation2 = $('p.body2', {}, nls.localize('screenReaderDetectedExplanation.body2', "Additionally, due to limitations of WAI-ARIA, we have disabled certain editor features which cannot be currently expressed to screen readers: e.g. word wrapping, folding, auto closing brackets, etc."));
+		const explanation2 = $('p.body2', {}, nls.localize('screenReaderDetectedExplanation.body2', "Some editor features will have different behaviour: e.g. word wrapping, folding, auto closing brackets, etc."));
 		domNode.appendChild(explanation2);
 
 		container.appendChild(domNode);
