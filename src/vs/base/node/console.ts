@@ -120,7 +120,7 @@ export function log(entry: IRemoteConsoleLog, label: string): void {
 	// Stack: use console group
 	if (stack) {
 		console.groupCollapsed.apply(console, consoleArgs);
-		console.log(stack);
+		console.log(stack.split('\n')[0]); // only take the first frame for now
 		console.groupEnd();
 	}
 
