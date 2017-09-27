@@ -28,7 +28,7 @@ export class MainThreadDialogs implements MainThreadDiaglogsShape {
 	$showOpenDialog(options: MainThreadDialogOpenOptions): TPromise<string[]> {
 		// TODO@joh what about remote dev setup?
 		if (options.defaultUri && options.defaultUri.scheme !== 'file') {
-			return TPromise.wrapError(new Error('bad path'));
+			return TPromise.wrapError(new Error('Not supported - Open-dialogs can only be opened on `file`-uris.'));
 		}
 		return new TPromise<string[]>(resolve => {
 			this._windowService.showOpenDialog(
@@ -41,7 +41,7 @@ export class MainThreadDialogs implements MainThreadDiaglogsShape {
 	$showSaveDialog(options: MainThreadDialogSaveOptions): TPromise<string> {
 		// TODO@joh what about remote dev setup?
 		if (options.defaultUri && options.defaultUri.scheme !== 'file') {
-			return TPromise.wrapError(new Error('bad path'));
+			return TPromise.wrapError(new Error('Not supported - Save-dialogs can only be opened on `file`-uris.'));
 		}
 		return new TPromise<string>(resolve => {
 			this._windowService.showSaveDialog(
