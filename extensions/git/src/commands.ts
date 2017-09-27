@@ -1239,27 +1239,27 @@ export class CommandCenter {
 		this.outputChannel.show();
 	}
 
-	@command('git.ignore', { repository: true })
-	async ignore(repository: Repository, ...resourceStates: SourceControlResourceState[]): Promise<void> {
+	@command('git.ignore')
+	async ignore(...resourceStates: SourceControlResourceState[]): Promise<void> {
 		if (resourceStates.length === 0 || !(resourceStates[0].resourceUri instanceof Uri)) {
-			const uri = window.activeTextEditor && window.activeTextEditor.document.uri;
+			const resource = this.getSCMResource();
 
-			if (!uri) {
+			if (!resource) {
 				return;
 			}
 
-			return await repository.ignore([uri]);
+			resourceStates = [resource];
 		}
 
-		const uris = resourceStates
+		const resources = resourceStates
 			.filter(s => s instanceof Resource)
 			.map(r => r.resourceUri);
 
-		if (!uris.length) {
+		if (!resources.length) {
 			return;
 		}
 
-		await repository.ignore(uris);
+		await this.runByRepository(resources, async (repository, resources) => repository.ignore(resources));
 	}
 
 	@command('git.stash', { repository: true })
