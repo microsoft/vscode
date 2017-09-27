@@ -1538,8 +1538,8 @@ declare module 'vscode' {
 		 * A set of file filters that are shown in the dialog, e.g.
 		 * ```ts
 		 * {
-		 * 	['Images']: ['*.png', '*.jpg']
-		 * 	['TypeScript']: ['*.ts', '*.tsx']
+		 * 	'Images': ['*.png', '*.jpg']
+		 * 	'TypeScript': ['*.ts', '*.tsx']
 		 * }
 		 * ```
 		 */
@@ -1564,8 +1564,8 @@ declare module 'vscode' {
 		 * A set of file filters that are shown in the dialog, e.g.
 		 * ```ts
 		 * {
-		 * 	['Images']: ['*.png', '*.jpg']
-		 * 	['TypeScript']: ['*.ts', '*.tsx']
+		 * 	'Images': ['*.png', '*.jpg']
+		 * 	'TypeScript': ['*.ts', '*.tsx']
 		 * }
 		 * ```
 		 */
