@@ -119,9 +119,9 @@ export interface MainThreadDiagnosticsShape extends IDisposable {
 export interface MainThreadDialogOpenOptions {
 	defaultUri?: URI;
 	openLabel?: string;
-	openFiles?: boolean;
-	openFolders?: boolean;
-	openMany?: boolean;
+	canSelectFiles?: boolean;
+	canSelectFolders?: boolean;
+	canSelectMany?: boolean;
 	filters?: { [name: string]: string[] };
 }
 

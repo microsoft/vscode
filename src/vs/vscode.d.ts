@@ -1506,6 +1506,11 @@ declare module 'vscode' {
 
 	/**
 	 * Options to configure the behaviour of a file open dialog.
+	 *
+	 * * Note 1: A dialog can select files, folders, or both. This is not true for Windows
+	 * which enforces to open either files or folder, but *not both*.
+	 * * Note 2: Explictly setting `canSelectFiles` and `canSelectFolders` to `false` is futile
+	 * and the editor then silently adjusts the options to select files.
 	 */
 	export interface OpenDialogOptions {
 		/**
@@ -1519,21 +1524,19 @@ declare module 'vscode' {
 		openLabel?: string;
 
 		/**
-		 * Only allow to select files. *Note* that not all operating systems support
-		 * to select files and folders in one dialog instance.
+		 * Allow to select files, defaults to `true`.
 		 */
-		openFiles?: boolean;
+		canSelectFiles?: boolean;
 
 		/**
-		 * Only allow to select folders. *Note* that not all operating systems support
-		 * to select files and folders in one dialog instance.
+		 * Allow to select folders, defaults to `false`.
 		 */
-		openFolders?: boolean;
+		canSelectFolders?: boolean;
 
 		/**
 		 * Allow to select many files or folders.
 		 */
-		openMany?: boolean;
+		canSelectMany?: boolean;
 
 		/**
 		 * A set of file filters that are used by the dialog. Each entry is a human readable label,

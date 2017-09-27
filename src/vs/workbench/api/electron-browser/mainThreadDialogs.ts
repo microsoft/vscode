@@ -61,16 +61,16 @@ export class MainThreadDialogs implements MainThreadDiaglogsShape {
 		if (options.defaultUri) {
 			result.defaultPath = options.defaultUri.fsPath;
 		}
-		if (!options.openFiles && !options.openFolders) {
-			options.openFiles = true;
+		if (!options.canSelectFiles && !options.canSelectFolders) {
+			options.canSelectFiles = true;
 		}
-		if (options.openFiles) {
+		if (options.canSelectFiles) {
 			result.properties.push('openFile');
 		}
-		if (options.openFolders) {
+		if (options.canSelectFolders) {
 			result.properties.push('openDirectory');
 		}
-		if (options.openMany) {
+		if (options.canSelectMany) {
 			result.properties.push('multiSelections');
 		}
 		if (options.filters) {
