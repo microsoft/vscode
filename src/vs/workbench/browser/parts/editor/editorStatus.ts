@@ -1185,7 +1185,7 @@ export class ChangeEncodingAction extends Action {
 								aliasMatchIndex = index;
 							}
 
-							return { id: key, label: SUPPORTED_ENCODINGS[key].labelLong };
+							return { id: key, label: SUPPORTED_ENCODINGS[key].labelLong, description: key };
 						});
 
 					// If we have a guessed encoding, show it first unless it matches the configured encoding
