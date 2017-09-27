@@ -424,10 +424,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		// Remove this from the history unless the history input is a resource
 		// that can easily be restored even when the input gets disposed
 		if (historyInput instanceof EditorInput) {
-			const onceDispose = once(historyInput.onDispose);
-			onceDispose(() => {
-				this.removeFromHistory(input);
-			});
+			once(historyInput.onDispose)(() => this.removeFromHistory(input));
 		}
 	}
 
@@ -589,10 +586,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		// Remove this from the stack unless the stack input is a resource
 		// that can easily be restored even when the input gets disposed
 		if (stackInput instanceof EditorInput) {
-			const onceDispose = once(stackInput.onDispose);
-			onceDispose(() => {
-				this.removeFromStack(input);
-			});
+			once(stackInput.onDispose)(() => this.removeFromStack(input));
 		}
 	}
 
@@ -762,7 +756,12 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 			if (editorInputJSON && editorInputJSON.deserialized) {
 				const factory = registry.getEditorInputFactory(editorInputJSON.typeId);
 				if (factory) {
-					return factory.deserialize(this.instantiationService, editorInputJSON.deserialized);
+					const input = factory.deserialize(this.instantiationService, editorInputJSON.deserialized);
+					if (input) {
+						once(input.onDispose)(() => this.removeFromHistory(input)); // remove from history once disposed
+					}
+
+					return input;
 				}
 			}
 
