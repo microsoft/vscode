@@ -373,13 +373,14 @@ export class DebugService implements debug.IDebugService {
 
 			if (event.body.reason === 'new' && event.body.breakpoint.source) {
 				const source = process.getSource(event.body.breakpoint.source);
-				this.model.addBreakpoints(source.uri, [{
+				const bps = this.model.addBreakpoints(source.uri, [{
 					column: event.body.breakpoint.column,
 					enabled: true,
-					lineNumber: event.body.breakpoint.line
-				}], source.raw.adapterData);
-				const newBreakpoint = this.model.getBreakpoints().filter(bp => bp.idFromAdapter === event.body.breakpoint.id).pop();
-				this.model.updateBreakpoints({ [newBreakpoint.getId()]: event.body.breakpoint });
+					lineNumber: event.body.breakpoint.line,
+				}], false);
+				if (bps.length === 1) {
+					this.model.updateBreakpoints({ [bps[0].getId()]: event.body.breakpoint });
+				}
 			}
 
 			if (event.body.reason === 'removed') {
