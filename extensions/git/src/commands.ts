@@ -92,11 +92,13 @@ class MergeItem implements QuickPickItem {
 
 class CreateBranchItem implements QuickPickItem {
 
+	constructor(private cc: CommandCenter) { }
+
 	get label(): string { return localize('create branch', '$(plus) Create new branch'); }
 	get description(): string { return ''; }
 
 	async run(repository: Repository): Promise<void> {
-		await commands.executeCommand('git.branch');
+		await this.cc.branch(repository);
 	}
 }
 
@@ -935,7 +937,7 @@ export class CommandCenter {
 		const includeTags = checkoutType === 'all' || checkoutType === 'tags';
 		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote';
 
-		const createBranch = new CreateBranchItem();
+		const createBranch = new CreateBranchItem(this);
 
 		const heads = repository.refs.filter(ref => ref.type === RefType.Head)
 			.map(ref => new CheckoutItem(ref));
