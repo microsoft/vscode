@@ -235,6 +235,13 @@ configurationRegistry.registerConfiguration({
 			'overridable': true,
 			'scope': ConfigurationScope.RESOURCE
 		},
+		'files.trimFinalNewlines': {
+			'type': 'boolean',
+			'default': false,
+			'description': nls.localize('trimFinalNewlines', "When enabled, will trim all new lines after the final new line at the end of the file when saving it."),
+			'overridable': true,
+			'scope': ConfigurationScope.RESOURCE
+		},
 		'files.autoSave': {
 			'type': 'string',
 			'enum': [AutoSaveConfiguration.OFF, AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, , AutoSaveConfiguration.ON_WINDOW_CHANGE],

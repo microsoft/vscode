@@ -127,6 +127,53 @@ export class FinalNewLineParticipant implements INamedSaveParticpant {
 	}
 }
 
+export class TrimFinalNewLinesParticipant implements INamedSaveParticpant {
+
+	readonly name = 'TrimFinalNewLinesParticipant';
+
+	constructor(
+		@IConfigurationService private configurationService: IConfigurationService,
+		@ICodeEditorService private codeEditorService: ICodeEditorService
+	) {
+		// Nothing
+	}
+
+	public participate(model: ITextFileEditorModel, env: { reason: SaveReason }): void {
+		if (this.configurationService.lookup('files.trimFinalNewlines', { overrideIdentifier: model.textEditorModel.getLanguageIdentifier().language, resource: model.getResource() }).value) {
+			this.doTrimFinalNewLines(model.textEditorModel);
+		}
+	}
+
+	private doTrimFinalNewLines(model: IModel): void {
+		const lineCount = model.getLineCount();
+
+		// Do not insert new line if file does not end with new line
+		if (!lineCount) {
+			return;
+		}
+
+		let prevSelection: Selection[] = [new Selection(1, 1, 1, 1)];
+		const editor = findEditor(model, this.codeEditorService);
+		if (editor) {
+			prevSelection = editor.getSelections();
+		}
+
+		let currentLineNumber = model.getLineCount();
+		let currentLine = model.getLineContent(currentLineNumber);
+		let currentLineIsEmptyOrWhitespace = strings.lastNonWhitespaceIndex(currentLine) === -1;
+		while (currentLineIsEmptyOrWhitespace) {
+			currentLineNumber--;
+			currentLine = model.getLineContent(currentLineNumber);
+			currentLineIsEmptyOrWhitespace = strings.lastNonWhitespaceIndex(currentLine) === -1;
+		}
+		model.pushEditOperations(prevSelection, [EditOperation.delete(new Range(currentLineNumber + 1, 1, lineCount + 1, 1))], edits => prevSelection);
+
+		if (editor) {
+			editor.setSelections(prevSelection);
+		}
+	}
+}
+
 class FormatOnSaveParticipant implements INamedSaveParticpant {
 
 	readonly name = 'FormatOnSaveParticipant';
@@ -237,6 +284,7 @@ export class SaveParticipant implements ISaveParticipant {
 			new TrimWhitespaceParticipant(configurationService, codeEditorService),
 			new FormatOnSaveParticipant(codeEditorService, configurationService),
 			new FinalNewLineParticipant(configurationService, codeEditorService),
+			new TrimFinalNewLinesParticipant(configurationService, codeEditorService),
 			new ExtHostSaveParticipant(extHostContext)
 		];
 
