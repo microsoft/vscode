@@ -186,6 +186,11 @@ export class MockSession implements debug.ISession {
 		return emitter.event;;
 	}
 
+	public get onDidExitAdapter(): Event<debug.DebugEvent> {
+		return null;
+	}
+
+
 	public custom(request: string, args: any): TPromise<DebugProtocol.Response> {
 		return TPromise.as(null);
 	}
