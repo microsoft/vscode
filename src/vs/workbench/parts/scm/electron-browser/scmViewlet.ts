@@ -8,7 +8,8 @@
 import 'vs/css!./media/scmViewlet';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import Event, { Emitter, chain } from 'vs/base/common/event';
+import Event, { Emitter, chain, mapEvent } from 'vs/base/common/event';
+import { domEvent, stop } from 'vs/base/browser/event';
 import { basename } from 'vs/base/common/paths';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose, combinedDisposable, empty as EmptyDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -47,11 +48,11 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IExtensionsViewlet, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/parts/extensions/common/extensions';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import * as platform from 'vs/base/common/platform';
-import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Command } from 'vs/editor/common/modes';
 import { render as renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 
 // TODO@Joao
 // Need to subclass MenuItemActionItem in order to respect
@@ -76,7 +77,9 @@ export interface ISpliceEvent<T> {
 
 export interface IViewModel {
 	readonly repositories: ISCMRepository[];
+	readonly selectedRepositories: ISCMRepository[];
 	readonly onDidSplice: Event<ISpliceEvent<ISCMRepository>>;
+	hide(repository: ISCMRepository): void;
 }
 
 class ProvidersListDelegate implements IDelegate<ISCMRepository> {
@@ -220,6 +223,18 @@ class MainPanel extends ViewletPanel {
 	) {
 		super(localize('scm providers', "Source Control Providers"), {}, keybindingService, contextMenuService);
 		this.updateBodySize();
+	}
+
+	hide(repository: ISCMRepository): void {
+		const selectedElements = this.list.getSelectedElements();
+		const index = selectedElements.indexOf(repository);
+
+		if (index === -1) {
+			return;
+		}
+
+		const selection = this.list.getSelection();
+		this.list.setSelection([...selection.slice(0, index), ...selection.slice(index + 1)]);
 	}
 
 	private splice(index: number, deleteCount: number, repositories: ISCMRepository[] = []): void {
@@ -437,6 +452,7 @@ export class RepositoryPanel extends ViewletPanel {
 
 	constructor(
 		readonly repository: ISCMRepository,
+		private viewModel: IViewModel,
 		@IKeybindingService protected keybindingService: IKeybindingService,
 		@IThemeService protected themeService: IThemeService,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
@@ -470,6 +486,25 @@ export class RepositoryPanel extends ViewletPanel {
 			title.textContent = this.repository.provider.label;
 			type.textContent = '';
 		}
+
+		const onContextMenu = mapEvent(stop(domEvent(container, 'contextmenu')), e => new StandardMouseEvent(e));
+		onContextMenu(this.onContextMenu, this, this.disposables);
+	}
+
+	private onContextMenu(event: StandardMouseEvent): void {
+		if (this.viewModel.selectedRepositories.length <= 1) {
+			return;
+		}
+
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => ({ x: event.posx, y: event.posy }),
+			getActions: () => TPromise.as([<IAction>{
+				id: `scm.hideRepository`,
+				label: localize('hideRepository', "Hide"),
+				enabled: true,
+				run: () => this.viewModel.hide(this.repository)
+			}]),
+		});
 	}
 
 	protected renderBody(container: HTMLElement): void {
@@ -694,6 +729,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 	get height(): number | undefined { return this._height; }
 
 	get repositories(): ISCMRepository[] { return this._repositories; }
+	get selectedRepositories(): ISCMRepository[] { return this.repositoryPanels.map(p => p.repository); }
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -861,7 +897,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 		// Collect new selected panels
 		const newRepositoryPanels = repositories
 			.filter(r => this.repositoryPanels.every(p => p.repository !== r))
-			.map(r => this.instantiationService.createInstance(RepositoryPanel, r));
+			.map(r => this.instantiationService.createInstance(RepositoryPanel, r, this));
 
 		// Add new selected panels
 		this.repositoryPanels = [...repositoryPanels, ...newRepositoryPanels];
@@ -883,6 +919,15 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 	protected isSingleView(): boolean {
 		return super.isSingleView() && this.repositories.length === 1;
 	}
+
+	hide(repository: ISCMRepository): void {
+		if (!this.mainPanel) {
+			return;
+		}
+
+		this.mainPanel.hide(repository);
+	}
+
 
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
