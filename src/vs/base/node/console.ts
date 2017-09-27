@@ -89,47 +89,38 @@ export function getFirstFrame(arg0: IRemoteConsoleLog | string): IStackFrame {
 export function log(entry: IRemoteConsoleLog, label: string): void {
 	const { args, stack } = parse(entry);
 
-	// Determine suffix based on severity of log entry if we have a stack
-	let suffixColor = 'blue';
-	let suffix = '';
-	if (stack) {
-		switch (entry.severity) {
-			case 'warn':
-				suffixColor = 'goldenrod';
-				suffix = ' WARNING:';
-				break;
-			case 'error':
-				suffixColor = 'darkred';
-				suffix = ' ERROR:';
-				break;
-		}
+	const isOneStringArg = typeof args[0] === 'string' && args.length === 1;
+
+	let topFrame = stack && stack.split('\n')[0];
+	if (topFrame) {
+		topFrame = `(${topFrame.trim()})`;
 	}
 
 	let consoleArgs = [];
 
 	// First arg is a string
 	if (typeof args[0] === 'string') {
-		consoleArgs = [`%c[${label}]%c${suffix} %c${args[0]}`, color('blue'), color(suffixColor), color('black'), ...args.slice(1)];
+		if (topFrame && isOneStringArg) {
+			consoleArgs = [`%c[${label}] %c${args[0]} %c${topFrame}`, color('blue'), color('black'), color('grey')];
+		} else {
+			consoleArgs = [`%c[${label}] %c${args[0]}`, color('blue'), color('black'), ...args.slice(1)];
+		}
 	}
 
 	// First arg is something else, just apply all
 	else {
-		consoleArgs = [`%c[${label}]%c${suffix}`, color('blue'), color(suffixColor), ...args];
+		consoleArgs = [`%c[${label}]%`, color('blue'), ...args];
 	}
 
-	// Stack: use console group
-	if (stack) {
-		console.groupCollapsed.apply(console, consoleArgs);
-		console.log(stack.split('\n')[0]); // only take the first frame for now
-		console.groupEnd();
+	// Stack: add to args unless already aded
+	if (topFrame && !isOneStringArg) {
+		consoleArgs.push(topFrame);
 	}
 
-	// No stack: just log message
-	else {
-		console[entry.severity].apply(console, consoleArgs);
-	}
+	// Log it
+	console[entry.severity].apply(console, consoleArgs);
 }
 
 function color(color: string): string {
-	return `color: ${color}; font-weight: normal;`;
+	return `color: ${color}`;
 }
