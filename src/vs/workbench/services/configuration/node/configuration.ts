@@ -257,7 +257,9 @@ contributionRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 			description: nls.localize('workspaceConfig.extensions.description', "Workspace extensions"),
 			$ref: 'vscode://schemas/extensions'
 		}
-	}
+	},
+	additionalProperties: false,
+	errorMessage: nls.localize('unknownWorkspaceProperty', "Unknown workspace configuration property")
 });
 
 export class WorkspaceService extends Disposable implements IWorkspaceConfigurationService, IWorkspaceContextService {
