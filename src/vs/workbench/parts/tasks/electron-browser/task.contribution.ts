@@ -1604,7 +1604,7 @@ class TaskService extends EventEmitter implements ITaskService {
 				} else {
 					this._outputChannel.append(nls.localize(
 						'taskService.ignoreingFolder',
-						'Ignoring task configurations for workspace folder {0}. Multi root folder support requires that all folders use task version 2.0.0\n',
+						'Ignoring task configurations for workspace folder {0}. Multi folder workspace task support requires that all folders use task version 2.0.0\n',
 						workspaceFolder.uri.fsPath));
 					this._outputChannel.show(true);
 				}
