@@ -16,7 +16,7 @@ import { StartDebugActionItem } from 'vs/workbench/parts/debug/browser/debugActi
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -67,9 +67,7 @@ export class DebugViewlet extends PersistentViewsViewlet {
 	public getActions(): IAction[] {
 		const actions = [];
 		actions.push(this.instantiationService.createInstance(StartAction, StartAction.ID, StartAction.LABEL));
-		if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
-			actions.push(this.instantiationService.createInstance(ConfigureAction, ConfigureAction.ID, ConfigureAction.LABEL));
-		}
+		actions.push(this.instantiationService.createInstance(ConfigureAction, ConfigureAction.ID, ConfigureAction.LABEL));
 		actions.push(this._register(this.instantiationService.createInstance(ToggleReplAction, ToggleReplAction.ID, ToggleReplAction.LABEL)));
 		return actions;
 	}
@@ -79,7 +77,7 @@ export class DebugViewlet extends PersistentViewsViewlet {
 	}
 
 	public getActionItem(action: IAction): IActionItem {
-		if (action.id === StartAction.ID && this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
+		if (action.id === StartAction.ID && !!this.debugService.getConfigurationManager().selectedLaunch) {
 			this.startDebugActionItem = this.instantiationService.createInstance(StartDebugActionItem, null, action);
 			return this.startDebugActionItem;
 		}
