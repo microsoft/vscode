@@ -1505,8 +1505,8 @@ declare module 'vscode' {
 	}
 
 	/**
- * Options to configure the behaviour of a file open dialog.
- */
+	 * Options to configure the behaviour of a file open dialog.
+	 */
 	export interface OpenDialogOptions {
 		/**
 		 * The resource the dialog shows when opened.
