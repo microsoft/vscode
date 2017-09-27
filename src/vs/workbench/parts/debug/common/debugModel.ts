@@ -185,7 +185,7 @@ export class ExpressionContainer implements IExpressionContainer {
 	}
 
 	private fetchVariables(start: number, count: number, filter: 'indexed' | 'named'): TPromise<Variable[]> {
-		return this.process.session.variables({
+		return this.process.state !== ProcessState.INACTIVE ? this.process.session.variables({
 			variablesReference: this.reference,
 			start,
 			count,
@@ -194,7 +194,7 @@ export class ExpressionContainer implements IExpressionContainer {
 			return response && response.body && response.body.variables ? distinct(response.body.variables.filter(v => !!v && v.name), v => v.name).map(
 				v => new Variable(this.process, this, v.variablesReference, v.name, v.evaluateName, v.value, v.namedVariables, v.indexedVariables, v.type)
 			) : [];
-		}, (e: Error) => [new Variable(this.process, this, 0, null, e.message, '', 0, 0, null, false)]);
+		}, (e: Error) => [new Variable(this.process, this, 0, null, e.message, '', 0, 0, null, false)]) : TPromise.as([]);
 	}
 
 	// The adapter explicitly sents the children count of an expression only if there are lots of children which should be chunked.
@@ -537,6 +537,7 @@ export class Process implements IProcess {
 		this.threads = new Map<number, Thread>();
 		this.sources = new Map<string, Source>();
 		this._session.onDidInitialize(() => this.inactive = false);
+		this._session.onDidExitAdapter(() => this.inactive = true);
 	}
 
 	public get session(): ISession {
