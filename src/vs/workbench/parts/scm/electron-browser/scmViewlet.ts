@@ -269,9 +269,16 @@ class MainPanel extends ViewletPanel {
 	}
 
 	private updateBodySize(): void {
-		const size = Math.min(5, this.viewModel.repositories.length) * 22;
-		this.minimumBodySize = size;
-		this.maximumBodySize = size;
+		const count = this.viewModel.repositories.length;
+
+		if (count <= 5) {
+			const size = count * 22;
+			this.minimumBodySize = size;
+			this.maximumBodySize = size;
+		} else {
+			this.minimumBodySize = 5 * 22;
+			this.maximumBodySize = Number.POSITIVE_INFINITY;
+		}
 	}
 
 	private onListSelectionChange(e: IListEvent<ISCMRepository>): void {
