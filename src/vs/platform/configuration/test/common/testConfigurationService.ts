@@ -52,6 +52,10 @@ export class TestConfigurationService extends EventEmitter implements IConfigura
 		return { dispose() { } };
 	}
 
+	public onDidRegisterExtensionsConfigurations() {
+		return { dispose() { } };
+	}
+
 	public lookup<C>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<C> {
 		const config = this.getConfiguration(undefined, overrides);
 

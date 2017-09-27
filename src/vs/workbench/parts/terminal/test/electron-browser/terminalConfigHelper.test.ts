@@ -24,6 +24,7 @@ class MockConfigurationService implements IConfigurationService {
 	public getConfiguration(): any { return this.configuration; }
 	public getConfigurationData(): any { return null; }
 	public onDidUpdateConfiguration() { return { dispose() { } }; }
+	public onDidRegisterExtensionsConfigurations() { return { dispose() { } }; }
 }
 
 suite('Workbench - TerminalConfigHelper', () => {
