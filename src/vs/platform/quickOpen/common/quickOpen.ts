@@ -122,6 +122,9 @@ export interface IInputOptions {
 export interface IShowOptions {
 	quickNavigateConfiguration?: IQuickNavigateConfiguration;
 	inputSelection?: { start: number; end: number; };
+	openOnSelection?: boolean;
+	historyFilter?: { resourceType: string[], exclude: string[] };
+	inputPlaceHolder?: string;
 }
 
 export const IQuickOpenService = createDecorator<IQuickOpenService>('quickOpenService');
@@ -135,9 +138,13 @@ export interface IQuickOpenService {
 	 * is set for quick navigation mode, the quick open control will quickly navigate when the quick navigate
 	 * key is pressed and will run the selection after the ctrl key is released.
 	 *
-	 * The returned promise completes when quick open is closing.
+	 * Allow option to return pick without an open, shows history and file search.
+	 * Options for history filter, input placeholder
+	 * The returned promise completes when quick open is closing (true, or pick object)
 	 */
-	show(prefix?: string, options?: IShowOptions): TPromise<void>;
+
+	show(prefix?: string, options?: IShowOptions): TPromise<any>;
+
 
 	/**
 	 * A convenient way to bring up quick open as a picker with custom elements. This bypasses the quick open handler
