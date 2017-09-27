@@ -35,7 +35,7 @@ export interface IConfigurationRegistry {
 	 * Event that fires whenver a configuratio has been
 	 * registered.
 	 */
-	onDidRegisterConfiguration: Event<IConfigurationRegistry>;
+	onDidRegisterConfiguration: Event<IConfigurationNode[]>;
 
 	/**
 	 * Returns all configuration nodes contributed to this registry.
@@ -75,6 +75,7 @@ export interface IConfigurationNode {
 	allOf?: IConfigurationNode[];
 	overridable?: boolean;
 	scope?: ConfigurationScope;
+	isFromExtensions?: boolean;
 }
 
 export interface IDefaultConfigurationExtension {
@@ -93,14 +94,14 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	private configurationContributors: IConfigurationNode[];
 	private configurationProperties: { [qualifiedKey: string]: IJSONSchema };
 	private editorConfigurationSchema: IJSONSchema;
-	private _onDidRegisterConfiguration: Emitter<IConfigurationRegistry>;
+	private _onDidRegisterConfiguration: Emitter<IConfigurationNode[]>;
 	private overrideIdentifiers: string[] = [];
 	private overridePropertyPattern: string;
 
 	constructor() {
 		this.configurationContributors = [];
 		this.editorConfigurationSchema = { properties: {}, patternProperties: {}, additionalProperties: false, errorMessage: 'Unknown editor configuration setting' };
-		this._onDidRegisterConfiguration = new Emitter<IConfigurationRegistry>();
+		this._onDidRegisterConfiguration = new Emitter<IConfigurationNode[]>();
 		this.configurationProperties = {};
 		this.computeOverridePropertyPattern();
 
@@ -123,7 +124,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 			this.updateSchemaForOverrideSettingsConfiguration(configuration);
 		});
 
-		this._onDidRegisterConfiguration.fire(this);
+		this._onDidRegisterConfiguration.fire(configurations);
 	}
 
 	public registerOverrideIdentifiers(overrideIdentifiers: string[]): void {
@@ -135,7 +136,8 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		const configurationNode: IConfigurationNode = {
 			id: 'defaultOverrides',
 			title: nls.localize('defaultConfigurations.title', "Default Configuration Overrides"),
-			properties: {}
+			properties: {},
+			isFromExtensions: true
 		};
 		for (const defaultConfiguration of defaultConfigurations) {
 			for (const key in defaultConfiguration.defaults) {

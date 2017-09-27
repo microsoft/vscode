@@ -7,7 +7,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ConfigWatcher } from 'vs/base/node/config';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, Extensions, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { ConfigurationSource, IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, IConfigurationKeys, ConfigurationModel, IConfigurationOverrides, Configuration, IConfigurationValues, IConfigurationData } from 'vs/platform/configuration/common/configuration';
 import { CustomConfigurationModel, DefaultConfigurationModel } from 'vs/platform/configuration/common/model';
@@ -25,6 +25,9 @@ export class ConfigurationService<T> extends Disposable implements IConfiguratio
 	private _onDidUpdateConfiguration: Emitter<IConfigurationServiceEvent> = this._register(new Emitter<IConfigurationServiceEvent>());
 	public readonly onDidUpdateConfiguration: Event<IConfigurationServiceEvent> = this._onDidUpdateConfiguration.event;
 
+	private _onDidRegisterExtensionsConfigurations: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onDidRegisterExtensionsConfigurations: Event<void> = this._onDidRegisterExtensionsConfigurations.event;
+
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
@@ -41,22 +44,26 @@ export class ConfigurationService<T> extends Disposable implements IConfiguratio
 
 		// Listeners
 		this._register(this.userConfigModelWatcher.onDidUpdateConfiguration(() => this.onConfigurationChange(ConfigurationSource.User)));
-		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidRegisterConfiguration(() => this.onConfigurationChange(ConfigurationSource.Default)));
+		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidRegisterConfiguration(configurations => this.onConfigurationChange(ConfigurationSource.Default, configurations)));
 	}
 
 	public configuration(): Configuration<any> {
 		return this._configuration || (this._configuration = this.consolidateConfigurations());
 	}
 
-	private onConfigurationChange(source: ConfigurationSource): void {
+	private onConfigurationChange(source: ConfigurationSource, configurations?: IConfigurationNode[]): void {
 		this.reset(); // reset our caches
 
 		const cache = this.configuration();
 
-		this._onDidUpdateConfiguration.fire({
-			source,
-			sourceConfig: source === ConfigurationSource.Default ? cache.defaults.contents : cache.user.contents
-		});
+		if (configurations && configurations.length && configurations.every(c => c.isFromExtensions)) {
+			this._onDidRegisterExtensionsConfigurations.fire();
+		} else {
+			this._onDidUpdateConfiguration.fire({
+				source,
+				sourceConfig: source === ConfigurationSource.Default ? cache.defaults.contents : cache.user.contents
+			});
+		}
 	}
 
 	public reloadConfiguration<C>(section?: string): TPromise<C> {
