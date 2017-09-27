@@ -614,6 +614,7 @@ class TaskService extends EventEmitter implements ITaskService {
 
 		this._configHasErrors = false;
 		this._workspaceTasksPromise = undefined;
+		this._taskSystem = undefined;
 		this._taskSystemListeners = [];
 		this._outputChannel = this.outputService.getChannel(TaskService.OutputChannelId);
 		this._providers = new Map<number, ITaskProvider>();
@@ -625,21 +626,26 @@ class TaskService extends EventEmitter implements ITaskService {
 				this._outputChannel.clear();
 			}
 			let folderSetup = this.computeWorkspaceFolderSetup();
-			if (this.executionEngine !== folderSetup[1] && this._taskSystem && this._taskSystem.getActiveTasks().length > 0) {
-				this.messageService.show(
-					Severity.Info,
-					{
-						message: nls.localize(
-							'TaskSystem.noHotSwap',
-							'Changing the task execution engine with an active task running requires to reload the Window'
-						),
-						actions: [
-							new ReloadWindowAction(ReloadWindowAction.ID, ReloadWindowAction.LABEL, this._windowServive),
-							new CloseMessageAction()
-						]
-					}
-				);
-				return;
+			if (this.executionEngine !== folderSetup[1]) {
+				if (this._taskSystem && this._taskSystem.getActiveTasks().length > 0) {
+					this.messageService.show(
+						Severity.Info,
+						{
+							message: nls.localize(
+								'TaskSystem.noHotSwap',
+								'Changing the task execution engine with an active task running requires to reload the Window'
+							),
+							actions: [
+								new ReloadWindowAction(ReloadWindowAction.ID, ReloadWindowAction.LABEL, this._windowServive),
+								new CloseMessageAction()
+							]
+						}
+					);
+					return;
+				} else {
+					this.disposeTaskSystemListeners();
+					this._taskSystem = undefined;
+				}
 			}
 			this.updateSetup(folderSetup);
 			this.updateWorkspaceTasks();
