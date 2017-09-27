@@ -241,9 +241,9 @@ export class ViewsViewlet extends PanelViewlet {
 		this._register(ViewsRegistry.onViewsDeregistered(this.onViewsDeregistered, this));
 		this._register(this.contextKeyService.onDidChangeContext(keys => this.onContextChanged(keys)));
 
-		this.extensionService.onReady().then(() => {
+		await this.extensionService.onReady().then(() => {
 			this.areExtensionsReady = true;
-			this.updateViews();
+			return this.updateViews();
 			// this.onViewsUpdated();
 		});
 
