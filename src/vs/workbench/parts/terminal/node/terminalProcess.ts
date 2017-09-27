@@ -90,7 +90,9 @@ process.on('message', function (message) {
 	if (message.event === 'input') {
 		ptyProcess.write(message.data);
 	} else if (message.event === 'resize') {
-		ptyProcess.resize(message.cols, message.rows);
+		// Ensure that cols and rows are always >= 1, this prevents a native
+		// exception in winpty.
+		ptyProcess.resize(Math.max(message.cols, 1), Math.max(message.rows, 1));
 	} else if (message.event === 'shutdown') {
 		queueProcessExit();
 	}

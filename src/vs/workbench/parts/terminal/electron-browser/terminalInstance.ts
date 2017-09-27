@@ -214,7 +214,7 @@ export class TerminalInstance implements ITerminalInstance {
 		const scaledSpaceAvailable = dimension.height * window.devicePixelRatio;
 		const scaledCharHeight = Math.ceil(font.charHeight * window.devicePixelRatio);
 		const scaledLineHeight = Math.floor(scaledCharHeight * font.lineHeight);
-		this._rows = Math.floor(scaledSpaceAvailable / scaledLineHeight);
+		this._rows = Math.max(Math.floor(scaledSpaceAvailable / scaledLineHeight), 1);
 
 		return dimension.width;
 	}
