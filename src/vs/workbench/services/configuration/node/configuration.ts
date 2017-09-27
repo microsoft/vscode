@@ -465,10 +465,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 
 		result.added = newFolders.filter(newFolder => !currentFolders.some(currentFolder => newFolder.uri.toString() === currentFolder.uri.toString()));
 		result.removed = currentFolders.filter(currentFolder => !newFolders.some(newFolder => currentFolder.uri.toString() === newFolder.uri.toString()));
-
-		if (result.added.length === 0 && result.removed.length === 0) {
-			result.changed = currentFolders.filter((currentFolder, index) => newFolders[index].uri.toString() !== currentFolder.uri.toString());
-		}
+		result.changed = newFolders.filter(newFolder => currentFolders.some(currentFolder => newFolder.uri.toString() === currentFolder.uri.toString() && newFolder.name !== currentFolder.name));
 
 		return result;
 	}
