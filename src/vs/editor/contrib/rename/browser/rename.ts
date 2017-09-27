@@ -159,13 +159,8 @@ class RenameController implements IEditorContribution {
 				});
 
 			}, err => {
-				if (typeof err === 'string') {
-					this._messageService.show(Severity.Info, err);
-					return undefined;
-				} else {
-					this._messageService.show(Severity.Error, nls.localize('rename.failed', "Sorry, rename failed to execute."));
-					return TPromise.wrapError(err);
-				}
+				this._messageService.show(Severity.Error, err);
+				return undefined;
 			});
 
 			this._progressService.showWhile(renameOperation, 250);
