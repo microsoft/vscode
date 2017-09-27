@@ -101,14 +101,6 @@ export class ExtensionsListView extends ViewsViewletPanel {
 			.on(this.pin, this, this.disposables);
 	}
 
-	setVisible(visible: boolean): TPromise<void> {
-		return super.setVisible(visible).then(() => {
-			if (!visible) {
-				this.setModel(new PagedModel([]));
-			}
-		});
-	}
-
 	layoutBody(size: number): void {
 		this.extensionsList.style.height = size + 'px';
 		this.list.layout(size);
