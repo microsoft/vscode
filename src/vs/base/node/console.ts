@@ -59,11 +59,21 @@ export function getFirstFrame(arg0: IRemoteConsoleLog | string): IStackFrame {
 		return getFirstFrame(parse(arg0).stack);
 	}
 
-	// Parse a source information out of the stack if we have one. Format:
+	// Parse a source information out of the stack if we have one. Format can be:
 	// at vscode.commands.registerCommand (/Users/someone/Desktop/test-ts/out/src/extension.js:18:17)
+	// or
+	// at /Users/someone/Desktop/test-ts/out/src/extension.js:18:17
+	// or
+	// at c:\Users\someone\Desktop\end-js\extension.js:19:17
+	// or
+	// at e.$executeContributedCommand(c:\Users\someone\Desktop\end-js\extension.js:19:17)
 	const stack = arg0;
 	if (stack) {
-		const matches = /.+\((.+):(\d+):(\d+)\)/.exec(stack);
+		// at [^\/]* => line starts with "at" followed by any character except '/' (to not capture unix paths too late)
+		// (?:(?:[a-zA-Z]+:)|(?:[\/])|(?:\\\\) => windows drive letter OR unix root OR unc root
+		// (?:.+) => simple pattern for the path, only works because of the line/col pattern after
+		// :(?:\d+):(?:\d+) => :line:column data
+		const matches = /at [^\/]*((?:(?:[a-zA-Z]+:)|(?:[\/])|(?:\\\\))(?:.+)):(\d+):(\d+)/.exec(stack);
 		if (matches.length === 4) {
 			return {
 				uri: URI.file(matches[1]),
