@@ -770,11 +770,10 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 	}
 
 	private onDidAddRepository(repository: ISCMRepository): void {
-		this.onDidChangeRepositories();
-
 		const index = this._repositories.length;
 		this._repositories.push(repository);
 		this._onDidSplice.fire({ index, deleteCount: 0, elements: [repository] });
+		this.onDidChangeRepositories();
 
 		if (!this.mainPanel) {
 			this.onSelectionChange(this.repositories);
@@ -782,8 +781,6 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 	}
 
 	private onDidRemoveRepository(repository: ISCMRepository): void {
-		this.onDidChangeRepositories();
-
 		const index = this._repositories.indexOf(repository);
 
 		if (index === -1) {
@@ -792,6 +789,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 
 		this._repositories.splice(index, 1);
 		this._onDidSplice.fire({ index, deleteCount: 1, elements: [] });
+		this.onDidChangeRepositories();
 
 		if (!this.mainPanel) {
 			this.onSelectionChange(this.repositories);
