@@ -1138,7 +1138,7 @@ export class DebugService implements debug.IDebugService {
 
 			const source = process.sources.get(modelUri.toString());
 			const rawSource = source ? source.raw : { path: modelUri.scheme === 'file' || modelUri.scheme === debug.DEBUG_SCHEME ? paths.normalize(modelUri.fsPath, true) : modelUri.toString(), name: resources.basenameOrAuthority(modelUri) };
-			if (breakpointsToSend.length) {
+			if (breakpointsToSend.length && !rawSource.adapterData) {
 				rawSource.adapterData = breakpointsToSend[0].adapterData;
 			}
 
