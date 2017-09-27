@@ -1012,7 +1012,7 @@ export class SearchViewlet extends Viewlet {
 		return TPromise.join(folderQueriesExistP).then(existResults => {
 			// If no folders exist, show an error message about the first one
 			const existingFolderQueries = query.folderQueries.filter((folderQuery, i) => existResults[i]);
-			if (existingFolderQueries.length) {
+			if (!query.folderQueries.length || existingFolderQueries.length) {
 				query.folderQueries = existingFolderQueries;
 			} else {
 				const nonExistantPath = query.folderQueries[0].folder.fsPath;
