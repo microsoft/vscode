@@ -1,48 +1,17 @@
-// August 2015
-// ATTENTION - THIS DIRECTORY CONTAINS THIRD PARTY OPEN SOURCE MATERIALS:
-// THEY ARE CLEARED ONLY FOR LIMITED USE BY MONACO FOR THE MONACO PRODUCT.
-// DO NOT USE OR SHARE THIS CODE WITHOUT APPROVAL PURSUANT TO THE MICROSOFT OPEN SOURCE SOFTWARE APPROVAL POLICY.
-
 [{
 	"name": "TypeScript-TmLanguage",
 	"version": "0.1.8",
 	"license": "MIT",
 	"repositoryURL": "https://github.com/Microsoft/TypeScript-TmLanguage",
-	"description": "The files syntaxes/TypeScript.tmLanguage.json and syntaxes/TypeScriptReact.tmLanguage.json were derived from TypeScript.tmLanguage and TypeScriptReact.tmLanguage in https://github.com/Microsoft/TypeScript-TmLanguage.",
-	"licenseDetail": [
-		// Reason: LICENSE file does not include Copyright statement
-		"Copyright (c) Microsoft Corporation",
-		"All rights reserved.",
-		"MIT License",
-		"",
-		"Permission is hereby granted, free of charge, to any person obtaining a copy",
-		"of this software and associated documentation files (the \"Software\"), to deal",
-		"in the Software without restriction, including without limitation the rights",
-		"to use, copy, modify, merge, publish, distribute, sublicense, and/or sell",
-		"copies of the Software, and to permit persons to whom the Software is",
-		"furnished to do so, subject to the following conditions:",
-		"",
-		"The above copyright notice and this permission notice shall be included in",
-		"all copies or substantial portions of the Software.",
-		"",
-		"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR",
-		"IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,",
-		"FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE",
-		"AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER",
-		"LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,",
-		"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN",
-		"THE SOFTWARE."
-	]
+	"description": "The files syntaxes/TypeScript.tmLanguage.json and syntaxes/TypeScriptReact.tmLanguage.json were derived from TypeScript.tmLanguage and TypeScriptReact.tmLanguage in https://github.com/Microsoft/TypeScript-TmLanguage."
 },
 {
-	"isLicense": true, // We override the license since we need a coorect Copyright
+	// We override the license that gets discovered at
+	// https://github.com/Microsoft/TypeScript/blob/master/LICENSE.txt
+	// because it does not contain a Copyright statement
+	"isLicense": true,
 	"name": "typescript",
-	"version": "2.0.6",
-	"license": "Apache2",
-	"repositoryURL": "https://github.com/Microsoft/TypeScript",
-	"description": "The contents of the folder lib is from the TypeScript project https://github.com/Microsoft/TypeScript.",
 	"licenseDetail": [
-		// Reason: LICENSE file does not include Copyright statement
 		"Copyright (c) Microsoft Corporation. All rights reserved.",
 		"",
 		"Apache License",
