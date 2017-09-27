@@ -4581,7 +4581,8 @@ declare module 'vscode' {
 		export function showQuickPick<T extends QuickPickItem>(items: T[] | Thenable<T[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<T | undefined>;
 
 		/**
-		 * Shows a file open dialog to the user.
+		 * Shows a file open dialog to the user which allows to select a file
+		 * for opening-purposes.
 		 *
 		 * @param options Options that control the dialog.
 		 * @returns A promise that resolves to the selected resources or `undefined`.
@@ -4589,7 +4590,8 @@ declare module 'vscode' {
 		export function showOpenDialog(options: OpenDialogOptions): Thenable<Uri[] | undefined>;
 
 		/**
-		 * Shows a file save dialog to the user.
+		 * Shows a file save dialog to the user which allows to select a file
+		 * for saving-purposes.
 		 *
 		 * @param options Options that control the dialog.
 		 * @returns A promise that resolves to the selected resource or `undefined`.
