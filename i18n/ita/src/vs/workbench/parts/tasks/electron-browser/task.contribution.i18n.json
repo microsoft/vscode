@@ -40,6 +40,8 @@
 	"recentlyUsed": "attività usate di recente",
 	"configured": "attività configurate",
 	"detected": "attività rilevate",
+	"TaskService.notAgain": "Non visualizzare più questo messaggio",
+	"TaskService.ok": "OK",
 	"TaskService.fetchingBuildTasks": "Recupero delle attività di compilazione...",
 	"TaskService.pickBuildTask": "Selezionare l'attività di compilazione da eseguire",
 	"TaskService.fetchingTestTasks": "Recupero delle attività di test...",

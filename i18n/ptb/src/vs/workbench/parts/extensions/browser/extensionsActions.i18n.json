@@ -53,6 +53,7 @@
 	"showAzureExtensionsShort": "Extensões do Azure",
 	"OpenExtensionsFile.failed": "Não foi possível criar o arquivo 'extensions.json' na pasta '.vscode' ({0}).",
 	"configureWorkspaceRecommendedExtensions": "Configurar Extensões Recomendadas (Espaço de Trabalho)",
+	"configureWorkspaceFolderRecommendedExtensions": "Configurar as Extensões Recomendadas (Pasta do Espaço de Trabalho)",
 	"builtin": "Intrínseco",
 	"disableAll": "Desabilitar Todas as Extensões Instaladas",
 	"disableAllWorkspace": "Desabilitar Todas as Extensões Instaladas para este Espaço de Trabalho",

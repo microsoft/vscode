@@ -40,6 +40,8 @@
 	"recentlyUsed": "최근에 사용한 작업",
 	"configured": "구성된 작업",
 	"detected": "감지된 작업",
+	"TaskService.notAgain": "다시 표시 안 함",
+	"TaskService.ok": "확인",
 	"TaskService.fetchingBuildTasks": "빌드 작업을 페치하는 중...",
 	"TaskService.pickBuildTask": "실행할 빌드 작업 선택",
 	"TaskService.fetchingTestTasks": "테스트 작업을 페치하는 중...",

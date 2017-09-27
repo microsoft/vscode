@@ -11,7 +11,6 @@
 	"lineHeight": "줄 높이를 제어합니다. fontSize의 lineHeight를 계산하려면 0을 사용합니다.",
 	"letterSpacing": "글자 간격을 픽셀 단위로 조정합니다.",
 	"lineNumbers": "줄 번호의 표시 여부를 제어합니다. 가능한 값은 'on', 'off', 'relative'입니다. 'relative'는 현재 커서 위치에서 줄 수를 표시합니다.",
-	"rulers": "세로 눈금자를 표시할 열",
 	"wordSeparators": "단어 관련 탐색 또는 작업을 수행할 때 단어 구분 기호로 사용되는 문자입니다.",
 	"tabSize": "탭 한 개에 해당하는 공백 수입니다. `editor.detectIndentation`이 켜져 있는 경우 이 설정은 파일 콘텐츠에 따라 재정의됩니다.",
 	"tabSize.errorMessage": "'number'가 필요합니다. 값 \"auto\"는 `editor.detectIndentation` 설정에 의해 바뀌었습니다.",

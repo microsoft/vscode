@@ -19,5 +19,6 @@
 	"workspaceConfig.name.description": "Klasör için isteğe bağlı bir ad.",
 	"workspaceConfig.uri.description": "Klasörün URI'si",
 	"workspaceConfig.settings.description": "Çalışma alanı ayarları",
-	"workspaceConfig.extensions.description": "Çalışma alanı eklentileri"
+	"workspaceConfig.extensions.description": "Çalışma alanı eklentileri",
+	"unknownWorkspaceProperty": "Bilinmeyen çalışma alanı yapılandırması özelliği"
 }

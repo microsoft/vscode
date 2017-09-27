@@ -10,7 +10,6 @@
 	"textFileEditor": "Éditeur de fichier texte",
 	"binaryFileEditor": "Éditeur de fichier binaire",
 	"filesConfigurationTitle": "Fichiers",
-	"exclude": "Configurez les modèles Glob pour l'exclusion des fichiers et des dossiers.",
 	"files.exclude.boolean": "Modèle Glob auquel les chemins de fichiers doivent correspondre. Affectez la valeur true ou false pour activer ou désactiver le modèle.",
 	"files.exclude.when": "Vérification supplémentaire des frères d'un fichier correspondant. Utilisez $(basename) comme variable pour le nom de fichier correspondant.",
 	"associations": "Configurez les associations entre les fichiers et les langages (par exemple, \"*.extension\": \"html\"). Celles-ci ont priorité sur les associations par défaut des langages installés.",

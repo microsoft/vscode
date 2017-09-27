@@ -175,6 +175,8 @@
 	"miRunningTask": "実行中のタスクを表示(&&G)...",
 	"miRestartTask": "実行中のタスクの再起動(&&E)...",
 	"miTerminateTask": "タスクの終了(&&T)...",
+	"miConfigureTask": "タスクの構成(&&C)…",
+	"miConfigureBuildTask": "既定のビルド タスクの構成(&&F)…",
 	"accessibilityOptionsWindowTitle": "ユーザー補助オプション",
 	"miRestartToUpdate": "再起動して更新...",
 	"miCheckingForUpdates": "更新を確認しています...",

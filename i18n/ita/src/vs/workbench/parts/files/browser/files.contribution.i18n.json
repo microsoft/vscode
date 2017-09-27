@@ -10,7 +10,6 @@
 	"textFileEditor": "Editor file di testo",
 	"binaryFileEditor": "Editor file binari",
 	"filesConfigurationTitle": "File",
-	"exclude": "Consente di configurare i criteri di ricerca GLOB per escludere file e cartelle.",
 	"files.exclude.boolean": "Criterio GLOB da usare per trovare percorsi file. Impostare su True o False per abilitare o disabilitare il criterio.",
 	"files.exclude.when": "Controllo aggiuntivo sugli elementi di pari livello di un file corrispondente. Usare $(basename) come variabile del nome file corrispondente.",
 	"associations": "Consente di configurare le associazioni tra file e linguaggi, ad esempio \"*.extension\": \"html\". Queste hanno la precedenza sulle associazioni predefinite dei linguaggi installate.",

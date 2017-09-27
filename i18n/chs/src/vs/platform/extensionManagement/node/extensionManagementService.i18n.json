@@ -6,6 +6,7 @@
 {
 	"invalidManifest": "扩展无效: package.json 不是 JSON 文件。",
 	"restartCodeLocal": "请先重启 Code 再重新安装 {0}。",
+	"restartCodeGallery": "请先重启 Code 再重新安装。",
 	"uninstallDependeciesConfirmation": "要仅卸载“{0}”或者其依赖项也一起卸载?",
 	"uninstallOnly": "仅",
 	"uninstallAll": "全部",

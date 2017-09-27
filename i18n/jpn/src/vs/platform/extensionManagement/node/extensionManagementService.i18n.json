@@ -6,6 +6,7 @@
 {
 	"invalidManifest": "正しくない拡張機能: package.json は JSON ファイルではありません。",
 	"restartCodeLocal": "{0} を再インストールする前に、Code を再起動してください。",
+	"restartCodeGallery": "再インストールする前に Code を再起動してください。",
 	"uninstallDependeciesConfirmation": "'{0}' のみをアンインストールしますか、または依存関係もアンインストールしますか?",
 	"uninstallOnly": "限定",
 	"uninstallAll": "すべて",

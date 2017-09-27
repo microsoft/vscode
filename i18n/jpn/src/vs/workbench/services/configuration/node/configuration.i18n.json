@@ -14,6 +14,10 @@
 	"vscode.extension.contributes.defaultConfiguration": "言語ごとに既定のエディター構成の設定を提供します。",
 	"invalid.properties": "'configuration.properties' は、オブジェクトである必要があります",
 	"invalid.allOf": "'configuration.allOf' は非推奨で使用できなくなります。代わりに 'configuration' コントリビューション ポイントに複数の構成セクションを配列として渡します。",
+	"workspaceConfig.folders.description": "ワークスペースで読み込まれるフォルダーのリスト。",
 	"workspaceConfig.path.description": "ファイルパス。例: `/root/folderA` または `./folderA` のようなワークスペース ファイルの場所に対して解決される相対パス。",
-	"workspaceConfig.settings.description": "ワークスペースの設定"
+	"workspaceConfig.name.description": "フォルダーにつけるオプションの名前。",
+	"workspaceConfig.uri.description": "フォルダーの URI",
+	"workspaceConfig.settings.description": "ワークスペースの設定",
+	"workspaceConfig.extensions.description": "ワークスペースの拡張機能"
 }
