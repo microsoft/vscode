@@ -733,7 +733,8 @@ declare module 'vscode' {
 		/**
 		 * An optional view column in which the [editor](#TextEditor) should be shown.
 		 * The default is the [one](#ViewColumn.One), other values are adjusted to
-		 * be __Min(column, columnCount + 1)__.
+		 * be `Min(column, columnCount + 1)`, the [active](#ViewColumn.Active)-column is
+		 * not adjusted.
 		 */
 		viewColumn?: ViewColumn;
 
@@ -3464,9 +3465,24 @@ declare module 'vscode' {
 	 * used to show editors side by side.
 	 */
 	export enum ViewColumn {
+		/**
+		 * A *symbolic* editor column representing the currently
+		 * active column. This value can be used when opening editors, but the
+		 * *resolved* [viewColumn](#TextEditor.viewColumn)-value of editors will always
+		 * be `One`, `Two`, `Three`, or `undefined` but never `Active`.
+		 */
 		Active = -1,
+		/**
+		 * The left most editor column.
+		 */
 		One = 1,
+		/**
+		 * The center editor column.
+		 */
 		Two = 2,
+		/**
+		 * The right most editor column.
+		 */
 		Three = 3
 	}
 
@@ -4366,8 +4382,9 @@ declare module 'vscode' {
 		 * to control where the editor is being shown. Might change the [active editor](#window.activeTextEditor).
 		 *
 		 * @param document A text document to be shown.
-		 * @param column A view column in which the editor should be shown. The default is the [one](#ViewColumn.One), other values
-		 * are adjusted to be __Min(column, columnCount + 1)__.
+		 * @param column A view column in which the [editor](#TextEditor) should be shown. The default is the [one](#ViewColumn.One), other values
+		 * are adjusted to be `Min(column, columnCount + 1)`, the [active](#ViewColumn.Active)-column is
+		 * not adjusted.
 		 * @param preserveFocus When `true` the editor will not take focus.
 		 * @return A promise that resolves to an [editor](#TextEditor).
 		 */
