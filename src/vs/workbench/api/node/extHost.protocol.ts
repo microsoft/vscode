@@ -122,13 +122,13 @@ export interface MainThreadDialogOpenOptions {
 	openFiles?: boolean;
 	openFolders?: boolean;
 	openMany?: boolean;
-	filters: { [name: string]: string[] };
+	filters?: { [name: string]: string[] };
 }
 
 export interface MainThreadDialogSaveOptions {
 	defaultUri?: URI;
 	saveLabel?: string;
-	filters: { [name: string]: string[] };
+	filters?: { [name: string]: string[] };
 }
 
 export interface MainThreadDiaglogsShape extends IDisposable {

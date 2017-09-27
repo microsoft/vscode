@@ -1543,7 +1543,7 @@ declare module 'vscode' {
 		 * }
 		 * ```
 		 */
-		filters: { [name: string]: string[] };
+		filters?: { [name: string]: string[] };
 	}
 
 	/**
@@ -1569,7 +1569,7 @@ declare module 'vscode' {
 		 * }
 		 * ```
 		 */
-		filters: { [name: string]: string[] };
+		filters?: { [name: string]: string[] };
 	}
 
 	/**
