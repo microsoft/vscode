@@ -493,7 +493,7 @@ class Launch implements ILaunch {
 
 	public getConfigurationNames(): string[] {
 		const config = this.configurationService.getConfiguration<IGlobalConfig>('launch', { resource: this.workspace.uri });
-		if (!config || !config.configurations) {
+		if (!config || !config.configurations || !Array.isArray(config.configurations)) {
 			return [];
 		} else {
 			const names = config.configurations.filter(cfg => cfg && typeof cfg.name === 'string').map(cfg => cfg.name);
