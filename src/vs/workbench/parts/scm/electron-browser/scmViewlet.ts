@@ -225,6 +225,11 @@ class MainPanel extends ViewletPanel {
 		this.updateBodySize();
 	}
 
+	focus(): void {
+		super.focus();
+		this.list.domFocus();
+	}
+
 	hide(repository: ISCMRepository): void {
 		const selectedElements = this.list.getSelectedElements();
 		const index = selectedElements.indexOf(repository);
