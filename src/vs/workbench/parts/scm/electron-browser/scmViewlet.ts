@@ -17,7 +17,7 @@ import { PanelViewlet, ViewletPanel } from 'vs/workbench/browser/parts/views/pan
 import { append, $, addClass, toggleClass, trackFocus } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
-import { IDelegate, IRenderer, IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
+import { IDelegate, IRenderer, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
 import { VIEWLET_ID } from 'vs/workbench/parts/scm/common/scm';
 import { FileLabel } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
@@ -244,7 +244,7 @@ class MainPanel extends ViewletPanel {
 
 		this.disposables.push(this.list);
 		this.disposables.push(attachListStyler(this.list, this.themeService));
-		this.list.onSelectionChange(e => this._onSelectionChange.fire(e.elements), null, this.disposables);
+		this.list.onSelectionChange(this.onListSelectionChange, this, this.disposables);
 		this.viewModel.onDidSplice(({ index, deleteCount, elements }) => this.splice(index, deleteCount, elements), null, this.disposables);
 		this.splice(0, 0, this.viewModel.repositories);
 	}
@@ -257,6 +257,16 @@ class MainPanel extends ViewletPanel {
 		const size = Math.min(5, this.viewModel.repositories.length) * 22;
 		this.minimumBodySize = size;
 		this.maximumBodySize = size;
+	}
+
+	private onListSelectionChange(e: IListEvent<ISCMRepository>): void {
+		// select one repository if the selected one is gone
+		if (e.elements.length === 0 && this.list.length > 0) {
+			this.list.setSelection([0]);
+			return;
+		}
+
+		this._onSelectionChange.fire(e.elements);
 	}
 }
 
