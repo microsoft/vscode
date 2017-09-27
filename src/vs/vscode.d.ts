@@ -1536,11 +1536,12 @@ declare module 'vscode' {
 		openMany?: boolean;
 
 		/**
-		 * A set of file filters that are shown in the dialog, e.g.
+		 * A set of file filters that are used by the dialog. Each entry is a human readable label,
+		 * like "TypeScript", and an array of extensions, e.g.
 		 * ```ts
 		 * {
-		 * 	'Images': ['*.png', '*.jpg']
-		 * 	'TypeScript': ['*.ts', '*.tsx']
+		 * 	'Images': ['png', 'jpg']
+		 * 	'TypeScript': ['ts', 'tsx']
 		 * }
 		 * ```
 		 */
@@ -1562,11 +1563,12 @@ declare module 'vscode' {
 		saveLabel?: string;
 
 		/**
-		 * A set of file filters that are shown in the dialog, e.g.
+		 * A set of file filters that are used by the dialog. Each entry is a human readable label,
+		 * like "TypeScript", and an array of extensions, e.g.
 		 * ```ts
 		 * {
-		 * 	'Images': ['*.png', '*.jpg']
-		 * 	'TypeScript': ['*.ts', '*.tsx']
+		 * 	'Images': ['png', 'jpg']
+		 * 	'TypeScript': ['ts', 'tsx']
 		 * }
 		 * ```
 		 */
