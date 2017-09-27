@@ -291,7 +291,8 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': false,
 			'description': nls.localize('formatOnSave', "Format a file on save. A formatter must be available, the file must not be auto-saved, and editor must not be shutting down."),
-			'overridable': true
+			'overridable': true,
+			'scope': ConfigurationScope.RESOURCE
 		}
 	}
 });
