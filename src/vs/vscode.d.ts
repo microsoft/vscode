@@ -5748,7 +5748,7 @@ declare module 'vscode' {
 		 * ~~The [input box](#SourceControlInputBox) for the last source control
 		 * created by the extension.~~
 		 *
-		 * @deprecated Use [SourceControl.inputBox](#SourceControl.inputBox) instead
+		 * @deprecated Use SourceControl.inputBox instead
 		 */
 		export const inputBox: SourceControlInputBox;
 
