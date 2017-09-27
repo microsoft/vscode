@@ -52,7 +52,7 @@ const CUSTOM_LINK_PRIORITY = -1;
 const LOCAL_LINK_PRIORITY = -2;
 
 export type XtermLinkMatcherHandler = (event: MouseEvent, uri: string) => boolean | void;
-export type XtermLinkMatcherValidationCallback = (uri: string, element: HTMLElement, callback: (isValid: boolean) => void) => void;
+export type XtermLinkMatcherValidationCallback = (uri: string, callback: (isValid: boolean) => void) => void;
 
 export class TerminalLinkHandler {
 	private _hoverDisposables: IDisposable[] = [];
@@ -87,17 +87,9 @@ export class TerminalLinkHandler {
 	}
 
 	public registerCustomLinkHandler(regex: RegExp, handler: (uri: string) => void, matchIndex?: number, validationCallback?: XtermLinkMatcherValidationCallback): number {
-		// const wrappedValidationCallback = (uri: string, element: HTMLElement, callback) => {
-		// 	this._addTooltipEventListeners(element);
-		// 	if (validationCallback) {
-		// 		validationCallback(uri, element, callback);
-		// 	} else {
-		// 		callback(true);
-		// 	}
-		// };
 		return this._xterm.registerLinkMatcher(regex, this._wrapLinkHandler(handler), {
 			matchIndex,
-			validationCallback: (uri, element, callback) => validationCallback(uri, element, callback),
+			validationCallback: (uri: string, callback: (isValid: boolean) => void) => validationCallback(uri, callback),
 			tooltipCallback: (e: MouseEvent, u) => this._widgetManager.showMessage(e.offsetX, e.offsetY, this._getLinkHoverString()),
 			leaveCallback: () => this._widgetManager.closeMessage(),
 			priority: CUSTOM_LINK_PRIORITY
@@ -110,7 +102,7 @@ export class TerminalLinkHandler {
 		});
 
 		return this._xterm.registerLinkMatcher(this._localLinkRegex, wrappedHandler, {
-			validationCallback: (link: string, callback: (isValid: boolean) => void) => this._validateLocalLink(link, callback),
+			validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateLocalLink(uri, callback),
 			tooltipCallback: (e: MouseEvent, u) => this._widgetManager.showMessage(e.offsetX, e.offsetY, this._getLinkHoverString()),
 			leaveCallback: () => this._widgetManager.closeMessage(),
 			priority: LOCAL_LINK_PRIORITY
@@ -159,17 +151,10 @@ export class TerminalLinkHandler {
 	}
 
 	private _validateLocalLink(link: string, callback: (isValid: boolean) => void): void {
-		// this._resolvePath(link).then(resolvedLink => {
-		// 	if (resolvedLink) {
-		// 		this._addTooltipEventListeners(element);
-		// 	}
-		// 	callback(!!resolvedLink);
-		// });
 		this._resolvePath(link).then(resolvedLink => callback(!!resolvedLink));
 	}
 
 	private _validateWebLink(link: string, callback: (isValid: boolean) => void): void {
-		// this._addTooltipEventListeners(element);
 		callback(true);
 	}
 
@@ -196,30 +181,6 @@ export class TerminalLinkHandler {
 		}
 		return nls.localize('terminalLinkHandler.followLinkCtrl', 'Ctrl + click to follow link');
 	}
-
-	// private _addTooltipEventListeners(element: HTMLElement): void {
-	// 	let timeout: number = null;
-	// 	let isMessageShowing = false;
-	// 	this._hoverDisposables.push(dom.addDisposableListener(element, dom.EventType.MOUSE_OVER, e => {
-	// 		element.classList.toggle('active', this._isLinkActivationModifierDown(e));
-	// 		this._mouseMoveDisposable = dom.addDisposableListener(element, dom.EventType.MOUSE_MOVE, e => {
-	// 			element.classList.toggle('active', this._isLinkActivationModifierDown(e));
-	// 		});
-	// 		timeout = setTimeout(() => {
-	// 			this._widgetManager.showMessage(element.offsetLeft, element.offsetTop, this._getLinkHoverString());
-	// 			isMessageShowing = true;
-	// 		}, 500);
-	// 	}));
-	// 	this._hoverDisposables.push(dom.addDisposableListener(element, dom.EventType.MOUSE_OUT, () => {
-	// 		element.classList.remove('active');
-	// 		if (this._mouseMoveDisposable) {
-	// 			this._mouseMoveDisposable.dispose();
-	// 		}
-	// 		clearTimeout(timeout);
-	// 		this._widgetManager.closeMessage();
-	// 		isMessageShowing = false;
-	// 	}));
-	// }
 
 	protected _preprocessPath(link: string): string {
 		if (this._platform === platform.Platform.Windows) {

@@ -16,7 +16,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
 import { EditorInput } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { Position as EditorPosition, IEditor } from 'vs/platform/editor/common/editor';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
@@ -122,7 +122,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	resolveContent(uri: URI): TPromise<string> {
 		const workspaceSettingsUri = this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE);
-		if (workspaceSettingsUri && workspaceSettingsUri.fsPath === uri.fsPath) {
+		if (workspaceSettingsUri && workspaceSettingsUri.toString() === uri.toString()) {
 			return this.resolveSettingsContentFromWorkspaceConfiguration();
 		}
 		return this.createPreferencesEditorModel(uri)
@@ -135,7 +135,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			return promise;
 		}
 
-		if (this.defaultSettingsResource.fsPath === uri.fsPath) {
+		if (this.defaultSettingsResource.toString() === uri.toString()) {
 			promise = TPromise.join<any>([this.extensionService.onReady(), this.fetchMostCommonlyUsedSettings()])
 				.then(result => {
 					const mostCommonSettings = result[1];
@@ -146,7 +146,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			return promise;
 		}
 
-		if (this.defaultResourceSettingsResource.fsPath === uri.fsPath) {
+		if (this.defaultResourceSettingsResource.toString() === uri.toString()) {
 			promise = TPromise.join<any>([this.extensionService.onReady(), this.fetchMostCommonlyUsedSettings()])
 				.then(result => {
 					const mostCommonSettings = result[1];
@@ -157,29 +157,29 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			return promise;
 		}
 
-		if (this.defaultKeybindingsResource.fsPath === uri.fsPath) {
+		if (this.defaultKeybindingsResource.toString() === uri.toString()) {
 			const model = this.instantiationService.createInstance(DefaultKeybindingsEditorModel, uri);
 			promise = TPromise.wrap(model);
 			this.defaultPreferencesEditorModels.set(uri, promise);
 			return promise;
 		}
 
-		if (this.workspaceConfigSettingsResource.fsPath === uri.fsPath) {
+		if (this.workspaceConfigSettingsResource.toString() === uri.toString()) {
 			promise = this.createEditableSettingsEditorModel(ConfigurationTarget.WORKSPACE, uri);
 			this.defaultPreferencesEditorModels.set(uri, promise);
 			return promise;
 		}
 
-		if (this.getEditableSettingsURI(ConfigurationTarget.USER).fsPath === uri.fsPath) {
+		if (this.getEditableSettingsURI(ConfigurationTarget.USER).toString() === uri.toString()) {
 			return this.createEditableSettingsEditorModel(ConfigurationTarget.USER, uri);
 		}
 
 		const workspaceSettingsUri = this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE);
-		if (workspaceSettingsUri && workspaceSettingsUri.fsPath === uri.fsPath) {
+		if (workspaceSettingsUri && workspaceSettingsUri.toString() === uri.toString()) {
 			return this.createEditableSettingsEditorModel(ConfigurationTarget.WORKSPACE, workspaceSettingsUri);
 		}
 
-		if (this.contextService.hasMultiFolderWorkspace()) {
+		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			return this.createEditableSettingsEditorModel(ConfigurationTarget.FOLDER, uri);
 		}
 
@@ -191,7 +191,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	openWorkspaceSettings(): TPromise<IEditor> {
-		if (!this.contextService.hasWorkspace()) {
+		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this.messageService.show(Severity.Info, nls.localize('openFolderFirst', "Open a folder first to create workspace settings"));
 			return TPromise.as(null);
 		}
@@ -223,6 +223,11 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	openGlobalKeybindingSettings(textual: boolean): TPromise<void> {
+		/* __GDPR__
+			"openKeybindings" : {
+				"textual" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		this.telemetryService.publicLog('openKeybindings', { textual });
 		if (textual) {
 			const emptyContents = '// ' + nls.localize('emptyKeybindingsHeader', "Place your key bindings in this file to overwrite the defaults") + '\n[\n]';
@@ -288,7 +293,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	private createEditableSettingsEditorModel(configurationTarget: ConfigurationTarget, resource: URI): TPromise<SettingsEditorModel> {
 		const settingsUri = this.getEditableSettingsURI(configurationTarget, resource);
 		if (settingsUri) {
-			if (settingsUri.fsPath === this.workspaceConfigSettingsResource.fsPath) {
+			if (settingsUri.toString() === this.workspaceConfigSettingsResource.toString()) {
 				return TPromise.join([this.textModelResolverService.createModelReference(settingsUri), this.textModelResolverService.createModelReference(this.contextService.getWorkspace().configuration)])
 					.then(([reference, workspaceConfigReference]) => this.instantiationService.createInstance(WorkspaceConfigModel, reference, workspaceConfigReference, configurationTarget, this._onDispose.event));
 			}
@@ -299,7 +304,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	private resolveSettingsContentFromWorkspaceConfiguration(): TPromise<string> {
-		if (this.contextService.hasMultiFolderWorkspace()) {
+		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			return this.textModelResolverService.createModelReference(this.contextService.getWorkspace().configuration)
 				.then(reference => {
 					const model = reference.object.textEditorModel;
@@ -316,27 +321,20 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			case ConfigurationTarget.USER:
 				return URI.file(this.environmentService.appSettingsPath);
 			case ConfigurationTarget.WORKSPACE:
+				if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
+					return null;
+				}
 				const workspace = this.contextService.getWorkspace();
-				if (this.contextService.hasFolderWorkspace()) {
-					return this.toResource(paths.join('.vscode', 'settings.json'), workspace.roots[0]);
-				}
-				if (this.contextService.hasMultiFolderWorkspace()) {
-					return workspace.configuration;
-				}
-				return null;
+				return workspace.configuration || workspace.folders[0].toResource(paths.join('.vscode', 'settings.json'));
 			case ConfigurationTarget.FOLDER:
-				const root = this.contextService.getRoot(resource);
-				return root ? this.toResource(paths.join('.vscode', 'settings.json'), root) : null;
+				const folder = this.contextService.getWorkspaceFolder(resource);
+				return folder ? folder.toResource(paths.join('.vscode', 'settings.json')) : null;
 		}
 		return null;
 	}
 
-	private toResource(relativePath: string, root: URI): URI {
-		return URI.file(paths.join(root.fsPath, relativePath));
-	}
-
 	private createSettingsIfNotExists(target: ConfigurationTarget, resource: URI): TPromise<void> {
-		if (this.contextService.hasMultiFolderWorkspace() && target === ConfigurationTarget.WORKSPACE) {
+		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && target === ConfigurationTarget.WORKSPACE) {
 			if (!this.configurationService.keys().workspace.length) {
 				return this.jsonEditingService.write(resource, { key: 'settings', value: {} }, true).then(null, () => { });
 			}

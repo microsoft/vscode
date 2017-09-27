@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 . ./scripts/env.sh
 . ./build/tfs/common/common.sh

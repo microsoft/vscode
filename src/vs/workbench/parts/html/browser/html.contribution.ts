@@ -14,8 +14,8 @@ import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
 import { HtmlInput, HtmlInputOptions } from '../common/htmlInput';
 import { HtmlPreviewPart } from 'vs/workbench/parts/html/browser/htmlPreviewPart';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
+import { EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { IEditorRegistry } from 'vs/workbench/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { MenuRegistry } from 'vs/platform/actions/common/actions';
@@ -27,7 +27,7 @@ function getActivePreviewsForResource(accessor: ServicesAccessor, resource: URI 
 	return accessor.get(IWorkbenchEditorService).getVisibleEditors()
 		.filter(c => c instanceof HtmlPreviewPart && c.model)
 		.map(e => e as HtmlPreviewPart)
-		.filter(e => e.model.uri.scheme === uri.scheme && e.model.uri.fsPath === uri.fsPath);
+		.filter(e => e.model.uri.scheme === uri.scheme && e.model.uri.toString() === uri.toString());
 }
 
 // --- Register Editor

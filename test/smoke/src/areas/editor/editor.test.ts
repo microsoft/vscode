@@ -16,9 +16,8 @@ describe('Editor', () => {
 	it('shows correct quick outline', async function () {
 		await app.workbench.quickopen.openFile('www');
 
-		const outline = await app.workbench.editor.openOutline();
-
-		await outline.waitForQuickOpenElements(12);
+		await app.workbench.editor.openOutline();
+		await app.workbench.quickopen.waitForQuickOpenElements(names => names.length >= 6);
 	});
 
 	it(`finds 'All References' to 'app'`, async function () {
@@ -64,7 +63,7 @@ describe('Editor', () => {
 
 		await app.workbench.editor.gotoDefinition('express', 11);
 
-		await app.workbench.waitForActiveOpen('index.d.ts');
+		await app.workbench.waitForActiveTab('index.d.ts');
 	});
 
 	it(`verifies that 'Peek Definition' works`, async function () {

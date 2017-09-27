@@ -22,7 +22,7 @@ export interface IJSONSchema {
 	minItems?: number;
 	maxItems?: number;
 	uniqueItems?: boolean;
-	additionalItems?: boolean;
+	additionalItems?: boolean | IJSONSchema;
 	pattern?: string;
 	minLength?: number;
 	maxLength?: number;

@@ -18,7 +18,7 @@ export interface IProductConfiguration {
 	downloadUrl: string;
 	updateUrl?: string;
 	quality?: string;
-	commit: string;
+	commit?: string;
 	date: string;
 	extensionsGallery: {
 		serviceUrl: string;
@@ -26,7 +26,7 @@ export interface IProductConfiguration {
 	};
 	extensionTips: { [id: string]: string; };
 	extensionImportantTips: { [id: string]: { name: string; pattern: string; }; };
-	exeBasedExtensionTips: { [id: string]: string; };
+	exeBasedExtensionTips: { [id: string]: any; };
 	extensionKeywords: { [extension: string]: string[]; };
 	extensionAllowedBadgeProviders: string[];
 	keymapExtensionTips: string[];

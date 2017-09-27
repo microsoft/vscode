@@ -266,6 +266,20 @@ export class SaveParticipant implements ISaveParticipant {
 		});
 
 		return sequence(promiseFactory).then(() => {
+			/* __GDPR__
+				"saveParticipantStats" : {
+					"${wildcard}": [
+						{
+							"${prefix}": "Success-",
+							"${classification}": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+						},
+						{
+							"${prefix}": "Failure-",
+							"${classification}": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+						}
+					]
+				}
+			*/
 			this._telemetryService.publicLog('saveParticipantStats', stats);
 		});
 	}

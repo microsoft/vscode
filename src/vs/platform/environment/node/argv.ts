@@ -26,7 +26,9 @@ const options: minimist.Opts = {
 		'debugSearch',
 		'debugBrkSearch',
 		'open-url',
-		'enable-proposed-api'
+		'enable-proposed-api',
+		'export-default-configuration',
+		'install-source'
 	],
 	boolean: [
 		'help',
@@ -46,7 +48,8 @@ const options: minimist.Opts = {
 		'list-extensions',
 		'show-versions',
 		'nolazy',
-		'skip-getting-started'
+		'skip-getting-started',
+		'sticky-quickopen'
 	],
 	alias: {
 		add: 'a',

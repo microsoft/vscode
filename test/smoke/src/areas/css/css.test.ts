@@ -16,14 +16,12 @@ describe('CSS', () => {
 	it('verifies quick outline', async () => {
 		await app.workbench.quickopen.openFile('style.css');
 
-		const outline = await app.workbench.editor.openOutline();
-
-		await outline.waitForQuickOpenElements(2);
+		await app.workbench.editor.openOutline();
+		await app.workbench.quickopen.waitForQuickOpenElements(names => names.length === 2);
 	});
 
 	it('verifies warnings for the empty rule', async () => {
 		await app.workbench.quickopen.openFile('style.css');
-		await app.client.waitForElement(`.monaco-editor.focused`);
 		await app.client.type('.foo{}');
 
 		let warning = await app.client.waitForElement(Problems.getSelectorInEditor(ProblemSeverity.WARNING));

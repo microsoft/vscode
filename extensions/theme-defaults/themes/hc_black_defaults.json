@@ -72,6 +72,12 @@
 			}
 		},
 		{
+			"scope": "constant.character",
+			"settings": {
+				"foreground": "#569cd6"
+			}
+		},
+		{
 			"scope": "entity.name.tag",
 			"settings": {
 				"foreground": "#569cd6"
@@ -241,8 +247,7 @@
 			"scope": [
 				"punctuation.definition.template-expression.begin",
 				"punctuation.definition.template-expression.end",
-				"punctuation.section.embedded",
-				"constant.character.format.placeholder"
+				"punctuation.section.embedded"
 			],
 			"settings": {
 				"foreground": "#569cd6"

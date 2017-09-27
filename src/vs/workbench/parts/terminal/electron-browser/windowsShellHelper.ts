@@ -18,6 +18,7 @@ export class WindowsShellHelper {
 	private _onCheckShell: Emitter<TPromise<string>>;
 	private _isDisposed: boolean;
 	private _currentRequest: TPromise<string>;
+	private _newLineFeed: boolean;
 
 	public constructor(
 		private _rootProcessId: number,
@@ -44,7 +45,19 @@ export class WindowsShellHelper {
 			}, 50);
 		});
 
-		this._xterm.on('lineFeed', () => this._onCheckShell.fire());
+		// We want to fire a new check for the shell on a lineFeed, but only
+		// when parsing has finished which is indicated by the cursormove event.
+		// If this is done on every lineFeed, parsing ends up taking
+		// significantly longer due to resetting timers. Note that this is
+		// private API.
+		this._xterm.on('lineFeed', () => this._newLineFeed = true);
+		this._xterm.on('cursormove', () => {
+			if (this._newLineFeed) {
+				this._onCheckShell.fire();
+			}
+		});
+
+		// Fire a new check for the shell when any key is pressed.
 		this._xterm.on('keypress', () => this._onCheckShell.fire());
 	}
 

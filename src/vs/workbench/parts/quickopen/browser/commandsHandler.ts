@@ -19,7 +19,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { QuickOpenHandler, IWorkbenchQuickOpenConfiguration } from 'vs/workbench/browser/quickopen';
-import { IEditorAction, IEditor, isCommonCodeEditor, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { IEditorAction, IEditor, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { matchesWords, matchesPrefix, matchesContiguousSubString, or } from 'vs/base/common/filters';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -34,6 +34,7 @@ import { once } from 'vs/base/common/event';
 import { BoundedMap, ISerializedBoundedLinkedMap } from 'vs/base/common/map';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 
 export const ALL_COMMANDS_PREFIX = '>';
 
@@ -296,6 +297,12 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 		TPromise.timeout(50).done(() => {
 			if (action && (!(action instanceof Action) || action.enabled)) {
 				try {
+					/* __GDPR__
+						"workbenchActionExecuted" : {
+							"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						}
+					*/
 					this.telemetryService.publicLog('workbenchActionExecuted', { id: action.id, from: 'quick open' });
 					(action.run() || TPromise.as(null)).done(() => {
 						if (action instanceof Action) {
@@ -385,6 +392,7 @@ export class CommandsHandler extends QuickOpenHandler {
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IMenuService private menuService: IMenuService,
@@ -427,10 +435,7 @@ export class CommandsHandler extends QuickOpenHandler {
 		const editorEntries = this.editorActionsToEntries(editorActions, searchValue);
 
 		// Other Actions
-		const menu = isCommonCodeEditor(activeEditorControl)
-			? activeEditorControl.invokeWithinContext(accessor => this.menuService.createMenu(MenuId.CommandPalette, accessor.get(IContextKeyService)))
-			: this.menuService.createMenu(MenuId.CommandPalette, this.contextKeyService);
-
+		const menu = this.editorGroupService.invokeWithinEditorContext(accessor => this.menuService.createMenu(MenuId.CommandPalette, accessor.get(IContextKeyService)));
 		const menuActions = menu.getActions().reduce((r, [, actions]) => [...r, ...actions], <MenuItemAction[]>[]);
 		const commandEntries = this.menuItemActionsToEntries(menuActions, searchValue);
 

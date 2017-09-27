@@ -42,5 +42,10 @@
 	"navigateUp": "Navigálás a felül lévő nézetre",
 	"navigateDown": "Navigálás az alul lévő nézetre",
 	"increaseViewSize": "Jelenlegi nézet méretének növelése",
-	"decreaseViewSize": "Jelenlegi nézet méretének csökkentése"
+	"decreaseViewSize": "Jelenlegi nézet méretének csökkentése",
+	"showPreviousTab": "Előző ablakfül megjelenítése",
+	"showNextWindowTab": "Következő ablakfül megjelenítése",
+	"moveWindowTabToNewWindow": "Ablakfül átmozgatása új ablakba",
+	"mergeAllWindowTabs": "Összes ablak összeolvasztása",
+	"toggleWindowTabsBar": "Ablakfülsáv be- és kikapcsolása"
 }

@@ -159,7 +159,7 @@ let workbenchProperties: { [path: string]: IJSONSchema; } = {
 	},
 	'workbench.editor.enablePreview': {
 		'type': 'boolean',
-		'description': nls.localize('enablePreview', "Controls if opened editors show as preview. Preview editors are reused until they are kept (e.g. via double click or editing)."),
+		'description': nls.localize('enablePreview', "Controls if opened editors show as preview. Preview editors are reused until they are kept (e.g. via double click or editing) and show up with an italic font style."),
 		'default': true
 	},
 	'workbench.editor.enablePreviewFromQuickOpen': {

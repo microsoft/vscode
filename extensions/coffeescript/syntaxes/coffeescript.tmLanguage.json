@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-coffee-script/commit/afd48572f9ea27cacb35d885741215ce9d419c6e",
+	"version": "https://github.com/atom/language-coffee-script/commit/da81e3f537ccbbb70e542fa5af79583eb58ec50b",
 	"scopeName": "source.coffee",
 	"name": "CoffeeScript",
 	"fileTypes": [
@@ -90,34 +90,38 @@
 			]
 		},
 		{
-			"begin": "`",
-			"beginCaptures": {
-				"0": {
+			"match": "(`)(.*)(`)",
+			"name": "string.quoted.script.coffee",
+			"captures": {
+				"1": {
 					"name": "punctuation.definition.string.begin.coffee"
-				}
-			},
-			"end": "`",
-			"endCaptures": {
-				"0": {
+				},
+				"2": {
+					"name": "source.js.embedded.coffee",
+					"patterns": [
+						{
+							"include": "source.js"
+						}
+					]
+				},
+				"3": {
 					"name": "punctuation.definition.string.end.coffee"
 				}
-			},
-			"name": "string.quoted.script.coffee",
-			"contentName": "source.embedded.js",
-			"patterns": [
-				{
-					"include": "source.js"
-				}
-			]
+			}
 		},
 		{
 			"begin": "(?<!#)###(?!#)",
-			"captures": {
+			"beginCaptures": {
 				"0": {
 					"name": "punctuation.definition.comment.coffee"
 				}
 			},
-			"end": "###(?:[ \\t]*\\n)",
+			"end": "###",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.comment.coffee"
+				}
+			},
 			"name": "comment.block.coffee",
 			"patterns": [
 				{
@@ -472,6 +476,33 @@
 			]
 		},
 		{
+			"begin": "\\[",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.definition.array.begin.bracket.square.coffee"
+				}
+			},
+			"end": "\\]",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.array.end.bracket.square.coffee"
+				}
+			},
+			"patterns": [
+				{
+					"match": "(?<!\\.)\\.{3}",
+					"name": "keyword.operator.slice.exclusive.coffee"
+				},
+				{
+					"match": "(?<!\\.)\\.{2}",
+					"name": "keyword.operator.slice.inclusive.coffee"
+				},
+				{
+					"include": "$self"
+				}
+			]
+		},
+		{
 			"begin": "\\(",
 			"beginCaptures": {
 				"0": {
@@ -489,10 +520,6 @@
 					"include": "$self"
 				}
 			]
-		},
-		{
-			"match": "\\[|\\]",
-			"name": "meta.brace.square.coffee"
 		},
 		{
 			"include": "#instance_variable"
@@ -744,7 +771,7 @@
 					"name": "constant.numeric.octal.coffee"
 				},
 				{
-					"match": "(?x)\n(?<!\\$)(?:\n  (?:\\b[0-9]+(\\.)[0-9]+[eE][+-]?[0-9]+\\b)| # 1.1E+3\n  (?:\\b[0-9]+(\\.)[eE][+-]?[0-9]+\\b)|       # 1.E+3\n  (?:\\B(\\.)[0-9]+[eE][+-]?[0-9]+\\b)|       # .1E+3\n  (?:\\b[0-9]+[eE][+-]?[0-9]+\\b)|            # 1E+3\n  (?:\\b[0-9]+(\\.)[0-9]+\\b)|                # 1.1\n  (?:\\b[0-9]+(\\.)\\B)|                      # 1.\n  (?:\\B(\\.)[0-9]+\\b)|                      # .1\n  (?:\\b[0-9]+\\b(?!\\.))                     # 1\n)(?!\\$)",
+					"match": "(?x)\n(?<!\\$)(?:\n  (?:\\b[0-9]+(\\.)[0-9]+[eE][+-]?[0-9]+\\b)| # 1.1E+3\n  (?:\\b[0-9]+(\\.)[eE][+-]?[0-9]+\\b)|       # 1.E+3\n  (?:\\B(\\.)[0-9]+[eE][+-]?[0-9]+\\b)|       # .1E+3\n  (?:\\b[0-9]+[eE][+-]?[0-9]+\\b)|            # 1E+3\n  (?:\\b[0-9]+(\\.)[0-9]+\\b)|                # 1.1\n  (?:\\b[0-9]+(?=\\.{2,3}))|                  # 1 followed by a slice\n  (?:\\b[0-9]+(\\.)\\B)|                      # 1.\n  (?:\\B(\\.)[0-9]+\\b)|                      # .1\n  (?:\\b[0-9]+\\b(?!\\.))                     # 1\n)(?!\\$)",
 					"captures": {
 						"0": {
 							"name": "constant.numeric.decimal.coffee"

@@ -108,6 +108,11 @@ export abstract class Composite extends Component implements IComposite {
 			// Only submit telemetry data when not running from an integration test
 			if (this._telemetryService && this._telemetryService.publicLog) {
 				const eventName: string = 'compositeOpen';
+				/* __GDPR__
+					"compositeOpen" : {
+						"composite" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
 				this._telemetryService.publicLog(eventName, { composite: this.getId() });
 			}
 		}
@@ -121,6 +126,12 @@ export abstract class Composite extends Component implements IComposite {
 			if (this._telemetryService && this._telemetryService.publicLog) {
 				const eventName: string = 'compositeShown';
 				this._telemetryData.composite = this.getId();
+				/* __GDPR__
+					"compositeShown" : {
+						"timeSpent" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+						"composite": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
 				this._telemetryService.publicLog(eventName, this._telemetryData);
 			}
 		}

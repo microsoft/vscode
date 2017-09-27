@@ -10,7 +10,7 @@ import errors = require('vs/base/common/errors');
 import URI from 'vs/base/common/uri';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { IEditor as IBaseEditor, IEditorInput, ITextEditorOptions, IResourceInput, ITextEditorSelection, Position as GroupPosition } from 'vs/platform/editor/common/editor';
-import { EditorInput, IEditorCloseEvent, IEditorRegistry, Extensions, toResource, IEditorGroup } from 'vs/workbench/common/editor';
+import { EditorInput, IEditorCloseEvent, IEditorRegistry, toResource, IEditorGroup } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { FileChangesEvent, IFileService, FileChangeType } from 'vs/platform/files/common/files';
@@ -20,7 +20,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { once } from 'vs/base/common/event';
+import { once, debounceEvent } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
@@ -30,6 +30,7 @@ import { parse, IExpression } from 'vs/base/common/glob';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
+import { Extensions } from 'vs/workbench/browser/parts/editor/baseEditor';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -126,9 +127,13 @@ export abstract class BaseHistoryService {
 		// Apply listener for selection changes if this is a text editor
 		const control = getCodeEditor(activeEditor);
 		if (control) {
-			this.activeEditorListeners.push(control.onDidChangeCursorPosition(event => {
+
+			// Debounce the event with a timeout of 0ms so that multiple calls to
+			// editor.setSelection() are folded into one. We do not want to record
+			// subsequent history navigations for such API calls.
+			this.activeEditorListeners.push(debounceEvent(control.onDidChangeCursorPosition, (last, event) => event, 0)((event => {
 				this.handleEditorSelectionChangeEvent(activeEditor, event);
-			}));
+			})));
 		}
 	}
 
@@ -174,7 +179,6 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	private static MAX_HISTORY_ITEMS = 200;
 	private static MAX_STACK_ITEMS = 20;
 	private static MAX_RECENTLY_CLOSED_EDITORS = 20;
-	private static MERGE_EVENT_CHANGES_THRESHOLD = 300;
 
 	private stack: IStackEntry[];
 	private index: number;
@@ -420,10 +424,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		// Remove this from the history unless the history input is a resource
 		// that can easily be restored even when the input gets disposed
 		if (historyInput instanceof EditorInput) {
-			const onceDispose = once(historyInput.onDispose);
-			onceDispose(() => {
-				this.removeFromHistory(input);
-			});
+			once(historyInput.onDispose)(() => this.removeFromHistory(input));
 		}
 	}
 
@@ -545,29 +546,17 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		// on the stack.
 		// We can also be instructed to force replace the last entry.
 		let replace = false;
-		if (this.stack[this.index]) {
+		const currentEntry = this.stack[this.index];
+		if (currentEntry) {
 			if (forceReplace) {
-				replace = true;
-			} else {
-				const currentEntry = this.stack[this.index];
-				if (this.matches(input, currentEntry.input) &&													// and: entry of same input
-					(
-						this.sameSelection(currentEntry.selection, selection) ||								// and: entry has same selection
-						(Date.now() - currentEntry.timestamp < HistoryService.MERGE_EVENT_CHANGES_THRESHOLD)	// or: entry occured very fast and is likely not human
-					)
-				) {
-					replace = true;
-				}
+				replace = true; // replace if we are forced to
+			} else if (this.matches(input, currentEntry.input) && this.sameSelection(currentEntry.selection, selection)) {
+				replace = true; // replace if the input is the same as the current one and the selection as well
 			}
 		}
 
 		const stackInput = this.preferResourceInput(input);
 		const entry = { input: stackInput, selection, timestamp: Date.now() };
-
-		// If we are not at the end of history, we remove anything after
-		if (this.stack.length > this.index + 1) {
-			this.stack = this.stack.slice(0, this.index + 1);
-		}
 
 		// Replace at current position
 		if (replace) {
@@ -576,6 +565,12 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 
 		// Add to stack at current position
 		else {
+
+			// If we are not at the end of history, we remove anything after
+			if (this.stack.length > this.index + 1) {
+				this.stack = this.stack.slice(0, this.index + 1);
+			}
+
 			this.setIndex(this.index + 1);
 			this.stack.splice(this.index, 0, entry);
 
@@ -591,10 +586,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		// Remove this from the stack unless the stack input is a resource
 		// that can easily be restored even when the input gets disposed
 		if (stackInput instanceof EditorInput) {
-			const onceDispose = once(stackInput.onDispose);
-			onceDispose(() => {
-				this.removeFromStack(input);
-			});
+			once(stackInput.onDispose)(() => this.removeFromStack(input));
 		}
 	}
 
@@ -723,7 +715,10 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 			if (input instanceof EditorInput) {
 				const factory = registry.getEditorInputFactory(input.getTypeId());
 				if (factory) {
-					return { editorInputJSON: { typeId: input.getTypeId(), deserialized: factory.serialize(input) } } as ISerializedEditorHistoryEntry;
+					const deserialized = factory.serialize(input);
+					if (deserialized) {
+						return { editorInputJSON: { typeId: input.getTypeId(), deserialized } } as ISerializedEditorHistoryEntry;
+					}
 				}
 			}
 
@@ -743,7 +738,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 
 		const entriesRaw = this.storageService.get(HistoryService.STORAGE_KEY, StorageScope.WORKSPACE);
 		if (entriesRaw) {
-			entries = JSON.parse(entriesRaw);
+			entries = JSON.parse(entriesRaw).filter(entry => !!entry);
 		}
 
 		const registry = Registry.as<IEditorRegistry>(Extensions.Editors);
@@ -757,10 +752,16 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 			}
 
 			// Editor input: via factory
-			if (serializedEditorHistoryEntry.editorInputJSON) {
-				const factory = registry.getEditorInputFactory(serializedEditorHistoryEntry.editorInputJSON.typeId);
+			const { editorInputJSON } = serializedEditorHistoryEntry;
+			if (editorInputJSON && editorInputJSON.deserialized) {
+				const factory = registry.getEditorInputFactory(editorInputJSON.typeId);
 				if (factory) {
-					return factory.deserialize(this.instantiationService, serializedEditorHistoryEntry.editorInputJSON.deserialized);
+					const input = factory.deserialize(this.instantiationService, editorInputJSON.deserialized);
+					if (input) {
+						once(input.onDispose)(() => this.removeFromHistory(input)); // remove from history once disposed
+					}
+
+					return input;
 				}
 			}
 
@@ -769,7 +770,8 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	}
 
 	public getLastActiveWorkspaceRoot(): URI {
-		if (!this.contextService.hasWorkspace()) {
+		const folders = this.contextService.getWorkspace().folders;
+		if (folders.length === 0) {
 			return void 0;
 		}
 
@@ -781,13 +783,13 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 			}
 
 			const resourceInput = input as IResourceInput;
-			const resourceWorkspace = this.contextService.getRoot(resourceInput.resource);
+			const resourceWorkspace = this.contextService.getWorkspaceFolder(resourceInput.resource);
 			if (resourceWorkspace) {
-				return resourceWorkspace;
+				return resourceWorkspace.uri;
 			}
 		}
 
 		// fallback to first workspace
-		return this.contextService.getWorkspace().roots[0];
+		return folders[0].uri;
 	}
 }

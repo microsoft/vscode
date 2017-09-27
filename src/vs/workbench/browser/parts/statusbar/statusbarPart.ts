@@ -28,7 +28,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { Action } from 'vs/base/common/actions';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { STATUS_BAR_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ITEM_ACTIVE_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND, STATUS_BAR_BORDER, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_NO_FOLDER_BORDER } from 'vs/workbench/common/theme';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { isThemeColor } from 'vs/editor/common/editorCommon';
 import { Color } from 'vs/base/common/color';
@@ -55,7 +55,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(this.contextService.onDidChangeWorkspaceRoots(() => this.updateStyles()));
+		this.toUnbind.push(this.contextService.onDidChangeWorkbenchState(() => this.updateStyles()));
 	}
 
 	public addEntry(entry: IStatusbarEntry, alignment: StatusbarAlignment, priority: number = 0): IDisposable {
@@ -141,10 +141,10 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 		const container = this.getContainer();
 
-		container.style('color', this.getColor(this.contextService.hasWorkspace() ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND));
-		container.style('background-color', this.getColor(this.contextService.hasWorkspace() ? STATUS_BAR_BACKGROUND : STATUS_BAR_NO_FOLDER_BACKGROUND));
+		container.style('color', this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND));
+		container.style('background-color', this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BACKGROUND : STATUS_BAR_NO_FOLDER_BACKGROUND));
 
-		const borderColor = this.getColor(this.contextService.hasWorkspace() ? STATUS_BAR_BORDER : STATUS_BAR_NO_FOLDER_BORDER) || this.getColor(contrastBorder);
+		const borderColor = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BORDER : STATUS_BAR_NO_FOLDER_BORDER) || this.getColor(contrastBorder);
 		container.style('border-top-width', borderColor ? '1px' : null);
 		container.style('border-top-style', borderColor ? 'solid' : null);
 		container.style('border-top-color', borderColor);
@@ -293,6 +293,12 @@ class StatusBarEntryItem implements IStatusbarItem {
 			const action = this.instantiationService.createInstance(builtInActionDescriptor.syncDescriptor);
 
 			if (action.enabled) {
+				/* __GDPR__
+					"workbenchActionExecuted" : {
+						"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
 				this.telemetryService.publicLog('workbenchActionExecuted', { id: action.id, from: 'status bar' });
 				(action.run() || TPromise.as(null)).done(() => {
 					action.dispose();

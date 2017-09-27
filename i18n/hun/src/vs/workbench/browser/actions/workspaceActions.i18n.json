@@ -14,9 +14,9 @@
 	"selectWorkspace": "Válassza ki a munkaterület mappáit!",
 	"removeFolderFromWorkspace": "Mappa eltávolítása a munkaterületről",
 	"saveWorkspaceAsAction": "Munkaterület mentése másként...",
-	"saveEmptyWorkspaceNotSupported": "A mentéshez először nyisson meg egy munkaterületet.",
 	"save": "Menté&&s",
 	"saveWorkspace": "Munkaterület mentése",
 	"openWorkspaceAction": "Munkaterület megnyitása...",
-	"openWorkspaceConfigFile": "Munkaterület konfigurációs fájljának megnyitása"
+	"openWorkspaceConfigFile": "Munkaterület konfigurációs fájljának megnyitása",
+	"workspaceFolderPickerPlaceholder": "Válasszon munkaterület-mappát!"
 }

@@ -11,7 +11,6 @@
 	background-color: transparent!important;
 	user-select: initial;
 	position: relative;
-	overflow: hidden;
 }
 
 .monaco-workbench .panel.integrated-terminal .terminal-outer-container {
@@ -41,7 +40,10 @@
 	height: 100%;
 }
 
-.monaco-workbench .panel.integrated-terminal .xterm-viewport,
+.monaco-workbench .panel.integrated-terminal .xterm-viewport {
+	margin-right: -20px;
+}
+
 .monaco-workbench .panel.integrated-terminal canvas {
 	/* Align the viewport and canvases to the bottom of the panel */
 	position: absolute;
@@ -71,8 +73,9 @@
 }
 
 .monaco-workbench .panel.integrated-terminal .xterm {
-	position: relative;
-	height: 100%;
+	position: absolute;
+	bottom: 0;
+	left: 0;
 	user-select: none;
 }
 

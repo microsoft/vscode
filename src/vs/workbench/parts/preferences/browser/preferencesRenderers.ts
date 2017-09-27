@@ -31,7 +31,7 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 
 export interface IPreferencesRenderer<T> extends IDisposable {
@@ -108,6 +108,11 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 	}
 
 	public updatePreference(key: string, value: any, source: ISetting): void {
+		/* __GDPR__
+			"defaultSettingsActions.copySetting" : {
+				"userConfigurationKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		this.telemetryService.publicLog('defaultSettingsActions.copySetting', { userConfigurationKeys: [key] });
 		const overrideIdentifier = source.overrideOf ? overrideIdentifierFromKey(source.overrideOf.key) : null;
 		const resource = this.preferencesModel.uri;
@@ -796,6 +801,10 @@ class EditSettingRenderer extends Disposable {
 			let configurationNode = configurationMap[setting.key];
 			if (configurationNode) {
 				if (this.isDefaultSettings()) {
+					if (setting.key === 'launch') {
+						// Do not show because of https://github.com/Microsoft/vscode/issues/32593
+						return false;
+					}
 					return true;
 				}
 				if (configurationNode.type === 'boolean' || configurationNode.enum) {
@@ -1064,7 +1073,7 @@ class WorkspaceConfigurationRenderer extends Disposable {
 	}
 
 	public render(): void {
-		if (this.workspaceContextService.hasMultiFolderWorkspace()) {
+		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			this.editor.changeDecorations(changeAccessor => this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, []));
 
 			const ranges: IRange[] = [];

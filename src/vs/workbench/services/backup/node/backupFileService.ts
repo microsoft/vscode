@@ -87,20 +87,29 @@ export class BackupFilesModel implements IBackupFilesModel {
 
 export class BackupFileService implements IBackupFileService {
 
+	private static readonly META_MARKER = '\n';
+
 	public _serviceBrand: any;
 
-	private static readonly META_MARKER = '\n';
+	private backupWorkspacePath: string;
 
 	private isShuttingDown: boolean;
 	private ready: TPromise<IBackupFilesModel>;
 	private ioOperationQueues: ResourceQueue<void>; // queue IO operations to ensure write order
 
 	constructor(
-		private backupWorkspacePath: string,
+		backupWorkspacePath: string,
 		@IFileService private fileService: IFileService
 	) {
 		this.isShuttingDown = false;
 		this.ioOperationQueues = new ResourceQueue<void>();
+
+		this.initialize(backupWorkspacePath);
+	}
+
+	public initialize(backupWorkspacePath: string): void {
+		this.backupWorkspacePath = backupWorkspacePath;
+
 		this.ready = this.init();
 	}
 

@@ -27,12 +27,11 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ViewsRegistry } from 'vs/workbench/browser/parts/views/viewsRegistry';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
-import { CollapsibleState, ViewSizing } from 'vs/base/browser/ui/splitview/splitview';
-import { CollapsibleView, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/views';
+import { ViewsViewletPanel, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { TreeItemCollapsibleState, ITreeItem, ITreeViewDataProvider, TreeViewItemHandleArg } from 'vs/workbench/common/views';
 
-export class TreeView extends CollapsibleView {
+export class TreeView extends ViewsViewletPanel {
 
 	private menus: Menus;
 	private viewFocusContext: IContextKey<boolean>;
@@ -40,10 +39,8 @@ export class TreeView extends CollapsibleView {
 	private treeInputPromise: TPromise<void>;
 
 	private dataProviderElementChangeListener: IDisposable;
-	private disposables: IDisposable[] = [];
 
 	constructor(
-		initialSize: number,
 		private options: IViewletViewOptions,
 		@IMessageService private messageService: IMessageService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -55,20 +52,14 @@ export class TreeView extends CollapsibleView {
 		@IExtensionService private extensionService: IExtensionService,
 		@ICommandService private commandService: ICommandService
 	) {
-		super(initialSize, { ...(options as IViewOptions), ariaHeaderLabel: options.name, sizing: ViewSizing.Flexible, collapsed: options.collapsed === void 0 ? true : options.collapsed }, keybindingService, contextMenuService);
+		super({ ...(options as IViewOptions), ariaHeaderLabel: options.name }, keybindingService, contextMenuService);
 		this.menus = this.instantiationService.createInstance(Menus, this.id);
 		this.viewFocusContext = this.contextKeyService.createKey<boolean>(this.id, void 0);
 		this.menus.onDidChangeTitle(() => this.updateActions(), this, this.disposables);
 		this.themeService.onThemeChange(() => this.tree.refresh() /* soft refresh */, this, this.disposables);
-		if (!options.collapsed) {
+		if (options.expanded) {
 			this.activate();
 		}
-	}
-
-	public renderHeader(container: HTMLElement): void {
-		const titleDiv = $('div.title').appendTo(container);
-		$('span').text(this.options.name).appendTo(titleDiv);
-		super.renderHeader(container);
 	}
 
 	public renderBody(container: HTMLElement): void {
@@ -79,9 +70,10 @@ export class TreeView extends CollapsibleView {
 		this.setInput();
 	}
 
-	protected changeState(state: CollapsibleState): void {
-		super.changeState(state);
-		if (state === CollapsibleState.EXPANDED) {
+	setExpanded(expanded: boolean): void {
+		super.setExpanded(expanded);
+
+		if (expanded) {
 			this.activate();
 		}
 	}
@@ -106,8 +98,8 @@ export class TreeView extends CollapsibleView {
 				keyboardSupport: false
 			});
 
-		this.toDispose.push(attachListStyler(tree, this.themeService));
-		this.toDispose.push(this.listService.register(tree, [this.viewFocusContext]));
+		this.disposables.push(attachListStyler(tree, this.themeService));
+		this.disposables.push(this.listService.register(tree, [this.viewFocusContext]));
 		tree.addListener('selection', (event: any) => this.onSelection());
 		return tree;
 	}

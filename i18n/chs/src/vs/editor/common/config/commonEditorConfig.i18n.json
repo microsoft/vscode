@@ -88,6 +88,7 @@
 	"accessibilitySupport": "控制编辑器是否应运行在对屏幕阅读器进行优化的模式。",
 	"links": "控制编辑器是否应检测链接并使它们可被点击",
 	"colorDecorators": "控制编辑器是否显示内联颜色修饰器和颜色选取器。",
+	"codeActions": "启用代码操作小灯泡提示",
 	"sideBySide": "控制 Diff 编辑器以并排或内联形式显示差异",
 	"ignoreTrimWhitespace": "控制差异编辑器是否将对前导空格或尾随空格的更改显示为差异",
 	"renderIndicators": "控制差异编辑器是否为已添加/删除的更改显示 +/- 指示符号",

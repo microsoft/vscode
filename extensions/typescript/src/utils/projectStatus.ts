@@ -54,6 +54,9 @@ class ExcludeHintItem {
 		this._item.tooltip = localize('hintExclude.tooltip', "To enable project-wide JavaScript/TypeScript language features, exclude large folders with source files that you do not work on.");
 		this._item.color = '#A5DF3B';
 		this._item.show();
+		/* __GDPR__
+			"js.hintProjectExcludes" : {}
+		*/
 		this._client.logTelemetry('js.hintProjectExcludes');
 	}
 }

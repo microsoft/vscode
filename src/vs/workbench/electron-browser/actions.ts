@@ -18,7 +18,7 @@ import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
 import errors = require('vs/base/common/errors');
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -104,7 +104,7 @@ export class CloseWorkspaceAction extends Action {
 	}
 
 	run(): TPromise<void> {
-		if (!this.contextService.hasWorkspace()) {
+		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this.messageService.show(Severity.Info, nls.localize('noWorkspaceOpened', "There is currently no workspace opened in this instance to close."));
 
 			return TPromise.as(null);
@@ -759,23 +759,12 @@ export abstract class BaseOpenRecentAction extends Action {
 		const workspacePicks: IFilePickOpenEntry[] = recentWorkspaces.map((workspace, index) => toPick(workspace, index === 0 ? { label: nls.localize('workspaces', "workspaces") } : void 0, isSingleFolderWorkspaceIdentifier(workspace) ? FileKind.FOLDER : FileKind.ROOT_FOLDER, this.environmentService, !this.isQuickNavigate() ? this.removeAction : void 0));
 		const filePicks: IFilePickOpenEntry[] = recentFiles.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('files', "files"), border: true } : void 0, FileKind.FILE, this.environmentService, !this.isQuickNavigate() ? this.removeAction : void 0));
 
-		let isCurrentWorkspaceInList: boolean;
-		if (!this.contextService.hasWorkspace()) {
-			isCurrentWorkspaceInList = false; // we never show empty workspaces
-		} else if (this.contextService.hasFolderWorkspace()) {
-			isCurrentWorkspaceInList = true; // we always show folder workspaces
-		} else {
-			const firstWorkspace = recentWorkspaces[0];
-			if (firstWorkspace && !isSingleFolderWorkspaceIdentifier(firstWorkspace)) {
-				isCurrentWorkspaceInList = firstWorkspace.id === this.contextService.getWorkspace().id;
-			} else {
-				isCurrentWorkspaceInList = false; // this is an untitled workspace thereby
-			}
-		}
+		// focus second entry if the first recent workspace is the current workspace
+		let autoFocusSecondEntry: boolean = recentWorkspaces[0] && this.contextService.isCurrentWorkspace(recentWorkspaces[0]);
 
 		this.quickOpenService.pick([...workspacePicks, ...filePicks], {
 			contextKey: inRecentFilesPickerContextKey,
-			autoFocus: { autoFocusFirstEntry: !isCurrentWorkspaceInList, autoFocusSecondEntry: isCurrentWorkspaceInList },
+			autoFocus: { autoFocusFirstEntry: !autoFocusSecondEntry, autoFocusSecondEntry: autoFocusSecondEntry },
 			placeHolder: isMacintosh ? nls.localize('openRecentPlaceHolderMac', "Select to open (hold Cmd-key to open in new window)") : nls.localize('openRecentPlaceHolder', "Select to open (hold Ctrl-key to open in new window)"),
 			matchOnDescription: true,
 			quickNavigateConfiguration: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : void 0

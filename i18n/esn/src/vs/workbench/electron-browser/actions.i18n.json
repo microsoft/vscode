@@ -42,5 +42,10 @@
 	"navigateUp": "Navegar a la Vista Superior",
 	"navigateDown": "Navegar a la Vista Inferior",
 	"increaseViewSize": "Aumentar tamaño de vista actual",
-	"decreaseViewSize": "Reducir tamaño de vista actual"
+	"decreaseViewSize": "Reducir tamaño de vista actual",
+	"showPreviousTab": "Mostrar pestaña de ventana anterior",
+	"showNextWindowTab": "Mostrar siguiente pestaña de ventana",
+	"moveWindowTabToNewWindow": "Mover pestaña de ventana a una nueva ventana",
+	"mergeAllWindowTabs": "Fusionar todas las ventanas",
+	"toggleWindowTabsBar": "Alternar barra de pestañas de ventana"
 }

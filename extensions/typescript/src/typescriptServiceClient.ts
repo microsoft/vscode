@@ -386,6 +386,11 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 						this.lastError = err;
 						this.error('Starting TSServer failed with error.', err);
 						window.showErrorMessage(localize('serverCouldNotBeStarted', 'TypeScript language server couldn\'t be started. Error message is: {0}', err.message || err));
+						/* __GDPR__
+							"error" : {
+								"message": { "classification": "CustomerContent", "purpose": "PerformanceAndHealth" }
+							}
+						*/
 						this.logTelemetry('error', { message: err.message });
 						return;
 					}
@@ -396,6 +401,9 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 						if (this.tsServerLogFile) {
 							this.error(`TSServer log file: ${this.tsServerLogFile}`);
 						}
+						/* __GDPR__
+							"tsserver.error" : {}
+						*/
 						this.logTelemetry('tsserver.error');
 						this.serviceExited(false);
 					});
@@ -404,6 +412,11 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 							this.info(`TSServer exited`);
 						} else {
 							this.error(`TSServer exited with code: ${code}`);
+							/* __GDPR__
+								"tsserver.exitWithCode" : {
+									"code" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+								}
+							*/
 							this.logTelemetry('tsserver.exitWithCode', { code: code });
 						}
 
@@ -548,6 +561,9 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 							id: MessageAction.reportIssue,
 							isCloseAffordance: true
 						});
+					/* __GDPR__
+						"serviceExited" : {}
+					*/
 					this.logTelemetry('serviceExited');
 				} else if (diff < 60 * 1000 /* 1 Minutes */) {
 					this.lastStart = Date.now();
@@ -656,6 +672,8 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			}).catch((err: any) => {
 				if (!wasCancelled) {
 					this.error(`'${command}' request failed with error.`, err);
+					const properties = this.parseErrorText(err && err.message, command);
+					this.logTelemetry('languageServiceErrorResponse', properties);
 				}
 				throw err;
 			});
@@ -665,6 +683,30 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this.sendNextRequests();
 
 		return result;
+	}
+
+	/**
+	 * Given a `errorText` from a tsserver request indicating failure in handling a request,
+	 * prepares a payload for telemetry-logging.
+	 */
+	private parseErrorText(errorText: string | undefined, command: string) {
+		const properties: ObjectMap<string> = Object.create(null);
+		properties['command'] = command;
+		if (errorText) {
+			properties['errorText'] = errorText;
+
+			const errorPrefix = 'Error processing request. ';
+			if (errorText.startsWith(errorPrefix)) {
+				const prefixFreeErrorText = errorText.substr(errorPrefix.length);
+				const newlineIndex = prefixFreeErrorText.indexOf('\n');
+				if (newlineIndex >= 0) {
+					// Newline expected between message and stack.
+					properties['message'] = prefixFreeErrorText.substring(0, newlineIndex);
+					properties['stack'] = prefixFreeErrorText.substring(newlineIndex + 1);
+				}
+			}
+		}
+		return properties;
 	}
 
 	private sendNextRequests(): void {
@@ -809,6 +851,14 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				}
 				break;
 		}
+		/* __GDPR__
+			"typingsInstalled" : {
+				"installedPackages" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+				"installSuccess": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"typingsInstallerVersion": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+			}
+		*/
+		// __GDPR__COMMENT__: Other events are defined by TypeScript.
 		this.logTelemetry(telemetryData.telemetryEventName, properties);
 	}
 }

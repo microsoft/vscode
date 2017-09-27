@@ -33,7 +33,7 @@
 	"ProblemMatcherParser.noIdentifier": "Erro: a propriedade padrão se refere a um identificador vazio.",
 	"ProblemMatcherParser.noValidIdentifier": "Erro: a propriedade padrão {0} não é uma variável de padrões válida.",
 	"ProblemMatcherParser.problemPattern.watchingMatcher": "Um problema de correspondência deve obrigatoriamente definir padrão inicial e um padrão final para monitoramento.",
-	"ProblemMatcherParser.invalidRegexp": "Erro: a cadeia de caracteres {0} não é uma expressão regular válida.\n",
+	"ProblemMatcherParser.invalidRegexp": "Erro: a cadeia de caracteres {0} não é uma expressão regular válida. ",
 	"WatchingPatternSchema.regexp": "A expressão regular para detectar o início ou o fim de uma tarefa em segundo plano.",
 	"WatchingPatternSchema.file": "O índice do grupo de correspondência do arquivo. Pode ser omitido.",
 	"PatternTypeSchema.name": "O nome de um padrão pré-definido ou contribuído.",

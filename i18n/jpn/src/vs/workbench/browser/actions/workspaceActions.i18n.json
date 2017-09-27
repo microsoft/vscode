@@ -14,7 +14,6 @@
 	"selectWorkspace": "ワークスペースのフォルダーを選択",
 	"removeFolderFromWorkspace": "ワークスペースからフォルダーを削除",
 	"saveWorkspaceAsAction": "名前を付けてワークスペースを保存...",
-	"saveEmptyWorkspaceNotSupported": "最初に保存するためのワークスペースを開いてください。",
 	"save": "保存(&&S)",
 	"saveWorkspace": "ワークスペースを保存",
 	"openWorkspaceAction": "ワークスペースを開く...",

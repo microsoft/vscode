@@ -218,9 +218,6 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		this.element = $('.editor-widget.parameter-hints-widget');
 		const wrapper = dom.append(this.element, $('.wrapper'));
 
-		const onClick = stop(domEvent(this.element, 'click'));
-		onClick(this.next, this, this.disposables);
-
 		const buttons = dom.append(wrapper, $('.buttons'));
 		const previous = dom.append(buttons, $('.button.previous'));
 		const next = dom.append(buttons, $('.button.next'));
@@ -336,8 +333,10 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		if (activeParameter && activeParameter.documentation) {
 			const documentation = $('span.documentation');
 			if (typeof activeParameter.documentation === 'string') {
+				dom.removeClass(this.docs, 'markdown-docs');
 				documentation.textContent = activeParameter.documentation;
 			} else {
+				dom.addClass(this.docs, 'markdown-docs');
 				documentation.appendChild(this.markdownRenderer.render(activeParameter.documentation));
 			}
 			dom.append(this.docs, $('p', null, documentation));

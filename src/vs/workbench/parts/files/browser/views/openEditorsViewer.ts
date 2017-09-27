@@ -273,6 +273,12 @@ export class Controller extends DefaultController {
 
 	public openEditor(element: OpenEditor, options: { preserveFocus: boolean; pinned: boolean; sideBySide: boolean; }): void {
 		if (element) {
+			/* __GDPR__
+				"workbenchActionExecuted" : {
+					"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
 			this.telemetryService.publicLog('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'openEditors' });
 			let position = this.model.positionOfGroup(element.editorGroup);
 			if (options.sideBySide && position !== Position.THREE) {

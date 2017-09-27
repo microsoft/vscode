@@ -11,6 +11,7 @@ import { expandEmmetAbbreviation, wrapWithAbbreviation, wrapIndividualLinesWithA
 const cssContents = `
 .boo {
 	margin: 20px 10px;
+	m10
 	background-image: url('tryme.png');
 	m10
 }
@@ -189,9 +190,9 @@ suite('Tests for Expand Abbreviations (CSS)', () => {
 
 	test('Expand abbreviation (CSS)', () => {
 		return withRandomFileEditor(cssContents, 'css', (editor, doc) => {
-			editor.selection = new Selection(4, 1, 4, 4);
+			editor.selections = [new Selection(3, 1, 3, 4), new Selection(5, 1, 5, 4)];
 			return expandEmmetAbbreviation(null).then(() => {
-				assert.equal(editor.document.getText(), cssContents.replace('m10', 'margin: 10px;'));
+				assert.equal(editor.document.getText(), cssContents.replace(/m10/g, 'margin: 10px;'));
 				return Promise.resolve();
 			});
 		});
@@ -207,6 +208,29 @@ suite('Tests for Expand Abbreviations (CSS)', () => {
 			];
 			return expandEmmetAbbreviation(null).then(() => {
 				assert.equal(editor.document.getText(), scssContents.replace(/p(\d\d)/g, 'padding: $1px;'));
+				return Promise.resolve();
+			});
+		});
+	});
+
+	test('Invalid locations for abbreviations in css', () => {
+		const scssContentsNoExpand = `
+m10
+		.boo {
+			margin: 10px;
+			.hoo {
+				background:
+			}
+		}		
+		`
+
+		return withRandomFileEditor(scssContentsNoExpand, 'scss', (editor, doc) => {
+			editor.selections = [
+				new Selection(1, 3, 1, 3), // outside rule
+				new Selection(5, 15, 5, 15) // in the value part of property value				
+			];
+			return expandEmmetAbbreviation(null).then(() => {
+				assert.equal(editor.document.getText(), scssContentsNoExpand);
 				return Promise.resolve();
 			});
 		});

@@ -12,6 +12,8 @@
 	"breakpointRemoved": "Punto de interrupción quitado, línea {0}, archivo {1}",
 	"compoundMustHaveConfigurations": "El compuesto debe tener configurado el atributo \"configurations\" a fin de iniciar varias configuraciones.",
 	"configMissing": "La configuración \"{0}\" falta en \"launch.json\".",
+	"debugRequestNotSupported": "La solicitud de depuración configurada '{0}' no es compatible",
+	"debugRequesMissing": "Falta la solicitud de depuración en la configuración de inicio seleccionada",
 	"debugTypeNotSupported": "El tipo de depuración '{0}' configurado no es compatible.",
 	"debugTypeMissing": "Falta la propiedad \"type\" en la configuración de inicio seleccionada.",
 	"preLaunchTaskErrors": "Errores de compilación durante la tarea preLaunchTask '{0}'.",

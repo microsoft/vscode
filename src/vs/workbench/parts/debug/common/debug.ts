@@ -17,6 +17,7 @@ import { ISuggestion } from 'vs/editor/common/modes';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export const VIEWLET_ID = 'workbench.view.debug';
@@ -72,6 +73,13 @@ export interface ITreeElement {
 
 export interface IReplElement extends ITreeElement {
 	toString(): string;
+	sourceData?: IReplElementSource;
+}
+
+export interface IReplElementSource {
+	source: Source;
+	lineNumber: number;
+	column: number;
 }
 
 export interface IExpressionContainer extends ITreeElement {
@@ -87,7 +95,7 @@ export interface IExpression extends IReplElement, IExpressionContainer {
 }
 
 export interface ISession {
-	root: uri;
+	root: IWorkspaceFolder;
 	stackTrace(args: DebugProtocol.StackTraceArguments): TPromise<DebugProtocol.StackTraceResponse>;
 	exceptionInfo(args: DebugProtocol.ExceptionInfoArguments): TPromise<DebugProtocol.ExceptionInfoResponse>;
 	scopes(args: DebugProtocol.ScopesArguments): TPromise<DebugProtocol.ScopesResponse>;
@@ -99,6 +107,7 @@ export interface ISession {
 	custom(request: string, args: any): TPromise<DebugProtocol.Response>;
 	onDidEvent: Event<DebugProtocol.Event>;
 	onDidInitialize: Event<DebugProtocol.InitializedEvent>;
+	onDidExitAdapter: Event<DebugEvent>;
 	restartFrame(args: DebugProtocol.RestartFrameArguments, threadId: number): TPromise<DebugProtocol.RestartFrameResponse>;
 
 	next(args: DebugProtocol.NextArguments): TPromise<DebugProtocol.NextResponse>;
@@ -128,6 +137,7 @@ export interface IProcess extends ITreeElement {
 	state: ProcessState;
 	getThread(threadId: number): IThread;
 	getAllThreads(): IThread[];
+	getSource(raw: DebugProtocol.Source): Source;
 	completions(frameId: number, text: string, position: Position, overwriteBefore: number): TPromise<ISuggestion[]>;
 }
 
@@ -420,9 +430,7 @@ export interface ILaunch {
 	 */
 	uri: uri;
 
-	workspaceUri: uri;
-
-	name: string;
+	workspace: IWorkspaceFolder;
 
 	/**
 	 * Returns a configuration with the specified name.
@@ -585,12 +593,12 @@ export interface IDebugService {
 	 * Also saves all files, manages if compounds are present in the configuration
 	 * and calls the startSessionCommand if an adapter registered it.
 	 */
-	startDebugging(root: uri, configOrName?: IConfig | string, noDebug?: boolean): TPromise<any>;
+	startDebugging(root: IWorkspaceFolder, configOrName?: IConfig | string, noDebug?: boolean): TPromise<any>;
 
 	/**
 	 * Creates a new debug process. Depending on the configuration will either 'launch' or 'attach'.
 	 */
-	createProcess(root: uri, config: IConfig): TPromise<IProcess>;
+	createProcess(root: IWorkspaceFolder, config: IConfig): TPromise<IProcess>;
 
 	/**
 	 * Find process by ID.

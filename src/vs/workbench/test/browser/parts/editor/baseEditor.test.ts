@@ -6,18 +6,18 @@
 'use strict';
 
 import * as assert from 'assert';
-import { BaseEditor, EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { EditorInput, EditorOptions, Extensions, IEditorRegistry, IEditorInputFactory } from 'vs/workbench/common/editor';
+import { BaseEditor, EditorDescriptor, Extensions } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { EditorInput, EditorOptions, IEditorRegistry, IEditorInputFactory } from 'vs/workbench/common/editor';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import * as Platform from 'vs/platform/registry/common/platform';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import URI from 'vs/base/common/uri';
 
 const NullThemeService = new TestThemeService();
 
@@ -165,10 +165,10 @@ suite('Workbench BaseEditor', () => {
 
 		let inst = new TestInstantiationService();
 
-		inst.createInstance(EditorRegistry.getEditor(inst.createInstance(MyResourceInput, 'fake', '', '', PLAINTEXT_MODE_ID, false)), 'id').then(editor => {
+		inst.createInstance(EditorRegistry.getEditor(inst.createInstance(MyResourceInput, 'fake', '', URI.file('/fake'))), 'id').then(editor => {
 			assert.strictEqual(editor.getId(), 'myEditor');
 
-			return inst.createInstance(EditorRegistry.getEditor(inst.createInstance(ResourceEditorInput, 'fake', '', '', PLAINTEXT_MODE_ID, false)), 'id').then(editor => {
+			return inst.createInstance(EditorRegistry.getEditor(inst.createInstance(ResourceEditorInput, 'fake', '', URI.file('/fake'))), 'id').then(editor => {
 				assert.strictEqual(editor.getId(), 'myOtherEditor');
 
 				(<any>EditorRegistry).setEditors(oldEditors);
@@ -186,7 +186,7 @@ suite('Workbench BaseEditor', () => {
 
 		let inst = new TestInstantiationService();
 
-		inst.createInstance(EditorRegistry.getEditor(inst.createInstance(MyResourceInput, 'fake', '', '', PLAINTEXT_MODE_ID, false)), 'id').then(editor => {
+		inst.createInstance(EditorRegistry.getEditor(inst.createInstance(MyResourceInput, 'fake', '', URI.file('/fake'))), 'id').then(editor => {
 			assert.strictEqual('myOtherEditor', editor.getId());
 
 			(<any>EditorRegistry).setEditors(oldEditors);

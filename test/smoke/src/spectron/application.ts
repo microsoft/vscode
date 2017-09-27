@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Application, SpectronClient as WebClient } from 'spectron';
+import { test as testPort } from 'portastic';
 import { SpectronClient } from './client';
 import { ScreenCapturer } from '../helpers/screenshot';
 import { Workbench } from '../areas/workbench/workbench';
@@ -26,10 +27,25 @@ export enum VSCODE_BUILD {
 	STABLE
 }
 
+// Just hope random helps us here, cross your fingers!
+export async function findFreePort(): Promise<number> {
+	for (let i = 0; i < 10; i++) {
+		const port = 10000 + Math.round(Math.random() * 10000);
+
+		if (await testPort(port)) {
+			return port;
+		}
+	}
+
+	throw new Error('Could not find free port!');
+}
+
 /**
  * Wraps Spectron's Application instance with its used methods.
  */
 export class SpectronApplication {
+
+	private static count = 0;
 
 	private _client: SpectronClient;
 	private _workbench: Workbench;
@@ -70,12 +86,13 @@ export class SpectronApplication {
 		return this._workbench;
 	}
 
-	public async start(testSuiteName: string, codeArgs: string[] = []): Promise<any> {
+	public async start(testSuiteName: string, codeArgs: string[] = [], env = process.env): Promise<any> {
 		await this.retrieveKeybindings();
 		cp.execSync('git checkout .', { cwd: WORKSPACE_PATH });
-		await this.startApplication(testSuiteName, codeArgs);
+		await this.startApplication(testSuiteName, codeArgs, env);
 		await this.checkWindowReady();
 		await this.waitForWelcome();
+		await this.screenCapturer.capture('Application started');
 	}
 
 	public async reload(): Promise<any> {
@@ -87,6 +104,7 @@ export class SpectronApplication {
 
 	public async stop(): Promise<any> {
 		if (this.spectron && this.spectron.isRunning()) {
+			await this.screenCapturer.capture('Stopping application');
 			return await this.spectron.stop();
 		}
 	}
@@ -95,7 +113,7 @@ export class SpectronApplication {
 		return new Promise(resolve => setTimeout(resolve, seconds * 1000));
 	}
 
-	private async startApplication(testSuiteName: string, codeArgs: string[] = []): Promise<any> {
+	private async startApplication(testSuiteName: string, codeArgs: string[] = [], env = process.env): Promise<any> {
 
 		let args: string[] = [];
 		let chromeDriverArgs: string[] = [];
@@ -105,18 +123,31 @@ export class SpectronApplication {
 		}
 
 		args.push(this._workspace);
+
 		// Prevent 'Getting Started' web page from opening on clean user-data-dir
 		args.push('--skip-getting-started');
+
+		// Prevent Quick Open from closing when focus is stolen, this allows concurrent smoketest suite running
+		args.push('--sticky-quickopen');
+
 		// Ensure that running over custom extensions directory, rather than picking up the one that was used by a tester previously
 		args.push(`--extensions-dir=${EXTENSIONS_DIR}`);
 
 		args.push(...codeArgs);
 
-		chromeDriverArgs.push(`--user-data-dir=${path.join(this._userDir, new Date().getTime().toString())}`);
+		chromeDriverArgs.push(`--user-data-dir=${path.join(this._userDir, String(SpectronApplication.count++))}`);
+
+		// Spectron always uses the same port number for the chrome driver
+		// and it handles gracefully when two instances use the same port number
+		// This works, but when one of the instances quits, it takes down
+		// chrome driver with it, leaving the other instance in DISPAIR!!! :(
+		const port = await findFreePort();
 
 		this.spectron = new Application({
 			path: this._electronPath,
+			port,
 			args,
+			env,
 			chromeDriverArgs,
 			startTimeout: 10000,
 			requireName: 'nodeRequire'
@@ -133,7 +164,7 @@ export class SpectronApplication {
 		// Spectron opens multiple terminals in Windows platform
 		// Workaround to focus the right window - https://github.com/electron/spectron/issues/60
 		await this.client.windowByIndex(1);
-		await this.app.browserWindow.focus();
+		// await this.app.browserWindow.focus();
 		await this.client.waitForHTML('[id="workbench.main.container"]');
 	}
 

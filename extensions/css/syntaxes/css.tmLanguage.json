@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-css/commit/b194c758829df9fbe6ba0d0e3b146ec5d6cd66f7",
+	"version": "https://github.com/atom/language-css/commit/2bc6abb2ee58b063f80999fa805d90d2f542da22",
 	"scopeName": "source.css",
 	"name": "CSS",
 	"fileTypes": [
@@ -670,7 +670,8 @@
 					"name": "constant.character.escape.codepoint.css"
 				},
 				{
-					"match": "\\\\$\\n?",
+					"begin": "\\\\$\\s*",
+					"end": "^(?<!\\G)",
 					"name": "constant.character.escape.newline.css"
 				},
 				{

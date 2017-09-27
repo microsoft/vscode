@@ -15,7 +15,7 @@
 	"reuseWindow": "Fájl vagy mappa megnyitása a legutoljára aktív ablakban.",
 	"userDataDir": "Meghatározza a könyvtárat, ahol a felhasználói adatok vannak tárolva. Hasznás, ha rootként van futtatva.",
 	"verbose": "Részletes kimenet kiírása (magába foglalja a --wait kapcsolót)",
-	"wait": "Várjon az ablak bezárására a visszatérés előtt.",
+	"wait": "Várjon a fájlok bezárására a visszatérés előtt.",
 	"extensionHomePath": "A kiegészítők gyökérkönyvtárának beállítása.",
 	"listExtensions": "Telepített kiegészítők listázása.",
 	"showVersions": "Telepített kiegészítők verziójának megjelenítése a --list-extension kapcsoló használata esetén.",

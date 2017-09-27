@@ -6,7 +6,6 @@
 {
 	"commitMessage": "Message (press {0} to commit)",
 	"installAdditionalSCMProviders": "Installiere weiter SCM Provider...",
-	"no open repo": "Keine Quellsteuerelemente sind aktiv.",
 	"source control": "Quellcodeverwaltung",
 	"viewletTitle": "{0}: {1}"
 }

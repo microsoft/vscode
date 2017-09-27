@@ -29,7 +29,6 @@
 	"view id": "Идентификатор",
 	"view name": "Имя",
 	"view location": "Где",
-	"themes": "Темы ({0})",
 	"JSON Validation": "Проверка JSON ({0})",
 	"commands": "Команды ({0})",
 	"command name": "Имя",

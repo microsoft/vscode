@@ -20,8 +20,8 @@ import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Scope as MementoScope } from 'vs/workbench/common/memento';
 import { Part } from 'vs/workbench/browser/part';
-import { BaseEditor, EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IEditorRegistry, Extensions as EditorExtensions, EditorInput, EditorOptions, ConfirmResult, IWorkbenchEditorConfiguration, IEditorDescriptor, TextEditorOptions, SideBySideEditorInput, TextCompareEditorVisible, TEXT_DIFF_EDITOR_ID } from 'vs/workbench/common/editor';
+import { BaseEditor, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { IEditorRegistry, EditorInput, EditorOptions, ConfirmResult, IWorkbenchEditorConfiguration, IEditorDescriptor, TextEditorOptions, SideBySideEditorInput, TextCompareEditorVisible, TEXT_DIFF_EDITOR_ID } from 'vs/workbench/common/editor';
 import { EditorGroupsControl, Rochade, IEditorGroupsControl, ProgressState } from 'vs/workbench/browser/parts/editor/editorGroupsControl';
 import { WorkbenchProgressService } from 'vs/workbench/services/progress/browser/progressService';
 import { IEditorGroupService, GroupOrientation, GroupArrangement, IEditorTabOptions, IMoveOptions } from 'vs/workbench/services/group/common/groupService';
@@ -30,7 +30,7 @@ import { IEditorPart } from 'vs/workbench/services/editor/browser/editorService'
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { Position, POSITIONS, Direction } from 'vs/platform/editor/common/editor';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IMessageService, IMessageWithAction, Severity } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -44,6 +44,7 @@ import { EDITOR_GROUP_BACKGROUND } from 'vs/workbench/common/theme';
 import { createCSSRule } from 'vs/base/browser/dom';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { join } from 'vs/base/common/paths';
+import { isCommonCodeEditor } from 'vs/editor/common/editorCommon';
 
 class ProgressMonitor {
 
@@ -165,6 +166,13 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 			this.revealIfOpen = editorConfig.revealIfOpen;
 
+			/* __GDPR__
+				"workbenchEditorConfiguration" : {
+					"${include}": [
+						"${IWorkbenchEditorConfiguration}"
+					]
+				}
+			*/
 			this.telemetryService.publicLog('workbenchEditorConfiguration', editorConfig);
 		} else {
 			this.tabOptions = {
@@ -247,10 +255,24 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	}
 
 	private onEditorOpened(identifier: EditorIdentifier): void {
+		/* __GDPR__
+			"editorOpened" : {
+				"${include}": [
+					"${EditorTelemetryDescriptor}"
+				]
+			}
+		*/
 		this.telemetryService.publicLog('editorOpened', identifier.editor.getTelemetryDescriptor());
 	}
 
 	private onEditorClosed(event: EditorCloseEvent): void {
+		/* __GDPR__
+			"editorClosed" : {
+				"${include}": [
+					"${EditorTelemetryDescriptor}"
+				]
+			}
+		*/
 		this.telemetryService.publicLog('editorClosed', event.editor.getTelemetryDescriptor());
 	}
 
@@ -318,6 +340,11 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Opened to the side
 		if (position !== Position.ONE) {
+			/* __GDPR__
+				"workbenchSideEditorOpened" : {
+					"position" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
 			this.telemetryService.publicLog('workbenchSideEditorOpened', { position: position });
 		}
 
@@ -1296,6 +1323,20 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				group.unpin(input);
 			});
 		}
+	}
+
+	public invokeWithinEditorContext<T>(fn: (accessor: ServicesAccessor) => T): T {
+		const activeEditor = this.getActiveEditor();
+		if (activeEditor) {
+			const activeEditorControl = activeEditor.getControl();
+			if (isCommonCodeEditor(activeEditorControl)) {
+				return activeEditorControl.invokeWithinContext(fn);
+			}
+
+			return this.editorGroupsControl.getInstantiationService(activeEditor.position).invokeFunction(fn);
+		}
+
+		return this.instantiationService.invokeFunction(fn);
 	}
 
 	public layout(dimension: Dimension): Dimension[] {

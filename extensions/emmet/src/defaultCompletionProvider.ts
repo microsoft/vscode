@@ -9,6 +9,8 @@ import { doComplete, isStyleSheet, getEmmetMode, extractAbbreviation } from 'vsc
 import { isValidLocationForEmmetAbbreviation } from './abbreviationActions';
 import { getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, getEmmetConfiguration } from './util';
 
+const allowedMimeTypesInScriptTag = ['text/html', 'text/plain', 'text/x-template'];
+
 export class DefaultCompletionItemProvider implements vscode.CompletionItemProvider {
 
 	public provideCompletionItems(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): Thenable<vscode.CompletionList> {
@@ -55,7 +57,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 				return;
 			}
 
-			let result: vscode.CompletionList = doComplete(document, position, syntax, getEmmetConfiguration(syntax));
+			let result = doComplete(document, position, syntax, getEmmetConfiguration(syntax));
 			let newItems: vscode.CompletionItem[] = [];
 			if (result && result.items) {
 				result.items.forEach(item => {
@@ -95,7 +97,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 			return;
 		}
 
-		let currentNode = getNode(rootNode, position);
+		let currentNode = getNode(rootNode, position, true);
 
 		if (!isStyleSheet(syntax)) {
 			const currentHtmlNode = <HtmlNode>currentNode;
@@ -106,6 +108,10 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 					return 'css';
 				}
 				if (currentHtmlNode.name === 'script') {
+					if (currentHtmlNode.attributes
+						&& currentHtmlNode.attributes.some(x => x.name.toString() === 'type' && allowedMimeTypesInScriptTag.indexOf(x.value.toString()) > -1)) {
+						return syntax;
+					}
 					return;
 				}
 			}

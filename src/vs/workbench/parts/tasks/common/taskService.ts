@@ -9,7 +9,9 @@ import { Action } from 'vs/base/common/actions';
 import { IEventEmitter } from 'vs/base/common/eventEmitter';
 import { LinkedMap } from 'vs/base/common/map';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Task, ContributedTask, CustomTask, TaskSet } from 'vs/workbench/parts/tasks/common/tasks';
+
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { Task, ContributedTask, CustomTask, TaskSet, TaskSorter } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskSummary, TaskEvent, TaskType, TaskTerminateResponse } from 'vs/workbench/parts/tasks/common/taskSystem';
 
 export { ITaskSummary, Task, TaskEvent, TaskType, TaskTerminateResponse };
@@ -55,11 +57,13 @@ export interface ITaskService extends IEventEmitter {
 	/**
 	 * @param identifier The task's name, label or defined identifier.
 	 */
-	getTask(identifier: string): TPromise<Task>;
+	getTask(workspaceFolder: IWorkspaceFolder | string, identifier: string): TPromise<Task>;
 	getTasksForGroup(group: string): TPromise<Task[]>;
 	getRecentlyUsedTasks(): LinkedMap<string, string>;
+	createSorter(): TaskSorter;
 
-	canCustomize(): boolean;
+	needsFolderQualification();
+	canCustomize(task: ContributedTask | CustomTask): boolean;
 	customize(task: ContributedTask | CustomTask, properties?: {}, openConfig?: boolean): TPromise<void>;
 	openConfig(task: CustomTask): TPromise<void>;
 

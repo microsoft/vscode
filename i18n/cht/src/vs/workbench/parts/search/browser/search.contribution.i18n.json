@@ -6,6 +6,7 @@
 {
 	"showTriggerActions": "前往工作區中的符號...",
 	"name": "搜尋",
+	"search": "搜尋",
 	"showSearchViewlet": "顯示搜尋",
 	"view": "檢視",
 	"findInFiles": "在檔案中尋找",

@@ -171,8 +171,6 @@
 	"miRunningTask": "显示正在运行的任务(&&G)...",
 	"miRestartTask": "重启正在运行的任务(&&E)...",
 	"miTerminateTask": "终止任务(&&T)...",
-	"miConfigureTask": "配置任务(&&C)",
-	"miConfigureBuildTask": "配置默认生成任务(&&F)",
 	"accessibilityOptionsWindowTitle": "辅助功能选项",
 	"miRestartToUpdate": "重启以更新...",
 	"miCheckingForUpdates": "正在检查更新...",

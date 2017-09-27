@@ -115,6 +115,17 @@ export interface IEditorMinimapOptions {
 }
 
 /**
+ * Configuration options for editor minimap
+ */
+export interface IEditorLightbulbOptions {
+	/**
+	 * Enable the lightbulb code action.
+	 * Defaults to true.
+	 */
+	enabled?: boolean;
+}
+
+/**
  * Configuration options for the editor.
  */
 export interface IEditorOptions {
@@ -463,6 +474,10 @@ export interface IEditorOptions {
 	 */
 	referenceInfos?: boolean;
 	/**
+	 * Control the behavior and rendering of the code action lightbulb.
+	 */
+	lightbulb?: IEditorLightbulbOptions;
+	/**
 	 * Enable code folding
 	 * Defaults to true in vscode and to false in monaco-editor.
 	 */
@@ -795,6 +810,7 @@ export interface EditorContribOptions {
 	readonly matchBrackets: boolean;
 	readonly find: InternalEditorFindOptions;
 	readonly colorDecorators: boolean;
+	readonly lightbulbEnabled: boolean;
 }
 
 /**
@@ -1140,6 +1156,7 @@ export class InternalEditorOptions {
 			&& a.matchBrackets === b.matchBrackets
 			&& this._equalFindOptions(a.find, b.find)
 			&& a.colorDecorators === b.colorDecorators
+			&& a.lightbulbEnabled === b.lightbulbEnabled
 		);
 	}
 
@@ -1669,6 +1686,7 @@ export class EditorOptionsValidator {
 			matchBrackets: _boolean(opts.matchBrackets, defaults.matchBrackets),
 			find: find,
 			colorDecorators: _boolean(opts.colorDecorators, defaults.colorDecorators),
+			lightbulbEnabled: _boolean(opts.lightbulb ? opts.lightbulb.enabled : false, defaults.lightbulbEnabled)
 		};
 	}
 }
@@ -1697,7 +1715,7 @@ export class InternalEditorOptionsFactory {
 			wordWrapBreakBeforeCharacters: opts.wordWrapBreakBeforeCharacters,
 			wordWrapBreakAfterCharacters: opts.wordWrapBreakAfterCharacters,
 			wordWrapBreakObtrusiveCharacters: opts.wordWrapBreakObtrusiveCharacters,
-			autoClosingBrackets: opts.autoClosingBrackets,
+			autoClosingBrackets: (accessibilityIsOn ? false : opts.autoClosingBrackets), // DISABLED WHEN SCREEN READER IS ATTACHED
 			autoIndent: opts.autoIndent,
 			dragAndDrop: opts.dragAndDrop,
 			emptySelectionClipboard: opts.emptySelectionClipboard,
@@ -1730,7 +1748,7 @@ export class InternalEditorOptionsFactory {
 				renderControlCharacters: (accessibilityIsOn ? false : opts.viewInfo.renderControlCharacters), // DISABLED WHEN SCREEN READER IS ATTACHED
 				fontLigatures: (accessibilityIsOn ? false : opts.viewInfo.fontLigatures), // DISABLED WHEN SCREEN READER IS ATTACHED
 				renderIndentGuides: (accessibilityIsOn ? false : opts.viewInfo.renderIndentGuides), // DISABLED WHEN SCREEN READER IS ATTACHED
-				renderLineHighlight: (accessibilityIsOn ? 'none' : opts.viewInfo.renderLineHighlight), // DISABLED WHEN SCREEN READER IS ATTACHED
+				renderLineHighlight: opts.viewInfo.renderLineHighlight,
 				scrollbar: opts.viewInfo.scrollbar,
 				minimap: {
 					enabled: (accessibilityIsOn ? false : opts.viewInfo.minimap.enabled), // DISABLED WHEN SCREEN READER IS ATTACHED
@@ -1766,7 +1784,8 @@ export class InternalEditorOptionsFactory {
 				showFoldingControls: opts.contribInfo.showFoldingControls,
 				matchBrackets: (accessibilityIsOn ? false : opts.contribInfo.matchBrackets), // DISABLED WHEN SCREEN READER IS ATTACHED
 				find: opts.contribInfo.find,
-				colorDecorators: opts.contribInfo.colorDecorators
+				colorDecorators: opts.contribInfo.colorDecorators,
+				lightbulbEnabled: opts.contribInfo.lightbulbEnabled
 			}
 		};
 	}
@@ -2205,6 +2224,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 			seedSearchStringFromSelection: true,
 			autoFindInSelection: false
 		},
-		colorDecorators: true
+		colorDecorators: true,
+		lightbulbEnabled: true
 	},
 };

@@ -17,10 +17,10 @@ export interface ILabelProvider {
 	getLabel(element: any): string;
 }
 
-export interface IRootProvider {
-	getRoot(resource: URI): URI;
+export interface IWorkspaceFolderProvider {
+	getWorkspaceFolder(resource: URI): { uri: URI };
 	getWorkspace(): {
-		roots: URI[];
+		folders: { uri: URI }[];
 	};
 }
 
@@ -28,7 +28,7 @@ export interface IUserHomeProvider {
 	userHome: string;
 }
 
-export function getPathLabel(resource: URI | string, rootProvider?: IRootProvider, userHomeProvider?: IUserHomeProvider): string {
+export function getPathLabel(resource: URI | string, rootProvider?: IWorkspaceFolderProvider, userHomeProvider?: IUserHomeProvider): string {
 	if (!resource) {
 		return null;
 	}
@@ -36,21 +36,24 @@ export function getPathLabel(resource: URI | string, rootProvider?: IRootProvide
 	if (typeof resource === 'string') {
 		resource = URI.file(resource);
 	}
+	if (resource.scheme !== 'file' && resource.scheme !== 'untitled') {
+		return resource.authority + resource.path;
+	}
 
 	// return early if we can resolve a relative path label from the root
-	const baseResource = rootProvider ? rootProvider.getRoot(resource) : null;
+	const baseResource = rootProvider ? rootProvider.getWorkspaceFolder(resource) : null;
 	if (baseResource) {
-		const hasMultipleRoots = rootProvider.getWorkspace().roots.length > 1;
+		const hasMultipleRoots = rootProvider.getWorkspace().folders.length > 1;
 
 		let pathLabel: string;
-		if (isEqual(baseResource.fsPath, resource.fsPath, !platform.isLinux /* ignorecase */)) {
+		if (isEqual(baseResource.uri.fsPath, resource.fsPath, !platform.isLinux /* ignorecase */)) {
 			pathLabel = ''; // no label if pathes are identical
 		} else {
-			pathLabel = normalize(ltrim(resource.fsPath.substr(baseResource.fsPath.length), nativeSep), true);
+			pathLabel = normalize(ltrim(resource.fsPath.substr(baseResource.uri.fsPath.length), nativeSep), true);
 		}
 
 		if (hasMultipleRoots) {
-			const rootName = basename(baseResource.fsPath);
+			const rootName = basename(baseResource.uri.fsPath);
 			pathLabel = pathLabel ? join(rootName, pathLabel) : rootName; // always show root basename if there are multiple
 		}
 

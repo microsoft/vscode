@@ -309,6 +309,12 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 				// Log in telemetry
 				if (this.telemetryService) {
+					/* __GDPR__
+						"workbenchActionExecuted" : {
+							"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						}
+					*/
 					this.telemetryService.publicLog('workbenchActionExecuted', { id: e.action.id, from: this.nameForTelemetry });
 				}
 			});
@@ -351,7 +357,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 	private updateTitle(compositeId: string, compositeTitle?: string): void {
 		let compositeDescriptor = this.registry.getComposite(compositeId);
-		if (!compositeDescriptor) {
+		if (!compositeDescriptor || !this.titleLabel) {
 			return;
 		}
 

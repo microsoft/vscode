@@ -28,7 +28,7 @@ import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { AccessibilitySupport } from 'vs/base/common/platform';
-import { editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder } from 'vs/editor/common/view/editorColorRegistry';
+import { editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder, editorInfoForeground, editorInfoBorder } from 'vs/editor/common/view/editorColorRegistry';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 
@@ -283,7 +283,13 @@ class MarkerNavigationWidget extends ZoneWidget {
 
 	private _applyTheme(theme: ITheme) {
 		this._backgroundColor = theme.getColor(editorMarkerNavigationBackground);
-		let frameColor = theme.getColor(this._severity === Severity.Error ? editorMarkerNavigationError : editorMarkerNavigationWarning);
+		let colorId = editorMarkerNavigationError;
+		if (this._severity === Severity.Warning) {
+			colorId = editorMarkerNavigationWarning;
+		} else if (this._severity === Severity.Info) {
+			colorId = editorMarkerNavigationInfo;
+		}
+		let frameColor = theme.getColor(colorId);
 		this.style({
 			arrowColor: frameColor,
 			frameColor: frameColor
@@ -400,6 +406,14 @@ class MarkerNavigationAction extends EditorAction {
 		}
 
 		let model = controller.getOrCreateModel();
+		/* __GDPR__
+			"zoneWidgetShown" : {
+				"mode" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"${include}": [
+					"${EditorTelemetryData}"
+				]
+			}
+		*/
 		telemetryService.publicLog('zoneWidgetShown', { mode: 'go to error', ...editor.getTelemetryData() });
 		if (model) {
 			if (this._isNext) {
@@ -541,7 +555,9 @@ CommonEditorRegistry.registerEditorCommand(new MarkerCommand({
 
 let errorDefault = oneOf(editorErrorForeground, editorErrorBorder);
 let warningDefault = oneOf(editorWarningForeground, editorWarningBorder);
+let infoDefault = oneOf(editorInfoForeground, editorInfoBorder);
 
 export const editorMarkerNavigationError = registerColor('editorMarkerNavigationError.background', { dark: errorDefault, light: errorDefault, hc: errorDefault }, nls.localize('editorMarkerNavigationError', 'Editor marker navigation widget error color.'));
 export const editorMarkerNavigationWarning = registerColor('editorMarkerNavigationWarning.background', { dark: warningDefault, light: warningDefault, hc: warningDefault }, nls.localize('editorMarkerNavigationWarning', 'Editor marker navigation widget warning color.'));
+export const editorMarkerNavigationInfo = registerColor('editorMarkerNavigationInfo.background', { dark: infoDefault, light: infoDefault, hc: infoDefault }, nls.localize('editorMarkerNavigationInfo', 'Editor marker navigation widget info color.'));
 export const editorMarkerNavigationBackground = registerColor('editorMarkerNavigation.background', { dark: '#2D2D30', light: Color.white, hc: '#0C141F' }, nls.localize('editorMarkerNavigationBackground', 'Editor marker navigation widget background.'));

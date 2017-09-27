@@ -7,14 +7,13 @@
 
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { dispose } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { distinct } from 'vs/base/common/arrays';
 import { chain } from 'vs/base/common/event';
 import { isPromiseCanceledError, create as createError } from 'vs/base/common/errors';
 import Severity from 'vs/base/common/severity';
 import { PagedModel, IPagedModel, mergePagers, IPager } from 'vs/base/common/paging';
-import { ViewSizing } from 'vs/base/browser/ui/splitview/splitview';
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import { SortBy, SortOrder, IQueryOptions, LocalExtensionType, IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -32,7 +31,7 @@ import { IListService } from 'vs/platform/list/browser/listService';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachListStyler, attachBadgeStyler } from 'vs/platform/theme/common/styler';
-import { CollapsibleView, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/views';
+import { ViewsViewletPanel, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { OpenGlobalSettingsAction } from 'vs/workbench/parts/preferences/browser/preferencesActions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -41,17 +40,15 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 
-export class ExtensionsListView extends CollapsibleView {
+export class ExtensionsListView extends ViewsViewletPanel {
 
 	private messageBox: HTMLElement;
 	private extensionsList: HTMLElement;
 	private badge: CountBadge;
 
 	private list: PagedList<IExtension>;
-	private disposables: IDisposable[] = [];
 
 	constructor(
-		initialSize: number,
 		private options: IViewletViewOptions,
 		@IMessageService private messageService: IMessageService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -70,7 +67,7 @@ export class ExtensionsListView extends CollapsibleView {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IProgressService private progressService: IProgressService
 	) {
-		super(initialSize, { ...(options as IViewOptions), ariaHeaderLabel: options.name, sizing: ViewSizing.Flexible, collapsed: !!options.collapsed, initialBodySize: 1 * 62 }, keybindingService, contextMenuService);
+		super({ ...(options as IViewOptions), ariaHeaderLabel: options.name }, keybindingService, contextMenuService);
 	}
 
 	renderHeader(container: HTMLElement): void {
@@ -294,12 +291,16 @@ export class ExtensionsListView extends CollapsibleView {
 							.filter(name => local.every(ext => `${ext.publisher}.${ext.name}` !== name))
 							.filter(name => name.toLowerCase().indexOf(value) > -1);
 
+						this.telemetryService.publicLog('extensionAllRecommendations:open', { count: names.length });
 						if (!names.length) {
 							return TPromise.as(new PagedModel([]));
 						}
 						options.source = 'recommendations-all';
 						return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
-							.then(pager => new PagedModel(pager || []));
+							.then(pager => {
+								this.sortFirstPage(pager, names);
+								return new PagedModel(pager || []);
+							});
 					});
 			});
 	}
@@ -314,6 +315,11 @@ export class ExtensionsListView extends CollapsibleView {
 					.filter(name => local.every(ext => `${ext.publisher}.${ext.name}` !== name))
 					.filter(name => name.toLowerCase().indexOf(value) > -1);
 
+				/* __GDPR__
+					"extensionRecommendations:open" : {
+						"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
 				this.telemetryService.publicLog('extensionRecommendations:open', { count: names.length });
 
 				if (!names.length) {
@@ -321,7 +327,10 @@ export class ExtensionsListView extends CollapsibleView {
 				}
 				options.source = 'recommendations';
 				return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
-					.then(pager => new PagedModel(pager || []));
+					.then(pager => {
+						this.sortFirstPage(pager, names);
+						return new PagedModel(pager || []);
+					});
 			});
 	}
 
@@ -330,6 +339,11 @@ export class ExtensionsListView extends CollapsibleView {
 		return this.tipsService.getWorkspaceRecommendations()
 			.then(recommendations => {
 				const names = recommendations.filter(name => name.toLowerCase().indexOf(value) > -1);
+				/* __GDPR__
+					"extensionWorkspaceRecommendations:open" : {
+						"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
 				this.telemetryService.publicLog('extensionWorkspaceRecommendations:open', { count: names.length });
 
 				if (!names.length) {
@@ -345,6 +359,11 @@ export class ExtensionsListView extends CollapsibleView {
 		const value = query.value.replace(/@recommended:keymaps/g, '').trim().toLowerCase();
 		const names = this.tipsService.getKeymapRecommendations()
 			.filter(name => name.toLowerCase().indexOf(value) > -1);
+		/* __GDPR__
+			"extensionKeymapRecommendations:open" : {
+				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		this.telemetryService.publicLog('extensionKeymapRecommendations:open', { count: names.length });
 
 		if (!names.length) {
@@ -353,6 +372,23 @@ export class ExtensionsListView extends CollapsibleView {
 		options.source = 'recommendations-keymaps';
 		return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
 			.then(result => new PagedModel(result));
+	}
+
+	// Sorts the firsPage of the pager in the same order as given array of extension ids
+	private sortFirstPage(pager: IPager<IExtension>, ids: string[]) {
+		if (ids.length !== pager.pageSize) {
+			return;
+		}
+		ids = ids.map(x => x.toLowerCase());
+		let newFirstPage = new Array(pager.pageSize);
+		for (let i = 0; i < pager.pageSize; i++) {
+			let index = ids.indexOf(pager.firstPage[i].id.toLowerCase());
+			if (index === -1) {
+				return; // Something went wrong, Abort! Abort!
+			}
+			newFirstPage[index] = pager.firstPage[i];
+		}
+		pager.firstPage = newFirstPage;
 	}
 
 	private setModel(model: IPagedModel<IExtension>) {

@@ -25,9 +25,8 @@ const STACK_FRAME = `${VIEWLET} .monaco-tree-row .stack-frame`;
 const VARIABLE = `${VIEWLET} .debug-variables .monaco-tree-row .expression`;
 const CONSOLE_OUTPUT = `.repl .output.expression`;
 const CONSOLE_INPUT_OUTPUT = `.repl .input-output-pair .output.expression .value`;
-const SCOPE = `${VIEWLET} .debug-variables .scope`;
 
-const REPL_FOCUSED = '.repl-input-wrapper .monaco-editor.focused';
+const REPL_FOCUSED = '.repl-input-wrapper .monaco-editor textarea';
 
 export interface IStackFrame {
 	id: string;
@@ -57,10 +56,19 @@ export class Debug extends Viewlet {
 		await this.spectron.client.waitForElement(BREAKPOINT_GLYPH);
 	}
 
-	async startDebugging(): Promise<any> {
+	async startDebugging(): Promise<number> {
 		await this.spectron.client.waitAndClick(START);
 		await this.spectron.client.waitForElement(PAUSE);
 		await this.spectron.client.waitForElement(DEBUG_STATUS_BAR);
+		const portPrefix = 'Port: ';
+		await this.spectron.client.waitFor(async () => {
+			const output = await this.getConsoleOutput();
+			return output.join('');
+		}, text => !!text && text.indexOf(portPrefix) >= 0);
+		const output = await this.getConsoleOutput();
+		const lastOutput = output.pop();
+
+		return lastOutput ? parseInt(lastOutput.substr(portPrefix.length)) : 3000;
 	}
 
 	async stepOver(): Promise<any> {
@@ -86,35 +94,35 @@ export class Debug extends Viewlet {
 		await this.spectron.client.waitForElement(NOT_DEBUG_STATUS_BAR);
 	}
 
-	async waitForStackFrame(func: (stackFrame: IStackFrame) => boolean): Promise<IStackFrame> {
+	async waitForStackFrame(func: (stackFrame: IStackFrame) => boolean, message: string): Promise<IStackFrame> {
 		return await this.spectron.client.waitFor(async () => {
 			const stackFrames = await this.getStackFrames();
 			return stackFrames.filter(func)[0];
-		}, void 0, 'Waiting for Stack Frame');
+		}, void 0, `Waiting for Stack Frame: ${message}`);
 	}
 
 	async waitForStackFrameLength(length: number): Promise<any> {
 		return await this.spectron.client.waitFor(() => this.getStackFrames(), stackFrames => stackFrames.length === length);
 	}
 
-	async focusStackFrame(name: string): Promise<any> {
-		const stackFrame = await this.waitForStackFrame(sf => sf.name === name);
+	async focusStackFrame(name: string, message: string): Promise<any> {
+		const stackFrame = await this.waitForStackFrame(sf => sf.name === name, message);
 		await this.spectron.client.spectron.client.elementIdClick(stackFrame.id);
-		await this.spectron.workbench.waitForOpen(name);
+		await this.spectron.workbench.waitForTab(name);
 	}
 
-	async console(text: string): Promise<string> {
+	async waitForReplCommand(text: string, accept: (result: string) => boolean): Promise<void> {
 		await this.spectron.workbench.quickopen.runCommand('Debug: Focus Debug Console');
-		await this.spectron.client.waitForElement(REPL_FOCUSED);
+		await this.spectron.client.waitForActiveElement(REPL_FOCUSED);
 		await this.spectron.client.type(text);
 		await this.spectron.client.waitForElement(CONSOLE_INPUT_OUTPUT);
-
-		const result = await this.getConsoleOutput();
-		return result[result.length - 1] || '';
+		await this.spectron.client.waitFor(async () => {
+			const result = await this.getConsoleOutput();
+			return result[result.length - 1] || '';
+		}, accept);
 	}
 
 	async getLocalVariableCount(): Promise<number> {
-		await this.spectron.client.waitForElement(SCOPE);
 		return await this.spectron.webclient.selectorExecute(VARIABLE, div => (Array.isArray(div) ? div : [div]).length);
 	}
 

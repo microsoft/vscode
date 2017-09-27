@@ -13,8 +13,8 @@
 	"contributes.defaults.highContrast": "high contrast テーマの既定の配色。配色の値は 16 進数(#RRGGBB[AA]) 、または 既定で提供されているテーマ設定可能な配色の識別子の既定値のいずれか。",
 	"invalid.colorConfiguration": "'configuration.colors' は配列である必要があります",
 	"invalid.default.colorType": "{0} は 16 進数(#RRGGBB[AA] または  #RGB[A]) 、または 既定で提供されているテーマ設定可能な配色の識別子の既定値のいずれかでなければなりません。",
-	"invalid.id": "'configuration.colors.id' は定義する必要があり、空にできません",
+	"invalid.id": "'configuration.colors.id' を定義してください。空にはできません。",
 	"invalid.id.format": "'configuration.colors.id' は word[.word]* の形式である必要があります",
-	"invalid.description": "'configuration.colors.description' は定義する必要があり、空にできません \n",
+	"invalid.description": "'configuration.colors.description' を定義してください。空にはできません。",
 	"invalid.defaults": "'configuration.colors.defaults' は定義する必要があります。'light' か 'dark'、'highContrast' を含める必要があります。"
 }

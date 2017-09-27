@@ -486,12 +486,14 @@ class SuggestAdapter {
 		this._provider = provider;
 	}
 
-	provideCompletionItems(resource: URI, position: IPosition): TPromise<IExtHostSuggestResult> {
+	provideCompletionItems(resource: URI, position: IPosition, context: modes.SuggestContext): TPromise<IExtHostSuggestResult> {
 
 		const doc = this._documents.getDocumentData(resource).document;
 		const pos = TypeConverters.toPosition(position);
 
-		return asWinJsPromise<vscode.CompletionItem[] | vscode.CompletionList>(token => this._provider.provideCompletionItems(doc, pos, token)).then(value => {
+		return asWinJsPromise<vscode.CompletionItem[] | vscode.CompletionList>(token => {
+			return this._provider.provideCompletionItems(doc, pos, token, TypeConverters.CompletionContext.from(context));
+		}).then(value => {
 
 			const _id = this._idPool++;
 
@@ -729,8 +731,20 @@ class ColorProviderAdapter {
 		});
 	}
 
-	resolveColor(color: modes.IColor, colorFormat: modes.ColorFormat): TPromise<string> {
-		return asWinJsPromise(token => this._provider.resolveDocumentColor(color, colorFormat));
+	provideColorPresentations(resource: URI, rawColorInfo: IRawColorInfo): TPromise<modes.IColorPresentation[]> {
+		let colorInfo: vscode.ColorInformation = {
+			range: TypeConverters.toRange(rawColorInfo.range),
+			color: {
+				red: rawColorInfo.color[0],
+				green: rawColorInfo.color[1],
+				blue: rawColorInfo.color[2],
+				alpha: rawColorInfo.color[3]
+			}
+		};
+		const doc = this._documents.getDocumentData(resource).document;
+		return asWinJsPromise(token => this._provider.provideColorPresentations(doc, colorInfo, token)).then(value => {
+			return value.map(v => TypeConverters.ColorPresentation.from(v));
+		});
 	}
 }
 
@@ -866,6 +880,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		const handle = this._nextHandle();
 		this._adapter.set(handle, new HoverAdapter(this._documents, provider, once((name: string, data: any) => {
 			data['extension'] = extensionId;
+			// __GDPR__TODO__ Dynamic event names and dynamic properties. Can not be registered statically.
 			this._telemetry.$publicLog(name, data);
 		})));
 		this._proxy.$registerHoverProvider(handle, selector);
@@ -989,8 +1004,8 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideCompletionItems(handle: number, resource: URI, position: IPosition): TPromise<IExtHostSuggestResult> {
-		return this._withAdapter(handle, SuggestAdapter, adapter => adapter.provideCompletionItems(resource, position));
+	$provideCompletionItems(handle: number, resource: URI, position: IPosition, context: modes.SuggestContext): TPromise<IExtHostSuggestResult> {
+		return this._withAdapter(handle, SuggestAdapter, adapter => adapter.provideCompletionItems(resource, position, context));
 	}
 
 	$resolveCompletionItem(handle: number, resource: URI, position: IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion> {
@@ -1042,8 +1057,8 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._withAdapter(handle, ColorProviderAdapter, adapter => adapter.provideColors(resource));
 	}
 
-	$resolveDocumentColor(handle: number, color: modes.IColor, colorFormat: modes.ColorFormat): TPromise<string> {
-		return this._withAdapter(handle, ColorProviderAdapter, adapter => adapter.resolveColor(color, colorFormat));
+	$provideColorPresentations(handle: number, resource: URI, colorInfo: IRawColorInfo): TPromise<modes.IColorPresentation[]> {
+		return this._withAdapter(handle, ColorProviderAdapter, adapter => adapter.provideColorPresentations(resource, colorInfo));
 	}
 
 	// --- configuration

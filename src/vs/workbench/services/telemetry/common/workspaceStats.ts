@@ -11,7 +11,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import { IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 
@@ -144,6 +144,34 @@ export class WorkspaceStats {
 		return arr.some(v => v.search(regEx) > -1) || undefined;
 	}
 
+	/* __GDPR__FRAGMENT__
+		"WorkspaceTags" : {
+			"workbench.filesToOpen" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"workbench.filesToCreate" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"workbench.filesToDiff" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"workspace.roots" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+			"workspace.empty" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+			"workspace.grunt" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+			"workspace.gulp" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+			"workspace.jake" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+			"workspace.tsconfig" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+			"workspace.jsconfig" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+			"workspace.config.xml" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+			"workspace.vsc.extension" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+			"workspace.ASP5" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+			"workspace.sln" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+			"workspace.unity" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+			"workspace.npm" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+			"workspace.bower" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+			"workspace.yeoman.code.ext" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+			"workspace.cordova.high" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+			"workspace.cordova.low" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+			"workspace.xamarin.android" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+			"workspace.xamarin.ios" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+			"workspace.android.cpp" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+			"workspace.reactNative" : { "classification": "CustomerContent", "purpose": "FeatureInsight" }
+		}
+	*/
 	private getWorkspaceTags(configuration: IWindowConfiguration): TPromise<Tags> {
 		const tags: Tags = Object.create(null);
 
@@ -152,11 +180,12 @@ export class WorkspaceStats {
 		tags['workbench.filesToCreate'] = filesToCreate && filesToCreate.length || undefined;
 		tags['workbench.filesToDiff'] = filesToDiff && filesToDiff.length || undefined;
 
+		const isEmpty = this.contextService.getWorkbenchState() === WorkbenchState.EMPTY;
 		const workspace = this.contextService.getWorkspace();
-		tags['workspace.roots'] = workspace ? workspace.roots.length : 0;
-		tags['workspace.empty'] = !workspace;
+		tags['workspace.roots'] = isEmpty ? 0 : workspace.folders.length;
+		tags['workspace.empty'] = isEmpty;
 
-		const folders = workspace ? workspace.roots : this.environmentService.appQuality !== 'stable' && this.findFolders(configuration);
+		const folders = !isEmpty ? workspace.folders.map(folder => folder.uri) : this.environmentService.appQuality !== 'stable' && this.findFolders(configuration);
 		if (folders && folders.length && this.fileService) {
 			return this.fileService.resolveFiles(folders.map(resource => ({ resource }))).then(results => {
 				const names = (<IFileStat[]>[]).concat(...results.map(result => result.success ? (result.stat.children || []) : [])).map(c => c.name);
@@ -244,6 +273,13 @@ export class WorkspaceStats {
 
 	public reportWorkspaceTags(configuration: IWindowConfiguration): void {
 		this.getWorkspaceTags(configuration).then((tags) => {
+			/* __GDPR__
+				"workspce.tags" : {
+					"${include}": [
+						"${WorkspaceTags}"
+					]
+				}
+			*/
 			this.telemetryService.publicLog('workspce.tags', tags);
 		}, error => onUnexpectedError(error));
 	}
@@ -260,6 +296,11 @@ export class WorkspaceStats {
 			const set = domains.reduce((set, list) => list.reduce((set, item) => set.add(item), set), new Set<string>());
 			const list: string[] = [];
 			set.forEach(item => list.push(item));
+			/* __GDPR__
+				"workspace.remotes" : {
+					"domains" : { "classification": "CustomerContent", "purpose": "FeatureInsight" }
+				}
+			*/
 			this.telemetryService.publicLog('workspace.remotes', { domains: list.sort() });
 		}, onUnexpectedError);
 	}
@@ -272,9 +313,21 @@ export class WorkspaceStats {
 				content => getHashedRemotes(content.value),
 				err => [] // ignore missing or binary file
 			);
-		})).then(hashedRemotes => this.telemetryService.publicLog('workspace.hashedRemotes', { remotes: hashedRemotes }), onUnexpectedError);
+		})).then(hashedRemotes => {
+			/* __GDPR__
+				"workspace.hashedRemotes" : {
+					"remotes" : { "classification": "CustomerContent", "purpose": "FeatureInsight" }
+				}
+			*/
+			this.telemetryService.publicLog('workspace.hashedRemotes', { remotes: hashedRemotes });
+		}, onUnexpectedError);
 	}
 
+	/* __GDPR__FRAGMENT__
+		"AzureTags" : {
+			"node" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		}
+	*/
 	private reportAzureNode(workspaceUris: URI[], tags: Tags): TPromise<Tags> {
 		// TODO: should also work for `node_modules` folders several levels down
 		const uris = workspaceUris.map(workspaceUri => {
@@ -295,6 +348,12 @@ export class WorkspaceStats {
 			});
 	}
 
+
+	/* __GDPR__FRAGMENT__
+		"AzureTags" : {
+			"java" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		}
+	*/
 	private reportAzureJava(workspaceUris: URI[], tags: Tags): TPromise<Tags> {
 		return TPromise.join(workspaceUris.map(workspaceUri => {
 			const path = workspaceUri.path;
@@ -317,15 +376,21 @@ export class WorkspaceStats {
 			return this.reportAzureJava(uris, tags);
 		}).then((tags) => {
 			if (Object.keys(tags).length) {
+				/* __GDPR__
+					"workspace.azure" : {
+						"${include}": [
+							"${AzureTags}"
+						]
+					}
+				*/
 				this.telemetryService.publicLog('workspace.azure', tags);
 			}
 		}).then(null, onUnexpectedError);
 	}
 
 	public reportCloudStats(): void {
-		const workspace = this.contextService.getWorkspace();
-		const uris = workspace && workspace.roots;
-		if (uris && uris.length && this.fileService) {
+		const uris = this.contextService.getWorkspace().folders.map(folder => folder.uri);
+		if (uris.length && this.fileService) {
 			this.reportRemoteDomains(uris);
 			this.reportRemotes(uris);
 			this.reportAzure(uris);

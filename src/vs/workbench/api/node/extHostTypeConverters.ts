@@ -115,6 +115,8 @@ export function fromViewColumn(column?: vscode.ViewColumn): EditorPosition {
 		editorColumn = EditorPosition.TWO;
 	} else if (column === <number>types.ViewColumn.Three) {
 		editorColumn = EditorPosition.THREE;
+	} else if (column === <number>types.ViewColumn.Active) {
+		editorColumn = undefined;
 	}
 	return editorColumn;
 }
@@ -156,7 +158,7 @@ export namespace MarkdownString {
 	}
 
 	function isCodeblock(thing: any): thing is Codeblock {
-		return typeof thing === 'object'
+		return thing && typeof thing === 'object'
 			&& typeof (<Codeblock>thing).language === 'string'
 			&& typeof (<Codeblock>thing).value === 'string';
 	}
@@ -305,6 +307,28 @@ export function toDocumentHighlight(occurrence: modes.DocumentHighlight): types.
 	return new types.DocumentHighlight(toRange(occurrence.range), occurrence.kind);
 }
 
+export namespace CompletionTriggerKind {
+	export function from(kind: modes.SuggestTriggerKind) {
+		switch (kind) {
+			case modes.SuggestTriggerKind.TriggerCharacter:
+				return types.CompletionTriggerKind.TriggerCharacter;
+
+			case modes.SuggestTriggerKind.Invoke:
+			default:
+				return types.CompletionTriggerKind.Invoke;
+		}
+	}
+}
+
+export namespace CompletionContext {
+	export function from(context: modes.SuggestContext): types.CompletionContext {
+		return {
+			triggerKind: CompletionTriggerKind.from(context.triggerKind),
+			triggerCharacter: context.triggerCharacter
+		};
+	}
+}
+
 export const CompletionItemKind = {
 
 	from(kind: types.CompletionItemKind): modes.SuggestionType {
@@ -445,6 +469,24 @@ export namespace DocumentLink {
 
 	export function to(link: modes.ILink): vscode.DocumentLink {
 		return new types.DocumentLink(toRange(link.range), link.url && URI.parse(link.url));
+	}
+}
+
+export namespace ColorPresentation {
+	export function to(colorPresentation: modes.IColorPresentation): vscode.ColorPresentation {
+		return {
+			label: colorPresentation.label,
+			textEdit: colorPresentation.textEdit ? TextEdit.to(colorPresentation.textEdit) : undefined,
+			additionalTextEdits: colorPresentation.additionalTextEdits ? colorPresentation.additionalTextEdits.map(value => TextEdit.to(value)) : undefined
+		};
+	}
+
+	export function from(colorPresentation: vscode.ColorPresentation): modes.IColorPresentation {
+		return {
+			label: colorPresentation.label,
+			textEdit: colorPresentation.textEdit ? TextEdit.from(colorPresentation.textEdit) : undefined,
+			additionalTextEdits: colorPresentation.additionalTextEdits ? colorPresentation.additionalTextEdits.map(value => TextEdit.from(value)) : undefined
+		};
 	}
 }
 

@@ -38,6 +38,5 @@
 	"workbench.action.terminal.focusFindWidget": "Widget zum Anzeigen der Suche mit Fokus",
 	"workbench.action.terminal.hideFindWidget": "Widget zum Ausblenden der Suche",
 	"nextTerminalFindTerm": "Nächsten Suchbegriff anzeigen",
-	"previousTerminalFindTerm": "Vorherigen Suchbegriff anzeigen",
-	"quickOpenTerm": "Terminal: Aktives Terminal wechseln"
+	"previousTerminalFindTerm": "Vorherigen Suchbegriff anzeigen"
 }

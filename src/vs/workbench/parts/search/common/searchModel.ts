@@ -11,7 +11,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { TPromise, PPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
-import { values, ResourceMap, TrieMap } from 'vs/base/common/map';
+import { values, ResourceMap, StringTrieMap } from 'vs/base/common/map';
 import Event, { Emitter, fromPromise, stopwatch, any } from 'vs/base/common/event';
 import { ISearchService, ISearchProgressItem, ISearchComplete, ISearchQuery, IPatternInfo, IFileMatch } from 'vs/platform/search/common/search';
 import { ReplacePattern } from 'vs/platform/search/common/replace';
@@ -496,7 +496,7 @@ export class SearchResult extends Disposable {
 	public onChange: Event<IChangeEvent> = this._onChange.event;
 
 	private _folderMatches: FolderMatch[] = [];
-	private _folderMatchesMap: TrieMap<FolderMatch> = new TrieMap<FolderMatch>();
+	private _folderMatchesMap: StringTrieMap<FolderMatch> = new StringTrieMap<FolderMatch>();
 	private _query: ISearchQuery = null;
 	private _showHighlights: boolean;
 
@@ -568,6 +568,11 @@ export class SearchResult extends Disposable {
 
 		const promise = this.replaceService.replace(this.matches(), progressRunner);
 		const onDone = stopwatch(fromPromise(promise));
+		/* __GDPR__
+			"replaceAll.started" : {
+				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+			}
+		*/
 		onDone(duration => this.telemetryService.publicLog('replaceAll.started', { duration }));
 
 		return promise.then(() => {
@@ -654,7 +659,7 @@ export class SearchResult extends Disposable {
 	private disposeMatches(): void {
 		this._folderMatches.forEach(folderMatch => folderMatch.dispose());
 		this._folderMatches = [];
-		this._folderMatchesMap = new TrieMap<FolderMatch>();
+		this._folderMatchesMap = new StringTrieMap<FolderMatch>();
 		this._rangeHighlightDecorations.removeHighlightRange();
 	}
 
@@ -725,11 +730,21 @@ export class SearchModel extends Disposable {
 		const progressEmitter = new Emitter<void>();
 		const onFirstRender = any(onDone, progressEmitter.event);
 		const onFirstRenderStopwatch = stopwatch(onFirstRender);
+		/* __GDPR__
+			"searchResultsFirstRender" : {
+				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+			}
+		*/
 		onFirstRenderStopwatch(duration => this.telemetryService.publicLog('searchResultsFirstRender', { duration }));
 
 		const onDoneStopwatch = stopwatch(onDone);
 		const start = Date.now();
 
+		/* __GDPR__
+			"searchResultsFinished" : {
+				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+			}
+		*/
 		onDoneStopwatch(duration => this.telemetryService.publicLog('searchResultsFinished', { duration }));
 
 		const currentRequest = this.currentRequest;
@@ -754,6 +769,15 @@ export class SearchModel extends Disposable {
 		}
 		const options: IPatternInfo = objects.assign({}, this._searchQuery.contentPattern);
 		delete options.pattern;
+		/* __GDPR__
+			"searchResultsShown" : {
+				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"fileCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"options": { "${inline}": [ "${IPatternInfo}" ] },
+				"duration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"useRipgrep": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		this.telemetryService.publicLog('searchResultsShown', {
 			count: this._searchResult.count(),
 			fileCount: this._searchResult.fileCount(),

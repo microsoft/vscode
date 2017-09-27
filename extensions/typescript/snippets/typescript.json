@@ -56,7 +56,7 @@
 		"body": [
 			"",
 			"public get ${1:value}() : ${2:string} {",
-			"	${3:return $0}",
+			"\t${3:return $0}",
 			"}",
 			""
 		],
@@ -76,10 +76,10 @@
 			"",
 			"private _${1:value} : ${2:string};",
 			"public get ${1:value}() : ${2:string} {",
-			"	return this._${1:value};",
+			"\treturn this._${1:value};",
 			"}",
 			"public set ${1:value}(v : ${2:string}) {",
-			"	this._${1:value} = v;",
+			"\tthis._${1:value} = v;",
 			"}",
 			""
 		],
@@ -119,7 +119,7 @@
 		"body": [
 			"",
 			"public set ${1:value}(v : ${2:string}) {",
-			"	this.$3 = v;",
+			"\tthis.$3 = v;",
 			"}",
 			""
 		],
@@ -251,5 +251,19 @@
 			"}, ${1:timeout});"
 		],
 		"description": "Set Timeout Function"
+	},
+	"Region Start": {
+		"prefix": "#region",
+		"body": [
+			"//#region $0"
+		],
+		"description": "Folding Region Start"
+	},
+	"Region End": {
+		"prefix": "#endregion",
+		"body": [
+			"//#endregion"
+		],
+		"description": "Folding Region End"
 	}
 }

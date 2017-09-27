@@ -29,7 +29,6 @@
 	"view id": "識別碼",
 	"view name": "名稱",
 	"view location": "位置",
-	"themes": "佈景主題 ({0})",
 	"JSON Validation": "JSON 驗證 ({0})",
 	"commands": "命令 ({0})",
 	"command name": "名稱",

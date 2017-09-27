@@ -7,19 +7,26 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { wireCancellationToken } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { QuickPickOptions, QuickPickItem, InputBoxOptions } from 'vscode';
+import { QuickPickOptions, QuickPickItem, InputBoxOptions, WorkspaceFolderPickOptions, WorkspaceFolder } from 'vscode';
 import { MainContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, MyQuickPickItems, IMainContext } from './extHost.protocol';
+import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
+import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 
 export type Item = string | QuickPickItem;
 
 export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 
 	private _proxy: MainThreadQuickOpenShape;
+	private _workspace: ExtHostWorkspace;
+	private _commands: ExtHostCommands;
+
 	private _onDidSelectItem: (handle: number) => void;
 	private _validateInput: (input: string) => string;
 
-	constructor(mainContext: IMainContext) {
+	constructor(mainContext: IMainContext, workspace: ExtHostWorkspace, commands: ExtHostCommands) {
 		this._proxy = mainContext.get(MainContext.MainThreadQuickOpen);
+		this._workspace = workspace;
+		this._commands = commands;
 	}
 
 	showQuickPick(itemsOrItemsPromise: string[] | Thenable<string[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<string | undefined>;
@@ -116,5 +123,17 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 			return TPromise.as(this._validateInput(input));
 		}
 		return undefined;
+	}
+
+	// ---- workspace folder picker
+
+	showWorkspaceFolderPick(options?: WorkspaceFolderPickOptions, token = CancellationToken.None): Thenable<WorkspaceFolder> {
+		return this._commands.executeCommand('_workbench.pickWorkspaceFolder', [options]).then((folder: WorkspaceFolder) => {
+			if (!folder) {
+				return undefined;
+			}
+
+			return this._workspace.getWorkspaceFolders().filter(folder => folder.uri.toString() === folder.uri.toString())[0];
+		});
 	}
 }

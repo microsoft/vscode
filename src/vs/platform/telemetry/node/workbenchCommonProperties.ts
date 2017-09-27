@@ -14,10 +14,13 @@ import { resolveCommonProperties, machineIdStorageKey } from '../node/commonProp
 
 const SQM_KEY: string = '\\Software\\Microsoft\\SQMClient';
 
-export function resolveWorkbenchCommonProperties(storageService: IStorageService, commit: string, version: string): TPromise<{ [name: string]: string }> {
-	return resolveCommonProperties(commit, version).then(result => {
+export function resolveWorkbenchCommonProperties(storageService: IStorageService, commit: string, version: string, source: string): TPromise<{ [name: string]: string }> {
+	return resolveCommonProperties(commit, version, source).then(result => {
+		// __GDPR__COMMON__ "common.version.shell" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		result['common.version.shell'] = process.versions && (<any>process).versions['electron'];
+		// __GDPR__COMMON__ "common.version.renderer" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		result['common.version.renderer'] = process.versions && (<any>process).versions['chrome'];
+		// __GDPR__COMMON__ "common.osVersion" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		result['common.osVersion'] = os.release();
 
 		const lastSessionDate = storageService.get('telemetry.lastSessionDate');
@@ -25,16 +28,23 @@ export function resolveWorkbenchCommonProperties(storageService: IStorageService
 		storageService.store('telemetry.firstSessionDate', firstSessionDate);
 		storageService.store('telemetry.lastSessionDate', new Date().toUTCString());
 
+		// __GDPR__COMMON__ "common.firstSessionDate" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		result['common.firstSessionDate'] = firstSessionDate;
+		// __GDPR__COMMON__ "common.lastSessionDate" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		result['common.lastSessionDate'] = lastSessionDate;
+		// __GDPR__COMMON__ "common.isNewSession" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		result['common.isNewSession'] = !lastSessionDate ? '1' : '0';
 
 		const promises: TPromise<any>[] = [];
+		// __GDPR__COMMON__ "common.instanceId" : { "classification": "EndUserPseudonymizedInformation", "purpose": "FeatureInsight" }
 		promises.push(getOrCreateInstanceId(storageService).then(value => result['common.instanceId'] = value));
+		// __GDPR__COMMON__ "common.machineId" : { "classification": "EndUserPseudonymizedInformation", "purpose": "FeatureInsight" }
 		promises.push(getOrCreateMachineId(storageService).then(value => result['common.machineId'] = value));
 
 		if (process.platform === 'win32') {
+			// __GDPR__COMMON__ "common.sqm.userid" : { "endPoint": "SqmUserId", "classification": "EndUserPseudonymizedInformation", "purpose": "FeatureInsight" }
 			promises.push(getSqmUserId(storageService).then(value => result['common.sqm.userid'] = value));
+			// __GDPR__COMMON__ "common.sqm.machineid" : { "endPoint": "SqmMachineId", "classification": "EndUserPseudonymizedInformation", "purpose": "FeatureInsight" }
 			promises.push(getSqmMachineId(storageService).then(value => result['common.sqm.machineid'] = value));
 		}
 

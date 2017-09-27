@@ -17,7 +17,7 @@ import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IRevertOptions, IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ModelState, ISaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { ConfirmResult } from 'vs/workbench/common/editor';
 import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IFileService, IResolveContentOptions, IFilesConfiguration, FileOperationError, FileOperationResult, AutoSaveConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -87,6 +87,13 @@ export abstract class TextFileService implements ITextFileService {
 
 		this.onConfigurationChange(configuration);
 
+		/* __GDPR__
+			"autoSave" : {
+				"${include}": [
+					"${IAutoSaveConfiguration}"
+				]
+			}
+		*/
 		this.telemetryService.publicLog('autoSave', this.getAutoSaveConfiguration());
 
 		this.registerListeners();
@@ -180,7 +187,7 @@ export abstract class TextFileService implements ITextFileService {
 			let doBackup: boolean;
 			switch (reason) {
 				case ShutdownReason.CLOSE:
-					if (this.contextService.hasWorkspace() && this.configuredHotExit === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
+					if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.configuredHotExit === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
 						doBackup = true; // backup if a folder is open and onExitAndWindowClose is configured
 					} else if (windowCount > 1 || platform.isMacintosh) {
 						doBackup = false; // do not backup if a window is closed that does not cause quitting of the application
@@ -198,7 +205,7 @@ export abstract class TextFileService implements ITextFileService {
 					break;
 
 				case ShutdownReason.LOAD:
-					if (this.contextService.hasWorkspace() && this.configuredHotExit === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
+					if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.configuredHotExit === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
 						doBackup = true; // backup if a folder is open and onExitAndWindowClose is configured
 					} else {
 						doBackup = false; // do not backup because we are switching contexts
@@ -211,6 +218,13 @@ export abstract class TextFileService implements ITextFileService {
 			}
 
 			// Telemetry
+			/* __GDPR__
+				"hotExit:triggered" : {
+					"reason" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"windowCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"fileCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
 			this.telemetryService.publicLog('hotExit:triggered', { reason, windowCount, fileCount: dirtyToBackup.length });
 
 			// Backup
@@ -407,10 +421,14 @@ export abstract class TextFileService implements ITextFileService {
 		const filesToSave: URI[] = [];
 		const untitledToSave: URI[] = [];
 		toSave.forEach(s => {
-			if (s.scheme === Schemas.file) {
-				filesToSave.push(s);
-			} else if ((Array.isArray(arg1) || arg1 === true /* includeUntitled */) && s.scheme === UNTITLED_SCHEMA) {
+			// TODO@remote
+			// if (s.scheme === Schemas.file) {
+			// 	filesToSave.push(s);
+			// } else
+			if ((Array.isArray(arg1) || arg1 === true /* includeUntitled */) && s.scheme === UNTITLED_SCHEMA) {
 				untitledToSave.push(s);
+			} else {
+				filesToSave.push(s);
 			}
 		});
 
