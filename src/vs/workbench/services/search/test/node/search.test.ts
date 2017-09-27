@@ -47,6 +47,43 @@ suite('FileSearchEngine', () => {
 		});
 	});
 
+	test('Files: maxResults', function (done: () => void) {
+		let engine = new FileSearchEngine({
+			folderQueries: ROOT_FOLDER_QUERY,
+			maxResults: 1
+		});
+
+		let count = 0;
+		engine.search((result) => {
+			if (result) {
+				count++;
+			}
+		}, () => { }, (error) => {
+			assert.ok(!error);
+			assert.equal(count, 1);
+			done();
+		});
+	});
+
+	test('Files: maxResults without Ripgrep', function (done: () => void) {
+		let engine = new FileSearchEngine({
+			folderQueries: ROOT_FOLDER_QUERY,
+			maxResults: 1,
+			useRipgrep: false
+		});
+
+		let count = 0;
+		engine.search((result) => {
+			if (result) {
+				count++;
+			}
+		}, () => { }, (error) => {
+			assert.ok(!error);
+			assert.equal(count, 1);
+			done();
+		});
+	});
+
 	test('Files: examples/com*', function (done: () => void) {
 		let engine = new FileSearchEngine({
 			folderQueries: ROOT_FOLDER_QUERY,
