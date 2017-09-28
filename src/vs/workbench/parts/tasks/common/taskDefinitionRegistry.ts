@@ -47,7 +47,7 @@ namespace Configuration {
 		properties?: IJSONSchemaMap;
 	}
 
-	export function from(value: TaskDefinition, messageCollector: ExtensionMessageCollector): Tasks.TaskDefinition {
+	export function from(value: TaskDefinition, extensionId: string, messageCollector: ExtensionMessageCollector): Tasks.TaskDefinition {
 		if (!value) {
 			return undefined;
 		}
@@ -64,7 +64,7 @@ namespace Configuration {
 				}
 			}
 		}
-		return { taskType, required: required.length >= 0 ? required : undefined, properties: value.properties ? Objects.deepClone(value.properties) : undefined };
+		return { extensionId, taskType, required: required.length >= 0 ? required : undefined, properties: value.properties ? Objects.deepClone(value.properties) : undefined };
 	}
 }
 
@@ -93,15 +93,15 @@ class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
 		this.readyPromise = new TPromise<void>((resolve, reject) => {
 			taskDefinitionsExtPoint.setHandler((extensions) => {
 				try {
-					extensions.forEach(extension => {
+					for (let extension of extensions) {
 						let taskTypes = extension.value;
 						for (let taskType of taskTypes) {
-							let type = Configuration.from(taskType, extension.collector);
+							let type = Configuration.from(taskType, extension.description.id, extension.collector);
 							if (type) {
 								this.taskTypes[type.taskType] = type;
 							}
 						}
-					});
+					};
 				} catch (error) {
 				}
 				resolve(undefined);

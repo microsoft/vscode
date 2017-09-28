@@ -1201,7 +1201,7 @@ namespace ConfiguringTask {
 		let result: Tasks.ConfiguringTask = {
 			type: type,
 			configures: taskIdentifier,
-			_id: taskIdentifier._key,
+			_id: `${typeDeclaration.extensionId}.${taskIdentifier._key}`,
 			_source: Objects.assign({}, source, { config: configElement }),
 			_label: undefined
 		};

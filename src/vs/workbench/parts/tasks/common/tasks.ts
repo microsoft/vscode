@@ -522,6 +522,7 @@ export interface TaskSet {
 }
 
 export interface TaskDefinition {
+	extensionId: string;
 	taskType: string;
 	required: string[];
 	properties: IJSONSchemaMap;
