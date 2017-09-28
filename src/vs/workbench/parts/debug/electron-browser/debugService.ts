@@ -246,7 +246,7 @@ export class DebugService implements debug.IDebugService {
 
 	private tryToAutoFocusStackFrame(thread: debug.IThread): TPromise<any> {
 		const callStack = thread.getCallStack();
-		if (!callStack.length || (this.viewModel.focusedStackFrame && this.viewModel.focusedStackFrame.thread.threadId === thread.threadId)) {
+		if (!callStack.length || (this.viewModel.focusedStackFrame && this.viewModel.focusedStackFrame.thread.getId() === thread.getId())) {
 			return TPromise.as(null);
 		}
 
