@@ -311,7 +311,7 @@ function parsePattern(arg1: string | IRelativePattern, options: IGlobOptions): P
 	const patternKey = `${pattern}_${!!options.trimForExclusions}`;
 	let parsedPattern = CACHE.get(patternKey);
 	if (parsedPattern) {
-		return wrapRelativePattern(parsedPattern, pattern);
+		return wrapRelativePattern(parsedPattern, arg1);
 	}
 
 	// Check for Trivias
@@ -339,7 +339,7 @@ function parsePattern(arg1: string | IRelativePattern, options: IGlobOptions): P
 	// Cache
 	CACHE.set(patternKey, parsedPattern);
 
-	return wrapRelativePattern(parsedPattern, pattern);
+	return wrapRelativePattern(parsedPattern, arg1);
 }
 
 function wrapRelativePattern(parsedPattern: ParsedStringPattern, arg2: string | IRelativePattern): ParsedStringPattern {
