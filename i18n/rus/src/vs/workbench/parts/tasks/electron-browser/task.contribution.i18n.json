@@ -40,6 +40,8 @@
 	"recentlyUsed": "недавно использованные задачи",
 	"configured": "настроенные задачи",
 	"detected": "обнаруженные задачи",
+	"TaskService.notAgain": "Больше не показывать",
+	"TaskService.ok": "ОК",
 	"TaskService.fetchingBuildTasks": "Получение задач сборки...",
 	"TaskService.pickBuildTask": "Выберите задачу сборки для запуска",
 	"TaskService.fetchingTestTasks": "Получение задач тестирования...",

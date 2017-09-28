@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/panelviewlet';
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -10,7 +11,7 @@ import { ColorIdentifier, contrastBorder } from 'vs/platform/theme/common/colorR
 import { attachStyler, IColorMapping, IThemable } from 'vs/platform/theme/common/styler';
 import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND } from 'vs/workbench/common/theme';
 import { Dimension, Builder } from 'vs/base/browser/builder';
-import { append, $ } from 'vs/base/browser/dom';
+import { append, $, trackFocus } from 'vs/base/browser/dom';
 import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { firstIndex } from 'vs/base/common/arrays';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
@@ -62,6 +63,14 @@ export abstract class ViewletPanel extends Panel {
 		super(options);
 
 		this.actionRunner = options.actionRunner;
+	}
+
+	render(container: HTMLElement): void {
+		super.render(container);
+
+		const focusTracker = trackFocus(container);
+		this.disposables.push(focusTracker);
+		this.disposables.push(focusTracker.addFocusListener(() => this._onDidFocus.fire()));
 	}
 
 	protected renderHeader(container: HTMLElement): void {

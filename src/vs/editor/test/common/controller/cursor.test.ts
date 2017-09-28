@@ -3699,4 +3699,31 @@ suite('autoClosingPairs', () => {
 		model.dispose();
 		mode.dispose();
 	});
+
+	test('issue #7100: Mouse word selection is strange when non-word character is at the end of line', () => {
+		let model = Model.createFromString(
+			[
+				'before.a',
+				'before',
+				'hello:',
+				'there:',
+				'this is strange:',
+				'here',
+				'it',
+				'is',
+			].join('\n')
+		);
+
+		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+			CoreNavigationCommands.WordSelect.runEditorCommand(null, editor, {
+				position: new Position(3, 7)
+			});
+			assertCursor(cursor, new Selection(3, 7, 3, 7));
+
+			CoreNavigationCommands.WordSelectDrag.runEditorCommand(null, editor, {
+				position: new Position(4, 7)
+			});
+			assertCursor(cursor, new Selection(3, 7, 4, 7));
+		});
+	});
 });

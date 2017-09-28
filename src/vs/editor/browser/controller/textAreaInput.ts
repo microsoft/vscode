@@ -111,7 +111,7 @@ export class TextAreaInput extends Disposable {
 		this._nextCommand = ReadFromTextArea.Type;
 
 		this._register(dom.addStandardDisposableListener(textArea.domNode, 'keydown', (e: IKeyboardEvent) => {
-			if (this._isDoingComposition && e.equals(KeyCode.KEY_IN_COMPOSITION)) {
+			if (this._isDoingComposition && e.keyCode === KeyCode.KEY_IN_COMPOSITION) {
 				// Stop propagation for keyDown events if the IME is processing key input
 				e.stopPropagation();
 			}

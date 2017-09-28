@@ -11,7 +11,7 @@
 	"lineHeight": "控制行高。使用 0 通过字号计算行高。",
 	"letterSpacing": "以像素为单位控制字符间距。",
 	"lineNumbers": "控制行号的显示。可能的值为“开”、“关”和“相对”。“相对”将显示从当前光标位置开始计数的行数。",
-	"rulers": "显示垂直标尺的列",
+	"rulers": "在一定数量的等宽字符后显示垂直标尺。输入多个值，显示多个标尺。若数组为空，则不绘制标尺。",
 	"wordSeparators": "执行文字相关的导航或操作时将用作文字分隔符的字符",
 	"tabSize": "一个制表符等于的空格数。该设置在 `editor.detectIndentation` 启用时根据文件内容进行重写。",
 	"tabSize.errorMessage": "应为“number”。注意，值“auto”已由“editor.detectIndentation”设置替换。",

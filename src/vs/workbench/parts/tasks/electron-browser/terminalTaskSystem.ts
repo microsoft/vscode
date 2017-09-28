@@ -137,7 +137,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 	}
 
 	public run(task: Task, resolver: ITaskResolver, trigger: string = Triggers.command): ITaskExecuteResult {
-		let terminalData = this.activeTasks[task._id];
+		let terminalData = this.activeTasks[Task.getMapKey(task)];
 		if (terminalData && terminalData.promise) {
 			let reveal = RevealKind.Always;
 			let focus = false;
@@ -169,7 +169,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 
 
 	public revealTask(task: Task): boolean {
-		let terminalData = this.activeTasks[task._id];
+		let terminalData = this.activeTasks[Task.getMapKey(task)];
 		if (!terminalData) {
 			return false;
 		}
@@ -196,8 +196,8 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		return Object.keys(this.activeTasks).map(key => this.activeTasks[key].task);
 	}
 
-	public terminate(id: string): TPromise<TaskTerminateResponse> {
-		let activeTerminal = this.activeTasks[id];
+	public terminate(task: Task): TPromise<TaskTerminateResponse> {
+		let activeTerminal = this.activeTasks[Task.getMapKey(task)];
 		if (!activeTerminal) {
 			return TPromise.as<TaskTerminateResponse>({ success: false, task: undefined });
 		};
@@ -248,10 +248,11 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			task.dependsOn.forEach((dependency) => {
 				let task = resolver.resolve(dependency.workspaceFolder, dependency.task);
 				if (task) {
-					let promise = startedTasks[task._id];
+					let key = Task.getMapKey(task);
+					let promise = startedTasks[key];
 					if (!promise) {
 						promise = this.executeTask(startedTasks, task, resolver, trigger);
-						startedTasks[task._id] = promise;
+						startedTasks[key] = promise;
 					}
 					promises.push(promise);
 				} else {
@@ -321,14 +322,15 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 				const onExit = terminal.onExit((exitCode) => {
 					onData.dispose();
 					onExit.dispose();
-					delete this.activeTasks[task._id];
+					let key = Task.getMapKey(task);
+					delete this.activeTasks[key];
 					this.emit(TaskSystemEvents.Changed);
 					switch (task.command.presentation.panel) {
 						case PanelKind.Dedicated:
-							this.sameTaskTerminals[task._id] = terminal.id.toString();
+							this.sameTaskTerminals[key] = terminal.id.toString();
 							break;
 						case PanelKind.Shared:
-							this.idleTaskTerminals.set(task._id, terminal.id.toString(), Touch.First);
+							this.idleTaskTerminals.set(key, terminal.id.toString(), Touch.First);
 							break;
 					}
 					let remaining = decoder.end();
@@ -368,14 +370,15 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 				const onExit = terminal.onExit((exitCode) => {
 					onData.dispose();
 					onExit.dispose();
-					delete this.activeTasks[task._id];
+					let key = Task.getMapKey(task);
+					delete this.activeTasks[key];
 					this.emit(TaskSystemEvents.Changed);
 					switch (task.command.presentation.panel) {
 						case PanelKind.Dedicated:
-							this.sameTaskTerminals[task._id] = terminal.id.toString();
+							this.sameTaskTerminals[key] = terminal.id.toString();
 							break;
 						case PanelKind.Shared:
-							this.idleTaskTerminals.set(task._id, terminal.id.toString(), Touch.First);
+							this.idleTaskTerminals.set(key, terminal.id.toString(), Touch.First);
 							break;
 					}
 					let remaining = decoder.end();
@@ -398,7 +401,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		if (task.command.presentation.reveal === RevealKind.Always || (task.command.presentation.reveal === RevealKind.Silent && task.problemMatchers.length === 0)) {
 			this.terminalService.showPanel(task.command.presentation.focus);
 		}
-		this.activeTasks[task._id] = { terminal, task, promise };
+		this.activeTasks[Task.getMapKey(task)] = { terminal, task, promise };
 		this.emit(TaskSystemEvents.Changed);
 		return promise.then((summary) => {
 			try {
@@ -558,15 +561,16 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		let prefersSameTerminal = task.command.presentation.panel === PanelKind.Dedicated;
 		let allowsSharedTerminal = task.command.presentation.panel === PanelKind.Shared;
 
+		let taskKey = Task.getMapKey(task);
 		let terminalToReuse: TerminalData;
 		if (prefersSameTerminal) {
-			let terminalId = this.sameTaskTerminals[task._id];
+			let terminalId = this.sameTaskTerminals[taskKey];
 			if (terminalId) {
 				terminalToReuse = this.terminals[terminalId];
-				delete this.sameTaskTerminals[task._id];
+				delete this.sameTaskTerminals[taskKey];
 			}
 		} else if (allowsSharedTerminal) {
-			let terminalId = this.idleTaskTerminals.remove(task._id) || this.idleTaskTerminals.shift();
+			let terminalId = this.idleTaskTerminals.remove(taskKey) || this.idleTaskTerminals.shift();
 			if (terminalId) {
 				terminalToReuse = this.terminals[terminalId];
 			}
@@ -577,16 +581,16 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		}
 
 		const result = this.terminalService.createInstance(shellLaunchConfig);
-		const key = result.id.toString();
+		const terminalKey = result.id.toString();
 		result.onDisposed((terminal) => {
-			let terminalData = this.terminals[key];
+			let terminalData = this.terminals[terminalKey];
 			if (terminalData) {
-				delete this.terminals[key];
+				delete this.terminals[terminalKey];
 				delete this.sameTaskTerminals[terminalData.lastTask];
 				this.idleTaskTerminals.delete(terminalData.lastTask);
 			}
 		});
-		this.terminals[key] = { terminal: result, lastTask: task._id };
+		this.terminals[terminalKey] = { terminal: result, lastTask: taskKey };
 		return [result, command];
 	}
 

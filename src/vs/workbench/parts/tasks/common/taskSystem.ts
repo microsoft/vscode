@@ -127,7 +127,7 @@ export interface ITaskSystem extends IEventEmitter {
 	isActiveSync(): boolean;
 	getActiveTasks(): Task[];
 	canAutoTerminate(): boolean;
-	terminate(id: string): TPromise<TaskTerminateResponse>;
+	terminate(task: Task): TPromise<TaskTerminateResponse>;
 	terminateAll(): TPromise<TaskTerminateResponse[]>;
 	revealTask(task: Task): boolean;
 }

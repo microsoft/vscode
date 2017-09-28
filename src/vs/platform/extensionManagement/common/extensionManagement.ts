@@ -228,23 +228,17 @@ export interface InstallExtensionEvent {
 	gallery?: IGalleryExtension;
 }
 
-export enum ErrorCode {
-	OBSOLETE = 1,
-	GALLERY,
-	LOCAL
-}
-
 export interface DidInstallExtensionEvent {
 	id: string;
 	zipPath?: string;
 	gallery?: IGalleryExtension;
 	local?: ILocalExtension;
-	error?: ErrorCode;
+	error?: string;
 }
 
 export interface DidUninstallExtensionEvent {
 	id: string;
-	error?: ErrorCode;
+	error?: string;
 }
 
 export interface IExtensionManagementService {

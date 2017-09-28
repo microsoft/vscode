@@ -40,6 +40,8 @@
 	"recentlyUsed": "zuletzt verwendete Aufgaben",
 	"configured": "konfigurierte Aufgaben",
 	"detected": "erkannte Aufgaben",
+	"TaskService.notAgain": "Nicht mehr anzeigen",
+	"TaskService.ok": "OK",
 	"TaskService.fetchingBuildTasks": "Buildaufgaben werden abgerufen...",
 	"TaskService.pickBuildTask": "Auszuführende Buildaufgabe auswählen",
 	"TaskService.fetchingTestTasks": "Testaufgaben werden abgerufen...",

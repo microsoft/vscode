@@ -92,11 +92,13 @@ class MergeItem implements QuickPickItem {
 
 class CreateBranchItem implements QuickPickItem {
 
+	constructor(private cc: CommandCenter) { }
+
 	get label(): string { return localize('create branch', '$(plus) Create new branch'); }
 	get description(): string { return ''; }
 
 	async run(repository: Repository): Promise<void> {
-		await commands.executeCommand('git.branch');
+		await this.cc.branch(repository);
 	}
 }
 
@@ -354,6 +356,11 @@ export class CommandCenter {
 
 		await this.git.init(path);
 		await this.model.tryOpenRepository(path);
+	}
+
+	@command('git.close', { repository: true })
+	async close(repository: Repository): Promise<void> {
+		this.model.close(repository);
 	}
 
 	@command('git.openFile')
@@ -935,7 +942,7 @@ export class CommandCenter {
 		const includeTags = checkoutType === 'all' || checkoutType === 'tags';
 		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote';
 
-		const createBranch = new CreateBranchItem();
+		const createBranch = new CreateBranchItem(this);
 
 		const heads = repository.refs.filter(ref => ref.type === RefType.Head)
 			.map(ref => new CheckoutItem(ref));
@@ -1239,27 +1246,27 @@ export class CommandCenter {
 		this.outputChannel.show();
 	}
 
-	@command('git.ignore', { repository: true })
-	async ignore(repository: Repository, ...resourceStates: SourceControlResourceState[]): Promise<void> {
+	@command('git.ignore')
+	async ignore(...resourceStates: SourceControlResourceState[]): Promise<void> {
 		if (resourceStates.length === 0 || !(resourceStates[0].resourceUri instanceof Uri)) {
-			const uri = window.activeTextEditor && window.activeTextEditor.document.uri;
+			const resource = this.getSCMResource();
 
-			if (!uri) {
+			if (!resource) {
 				return;
 			}
 
-			return await repository.ignore([uri]);
+			resourceStates = [resource];
 		}
 
-		const uris = resourceStates
+		const resources = resourceStates
 			.filter(s => s instanceof Resource)
 			.map(r => r.resourceUri);
 
-		if (!uris.length) {
+		if (!resources.length) {
 			return;
 		}
 
-		await repository.ignore(uris);
+		await this.runByRepository(resources, async (repository, resources) => repository.ignore(resources));
 	}
 
 	@command('git.stash', { repository: true })

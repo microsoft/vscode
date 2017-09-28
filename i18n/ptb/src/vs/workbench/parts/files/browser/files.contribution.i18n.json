@@ -10,7 +10,6 @@
 	"textFileEditor": "Editor de Arquivo de Texto",
 	"binaryFileEditor": "Editor de Arquivo Binário",
 	"filesConfigurationTitle": "Arquivos",
-	"exclude": "Configure os padrões glob para excluir arquivos e pastas.",
 	"files.exclude.boolean": "O padrão glob com o qual combinar os caminhos de arquivo. Defina para verdadeiro ou falso para habilitar ou desabilitar o padrão.",
 	"files.exclude.when": "Verificação adicional nos irmãos de um arquivo correspondente. Use $(basename) como variável para o nome do arquivo correspondente.",
 	"associations": "Configurar as associações de arquivo para linguagens (por exemplo, \"* Extension\": \"html\"). Estas têm precedência sobre as associações padrão das linguagens instaladas.",

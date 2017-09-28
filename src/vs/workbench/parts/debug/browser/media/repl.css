@@ -36,16 +36,16 @@
 	font-size: 12px;
 }
 
-.monaco-workbench.mac .repl .repl-tree .monaco-tree-row .output.expression.value-and-source {
+.monaco-workbench .repl .repl-tree .monaco-tree-row .output.expression.value-and-source {
 	display: flex;
 }
 
 
-.monaco-workbench.mac .repl .repl-tree .monaco-tree-row .output.expression.value-and-source .value {
+.monaco-workbench .repl .repl-tree .monaco-tree-row .output.expression.value-and-source .value {
 	flex: 1;
 }
 
-.monaco-workbench.mac .repl .repl-tree .monaco-tree-row .output.expression.value-and-source .source {
+.monaco-workbench .repl .repl-tree .monaco-tree-row .output.expression.value-and-source .source {
 	margin-left: 4px;
 	margin-right: 8px;
 	cursor: pointer;

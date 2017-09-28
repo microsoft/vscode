@@ -200,13 +200,8 @@ export class LineCommentCommand implements editorCommon.ICommand {
 			ops = LineCommentCommand._createAddLineCommentsOperations(data.lines, s.startLineNumber);
 		}
 
-		var cursorPosition = new Position(s.positionLineNumber, s.positionColumn);
-
 		for (var i = 0, len = ops.length; i < len; i++) {
 			builder.addEditOperation(ops[i].range, ops[i].text);
-			if (ops[i].range.isEmpty() && ops[i].range.getStartPosition().equals(cursorPosition)) {
-				this._deltaColumn = ops[i].text.length;
-			}
 		}
 
 		this._selectionId = builder.trackSelection(s);

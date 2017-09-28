@@ -10,7 +10,6 @@
 	"textFileEditor": "文字檔編輯器",
 	"binaryFileEditor": "二進位檔案編輯器",
 	"filesConfigurationTitle": "檔案",
-	"exclude": "設定 Glob 模式可包含檔案及資料夾。",
 	"files.exclude.boolean": "要符合檔案路徑的 Glob 模式。設為 True 或 False 可啟用或停用模式。",
 	"files.exclude.when": "在相符檔案同層級上額外的檢查。請使用 $(basename) 作為相符檔案名稱的變數。",
 	"associations": "將檔案關聯設定為語言 (例如 \"*.extension\": \"html\")。這些語言優先於已安裝語言的預設關聯。",

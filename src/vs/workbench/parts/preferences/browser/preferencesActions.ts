@@ -102,6 +102,7 @@ export class OpenWorkspaceSettingsAction extends Action {
 	}
 }
 
+export const OPEN_FOLDER_SETTINGS_COMMAND = '_workbench.action.openFolderSettings';
 export class OpenFolderSettingsAction extends Action {
 
 	public static ID = 'workbench.action.openFolderSettings';
@@ -131,7 +132,7 @@ export class OpenFolderSettingsAction extends Action {
 		return this.commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND)
 			.then(workspaceFolder => {
 				if (workspaceFolder) {
-					return this.preferencesService.openFolderSettings(workspaceFolder.uri);
+					return this.commandService.executeCommand(OPEN_FOLDER_SETTINGS_COMMAND, workspaceFolder);
 				}
 				return null;
 			});

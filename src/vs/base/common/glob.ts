@@ -271,26 +271,6 @@ const NULL = function (): string {
 	return null;
 };
 
-function toAbsolutePattern(relativePattern: IRelativePattern | string): string {
-
-	// Without a base URI, best we can do is add '**' to the pattern
-	if (typeof relativePattern === 'string') {
-		if (relativePattern.indexOf(GLOBSTAR) !== 0) {
-			relativePattern = GLOBSTAR + GLOB_SPLIT + strings.ltrim(relativePattern, GLOB_SPLIT);
-		}
-
-		return relativePattern;
-	}
-
-	// Guard against null/undefined
-	if (!relativePattern) {
-		return undefined;
-	}
-
-	// With a base URI, we can append the path to the relative glob as prefix
-	return relativePattern.base + GLOB_SPLIT + strings.ltrim(relativePattern.pattern, GLOB_SPLIT);
-}
-
 function parsePattern(arg1: string | IRelativePattern, options: IGlobOptions): ParsedStringPattern {
 	if (!arg1) {
 		return NULL;
@@ -299,7 +279,7 @@ function parsePattern(arg1: string | IRelativePattern, options: IGlobOptions): P
 	// Handle IRelativePattern
 	let pattern: string;
 	if (typeof arg1 !== 'string') {
-		pattern = toAbsolutePattern(arg1.pattern);
+		pattern = arg1.pattern;
 	} else {
 		pattern = arg1;
 	}
@@ -311,7 +291,7 @@ function parsePattern(arg1: string | IRelativePattern, options: IGlobOptions): P
 	const patternKey = `${pattern}_${!!options.trimForExclusions}`;
 	let parsedPattern = CACHE.get(patternKey);
 	if (parsedPattern) {
-		return wrapRelativePattern(parsedPattern, pattern);
+		return wrapRelativePattern(parsedPattern, arg1);
 	}
 
 	// Check for Trivias
@@ -339,7 +319,7 @@ function parsePattern(arg1: string | IRelativePattern, options: IGlobOptions): P
 	// Cache
 	CACHE.set(patternKey, parsedPattern);
 
-	return wrapRelativePattern(parsedPattern, pattern);
+	return wrapRelativePattern(parsedPattern, arg1);
 }
 
 function wrapRelativePattern(parsedPattern: ParsedStringPattern, arg2: string | IRelativePattern): ParsedStringPattern {
@@ -352,7 +332,7 @@ function wrapRelativePattern(parsedPattern: ParsedStringPattern, arg2: string | 
 			return null;
 		}
 
-		return parsedPattern(path, basename);
+		return parsedPattern(paths.relative(arg2.base, path), basename);
 	};
 }
 

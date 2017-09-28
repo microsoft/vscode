@@ -89,7 +89,7 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 
 		return process.session.source({ sourceReference: sourceRef, source: rawSource }).then(response => {
 
-			const mime = response.body.mimeType || guessMimeTypes(resource.toString())[0];
+			const mime = response.body.mimeType || guessMimeTypes(resource.path)[0];
 			const modePromise = this.modeService.getOrCreateMode(mime);
 			const model = this.modelService.createModel(response.body.content, modePromise, resource);
 

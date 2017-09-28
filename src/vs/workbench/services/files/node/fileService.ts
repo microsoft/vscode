@@ -380,7 +380,7 @@ export class FileService implements IFileService {
 		return checkFilePromise.then(exists => {
 			if (exists && !options.overwrite) {
 				return TPromise.wrapError<IFileStat>(new FileOperationError(
-					nls.localize('fileExists', "File to create already exits ({0})", resource.toString(true)),
+					nls.localize('fileExists', "File to create already exists ({0})", resource.toString(true)),
 					FileOperationResult.FILE_MODIFIED_SINCE
 				));
 			}

@@ -14,6 +14,7 @@
 	"vscode.extension.contributes.defaultConfiguration": "Adott nyelvre vonatkozóan szerkesztőbeállításokat szolgáltat.",
 	"invalid.properties": "A 'configuration.properties' értékét egy objektumként kell megadni",
 	"invalid.allOf": "A 'configuration.allOf' elavult, és használata nem javasolt. Helyette több konfigurációs szakaszt kell átadni tömbként a 'configuration' értékeként.",
+	"workspaceConfig.folders.description": "A munkaterületre betöltött mappák listája.",
 	"workspaceConfig.path.description": "Egy fájl elérési útja, pl. `/root/folderA` vagy `./folderA` relatív elérési út esetén, ami a munkaterületfájl helye alapján lesz feloldva.",
 	"workspaceConfig.name.description": "A mappa neve. Nem kötelező megadni.",
 	"workspaceConfig.uri.description": "A mappa URI-ja",

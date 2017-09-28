@@ -17,5 +17,6 @@
 	"save": "&&Salvar",
 	"saveWorkspace": "Salvar o espaço de trabalho",
 	"openWorkspaceAction": "Abrir o Espaço de Trabalho...",
-	"openWorkspaceConfigFile": "Abrir o Arquivo de Configuração do Espaço de Trabalho"
+	"openWorkspaceConfigFile": "Abrir o Arquivo de Configuração do Espaço de Trabalho",
+	"workspaceFolderPickerPlaceholder": "Selecione a pasta de trabalho"
 }

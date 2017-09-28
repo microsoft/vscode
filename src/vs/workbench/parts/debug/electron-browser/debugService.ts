@@ -373,13 +373,14 @@ export class DebugService implements debug.IDebugService {
 
 			if (event.body.reason === 'new' && event.body.breakpoint.source) {
 				const source = process.getSource(event.body.breakpoint.source);
-				this.model.addBreakpoints(source.uri, [{
+				const bps = this.model.addBreakpoints(source.uri, [{
 					column: event.body.breakpoint.column,
 					enabled: true,
-					lineNumber: event.body.breakpoint.line
-				}], source.raw.adapterData);
-				const newBreakpoint = this.model.getBreakpoints().filter(bp => bp.idFromAdapter === event.body.breakpoint.id).pop();
-				this.model.updateBreakpoints({ [newBreakpoint.getId()]: event.body.breakpoint });
+					lineNumber: event.body.breakpoint.line,
+				}], false);
+				if (bps.length === 1) {
+					this.model.updateBreakpoints({ [bps[0].getId()]: event.body.breakpoint });
+				}
 			}
 
 			if (event.body.reason === 'removed') {
@@ -428,14 +429,14 @@ export class DebugService implements debug.IDebugService {
 	private fetchThreads(session: RawDebugSession, stoppedDetails?: debug.IRawStoppedDetails): TPromise<any> {
 		return session.threads().then(response => {
 			if (response && response.body && response.body.threads) {
-				response.body.threads.forEach(thread =>
+				response.body.threads.forEach(thread => {
 					this.model.rawUpdate({
 						sessionId: session.getId(),
 						threadId: thread.id,
 						thread,
-						stoppedDetails,
-						allThreadsStopped: stoppedDetails ? stoppedDetails.allThreadsStopped : undefined
-					}));
+						stoppedDetails: stoppedDetails && thread.id === stoppedDetails.threadId ? stoppedDetails : undefined
+					});
+				});
 			}
 		});
 	}
@@ -762,8 +763,8 @@ export class DebugService implements debug.IDebugService {
 				if (!this.configurationManager.getAdapter(resolvedConfig.type) || (config.request !== 'attach' && config.request !== 'launch')) {
 					let message: string;
 					if (config.request !== 'attach' && config.request !== 'launch') {
-						message = config.request ? nls.localize('debugRequestNotSupported', "Configured debug request '{0}' is not supported", config.request)
-							: nls.localize('debugRequesMissing', "Debug request is missing in the chosen launch configuration");
+						message = config.request ? nls.localize('debugRequestNotSupported', "Chosen debug configuration has an unsupported attribute value `{0}`: '{1}'.", 'request', config.request)
+							: nls.localize('debugRequesMissing', "Attribute '{0}' is missing from the chosen debug configuration.", 'request');
 
 					} else {
 						message = resolvedConfig.type ? nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", resolvedConfig.type) :
@@ -1137,7 +1138,7 @@ export class DebugService implements debug.IDebugService {
 
 			const source = process.sources.get(modelUri.toString());
 			const rawSource = source ? source.raw : { path: modelUri.scheme === 'file' || modelUri.scheme === debug.DEBUG_SCHEME ? paths.normalize(modelUri.fsPath, true) : modelUri.toString(), name: resources.basenameOrAuthority(modelUri) };
-			if (breakpointsToSend.length) {
+			if (breakpointsToSend.length && !rawSource.adapterData) {
 				rawSource.adapterData = breakpointsToSend[0].adapterData;
 			}
 

@@ -12,6 +12,7 @@
 	"breakpointRemoved": "已删除断点，行 {0}，文件 {1}",
 	"compoundMustHaveConfigurations": "复合项必须拥有 \"configurations\" 属性集，才能启动多个配置。",
 	"configMissing": "\"launch.json\" 中缺少配置“{0}”。",
+	"debugRequestNotSupported": "不支持配置中的调试请求“{0}”",
 	"debugRequesMissing": "所选的启动配置缺少调试请求",
 	"debugTypeNotSupported": "配置的类型“{0}”不受支持。",
 	"debugTypeMissing": "所选的启动配置缺少属性 \"type\"。",

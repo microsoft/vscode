@@ -182,7 +182,7 @@ export class TextAreaHandler extends ViewPart {
 					return TextAreaState.EMPTY;
 				}
 
-				return PagedScreenReaderStrategy.fromEditorSelection(currentState, simpleModel, this._selections[0]);
+				return PagedScreenReaderStrategy.fromEditorSelection(currentState, simpleModel, this._selections[0], this._accessibilitySupport === platform.AccessibilitySupport.Unknown);
 			},
 
 			deduceModelPosition: (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position => {

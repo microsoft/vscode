@@ -10,3 +10,7 @@
 	top: 0;
 	box-sizing: border-box;
 }
+
+.monaco-editor .margin-view-overlays .current-line-margin.current-line-margin-both {
+	border-right: 0;
+}

@@ -12,6 +12,7 @@
 	"ConfigurationParser.invalidVaraibleReference": "Erreur : référence à problemMatcher non valide : {0}\n",
 	"ConfigurationParser.noTaskType": "Erreur : la configuration des tâches doit avoir une propriété de type. La configuration est ignorée.\n{0}\n",
 	"ConfigurationParser.noTypeDefinition": "Erreur : aucun type de tâche '{0}' enregistré. Avez-vous oublié d'installer une extension incluant le fournisseur de tâches correspondant ?",
+	"ConfigurationParser.missingRequiredProperty": "Erreur : la configuration de la tâche '{0}' a besoin de la propriété '{1}'. La configuration de la tâche sera ignorée.",
 	"ConfigurationParser.notCustom": "Erreur : la tâche n'est pas déclarée comme une tâche personnalisée. La configuration est ignorée.\n{0}\n",
 	"ConfigurationParser.noTaskName": "Erreur : les tâches doivent fournir une propriété taskName. La tâche va être ignorée.\n{0}\n",
 	"taskConfiguration.shellArgs": "Avertissement : La tâche '{0}' est une commande d'interpréteur de commandes, et le nom de la commande ou l'un de ses arguments contient des espaces non précédés d'un caractère d'échappement. Pour garantir une ligne de commande correcte, fusionnez les arguments dans la commande.",

@@ -52,7 +52,6 @@ export interface IRawModelUpdate {
 	thread?: DebugProtocol.Thread;
 	callStack?: DebugProtocol.StackFrame[];
 	stoppedDetails?: IRawStoppedDetails;
-	allThreadsStopped?: boolean;
 }
 
 export interface IRawStoppedDetails {
@@ -107,6 +106,7 @@ export interface ISession {
 	custom(request: string, args: any): TPromise<DebugProtocol.Response>;
 	onDidEvent: Event<DebugProtocol.Event>;
 	onDidInitialize: Event<DebugProtocol.InitializedEvent>;
+	onDidExitAdapter: Event<DebugEvent>;
 	restartFrame(args: DebugProtocol.RestartFrameArguments, threadId: number): TPromise<DebugProtocol.RestartFrameResponse>;
 
 	next(args: DebugProtocol.NextArguments): TPromise<DebugProtocol.NextResponse>;

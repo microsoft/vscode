@@ -11,7 +11,6 @@
 	"endOfLineLineFeed": "LF",
 	"endOfLineCarriageReturnLineFeed": "CRLF",
 	"tabFocusModeEnabled": "Клавиша TAB перемещает фокус",
-	"screenReaderDetected": "Средство чтения с экрана обнаружено",
 	"screenReaderDetectedExtra": "Если вы не используете средство чтения с экрана, измените значение параметра \"editor.accessibilitySupport\" на \"off\".",
 	"disableTabMode": "Отключить режим специальных возможностей",
 	"gotoLine": "Перейти к строке",
@@ -47,5 +46,7 @@
 	"reopenWithEncoding": "Повторно открыть в кодировке",
 	"guessedEncoding": "Предположение на основе содержимого",
 	"pickEncodingForReopen": "Выберите кодировку файла для его повторного открытия",
-	"pickEncodingForSave": "Выберите кодировку файла для его сохранения"
+	"pickEncodingForSave": "Выберите кодировку файла для его сохранения",
+	"screenReaderDetectedExplanation.answerYes": "Да",
+	"screenReaderDetectedExplanation.answerNo": "Нет"
 }

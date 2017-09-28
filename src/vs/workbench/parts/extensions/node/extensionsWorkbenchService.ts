@@ -20,7 +20,7 @@ import { IPager, mapPager, singlePagePager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions, IExtensionManifest,
-	InstallExtensionEvent, DidInstallExtensionEvent, LocalExtensionType, DidUninstallExtensionEvent, IExtensionEnablementService, IExtensionTipsService, ErrorCode
+	InstallExtensionEvent, DidInstallExtensionEvent, LocalExtensionType, DidUninstallExtensionEvent, IExtensionEnablementService, IExtensionTipsService
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionIdFromLocal, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -810,7 +810,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		return local ? ExtensionState.Installed : ExtensionState.Uninstalled;
 	}
 
-	private reportTelemetry(active: IActiveExtension, errorcode?: ErrorCode): void {
+	private reportTelemetry(active: IActiveExtension, errorcode?: string): void {
 		const data = active.extension.telemetryData;
 		const duration = new Date().getTime() - active.start.getTime();
 		const eventName = toTelemetryEventName(active.operation);

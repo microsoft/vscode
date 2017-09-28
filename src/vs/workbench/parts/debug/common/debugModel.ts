@@ -185,7 +185,7 @@ export class ExpressionContainer implements IExpressionContainer {
 	}
 
 	private fetchVariables(start: number, count: number, filter: 'indexed' | 'named'): TPromise<Variable[]> {
-		return this.process.session.variables({
+		return this.process.state !== ProcessState.INACTIVE ? this.process.session.variables({
 			variablesReference: this.reference,
 			start,
 			count,
@@ -194,7 +194,7 @@ export class ExpressionContainer implements IExpressionContainer {
 			return response && response.body && response.body.variables ? distinct(response.body.variables.filter(v => !!v && v.name), v => v.name).map(
 				v => new Variable(this.process, this, v.variablesReference, v.name, v.evaluateName, v.value, v.namedVariables, v.indexedVariables, v.type)
 			) : [];
-		}, (e: Error) => [new Variable(this.process, this, 0, null, e.message, '', 0, 0, null, false)]);
+		}, (e: Error) => [new Variable(this.process, this, 0, null, e.message, '', 0, 0, null, false)]) : TPromise.as([]);
 	}
 
 	// The adapter explicitly sents the children count of an expression only if there are lots of children which should be chunked.
@@ -537,6 +537,7 @@ export class Process implements IProcess {
 		this.threads = new Map<number, Thread>();
 		this.sources = new Map<string, Source>();
 		this._session.onDidInitialize(() => this.inactive = false);
+		this._session.onDidExitAdapter(() => this.inactive = true);
 	}
 
 	public get session(): ISession {
@@ -593,7 +594,7 @@ export class Process implements IProcess {
 		if (data.stoppedDetails) {
 			// Set the availability of the threads' callstacks depending on
 			// whether the thread is stopped or not
-			if (data.allThreadsStopped) {
+			if (data.stoppedDetails.allThreadsStopped) {
 				this.threads.forEach(thread => {
 					thread.stoppedDetails = thread.threadId === data.threadId ? data.stoppedDetails : { reason: undefined };
 					thread.stopped = true;
@@ -863,12 +864,16 @@ export class Model implements IModel {
 		this._onDidChangeBreakpoints.fire();
 	}
 
-	public addBreakpoints(uri: uri, rawData: IRawBreakpoint[], adapterData: any = undefined): void {
-		this.breakpoints = this.breakpoints.concat(rawData.map(rawBp =>
-			new Breakpoint(uri, rawBp.lineNumber, rawBp.column, rawBp.enabled, rawBp.condition, rawBp.hitCondition, adapterData)));
+	public addBreakpoints(uri: uri, rawData: IRawBreakpoint[], fireEvent = true): Breakpoint[] {
+		const newBreakpoints = rawData.map(rawBp => new Breakpoint(uri, rawBp.lineNumber, rawBp.column, rawBp.enabled, rawBp.condition, rawBp.hitCondition, undefined));
+		this.breakpoints = this.breakpoints.concat(newBreakpoints);
 		this.breakpointsActivated = true;
 		this.breakpoints = distinct(this.breakpoints, bp => `${bp.uri.toString()}:${bp.lineNumber}:${bp.column}`);
-		this._onDidChangeBreakpoints.fire();
+		if (fireEvent) {
+			this._onDidChangeBreakpoints.fire();
+		}
+
+		return newBreakpoints;
 	}
 
 	public removeBreakpoints(toRemove: IBreakpoint[]): void {

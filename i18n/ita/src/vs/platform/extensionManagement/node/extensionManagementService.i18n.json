@@ -6,6 +6,7 @@
 {
 	"invalidManifest": "Estensione non valida: package.json non è un file JSON.",
 	"restartCodeLocal": "Riavviare Code prima di reinstallare {0}.",
+	"restartCodeGallery": "Si prega di riavviare Code prima di reinstallare.",
 	"uninstallDependeciesConfirmation": "Disinstallare solo '{0}' o anche le relative dipendenze?",
 	"uninstallOnly": "Solo",
 	"uninstallAll": "Tutto",

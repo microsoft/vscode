@@ -10,7 +10,6 @@
 	"textFileEditor": "Editor de archivos de texto",
 	"binaryFileEditor": "Editor de archivos binarios",
 	"filesConfigurationTitle": "Archivos",
-	"exclude": "Configurar patrones globales para excluir archivos y carpetas.",
 	"files.exclude.boolean": "El patrón global con el que se harán coincidir las rutas de acceso de los archivos. Establézcalo en true o false para habilitarlo o deshabilitarlo.",
 	"files.exclude.when": "Comprobación adicional de los elementos del mismo nivel de un archivo coincidente. Use $(nombreBase) como variable para el nombre de archivo que coincide.",
 	"associations": "Configure asociaciones de archivo para los lenguajes (por ejemplo, \"*.extension\": \"html\"). Estas asociaciones tienen prioridad sobre las asociaciones predeterminadas de los lenguajes instalados.",

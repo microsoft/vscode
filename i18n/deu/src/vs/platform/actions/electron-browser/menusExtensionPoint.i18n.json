@@ -13,6 +13,7 @@
 	"vscode.extension.contributes.menuItem.group": "Die Gruppe, zu der dieser Befehl gehört.",
 	"vscode.extension.contributes.menus": "Trägt Menüelemente zum Editor bei.",
 	"menus.commandPalette": "Die Befehlspalette ",
+	"menus.touchBar": "Die Touch Bar (nur macOS)",
 	"menus.editorTitle": "Das Editor-Titelmenü.",
 	"menus.editorContext": "Das Editor-Kontextmenü.",
 	"menus.explorerContext": "Das Kontextmenü des Datei-Explorers.",

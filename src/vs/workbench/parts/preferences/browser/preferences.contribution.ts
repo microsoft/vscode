@@ -17,17 +17,19 @@ import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { DefaultPreferencesEditorInput, PreferencesEditor, PreferencesEditorInput } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 import { KeybindingsEditor, KeybindingsEditorInput } from 'vs/workbench/parts/preferences/browser/keybindingsEditor';
-import { OpenGlobalSettingsAction, OpenGlobalKeybindingsAction, OpenGlobalKeybindingsFileAction, OpenWorkspaceSettingsAction, OpenFolderSettingsAction, ConfigureLanguageBasedSettingsAction } from 'vs/workbench/parts/preferences/browser/preferencesActions';
+import { OpenGlobalSettingsAction, OpenGlobalKeybindingsAction, OpenGlobalKeybindingsFileAction, OpenWorkspaceSettingsAction, OpenFolderSettingsAction, ConfigureLanguageBasedSettingsAction, OPEN_FOLDER_SETTINGS_COMMAND } from 'vs/workbench/parts/preferences/browser/preferencesActions';
 import {
 	IPreferencesService, IKeybindingsEditor, CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_SEARCH,
 	KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_SHOW_CONFLICTS, KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS
 } from 'vs/workbench/parts/preferences/common/preferences';
 import { PreferencesService } from 'vs/workbench/parts/preferences/browser/preferencesService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { PreferencesContentProvider } from 'vs/workbench/parts/preferences/common/preferencesContentProvider';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 registerSingleton(IPreferencesService, PreferencesService);
 
@@ -258,3 +260,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(PreferencesContentProvider);
+
+CommandsRegistry.registerCommand(OPEN_FOLDER_SETTINGS_COMMAND, function (accessor: ServicesAccessor, args?: IWorkspaceFolder) {
+	const preferencesService = accessor.get(IPreferencesService);
+	return preferencesService.openFolderSettings(args.uri);
+});

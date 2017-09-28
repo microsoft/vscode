@@ -108,6 +108,11 @@ export class FindDecorations implements IDisposable {
 				}
 				if (newCurrentDecorationId !== null) {
 					let rng = this._editor.getModel().getDecorationRange(newCurrentDecorationId);
+					if (rng.startLineNumber !== rng.endLineNumber && rng.endColumn === 1) {
+						let lineBeforeEnd = rng.endLineNumber - 1;
+						let lineBeforeEndMaxColumn = this._editor.getModel().getLineMaxColumn(lineBeforeEnd);
+						rng = new Range(rng.startLineNumber, rng.startColumn, lineBeforeEnd, lineBeforeEndMaxColumn);
+					}
 					this._rangeHighlightDecorationId = changeAccessor.addDecoration(rng, FindDecorations._RANGE_HIGHLIGHT_DECORATION);
 				}
 			});

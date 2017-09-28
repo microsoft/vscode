@@ -18,8 +18,7 @@ import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension,
 	IGalleryExtension, IExtensionManifest, IGalleryMetadata,
 	InstallExtensionEvent, DidInstallExtensionEvent, DidUninstallExtensionEvent, LocalExtensionType,
-	StatisticType,
-	ErrorCode
+	StatisticType
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getLocalExtensionIdFromGallery, getLocalExtensionIdFromManifest, getGalleryExtensionIdFromLocal, getIdAndVersionFromLocalExtensionId, adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { localizeManifest } from '../common/extensionNls';
@@ -32,6 +31,9 @@ import URI from 'vs/base/common/uri';
 import { IChoiceService, Severity } from 'vs/platform/message/common/message';
 
 const SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
+const INSTALL_ERROR_OBSOLETE = 'obsolete';
+const INSTALL_ERROR_GALLERY = 'gallery';
+const INSTALL_ERROR_LOCAL = 'local';
 
 function parseManifest(raw: string): TPromise<{ manifest: IExtensionManifest; metadata: IGalleryMetadata; }> {
 	return new TPromise((c, e) => {
@@ -146,9 +148,9 @@ export class ExtensionManagementService implements IExtensionManagementService {
 					}
 					return extensionsToInstall;
 				},
-				error => this.onDidInstallExtensions([extension], null, ErrorCode.OBSOLETE, error)
+				error => this.onDidInstallExtensions([extension], null, INSTALL_ERROR_OBSOLETE, error)
 				),
-			error => this.onDidInstallExtensions([extension], null, ErrorCode.GALLERY, error)
+			error => this.onDidInstallExtensions([extension], null, INSTALL_ERROR_GALLERY, error)
 			);
 	}
 
@@ -156,8 +158,8 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		return TPromise.join(extensions.map(extensionToInstall => this.downloadInstallableExtension(extensionToInstall)))
 			.then(
 			installableExtensions => TPromise.join(installableExtensions.map(installableExtension => this.installExtension(installableExtension)))
-				.then(null, error => this.rollback(extensions).then(() => this.onDidInstallExtensions(extensions, null, ErrorCode.LOCAL, error))),
-			error => this.onDidInstallExtensions(extensions, null, ErrorCode.GALLERY, error));
+				.then(null, error => this.rollback(extensions).then(() => this.onDidInstallExtensions(extensions, null, INSTALL_ERROR_LOCAL, error))),
+			error => this.onDidInstallExtensions(extensions, null, INSTALL_ERROR_GALLERY, error));
 	}
 
 	private collectExtensionsToInstall(extension: IGalleryExtension): TPromise<IGalleryExtension[]> {
@@ -196,7 +198,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		}
 	}
 
-	private onDidInstallExtensions(extensions: IGalleryExtension[], local: ILocalExtension[], errorCode?: ErrorCode, error?: any): TPromise<any> {
+	private onDidInstallExtensions(extensions: IGalleryExtension[], local: ILocalExtension[], errorCode?: string, error?: any): TPromise<any> {
 		extensions.forEach((gallery, index) => {
 			const id = getLocalExtensionIdFromGallery(gallery, gallery.version);
 			if (errorCode) {
@@ -286,7 +288,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			.then(() => this.hasDependencies(extension, installed) ? this.promptForDependenciesAndUninstall(extension, installed, force) : this.promptAndUninstall(extension, installed, force))
 			.then(() => this.postUninstallExtension(extension),
 			error => {
-				this.postUninstallExtension(extension, ErrorCode.LOCAL);
+				this.postUninstallExtension(extension, INSTALL_ERROR_LOCAL);
 				return TPromise.wrapError(error);
 			});
 	}
@@ -402,7 +404,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			.then(() => this.uninstallExtension(extension.id))
 			.then(() => this.postUninstallExtension(extension),
 			error => {
-				this.postUninstallExtension(extension, ErrorCode.LOCAL);
+				this.postUninstallExtension(extension, INSTALL_ERROR_LOCAL);
 				return TPromise.wrapError(error);
 			});
 	}
@@ -421,7 +423,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			.then(() => this.unsetObsolete(id));
 	}
 
-	private async postUninstallExtension(extension: ILocalExtension, error?: ErrorCode): TPromise<void> {
+	private async postUninstallExtension(extension: ILocalExtension, error?: string): TPromise<void> {
 		if (!error) {
 			await this.galleryService.reportStatistic(extension.manifest.publisher, extension.manifest.name, extension.manifest.version, StatisticType.Uninstall);
 		}

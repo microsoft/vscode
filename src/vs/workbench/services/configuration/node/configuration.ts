@@ -25,7 +25,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { CustomConfigurationModel } from 'vs/platform/configuration/common/model';
 import { WorkspaceConfigurationModel, ScopedConfigurationModel, FolderConfigurationModel, FolderSettingsModel } from 'vs/workbench/services/configuration/common/configurationModels';
 import { IConfigurationServiceEvent, ConfigurationSource, IConfigurationKeys, IConfigurationValue, ConfigurationModel, IConfigurationOverrides, Configuration as BaseConfiguration, IConfigurationValues, IConfigurationData } from 'vs/platform/configuration/common/configuration';
-import { IWorkspaceConfigurationService, WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME, WORKSPACE_STANDALONE_CONFIGURATIONS, WORKSPACE_CONFIG_DEFAULT_PATH } from 'vs/workbench/services/configuration/common/configuration';
+import { IWorkspaceConfigurationService, WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME, WORKSPACE_STANDALONE_CONFIGURATIONS, WORKSPACE_CONFIG_DEFAULT_PATH, TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY } from 'vs/workbench/services/configuration/common/configuration';
 import { ConfigurationService as GlobalConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -257,7 +257,9 @@ contributionRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 			description: nls.localize('workspaceConfig.extensions.description', "Workspace extensions"),
 			$ref: 'vscode://schemas/extensions'
 		}
-	}
+	},
+	additionalProperties: false,
+	errorMessage: nls.localize('unknownWorkspaceProperty', "Unknown workspace configuration property")
 });
 
 export class WorkspaceService extends Disposable implements IWorkspaceConfigurationService, IWorkspaceContextService {
@@ -463,10 +465,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 
 		result.added = newFolders.filter(newFolder => !currentFolders.some(currentFolder => newFolder.uri.toString() === currentFolder.uri.toString()));
 		result.removed = currentFolders.filter(currentFolder => !newFolders.some(newFolder => currentFolder.uri.toString() === newFolder.uri.toString()));
-
-		if (result.added.length === 0 && result.removed.length === 0) {
-			result.changed = currentFolders.filter((currentFolder, index) => newFolders[index].uri.toString() !== currentFolder.uri.toString());
-		}
+		result.changed = newFolders.filter(newFolder => currentFolders.some(currentFolder => newFolder.uri.toString() === currentFolder.uri.toString() && newFolder.name !== currentFolder.name));
 
 		return result;
 	}
@@ -789,7 +788,7 @@ class FolderConfiguration<T> extends Disposable {
 	}
 
 	private isWorkspaceConfigurationFile(folderRelativePath: string): boolean {
-		return [WORKSPACE_CONFIG_DEFAULT_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS.launch, WORKSPACE_STANDALONE_CONFIGURATIONS.tasks].some(p => p === folderRelativePath);
+		return [WORKSPACE_CONFIG_DEFAULT_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS[TASKS_CONFIGURATION_KEY], WORKSPACE_STANDALONE_CONFIGURATIONS[LAUNCH_CONFIGURATION_KEY]].some(p => p === folderRelativePath);
 	}
 
 	private toResource(folderRelativePath: string): URI {

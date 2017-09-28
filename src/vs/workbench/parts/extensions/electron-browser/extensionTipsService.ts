@@ -371,7 +371,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 	}
 
 	private ignoreExtensionRecommendations() {
-		const message = localize('ignoreExtensionRecommendations', "Do you want to ignore all extension recommendations ?");
+		const message = localize('ignoreExtensionRecommendations', "Do you want to ignore all extension recommendations?");
 		const options = [
 			localize('ignoreAll', "Yes, Ignore All"),
 			localize('no', "No"),

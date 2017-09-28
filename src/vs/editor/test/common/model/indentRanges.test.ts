@@ -270,4 +270,25 @@ suite('Folding with regions', () => {
 		/* 6*/	'    return;',
 		], [r(1, 4, 0, true), r(5, 6, 2)], false, markers);
 	});
+	test('With off-side', () => {
+		assertRanges([
+		/* 1*/	'#region',
+		/* 2*/	'  ',
+		/* 3*/	'',
+		/* 4*/	'#endregion',
+		/* 5*/	'',
+		], [r(1, 4, 0, true)], true, markers);
+	});
+	test('Nested with off-side', () => {
+		assertRanges([
+		/* 1*/	'#region',
+		/* 2*/	'  ',
+		/* 3*/	'#region',
+		/* 4*/	'',
+		/* 5*/	'#endregion',
+		/* 6*/	'',
+		/* 7*/	'#endregion',
+		/* 8*/	'',
+		], [r(1, 7, 0, true), r(3, 5, 0, true)], true, markers);
+	});
 });

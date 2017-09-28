@@ -59,11 +59,21 @@ export function getFirstFrame(arg0: IRemoteConsoleLog | string): IStackFrame {
 		return getFirstFrame(parse(arg0).stack);
 	}
 
-	// Parse a source information out of the stack if we have one. Format:
+	// Parse a source information out of the stack if we have one. Format can be:
 	// at vscode.commands.registerCommand (/Users/someone/Desktop/test-ts/out/src/extension.js:18:17)
+	// or
+	// at /Users/someone/Desktop/test-ts/out/src/extension.js:18:17
+	// or
+	// at c:\Users\someone\Desktop\end-js\extension.js:19:17
+	// or
+	// at e.$executeContributedCommand(c:\Users\someone\Desktop\end-js\extension.js:19:17)
 	const stack = arg0;
 	if (stack) {
-		const matches = /.+\((.+):(\d+):(\d+)\)/.exec(stack);
+		// at [^\/]* => line starts with "at" followed by any character except '/' (to not capture unix paths too late)
+		// (?:(?:[a-zA-Z]+:)|(?:[\/])|(?:\\\\) => windows drive letter OR unix root OR unc root
+		// (?:.+) => simple pattern for the path, only works because of the line/col pattern after
+		// :(?:\d+):(?:\d+) => :line:column data
+		const matches = /at [^\/]*((?:(?:[a-zA-Z]+:)|(?:[\/])|(?:\\\\))(?:.+)):(\d+):(\d+)/.exec(stack);
 		if (matches.length === 4) {
 			return {
 				uri: URI.file(matches[1]),
@@ -79,47 +89,38 @@ export function getFirstFrame(arg0: IRemoteConsoleLog | string): IStackFrame {
 export function log(entry: IRemoteConsoleLog, label: string): void {
 	const { args, stack } = parse(entry);
 
-	// Determine suffix based on severity of log entry if we have a stack
-	let suffixColor = 'blue';
-	let suffix = '';
-	if (stack) {
-		switch (entry.severity) {
-			case 'warn':
-				suffixColor = 'goldenrod';
-				suffix = ' WARNING:';
-				break;
-			case 'error':
-				suffixColor = 'darkred';
-				suffix = ' ERROR:';
-				break;
-		}
+	const isOneStringArg = typeof args[0] === 'string' && args.length === 1;
+
+	let topFrame = stack && stack.split('\n')[0];
+	if (topFrame) {
+		topFrame = `(${topFrame.trim()})`;
 	}
 
 	let consoleArgs = [];
 
 	// First arg is a string
 	if (typeof args[0] === 'string') {
-		consoleArgs = [`%c[${label}]%c${suffix} %c${args[0]}`, color('blue'), color(suffixColor), color('black'), ...args.slice(1)];
+		if (topFrame && isOneStringArg) {
+			consoleArgs = [`%c[${label}] %c${args[0]} %c${topFrame}`, color('blue'), color('black'), color('grey')];
+		} else {
+			consoleArgs = [`%c[${label}] %c${args[0]}`, color('blue'), color('black'), ...args.slice(1)];
+		}
 	}
 
 	// First arg is something else, just apply all
 	else {
-		consoleArgs = [`%c[${label}]%c${suffix}`, color('blue'), color(suffixColor), ...args];
+		consoleArgs = [`%c[${label}]%`, color('blue'), ...args];
 	}
 
-	// Stack: use console group
-	if (stack) {
-		console.groupCollapsed.apply(console, consoleArgs);
-		console.log(stack);
-		console.groupEnd();
+	// Stack: add to args unless already aded
+	if (topFrame && !isOneStringArg) {
+		consoleArgs.push(topFrame);
 	}
 
-	// No stack: just log message
-	else {
-		console[entry.severity].apply(console, consoleArgs);
-	}
+	// Log it
+	console[entry.severity].apply(console, consoleArgs);
 }
 
 function color(color: string): string {
-	return `color: ${color}; font-weight: normal;`;
+	return `color: ${color}`;
 }

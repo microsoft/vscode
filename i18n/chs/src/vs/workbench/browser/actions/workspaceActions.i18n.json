@@ -17,5 +17,6 @@
 	"save": "保存(&&S)",
 	"saveWorkspace": "保存工作区",
 	"openWorkspaceAction": "打开工作区...",
-	"openWorkspaceConfigFile": "打开工作区配置文件"
+	"openWorkspaceConfigFile": "打开工作区配置文件",
+	"workspaceFolderPickerPlaceholder": "选择工作区文件夹"
 }

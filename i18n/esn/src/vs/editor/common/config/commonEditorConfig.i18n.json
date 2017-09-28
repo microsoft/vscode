@@ -11,7 +11,7 @@
 	"lineHeight": "Controla la altura de línea. Utilice 0 para calcular el valor de lineHeight a partir de fontSize.",
 	"letterSpacing": "Controla el espacio entre letras en pixels.",
 	"lineNumbers": "Controla la presentación de los números de línea. Los valores posibles son \"on\", \"off\" y \"relative\". \"relative\" muestra el número de líneas desde la posición actual del cursor.",
-	"rulers": "Columnas en las que mostrar reglas verticales",
+	"rulers": "Representar reglas verticales después de un cierto número de caracteres monoespacio. Usar multiples valores para multiples reglas. No se dibuja ninguna regla si la matriz esta vacía.",
 	"wordSeparators": "Caracteres que se usarán como separadores de palabras al realizar operaciones o navegaciones relacionadas con palabras.",
 	"tabSize": "El número de espacios a los que equivale una tabulación. Este valor se invalida según el contenido del archivo cuando `editor.detectIndentation` está activado.",
 	"tabSize.errorMessage": "Se esperaba \"number\". Tenga en cuenta que el ajuste \"editor.detectIndentation\" ha reemplazado al valor \"auto\".",

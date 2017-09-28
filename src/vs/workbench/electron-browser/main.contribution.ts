@@ -133,7 +133,7 @@ let workbenchProperties: { [path: string]: IJSONSchema; } = {
 		'type': 'string',
 		'enum': ['default', 'short', 'medium', 'long'],
 		'enumDescriptions': [
-			nls.localize('workbench.editor.labelFormat.default', "Show the name of the file. When tabs are enabled and two files have the same name in one group the distinguinshing sections of each file's path is added. When tabs are disabled, the path relative to workspace root is shown if the editor is active."),
+			nls.localize('workbench.editor.labelFormat.default', "Show the name of the file. When tabs are enabled and two files have the same name in one group the distinguinshing sections of each file's path are added. When tabs are disabled, the path relative to workspace root is shown if the editor is active."),
 			nls.localize('workbench.editor.labelFormat.short', "Show the name of the file followed by it's directory name."),
 			nls.localize('workbench.editor.labelFormat.medium', "Show the name of the file followed by it's path relative to the workspace root."),
 			nls.localize('workbench.editor.labelFormat.long', "Show the name of the file followed by it's absolute path.")
@@ -159,7 +159,7 @@ let workbenchProperties: { [path: string]: IJSONSchema; } = {
 	},
 	'workbench.editor.enablePreview': {
 		'type': 'boolean',
-		'description': nls.localize('enablePreview', "Controls if opened editors show as preview. Preview editors are reused until they are kept (e.g. via double click or editing)."),
+		'description': nls.localize('enablePreview', "Controls if opened editors show as preview. Preview editors are reused until they are kept (e.g. via double click or editing) and show up with an italic font style."),
 		'default': true
 	},
 	'workbench.editor.enablePreviewFromQuickOpen': {

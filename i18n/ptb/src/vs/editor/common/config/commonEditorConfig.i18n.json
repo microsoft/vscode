@@ -11,7 +11,7 @@
 	"lineHeight": "Controla a altura da linha. Use 0 para computar a altura da linha a partir do tamanho da fonte.",
 	"letterSpacing": "Controla o espaçamento da letra em pixels.",
 	"lineNumbers": "Controla a exibição de números de linha. Valores possíveis são 'on', 'off' e 'relative'. 'relative' mostra a contagem de linhas a partir da posição atual do cursor.",
-	"rulers": "Colunas nas quais mostrar réguas verticais",
+	"rulers": "Renderiza réguas verticais após um certo número de caracteres de espaço. Use vários valores para várias réguas. Réguas não serão desenhadas se a matriz estiver vazia",
 	"wordSeparators": "Caracteres que serão usados como separadores de palavras ao fazer navegação relacionada a palavras ou operações",
 	"tabSize": "O número de espaços equivalentes a uma tabulação. Esta configuração é sobreposta no conteúdo do arquivo quando `editor.detectIndentation` está ligado.",
 	"tabSize.errorMessage": "Esperado 'número'. Note que o valor \"auto\" foi alterado pela configuração 'editor.detectIndentation'.",

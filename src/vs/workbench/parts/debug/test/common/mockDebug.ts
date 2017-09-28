@@ -183,8 +183,14 @@ export class MockSession implements debug.ISession {
 
 	public get onDidInitialize(): Event<DebugProtocol.InitializedEvent> {
 		const emitter = new Emitter<DebugProtocol.InitializedEvent>();
-		return emitter.event;;
+		return emitter.event;
 	}
+
+	public get onDidExitAdapter(): Event<debug.DebugEvent> {
+		const emitter = new Emitter<debug.DebugEvent>();
+		return emitter.event;
+	}
+
 
 	public custom(request: string, args: any): TPromise<DebugProtocol.Response> {
 		return TPromise.as(null);

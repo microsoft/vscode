@@ -93,13 +93,6 @@ class MyCompletionItem extends CompletionItem {
 
 	private static getCommitCharacters(enableDotCompletions: boolean, enableCallCompletions: boolean, kind: string): string[] | undefined {
 		switch (kind) {
-			case PConst.Kind.externalModuleName:
-				return ['"', '\''];
-
-			case PConst.Kind.file:
-			case PConst.Kind.directory:
-				return ['"', '\''];
-
 			case PConst.Kind.memberGetAccessor:
 			case PConst.Kind.memberSetAccessor:
 			case PConst.Kind.constructSignature:
@@ -184,7 +177,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 		if (context.triggerCharacter === '"' || context.triggerCharacter === '\'') {
 			// make sure we are in something that looks like the start of an import
 			const line = document.lineAt(position.line).text.slice(0, position.character);
-			if (!line.match(/^import .+? from\s*["']$/) && !line.match(/\b(import|require)\(['"]$/)) {
+			if (!line.match(/\bfrom\s*["']$/) && !line.match(/\b(import|require)\(['"]$/)) {
 				return Promise.resolve<CompletionItem[]>([]);
 			}
 		}
@@ -192,7 +185,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 		if (context.triggerCharacter === '/') {
 			// make sure we are in something that looks like an import path
 			const line = document.lineAt(position.line).text.slice(0, position.character);
-			if (!line.match(/^import .+? from\s*["'][^'"]*$/) && !line.match(/\b(import|require)\(['"][^'"]*$/)) {
+			if (!line.match(/\bfrom\s*["'][^'"]*$/) && !line.match(/\b(import|require)\(['"][^'"]*$/)) {
 				return Promise.resolve<CompletionItem[]>([]);
 			}
 		}

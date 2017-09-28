@@ -239,6 +239,9 @@ export class FileWalker {
 				done(err);
 				return;
 			}
+			if (this.isLimitHit) {
+				return;
+			}
 
 			// Mac: uses NFD unicode form on disk, but we want NFC
 			const normalized = leftover + (isMac ? strings.normalizeNFC(stdout) : stdout);
@@ -272,8 +275,12 @@ export class FileWalker {
 					}
 					const basename = path.basename(relativePath);
 					this.matchFile(onResult, { base: rootFolder, relativePath, basename });
+					if (this.isLimitHit) {
+						killCmd();
+						break;
+					}
 				}
-				if (last) {
+				if (last || this.isLimitHit) {
 					if (!filePatternSeen) {
 						this.checkFilePatternRelativeMatch(folderQuery.folder, (match, size) => {
 							if (match) {
@@ -481,6 +488,10 @@ export class FileWalker {
 					}
 
 					self.matchFile(onResult, entry);
+				}
+
+				if (self.isLimitHit) {
+					break;
 				}
 			};
 		}

@@ -112,8 +112,8 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 		return true;
 	}
 
-	public terminate(_id: string): TPromise<TaskTerminateResponse> {
-		if (!this.activeTask || this.activeTask._id !== _id) {
+	public terminate(task: Task): TPromise<TaskTerminateResponse> {
+		if (!this.activeTask || Task.getMapKey(this.activeTask) !== Task.getMapKey(task)) {
 			return TPromise.as<TaskTerminateResponse>({ success: false, task: undefined });
 		}
 		return this.terminateAll()[0];

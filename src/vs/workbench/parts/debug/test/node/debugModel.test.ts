@@ -150,9 +150,9 @@ suite('Debug - Model', () => {
 			threadId: threadId1,
 			stoppedDetails: {
 				reason: stoppedReason,
-				threadId: 1
+				threadId: 1,
+				allThreadsStopped: true
 			},
-			allThreadsStopped: true
 		});
 		const process = model.getProcesses().filter(p => p.getId() === rawSession.getId()).pop();
 
@@ -241,9 +241,9 @@ suite('Debug - Model', () => {
 			threadId: stoppedThreadId,
 			stoppedDetails: {
 				reason: stoppedReason,
-				threadId: 1
-			},
-			allThreadsStopped: false
+				threadId: 1,
+				allThreadsStopped: false
+			}
 		});
 		const process = model.getProcesses().filter(p => p.getId() === rawSession.getId()).pop();
 

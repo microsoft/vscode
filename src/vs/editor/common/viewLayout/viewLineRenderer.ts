@@ -636,10 +636,13 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 				}
 			}
 
-			if (!fontIsMonospace && !containsForeignElements) {
-				sb.appendASCIIString(' style="width:');
-				sb.appendASCIIString(String(spaceWidth * partContentCnt));
-				sb.appendASCIIString('px"');
+			if (!fontIsMonospace) {
+				const partIsOnlyWhitespace = (partType === 'vs-whitespace');
+				if (partIsOnlyWhitespace || !containsForeignElements) {
+					sb.appendASCIIString(' style="width:');
+					sb.appendASCIIString(String(spaceWidth * partContentCnt));
+					sb.appendASCIIString('px"');
+				}
 			}
 			sb.appendASCII(CharCode.GreaterThan);
 

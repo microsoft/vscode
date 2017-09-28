@@ -552,9 +552,9 @@
       "resolved": "https://registry.npmjs.org/vscode-debugprotocol/-/vscode-debugprotocol-1.24.0.tgz"
     },
     "vscode-ripgrep": {
-      "version": "0.0.26",
-      "from": "vscode-ripgrep@0.0.26",
-      "resolved": "https://registry.npmjs.org/vscode-ripgrep/-/vscode-ripgrep-0.0.26.tgz"
+      "version": "0.0.27",
+      "from": "vscode-ripgrep@0.0.27",
+      "resolved": "https://registry.npmjs.org/vscode-ripgrep/-/vscode-ripgrep-0.0.27.tgz"
     },
     "vscode-textmate": {
       "version": "3.1.5",
@@ -572,9 +572,9 @@
       "resolved": "https://registry.npmjs.org/windows-process-tree/-/windows-process-tree-0.1.6.tgz"
     },
     "xterm": {
-      "version": "3.0.0",
+      "version": "2.9.1",
       "from": "Tyriar/xterm.js#vscode-release/1.17",
-      "resolved": "git+https://github.com/Tyriar/xterm.js.git#04a6bfba60ae1ab8b177b64e7a554797b5171100"
+      "resolved": "git+https://github.com/Tyriar/xterm.js.git#d7456b8801fe8b2d41c3b00b1350de06d9245d3a"
     },
     "yauzl": {
       "version": "2.8.0",

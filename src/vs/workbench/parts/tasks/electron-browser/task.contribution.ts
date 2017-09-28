@@ -32,7 +32,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { MenuRegistry } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IMessageService } from 'vs/platform/message/common/message';
+import { IMessageService, IChoiceService } from 'vs/platform/message/common/message';
 import { IMarkerService, MarkerStatistics } from 'vs/platform/markers/common/markers';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -73,7 +73,7 @@ import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 
 import { ITaskSystem, ITaskResolver, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TaskSystemEvents, TaskTerminateResponse } from 'vs/workbench/parts/tasks/common/taskSystem';
-import { Task, CustomTask, ConfiguringTask, ContributedTask, InMemoryTask, TaskSet, TaskGroup, ExecutionEngine, JsonSchemaVersion, TaskSourceKind, TaskIdentifier, TaskSorter } from 'vs/workbench/parts/tasks/common/tasks';
+import { Task, CustomTask, ConfiguringTask, ContributedTask, InMemoryTask, TaskSet, TaskGroup, GroupType, ExecutionEngine, JsonSchemaVersion, TaskSourceKind, TaskIdentifier, TaskSorter } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService, TaskServiceEvents, ITaskProvider, TaskEvent, RunOptions, CustomizationProperties } from 'vs/workbench/parts/tasks/common/taskService';
 import { templates as taskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
 
@@ -539,6 +539,7 @@ class TaskService extends EventEmitter implements ITaskService {
 	// private static autoDetectTelemetryName: string = 'taskServer.autoDetect';
 	private static RecentlyUsedTasks_Key = 'workbench.tasks.recentlyUsedTasks';
 	private static RanTaskBefore_Key = 'workbench.tasks.ranTaskBefore';
+	private static IgnoreTask010DonotShowAgain_key = 'workbench.tasks.ignoreTask010Shown';
 
 	private static CustomizationTelemetryEventName: string = 'taskService.customize';
 	public static TemplateTelemetryEventName: string = 'taskService.template';
@@ -554,6 +555,7 @@ class TaskService extends EventEmitter implements ITaskService {
 	private markerService: IMarkerService;
 	private outputService: IOutputService;
 	private messageService: IMessageService;
+	private choiceService: IChoiceService;
 	private fileService: IFileService;
 	private telemetryService: ITelemetryService;
 	private editorService: IWorkbenchEditorService;
@@ -567,6 +569,8 @@ class TaskService extends EventEmitter implements ITaskService {
 	private __schemaVersion: JsonSchemaVersion;
 	private __executionEngine: ExecutionEngine;
 	private __workspaceFolders: IWorkspaceFolder[];
+	private __ignoredWorkspaceFolders: IWorkspaceFolder[];
+	private __showIgnoreMessage: boolean;
 	private _providers: Map<number, ITaskProvider>;
 
 	private _workspaceTasksPromise: TPromise<Map<string, WorkspaceFolderTaskResult>>;
@@ -580,7 +584,8 @@ class TaskService extends EventEmitter implements ITaskService {
 	constructor( @IModeService modeService: IModeService, @IConfigurationService configurationService: IConfigurationService,
 		@IConfigurationEditingService configurationEditingService: IConfigurationEditingService,
 		@IMarkerService markerService: IMarkerService, @IOutputService outputService: IOutputService,
-		@IMessageService messageService: IMessageService, @IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IMessageService messageService: IMessageService, @IChoiceService choiceService: IChoiceService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IFileService fileService: IFileService, @IWorkspaceContextService contextService: IWorkspaceContextService,
 		@ITelemetryService telemetryService: ITelemetryService, @ITextFileService textFileService: ITextFileService,
 		@ILifecycleService lifecycleService: ILifecycleService,
@@ -603,6 +608,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		this.markerService = markerService;
 		this.outputService = outputService;
 		this.messageService = messageService;
+		this.choiceService = choiceService;
 		this.editorService = editorService;
 		this.fileService = fileService;
 		this.contextService = contextService;
@@ -614,6 +620,7 @@ class TaskService extends EventEmitter implements ITaskService {
 
 		this._configHasErrors = false;
 		this._workspaceTasksPromise = undefined;
+		this._taskSystem = undefined;
 		this._taskSystemListeners = [];
 		this._outputChannel = this.outputService.getChannel(TaskService.OutputChannelId);
 		this._providers = new Map<number, ITaskProvider>();
@@ -625,21 +632,26 @@ class TaskService extends EventEmitter implements ITaskService {
 				this._outputChannel.clear();
 			}
 			let folderSetup = this.computeWorkspaceFolderSetup();
-			if (this.executionEngine !== folderSetup[1] && this._taskSystem && this._taskSystem.getActiveTasks().length > 0) {
-				this.messageService.show(
-					Severity.Info,
-					{
-						message: nls.localize(
-							'TaskSystem.noHotSwap',
-							'Changing the task execution engine with an active task running requires to reload the Window'
-						),
-						actions: [
-							new ReloadWindowAction(ReloadWindowAction.ID, ReloadWindowAction.LABEL, this._windowServive),
-							new CloseMessageAction()
-						]
-					}
-				);
-				return;
+			if (this.executionEngine !== folderSetup[2]) {
+				if (this._taskSystem && this._taskSystem.getActiveTasks().length > 0) {
+					this.messageService.show(
+						Severity.Info,
+						{
+							message: nls.localize(
+								'TaskSystem.noHotSwap',
+								'Changing the task execution engine with an active task running requires to reload the Window'
+							),
+							actions: [
+								new ReloadWindowAction(ReloadWindowAction.ID, ReloadWindowAction.LABEL, this._windowServive),
+								new CloseMessageAction()
+							]
+						}
+					);
+					return;
+				} else {
+					this.disposeTaskSystemListeners();
+					this._taskSystem = undefined;
+				}
 			}
 			this.updateSetup(folderSetup);
 			this.updateWorkspaceTasks();
@@ -713,6 +725,13 @@ class TaskService extends EventEmitter implements ITaskService {
 		return this.__workspaceFolders;
 	}
 
+	private get ignoredWorkspaceFolders(): IWorkspaceFolder[] {
+		if (!this.__ignoredWorkspaceFolders) {
+			this.updateSetup();
+		}
+		return this.__ignoredWorkspaceFolders;
+	}
+
 	private get executionEngine(): ExecutionEngine {
 		if (this.__executionEngine === void 0) {
 			this.updateSetup();
@@ -727,13 +746,35 @@ class TaskService extends EventEmitter implements ITaskService {
 		return this.__schemaVersion;
 	}
 
-	private updateSetup(setup?: [IWorkspaceFolder[], ExecutionEngine, JsonSchemaVersion]): void {
+	private get showIgnoreMessage(): boolean {
+		if (this.__showIgnoreMessage === void 0) {
+			this.__showIgnoreMessage = !this.storageService.getBoolean(TaskService.IgnoreTask010DonotShowAgain_key, StorageScope.WORKSPACE, false);
+		}
+		return this.__showIgnoreMessage;
+	}
+
+	private updateSetup(setup?: [IWorkspaceFolder[], IWorkspaceFolder[], ExecutionEngine, JsonSchemaVersion]): void {
 		if (!setup) {
 			setup = this.computeWorkspaceFolderSetup();
 		}
 		this.__workspaceFolders = setup[0];
-		this.__executionEngine = setup[1];
-		this.__schemaVersion = setup[2];
+		if (this.__ignoredWorkspaceFolders) {
+			if (this.__ignoredWorkspaceFolders.length !== setup[1].length) {
+				this.__showIgnoreMessage = undefined;
+			} else {
+				let set: Set<string> = new Set();
+				this.__ignoredWorkspaceFolders.forEach(folder => set.add(folder.uri.toString()));
+				for (let folder of setup[1]) {
+					if (!set.has(folder.uri.toString())) {
+						this.__showIgnoreMessage = undefined;
+						break;
+					}
+				}
+			}
+		}
+		this.__ignoredWorkspaceFolders = setup[1];
+		this.__executionEngine = setup[2];
+		this.__schemaVersion = setup[3];
 	}
 
 	private showOutput(): void {
@@ -1270,8 +1311,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (!this._taskSystem) {
 			return;
 		}
-		const id: string = Types.isString(task) ? task : task._id;
-		this._taskSystem.terminate(id).then((response) => {
+		this._taskSystem.terminate(task).then((response) => {
 			if (response.success) {
 				this.emit(TaskServiceEvents.Terminated, {});
 				this.run(task);
@@ -1282,12 +1322,11 @@ class TaskService extends EventEmitter implements ITaskService {
 		});
 	}
 
-	public terminate(task: string | Task): TPromise<TaskTerminateResponse> {
+	public terminate(task: Task): TPromise<TaskTerminateResponse> {
 		if (!this._taskSystem) {
 			return TPromise.as({ success: true, task: undefined });
 		}
-		const id: string = Types.isString(task) ? task : task._id;
-		return this._taskSystem.terminate(id);
+		return this._taskSystem.terminate(task);
 	}
 
 	public terminateAll(): TPromise<TaskTerminateResponse[]> {
@@ -1581,8 +1620,9 @@ class TaskService extends EventEmitter implements ITaskService {
 		}
 	}
 
-	private computeWorkspaceFolderSetup(): [IWorkspaceFolder[], ExecutionEngine, JsonSchemaVersion] {
+	private computeWorkspaceFolderSetup(): [IWorkspaceFolder[], IWorkspaceFolder[], ExecutionEngine, JsonSchemaVersion] {
 		let workspaceFolders: IWorkspaceFolder[] = [];
+		let ignoredWorkspaceFolders: IWorkspaceFolder[] = [];
 		let executionEngine = ExecutionEngine.Terminal;
 		let schemaVersion = JsonSchemaVersion.V2_0_0;
 
@@ -1596,15 +1636,15 @@ class TaskService extends EventEmitter implements ITaskService {
 				if (schemaVersion === this.computeJsonSchemaVersion(workspaceFolder)) {
 					workspaceFolders.push(workspaceFolder);
 				} else {
+					ignoredWorkspaceFolders.push(workspaceFolder);
 					this._outputChannel.append(nls.localize(
 						'taskService.ignoreingFolder',
-						'Ignoring task configurations for workspace folder {0}. Multi root folder support requires that all folders use task version 2.0.0\n',
+						'Ignoring task configurations for workspace folder {0}. Multi folder workspace task support requires that all folders use task version 2.0.0\n',
 						workspaceFolder.uri.fsPath));
-					this._outputChannel.show(true);
 				}
 			}
 		}
-		return [workspaceFolders, executionEngine, schemaVersion];
+		return [workspaceFolders, ignoredWorkspaceFolders, executionEngine, schemaVersion];
 	}
 
 	private computeExecutionEngine(workspaceFolder: IWorkspaceFolder): ExecutionEngine {
@@ -1901,6 +1941,29 @@ class TaskService extends EventEmitter implements ITaskService {
 		}), { placeHolder, autoFocus: { autoFocusFirstEntry: true } }).then(entry => entry ? entry.task : undefined);
 	}
 
+	private showIgnoredFoldersMessage(): TPromise<void> {
+		if (this.ignoredWorkspaceFolders.length === 0 || !this.showIgnoreMessage) {
+			return TPromise.as(undefined);
+		}
+		let message: string = nls.localize('TaskService.ignoredFolder', 'The following workspace folders are ignored since they use task version 0.1.0: ');
+		for (let i = 0; i < this.ignoredWorkspaceFolders.length; i++) {
+			message = message + this.ignoredWorkspaceFolders[i].name;
+			if (i < this.ignoredWorkspaceFolders.length - 1) {
+				message = message + ', ';
+			}
+		}
+
+		let notAgain = nls.localize('TaskService.notAgain', 'Don\'t Show Again');
+		let ok = nls.localize('TaskService.ok', 'OK');
+		return this.choiceService.choose(Severity.Info, message, [notAgain, ok], 0).then((choice) => {
+			if (choice === 0) {
+				this.storageService.store(TaskService.IgnoreTask010DonotShowAgain_key, true, StorageScope.WORKSPACE);
+			}
+			this.__showIgnoreMessage = false;
+			return undefined;
+		}, () => undefined);
+	}
+
 	private runTaskCommand(accessor: ServicesAccessor, arg: any): void {
 		if (!this.canRunCommand()) {
 			return;
@@ -1926,22 +1989,41 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	private doRunTaskCommand(tasks?: Task[]): void {
-		this.showQuickPick(tasks ? tasks : this.tasks(),
-			nls.localize('TaskService.pickRunTask', 'Select the task to run'),
-			{
-				label: nls.localize('TaslService.noEntryToRun', 'No task to run found. Configure Tasks...'),
-				task: null
-			},
-			true).then((task) => {
-				if (task === void 0) {
-					return;
-				}
-				if (task === null) {
-					this.runConfigureTasks();
-				} else {
-					this.run(task, { attachProblemMatcher: true });
-				}
-			});
+		this.showIgnoredFoldersMessage().then(() => {
+			this.showQuickPick(tasks ? tasks : this.tasks(),
+				nls.localize('TaskService.pickRunTask', 'Select the task to run'),
+				{
+					label: nls.localize('TaslService.noEntryToRun', 'No task to run found. Configure Tasks...'),
+					task: null
+				},
+				true).
+				then((task) => {
+					if (task === void 0) {
+						return;
+					}
+					if (task === null) {
+						this.runConfigureTasks();
+					} else {
+						this.run(task, { attachProblemMatcher: true });
+					}
+				});
+		});
+	}
+
+	private splitPerGroupType(tasks: Task[]): { none: Task[], defaults: Task[], users: Task[] } {
+		let none: Task[] = [];
+		let defaults: Task[] = [];
+		let users: Task[] = [];
+		for (let task of tasks) {
+			if (task.groupType === GroupType.default) {
+				defaults.push(task);
+			} else if (task.groupType === GroupType.user) {
+				users.push(task);
+			} else {
+				none.push(task);
+			}
+		}
+		return { none, defaults, users };
 	}
 
 	private runBuildCommand(): void {
@@ -1958,34 +2040,32 @@ class TaskService extends EventEmitter implements ITaskService {
 		};
 		let promise = this.getTasksForGroup(TaskGroup.Build).then((tasks) => {
 			if (tasks.length > 0) {
-				let primaries: Task[] = [];
-				for (let task of tasks) {
-					// We only have build tasks here
-					if (task.isDefaultGroupEntry) {
-						primaries.push(task);
-					}
-				}
-				if (primaries.length === 1) {
-					this.run(primaries[0]);
+				let { none, defaults, users } = this.splitPerGroupType(tasks);
+				if (defaults.length === 1) {
+					this.run(defaults[0]);
 					return;
+				} else if (defaults.length + users.length > 0) {
+					tasks = defaults.concat(users);
 				}
 			}
-			this.showQuickPick(tasks,
-				nls.localize('TaskService.pickBuildTask', 'Select the build task to run'),
-				{
-					label: nls.localize('TaskService.noBuildTask', 'No build task to run found. Configure Tasks...'),
-					task: null
-				},
-				true).then((task) => {
-					if (task === void 0) {
-						return;
-					}
-					if (task === null) {
-						this.runConfigureTasks();
-						return;
-					}
-					this.run(task, { attachProblemMatcher: true });
-				});
+			this.showIgnoredFoldersMessage().then(() => {
+				this.showQuickPick(tasks,
+					nls.localize('TaskService.pickBuildTask', 'Select the build task to run'),
+					{
+						label: nls.localize('TaskService.noBuildTask', 'No build task to run found. Configure Tasks...'),
+						task: null
+					},
+					true).then((task) => {
+						if (task === void 0) {
+							return;
+						}
+						if (task === null) {
+							this.runConfigureTasks();
+							return;
+						}
+						this.run(task, { attachProblemMatcher: true });
+					});
+			});
 		});
 		this.progressService.withProgress(options, () => promise);
 	}
@@ -2004,33 +2084,31 @@ class TaskService extends EventEmitter implements ITaskService {
 		};
 		let promise = this.getTasksForGroup(TaskGroup.Test).then((tasks) => {
 			if (tasks.length > 0) {
-				let primaries: Task[] = [];
-				for (let task of tasks) {
-					// We only have test task here.
-					if (task.isDefaultGroupEntry) {
-						primaries.push(task);
-					}
-				}
-				if (primaries.length === 1) {
-					this.run(primaries[0]);
+				let { none, defaults, users } = this.splitPerGroupType(tasks);
+				if (defaults.length === 1) {
+					this.run(defaults[0]);
 					return;
+				} else if (defaults.length + users.length > 0) {
+					tasks = defaults.concat(users);
 				}
 			}
-			this.showQuickPick(tasks,
-				nls.localize('TaskService.pickTestTask', 'Select the test task to run'),
-				{
-					label: nls.localize('TaskService.noTestTaskTerminal', 'No test task to run found. Configure Tasks...'),
-					task: null
-				}, true
-			).then((task) => {
-				if (task === void 0) {
-					return;
-				}
-				if (task === null) {
-					this.runConfigureTasks();
-					return;
-				}
-				this.run(task);
+			this.showIgnoredFoldersMessage().then(() => {
+				this.showQuickPick(tasks,
+					nls.localize('TaskService.pickTestTask', 'Select the test task to run'),
+					{
+						label: nls.localize('TaskService.noTestTaskTerminal', 'No test task to run found. Configure Tasks...'),
+						task: null
+					}, true
+				).then((task) => {
+					if (task === void 0) {
+						return;
+					}
+					if (task === null) {
+						this.runConfigureTasks();
+						return;
+					}
+					this.run(task);
+				});
 			});
 		});
 		this.progressService.withProgress(options, () => promise);
@@ -2212,16 +2290,18 @@ class TaskService extends EventEmitter implements ITaskService {
 			});
 		});
 
-		this.quickOpenService.pick(entries, { placeHolder: nls.localize('TaskService.pickTask', 'Select a task to configure'), autoFocus: { autoFocusFirstEntry: true } }).then((selection) => {
-			if (!selection) {
-				return;
-			}
-			if (isTaskEntry(selection)) {
-				configureTask(selection.task);
-			} else {
-				openTaskFile(selection.folder);
-			}
-		});
+		this.quickOpenService.pick(entries,
+			{ placeHolder: nls.localize('TaskService.pickTask', 'Select a task to configure'), autoFocus: { autoFocusFirstEntry: true } }).
+			then((selection) => {
+				if (!selection) {
+					return;
+				}
+				if (isTaskEntry(selection)) {
+					configureTask(selection.task);
+				} else {
+					openTaskFile(selection.folder);
+				}
+			});
 	}
 
 	private runConfigureDefaultBuildTask(): void {
@@ -2237,7 +2317,7 @@ class TaskService extends EventEmitter implements ITaskService {
 				let defaultTask: Task;
 				let defaultEntry: TaskQuickPickEntry;
 				for (let task of tasks) {
-					if (task.group === TaskGroup.Build && task.isDefaultGroupEntry) {
+					if (task.group === TaskGroup.Build && task.groupType === GroupType.default) {
 						defaultTask = task;
 						break;
 					}
@@ -2249,18 +2329,21 @@ class TaskService extends EventEmitter implements ITaskService {
 						task: defaultTask
 					};
 				}
-				this.showQuickPick(tasks,
-					nls.localize('TaskService.pickDefaultBuildTask', 'Select the task to be used as the default build task'), defaultEntry, true).then((task) => {
-						if (task === void 0) {
-							return;
-						}
-						if (task === defaultTask && CustomTask.is(task)) {
-							this.openConfig(task);
-						}
-						if (!InMemoryTask.is(task)) {
-							this.customize(task, { group: { kind: 'build', isDefault: true } }, true);
-						}
-					});
+				this.showIgnoredFoldersMessage().then(() => {
+					this.showQuickPick(tasks,
+						nls.localize('TaskService.pickDefaultBuildTask', 'Select the task to be used as the default build task'), defaultEntry, true).
+						then((task) => {
+							if (task === void 0) {
+								return;
+							}
+							if (task === defaultTask && CustomTask.is(task)) {
+								this.openConfig(task);
+							}
+							if (!InMemoryTask.is(task)) {
+								this.customize(task, { group: { kind: 'build', isDefault: true } }, true);
+							}
+						});
+				});
 			}));
 		} else {
 			this.runConfigureTasks();
@@ -2278,7 +2361,7 @@ class TaskService extends EventEmitter implements ITaskService {
 				}
 				let defaultTask: Task;
 				for (let task of tasks) {
-					if (task.group === TaskGroup.Test && task.isDefaultGroupEntry) {
+					if (task.group === TaskGroup.Test && task.groupType === GroupType.default) {
 						defaultTask = task;
 						break;
 					}
@@ -2287,13 +2370,15 @@ class TaskService extends EventEmitter implements ITaskService {
 					this.messageService.show(Severity.Info, nls.localize('TaskService.defaultTestTaskExists', '{0} is already marked as the default test task.', Task.getQualifiedLabel(defaultTask)));
 					return;
 				}
-				this.showQuickPick(tasks, nls.localize('TaskService.pickDefaultTestTask', 'Select the task to be used as the default test task'), undefined, true).then((task) => {
-					if (!task) {
-						return;
-					}
-					if (!InMemoryTask.is(task)) {
-						this.customize(task, { group: { kind: 'test', isDefault: true } }, true);
-					}
+				this.showIgnoredFoldersMessage().then(() => {
+					this.showQuickPick(tasks, nls.localize('TaskService.pickDefaultTestTask', 'Select the task to be used as the default test task'), undefined, true).then((task) => {
+						if (!task) {
+							return;
+						}
+						if (!InMemoryTask.is(task)) {
+							this.customize(task, { group: { kind: 'test', isDefault: true } }, true);
+						}
+					});
 				});
 			}));
 		} else {
