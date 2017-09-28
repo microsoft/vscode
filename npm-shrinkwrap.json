@@ -572,7 +572,7 @@
       "resolved": "https://registry.npmjs.org/windows-process-tree/-/windows-process-tree-0.1.6.tgz"
     },
     "xterm": {
-      "version": "2.9.2",
+      "version": "2.9.1",
       "from": "Tyriar/xterm.js#vscode-release/1.17",
       "resolved": "git+https://github.com/Tyriar/xterm.js.git#d7456b8801fe8b2d41c3b00b1350de06d9245d3a"
     },
