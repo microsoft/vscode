@@ -22,6 +22,8 @@ addons:
       - libx11-dev
       - libxkbfile-dev
       - libsecret-1-dev
+      - dbus
+      - dbus-x11
 
 before_install:
   - git submodule update --init --recursive
