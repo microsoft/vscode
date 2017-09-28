@@ -67,6 +67,11 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 		return (this.workspaceRoot) ? paths.relative(this.workspaceRoot, this.file) : this.file;
 	}
 
+	private get relativeDirectory(): string {
+		const dirname = paths.dirname(this.getFilePath());
+		return (this.workspaceRoot) ? paths.relative(this.workspaceRoot, dirname) : dirname;
+	}
+
 	private get fileBasename(): string {
 		return paths.basename(this.getFilePath());
 	}
