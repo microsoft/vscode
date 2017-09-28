@@ -198,8 +198,8 @@ export class RemoteFileService extends FileService {
 					result[idx] = { stat: undefined, success: false };
 				});
 			});
-			return TPromise.join(promises).then(() => result);
-		});
+			return TPromise.join(promises).then(() => result, () => result);
+		}, err => ([{ stat: undefined, success: false }]));
 	}
 
 	// --- resolve
