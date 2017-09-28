@@ -811,7 +811,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 	private onDidChangeRepositories(): void {
 		toggleClass(this.el, 'empty', this.scmService.repositories.length === 0);
 
-		const shouldMainPanelBeVisible = this.scmService.repositories.length > 1;
+		const shouldMainPanelBeVisible = this.scmService.repositories.length > 0;
 
 		if (!!this.mainPanel === shouldMainPanelBeVisible) {
 			return;
