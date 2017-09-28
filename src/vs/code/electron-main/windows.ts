@@ -33,6 +33,7 @@ import { IWorkspacesMainService, IWorkspaceIdentifier, ISingleFolderWorkspaceIde
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
+import { normalizeNFC } from 'vs/base/common/strings';
 
 enum WindowError {
 	UNRESPONSIVE,
@@ -1632,6 +1633,9 @@ class FileDialog {
 		const focusedWindow = this.windowsMainService.getWindowById(options.windowId) || this.windowsMainService.getFocusedWindow();
 		dialog.showOpenDialog(focusedWindow && focusedWindow.win, options.dialogOptions, paths => {
 			if (paths && paths.length > 0) {
+				if (isMacintosh) {
+					paths = paths.map(path => normalizeNFC(path)); // normalize paths returned from the OS
+				}
 
 				// Remember path in storage for next time
 				this.storageService.setItem(FileDialog.workingDirPickerStorageKey, dirname(paths[0]));
@@ -1804,7 +1808,7 @@ class WorkspacesManager {
 
 			// Save: save workspace, but do not veto unload
 			case ConfirmResult.SAVE: {
-				const target = dialog.showSaveDialog(e.window.win, {
+				let target = dialog.showSaveDialog(e.window.win, {
 					buttonLabel: mnemonicButtonLabel(localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")),
 					title: localize('saveWorkspace', "Save Workspace"),
 					filters: WORKSPACE_FILTER,
@@ -1812,6 +1816,10 @@ class WorkspacesManager {
 				});
 
 				if (target) {
+					if (isMacintosh) {
+						target = normalizeNFC(target); // normalize paths returned from the OS
+					}
+
 					e.veto(this.workspacesService.saveWorkspace(workspace, target).then(() => false, () => false));
 				} else {
 					e.veto(true); // keep veto if no target was provided
