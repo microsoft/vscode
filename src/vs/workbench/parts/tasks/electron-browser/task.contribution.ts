@@ -73,7 +73,7 @@ import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 
 import { ITaskSystem, ITaskResolver, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TaskSystemEvents, TaskTerminateResponse } from 'vs/workbench/parts/tasks/common/taskSystem';
-import { Task, CustomTask, ConfiguringTask, ContributedTask, InMemoryTask, TaskSet, TaskGroup, ExecutionEngine, JsonSchemaVersion, TaskSourceKind, TaskIdentifier, TaskSorter } from 'vs/workbench/parts/tasks/common/tasks';
+import { Task, CustomTask, ConfiguringTask, ContributedTask, InMemoryTask, TaskSet, TaskGroup, GroupType, ExecutionEngine, JsonSchemaVersion, TaskSourceKind, TaskIdentifier, TaskSorter } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService, TaskServiceEvents, ITaskProvider, TaskEvent, RunOptions, CustomizationProperties } from 'vs/workbench/parts/tasks/common/taskService';
 import { templates as taskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
 
@@ -1311,8 +1311,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (!this._taskSystem) {
 			return;
 		}
-		const id: string = Types.isString(task) ? task : task._id;
-		this._taskSystem.terminate(id).then((response) => {
+		this._taskSystem.terminate(task).then((response) => {
 			if (response.success) {
 				this.emit(TaskServiceEvents.Terminated, {});
 				this.run(task);
@@ -1323,12 +1322,11 @@ class TaskService extends EventEmitter implements ITaskService {
 		});
 	}
 
-	public terminate(task: string | Task): TPromise<TaskTerminateResponse> {
+	public terminate(task: Task): TPromise<TaskTerminateResponse> {
 		if (!this._taskSystem) {
 			return TPromise.as({ success: true, task: undefined });
 		}
-		const id: string = Types.isString(task) ? task : task._id;
-		return this._taskSystem.terminate(id);
+		return this._taskSystem.terminate(task);
 	}
 
 	public terminateAll(): TPromise<TaskTerminateResponse[]> {
@@ -2012,6 +2010,22 @@ class TaskService extends EventEmitter implements ITaskService {
 		});
 	}
 
+	private splitPerGroupType(tasks: Task[]): { none: Task[], defaults: Task[], users: Task[] } {
+		let none: Task[] = [];
+		let defaults: Task[] = [];
+		let users: Task[] = [];
+		for (let task of tasks) {
+			if (task.groupType === GroupType.default) {
+				defaults.push(task);
+			} else if (task.groupType === GroupType.user) {
+				users.push(task);
+			} else {
+				none.push(task);
+			}
+		}
+		return { none, defaults, users };
+	}
+
 	private runBuildCommand(): void {
 		if (!this.canRunCommand()) {
 			return;
@@ -2026,16 +2040,12 @@ class TaskService extends EventEmitter implements ITaskService {
 		};
 		let promise = this.getTasksForGroup(TaskGroup.Build).then((tasks) => {
 			if (tasks.length > 0) {
-				let primaries: Task[] = [];
-				for (let task of tasks) {
-					// We only have build tasks here
-					if (task.isDefaultGroupEntry) {
-						primaries.push(task);
-					}
-				}
-				if (primaries.length === 1) {
-					this.run(primaries[0]);
+				let { none, defaults, users } = this.splitPerGroupType(tasks);
+				if (defaults.length === 1) {
+					this.run(defaults[0]);
 					return;
+				} else if (defaults.length + users.length > 0) {
+					tasks = defaults.concat(users);
 				}
 			}
 			this.showIgnoredFoldersMessage().then(() => {
@@ -2074,16 +2084,12 @@ class TaskService extends EventEmitter implements ITaskService {
 		};
 		let promise = this.getTasksForGroup(TaskGroup.Test).then((tasks) => {
 			if (tasks.length > 0) {
-				let primaries: Task[] = [];
-				for (let task of tasks) {
-					// We only have test task here.
-					if (task.isDefaultGroupEntry) {
-						primaries.push(task);
-					}
-				}
-				if (primaries.length === 1) {
-					this.run(primaries[0]);
+				let { none, defaults, users } = this.splitPerGroupType(tasks);
+				if (defaults.length === 1) {
+					this.run(defaults[0]);
 					return;
+				} else if (defaults.length + users.length > 0) {
+					tasks = defaults.concat(users);
 				}
 			}
 			this.showIgnoredFoldersMessage().then(() => {
@@ -2311,7 +2317,7 @@ class TaskService extends EventEmitter implements ITaskService {
 				let defaultTask: Task;
 				let defaultEntry: TaskQuickPickEntry;
 				for (let task of tasks) {
-					if (task.group === TaskGroup.Build && task.isDefaultGroupEntry) {
+					if (task.group === TaskGroup.Build && task.groupType === GroupType.default) {
 						defaultTask = task;
 						break;
 					}
@@ -2355,7 +2361,7 @@ class TaskService extends EventEmitter implements ITaskService {
 				}
 				let defaultTask: Task;
 				for (let task of tasks) {
-					if (task.group === TaskGroup.Test && task.isDefaultGroupEntry) {
+					if (task.group === TaskGroup.Test && task.groupType === GroupType.default) {
 						defaultTask = task;
 						break;
 					}
