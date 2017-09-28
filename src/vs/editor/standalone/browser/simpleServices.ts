@@ -433,9 +433,6 @@ export class SimpleConfigurationService implements IConfigurationService {
 	private _onDidUpdateConfiguration = new Emitter<IConfigurationServiceEvent>();
 	public onDidUpdateConfiguration: Event<IConfigurationServiceEvent> = this._onDidUpdateConfiguration.event;
 
-	private _onDidRegisterExtensionsConfigurations = new Emitter<void>();
-	public onDidRegisterExtensionsConfigurations: Event<void> = this._onDidRegisterExtensionsConfigurations.event;
-
 	private _configuration: Configuration<any>;
 
 	constructor() {
