@@ -32,7 +32,7 @@ export class IndentRange {
 	}
 }
 
-interface PreviousRegion { indent: number; line: number; marker: RegExp; };
+interface PreviousRegion { indent: number; line: number; marker: boolean; };
 
 export function computeRanges(model: ITextModel, offSide: boolean, markers?: FoldingMarkers, minimumRangeSize: number = 1): IndentRange[] {
 
@@ -44,13 +44,13 @@ export function computeRanges(model: ITextModel, offSide: boolean, markers?: Fol
 	}
 
 	let previousRegions: PreviousRegion[] = [];
-	previousRegions.push({ indent: -1, line: model.getLineCount() + 1, marker: null }); // sentinel, to make sure there's at least one entry
+	previousRegions.push({ indent: -1, line: model.getLineCount() + 1, marker: false }); // sentinel, to make sure there's at least one entry
 
 	for (let line = model.getLineCount(); line > 0; line--) {
 		let indent = model.getIndentLevel(line);
 		let previous = previousRegions[previousRegions.length - 1];
 		if (indent === -1) {
-			if (offSide) {
+			if (offSide && !previous.marker) {
 				// for offSide languages, empty lines are associated to the next block
 				previous.line = line;
 			}
@@ -60,23 +60,20 @@ export function computeRanges(model: ITextModel, offSide: boolean, markers?: Fol
 		if (pattern && (m = model.getLineContent(line).match(pattern))) {
 			// folding pattern match
 			if (m[1]) { // start pattern match
-				if (previous.indent >= 0 && !previous.marker) {
-
-					// discard all regions until the folding pattern
-					do {
-						previousRegions.pop();
-						previous = previousRegions[previousRegions.length - 1];
-					} while (previous.indent >= 0 && !previous.marker);
+				// discard all regions until the folding pattern
+				while (previous.indent >= 0 && !previous.marker) {
+					previousRegions.pop();
+					previous = previousRegions[previousRegions.length - 1];
 				}
 				if (previous.marker) {
 					// new folding range from pattern, includes the end line
 					result.push(new IndentRange(line, previous.line, indent, true));
-					previous.marker = null;
+					previous.marker = false;
 					previous.indent = indent;
 					previous.line = line;
 				}
 			} else { // end pattern match
-				previousRegions.push({ indent: -2, line, marker: pattern });
+				previousRegions.push({ indent: -2, line, marker: true });
 			}
 		} else {
 			if (previous.indent > indent) {
@@ -96,7 +93,7 @@ export function computeRanges(model: ITextModel, offSide: boolean, markers?: Fol
 				previous.line = line;
 			} else { // previous.indent < indent
 				// new region with a bigger indent
-				previousRegions.push({ indent, line, marker: null });
+				previousRegions.push({ indent, line, marker: false });
 			}
 		}
 	}
