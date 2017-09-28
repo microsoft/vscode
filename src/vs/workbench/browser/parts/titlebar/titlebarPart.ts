@@ -41,7 +41,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	private static NLS_UNSUPPORTED = nls.localize('patchedWindowTitle', "[Unsupported]");
 	private static NLS_EXTENSION_HOST = nls.localize('devExtensionWindowTitlePrefix', "[Extension Development Host]");
 	private static TITLE_DIRTY = '\u25cf ';
-	private static TITLE_SEPARATOR = isMacintosh ? ' - ' : ' - '; // macOS uses special - separator
+	private static TITLE_SEPARATOR = isMacintosh ? ' — ' : ' - '; // macOS uses special - separator
 
 	private titleContainer: Builder;
 	private title: Builder;
