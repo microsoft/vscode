@@ -127,6 +127,7 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 	}
 
 	public provideTextContent(resource: URI): TPromise<IModel> {
+		const fileOnDiskResource = URI.file(resource.fsPath);
 
 		// Make sure our file from disk is resolved up to date
 		return this.resolveEditorModel(resource).then(codeEditorModel => {
@@ -134,7 +135,7 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 			// Make sure to keep contents on disk up to date when it changes
 			if (!this.fileWatcher) {
 				this.fileWatcher = this.fileService.onFileChanges(changes => {
-					if (changes.contains(resource, FileChangeType.UPDATED)) {
+					if (changes.contains(fileOnDiskResource, FileChangeType.UPDATED)) { //
 						this.resolveEditorModel(resource, false /* do not create if missing */).done(null, onUnexpectedError); // update model when resource changes
 					}
 				});
