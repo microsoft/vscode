@@ -84,7 +84,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	 * Gets the font information based on the terminal.integrated.fontFamily
 	 * terminal.integrated.fontSize, terminal.integrated.lineHeight configuration properties
 	 */
-	public getFont(): ITerminalFont {
+	public getFont(excludeDimensions?: boolean): ITerminalFont {
 		const config = this._configurationService.getConfiguration();
 		const editorConfig = (<IEditorConfiguration>config).editor;
 		const terminalConfig = this.config;
@@ -95,6 +95,14 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 			fontSize = EDITOR_FONT_DEFAULTS.fontSize;
 		}
 		const lineHeight = terminalConfig.lineHeight ? Math.max(terminalConfig.lineHeight, 1) : DEFAULT_LINE_HEIGHT;
+
+		if (excludeDimensions) {
+			return {
+				fontFamily,
+				fontSize,
+				lineHeight
+			};
+		}
 
 		return this._measureFont(fontFamily, fontSize, lineHeight);
 	}

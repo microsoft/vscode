@@ -93,8 +93,8 @@ export interface ITerminalFont {
 	fontFamily: string;
 	fontSize: number;
 	lineHeight: number;
-	charWidth: number;
-	charHeight: number;
+	charWidth?: number;
+	charHeight?: number;
 }
 
 export interface IShellLaunchConfig {
