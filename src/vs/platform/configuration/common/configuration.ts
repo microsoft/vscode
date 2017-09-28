@@ -51,15 +51,8 @@ export interface IConfigurationService {
 	 */
 	reloadConfiguration<T>(section?: string): TPromise<T>;
 
-	// TODO: @sandy: Merge these to single fine grained configuration change event
-	// These events were separated to improve the start up performance - #34353
 	/**
-	 * Event that fires when the configurations from extensions are registered.
-	 */
-	onDidRegisterExtensionsConfigurations: Event<void>;
-
-	/**
-	 * Event that fires when the configuration changes. This event is not fired when configurations from extensions are registered.
+	 * Event that fires when the configuration changes.
 	 */
 	onDidUpdateConfiguration: Event<IConfigurationServiceEvent>;
 

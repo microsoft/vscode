@@ -128,7 +128,6 @@ configurationExtPoint.setHandler(extensions => {
 		validateProperties(configuration, collector);
 
 		configuration.id = id;
-		configuration.isFromExtensions = true;
 		configurations.push(configuration);
 	};
 
@@ -276,9 +275,6 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	protected readonly _onDidUpdateConfiguration: Emitter<IConfigurationServiceEvent> = this._register(new Emitter<IConfigurationServiceEvent>());
 	public readonly onDidUpdateConfiguration: Event<IConfigurationServiceEvent> = this._onDidUpdateConfiguration.event;
 
-	private _onDidRegisterExtensionsConfigurations: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onDidRegisterExtensionsConfigurations: Event<void> = this._onDidRegisterExtensionsConfigurations.event;
-
 	protected readonly _onDidChangeWorkspaceFolders: Emitter<IWorkspaceFoldersChangeEvent> = this._register(new Emitter<IWorkspaceFoldersChangeEvent>());
 	public readonly onDidChangeWorkspaceFolders: Event<IWorkspaceFoldersChangeEvent> = this._onDidChangeWorkspaceFolders.event;
 
@@ -296,7 +292,6 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 
 		this.baseConfigurationService = this._register(new GlobalConfigurationService(environmentService));
 		this._register(this.baseConfigurationService.onDidUpdateConfiguration(e => this.onBaseConfigurationChanged(e)));
-		this._register(this.baseConfigurationService.onDidRegisterExtensionsConfigurations(e => this.onDidRegisterExtensionsDefaultsConfigurations()));
 		this._register(configurationRegistry.onDidRegisterConfiguration(e => this.registerConfigurationSchemas()));
 	}
 
@@ -522,24 +517,14 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		}
 	}
 
-	private onBaseConfigurationChanged({ source, sourceConfig }: IConfigurationServiceEvent, doNotTrigger: boolean = false): boolean {
+	private onBaseConfigurationChanged({ source, sourceConfig }: IConfigurationServiceEvent): void {
 		if (this.workspace) {
 			if (source === ConfigurationSource.Default) {
 				this.workspace.folders.forEach(folder => this._configuration.getFolderConfigurationModel(folder.uri).update());
 			}
 			if (this._configuration.updateBaseConfiguration(<any>this.baseConfigurationService.configuration())) {
-				if (!doNotTrigger) {
-					this._onDidUpdateConfiguration.fire({ source, sourceConfig });
-				}
-				return true;
+				this._onDidUpdateConfiguration.fire({ source, sourceConfig });
 			}
-		}
-		return false;
-	}
-
-	private onDidRegisterExtensionsDefaultsConfigurations(): void {
-		if (this.onBaseConfigurationChanged({ source: ConfigurationSource.Default, sourceConfig: this.baseConfigurationService.getConfigurationData().defaults.contents }, true)) {
-			this._onDidRegisterExtensionsConfigurations.fire();
 		}
 	}
 

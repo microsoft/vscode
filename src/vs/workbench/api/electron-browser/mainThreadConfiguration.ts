@@ -6,7 +6,7 @@
 
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -16,7 +16,9 @@ import { MainThreadConfigurationShape, MainContext, ExtHostContext, IExtHostCont
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadConfiguration)
-export class MainThreadConfiguration extends Disposable implements MainThreadConfigurationShape {
+export class MainThreadConfiguration implements MainThreadConfigurationShape {
+
+	private readonly _configurationListener: IDisposable;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -24,16 +26,15 @@ export class MainThreadConfiguration extends Disposable implements MainThreadCon
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService
 	) {
-		super();
 		const proxy = extHostContext.get(ExtHostContext.ExtHostConfiguration);
 
-		this._register(configurationService.onDidUpdateConfiguration(() => {
+		this._configurationListener = configurationService.onDidUpdateConfiguration(() => {
 			proxy.$acceptConfigurationChanged(configurationService.getConfigurationData());
-		}));
+		});
+	}
 
-		this._register(configurationService.onDidRegisterExtensionsConfigurations(() => {
-			proxy.$acceptConfigurationChanged(configurationService.getConfigurationData());
-		}));
+	public dispose(): void {
+		this._configurationListener.dispose();
 	}
 
 	$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any, resource: URI): TPromise<void> {
