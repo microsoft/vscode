@@ -5,16 +5,23 @@
 
 'use strict';
 
-import { workspace, Disposable } from 'vscode';
+import { workspace, Disposable, EventEmitter } from 'vscode';
 import { GitErrorCodes } from './git';
 import { Repository } from './repository';
-import { throttle } from './decorators';
+import { eventToPromise, filterEvent } from './util';
 
 export class AutoFetcher {
 
 	private static Period = 3 * 60 * 1000 /* three minutes */;
+
+	private _onDidChange = new EventEmitter<boolean>();
+	private onDidChange = this._onDidChange.event;
+
+	private _enabled: boolean = false;
+	get enabled(): boolean { return this._enabled; }
+	set enabled(enabled: boolean) { this._enabled = enabled; this._onDidChange.fire(enabled); }
+
 	private disposables: Disposable[] = [];
-	private timer: NodeJS.Timer;
 
 	constructor(private repository: Repository) {
 		workspace.onDidChangeConfiguration(this.onConfiguration, this, this.disposables);
@@ -32,26 +39,41 @@ export class AutoFetcher {
 	}
 
 	enable(): void {
-		if (this.timer) {
+		if (this.enabled) {
 			return;
 		}
 
-		this.fetch();
-		this.timer = setInterval(() => this.fetch(), AutoFetcher.Period);
+		this.enabled = true;
+		this.run();
 	}
 
 	disable(): void {
-		clearInterval(this.timer);
+		this.enabled = false;
 	}
 
-	@throttle
-	private async fetch(): Promise<void> {
-		try {
-			await this.repository.fetch();
-		} catch (err) {
-			if (err.gitErrorCode === GitErrorCodes.AuthenticationFailed) {
-				this.disable();
+	private async run(): Promise<void> {
+		while (this.enabled) {
+			await this.repository.whenIdleAndFocused();
+
+			if (!this.enabled) {
+				return;
 			}
+
+			try {
+				await this.repository.fetch();
+			} catch (err) {
+				if (err.gitErrorCode === GitErrorCodes.AuthenticationFailed) {
+					this.disable();
+				}
+			}
+
+			if (!this.enabled) {
+				return;
+			}
+
+			const timeout = new Promise(c => setTimeout(c, AutoFetcher.Period));
+			const whenDisabled = eventToPromise(filterEvent(this.onDidChange, enabled => !enabled));
+			await Promise.race([timeout, whenDisabled]);
 		}
 	}
 

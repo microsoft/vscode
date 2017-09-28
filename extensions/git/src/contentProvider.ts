@@ -6,9 +6,10 @@
 'use strict';
 
 import { workspace, Uri, Disposable, Event, EventEmitter, window } from 'vscode';
-import { debounce } from './decorators';
+import { debounce, throttle } from './decorators';
 import { fromGitUri } from './uri';
 import { Model, ModelChangeEvent } from './model';
+import { filterEvent, eventToPromise } from './util';
 
 interface CacheRow {
 	uri: Uri;
@@ -50,7 +51,13 @@ export class GitContentProvider {
 		this.fireChangeEvents();
 	}
 
-	private fireChangeEvents(): void {
+	@throttle
+	private async fireChangeEvents(): Promise<void> {
+		if (!window.state.focused) {
+			const onDidFocusWindow = filterEvent(window.onDidChangeWindowState, e => e.focused);
+			await eventToPromise(onDidFocusWindow);
+		}
+
 		Object.keys(this.cache).forEach(key => {
 			const uri = this.cache[key].uri;
 			const fsPath = uri.fsPath;
