@@ -305,6 +305,12 @@ gulp.task('clean-vscode-linux-arm-deb', util.rimraf('.build/linux/deb/armhf'));
 gulp.task('clean-vscode-linux-ia32-rpm', util.rimraf('.build/linux/rpm/i386'));
 gulp.task('clean-vscode-linux-x64-rpm', util.rimraf('.build/linux/rpm/x86_64'));
 gulp.task('clean-vscode-linux-arm-rpm', util.rimraf('.build/linux/rpm/armhf'));
+gulp.task('clean-vscode-linux-ia32-snap', util.rimraf('.build/linux/snap/x64'));
+gulp.task('clean-vscode-linux-x64-snap', util.rimraf('.build/linux/snap/x64'));
+gulp.task('clean-vscode-linux-arm-snap', util.rimraf('.build/linux/snap/x64'));
+gulp.task('clean-vscode-linux-ia32-flatpak', util.rimraf('.build/linux/flatpak/i386'));
+gulp.task('clean-vscode-linux-x64-flatpak', util.rimraf('.build/linux/flatpak/x86_64'));
+gulp.task('clean-vscode-linux-arm-flatpak', util.rimraf('.build/linux/flatpak/arm'));
 
 gulp.task('vscode-linux-ia32-prepare-deb', ['clean-vscode-linux-ia32-deb'], prepareDebPackage('ia32'));
 gulp.task('vscode-linux-x64-prepare-deb', ['clean-vscode-linux-x64-deb'], prepareDebPackage('x64'));
@@ -320,18 +326,16 @@ gulp.task('vscode-linux-ia32-build-rpm', ['vscode-linux-ia32-prepare-rpm'], buil
 gulp.task('vscode-linux-x64-build-rpm', ['vscode-linux-x64-prepare-rpm'], buildRpmPackage('x64'));
 gulp.task('vscode-linux-arm-build-rpm', ['vscode-linux-arm-prepare-rpm'], buildRpmPackage('arm'));
 
-gulp.task('clean-vscode-linux-x64-snap', util.rimraf('.build/linux/snap/x64'));
+gulp.task('vscode-linux-ia32-prepare-snap', ['clean-vscode-linux-ia32-snap'], prepareSnapPackage('ia32'));
 gulp.task('vscode-linux-x64-prepare-snap', ['clean-vscode-linux-x64-snap'], prepareSnapPackage('x64'));
+gulp.task('vscode-linux-arm-prepare-snap', ['clean-vscode-linux-arm-snap'], prepareSnapPackage('arm'));
+gulp.task('vscode-linux-ia32-build-snap', ['vscode-linux-ia32-prepare-snap'], buildSnapPackage('ia32'));
 gulp.task('vscode-linux-x64-build-snap', ['vscode-linux-x64-prepare-snap'], buildSnapPackage('x64'));
-
-gulp.task('clean-vscode-linux-ia32-flatpak', util.rimraf('.build/linux/flatpak/i386'));
-gulp.task('clean-vscode-linux-x64-flatpak', util.rimraf('.build/linux/flatpak/x86_64'));
-gulp.task('clean-vscode-linux-arm-flatpak', util.rimraf('.build/linux/flatpak/arm'));
+gulp.task('vscode-linux-arm-build-snap', ['vscode-linux-arm-prepare-snap'], buildSnapPackage('arm'));
 
 gulp.task('vscode-linux-ia32-prepare-flatpak', ['clean-vscode-linux-ia32-flatpak'], prepareFlatpak('ia32'));
 gulp.task('vscode-linux-x64-prepare-flatpak', ['clean-vscode-linux-x64-flatpak'], prepareFlatpak('x64'));
 gulp.task('vscode-linux-arm-prepare-flatpak', ['clean-vscode-linux-arm-flatpak'], prepareFlatpak('arm'));
-
 gulp.task('vscode-linux-ia32-flatpak', ['vscode-linux-ia32-prepare-flatpak'], buildFlatpak('ia32'));
 gulp.task('vscode-linux-x64-flatpak', ['vscode-linux-x64-prepare-flatpak'], buildFlatpak('x64'));
 gulp.task('vscode-linux-arm-flatpak', ['vscode-linux-arm-prepare-flatpak'], buildFlatpak('arm'));
