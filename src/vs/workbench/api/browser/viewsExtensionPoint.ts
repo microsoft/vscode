@@ -113,11 +113,11 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyV
 
 					// validate
 					if (viewIds.indexOf(viewDescriptor.id) !== -1) {
-						collector.error(localize('duplicateView1', "Cannot register multiple views with same id {0} in the location {1}", viewDescriptor.id, viewDescriptor.location.id));
+						collector.error(localize('duplicateView1', "Cannot register multiple views with same id `{0}` in the location `{1}`", viewDescriptor.id, viewDescriptor.location.id));
 						return null;
 					}
 					if (registeredViews.some(v => v.id === viewDescriptor.id)) {
-						collector.error(localize('duplicateView2', "A view with {0} is already registered in the location {1}", viewDescriptor.id, viewDescriptor.location.id));
+						collector.error(localize('duplicateView2', "A view with id `{0}` is already registered in the location `{1}`", viewDescriptor.id, viewDescriptor.location.id));
 						return null;
 					}
 
