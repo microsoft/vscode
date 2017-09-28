@@ -37,6 +37,11 @@
         }
       },
       {
+        "command": "git.close",
+        "title": "%command.close%",
+        "category": "Git"
+      },
+      {
         "command": "git.refresh",
         "title": "%command.refresh%",
         "category": "Git",
@@ -562,6 +567,13 @@
         {
           "command": "git.showOutput",
           "group": "7_repository",
+          "when": "config.git.enabled && scmProvider == git"
+        }
+      ],
+      "scm/sourceControl": [
+        {
+          "command": "git.close",
+          "group": "navigation",
           "when": "config.git.enabled && scmProvider == git"
         }
       ],

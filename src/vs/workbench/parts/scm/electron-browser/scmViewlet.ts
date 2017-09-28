@@ -32,9 +32,9 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { MenuItemAction } from 'vs/platform/actions/common/actions';
+import { MenuItemAction, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IAction, Action, IActionItem, ActionRunner } from 'vs/base/common/actions';
-import { MenuItemActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
+import { MenuItemActionItem, fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { SCMMenus } from './scmMenus';
 import { ActionBar, IActionItemProvider, Separator, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
@@ -219,7 +219,9 @@ class MainPanel extends ViewletPanel {
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@ISCMService protected scmService: ISCMService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService private themeService: IThemeService
+		@IThemeService private themeService: IThemeService,
+		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IMenuService private menuService: IMenuService
 	) {
 		super(localize('scm providers', "Source Control Providers"), {}, keybindingService, contextMenuService);
 		this.updateBodySize();
@@ -265,6 +267,8 @@ class MainPanel extends ViewletPanel {
 		this.disposables.push(this.list);
 		this.disposables.push(attachListStyler(this.list, this.themeService));
 		this.list.onSelectionChange(this.onListSelectionChange, this, this.disposables);
+		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
+
 		this.viewModel.onDidSplice(({ index, deleteCount, elements }) => this.splice(index, deleteCount, elements), null, this.disposables);
 		this.splice(0, 0, this.viewModel.repositories);
 	}
@@ -284,6 +288,34 @@ class MainPanel extends ViewletPanel {
 			this.minimumBodySize = 5 * 22;
 			this.maximumBodySize = Number.POSITIVE_INFINITY;
 		}
+	}
+
+	private onListContextMenu(e: IListContextMenuEvent<ISCMRepository>): void {
+		const repository = e.element;
+
+		const contextKeyService = this.contextKeyService.createScoped();
+		const scmProviderKey = contextKeyService.createKey<string | undefined>('scmProvider', void 0);
+		scmProviderKey.set(repository.provider.contextValue);
+
+		const menu = this.menuService.createMenu(MenuId.SCMSourceControl, contextKeyService);
+		const primary: IAction[] = [];
+		const secondary: IAction[] = [];
+		const result = { primary, secondary };
+
+		fillInActions(menu, { shouldForwardArgs: true }, result, g => g === 'inline');
+
+		menu.dispose();
+		contextKeyService.dispose();
+
+		if (secondary.length === 0) {
+			return;
+		}
+
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => e.anchor,
+			getActions: () => TPromise.as(secondary),
+			getActionsContext: () => repository.provider
+		});
 	}
 
 	private onListSelectionChange(e: IListEvent<ISCMRepository>): void {
