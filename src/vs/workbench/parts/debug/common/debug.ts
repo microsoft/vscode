@@ -52,7 +52,6 @@ export interface IRawModelUpdate {
 	thread?: DebugProtocol.Thread;
 	callStack?: DebugProtocol.StackFrame[];
 	stoppedDetails?: IRawStoppedDetails;
-	allThreadsStopped?: boolean;
 }
 
 export interface IRawStoppedDetails {

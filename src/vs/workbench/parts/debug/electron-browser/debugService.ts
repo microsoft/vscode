@@ -429,14 +429,14 @@ export class DebugService implements debug.IDebugService {
 	private fetchThreads(session: RawDebugSession, stoppedDetails?: debug.IRawStoppedDetails): TPromise<any> {
 		return session.threads().then(response => {
 			if (response && response.body && response.body.threads) {
-				response.body.threads.forEach(thread =>
+				response.body.threads.forEach(thread => {
 					this.model.rawUpdate({
 						sessionId: session.getId(),
 						threadId: thread.id,
 						thread,
-						stoppedDetails,
-						allThreadsStopped: stoppedDetails ? stoppedDetails.allThreadsStopped : undefined
-					}));
+						stoppedDetails: stoppedDetails && thread.id === stoppedDetails.threadId ? stoppedDetails : undefined
+					});
+				});
 			}
 		});
 	}

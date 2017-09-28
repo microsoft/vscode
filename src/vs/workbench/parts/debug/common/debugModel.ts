@@ -594,7 +594,7 @@ export class Process implements IProcess {
 		if (data.stoppedDetails) {
 			// Set the availability of the threads' callstacks depending on
 			// whether the thread is stopped or not
-			if (data.allThreadsStopped) {
+			if (data.stoppedDetails.allThreadsStopped) {
 				this.threads.forEach(thread => {
 					thread.stoppedDetails = thread.threadId === data.threadId ? data.stoppedDetails : { reason: undefined };
 					thread.stopped = true;
