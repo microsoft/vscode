@@ -50,12 +50,15 @@
 }
 
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content > .monaco-action-bar {
-	visibility: hidden;
+	display: none;
+}
+
+.explorer-viewlet .panel-header .count {
+	min-width: fit-content;
 }
 
 .explorer-viewlet .panel-header .monaco-count-badge.hidden {
 	display: none;
-	visibility: hidden;
 }
 
 .explorer-folders-view .monaco-tree-row .content {
@@ -106,7 +109,7 @@
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row:hover > .content .monaco-action-bar,
 .explorer-viewlet .explorer-open-editors .monaco-tree.focused .monaco-tree-row.focused > .content .monaco-action-bar,
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content.dirty > .monaco-action-bar {
-	visibility: visible;
+	display: inherit;
 }
 
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content .monaco-action-bar .action-label {

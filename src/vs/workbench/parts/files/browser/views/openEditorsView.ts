@@ -86,7 +86,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 
 	protected renderHeaderTitle(container: HTMLElement): void {
 		const title = dom.append(container, $('.title'));
-		title.textContent = this.name;
+		dom.append(title, $('span', null, this.name));
 
 		const count = dom.append(container, $('.count'));
 		this.dirtyCountElement = dom.append(count, $('.monaco-count-badge'));
