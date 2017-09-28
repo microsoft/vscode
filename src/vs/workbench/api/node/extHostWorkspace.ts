@@ -40,11 +40,9 @@ class Workspace2 extends Workspace {
 		return this._workspaceFolders.slice(0);
 	}
 
-	getWorkspaceFolder(uri: URI): vscode.WorkspaceFolder {
-		let folder = this._structure.lookUp(uri);
-		if (folder) {
-			// `uri` is a workspace folder so we check for
-			// its parent
+	getWorkspaceFolder(uri: URI, resolveParent?: boolean): vscode.WorkspaceFolder {
+		if (resolveParent && this._structure.lookUp(uri)) {
+			// `uri` is a workspace folder so we check for its parent
 			uri = uri.with({ path: dirname(uri.path) });
 		}
 		return this._structure.findSubstr(uri);
@@ -80,11 +78,11 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		}
 	}
 
-	getWorkspaceFolder(uri: vscode.Uri): vscode.WorkspaceFolder {
+	getWorkspaceFolder(uri: vscode.Uri, resolveParent?: boolean): vscode.WorkspaceFolder {
 		if (!this._workspace) {
 			return undefined;
 		}
-		return this._workspace.getWorkspaceFolder(<URI>uri);
+		return this._workspace.getWorkspaceFolder(uri, resolveParent);
 	}
 
 	getPath(): string {
@@ -114,9 +112,9 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 			return path;
 		}
 
-		const folder = this.getWorkspaceFolder(typeof pathOrUri === 'string'
-			? URI.file(pathOrUri)
-			: pathOrUri
+		const folder = this.getWorkspaceFolder(
+			typeof pathOrUri === 'string' ? URI.file(pathOrUri) : pathOrUri,
+			true
 		);
 
 		if (!folder) {
