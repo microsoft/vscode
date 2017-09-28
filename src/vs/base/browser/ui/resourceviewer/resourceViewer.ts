@@ -109,7 +109,7 @@ export class ResourceViewer {
 	private static GB = ResourceViewer.MB * ResourceViewer.KB;
 	private static TB = ResourceViewer.GB * ResourceViewer.KB;
 
-	private static MAX_IMAGE_SIZE = ResourceViewer.MB; // showing images inline is memory intense, so we have a limit
+	private static MAX_IMAGE_SIZE = 8 * ResourceViewer.MB; // showing images inline is memory intense, so we have a limit
 
 	public static show(
 		descriptor: IResourceDescriptor,
