@@ -88,7 +88,11 @@ const command: TaskEntry = {
 		'\t\t{',
 		'\t\t\t"taskName": "echo",',
 		'\t\t\t"type": "shell",',
-		'\t\t\t"command": "echo Hello"',
+		'\t\t\t"command": "echo Hello",',
+		'\t\t\t"group": {',
+		'\t\t\t\t"kind": "build",',
+		'\t\t\t\t"isDefault": "true"',
+		'\t\t\t}',
 		'\t\t}',
 		'\t]',
 		'}'
