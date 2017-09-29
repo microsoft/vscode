@@ -531,13 +531,12 @@ export class Process implements IProcess {
 
 	public sources: Map<string, Source>;
 	private threads: Map<number, Thread>;
-	private inactive = true;
+	public inactive = true;
 
 	constructor(public configuration: IConfig, private _session: ISession & ITreeElement) {
 		this.threads = new Map<number, Thread>();
 		this.sources = new Map<string, Source>();
 		this._session.onDidInitialize(() => this.inactive = false);
-		this._session.onDidExitAdapter(() => this.inactive = true);
 	}
 
 	public get session(): ISession {
