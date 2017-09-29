@@ -170,7 +170,7 @@ export namespace MarkdownString {
 		} else if (htmlContent.isMarkdownString(markup)) {
 			return markup;
 		} else if (typeof markup === 'string') {
-			return { value: <string>markup, isTrusted: true };
+			return { value: <string>markup };
 		} else {
 			return { value: '' };
 		}
