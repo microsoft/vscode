@@ -301,6 +301,9 @@ export class TerminalInstance implements ITerminalInstance {
 		dom.addClass(this._wrapperElement, 'terminal-wrapper');
 		this._xtermElement = document.createElement('div');
 
+		// Attach the xterm object to the DOM, exposing it to the smoke tests
+		(<any>this._wrapperElement).xterm = this._xterm;
+
 		this._xterm.open(this._xtermElement);
 		this._xterm.attachCustomKeyEventHandler((event: KeyboardEvent) => {
 			// Disable all input if the terminal is exiting
