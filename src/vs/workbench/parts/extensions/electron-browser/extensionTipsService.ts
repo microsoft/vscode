@@ -259,7 +259,12 @@ export class ExtensionTipsService implements IExtensionTipsService {
 							return;
 						}
 
-						const message = localize('reallyRecommended2', "The '{0}' extension is recommended for this file type.", name);
+						let message = localize('reallyRecommended2', "The '{0}' extension is recommended for this file type.", name);
+						// Temporary fix for the only extension pack we recommend. See https://github.com/Microsoft/vscode/issues/35364
+						if (id === 'vscjava.vscode-java-pack') {
+							message = localize('reallyRecommendedExtensionPack', "The '{0}' extension pack is recommended for this file type.", name);
+						}
+
 						const recommendationsAction = this.instantiationService.createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, localize('showRecommendations', "Show Recommendations"));
 						const options = [
 							recommendationsAction.label,
