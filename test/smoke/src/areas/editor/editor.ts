@@ -94,7 +94,7 @@ export class Editor {
 	}
 
 	public async waitForEditorContents(filename: string, accept: (contents: string) => boolean): Promise<any> {
-		const selector = `.editor-container .monaco-editor[data-uri$="${filename}"] .view-lines`;
+		const selector = `.monaco-editor[data-uri$="${filename}"] .view-lines`;
 		return this.spectron.client.waitForTextContent(selector, undefined, c => accept(c.replace(/\u00a0/g, ' ')));
 	}
 
