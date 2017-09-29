@@ -205,16 +205,19 @@ export class TerminalInstance implements ITerminalInstance {
 			return null;
 		}
 		const font = this._configHelper.getFont();
-		this._cols = Math.max(Math.floor(dimension.width / font.charWidth), 1);
 
-		// xterm.js does the horizontal space calculation using values scaled
-		// with window.devicePixelRatio. In these calculations, ceil and floor
-		// are used which require us to check it on this side as well or we
-		// would lose that precision.
-		const scaledSpaceAvailable = dimension.height * window.devicePixelRatio;
+		// Because xterm.js converts from CSS pixels to actual pixels through
+		// the use of canvas, window.devicePixelRatio needs to be used here in
+		// order to be precise. font.charWidth/charHeight alone as insufficient
+		// when window.devicePixelRatio changes.
+		const scaledWidthAvailable = dimension.width * window.devicePixelRatio;
+		const scaledCharWidth = Math.floor(font.charWidth * window.devicePixelRatio);
+		this._cols = Math.max(Math.floor(scaledWidthAvailable / scaledCharWidth), 1);
+
+		const scaledHeightAvailable = dimension.height * window.devicePixelRatio;
 		const scaledCharHeight = Math.ceil(font.charHeight * window.devicePixelRatio);
 		const scaledLineHeight = Math.floor(scaledCharHeight * font.lineHeight);
-		this._rows = Math.max(Math.floor(scaledSpaceAvailable / scaledLineHeight), 1);
+		this._rows = Math.max(Math.floor(scaledHeightAvailable / scaledLineHeight), 1);
 
 		return dimension.width;
 	}
