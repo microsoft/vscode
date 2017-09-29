@@ -68,11 +68,11 @@ $env:AZURE_DOCUMENTDB_MASTERKEY = $documentDbKey
 $assetPlatform = if ($arch -eq "ia32") { "win32" } else { "win32-x64" }
 
 step "Publish UNSIGNED archive" {
-  exec { & node build/tfs/common/publish.js $Quality "$global:assetPlatform-archive" archive-unsigned "VSCode-win32-$global:arch-$Version.zip" $Version false $Zip }
+  exec { & node build/tfs/common/publish.js $Quality "$global:assetPlatform-archive" archive-unsigned "VSCode-win32-$global:arch-$Version-unsigned.zip" $Version false $Zip }
 }
 
 step "Publish UNSIGNED setup package" {
-  exec { & node build/tfs/common/publish.js $Quality "$global:assetPlatform" setup-unsigned "VSCodeSetup-$global:arch-$Version.exe" $Version false $Exe }
+  exec { & node build/tfs/common/publish.js $Quality "$global:assetPlatform" setup-unsigned "VSCodeSetup-$global:arch-$Version-unsigned.exe" $Version false $Exe }
 }
 
 done
