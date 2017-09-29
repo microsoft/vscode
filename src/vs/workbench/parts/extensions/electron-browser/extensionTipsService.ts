@@ -104,15 +104,32 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		return [];
 	}
 
-	getRecommendations(): string[] {
+	getRecommendations(installedExtensions: string[], searchText: string): string[] {
 		const allRecomendations = this._getAllRecommendationsInProduct();
 		const fileBased = Object.keys(this._fileBasedRecommendations)
-			.filter(recommendation => allRecomendations.indexOf(recommendation) !== -1)
-			.sort((a, b) => {
+			.filter(recommendation => {
+				return allRecomendations.indexOf(recommendation) > -1
+					&& installedExtensions.indexOf(recommendation) === -1
+					&& recommendation.toLowerCase().indexOf(searchText) > -1;
+			}).sort((a, b) => {
 				return this._fileBasedRecommendations[a] > this._fileBasedRecommendations[b] ? -1 : 1;
 			});
 
-		const exeBased = distinct(this._exeBasedRecommendations);
+		const exeBased = this._exeBasedRecommendations
+			.filter((recommendation, index) => {
+				return this._exeBasedRecommendations.indexOf(recommendation) === index
+					&& installedExtensions.indexOf(recommendation) === -1
+					&& fileBased.indexOf(recommendation) === -1
+					&& recommendation.toLowerCase().indexOf(searchText) > -1;
+			});
+
+		// Sort recommendations such that few of the exeBased ones show up earliar
+		const x = Math.min(6, fileBased.length);
+		const y = Math.min(4, exeBased.length);
+		const sortedRecommendations = fileBased.slice(0, x);
+		sortedRecommendations.push(...exeBased.slice(0, y));
+		sortedRecommendations.push(...fileBased.slice(x));
+		sortedRecommendations.push(...exeBased.slice(y));
 
 		/* __GDPR__
 			"extensionRecommendations:unfiltered" : {
@@ -122,7 +139,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		*/
 		this.telemetryService.publicLog('extensionRecommendations:unfiltered', { fileBased, exeBased });
 
-		return distinct([...fileBased, ...exeBased]);
+		return sortedRecommendations;
 	}
 
 	getKeymapRecommendations(): string[] {

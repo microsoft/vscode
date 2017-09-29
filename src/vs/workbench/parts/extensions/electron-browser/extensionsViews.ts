@@ -9,7 +9,6 @@ import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { dispose } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
-import { distinct } from 'vs/base/common/arrays';
 import { chain } from 'vs/base/common/event';
 import { isPromiseCanceledError, create as createError } from 'vs/base/common/errors';
 import Severity from 'vs/base/common/severity';
@@ -277,11 +276,24 @@ export class ExtensionsListView extends ViewsViewletPanel {
 		return this.extensionsWorkbenchService.queryLocal()
 			.then(result => result.filter(e => e.type === LocalExtensionType.User))
 			.then(local => {
-				return TPromise.join([TPromise.as(this.tipsService.getRecommendations()), this.tipsService.getWorkspaceRecommendations()])
+				const installedExtensions = local.map(x => `${x.publisher}.${x.name}`);
+				return TPromise.join([TPromise.as(this.tipsService.getRecommendations(installedExtensions, value)), this.tipsService.getWorkspaceRecommendations()])
 					.then(([recommendations, workspaceRecommendations]) => {
-						const names = distinct([...recommendations, ...workspaceRecommendations])
-							.filter(name => local.every(ext => `${ext.publisher}.${ext.name}` !== name))
-							.filter(name => name.toLowerCase().indexOf(value) > -1);
+
+						workspaceRecommendations = workspaceRecommendations
+							.filter(name => {
+								return recommendations.indexOf(name) === -1
+									&& installedExtensions.indexOf(name) === -1
+									&& name.toLowerCase().indexOf(value) > -1;
+							});
+
+						// Sort recommendations such that few of the workspace ones show up earliar
+						const x = Math.min(4, recommendations.length);
+						const y = Math.min(4, workspaceRecommendations.length);
+						const names = recommendations.slice(0, x);
+						names.push(...workspaceRecommendations.slice(0, y));
+						names.push(...recommendations.slice(x));
+						names.push(...workspaceRecommendations.slice(y));
 
 						this.telemetryService.publicLog('extensionAllRecommendations:open', { count: names.length });
 						if (!names.length) {
@@ -303,9 +315,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 		return this.extensionsWorkbenchService.queryLocal()
 			.then(result => result.filter(e => e.type === LocalExtensionType.User))
 			.then(local => {
-				const names = this.tipsService.getRecommendations()
-					.filter(name => local.every(ext => `${ext.publisher}.${ext.name}` !== name))
-					.filter(name => name.toLowerCase().indexOf(value) > -1);
+				const names = this.tipsService.getRecommendations(local.map(x => `${x.publisher}.${x.name}`), value);
 
 				/* __GDPR__
 					"extensionRecommendations:open" : {
@@ -332,10 +342,10 @@ export class ExtensionsListView extends ViewsViewletPanel {
 			.then(recommendations => {
 				const names = recommendations.filter(name => name.toLowerCase().indexOf(value) > -1);
 				/* __GDPR__
-					"extensionWorkspaceRecommendations:open" : {
-						"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-					}
-				*/
+			"extensionWorkspaceRecommendations:open" : {
+				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 				this.telemetryService.publicLog('extensionWorkspaceRecommendations:open', { count: names.length });
 
 				if (!names.length) {
