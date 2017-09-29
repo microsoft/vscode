@@ -269,20 +269,8 @@ export class ViewsViewlet extends PanelViewlet {
 			.then(() => void 0);
 	}
 
-	private didLayout = false;
-
 	layout(dimension: Dimension): void {
 		super.layout(dimension);
-
-		if (!this.didLayout) {
-			this.didLayout = true;
-
-			for (const panel of this.viewsViewletPanels) {
-				const viewState = this.viewsStates.get(panel.id);
-				const size = viewState ? viewState.size : 200;
-				this.resizePanel(panel, size);
-			}
-		}
 
 		for (const view of this.viewsViewletPanels) {
 			let viewState = this.updateViewStateSize(view);
@@ -413,17 +401,26 @@ export class ViewsViewlet extends PanelViewlet {
 					});
 				toCreate.push(view);
 
-				const size = viewState ? viewState.size : (viewDescriptor.size || 200);
+				const size = (viewState && viewState.size) || viewDescriptor.size || 200;
 				this.addPanel(view, size, index);
 				this.viewsViewletPanels.splice(index, 0, view);
 			}
 
 			return TPromise.join(toCreate.map(view => view.create()))
 				.then(() => this.onViewsUpdated())
+				.then(() => this._resizePanels())
 				.then(() => toCreate);
 		}
 
 		return TPromise.as([]);
+	}
+
+	private _resizePanels(): void {
+		for (const panel of this.viewsViewletPanels) {
+			const viewState = this.viewsStates.get(panel.id);
+			const size = (viewState && viewState.size) || 200;
+			this.resizePanel(panel, size);
+		}
 	}
 
 	movePanel(from: ViewletPanel, to: ViewletPanel): void {
