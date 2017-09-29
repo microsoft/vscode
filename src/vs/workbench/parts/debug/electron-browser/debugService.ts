@@ -1074,6 +1074,7 @@ export class DebugService implements debug.IDebugService {
 
 		this.model.removeProcess(session.getId());
 		if (process && process.state !== debug.ProcessState.INACTIVE) {
+			process.inactive = true;
 			this._onDidEndProcess.fire(process);
 		}
 
