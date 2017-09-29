@@ -96,7 +96,7 @@ export const ViewsRegistry: IViewsRegistry = new class {
 					this._views.set(viewDescriptor.location, views);
 				}
 				if (views.some(v => v.id === viewDescriptor.id)) {
-					throw new Error(localize('duplicateId', "A view with {0} is already registered in the location ${1}", viewDescriptor.id, viewDescriptor.location.id));
+					throw new Error(localize('duplicateId', "A view with id `{0}` is already registered in the location `{1}`", viewDescriptor.id, viewDescriptor.location.id));
 				}
 				views.push(viewDescriptor);
 			}
