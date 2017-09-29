@@ -69,11 +69,13 @@ export function getFirstFrame(arg0: IRemoteConsoleLog | string): IStackFrame {
 	// at e.$executeContributedCommand(c:\Users\someone\Desktop\end-js\extension.js:19:17)
 	const stack = arg0;
 	if (stack) {
+		const topFrame = stack.split('\n')[0];
+
 		// at [^\/]* => line starts with "at" followed by any character except '/' (to not capture unix paths too late)
 		// (?:(?:[a-zA-Z]+:)|(?:[\/])|(?:\\\\) => windows drive letter OR unix root OR unc root
 		// (?:.+) => simple pattern for the path, only works because of the line/col pattern after
 		// :(?:\d+):(?:\d+) => :line:column data
-		const matches = /at [^\/]*((?:(?:[a-zA-Z]+:)|(?:[\/])|(?:\\\\))(?:.+)):(\d+):(\d+)/.exec(stack);
+		const matches = /at [^\/]*((?:(?:[a-zA-Z]+:)|(?:[\/])|(?:\\\\))(?:.+)):(\d+):(\d+)/.exec(topFrame);
 		if (matches.length === 4) {
 			return {
 				uri: URI.file(matches[1]),
