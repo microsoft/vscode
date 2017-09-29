@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/textmate/shellscript.tmbundle/commit/c23c9e472b681db58d7f982f616144b8a34c5ee4",
+	"version": "https://github.com/textmate/shellscript.tmbundle/commit/1c0cc0b904bb87b18b6987109e694f9d0058656d",
 	"fileTypes": [
 		"sh",
 		"bash",
@@ -772,6 +772,16 @@
 							"name": "constant.character.escape.shell"
 						},
 						{
+							"begin": "(?<=^|;|&|\\s|`)(#)(?!\\{)",
+							"beginCaptures": {
+								"1": {
+									"name": "punctuation.definition.comment.shell"
+								}
+							},
+							"end": "(?=`)|\\n",
+							"name": "comment.line.number-sign.shell"
+						},
+						{
 							"include": "$self"
 						}
 					]
@@ -791,6 +801,16 @@
 					},
 					"name": "string.interpolated.dollar.shell",
 					"patterns": [
+						{
+							"begin": "(?<=^|;|&|\\s|\\()(#)(?!\\{)",
+							"beginCaptures": {
+								"1": {
+									"name": "punctuation.definition.comment.shell"
+								}
+							},
+							"end": "(?=\\))|\\n",
+							"name": "comment.line.number-sign.shell"
+						},
 						{
 							"include": "$self"
 						}

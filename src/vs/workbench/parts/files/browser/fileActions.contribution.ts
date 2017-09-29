@@ -92,14 +92,13 @@ class FilesViewerActionContributor extends ActionBarContributor {
 		}
 
 		if (stat.isRoot && this.environmentService.appQuality !== 'stable') {
-			let action: Action = this.instantiationService.createInstance(AddRootFolderAction, AddRootFolderAction.ID, AddRootFolderAction.LABEL);
-			action.order = 52;
-			actions.push(action);
-			if (this.contextService.getWorkspace().folders.length > 1) {
-				action = this.instantiationService.createInstance(RemoveRootFolderAction, stat.resource, RemoveRootFolderAction.ID, RemoveRootFolderAction.LABEL);
-				action.order = 53;
-				actions.push(action);
-			}
+			const addRootFolderAction: Action = this.instantiationService.createInstance(AddRootFolderAction, AddRootFolderAction.ID, AddRootFolderAction.LABEL);
+			addRootFolderAction.order = 52;
+			actions.push(addRootFolderAction);
+
+			const removeRootFolderAction = this.instantiationService.createInstance(RemoveRootFolderAction, stat.resource, RemoveRootFolderAction.ID, RemoveRootFolderAction.LABEL);
+			removeRootFolderAction.order = 53;
+			actions.push(removeRootFolderAction);
 			actions.push(new Separator(null, 54));
 		}
 
@@ -165,17 +164,16 @@ class ExplorerViewersActionContributor extends ActionBarContributor {
 
 	public getSecondaryActions(context: any): IAction[] {
 		const actions: IAction[] = [];
+		const fileResource = explorerItemToFileResource(context.element);
+		const resource = fileResource.resource;
 
-		if (this.hasSecondaryActions(context)) {
-			const fileResource = explorerItemToFileResource(context.element);
-			const resource = fileResource.resource;
-
-			// Reveal file in OS native explorer
+		// Reveal file in OS native explorer
+		if (resource.scheme === 'file') {
 			actions.push(this.instantiationService.createInstance(RevealInOSAction, resource));
-
-			// Copy Path
-			actions.push(this.instantiationService.createInstance(CopyPathAction, resource));
 		}
+
+		// Copy Path
+		actions.push(this.instantiationService.createInstance(CopyPathAction, resource));
 
 		return actions;
 	}

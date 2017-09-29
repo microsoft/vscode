@@ -60,6 +60,7 @@ export interface ISCMProvider extends IDisposable {
 	readonly resources: ISCMResourceGroup[];
 	readonly onDidChangeResources: Event<void>;
 
+	readonly rootUri?: URI;
 	readonly count?: number;
 	readonly commitTemplate?: string;
 	readonly onDidChangeCommitTemplate?: Event<string>;
@@ -87,7 +88,6 @@ export interface ISCMService {
 	readonly _serviceBrand: any;
 	readonly onDidAddRepository: Event<ISCMRepository>;
 	readonly onDidRemoveRepository: Event<ISCMRepository>;
-	readonly onDidChangeRepository: Event<ISCMRepository>;
 
 	readonly repositories: ISCMRepository[];
 

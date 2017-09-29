@@ -108,6 +108,11 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 	}
 
 	public updatePreference(key: string, value: any, source: ISetting): void {
+		/* __GDPR__
+			"defaultSettingsActions.copySetting" : {
+				"userConfigurationKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		this.telemetryService.publicLog('defaultSettingsActions.copySetting', { userConfigurationKeys: [key] });
 		const overrideIdentifier = source.overrideOf ? overrideIdentifierFromKey(source.overrideOf.key) : null;
 		const resource = this.preferencesModel.uri;
@@ -796,6 +801,10 @@ class EditSettingRenderer extends Disposable {
 			let configurationNode = configurationMap[setting.key];
 			if (configurationNode) {
 				if (this.isDefaultSettings()) {
+					if (setting.key === 'launch') {
+						// Do not show because of https://github.com/Microsoft/vscode/issues/32593
+						return false;
+					}
 					return true;
 				}
 				if (configurationNode.type === 'boolean' || configurationNode.enum) {

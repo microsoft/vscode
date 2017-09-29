@@ -17,6 +17,8 @@
 	"open": "開啟",
 	"openFolder": "開啟資料夾",
 	"openFile": "開啟檔案",
+	"workspaceOpenedMessage": "無法儲存工作區 '{0}'",
+	"workspaceOpenedDetail": "此工作區已在其他視窗中開啟。請先關閉該視窗再重試一次。",
 	"openWorkspace": "開啟(&&O)...",
 	"openWorkspaceTitle": "開啟工作區",
 	"save": "儲存(&&S)",

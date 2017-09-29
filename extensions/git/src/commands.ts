@@ -92,11 +92,13 @@ class MergeItem implements QuickPickItem {
 
 class CreateBranchItem implements QuickPickItem {
 
+	constructor(private cc: CommandCenter) { }
+
 	get label(): string { return localize('create branch', '$(plus) Create new branch'); }
 	get description(): string { return ''; }
 
 	async run(repository: Repository): Promise<void> {
-		await commands.executeCommand('git.branch');
+		await this.cc.branch(repository);
 	}
 }
 
@@ -169,12 +171,12 @@ export class CommandCenter {
 		const opts: TextDocumentShowOptions = {
 			preserveFocus,
 			preview,
-			viewColumn: window.activeTextEditor && window.activeTextEditor.viewColumn || ViewColumn.One
+			viewColumn: ViewColumn.Active
 		};
 
 		const activeTextEditor = window.activeTextEditor;
 
-		if (preserveSelection && activeTextEditor && activeTextEditor.document.uri.fsPath === right.fsPath) {
+		if (preserveSelection && activeTextEditor && activeTextEditor.document.uri.toString() === right.toString()) {
 			opts.selection = activeTextEditor.selection;
 		}
 
@@ -264,6 +266,11 @@ export class CommandCenter {
 		});
 
 		if (!url) {
+			/* __GDPR__
+				"clone" : {
+					"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
 			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'no_URL' });
 			return;
 		}
@@ -278,6 +285,11 @@ export class CommandCenter {
 		});
 
 		if (!parentPath) {
+			/* __GDPR__
+				"clone" : {
+					"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
 			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'no_directory' });
 			return;
 		}
@@ -295,14 +307,30 @@ export class CommandCenter {
 			const result = await window.showInformationMessage(localize('proposeopen', "Would you like to open the cloned repository?"), open);
 
 			const openFolder = result === open;
+			/* __GDPR__
+				"clone" : {
+					"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"openFolder": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+				}
+			*/
 			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'success' }, { openFolder: openFolder ? 1 : 0 });
 			if (openFolder) {
 				commands.executeCommand('vscode.openFolder', Uri.file(repositoryPath));
 			}
 		} catch (err) {
 			if (/already exists and is not an empty directory/.test(err && err.stderr || '')) {
+				/* __GDPR__
+					"clone" : {
+						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
 				this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'directory_not_empty' });
 			} else {
+				/* __GDPR__
+					"clone" : {
+						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
 				this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'error' });
 			}
 			throw err;
@@ -328,6 +356,11 @@ export class CommandCenter {
 
 		await this.git.init(path);
 		await this.model.tryOpenRepository(path);
+	}
+
+	@command('git.close', { repository: true })
+	async close(repository: Repository): Promise<void> {
+		this.model.close(repository);
 	}
 
 	@command('git.openFile')
@@ -365,10 +398,10 @@ export class CommandCenter {
 			const opts: TextDocumentShowOptions = {
 				preserveFocus,
 				preview: preview,
-				viewColumn: activeTextEditor && activeTextEditor.viewColumn || ViewColumn.One
+				viewColumn: ViewColumn.Active
 			};
 
-			if (activeTextEditor && activeTextEditor.document.uri.fsPath === uri.fsPath) {
+			if (activeTextEditor && activeTextEditor.document.uri.toString() === uri.toString()) {
 				opts.selection = activeTextEditor.selection;
 			}
 
@@ -909,7 +942,7 @@ export class CommandCenter {
 		const includeTags = checkoutType === 'all' || checkoutType === 'tags';
 		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote';
 
-		const createBranch = new CreateBranchItem();
+		const createBranch = new CreateBranchItem(this);
 
 		const heads = repository.refs.filter(ref => ref.type === RefType.Head)
 			.map(ref => new CheckoutItem(ref));
@@ -1213,27 +1246,27 @@ export class CommandCenter {
 		this.outputChannel.show();
 	}
 
-	@command('git.ignore', { repository: true })
-	async ignore(repository: Repository, ...resourceStates: SourceControlResourceState[]): Promise<void> {
+	@command('git.ignore')
+	async ignore(...resourceStates: SourceControlResourceState[]): Promise<void> {
 		if (resourceStates.length === 0 || !(resourceStates[0].resourceUri instanceof Uri)) {
-			const uri = window.activeTextEditor && window.activeTextEditor.document.uri;
+			const resource = this.getSCMResource();
 
-			if (!uri) {
+			if (!resource) {
 				return;
 			}
 
-			return await repository.ignore([uri]);
+			resourceStates = [resource];
 		}
 
-		const uris = resourceStates
+		const resources = resourceStates
 			.filter(s => s instanceof Resource)
 			.map(r => r.resourceUri);
 
-		if (!uris.length) {
+		if (!resources.length) {
 			return;
 		}
 
-		await repository.ignore(uris);
+		await this.runByRepository(resources, async (repository, resources) => repository.ignore(resources));
 	}
 
 	@command('git.stash', { repository: true })
@@ -1315,6 +1348,11 @@ export class CommandCenter {
 				});
 			}
 
+			/* __GDPR__
+				"git.command" : {
+					"command" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
 			this.telemetryReporter.sendTelemetryEvent('git.command', { command: id });
 
 			return result.catch(async err => {

@@ -9,7 +9,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as stripJsonComments from 'strip-json-comments';
-import { SpectronApplication, VSCODE_BUILD, EXTENSIONS_DIR, findFreePort } from '../../spectron/application';
+import { SpectronApplication, VSCODE_BUILD, EXTENSIONS_DIR, findFreePort, WORKSPACE_PATH } from '../../spectron/application';
 
 describe('Debug', () => {
 	let app: SpectronApplication = new SpectronApplication();
@@ -46,23 +46,29 @@ describe('Debug', () => {
 
 	it('configure launch json', async function () {
 		await app.workbench.debug.openDebugViewlet();
-		await app.workbench.openFile('app.js');
+		await app.workbench.quickopen.openFile('app.js');
 		await app.workbench.debug.configure();
-		await app.screenCapturer.capture('launch.json file');
-		const content = await app.workbench.editor.getEditorVisibleText();
-		const json = JSON.parse(stripJsonComments(content));
 
-		assert.equal(json.configurations[0].request, 'launch');
-		assert.equal(json.configurations[0].type, 'node');
+		const launchJsonPath = path.join(WORKSPACE_PATH, '.vscode', 'launch.json');
+		const content = fs.readFileSync(launchJsonPath, 'utf8');
+		const config = JSON.parse(stripJsonComments(content));
+		config.configurations[0].protocol = 'inspector';
+		fs.writeFileSync(launchJsonPath, JSON.stringify(config, undefined, 4), 'utf8');
+
+		await app.workbench.editor.waitForEditorContents('launch.json', contents => /"protocol": "inspector"/.test(contents));
+		await app.screenCapturer.capture('launch.json file');
+
+		assert.equal(config.configurations[0].request, 'launch');
+		assert.equal(config.configurations[0].type, 'node');
 		if (process.platform === 'win32') {
-			assert.equal(json.configurations[0].program, '${workspaceRoot}\\bin\\www');
+			assert.equal(config.configurations[0].program, '${workspaceFolder}\\bin\\www');
 		} else {
-			assert.equal(json.configurations[0].program, '${workspaceRoot}/bin/www');
+			assert.equal(config.configurations[0].program, '${workspaceFolder}/bin/www');
 		}
 	});
 
 	it('breakpoints', async function () {
-		await app.workbench.openFile('index.js');
+		await app.workbench.quickopen.openFile('index.js');
 		await app.workbench.debug.setBreakpointOnLine(6);
 		await app.screenCapturer.capture('breakpoints are set');
 	});
@@ -74,7 +80,7 @@ describe('Debug', () => {
 		await new Promise((c, e) => {
 			const request = http.get(`http://localhost:${port}`);
 			request.on('error', e);
-			app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 6).then(c, e);
+			app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 6, 'looking for index.js and line 6').then(c, e);
 		});
 
 		await app.screenCapturer.capture('debugging is paused');
@@ -83,13 +89,13 @@ describe('Debug', () => {
 	it('focus stack frames and variables', async function () {
 		await app.client.waitFor(() => app.workbench.debug.getLocalVariableCount(), c => c === 4, 'there should be 4 local variables');
 
-		await app.workbench.debug.focusStackFrame('layer.js');
+		await app.workbench.debug.focusStackFrame('layer.js', 'looking for layer.js');
 		await app.client.waitFor(() => app.workbench.debug.getLocalVariableCount(), c => c === 5, 'there should be 5 local variables');
 
-		await app.workbench.debug.focusStackFrame('route.js');
+		await app.workbench.debug.focusStackFrame('route.js', 'looking for route.js');
 		await app.client.waitFor(() => app.workbench.debug.getLocalVariableCount(), c => c === 3, 'there should be 3 local variables');
 
-		await app.workbench.debug.focusStackFrame('index.js');
+		await app.workbench.debug.focusStackFrame('index.js', 'looking for index.js');
 		await app.client.waitFor(() => app.workbench.debug.getLocalVariableCount(), c => c === 4, 'there should be 4 local variables');
 	});
 
@@ -97,15 +103,15 @@ describe('Debug', () => {
 		await app.workbench.debug.stepIn();
 		await app.screenCapturer.capture('debugging has stepped in');
 
-		const first = await app.workbench.debug.waitForStackFrame(sf => sf.name === 'response.js');
+		const first = await app.workbench.debug.waitForStackFrame(sf => sf.name === 'response.js', 'looking for response.js');
 		await app.workbench.debug.stepOver();
 		await app.screenCapturer.capture('debugging has stepped over');
 
-		await app.workbench.debug.waitForStackFrame(sf => sf.name === 'response.js' && sf.lineNumber === first.lineNumber + 1);
+		await app.workbench.debug.waitForStackFrame(sf => sf.name === 'response.js' && sf.lineNumber === first.lineNumber + 1, `looking for response.js and line ${first.lineNumber + 1}`);
 		await app.workbench.debug.stepOut();
 		await app.screenCapturer.capture('debugging has stepped out');
 
-		await app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 7);
+		await app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 7, `looking for index.js and line 7`);
 	});
 
 	it('continue', async function () {
@@ -115,7 +121,7 @@ describe('Debug', () => {
 		await new Promise((c, e) => {
 			const request = http.get(`http://localhost:${port}`);
 			request.on('error', e);
-			app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 6).then(c, e);
+			app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 6, `looking for index.js and line 6`).then(c, e);
 		});
 
 		await app.screenCapturer.capture('debugging is paused');

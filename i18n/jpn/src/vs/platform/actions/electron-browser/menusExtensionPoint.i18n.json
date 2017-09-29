@@ -13,6 +13,7 @@
 	"vscode.extension.contributes.menuItem.group": "このコマンドが属するグループ",
 	"vscode.extension.contributes.menus": "メニュー項目をエディターに提供します",
 	"menus.commandPalette": "コマンド パレット",
+	"menus.touchBar": "Touch Bar (macOS のみ)",
 	"menus.editorTitle": "エディターのタイトル メニュー",
 	"menus.editorContext": "エディターのコンテキスト メニュー",
 	"menus.explorerContext": "エクスプローラーのコンテキスト メニュー",

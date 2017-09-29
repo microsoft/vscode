@@ -7,6 +7,7 @@ import uri from 'vs/base/common/uri';
 import Event, { Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 export class MockDebugService implements debug.IDebugService {
 	public _serviceBrand: any;
@@ -87,11 +88,11 @@ export class MockDebugService implements debug.IDebugService {
 		return TPromise.as(null);
 	}
 
-	public startDebugging(root: uri, configOrName?: debug.IConfig | string, noDebug?: boolean): TPromise<any> {
+	public startDebugging(root: IWorkspaceFolder, configOrName?: debug.IConfig | string, noDebug?: boolean): TPromise<any> {
 		return TPromise.as(null);
 	}
 
-	public createProcess(root: uri, config: debug.IConfig): TPromise<any> {
+	public createProcess(root: IWorkspaceFolder, config: debug.IConfig): TPromise<any> {
 		return TPromise.as(null);
 	}
 
@@ -128,7 +129,7 @@ export class MockSession implements debug.ISession {
 		return 'mockrawsession';
 	}
 
-	public root: uri;
+	public root: IWorkspaceFolder;
 
 	public getLengthInSeconds(): number {
 		return 100;
@@ -182,8 +183,14 @@ export class MockSession implements debug.ISession {
 
 	public get onDidInitialize(): Event<DebugProtocol.InitializedEvent> {
 		const emitter = new Emitter<DebugProtocol.InitializedEvent>();
-		return emitter.event;;
+		return emitter.event;
 	}
+
+	public get onDidExitAdapter(): Event<debug.DebugEvent> {
+		const emitter = new Emitter<debug.DebugEvent>();
+		return emitter.event;
+	}
+
 
 	public custom(request: string, args: any): TPromise<DebugProtocol.Response> {
 		return TPromise.as(null);

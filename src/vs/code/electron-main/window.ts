@@ -11,7 +11,7 @@ import { stopProfiling } from 'vs/base/node/profiler';
 import nls = require('vs/nls');
 import URI from 'vs/base/common/uri';
 import { IStorageService } from 'vs/platform/storage/node/storage';
-import { shell, screen, BrowserWindow, systemPreferences, app } from 'electron';
+import { shell, screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -19,13 +19,13 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
-import { IWindowSettings, MenuBarVisibility, IWindowConfiguration, ReadyState } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, MenuBarVisibility, IWindowConfiguration, ReadyState, IRunActionInWindowRequest } from 'vs/platform/windows/common/windows';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { KeyboardLayoutMonitor } from 'vs/code/electron-main/keyboard';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspaceIdentifier, IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
+import { ICommandAction } from 'vs/platform/actions/common/actions';
 
 export interface IWindowState {
 	width?: number;
@@ -65,6 +65,10 @@ interface IWorkbenchEditorConfiguration {
 	};
 }
 
+interface ITouchBarSegment extends Electron.SegmentedControlSegment {
+	id: string;
+}
+
 export class CodeWindow implements ICodeWindow {
 
 	public static themeStorageKey = 'theme';
@@ -93,6 +97,8 @@ export class CodeWindow implements ICodeWindow {
 	private currentConfig: IWindowConfiguration;
 	private pendingLoadConfig: IWindowConfiguration;
 
+	private touchBarGroups: Electron.TouchBarSegmentedControl[];
+
 	constructor(
 		config: IWindowCreationOptions,
 		@ILogService private logService: ILogService,
@@ -102,6 +108,7 @@ export class CodeWindow implements ICodeWindow {
 		@IWorkspacesMainService private workspaceService: IWorkspacesMainService,
 		@IBackupMainService private backupService: IBackupMainService
 	) {
+		this.touchBarGroups = [];
 		this._lastFocusTime = -1;
 		this._readyState = ReadyState.NONE;
 		this.whenReadyCallbacks = [];
@@ -112,6 +119,9 @@ export class CodeWindow implements ICodeWindow {
 
 		// respect configured menu bar visibility
 		this.onConfigurationUpdated();
+
+		// macOS: touch bar support
+		this.createTouchBar();
 
 		// Eventing
 		this.registerListeners();
@@ -439,9 +449,9 @@ export class CodeWindow implements ICodeWindow {
 			}
 
 			if (cmd === back) {
-				this.send('vscode:runAction', acrossEditors ? 'workbench.action.openPreviousRecentlyUsedEditor' : 'workbench.action.navigateBack');
+				this.send('vscode:runAction', { id: acrossEditors ? 'workbench.action.openPreviousRecentlyUsedEditor' : 'workbench.action.navigateBack', from: 'mouse' } as IRunActionInWindowRequest);
 			} else if (cmd === forward) {
-				this.send('vscode:runAction', acrossEditors ? 'workbench.action.openNextRecentlyUsedEditor' : 'workbench.action.navigateForward');
+				this.send('vscode:runAction', { id: acrossEditors ? 'workbench.action.openNextRecentlyUsedEditor' : 'workbench.action.navigateForward', from: 'mouse' } as IRunActionInWindowRequest);
 			}
 		});
 	}
@@ -545,9 +555,6 @@ export class CodeWindow implements ICodeWindow {
 		// Set Accessibility Config
 		windowConfiguration.highContrast = isWindows && systemPreferences.isInvertedColorScheme() && (!windowConfig || windowConfig.autoDetectHighContrast);
 		windowConfiguration.accessibilitySupport = app.isAccessibilitySupportEnabled();
-
-		// Set Keyboard Config
-		windowConfiguration.isISOKeyboard = KeyboardLayoutMonitor.INSTANCE.isISOKeyboard();
 
 		// Theme
 		windowConfiguration.baseTheme = this.getBaseTheme();
@@ -727,7 +734,13 @@ export class CodeWindow implements ICodeWindow {
 		// Multi Monitor (non-fullscreen): be less strict because metrics can be crazy
 		const bounds = { x: state.x, y: state.y, width: state.width, height: state.height };
 		const display = screen.getDisplayMatching(bounds);
-		if (display && display.bounds.x + display.bounds.width > bounds.x && display.bounds.y + display.bounds.height > bounds.y) {
+		if (
+			display &&												// we have a display matching the desired bounds
+			bounds.x < display.bounds.x + display.bounds.width &&	// prevent window from falling out of the screen to the right
+			bounds.y < display.bounds.y + display.bounds.height &&	// prevent window from falling out of the screen to the bottom
+			bounds.x + bounds.width > display.bounds.x &&			// prevent window from falling out of the screen to the left
+			bounds.y + bounds.height > display.bounds.y				// prevent window from falling out of the scree nto the top
+		) {
 			if (state.mode === WindowMode.Maximized) {
 				const defaults = defaultWindowState(WindowMode.Maximized); // when maximized, make sure we have good values when the user restores the window
 				defaults.x = state.x; // carefull to keep x/y position so that the window ends up on the correct monitor
@@ -855,6 +868,78 @@ export class CodeWindow implements ICodeWindow {
 
 	public send(channel: string, ...args: any[]): void {
 		this._win.webContents.send(channel, ...args);
+	}
+
+	public updateTouchBar(groups: ICommandAction[][]): void {
+		if (!isMacintosh) {
+			return; // only supported on macOS
+		}
+
+		// Update segments for all groups. Setting the segments property
+		// of the group directly prevents ugly flickering from happening
+		this.touchBarGroups.forEach((touchBarGroup, index) => {
+			const commands = groups[index];
+			touchBarGroup.segments = this.createTouchBarGroupSegments(commands);
+		});
+	}
+
+	private createTouchBar(): void {
+		if (!isMacintosh) {
+			return; // only supported on macOS
+		}
+
+		// To avoid flickering, we try to reuse the touch bar group
+		// as much as possible by creating a large number of groups
+		// for reusing later.
+		for (let i = 0; i < 10; i++) {
+			const groupTouchBar = this.createTouchBarGroup();
+			this.touchBarGroups.push(groupTouchBar);
+		}
+
+		// Ugly workaround for native crash on macOS 10.12.1. We are not
+		// leveraging the API for changing the ESC touch bar item.
+		// See https://github.com/electron/electron/issues/10442
+		(<any>this._win)._setEscapeTouchBarItem = () => { };
+
+		this._win.setTouchBar(new TouchBar({ items: this.touchBarGroups }));
+	}
+
+	private createTouchBarGroup(items: ICommandAction[] = []): Electron.TouchBarSegmentedControl {
+
+		// Group Segments
+		const segments = this.createTouchBarGroupSegments(items);
+
+		// Group Control
+		const control = new TouchBar.TouchBarSegmentedControl({
+			segments,
+			mode: 'buttons',
+			segmentStyle: 'automatic',
+			change: (selectedIndex) => {
+				this.sendWhenReady('vscode:runAction', { id: (control.segments[selectedIndex] as ITouchBarSegment).id, from: 'touchbar' });
+			}
+		});
+
+		return control;
+	}
+
+	private createTouchBarGroupSegments(items: ICommandAction[] = []): ITouchBarSegment[] {
+		const segments: ITouchBarSegment[] = items.map(item => {
+			let icon: Electron.NativeImage;
+			if (item.iconPath) {
+				icon = nativeImage.createFromPath(item.iconPath);
+				if (icon.isEmpty()) {
+					icon = void 0;
+				}
+			}
+
+			return {
+				id: item.id,
+				label: !icon ? item.title as string : void 0,
+				icon
+			};
+		});
+
+		return segments;
 	}
 
 	public dispose(): void {

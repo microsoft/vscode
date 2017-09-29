@@ -208,7 +208,6 @@ export class Configuration<T> {
 
 	private _globalConfiguration: ConfigurationModel<T>;
 	private _workspaceConsolidatedConfiguration: ConfigurationModel<T>;
-	private _legacyWorkspaceConsolidatedConfiguration: ConfigurationModel<T>;
 	protected _foldersConsolidatedConfigurations: StrictResourceMap<ConfigurationModel<T>>;
 
 	constructor(protected _defaults: ConfigurationModel<T>, protected _user: ConfigurationModel<T>, protected _workspaceConfiguration: ConfigurationModel<T> = new ConfigurationModel<T>(), protected folders: StrictResourceMap<ConfigurationModel<T>> = new StrictResourceMap<ConfigurationModel<T>>(), protected _workspace?: Workspace) {
@@ -226,7 +225,6 @@ export class Configuration<T> {
 	protected merge(): void {
 		this._globalConfiguration = new ConfigurationModel<T>().merge(this._defaults).merge(this._user);
 		this._workspaceConsolidatedConfiguration = new ConfigurationModel<T>().merge(this._globalConfiguration).merge(this._workspaceConfiguration);
-		this._legacyWorkspaceConsolidatedConfiguration = null;
 		this._foldersConsolidatedConfigurations = new StrictResourceMap<ConfigurationModel<T>>();
 		for (const folder of this.folders.keys()) {
 			this.mergeFolder(folder);
@@ -251,20 +249,6 @@ export class Configuration<T> {
 			user: objects.clone(getConfigurationValue<C>(overrides.overrideIdentifier ? this._user.override(overrides.overrideIdentifier).contents : this._user.contents, key)),
 			workspace: objects.clone(this._workspace ? getConfigurationValue<C>(overrides.overrideIdentifier ? this._workspaceConfiguration.override(overrides.overrideIdentifier).contents : this._workspaceConfiguration.contents, key) : void 0), //Check on workspace exists or not because _workspaceConfiguration is never null
 			folder: objects.clone(folderConfigurationModel ? getConfigurationValue<C>(overrides.overrideIdentifier ? folderConfigurationModel.override(overrides.overrideIdentifier).contents : folderConfigurationModel.contents, key) : void 0),
-			value: objects.clone(getConfigurationValue<C>(consolidateConfigurationModel.contents, key))
-		};
-	}
-
-	lookupLegacy<C>(key: string): IConfigurationValue<C> {
-		if (!this._legacyWorkspaceConsolidatedConfiguration) {
-			this._legacyWorkspaceConsolidatedConfiguration = this._workspace ? new ConfigurationModel<any>().merge(this._workspaceConfiguration).merge(this.folders.get(this._workspace.folders[0])) : null;
-		}
-		const consolidateConfigurationModel = this.getConsolidateConfigurationModel({});
-		return {
-			default: objects.clone(getConfigurationValue<C>(this._defaults.contents, key)),
-			user: objects.clone(getConfigurationValue<C>(this._user.contents, key)),
-			workspace: objects.clone(this._legacyWorkspaceConsolidatedConfiguration ? getConfigurationValue<C>(this._legacyWorkspaceConsolidatedConfiguration.contents, key) : void 0),
-			folder: void 0,
 			value: objects.clone(getConfigurationValue<C>(consolidateConfigurationModel.contents, key))
 		};
 	}
@@ -330,7 +314,7 @@ export class Configuration<T> {
 			return this._workspaceConsolidatedConfiguration;
 		}
 
-		return this._foldersConsolidatedConfigurations.get(root) || this._workspaceConsolidatedConfiguration;
+		return this._foldersConsolidatedConfigurations.get(root.uri) || this._workspaceConsolidatedConfiguration;
 	}
 
 	private getFolderConfigurationModelForResource(resource: URI): ConfigurationModel<any> {
@@ -339,7 +323,7 @@ export class Configuration<T> {
 		}
 
 		const root = this._workspace.getFolder(resource);
-		return root ? this.folders.get(root) : null;
+		return root ? this.folders.get(root.uri) : null;
 	}
 
 	public toData(): IConfigurationData<any> {

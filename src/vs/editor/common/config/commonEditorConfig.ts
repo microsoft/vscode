@@ -213,7 +213,7 @@ const editorConfiguration: IConfigurationNode = {
 				'type': 'number'
 			},
 			'default': EDITOR_DEFAULTS.viewInfo.rulers,
-			'description': nls.localize('rulers', "Columns at which to show vertical rulers")
+			'description': nls.localize('rulers', "Render vertical rulers after a certain number of monospace characters. Use multiple values for multiple rulers. No rulers are drawn if array is empty")
 		},
 		'editor.wordSeparators': {
 			'type': 'string',

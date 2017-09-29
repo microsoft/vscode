@@ -77,6 +77,9 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		return true;
 	}
+	public onLanguageConfigurationChanged(e: viewEvents.ViewLanguageConfigurationEvent): boolean {
+		return true;
+	}
 
 	// --- end event handlers
 

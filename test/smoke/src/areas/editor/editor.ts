@@ -18,15 +18,6 @@ export class Editor {
 	constructor(private spectron: SpectronApplication) {
 	}
 
-	public async getEditorFirstLineText(): Promise<string> {
-		const result = await this.spectron.client.waitForText('.monaco-editor.focused .view-lines span span:nth-child(1)');
-		return Array.isArray(result) ? result.join() : result;
-	}
-
-	public async getEditorVisibleText(): Promise<string> {
-		return await this.spectron.client.getText('.view-lines');
-	}
-
 	public async openOutline(): Promise<QuickOutline> {
 		const outline = new QuickOutline(this.spectron);
 		await outline.open();
@@ -102,11 +93,44 @@ export class Editor {
 		await this.spectron.client.waitAndClick(selector);
 	}
 
-	public async getFocusedEditorUri(): Promise<string> {
-		return this.spectron.webclient.selectorExecute(`.editor-container .monaco-editor.focused`, (elements: HTMLElement[]) => {
-			elements = Array.isArray(elements) ? elements : [elements];
-			return elements[0].getAttribute('data-uri');
-		});
+	public async waitForEditorContents(filename: string, accept: (contents: string) => boolean): Promise<any> {
+		const selector = `.editor-container .monaco-editor[data-uri$="${filename}"] .view-lines`;
+		return this.spectron.client.waitForTextContent(selector, undefined, c => accept(c.replace(/\u00a0/g, ' ')));
+	}
+
+	public async waitForActiveEditor(filename: string): Promise<any> {
+		const selector = `.editor-container .monaco-editor[data-uri$="${filename}"] textarea`;
+		return this.spectron.client.waitForActiveElement(selector);
+	}
+
+	public async waitForActiveEditorFirstLineText(filename: string): Promise<string> {
+		const selector = `.editor-container .monaco-editor[data-uri$="${filename}"] textarea`;
+		const result = await this.spectron.client.waitFor(
+			() => this.spectron.client.spectron.client.execute(s => {
+				if (!document.activeElement.matches(s)) {
+					return undefined;
+				}
+
+				let element: Element | null = document.activeElement;
+				while (element && !/monaco-editor/.test(element.className) && element !== document.body) {
+					element = element.parentElement;
+				}
+
+				if (element && /monaco-editor/.test(element.className)) {
+					const firstLine = element.querySelector('.view-lines span span:nth-child(1)');
+
+					if (firstLine) {
+						return (firstLine.textContent || '').replace(/\u00a0/g, ' '); // DAMN
+					}
+				}
+
+				return undefined;
+			}, selector),
+			r => typeof r.value === 'string',
+			`wait for active editor first line: ${selector}`
+		);
+
+		return result.value;
 	}
 
 	private async getClassSelectors(term: string, viewline: number): Promise<string[]> {

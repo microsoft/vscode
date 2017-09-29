@@ -45,6 +45,8 @@ export async function findFreePort(): Promise<number> {
  */
 export class SpectronApplication {
 
+	private static count = 0;
+
 	private _client: SpectronClient;
 	private _workbench: Workbench;
 	private _screenCapturer: ScreenCapturer;
@@ -133,7 +135,7 @@ export class SpectronApplication {
 
 		args.push(...codeArgs);
 
-		chromeDriverArgs.push(`--user-data-dir=${path.join(this._userDir, new Date().getTime().toString())}`);
+		chromeDriverArgs.push(`--user-data-dir=${path.join(this._userDir, String(SpectronApplication.count++))}`);
 
 		// Spectron always uses the same port number for the chrome driver
 		// and it handles gracefully when two instances use the same port number

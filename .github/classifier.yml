@@ -41,6 +41,6 @@
         snippets: [ jrieken ],
         tasks: [],
         typescript: [ mjbvz ],
-        workbench: [],
+        workbench: [ bpasero, isidorn, sandy081]
     }
 }

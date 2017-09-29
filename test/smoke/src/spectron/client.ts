@@ -12,7 +12,9 @@ import { SpectronApplication } from './application';
  */
 export class SpectronClient {
 
-	private readonly retryCount = 50;
+	// waitFor calls should not take more than 200 * 100 = 20 seconds to complete, excluding
+	// the time it takes for the actual retry call to complete
+	private readonly retryCount = 200;
 	private readonly retryDuration = 100; // in milliseconds
 
 	constructor(public spectron: Application, private application: SpectronApplication) {
@@ -101,8 +103,12 @@ export class SpectronClient {
 			.then(result => result.value);
 	}
 
-	public async waitForActiveElement(accept: (result: Element | undefined) => boolean = result => !!result): Promise<any> {
-		return this.waitFor<RawResult<Element>>(() => this.spectron.client.elementActive(), result => accept(result ? result.value : void 0), `elementActive`);
+	public async waitForActiveElement(selector: string): Promise<any> {
+		return this.waitFor(
+			() => this.spectron.client.execute(s => document.activeElement.matches(s), selector),
+			r => r.value,
+			`wait for active element: ${selector}`
+		);
 	}
 
 	public async waitForAttribute(selector: string, attribute: string, accept: (result: string) => boolean = result => !!result): Promise<string> {

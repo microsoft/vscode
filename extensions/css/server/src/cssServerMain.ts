@@ -5,11 +5,13 @@
 'use strict';
 
 import {
-	createConnection, IConnection, TextDocuments, TextDocument, InitializeParams, InitializeResult, ServerCapabilities
+	createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, ServerCapabilities
 } from 'vscode-languageserver';
 
-import { GetConfigurationRequest } from 'vscode-languageserver-protocol/lib/protocol.configuration.proposed';
-import { DocumentColorRequest, ServerCapabilities as CPServerCapabilities } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
+import { TextDocument } from 'vscode-languageserver-types';
+
+import { ConfigurationRequest } from 'vscode-languageserver-protocol/lib/protocol.configuration.proposed';
+import { DocumentColorRequest, ServerCapabilities as CPServerCapabilities, ColorPresentationRequest } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
 
 import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet } from 'vscode-css-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
@@ -96,7 +98,7 @@ function getDocumentSettings(textDocument: TextDocument): Thenable<LanguageSetti
 		let promise = documentSettings[textDocument.uri];
 		if (!promise) {
 			let configRequestParam = { items: [{ scopeUri: textDocument.uri, section: textDocument.languageId }] };
-			promise = connection.sendRequest(GetConfigurationRequest.type, configRequestParam).then(s => s[0]);
+			promise = connection.sendRequest(ConfigurationRequest.type, configRequestParam).then(s => s[0]);
 			documentSettings[textDocument.uri] = promise;
 		}
 		return promise;
@@ -207,6 +209,15 @@ connection.onRequest(DocumentColorRequest.type, params => {
 	if (document) {
 		let stylesheet = stylesheets.get(document);
 		return getLanguageService(document).findDocumentColors(document, stylesheet);
+	}
+	return [];
+});
+
+connection.onRequest(ColorPresentationRequest.type, params => {
+	let document = documents.get(params.textDocument.uri);
+	if (document) {
+		let stylesheet = stylesheets.get(document);
+		return getLanguageService(document).getColorPresentations(document, stylesheet, params.colorInfo);
 	}
 	return [];
 });

@@ -420,6 +420,11 @@ export class View extends ViewEventHandler {
 			this._context.model
 		);
 
+		if (this.contentWidgets.shouldRender()) {
+			// Give the content widgets a chance to set their max width before a possible synchronous layout
+			this.contentWidgets.onBeforeRender(viewportData);
+		}
+
 		if (this.viewLines.shouldRender()) {
 			this.viewLines.renderText(viewportData);
 			this.viewLines.onDidRender();

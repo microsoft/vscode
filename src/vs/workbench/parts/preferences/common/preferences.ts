@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import * as paths from 'vs/base/common/paths';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -92,6 +91,7 @@ export interface IKeybindingsEditor extends IEditor {
 	activeKeybindingEntry: IKeybindingItemEntry;
 
 	search(filter: string): void;
+	clearSearchResults(): void;
 	focusKeybindings(): void;
 	defineKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
 	removeKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
@@ -108,7 +108,7 @@ export function getSettingsTargetName(target: ConfigurationTarget, resource: URI
 			return localize('workspaceSettingsTarget', "Workspace Settings");
 		case ConfigurationTarget.FOLDER:
 			const folder = workspaceContextService.getWorkspaceFolder(resource);
-			return folder ? paths.basename(folder.fsPath) : '';
+			return folder ? folder.name : '';
 	}
 }
 
@@ -119,8 +119,12 @@ export const CONTEXT_KEYBINDINGS_SEARCH_FOCUS = new RawContextKey<boolean>('inKe
 export const CONTEXT_KEYBINDING_FOCUS = new RawContextKey<boolean>('keybindingFocus', false);
 
 export const SETTINGS_EDITOR_COMMAND_SEARCH = 'settings.action.search';
+export const SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS = 'settings.action.clearSearchResults';
+export const SETTINGS_EDITOR_COMMAND_FOCUS_NEXT_SETTING = 'settings.action.focusNextSetting';
+export const SETTINGS_EDITOR_COMMAND_FOCUS_PREVIOUS_SETTING = 'settings.action.focusPreviousSetting';
 export const SETTINGS_EDITOR_COMMAND_FOCUS_FILE = 'settings.action.focusSettingsFile';
 export const KEYBINDINGS_EDITOR_COMMAND_SEARCH = 'keybindings.editor.searchKeybindings';
+export const KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS = 'keybindings.editor.clearSearchResults';
 export const KEYBINDINGS_EDITOR_COMMAND_DEFINE = 'keybindings.editor.defineKeybinding';
 export const KEYBINDINGS_EDITOR_COMMAND_REMOVE = 'keybindings.editor.removeKeybinding';
 export const KEYBINDINGS_EDITOR_COMMAND_RESET = 'keybindings.editor.resetKeybinding';

@@ -9,11 +9,12 @@ import nls = require('vs/nls');
 
 import 'vs/css!./media/dirtydiffDecorator';
 import { ThrottledDelayer, always } from 'vs/base/common/async';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { any as anyEvent, filterEvent } from 'vs/base/common/event';
 import * as ext from 'vs/workbench/common/contributions';
 import * as common from 'vs/editor/common/editorCommon';
-import * as widget from 'vs/editor/browser/codeEditor';
+import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -23,7 +24,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import URI from 'vs/base/common/uri';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { ISCMService } from 'vs/workbench/services/scm/common/scm';
+import { ISCMService, ISCMRepository } from 'vs/workbench/services/scm/common/scm';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 import { registerThemingParticipant, ITheme, ICssStyleCollector, themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
@@ -87,15 +88,17 @@ class DirtyDiffModelDecorator {
 		}
 	});
 
-	private decorations: string[];
+	private decorations: string[] = [];
 	private baselineModel: common.IModel;
 	private diffDelayer: ThrottledDelayer<common.IChange[]>;
 	private _originalURIPromise: TPromise<URI>;
-	private toDispose: IDisposable[];
+
+	private repositoryDisposables = new Set<IDisposable[]>();
+	private toDispose: IDisposable[] = [];
 
 	constructor(
 		private model: common.IModel,
-		private uri: URI,
+		// private editor: CodeEditor,
 		@ISCMService private scmService: ISCMService,
 		@IModelService private modelService: IModelService,
 		@IEditorWorkerService private editorWorkerService: IEditorWorkerService,
@@ -103,12 +106,28 @@ class DirtyDiffModelDecorator {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ITextModelService private textModelResolverService: ITextModelService
 	) {
-		this.decorations = [];
 		this.diffDelayer = new ThrottledDelayer<common.IChange[]>(200);
-		this.toDispose = [];
-		this.triggerDiff();
+
 		this.toDispose.push(model.onDidChangeContent(() => this.triggerDiff()));
-		this.toDispose.push(scmService.onDidChangeRepository(() => this.triggerDiff()));
+		scmService.onDidAddRepository(this.onDidAddRepository, this, this.toDispose);
+		scmService.repositories.forEach(r => this.onDidAddRepository(r));
+
+		this.triggerDiff();
+	}
+
+	private onDidAddRepository(repository: ISCMRepository): void {
+		const disposables: IDisposable[] = [];
+
+		this.repositoryDisposables.add(disposables);
+		disposables.push(toDisposable(() => this.repositoryDisposables.delete(disposables)));
+
+		const onDidChange = anyEvent(repository.provider.onDidChange, repository.provider.onDidChangeResources);
+		onDidChange(this.triggerDiff, this, disposables);
+
+		const onDidRemoveThis = filterEvent(this.scmService.onDidRemoveRepository, r => r === repository);
+		onDidRemoveThis(() => dispose(disposables));
+
+		this.triggerDiff();
 	}
 
 	private triggerDiff(): TPromise<any> {
@@ -174,7 +193,7 @@ class DirtyDiffModelDecorator {
 
 	private async getOriginalResource(): TPromise<URI> {
 		for (const repository of this.scmService.repositories) {
-			const result = repository.provider.getOriginalResource(this.uri);
+			const result = repository.provider.getOriginalResource(this.model.uri);
 
 			if (result) {
 				return result;
@@ -237,6 +256,9 @@ class DirtyDiffModelDecorator {
 			this.diffDelayer.cancel();
 			this.diffDelayer = null;
 		}
+
+		this.repositoryDisposables.forEach(d => dispose(d));
+		this.repositoryDisposables.clear();
 	}
 }
 
@@ -271,28 +293,25 @@ export class DirtyDiffDecorator implements ext.IWorkbenchContribution {
 			.map(e => e.getControl())
 
 			// only interested in code editor widgets
-			.filter(c => c instanceof widget.CodeEditor)
+			.filter(c => c instanceof CodeEditor)
 
 			// map to models
-			.map(e => (<widget.CodeEditor>e).getModel())
+			.map(editor => (editor as CodeEditor).getModel())
 
 			// remove nulls and duplicates
-			.filter((m, i, a) => !!m && !!m.uri && a.indexOf(m, i + 1) === -1)
+			.filter((m, i, a) => !!m && !!m.uri && a.indexOf(m, i + 1) === -1);
 
-			// get the associated resource
-			.map(m => ({ model: m, uri: m.uri }));
+		const newModels = models.filter(p => this.models.every(m => p !== m));
+		const oldModels = this.models.filter(m => models.every(p => p !== m));
 
-		const newModels = models.filter(p => this.models.every(m => p.model !== m));
-		const oldModels = this.models.filter(m => models.every(p => p.model !== m));
-
-		newModels.forEach(({ model, uri }) => this.onModelVisible(model, uri));
+		newModels.forEach(m => this.onModelVisible(m));
 		oldModels.forEach(m => this.onModelInvisible(m));
 
-		this.models = models.map(p => p.model);
+		this.models = models;
 	}
 
-	private onModelVisible(model: common.IModel, uri: URI): void {
-		this.decorators[model.id] = this.instantiationService.createInstance(DirtyDiffModelDecorator, model, uri);
+	private onModelVisible(model: common.IModel): void {
+		this.decorators[model.id] = this.instantiationService.createInstance(DirtyDiffModelDecorator, model);
 	}
 
 	private onModelInvisible(model: common.IModel): void {

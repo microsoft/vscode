@@ -371,9 +371,9 @@
 		// "editor.inactiveSelectionBackground": "",
 		// "editor.lineHighlightBorder": "",
 		// "editor.rangeHighlightBackground": "",
-		// "editor.selectionHighlightBackground": "",
-		// "editor.wordHighlightBackground": "",
-		// "editor.wordHighlightStrongBackground": "",
+		"editor.selectionHighlightBackground": "#005A6FAA",
+		"editor.wordHighlightBackground": "#004454AA",
+		"editor.wordHighlightStrongBackground": "#005A6FAA",
 
 		// Editor: Suggest
 		// "editorSuggestWidget.background": "",

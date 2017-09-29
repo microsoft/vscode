@@ -11,7 +11,7 @@
 	"lineHeight": "Meghatározza a sormagasságot. A 0 érték használata esetén a sormagasság a fontSize értékéből van számolva.",
 	"letterSpacing": "Meghatározza a betűközt, pixelekben.",
 	"lineNumbers": "Meghatározza, hogy megjelenjenek-e a sorszámok. A lehetséges értékek 'on', 'off' és 'relative'. A 'relative' érték használata esetén a kurzor aktuális pozíciójához képest számított sorszám jelenik meg.",
-	"rulers": "Azon oszlopok listája, ahol függőleges segédvonal jelenjen meg.",
+	"rulers": "Függőleges vonalzók kirajzolása bizonyos számú fix szélességű karakter után. Több vonalzó használatához adjon meg több értéket. Nincs kirajzolva semmi, ha a tömb üres.",
 	"wordSeparators": "Azon karakterek listája, amelyek szóelválasztónak vannak tekintve szavakkal kapcsolatos navigáció vagy műveletek során.",
 	"tabSize": "Egy tabulátor hány szóköznek felel meg. Ez a beállítás felülírásra kerül a fájl tartalma alapján, ha az 'editor.detectIndentation' beállítás aktív.",
 	"tabSize.errorMessage": "A várt érték 'number' típusú. Megjegyzés: az \"auto\" értéket az 'editor.detectIndentation' beállítás helyettesíti.",

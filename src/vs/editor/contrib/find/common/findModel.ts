@@ -409,6 +409,18 @@ export class FindModelBoundToEditorModel {
 			return;
 		}
 
+		let searchRegex = searchData.regex;
+		if (!searchRegex.multiline) {
+			let mod = 'm';
+			if (searchRegex.ignoreCase) {
+				mod += 'i';
+			}
+			if (searchRegex.global) {
+				mod += 'g';
+			}
+			searchRegex = new RegExp(searchRegex.source, mod);
+		}
+
 		const model = this._editor.getModel();
 		const modelText = model.getValue(editorCommon.EndOfLinePreference.LF);
 		const fullModelRange = model.getFullModelRange();
@@ -416,11 +428,11 @@ export class FindModelBoundToEditorModel {
 		const replacePattern = this._getReplacePattern();
 		let resultText: string;
 		if (replacePattern.hasReplacementPatterns) {
-			resultText = modelText.replace(searchData.regex, function () {
+			resultText = modelText.replace(searchRegex, function () {
 				return replacePattern.buildReplaceString(<string[]><any>arguments);
 			});
 		} else {
-			resultText = modelText.replace(searchData.regex, replacePattern.buildReplaceString(null));
+			resultText = modelText.replace(searchRegex, replacePattern.buildReplaceString(null));
 		}
 
 		let command = new ReplaceCommandThatPreservesSelection(fullModelRange, resultText, this._editor.getSelection());

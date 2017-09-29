@@ -6,7 +6,6 @@
 import nls = require('vs/nls');
 import cp = require('child_process');
 import net = require('net');
-import uri from 'vs/base/common/uri';
 import Event, { Emitter } from 'vs/base/common/event';
 import platform = require('vs/base/common/platform');
 import objects = require('vs/base/common/objects');
@@ -23,6 +22,7 @@ import debug = require('vs/workbench/parts/debug/common/debug');
 import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { V8Protocol } from 'vs/workbench/parts/debug/node/v8Protocol';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ExtensionsChannelId } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { TerminalSupport } from 'vs/workbench/parts/debug/electron-browser/terminalSupport';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -70,8 +70,8 @@ export class RawDebugSession extends V8Protocol implements debug.ISession {
 		id: string,
 		private debugServerPort: number,
 		private adapter: Adapter,
-		private customTelemetryService: ITelemetryService,
-		public root: uri,
+		public customTelemetryService: ITelemetryService,
+		public root: IWorkspaceFolder,
 		@IMessageService private messageService: IMessageService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IOutputService private outputService: IOutputService,
@@ -164,8 +164,17 @@ export class RawDebugSession extends V8Protocol implements debug.ISession {
 				const errorMessage = errorResponse ? errorResponse.message : '';
 				const telemetryMessage = error ? debug.formatPII(error.format, true, error.variables) : errorMessage;
 				if (error && error.sendTelemetry) {
+					/* __GDPR__
+						"debugProtocolErrorResponse" : {
+							"error" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						}
+					*/
 					this.telemetryService.publicLog('debugProtocolErrorResponse', { error: telemetryMessage });
 					if (this.customTelemetryService) {
+						/* __GDPR__TODO__
+							The message is sent in the name of the adapter but the adapter doesn't know about it.
+							However, since adapters are an open-ended set, we can not declared the events statically either.
+						*/
 						this.customTelemetryService.publicLog('debugProtocolErrorResponse', { error: telemetryMessage });
 					}
 				}

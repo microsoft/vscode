@@ -87,6 +87,13 @@ export abstract class TextFileService implements ITextFileService {
 
 		this.onConfigurationChange(configuration);
 
+		/* __GDPR__
+			"autoSave" : {
+				"${include}": [
+					"${IAutoSaveConfiguration}"
+				]
+			}
+		*/
 		this.telemetryService.publicLog('autoSave', this.getAutoSaveConfiguration());
 
 		this.registerListeners();
@@ -211,6 +218,13 @@ export abstract class TextFileService implements ITextFileService {
 			}
 
 			// Telemetry
+			/* __GDPR__
+				"hotExit:triggered" : {
+					"reason" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"windowCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"fileCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
 			this.telemetryService.publicLog('hotExit:triggered', { reason, windowCount, fileCount: dirtyToBackup.length });
 
 			// Backup
@@ -407,10 +421,14 @@ export abstract class TextFileService implements ITextFileService {
 		const filesToSave: URI[] = [];
 		const untitledToSave: URI[] = [];
 		toSave.forEach(s => {
-			if (s.scheme === Schemas.file) {
-				filesToSave.push(s);
-			} else if ((Array.isArray(arg1) || arg1 === true /* includeUntitled */) && s.scheme === UNTITLED_SCHEMA) {
+			// TODO@remote
+			// if (s.scheme === Schemas.file) {
+			// 	filesToSave.push(s);
+			// } else
+			if ((Array.isArray(arg1) || arg1 === true /* includeUntitled */) && s.scheme === UNTITLED_SCHEMA) {
 				untitledToSave.push(s);
+			} else {
+				filesToSave.push(s);
 			}
 		});
 

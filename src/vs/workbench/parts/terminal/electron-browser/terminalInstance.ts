@@ -205,16 +205,19 @@ export class TerminalInstance implements ITerminalInstance {
 			return null;
 		}
 		const font = this._configHelper.getFont();
-		this._cols = Math.max(Math.floor(dimension.width / font.charWidth), 1);
 
-		// xterm.js does the horizontal space calculation using values scaled
-		// with window.devicePixelRatio. In these calculations, ceil and floor
-		// are used which require us to check it on this side as well or we
-		// would lose that precision.
-		const scaledSpaceAvailable = dimension.height * window.devicePixelRatio;
+		// Because xterm.js converts from CSS pixels to actual pixels through
+		// the use of canvas, window.devicePixelRatio needs to be used here in
+		// order to be precise. font.charWidth/charHeight alone as insufficient
+		// when window.devicePixelRatio changes.
+		const scaledWidthAvailable = dimension.width * window.devicePixelRatio;
+		const scaledCharWidth = Math.floor(font.charWidth * window.devicePixelRatio);
+		this._cols = Math.max(Math.floor(scaledWidthAvailable / scaledCharWidth), 1);
+
+		const scaledHeightAvailable = dimension.height * window.devicePixelRatio;
 		const scaledCharHeight = Math.ceil(font.charHeight * window.devicePixelRatio);
 		const scaledLineHeight = Math.floor(scaledCharHeight * font.lineHeight);
-		this._rows = Math.floor(scaledSpaceAvailable / scaledLineHeight);
+		this._rows = Math.max(Math.floor(scaledHeightAvailable / scaledLineHeight), 1);
 
 		return dimension.width;
 	}
@@ -257,9 +260,13 @@ export class TerminalInstance implements ITerminalInstance {
 	 * Create xterm.js instance and attach data listeners.
 	 */
 	protected _createXterm(): void {
+		const font = this._configHelper.getFont(true);
 		this._xterm = new XTermTerminal({
 			scrollback: this._configHelper.config.scrollback,
-			theme: this._getXtermTheme()
+			theme: this._getXtermTheme(),
+			fontFamily: font.fontFamily,
+			fontSize: font.fontSize,
+			lineHeight: font.lineHeight
 		});
 		if (this._shellLaunchConfig.initialText) {
 			this._xterm.writeln(this._shellLaunchConfig.initialText);
@@ -378,7 +385,7 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 	}
 
-	public registerLinkMatcher(regex: RegExp, handler: (url: string) => void, matchIndex?: number, validationCallback?: (uri: string, element: HTMLElement, callback: (isValid: boolean) => void) => void): number {
+	public registerLinkMatcher(regex: RegExp, handler: (url: string) => void, matchIndex?: number, validationCallback?: (uri: string, callback: (isValid: boolean) => void) => void): number {
 		return this._linkHandler.registerCustomLinkHandler(regex, handler, matchIndex, validationCallback);
 	}
 
@@ -1004,7 +1011,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		collector.addRule(`
 			.monaco-workbench .panel.integrated-terminal .xterm.focus .xterm-viewport,
 			.monaco-workbench .panel.integrated-terminal .xterm:focus .xterm-viewport,
-			.monaco-workbench .panel.integrated-terminal .xterm:hover .xterm-viewport { background-color: ${scrollbarSliderBackgroundColor}; }`
+			.monaco-workbench .panel.integrated-terminal .xterm:hover .xterm-viewport { background-color: ${scrollbarSliderBackgroundColor} !important; }`
 		);
 	}
 

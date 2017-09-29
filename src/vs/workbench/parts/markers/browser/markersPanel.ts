@@ -47,7 +47,7 @@ export class MarkersPanel extends Panel {
 	private delayedRefresh: Delayer<void>;
 
 	private lastSelectedRelativeTop: number = 0;
-	private currentActiveFile: URI = null;
+	private currentActiveResource: URI = null;
 	private hasToAutoReveal: boolean;
 
 	private tree: Tree.ITree;
@@ -63,7 +63,7 @@ export class MarkersPanel extends Panel {
 	private messageBox: HTMLElement;
 
 	private markerFocusContextKey: IContextKey<boolean>;
-	private currentFileGotAddedToMarkersData: boolean = false;
+	private currentResourceGotAddedToMarkersData: boolean = false;
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -148,6 +148,11 @@ export class MarkersPanel extends Panel {
 	public openFileAtElement(element: any, preserveFocus: boolean, sideByside: boolean, pinned: boolean): boolean {
 		if (element instanceof Marker) {
 			const marker: Marker = element;
+			/* __GDPR__
+				"problems.marker.opened" : {
+					"source" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
 			this.telemetryService.publicLog('problems.marker.opened', { source: marker.marker.source });
 			this.editorService.openEditor({
 				resource: marker.resource,
@@ -256,31 +261,31 @@ export class MarkersPanel extends Panel {
 	}
 
 	private onMarkerChanged(changedResources: URI[]) {
-		this.currentFileGotAddedToMarkersData = this.currentFileGotAddedToMarkersData || this.isCurrentFileGotAddedToMarkersData(changedResources);
+		this.currentResourceGotAddedToMarkersData = this.currentResourceGotAddedToMarkersData || this.isCurrentResourceGotAddedToMarkersData(changedResources);
 		this.updateResources(changedResources);
 		this.delayedRefresh.trigger(() => {
 			this.refreshPanel();
 			this.updateRangeHighlights();
-			if (this.currentFileGotAddedToMarkersData) {
+			if (this.currentResourceGotAddedToMarkersData) {
 				this.autoReveal();
-				this.currentFileGotAddedToMarkersData = false;
+				this.currentResourceGotAddedToMarkersData = false;
 			}
 		});
 	}
 
-	private isCurrentFileGotAddedToMarkersData(changedResources: URI[]) {
-		if (!this.currentActiveFile) {
+	private isCurrentResourceGotAddedToMarkersData(changedResources: URI[]) {
+		if (!this.currentActiveResource) {
 			return false;
 		}
-		const resourceForCurrentActiveFile = this.getResourceForCurrentActiveFile();
-		if (resourceForCurrentActiveFile) {
+		const resourceForCurrentActiveResource = this.getResourceForCurrentActiveResource();
+		if (resourceForCurrentActiveResource) {
 			return false;
 		}
-		return changedResources.some(r => r.toString() === this.currentActiveFile.toString());
+		return changedResources.some(r => r.toString() === this.currentActiveResource.toString());
 	}
 
 	private onEditorsChanged(): void {
-		this.currentActiveFile = toResource(this.editorService.getActiveEditorInput(), { filter: 'file' });
+		this.currentActiveResource = toResource(this.editorService.getActiveEditorInput());
 		this.autoReveal();
 	}
 
@@ -340,7 +345,7 @@ export class MarkersPanel extends Panel {
 	}
 
 	private revealMarkersForCurrentActiveEditor(focus: boolean = false): void {
-		let currentActiveResource = this.getResourceForCurrentActiveFile();
+		let currentActiveResource = this.getResourceForCurrentActiveResource();
 		if (currentActiveResource) {
 			if (this.tree.isExpanded(currentActiveResource) && this.hasSelectedMarkerFor(currentActiveResource)) {
 				this.tree.reveal(this.tree.getSelection()[0], this.lastSelectedRelativeTop);
@@ -360,10 +365,10 @@ export class MarkersPanel extends Panel {
 		}
 	}
 
-	private getResourceForCurrentActiveFile(): Resource {
-		if (this.currentActiveFile) {
+	private getResourceForCurrentActiveResource(): Resource {
+		if (this.currentActiveResource) {
 			let resources = this.markersModel.filteredResources.filter((resource): boolean => {
-				return this.currentActiveFile.toString() === resource.uri.toString();
+				return this.currentActiveResource.toString() === resource.uri.toString();
 			});
 			return resources.length > 0 ? resources[0] : null;
 		}

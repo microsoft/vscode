@@ -21,6 +21,42 @@ function encodeNoop(str: string): string {
 }
 
 
+const _schemePattern = /^\w[\w\d+.-]*$/;
+const _singleSlashStart = /^\//;
+const _doubleSlashStart = /^\/\//;
+
+function _validateUri(ret: URI): void {
+	// scheme, https://tools.ietf.org/html/rfc3986#section-3.1
+	// ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )
+	if (ret.scheme && !_schemePattern.test(ret.scheme)) {
+		throw new Error('[UriError]: Scheme contains illegal characters.');
+	}
+
+	// path, http://tools.ietf.org/html/rfc3986#section-3.3
+	// If a URI contains an authority component, then the path component
+	// must either be empty or begin with a slash ("/") character.  If a URI
+	// does not contain an authority component, then the path cannot begin
+	// with two slash characters ("//").
+	if (ret.path) {
+		if (ret.authority) {
+			if (!_singleSlashStart.test(ret.path)) {
+				throw new Error('[UriError]: If a URI contains an authority component, then the path component must either be empty or begin with a slash ("/") character');
+			}
+		} else {
+			if (_doubleSlashStart.test(ret.path)) {
+				throw new Error('[UriError]: If a URI does not contain an authority component, then the path cannot begin with two slash characters ("//")');
+			}
+		}
+	}
+}
+
+const _empty = '';
+const _slash = '/';
+const _regexp = /^(([^:/?#]+?):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?/;
+const _driveLetterPath = /^\/[a-zA-Z]:/;
+const _upperCaseDrive = /^(\/)?([A-Z]:)/;
+const _driveLetter = /^[a-zA-Z]:/;
+
 /**
  * Uniform Resource Identifier (URI) http://tools.ietf.org/html/rfc3986.
  * This class is a simple parser which creates the basic component paths
@@ -53,12 +89,6 @@ export default class URI {
 			&& typeof (<URI>thing).scheme === 'string';
 	}
 
-	private static _empty = '';
-	private static _slash = '/';
-	private static _regexp = /^(([^:/?#]+?):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?/;
-	private static _driveLetterPath = /^\/[a-zA-Z]:/;
-	private static _upperCaseDrive = /^(\/)?([A-Z]:)/;
-
 	/**
 	 * scheme is the 'http' part of 'http://www.msft.com/some/path?query#fragment'.
 	 * The part before the first colon.
@@ -86,21 +116,18 @@ export default class URI {
 	 */
 	readonly fragment: string;
 
-	private _formatted: string = null;
-	private _fsPath: string = null;
-
 	/**
 	 * @internal
 	 */
-	private constructor(scheme: string, authority: string, path: string, query: string, fragment: string) {
+	protected constructor(scheme: string, authority: string, path: string, query: string, fragment: string) {
 
-		this.scheme = scheme || URI._empty;
-		this.authority = authority || URI._empty;
-		this.path = path || URI._empty;
-		this.query = query || URI._empty;
-		this.fragment = fragment || URI._empty;
+		this.scheme = scheme || _empty;
+		this.authority = authority || _empty;
+		this.path = path || _empty;
+		this.query = query || _empty;
+		this.fragment = fragment || _empty;
 
-		this._validate(this);
+		_validateUri(this);
 	}
 
 	// ---- filesystem path -----------------------
@@ -112,24 +139,7 @@ export default class URI {
 	 * invalid characters and semantics. Will *not* look at the scheme of this URI.
 	 */
 	get fsPath(): string {
-		if (!this._fsPath) {
-			let value: string;
-			if (this.authority && this.path && this.scheme === 'file') {
-				// unc path: file://shares/c$/far/boo
-				value = `//${this.authority}${this.path}`;
-			} else if (URI._driveLetterPath.test(this.path)) {
-				// windows drive letter: file:///c:/far/boo
-				value = this.path[1].toLowerCase() + this.path.substr(2);
-			} else {
-				// other path
-				value = this.path;
-			}
-			if (platform.isWindows) {
-				value = value.replace(/\//g, '\\');
-			}
-			this._fsPath = value;
-		}
-		return this._fsPath;
+		return _makeFsPath(this);
 	}
 
 	// ---- modify to new -------------------------
@@ -176,95 +186,72 @@ export default class URI {
 			return this;
 		}
 
-		return new URI(scheme, authority, path, query, fragment);
+		return new _URI(scheme, authority, path, query, fragment);
 	}
 
 	// ---- parse & validate ------------------------
 
 	public static parse(value: string): URI {
-		const match = URI._regexp.exec(value);
+		const match = _regexp.exec(value);
 		if (!match) {
-			return new URI(URI._empty, URI._empty, URI._empty, URI._empty, URI._empty);
+			return new _URI(_empty, _empty, _empty, _empty, _empty);
 		}
-		return new URI(
-			match[2] || URI._empty,
-			decodeURIComponent(match[4] || URI._empty),
-			decodeURIComponent(match[5] || URI._empty),
-			decodeURIComponent(match[7] || URI._empty),
-			decodeURIComponent(match[9] || URI._empty),
+		return new _URI(
+			match[2] || _empty,
+			decodeURIComponent(match[4] || _empty),
+			decodeURIComponent(match[5] || _empty),
+			decodeURIComponent(match[7] || _empty),
+			decodeURIComponent(match[9] || _empty),
 		);
 	}
 
 	public static file(path: string): URI {
 
-		let authority = URI._empty;
+		let authority = _empty;
 
 		// normalize to fwd-slashes on windows,
 		// on other systems bwd-slashes are valid
 		// filename character, eg /f\oo/ba\r.txt
 		if (platform.isWindows) {
-			path = path.replace(/\\/g, URI._slash);
+			path = path.replace(/\\/g, _slash);
 		}
 
 		// check for authority as used in UNC shares
 		// or use the path as given
-		if (path[0] === URI._slash && path[0] === path[1]) {
-			let idx = path.indexOf(URI._slash, 2);
+		if (path[0] === _slash && path[1] === _slash) {
+			let idx = path.indexOf(_slash, 2);
 			if (idx === -1) {
 				authority = path.substring(2);
-				path = URI._empty;
+				path = _slash;
 			} else {
 				authority = path.substring(2, idx);
-				path = path.substring(idx);
+				path = path.substring(idx) || _slash;
 			}
 		}
 
 		// Ensure that path starts with a slash
 		// or that it is at least a slash
-		if (path[0] !== URI._slash) {
-			path = URI._slash + path;
+		if (_driveLetter.test(path)) {
+			path = _slash + path;
+
+		} else if (path[0] !== _slash) {
+			// tricky -> makes invalid paths
+			// but otherwise we have to stop
+			// allowing relative paths...
+			path = _slash + path;
 		}
 
-		return new URI('file', authority, path, URI._empty, URI._empty);
+		return new _URI('file', authority, path, _empty, _empty);
 	}
 
 	public static from(components: { scheme?: string; authority?: string; path?: string; query?: string; fragment?: string }): URI {
-		return new URI(
+		return new _URI(
 			components.scheme,
 			components.authority,
 			components.path,
 			components.query,
 			components.fragment,
 		);
-	}
-
-	private static _schemePattern = /^\w[\w\d+.-]*$/;
-	private static _singleSlashStart = /^\//;
-	private static _doubleSlashStart = /^\/\//;
-
-	private _validate(ret: URI): void {
-		// scheme, https://tools.ietf.org/html/rfc3986#section-3.1
-		// ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )
-		if (ret.scheme && !URI._schemePattern.test(ret.scheme)) {
-			throw new Error('[UriError]: Scheme contains illegal characters.');
-		}
-
-		// path, http://tools.ietf.org/html/rfc3986#section-3.3
-		// If a URI contains an authority component, then the path component
-		// must either be empty or begin with a slash ("/") character.  If a URI
-		// does not contain an authority component, then the path cannot begin
-		// with two slash characters ("//").
-		if (ret.path) {
-			if (ret.authority) {
-				if (!URI._singleSlashStart.test(ret.path)) {
-					throw new Error('[UriError]: If a URI contains an authority component, then the path component must either be empty or begin with a slash ("/") character');
-				}
-			} else {
-				if (URI._doubleSlashStart.test(ret.path)) {
-					throw new Error('[UriError]: If a URI does not contain an authority component, then the path cannot begin with two slash characters ("//")');
-				}
-			}
-		}
 	}
 
 	// ---- printing/externalize ---------------------------
@@ -274,94 +261,14 @@ export default class URI {
 	 * @param skipEncoding Do not encode the result, default is `false`
 	 */
 	public toString(skipEncoding: boolean = false): string {
-		if (!skipEncoding) {
-			if (!this._formatted) {
-				this._formatted = URI._asFormatted(this, false);
-			}
-			return this._formatted;
-		} else {
-			// we don't cache that
-			return URI._asFormatted(this, true);
-		}
-	}
-
-	private static _asFormatted(uri: URI, skipEncoding: boolean): string {
-
-		const encoder = !skipEncoding
-			? encodeURIComponent2
-			: encodeNoop;
-
-		const parts: string[] = [];
-
-		let { scheme, authority, path, query, fragment } = uri;
-		if (scheme) {
-			parts.push(scheme, ':');
-		}
-		if (authority || scheme === 'file') {
-			parts.push('//');
-		}
-		if (authority) {
-			let idx = authority.indexOf('@');
-			if (idx !== -1) {
-				const userinfo = authority.substr(0, idx);
-				authority = authority.substr(idx + 1);
-				idx = userinfo.indexOf(':');
-				if (idx === -1) {
-					parts.push(encoder(userinfo));
-				} else {
-					parts.push(encoder(userinfo.substr(0, idx)), ':', encoder(userinfo.substr(idx + 1)));
-				}
-				parts.push('@');
-			}
-			authority = authority.toLowerCase();
-			idx = authority.indexOf(':');
-			if (idx === -1) {
-				parts.push(encoder(authority));
-			} else {
-				parts.push(encoder(authority.substr(0, idx)), authority.substr(idx));
-			}
-		}
-		if (path) {
-			// lower-case windows drive letters in /C:/fff or C:/fff
-			const m = URI._upperCaseDrive.exec(path);
-			if (m) {
-				if (m[1]) {
-					path = '/' + m[2].toLowerCase() + path.substr(3); // "/c:".length === 3
-				} else {
-					path = m[2].toLowerCase() + path.substr(2); // // "c:".length === 2
-				}
-			}
-
-			// encode every segement but not slashes
-			// make sure that # and ? are always encoded
-			// when occurring in paths - otherwise the result
-			// cannot be parsed back again
-			let lastIdx = 0;
-			while (true) {
-				let idx = path.indexOf(URI._slash, lastIdx);
-				if (idx === -1) {
-					parts.push(encoder(path.substring(lastIdx)));
-					break;
-				}
-				parts.push(encoder(path.substring(lastIdx, idx)), URI._slash);
-				lastIdx = idx + 1;
-			};
-		}
-		if (query) {
-			parts.push('?', encoder(query));
-		}
-		if (fragment) {
-			parts.push('#', encoder(fragment));
-		}
-
-		return parts.join(URI._empty);
+		return _asFormatted(this, skipEncoding);
 	}
 
 	public toJSON(): any {
 		const res = <UriState>{
+			$mid: 1,
 			fsPath: this.fsPath,
 			external: this.toString(),
-			$mid: 1
 		};
 
 		if (this.path) {
@@ -388,7 +295,7 @@ export default class URI {
 	}
 
 	static revive(data: any): URI {
-		let result = new URI(
+		let result = new _URI(
 			(<UriState>data).scheme,
 			(<UriState>data).authority,
 			(<UriState>data).path,
@@ -413,4 +320,130 @@ interface UriState extends UriComponents {
 	$mid: number;
 	fsPath: string;
 	external: string;
+}
+
+
+// tslint:disable-next-line:class-name
+class _URI extends URI {
+
+	_formatted: string = null;
+	_fsPath: string = null;
+
+	get fsPath(): string {
+		if (!this._fsPath) {
+			this._fsPath = _makeFsPath(this);
+		}
+		return this._fsPath;
+	}
+
+	public toString(skipEncoding: boolean = false): string {
+		if (!skipEncoding) {
+			if (!this._formatted) {
+				this._formatted = _asFormatted(this, false);
+			}
+			return this._formatted;
+		} else {
+			// we don't cache that
+			return _asFormatted(this, true);
+		}
+	}
+}
+
+
+/**
+ * Compute `fsPath` for the given uri
+ * @param uri
+ */
+function _makeFsPath(uri: URI): string {
+
+	let value: string;
+	if (uri.authority && uri.path && uri.scheme === 'file') {
+		// unc path: file://shares/c$/far/boo
+		value = `//${uri.authority}${uri.path}`;
+	} else if (_driveLetterPath.test(uri.path)) {
+		// windows drive letter: file:///c:/far/boo
+		value = uri.path[1].toLowerCase() + uri.path.substr(2);
+	} else {
+		// other path
+		value = uri.path;
+	}
+	if (platform.isWindows) {
+		value = value.replace(/\//g, '\\');
+	}
+	return value;
+}
+
+/**
+ * Create the external version of a uri
+ */
+function _asFormatted(uri: URI, skipEncoding: boolean): string {
+
+	const encoder = !skipEncoding
+		? encodeURIComponent2
+		: encodeNoop;
+
+	const parts: string[] = [];
+
+	let { scheme, authority, path, query, fragment } = uri;
+	if (scheme) {
+		parts.push(scheme, ':');
+	}
+	if (authority || scheme === 'file') {
+		parts.push('//');
+	}
+	if (authority) {
+		let idx = authority.indexOf('@');
+		if (idx !== -1) {
+			const userinfo = authority.substr(0, idx);
+			authority = authority.substr(idx + 1);
+			idx = userinfo.indexOf(':');
+			if (idx === -1) {
+				parts.push(encoder(userinfo));
+			} else {
+				parts.push(encoder(userinfo.substr(0, idx)), ':', encoder(userinfo.substr(idx + 1)));
+			}
+			parts.push('@');
+		}
+		authority = authority.toLowerCase();
+		idx = authority.indexOf(':');
+		if (idx === -1) {
+			parts.push(encoder(authority));
+		} else {
+			parts.push(encoder(authority.substr(0, idx)), authority.substr(idx));
+		}
+	}
+	if (path) {
+		// lower-case windows drive letters in /C:/fff or C:/fff
+		const m = _upperCaseDrive.exec(path);
+		if (m) {
+			if (m[1]) {
+				path = '/' + m[2].toLowerCase() + path.substr(3); // "/c:".length === 3
+			} else {
+				path = m[2].toLowerCase() + path.substr(2); // // "c:".length === 2
+			}
+		}
+
+		// encode every segement but not slashes
+		// make sure that # and ? are always encoded
+		// when occurring in paths - otherwise the result
+		// cannot be parsed back again
+		let lastIdx = 0;
+		while (true) {
+			let idx = path.indexOf(_slash, lastIdx);
+			if (idx === -1) {
+				parts.push(encoder(path.substring(lastIdx)));
+				break;
+			}
+			parts.push(encoder(path.substring(lastIdx, idx)), _slash);
+			lastIdx = idx + 1;
+		};
+	}
+	if (query) {
+		parts.push('?', encoder(query));
+	}
+	if (fragment) {
+		parts.push('#', encoder(fragment));
+	}
+
+	return parts.join(_empty);
 }

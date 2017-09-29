@@ -66,7 +66,7 @@ function findSpecificGit(path: string): Promise<IGit> {
 		const buffers: Buffer[] = [];
 		const child = cp.spawn(path, ['--version']);
 		child.stdout.on('data', (b: Buffer) => buffers.push(b));
-		child.on('error', e);
+		child.on('error', cpErrorHandler(e));
 		child.on('exit', code => code ? e(new Error('Not found')) : c({ path, version: parseVersion(Buffer.concat(buffers).toString('utf8').trim()) }));
 	});
 }
@@ -143,20 +143,35 @@ function findGitWin32(): Promise<IGit> {
 export function findGit(hint: string | undefined): Promise<IGit> {
 	var first = hint ? findSpecificGit(hint) : Promise.reject<IGit>(null);
 
-	return first.then(void 0, () => {
-		switch (process.platform) {
-			case 'darwin': return findGitDarwin();
-			case 'win32': return findGitWin32();
-			default: return findSpecificGit('git');
-		}
-	});
+	return first
+		.then(void 0, () => {
+			switch (process.platform) {
+				case 'darwin': return findGitDarwin();
+				case 'win32': return findGitWin32();
+				default: return findSpecificGit('git');
+			}
+		})
+		.then(null, () => Promise.reject(new Error('Git installation not found.')));
 }
-
 
 export interface IExecutionResult {
 	exitCode: number;
 	stdout: string;
 	stderr: string;
+}
+
+function cpErrorHandler(cb: (reason?: any) => void): (reason?: any) => void {
+	return err => {
+		if (/ENOENT/.test(err.message)) {
+			err = new GitError({
+				error: err,
+				message: 'Failed to execute git (ENOENT)',
+				gitErrorCode: GitErrorCodes.NotAGitRepository
+			});
+		}
+
+		cb(err);
+	};
 }
 
 async function exec(child: cp.ChildProcess, options: any = {}): Promise<IExecutionResult> {
@@ -183,7 +198,7 @@ async function exec(child: cp.ChildProcess, options: any = {}): Promise<IExecuti
 
 	const [exitCode, stdout, stderr] = await Promise.all<any>([
 		new Promise<number>((c, e) => {
-			once(child, 'error', e);
+			once(child, 'error', cpErrorHandler(e));
 			once(child, 'exit', c);
 		}),
 		new Promise<string>(c => {
@@ -919,7 +934,7 @@ export class Repository {
 			child.stderr.setEncoding('utf8');
 			child.stderr.on('data', raw => stderrData.push(raw as string));
 
-			child.on('error', e);
+			child.on('error', cpErrorHandler(e));
 			child.on('exit', onExit);
 		});
 	}

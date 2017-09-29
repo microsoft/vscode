@@ -18,6 +18,7 @@
 	"openFolder": "Abrir carpeta",
 	"openFile": "Abrir archivo",
 	"workspaceOpenedMessage": "No se puede guardar el espacio de trabajo '{0}'",
+	"workspaceOpenedDetail": "El espacio de trabajo ya está abierto en otra ventana. Por favor, cierre primero la ventana y vuelta a intentarlo de nuevo.",
 	"openWorkspace": "&&Abrir...",
 	"openWorkspaceTitle": "Abrir área de trabajo",
 	"save": "&&Guardar",

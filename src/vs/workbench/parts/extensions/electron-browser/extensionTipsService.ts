@@ -19,15 +19,16 @@ import { IChoiceService, IMessageService } from 'vs/platform/message/common/mess
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import Severity from 'vs/base/common/severity';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { Schemas } from 'vs/base/common/network';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IExtensionsConfiguration, ConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import * as fs from 'fs';
-import { distinct } from 'vs/base/common/arrays';
+import * as pfs from 'vs/base/node/pfs';
+import * as os from 'os';
+import { flatten, distinct } from 'vs/base/common/arrays';
 
 interface IExtensionsContent {
 	recommendations: string[];
@@ -68,34 +69,77 @@ export class ExtensionTipsService implements IExtensionTipsService {
 
 		this._suggestTips();
 		this._suggestWorkspaceRecommendations();
+
+		// Executable based recommendations carry out a lot of file stats, so run them after 10 secs
+		// So that the startup is not affected
+		setTimeout(() => this._suggestBasedOnExecutables(this._exeBasedRecommendations), 10000);
 	}
 
 	getWorkspaceRecommendations(): TPromise<string[]> {
-		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			return TPromise.as([]);
-		}
-		return this.fileService.resolveContent(this.contextService.toResource(paths.join('.vscode', 'extensions.json'))).then(content => { //TODO@Sandeep (https://github.com/Microsoft/vscode/issues/29242)
-			const extensionsContent = <IExtensionsContent>json.parse(content.value, []);
-			if (extensionsContent.recommendations) {
-				const regEx = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
-				return extensionsContent.recommendations.filter((element, position) => {
-					return extensionsContent.recommendations.indexOf(element) === position && regEx.test(element);
-				});
-			}
-			return [];
-		}, err => []);
+		const workspace = this.contextService.getWorkspace();
+		return TPromise.join([this.resolveWorkspaceRecommendations(workspace), ...workspace.folders.map(workspaceFolder => this.resolveWorkspaceFolderRecommendations(workspaceFolder))])
+			.then(recommendations => distinct(flatten(recommendations)));
 	}
 
-	getRecommendations(): string[] {
+	private resolveWorkspaceRecommendations(workspace: IWorkspace): TPromise<string[]> {
+		if (workspace.configuration) {
+			return this.fileService.resolveContent(workspace.configuration)
+				.then(content => this.processWorkspaceRecommendations(json.parse(content.value, [])['extensions']), err => []);
+		}
+		return TPromise.as([]);
+	}
+
+	private resolveWorkspaceFolderRecommendations(workspaceFolder: IWorkspaceFolder): TPromise<string[]> {
+		return this.fileService.resolveContent(workspaceFolder.toResource(paths.join('.vscode', 'extensions.json')))
+			.then(content => this.processWorkspaceRecommendations(json.parse(content.value, [])), err => []);
+	}
+
+	private processWorkspaceRecommendations(extensionsContent: IExtensionsContent): string[] {
+		if (extensionsContent && extensionsContent.recommendations) {
+			const regEx = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
+			return extensionsContent.recommendations.filter((element, position) => {
+				return extensionsContent.recommendations.indexOf(element) === position && regEx.test(element);
+			});
+		}
+		return [];
+	}
+
+	getRecommendations(installedExtensions: string[], searchText: string): string[] {
 		const allRecomendations = this._getAllRecommendationsInProduct();
 		const fileBased = Object.keys(this._fileBasedRecommendations)
-			.filter(recommendation => allRecomendations.indexOf(recommendation) !== -1);
+			.filter(recommendation => {
+				return allRecomendations.indexOf(recommendation) > -1
+					&& installedExtensions.indexOf(recommendation) === -1
+					&& recommendation.toLowerCase().indexOf(searchText) > -1;
+			}).sort((a, b) => {
+				return this._fileBasedRecommendations[a] > this._fileBasedRecommendations[b] ? -1 : 1;
+			});
 
-		const exeBased = distinct(this._suggestBasedOnExecutables());
+		const exeBased = this._exeBasedRecommendations
+			.filter((recommendation, index) => {
+				return this._exeBasedRecommendations.indexOf(recommendation) === index
+					&& installedExtensions.indexOf(recommendation) === -1
+					&& fileBased.indexOf(recommendation) === -1
+					&& recommendation.toLowerCase().indexOf(searchText) > -1;
+			});
 
+		// Sort recommendations such that few of the exeBased ones show up earliar
+		const x = Math.min(6, fileBased.length);
+		const y = Math.min(4, exeBased.length);
+		const sortedRecommendations = fileBased.slice(0, x);
+		sortedRecommendations.push(...exeBased.slice(0, y));
+		sortedRecommendations.push(...fileBased.slice(x));
+		sortedRecommendations.push(...exeBased.slice(y));
+
+		/* __GDPR__
+			"extensionRecommendations:unfiltered" : {
+				"fileBased" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"exeBased": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		this.telemetryService.publicLog('extensionRecommendations:unfiltered', { fileBased, exeBased });
 
-		return distinct([...fileBased, ...exeBased]);
+		return sortedRecommendations;
 	}
 
 	getKeymapRecommendations(): string[] {
@@ -226,7 +270,13 @@ export class ExtensionTipsService implements IExtensionTipsService {
 						this.choiceService.choose(Severity.Info, message, options, 2).done(choice => {
 							switch (choice) {
 								case 0:
-									this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'show' });
+									/* __GDPR__
+										"extensionRecommendations:popup" : {
+											"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+											"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+										}
+									*/
+									this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'show', extensionId: name });
 									return recommendationsAction.run();
 								case 1: this.importantRecommendationsIgnoreList.push(id);
 									this.storageService.store(
@@ -234,13 +284,31 @@ export class ExtensionTipsService implements IExtensionTipsService {
 										JSON.stringify(this.importantRecommendationsIgnoreList),
 										StorageScope.GLOBAL
 									);
-									this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'neverShowAgain' });
+									/* __GDPR__
+										"extensionRecommendations:popup" : {
+											"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+											"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+										}
+									*/
+									this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'neverShowAgain', extensionId: name });
 									return this.ignoreExtensionRecommendations();
 								case 2:
-									this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'close' });
+									/* __GDPR__
+										"extensionRecommendations:popup" : {
+											"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+											"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+										}
+									*/
+									this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'close', extensionId: name });
 							}
 						}, () => {
-							this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'cancelled' });
+							/* __GDPR__
+								"extensionRecommendations:popup" : {
+									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+									"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+								}
+							*/
+							this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'cancelled', extensionId: name });
 						});
 					});
 			});
@@ -284,15 +352,35 @@ export class ExtensionTipsService implements IExtensionTipsService {
 				this.choiceService.choose(Severity.Info, message, options, 2).done(choice => {
 					switch (choice) {
 						case 0:
+							/* __GDPR__
+								"extensionRecommendations:popup" : {
+									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+								}
+							*/
 							this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'show' });
 							return action.run();
 						case 1:
+							/* __GDPR__
+								"extensionRecommendations:popup" : {
+									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+								}
+							*/
 							this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'neverShowAgain' });
 							return this.storageService.store(storageKey, true, StorageScope.WORKSPACE);
 						case 2:
+							/* __GDPR__
+								"extensionRecommendations:popup" : {
+									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+								}
+							*/
 							this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'close' });
 					}
 				}, () => {
+					/* __GDPR__
+						"extensionRecommendations:popup" : {
+							"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						}
+					*/
 					this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'cancelled' });
 				});
 			});
@@ -300,7 +388,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 	}
 
 	private ignoreExtensionRecommendations() {
-		const message = localize('ignoreExtensionRecommendations', "Do you want to ignore all extension recommendations ?");
+		const message = localize('ignoreExtensionRecommendations', "Do you want to ignore all extension recommendations?");
 		const options = [
 			localize('ignoreAll', "Yes, Ignore All"),
 			localize('no', "No"),
@@ -318,42 +406,38 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		});
 	}
 
-	private _suggestBasedOnExecutables(): string[] {
-		if (!process.env.PATH || this._exeBasedRecommendations.length > 0) {
-			return this._exeBasedRecommendations;
-		}
-
-		let envpaths = process.env.PATH.split(process.platform === 'win32' ? ';' : ':');
+	private _suggestBasedOnExecutables(recommendations: string[]): void {
+		const homeDir = os.homedir();
 		let foundExecutables: Set<string> = new Set<string>();
+
+		let findExecutable = (exeName, path) => {
+			return pfs.fileExists(path).then(exists => {
+				if (exists && !foundExecutables.has(exeName)) {
+					foundExecutables.add(exeName);
+					recommendations.push(...product.exeBasedExtensionTips[exeName]['recommendations']);
+				}
+			});
+		};
 
 		// Loop through recommended extensions
 		forEach(product.exeBasedExtensionTips, entry => {
-			let executables = entry.value.split(',');
+			if (typeof entry.value !== 'object' || !Array.isArray(entry.value['recommendations'])) {
+				return;
+			}
 
-			// Loop through executables that would result in recommending current extension
-			for (let i = 0; i < executables.length; i++) {
-				if (!foundExecutables.has(executables[i])) {
-
-					// Loop through paths in PATH to find current executable
-					for (let pathEntry of envpaths) {
-						let fullPath = paths.join(pathEntry, executables[i]);
-						if (process.platform === 'win32') {
-							fullPath += '.exe';
-						}
-						if (fs.existsSync(fullPath)) {
-							foundExecutables.add(executables[i]);
-							break;
-						}
-					}
+			let exeName = entry.key;
+			if (process.platform === 'win32') {
+				let windowsPath = entry.value['windowsPath'];
+				if (!windowsPath || typeof windowsPath !== 'string') {
+					return;
 				}
-				if (foundExecutables.has(executables[i])) {
-					this._exeBasedRecommendations.push(entry.key);
-					break;
-				}
+				windowsPath = windowsPath.replace('%USERPROFILE%', process.env['USERPROFILE']);
+				findExecutable(exeName, windowsPath);
+			} else {
+				findExecutable(exeName, paths.join('/usr/local/bin', exeName));
+				findExecutable(exeName, paths.join(homeDir, exeName));
 			}
 		});
-
-		return this._exeBasedRecommendations;
 	}
 
 	private setIgnoreRecommendationsConfig(configVal: boolean) {

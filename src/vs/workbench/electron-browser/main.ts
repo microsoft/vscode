@@ -17,7 +17,7 @@ import paths = require('vs/base/common/paths');
 import uri from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import { IWorkspaceContextService, Workspace, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { EmptyWorkspaceServiceImpl, WorkspaceServiceImpl, WorkspaceService } from 'vs/workbench/services/configuration/node/configuration';
+import { WorkspaceService } from 'vs/workbench/services/configuration/node/configuration';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { realpath } from 'vs/base/node/pfs';
@@ -58,7 +58,7 @@ export function startup(configuration: IWindowConfiguration): TPromise<void> {
 
 	browser.setFullscreen(!!configuration.fullscreen);
 
-	KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged(configuration.isISOKeyboard);
+	KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged();
 
 	browser.setAccessibilitySupport(configuration.accessibilitySupport ? platform.AccessibilitySupport.Enabled : platform.AccessibilitySupport.Disabled);
 
@@ -111,14 +111,9 @@ function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
 
 function createAndInitializeWorkspaceService(configuration: IWindowConfiguration, environmentService: EnvironmentService, workspacesService: IWorkspacesService): TPromise<WorkspaceService> {
 	return validateWorkspacePath(configuration).then(() => {
-		let workspaceService: WorkspaceServiceImpl | EmptyWorkspaceServiceImpl;
-		if (configuration.workspace || configuration.folderPath) {
-			workspaceService = new WorkspaceServiceImpl(configuration.workspace || configuration.folderPath, environmentService, workspacesService);
-		} else {
-			workspaceService = new EmptyWorkspaceServiceImpl(configuration, environmentService);
-		}
+		const workspaceService = new WorkspaceService(environmentService, workspacesService);
 
-		return workspaceService.initialize().then(() => workspaceService, error => new EmptyWorkspaceServiceImpl(configuration, environmentService));
+		return workspaceService.initialize(configuration.workspace || configuration.folderPath || configuration).then(() => workspaceService, error => workspaceService);
 	});
 }
 
@@ -147,7 +142,6 @@ function validateWorkspacePath(configuration: IWindowConfiguration): TPromise<vo
 }
 
 function createStorageService(workspaceService: IWorkspaceContextService, environmentService: IEnvironmentService): IStorageService {
-
 	let workspaceId: string;
 	let secondaryWorkspaceId: number;
 
@@ -162,7 +156,7 @@ function createStorageService(workspaceService: IWorkspaceContextService, enviro
 		// the ctime is used as secondary workspace id to clean up stale UI state if necessary
 		case WorkbenchState.FOLDER:
 			const workspace: Workspace = <Workspace>workspaceService.getWorkspace();
-			workspaceId = workspace.folders[0].toString();
+			workspaceId = workspace.folders[0].uri.toString();
 			secondaryWorkspaceId = workspace.ctime;
 			break;
 

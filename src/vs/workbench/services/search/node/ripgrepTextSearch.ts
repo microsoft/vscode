@@ -26,6 +26,7 @@ import { ISerializedFileMatch, ISerializedSearchComplete, IRawSearch, IFolderSea
 export class RipgrepEngine {
 	private isDone = false;
 	private rgProc: cp.ChildProcess;
+	private killRgProcFn: Function;
 	private postProcessExclusions: glob.ParsedExpression;
 
 	private ripgrepParser: RipgrepParser;
@@ -33,6 +34,7 @@ export class RipgrepEngine {
 	private resultsHandledP: TPromise<any> = TPromise.wrap(null);
 
 	constructor(private config: IRawSearch) {
+		this.killRgProcFn = () => this.rgProc && this.rgProc.kill();
 	}
 
 	cancel(): void {
@@ -44,6 +46,7 @@ export class RipgrepEngine {
 	// TODO@Rob - make promise-based once the old search is gone, and I don't need them to have matching interfaces anymore
 	search(onResult: (match: ISerializedFileMatch) => void, onMessage: (message: ISearchLog) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
 		if (!this.config.folderQueries.length && !this.config.extraFiles.length) {
+			process.removeListener('exit', this.killRgProcFn);
 			done(null, {
 				limitHit: false,
 				stats: null
@@ -69,6 +72,7 @@ export class RipgrepEngine {
 			}
 		});
 		this.rgProc = cp.spawn(rgPath, rgArgs.globArgs, { cwd });
+		process.once('exit', this.killRgProcFn);
 
 		this.ripgrepParser = new RipgrepParser(this.config.maxResults, cwd);
 		this.ripgrepParser.on('result', (match: ISerializedFileMatch) => {
@@ -87,6 +91,7 @@ export class RipgrepEngine {
 		});
 		this.ripgrepParser.on('hitLimit', () => {
 			this.cancel();
+			process.removeListener('exit', this.killRgProcFn);
 			done(null, {
 				limitHit: true,
 				stats: null
@@ -115,6 +120,7 @@ export class RipgrepEngine {
 				if (!this.isDone) {
 					this.isDone = true;
 					let displayMsg: string;
+					process.removeListener('exit', this.killRgProcFn);
 					if (stderr && !gotData && (displayMsg = this.rgErrorMsgForDisplay(stderr))) {
 						done(new Error(displayMsg), {
 							limitHit: false,
@@ -143,8 +149,10 @@ export class RipgrepEngine {
 			return firstLine;
 		}
 
-		if (strings.startsWith(firstLine, 'error parsing glob')) {
-			return firstLine;
+		if (strings.startsWith(firstLine, 'error parsing glob') ||
+			strings.startsWith(firstLine, 'unsupported encoding')) {
+			// Uppercase first letter
+			return firstLine.charAt(0).toUpperCase() + firstLine.substr(1);
 		}
 
 		return undefined;

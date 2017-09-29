@@ -10,6 +10,7 @@
 	"fileTooLargeError": "A fájl túl nagy a megnyitáshoz",
 	"fileBinaryError": "A fájl binárisnak tűnik és nem nyitható meg szövegként",
 	"fileNotFoundError": "Fájl nem található ({0})",
+	"fileExists": "A létrehozandó fájl már létezik ({0})",
 	"fileMoveConflict": "Nem lehet áthelyezni vagy másolni. A fájl már létezik a célhelyen.",
 	"unableToMoveCopyError": "Nem lehet áthelyezni vagy másolni. A fájl felülírná a mappát, amiben található.",
 	"foldersCopyError": "A munkaterületre nem másolhatók mappák. Válasszon ki egyedi fájlokat a másoláshoz.",

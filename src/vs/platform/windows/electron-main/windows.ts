@@ -6,12 +6,13 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { OpenContext, IWindowConfiguration, ReadyState, INativeOpenDialogOptions } from 'vs/platform/windows/common/windows';
+import { OpenContext, IWindowConfiguration, ReadyState, INativeOpenDialogOptions, IEnterWorkspaceResult } from 'vs/platform/windows/common/windows';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import Event from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { ICommandAction } from 'vs/platform/actions/common/actions';
 
 export interface ICodeWindow {
 	id: number;
@@ -35,6 +36,8 @@ export interface ICodeWindow {
 	setRepresentedFilename(name: string): void;
 	getRepresentedFilename(): string;
 	onWindowTitleDoubleClick(): void;
+
+	updateTouchBar(items: ICommandAction[][]): void;
 }
 
 export const IWindowsMainService = createDecorator<IWindowsMainService>('windowsMainService');
@@ -58,8 +61,8 @@ export interface IWindowsMainService {
 	ready(initialUserEnv: IProcessEnvironment): void;
 	reload(win: ICodeWindow, cli?: ParsedArgs): void;
 	openWorkspace(win?: ICodeWindow): void;
-	createAndOpenWorkspace(win: ICodeWindow, folders?: string[], path?: string): void;
-	saveAndOpenWorkspace(win: ICodeWindow, path: string): void;
+	createAndEnterWorkspace(win: ICodeWindow, folders?: string[], path?: string): TPromise<IEnterWorkspaceResult>;
+	saveAndEnterWorkspace(win: ICodeWindow, path: string): TPromise<IEnterWorkspaceResult>;
 	closeWorkspace(win: ICodeWindow): void;
 	open(openConfig: IOpenConfiguration): ICodeWindow[];
 	openExtensionDevelopmentHostWindow(openConfig: IOpenConfiguration): void;

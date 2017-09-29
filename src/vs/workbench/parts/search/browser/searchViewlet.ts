@@ -103,6 +103,8 @@ export class SearchViewlet extends Viewlet {
 	private selectCurrentMatchEmitter: Emitter<string>;
 	private delayedRefresh: Delayer<void>;
 
+	private searchWithoutFolderMessageBuilder: Builder;
+
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IFileService private fileService: IFileService,
@@ -141,12 +143,19 @@ export class SearchViewlet extends Viewlet {
 
 		this.toUnbind.push(this.fileService.onFileChanges(e => this.onFilesChanged(e)));
 		this.toUnbind.push(this.untitledEditorService.onDidChangeDirty(e => this.onUntitledDidChangeDirty(e)));
+		this.toUnbind.push(this.contextService.onDidChangeWorkbenchState(() => this.onDidChangeWorkbenchState()));
 
 		this.selectCurrentMatchEmitter = new Emitter<string>();
 		debounceEvent(this.selectCurrentMatchEmitter.event, (l, e) => e, 100, /*leading=*/true)
 			(() => this.selectCurrentMatch());
 
 		this.delayedRefresh = new Delayer<void>(250);
+	}
+
+	private onDidChangeWorkbenchState(): void {
+		if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.searchWithoutFolderMessageBuilder) {
+			this.searchWithoutFolderMessageBuilder.hide();
+		}
 	}
 
 	public create(parent: Builder): TPromise<void> {
@@ -458,6 +467,8 @@ export class SearchViewlet extends Viewlet {
 	}
 
 	private clearMessage(): Builder {
+		this.searchWithoutFolderMessageBuilder = void 0;
+
 		return this.messages.empty().show()
 			.asContainer().div({ 'class': 'message' })
 			.asContainer();
@@ -468,8 +479,12 @@ export class SearchViewlet extends Viewlet {
 			this.results = div;
 			this.results.addClass('show-file-icons');
 
-			let dataSource = new SearchDataSource(this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE);
+			let dataSource = this.instantiationService.createInstance(SearchDataSource);
+			this.toUnbind.push(dataSource);
+
 			let renderer = this.instantiationService.createInstance(SearchRenderer, this.getActionRunner(), this);
+			this.toUnbind.push(renderer);
+
 			let dnd = new SimpleFileResourceDragAndDrop(obj => obj instanceof FileMatch ? obj.resource() : void 0);
 
 			this.tree = new Tree(div.getHTMLElement(), {
@@ -838,6 +853,9 @@ export class SearchViewlet extends Viewlet {
 	}
 
 	public toggleQueryDetails(moveFocus?: boolean, show?: boolean, skipLayout?: boolean, reverse?: boolean): void {
+		/* __GDPR__
+			"search.toggleQueryDetails" : {}
+		*/
 		this.telemetryService.publicLog('search.toggleQueryDetails');
 
 		let cls = 'more';
@@ -874,19 +892,19 @@ export class SearchViewlet extends Viewlet {
 		if (resource) {
 			if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 				// Show relative path from the root for single-root mode
-				folderPath = paths.relative(workspace.folders[0].fsPath, resource.fsPath);
+				folderPath = paths.relative(workspace.folders[0].uri.fsPath, resource.fsPath);
 				if (folderPath && folderPath !== '.') {
 					folderPath = './' + folderPath;
 				}
 			} else {
 				const owningFolder = this.contextService.getWorkspaceFolder(resource);
 				if (owningFolder) {
-					const owningRootBasename = paths.basename(owningFolder.fsPath);
+					const owningRootBasename = paths.basename(owningFolder.uri.fsPath);
 
 					// If this root is the only one with its basename, use a relative ./ path. If there is another, use an absolute path
-					const isUniqueFolder = workspace.folders.filter(root => paths.basename(root.fsPath) === owningRootBasename).length === 1;
+					const isUniqueFolder = workspace.folders.filter(folder => paths.basename(folder.uri.fsPath) === owningRootBasename).length === 1;
 					if (isUniqueFolder) {
-						folderPath = `./${owningRootBasename}/${paths.relative(owningFolder.fsPath, resource.fsPath)}`;
+						folderPath = `./${owningRootBasename}/${paths.relative(owningFolder.uri.fsPath, resource.fsPath)}`;
 					} else {
 						folderPath = resource.fsPath;
 					}
@@ -969,7 +987,7 @@ export class SearchViewlet extends Viewlet {
 
 		let query: ISearchQuery;
 		try {
-			query = this.queryBuilder.text(content, folderResources, options);
+			query = this.queryBuilder.text(content, folderResources.map(folder => folder.uri), options);
 		} catch (err) {
 			onQueryValidationError(err);
 			return;
@@ -992,11 +1010,12 @@ export class SearchViewlet extends Viewlet {
 			});
 
 		return TPromise.join(folderQueriesExistP).then(existResults => {
-			const nonExistantFolders = existResults.map((exists, i) => ({ exists, query: query.folderQueries[i] }))
-				.filter(folderExists => !folderExists.exists);
-
-			if (nonExistantFolders.length) {
-				const nonExistantPath = nonExistantFolders[0].query.folder.fsPath;
+			// If no folders exist, show an error message about the first one
+			const existingFolderQueries = query.folderQueries.filter((folderQuery, i) => existResults[i]);
+			if (!query.folderQueries.length || existingFolderQueries.length) {
+				query.folderQueries = existingFolderQueries;
+			} else {
+				const nonExistantPath = query.folderQueries[0].folder.fsPath;
 				const searchPathNotFoundError = nls.localize('searchPathNotFoundError', "Search path not found: {0}", nonExistantPath);
 				return TPromise.wrapError(new Error(searchPathNotFoundError));
 			}
@@ -1271,7 +1290,9 @@ export class SearchViewlet extends Viewlet {
 	}
 
 	private searchWithoutFolderMessage(div: Builder): void {
-		$(div).p({ text: nls.localize('searchWithoutFolder', "You have not yet opened a folder. Only open files are currently searched - ") })
+		this.searchWithoutFolderMessageBuilder = $(div);
+
+		this.searchWithoutFolderMessageBuilder.p({ text: nls.localize('searchWithoutFolder', "You have not yet opened a folder. Only open files are currently searched - ") })
 			.asContainer().a({
 				'class': ['pointer', 'prominent'],
 				'tabindex': '0',
@@ -1311,6 +1332,9 @@ export class SearchViewlet extends Viewlet {
 			return TPromise.as(true);
 		}
 
+		/* __GDPR__
+			"searchResultChosen" : {}
+		*/
 		this.telemetryService.publicLog('searchResultChosen');
 
 		return (this.viewModel.isReplaceActive() && !!this.viewModel.replaceString) ?

@@ -12,7 +12,7 @@ import * as tmp from 'tmp';
 import * as rimraf from 'rimraf';
 import * as mkdirp from 'mkdirp';
 
-const tmpDir = tmp.dirSync() as { name: string; removeCallback: Function; };
+const tmpDir = tmp.dirSync({ prefix: 't' }) as { name: string; removeCallback: Function; };
 const testDataPath = tmpDir.name;
 process.once('exit', () => rimraf.sync(testDataPath));
 
@@ -76,7 +76,7 @@ if (!fs.existsSync(testCodePath)) {
 	fail(`Can't find Code at ${testCodePath}.`);
 }
 
-process.env.VSCODE_USER_DIR = path.join(testDataPath, 'user-dir');
+process.env.VSCODE_USER_DIR = path.join(testDataPath, 'd');
 process.env.VSCODE_EXTENSIONS_DIR = extensionsPath;
 process.env.SMOKETEST_REPO = testRepoLocalDir;
 process.env.VSCODE_WORKSPACE_PATH = workspacePath;
@@ -183,6 +183,10 @@ before(async function () {
 	// allow two minutes for setup
 	this.timeout(2 * 60 * 1000);
 	await setup();
+});
+
+after(async () => {
+	await new Promise((c, e) => rimraf(testDataPath, { maxBusyTries: 10 }, err => err ? e(err) : c()));
 });
 
 // import './areas/workbench/data-migration.test';

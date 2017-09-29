@@ -4,7 +4,7 @@
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
 	"scripts": {
-		"update-grammar": "node ../../build/npm/update-grammar.js textmate/r.tmbundle Syntaxes/R.plist ./syntaxes/r.tmLanguage.json"
+		"update-grammar": "node ../../build/npm/update-grammar.js Ikuyadeu/vscode-R syntax/r.json ./syntaxes/r.tmLanguage.json"
 	},
 	"contributes": {
 		"languages": [{

@@ -38,5 +38,6 @@
 	"workbench.action.terminal.focusFindWidget": "検索ウィジェットにフォーカスする",
 	"workbench.action.terminal.hideFindWidget": "検索ウィジェットを非表示にする",
 	"nextTerminalFindTerm": "次の検索語句を表示",
-	"previousTerminalFindTerm": "前の検索語句を表示"
+	"previousTerminalFindTerm": "前の検索語句を表示",
+	"quickOpenTerm": "アクティブなターミナルの切り替え"
 }

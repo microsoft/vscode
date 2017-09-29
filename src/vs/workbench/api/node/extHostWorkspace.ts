@@ -8,19 +8,13 @@ import URI from 'vs/base/common/uri';
 import Event, { Emitter } from 'vs/base/common/event';
 import { normalize } from 'vs/base/common/paths';
 import { delta } from 'vs/base/common/arrays';
-import { relative, basename } from 'path';
-import { Workspace } from 'vs/platform/workspace/common/workspace';
-import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { fromRange, EndOfLine } from 'vs/workbench/api/node/extHostTypeConverters';
+import { relative, dirname } from 'path';
+import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceData, ExtHostWorkspaceShape, MainContext, MainThreadWorkspaceShape, IMainContext } from './extHost.protocol';
 import * as vscode from 'vscode';
 import { compare } from 'vs/base/common/strings';
-import { asWinJsPromise } from 'vs/base/common/async';
-import { Disposable } from 'vs/workbench/api/node/extHostTypes';
 import { TrieMap } from 'vs/base/common/map';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Progress } from 'vs/platform/progress/common/progress';
+import { IRelativePattern } from 'vs/base/common/glob';
 
 class Workspace2 extends Workspace {
 
@@ -28,42 +22,30 @@ class Workspace2 extends Workspace {
 		return data ? new Workspace2(data) : null;
 	}
 
-	private readonly _folder: vscode.WorkspaceFolder[] = [];
-	private readonly _structure = new TrieMap<vscode.WorkspaceFolder>(s => s.split('/'));
+	private readonly _workspaceFolders: vscode.WorkspaceFolder[] = [];
+	private readonly _structure = new TrieMap<URI, vscode.WorkspaceFolder>(uri => [uri.scheme, uri.authority].concat(uri.path.split('/')));
 
 	private constructor(data: IWorkspaceData) {
-		super(data.id, data.name, data.folders);
+		super(data.id, data.name, data.folders.map(folder => new WorkspaceFolder(folder)));
 
 		// setup the workspace folder data structure
-		this.folders.forEach((uri, index) => {
-			const folder = {
-				name: basename(uri.fsPath),
-				uri,
-				index
-			};
-			this._folder.push(folder);
-			this._structure.insert(folder.uri.toString(), folder);
+		this.folders.forEach(({ name, uri, index }) => {
+			const workspaceFolder = { name, uri, index };
+			this._workspaceFolders.push(workspaceFolder);
+			this._structure.insert(workspaceFolder.uri, workspaceFolder);
 		});
 	}
 
 	get workspaceFolders(): vscode.WorkspaceFolder[] {
-		return this._folder.slice(0);
+		return this._workspaceFolders.slice(0);
 	}
 
-	getWorkspaceFolder(uri: URI): vscode.WorkspaceFolder {
-		let str = uri.toString();
-		let folder = this._structure.lookUp(str);
-		if (folder) {
-			// `uri` is a workspace folder so we
-			let parts = str.split('/');
-			while (parts.length) {
-				if (parts.pop()) {
-					break;
-				}
-			}
-			str = parts.join('/');
+	getWorkspaceFolder(uri: URI, resolveParent?: boolean): vscode.WorkspaceFolder {
+		if (resolveParent && this._structure.lookUp(uri)) {
+			// `uri` is a workspace folder so we check for its parent
+			uri = uri.with({ path: dirname(uri.path) });
 		}
-		return this._structure.findSubstr(str);
+		return this._structure.findSubstr(uri);
 	}
 }
 
@@ -96,11 +78,11 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		}
 	}
 
-	getWorkspaceFolder(uri: vscode.Uri): vscode.WorkspaceFolder {
+	getWorkspaceFolder(uri: vscode.Uri, resolveParent?: boolean): vscode.WorkspaceFolder {
 		if (!this._workspace) {
 			return undefined;
 		}
-		return this._workspace.getWorkspaceFolder(<URI>uri);
+		return this._workspace.getWorkspaceFolder(uri, resolveParent);
 	}
 
 	getPath(): string {
@@ -114,7 +96,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		if (folders.length === 0) {
 			return undefined;
 		}
-		return folders[0].fsPath;
+		return folders[0].uri.fsPath;
 	}
 
 	getRelativePath(pathOrUri: string | vscode.Uri, includeWorkspace?: boolean): string {
@@ -130,9 +112,9 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 			return path;
 		}
 
-		const folder = this.getWorkspaceFolder(typeof pathOrUri === 'string'
-			? URI.file(pathOrUri)
-			: pathOrUri
+		const folder = this.getWorkspaceFolder(
+			typeof pathOrUri === 'string' ? URI.file(pathOrUri) : pathOrUri,
+			true
 		);
 
 		if (!folder) {
@@ -173,7 +155,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 
 	// --- search ---
 
-	findFiles(include: string, exclude: string, maxResults?: number, token?: vscode.CancellationToken): Thenable<vscode.Uri[]> {
+	findFiles(include: string | IRelativePattern, exclude: string | IRelativePattern, maxResults?: number, token?: vscode.CancellationToken): Thenable<vscode.Uri[]> {
 		const requestId = ExtHostWorkspace._requestIdPool++;
 		const result = this._proxy.$startSearch(include, exclude, maxResults, requestId);
 		if (token) {
@@ -184,74 +166,5 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 
 	saveAll(includeUntitled?: boolean): Thenable<boolean> {
 		return this._proxy.$saveAll(includeUntitled);
-	}
-
-	appyEdit(edit: vscode.WorkspaceEdit): TPromise<boolean> {
-
-		let resourceEdits: IResourceEdit[] = [];
-
-		let entries = edit.entries();
-		for (let entry of entries) {
-			let [uri, edits] = entry;
-
-			for (let edit of edits) {
-				resourceEdits.push({
-					resource: <URI>uri,
-					newText: edit.newText,
-					newEol: EndOfLine.from(edit.newEol),
-					range: edit.range && fromRange(edit.range)
-				});
-			}
-		}
-
-		return this._proxy.$applyWorkspaceEdit(resourceEdits);
-	}
-
-	// --- EXPERIMENT: workspace resolver
-
-
-	private _handlePool = 0;
-	private readonly _fsProvider = new Map<number, vscode.FileSystemProvider>();
-	private readonly _searchSession = new Map<number, CancellationTokenSource>();
-
-	registerFileSystemProvider(authority: string, provider: vscode.FileSystemProvider): vscode.Disposable {
-		const handle = ++this._handlePool;
-		this._fsProvider.set(handle, provider);
-		const reg = provider.onDidChange(e => this._proxy.$onFileSystemChange(handle, <URI>e));
-		this._proxy.$registerFileSystemProvider(handle, authority);
-		return new Disposable(() => {
-			this._fsProvider.delete(handle);
-			reg.dispose();
-		});
-	}
-
-	$resolveFile(handle: number, resource: URI): TPromise<string> {
-		const provider = this._fsProvider.get(handle);
-		return asWinJsPromise(token => provider.resolveContents(resource));
-	}
-
-	$storeFile(handle: number, resource: URI, content: string): TPromise<any> {
-		const provider = this._fsProvider.get(handle);
-		return asWinJsPromise(token => provider.writeContents(resource, content));
-	}
-
-	$startSearch(handle: number, session: number, query: string): void {
-		const provider = this._fsProvider.get(handle);
-		const source = new CancellationTokenSource();
-		const progress = new Progress<any>(chunk => this._proxy.$updateSearchSession(session, chunk));
-
-		this._searchSession.set(session, source);
-		TPromise.wrap(provider.findFiles(query, progress, source.token)).then(() => {
-			this._proxy.$finishSearchSession(session);
-		}, err => {
-			this._proxy.$finishSearchSession(session, err);
-		});
-	}
-
-	$cancelSearch(handle: number, session: number): void {
-		if (this._searchSession.has(session)) {
-			this._searchSession.get(session).cancel();
-			this._searchSession.delete(session);
-		}
 	}
 }

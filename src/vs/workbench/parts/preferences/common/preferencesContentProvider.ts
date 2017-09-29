@@ -14,6 +14,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
+import { dispose } from 'vs/base/common/lifecycle';
 
 const schemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
 
@@ -33,18 +34,16 @@ export class PreferencesContentProvider implements IWorkbenchContribution {
 	}
 
 	private start(): void {
+
 		this.textModelResolverService.registerTextModelContentProvider('vscode', {
 			provideTextContent: (uri: URI): TPromise<IModel> => {
 				if (uri.scheme !== 'vscode') {
 					return null;
 				}
 				if (uri.authority === 'schemas') {
-					let schemas = schemaRegistry.getSchemaContributions().schemas;
-					let schema = schemas[uri.toString()];
-					if (schema) {
-						let modelContent = JSON.stringify(schema);
-						let mode = this.modeService.getOrCreateMode('json');
-						return TPromise.as(this.modelService.createModel(modelContent, mode, uri));
+					const schemaModel = this.getSchemaModel(uri);
+					if (schemaModel) {
+						return TPromise.as(schemaModel);
 					}
 				}
 				return this.preferencesService.resolveContent(uri)
@@ -58,5 +57,26 @@ export class PreferencesContentProvider implements IWorkbenchContribution {
 					});
 			}
 		});
+	}
+
+	private getSchemaModel(uri: URI): IModel {
+		let schema = schemaRegistry.getSchemaContributions().schemas[uri.toString()];
+		if (schema) {
+			const modelContent = JSON.stringify(schema);
+			const mode = this.modeService.getOrCreateMode('json');
+			const model = this.modelService.createModel(modelContent, mode, uri);
+
+			let disposables = [];
+			disposables.push(schemaRegistry.onDidChangeSchema(schemaUri => {
+				if (schemaUri === uri.toString()) {
+					schema = schemaRegistry.getSchemaContributions().schemas[uri.toString()];
+					model.setValue(JSON.stringify(schema));
+				}
+			}));
+			disposables.push(model.onWillDispose(() => dispose(disposables)));
+
+			return model;
+		}
+		return null;
 	}
 }

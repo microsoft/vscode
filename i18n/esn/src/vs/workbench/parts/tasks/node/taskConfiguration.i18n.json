@@ -12,6 +12,7 @@
 	"ConfigurationParser.invalidVaraibleReference": "Error: Referencia a problemMatcher no válida: {0}",
 	"ConfigurationParser.noTaskType": "Error: Las tareas deben tener una propiedad type. La configuración se omitirá.\n{0}\n",
 	"ConfigurationParser.noTypeDefinition": "Error: No hay ningún tipo de tarea \"{0}\" registrado. ¿Omitió la instalación de una extensión que proporciona un proveedor de tareas correspondiente?",
+	"ConfigurationParser.missingRequiredProperty": "Error: la configuración de la tarea '{0}' no contiene la propiedad requerida '{1}'. Se omitirá la configuración de la tarea.",
 	"ConfigurationParser.notCustom": "Error: Las tareas no se declaran como una tarea personalizada. La configuración se omitirá.\n{0}\n",
 	"ConfigurationParser.noTaskName": "Error: Las tareas deben proporcionar una propiedad taskName. La tarea se ignorará. {0}",
 	"taskConfiguration.shellArgs": "Advertencia: La tarea \"{0}\" es un comando de shell y su nombre de comando o uno de sus argumentos tiene espacios sin escape. Para asegurarse de que la línea de comandos se cite correctamente, combine mediante fusión los argumentos en el comando.",

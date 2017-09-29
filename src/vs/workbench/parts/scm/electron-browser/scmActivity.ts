@@ -6,6 +6,7 @@
 'use strict';
 
 import { localize } from 'vs/nls';
+import { basename } from 'vs/base/common/paths';
 import { IDisposable, dispose, empty as EmptyDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { filterEvent, any as anyEvent } from 'vs/base/common/event';
 import { VIEWLET_ID } from 'vs/workbench/parts/scm/common/scm';
@@ -139,9 +140,13 @@ export class StatusBarController implements IWorkbenchContribution {
 		this.statusBarDisposable.dispose();
 
 		const commands = repository.provider.statusBarCommands || [];
+		const label = repository.provider.rootUri
+			? `${basename(repository.provider.rootUri.fsPath)} (${repository.provider.label})`
+			: repository.provider.label;
+
 		const disposables = commands.map(c => this.statusbarService.addEntry({
 			text: c.title,
-			tooltip: `${repository.provider.label} - ${c.tooltip}`,
+			tooltip: `${label} - ${c.tooltip}`,
 			command: c.id,
 			arguments: c.arguments
 		}, MainThreadStatusBarAlignment.LEFT, 10000));

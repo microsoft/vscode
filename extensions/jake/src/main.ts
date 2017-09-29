@@ -56,7 +56,7 @@ function isTestTask(name: string): boolean {
 let _channel: vscode.OutputChannel;
 function getOutputChannel(): vscode.OutputChannel {
 	if (!_channel) {
-		_channel = vscode.window.createOutputChannel('Gulp Auto Detection');
+		_channel = vscode.window.createOutputChannel('Jake Auto Detection');
 	}
 	return _channel;
 }
@@ -164,7 +164,7 @@ class FolderDetector {
 			if (err.stdout) {
 				channel.appendLine(err.stdout);
 			}
-			channel.appendLine(localize('execFailed', 'Auto detecting Jake failed with error: {0}', err.error ? err.error.toString() : 'unknown'));
+			channel.appendLine(localize('execFailed', 'Auto detecting Jake for folder {0} failed with error: {1}', this.workspaceFolder.name, err.error ? err.error.toString() : 'unknown'));
 			channel.show(true);
 			return emptyTasks;
 		}
@@ -182,7 +182,6 @@ class TaskDetector {
 
 	private taskProvider: vscode.Disposable | undefined;
 	private detectors: Map<string, FolderDetector> = new Map();
-	private promise: Promise<vscode.Task[]> | undefined;
 
 	constructor() {
 	}
@@ -202,15 +201,12 @@ class TaskDetector {
 			this.taskProvider = undefined;
 		}
 		this.detectors.clear();
-		this.promise = undefined;
 	}
 
 	private updateWorkspaceFolders(added: vscode.WorkspaceFolder[], removed: vscode.WorkspaceFolder[]): void {
-		let changed = false;
 		for (let remove of removed) {
 			let detector = this.detectors.get(remove.uri.toString());
 			if (detector) {
-				changed = true;
 				detector.dispose();
 				this.detectors.delete(remove.uri.toString());
 			}
@@ -218,22 +214,16 @@ class TaskDetector {
 		for (let add of added) {
 			let detector = new FolderDetector(add);
 			if (detector.isEnabled()) {
-				changed = true;
 				this.detectors.set(add.uri.toString(), detector);
 				detector.start();
 			}
-		}
-		if (changed) {
-			this.promise = undefined;
 		}
 		this.updateProvider();
 	}
 
 	private updateConfiguration(): void {
-		let changed = false;
 		for (let detector of this.detectors.values()) {
 			if (!detector.isEnabled()) {
-				changed = true;
 				detector.dispose();
 				this.detectors.delete(detector.workspaceFolder.uri.toString());
 			}
@@ -244,15 +234,11 @@ class TaskDetector {
 				if (!this.detectors.has(folder.uri.toString())) {
 					let detector = new FolderDetector(folder);
 					if (detector.isEnabled()) {
-						changed = true;
 						this.detectors.set(folder.uri.toString(), detector);
 						detector.start();
 					}
 				}
 			}
-		}
-		if (changed) {
-			this.promise = undefined;
 		}
 		this.updateProvider();
 	}
@@ -271,15 +257,11 @@ class TaskDetector {
 		else if (this.taskProvider && this.detectors.size === 0) {
 			this.taskProvider.dispose();
 			this.taskProvider = undefined;
-			this.promise = undefined;
 		}
 	}
 
 	public getTasks(): Promise<vscode.Task[]> {
-		if (!this.promise) {
-			this.promise = this.computeTasks();
-		}
-		return this.promise;
+		return this.computeTasks();
 	}
 
 	private computeTasks(): Promise<vscode.Task[]> {

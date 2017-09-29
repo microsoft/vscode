@@ -6,12 +6,12 @@
 			"type": "node",
 			"request": "launch",
 			"name": "Gulp Build",
-			"program": "${workspaceRoot}/node_modules/gulp/bin/gulp.js",
+			"program": "${workspaceFolder}/node_modules/gulp/bin/gulp.js",
 			"stopOnEntry": true,
 			"args": [
 				"watch-extension:json-client"
 			],
-			"cwd": "${workspaceRoot}"
+			"cwd": "${workspaceFolder}"
 		},
 		{
 			"type": "node",
@@ -21,7 +21,7 @@
 			"port": 5870,
 			"restart": true,
 			"outFiles": [
-				"${workspaceRoot}/out/**/*.js"
+				"${workspaceFolder}/out/**/*.js"
 			]
 		},
 		{
@@ -31,7 +31,7 @@
 			"protocol": "inspector",
 			"port": 5871,
 			"outFiles": [
-				"${workspaceRoot}/out/**/*.js"
+				"${workspaceFolder}/out/**/*.js"
 			]
 		},
 		{
@@ -41,7 +41,7 @@
 			"name": "Attach to Search Process",
 			"port": 5876,
 			"outFiles": [
-				"${workspaceRoot}/out/**/*.js"
+				"${workspaceFolder}/out/**/*.js"
 			]
 		},
 		{
@@ -51,7 +51,7 @@
 			"protocol": "inspector",
 			"port": 5874,
 			"outFiles": [
-				"${workspaceRoot}/out/**/*.js"
+				"${workspaceFolder}/out/**/*.js"
 			]
 		},
 		{
@@ -61,7 +61,7 @@
 			"protocol": "inspector",
 			"port": 5875,
 			"outFiles": [
-				"${workspaceRoot}/out/**/*.js"
+				"${workspaceFolder}/out/**/*.js"
 			]
 		},
 		{
@@ -70,12 +70,12 @@
 			"name": "VS Code Emmet Tests",
 			"runtimeExecutable": "${execPath}",
 			"args": [
-				"${workspaceRoot}/extensions/emmet/test-fixtures",
-				"--extensionDevelopmentPath=${workspaceRoot}/extensions/emmet",
-				"--extensionTestsPath=${workspaceRoot}/extensions/emmet/out/test"
+				"${workspaceFolder}/extensions/emmet/test-fixtures",
+				"--extensionDevelopmentPath=${workspaceFolder}/extensions/emmet",
+				"--extensionTestsPath=${workspaceFolder}/extensions/emmet/out/test"
 			],
 			"outFiles": [
-				"${workspaceRoot}/out/**/*.js"
+				"${workspaceFolder}/out/**/*.js"
 			]
 		},
 		{
@@ -84,12 +84,12 @@
 			"name": "VS Code API Tests",
 			"runtimeExecutable": "${execPath}",
 			"args": [
-				"${workspaceRoot}/extensions/vscode-api-tests/testWorkspace",
-				"--extensionDevelopmentPath=${workspaceRoot}/extensions/vscode-api-tests",
-				"--extensionTestsPath=${workspaceRoot}/extensions/vscode-api-tests/out"
+				"${workspaceFolder}/extensions/vscode-api-tests/testWorkspace",
+				"--extensionDevelopmentPath=${workspaceFolder}/extensions/vscode-api-tests",
+				"--extensionTestsPath=${workspaceFolder}/extensions/vscode-api-tests/out"
 			],
 			"outFiles": [
-				"${workspaceRoot}/out/**/*.js"
+				"${workspaceFolder}/out/**/*.js"
 			]
 		},
 		{
@@ -98,12 +98,12 @@
 			"name": "VS Code Tokenizer Tests",
 			"runtimeExecutable": "${execPath}",
 			"args": [
-				"${workspaceRoot}/extensions/vscode-colorize-tests/test",
-				"--extensionDevelopmentPath=${workspaceRoot}/extensions/vscode-colorize-tests",
-				"--extensionTestsPath=${workspaceRoot}/extensions/vscode-colorize-tests/out"
+				"${workspaceFolder}/extensions/vscode-colorize-tests/test",
+				"--extensionDevelopmentPath=${workspaceFolder}/extensions/vscode-colorize-tests",
+				"--extensionTestsPath=${workspaceFolder}/extensions/vscode-colorize-tests/out"
 			],
 			"outFiles": [
-				"${workspaceRoot}/out/**/*.js"
+				"${workspaceFolder}/out/**/*.js"
 			]
 		},
 		{
@@ -117,30 +117,30 @@
 			"request": "launch",
 			"name": "Launch VS Code",
 			"windows": {
-				"runtimeExecutable": "${workspaceRoot}/scripts/code.bat"
+				"runtimeExecutable": "${workspaceFolder}/scripts/code.bat"
 			},
 			"osx": {
-				"runtimeExecutable": "${workspaceRoot}/scripts/code.sh"
+				"runtimeExecutable": "${workspaceFolder}/scripts/code.sh"
 			},
 			"linux": {
-				"runtimeExecutable": "${workspaceRoot}/scripts/code.sh"
+				"runtimeExecutable": "${workspaceFolder}/scripts/code.sh"
 			},
 			"urlFilter": "*index.html*",
 			"runtimeArgs": [
 				"--inspect=5875"
 			],
-			"webRoot": "${workspaceRoot}"
+			"webRoot": "${workspaceFolder}"
 		},
 		{
 			"type": "node",
 			"request": "launch",
 			"name": "Git Unit Tests",
 			"protocol": "inspector",
-			"program": "${workspaceRoot}/extensions/git/node_modules/mocha/bin/_mocha",
+			"program": "${workspaceFolder}/extensions/git/node_modules/mocha/bin/_mocha",
 			"stopOnEntry": false,
-			"cwd": "${workspaceRoot}/extensions/git",
+			"cwd": "${workspaceFolder}/extensions/git",
 			"outFiles": [
-				"${workspaceRoot}/extensions/git/out/**/*.js"
+				"${workspaceFolder}/extensions/git/out/**/*.js"
 			]
 		},
 		{
@@ -148,38 +148,38 @@
 			"request": "launch",
 			"name": "Unit Tests",
 			"protocol": "inspector",
-			"program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
-			"runtimeExecutable": "${workspaceRoot}/.build/electron/Code - OSS.app/Contents/MacOS/Electron",
+			"program": "${workspaceFolder}/node_modules/mocha/bin/_mocha",
+			"runtimeExecutable": "${workspaceFolder}/.build/electron/Code - OSS.app/Contents/MacOS/Electron",
 			"windows": {
-				"runtimeExecutable": "${workspaceRoot}/.build/electron/Code - OSS.exe"
+				"runtimeExecutable": "${workspaceFolder}/.build/electron/Code - OSS.exe"
 			},
 			"linux": {
-				"runtimeExecutable": "${workspaceRoot}/.build/electron/code-oss"
+				"runtimeExecutable": "${workspaceFolder}/.build/electron/code-oss"
 			},
 			"stopOnEntry": false,
 			"args": [
 				"--timeout",
 				"2000"
 			],
-			"cwd": "${workspaceRoot}",
+			"cwd": "${workspaceFolder}",
 			"env": {
 				"ELECTRON_RUN_AS_NODE": "true"
 			},
 			"outFiles": [
-				"${workspaceRoot}/out/**/*.js"
+				"${workspaceFolder}/out/**/*.js"
 			]
 		},
 		{
 			"type": "node",
 			"request": "launch",
 			"name": "Launch Smoke Test",
-			"program": "${workspaceRoot}/test/smoke/out/main.js",
-			"cwd": "${workspaceRoot}/test/smoke",
+			"program": "${workspaceFolder}/test/smoke/out/main.js",
+			"cwd": "${workspaceFolder}/test/smoke",
 			"timeout": 240000,
 			"port": 9999,
 			"args": [
 				"-l",
-				"${workspaceRoot}/.build/electron/Code - OSS.app/Contents/MacOS/Electron"
+				"${workspaceFolder}/.build/electron/Code - OSS.app/Contents/MacOS/Electron"
 			],
 			"outFiles": [
 				"${cwd}/out/**/*.js"

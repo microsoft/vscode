@@ -22,7 +22,6 @@ import { FileStat, OpenEditor } from 'vs/workbench/parts/files/common/explorerMo
 import errors = require('vs/base/common/errors');
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import labels = require('vs/base/common/labels');
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IMessageService } from 'vs/platform/message/common/message';
 
@@ -36,7 +35,7 @@ export const copyPathCommand = (accessor: ServicesAccessor, resource?: URI) => {
 		const editorService = accessor.get(IWorkbenchEditorService);
 		const activeEditor = editorService.getActiveEditor();
 
-		resource = activeEditor ? toResource(activeEditor.input, { supportSideBySide: true, filter: 'file' }) : void 0;
+		resource = activeEditor ? toResource(activeEditor.input, { supportSideBySide: true }) : void 0;
 		if (activeEditor) {
 			editorGroupService.focusGroup(activeEditor.position); // focus back to active editor group
 		}
@@ -44,7 +43,7 @@ export const copyPathCommand = (accessor: ServicesAccessor, resource?: URI) => {
 
 	if (resource) {
 		const clipboardService = accessor.get(IClipboardService);
-		clipboardService.writeText(labels.getPathLabel(resource));
+		clipboardService.writeText(resource.scheme === 'file' ? resource.fsPath : resource.toString());
 	} else {
 		const messageService = accessor.get(IMessageService);
 		messageService.show(severity.Info, nls.localize('openFileToCopy', "Open a file first to copy its path"));
@@ -98,13 +97,13 @@ export const revealInExplorerCommand = (accessor: ServicesAccessor, resource: UR
 		if (isInsideWorkspace) {
 			const explorerView = viewlet.getExplorerView();
 			if (explorerView) {
-				explorerView.expand();
+				explorerView.setExpanded(true);
 				explorerView.select(resource, true);
 			}
 		} else {
 			const openEditorsView = viewlet.getOpenEditorsView();
 			if (openEditorsView) {
-				openEditorsView.expand();
+				openEditorsView.setExpanded(true);
 			}
 		}
 	});

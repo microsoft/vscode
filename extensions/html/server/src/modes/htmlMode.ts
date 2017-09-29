@@ -5,7 +5,7 @@
 'use strict';
 
 import { getLanguageModelCache } from '../languageModelCache';
-import { LanguageService as HTMLLanguageService, HTMLDocument, DocumentContext, FormattingOptions } from 'vscode-html-languageservice';
+import { LanguageService as HTMLLanguageService, HTMLDocument, DocumentContext, FormattingOptions, HTMLFormatConfiguration } from 'vscode-html-languageservice';
 import { TextDocument, Position, Range } from 'vscode-languageserver-types';
 import { LanguageMode, Settings } from './languageModes';
 
@@ -40,12 +40,18 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService): LanguageM
 			return htmlLanguageService.findDocumentSymbols(document, htmlDocuments.get(document));
 		},
 		format(document: TextDocument, range: Range, formatParams: FormattingOptions, settings: Settings = globalSettings) {
-			let formatSettings = settings && settings.html && settings.html.format;
-			if (!formatSettings) {
-				formatSettings = formatParams;
+			let formatSettings: HTMLFormatConfiguration = settings && settings.html && settings.html.format;
+			if (formatSettings) {
+				formatSettings = merge(formatSettings, {});
 			} else {
-				formatSettings = merge(formatParams, merge(formatSettings, {}));
+				formatSettings = {};
 			}
+			if (formatSettings.contentUnformatted) {
+				formatSettings.contentUnformatted = formatSettings.contentUnformatted + ',script';
+			} else {
+				formatSettings.contentUnformatted = 'script';
+			}
+			formatSettings = merge(formatParams, formatSettings);
 			return htmlLanguageService.format(document, range, formatSettings);
 		},
 		doAutoClose(document: TextDocument, position: Position) {

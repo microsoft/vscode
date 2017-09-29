@@ -6,6 +6,7 @@
 {
 	"badgeTitle": "{0} - {1}",
 	"titleKeybinding": "{0} ({1})",
+	"removeFromActivityBar": "从活动栏中隐藏",
 	"keepInActivityBar": "保留活动栏",
 	"additionalViews": "其他视图",
 	"numberBadge": "{0} ({1})",

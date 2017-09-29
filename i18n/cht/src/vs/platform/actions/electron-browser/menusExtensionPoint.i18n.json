@@ -13,6 +13,7 @@
 	"vscode.extension.contributes.menuItem.group": "此命令所屬群組",
 	"vscode.extension.contributes.menus": "將功能表項目提供給編輯器",
 	"menus.commandPalette": "命令選擇區",
+	"menus.touchBar": "Touch Bar (macOS)",
 	"menus.editorTitle": "編輯器標題功能表",
 	"menus.editorContext": "編輯器操作功能表",
 	"menus.explorerContext": "檔案總管操作功能表",

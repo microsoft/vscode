@@ -11,7 +11,6 @@
 	"endOfLineLineFeed": "LF",
 	"endOfLineCarriageReturnLineFeed": "CRLF",
 	"tabFocusModeEnabled": "TAB per spostare lo stato attivo",
-	"screenReaderDetected": "Rilevata utilità per la lettura dello schermo",
 	"screenReaderDetectedExtra": "Se non si utilizza un'utilità per la lettura dello schermo, si prega di impostare 'editor.accessibilitySupport' a \"off\".",
 	"disableTabMode": "Disabilita modalità accessibilità",
 	"gotoLine": "Vai alla riga",
@@ -47,5 +46,7 @@
 	"reopenWithEncoding": "Riapri con codifica",
 	"guessedEncoding": "Ipotizzata dal contenuto",
 	"pickEncodingForReopen": "Seleziona codifica per la riapertura del file",
-	"pickEncodingForSave": "Seleziona codifica per il salvataggio del file"
+	"pickEncodingForSave": "Seleziona codifica per il salvataggio del file",
+	"screenReaderDetectedExplanation.answerYes": "Sì",
+	"screenReaderDetectedExplanation.answerNo": "No"
 }

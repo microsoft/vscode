@@ -102,6 +102,12 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 
 			// log in telemetry
 			if (this.telemetryService) {
+				/* __GDPR__
+					"workbenchActionExecuted" : {
+						"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
 				this.telemetryService.publicLog('workbenchActionExecuted', { id: e.action.id, from: 'debugActionsWidget' });
 			}
 		}));
@@ -141,6 +147,11 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 	private storePosition(): void {
 		const position = parseFloat(this.$el.getComputedStyle().left) / window.innerWidth;
 		this.storageService.store(DEBUG_ACTIONS_WIDGET_POSITION_KEY, position, StorageScope.WORKSPACE);
+		/* __GDPR__
+			"debug.actionswidgetposition" : {
+				"position" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		this.telemetryService.publicLog(DEBUG_ACTIONS_WIDGET_POSITION_KEY, { position });
 	}
 

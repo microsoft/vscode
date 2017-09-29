@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
-import URI from 'vscode-uri';
 import { SpectronApplication } from '../../spectron/application';
 import { Explorer } from '../explorer/explorer';
 import { ActivityBar } from '../activitybar/activityBar';
@@ -70,10 +68,7 @@ export class Workbench {
 
 	public async waitForEditorFocus(fileName: string, untitled: boolean = false): Promise<void> {
 		await this.waitForActiveTab(fileName);
-		await this.spectron.client.waitFor(async () => {
-			const uri = await this.editor.getFocusedEditorUri();
-			return uri && path.basename(URI.parse(uri).path) === fileName;
-		}, void 0, `Wait for editor with ${fileName} is focussed`);
+		await this.editor.waitForActiveEditor(fileName);
 	}
 
 	public async waitForActiveTab(fileName: string, isDirty: boolean = false): Promise<boolean> {
@@ -87,9 +82,5 @@ export class Workbench {
 	public async newUntitledFile(): Promise<void> {
 		await this.spectron.command('workbench.action.files.newUntitledFile');
 		await this.waitForEditorFocus('Untitled-1', true);
-	}
-
-	async openFile(fileName: string): Promise<void> {
-		await this.quickopen.openFile(fileName);
 	}
 }

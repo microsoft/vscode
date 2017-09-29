@@ -22,7 +22,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as TPath from 'vs/base/common/paths';
 
 import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ProblemMatcher, ProblemMatcherRegistry /*, ProblemPattern, getResource */ } from 'vs/platform/markers/common/problemMatcher';
 
@@ -137,7 +137,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 	}
 
 	public run(task: Task, resolver: ITaskResolver, trigger: string = Triggers.command): ITaskExecuteResult {
-		let terminalData = this.activeTasks[task._id];
+		let terminalData = this.activeTasks[Task.getMapKey(task)];
 		if (terminalData && terminalData.promise) {
 			let reveal = RevealKind.Always;
 			let focus = false;
@@ -169,7 +169,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 
 
 	public revealTask(task: Task): boolean {
-		let terminalData = this.activeTasks[task._id];
+		let terminalData = this.activeTasks[Task.getMapKey(task)];
 		if (!terminalData) {
 			return false;
 		}
@@ -196,8 +196,8 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		return Object.keys(this.activeTasks).map(key => this.activeTasks[key].task);
 	}
 
-	public terminate(id: string): TPromise<TaskTerminateResponse> {
-		let activeTerminal = this.activeTasks[id];
+	public terminate(task: Task): TPromise<TaskTerminateResponse> {
+		let activeTerminal = this.activeTasks[Task.getMapKey(task)];
 		if (!activeTerminal) {
 			return TPromise.as<TaskTerminateResponse>({ success: false, task: undefined });
 		};
@@ -245,15 +245,19 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 	private executeTask(startedTasks: IStringDictionary<TPromise<ITaskSummary>>, task: Task, resolver: ITaskResolver, trigger: string): TPromise<ITaskSummary> {
 		let promises: TPromise<ITaskSummary>[] = [];
 		if (task.dependsOn) {
-			task.dependsOn.forEach((identifier) => {
-				let task = resolver.resolve(identifier);
+			task.dependsOn.forEach((dependency) => {
+				let task = resolver.resolve(dependency.workspaceFolder, dependency.task);
 				if (task) {
-					let promise = startedTasks[task._id];
+					let key = Task.getMapKey(task);
+					let promise = startedTasks[key];
 					if (!promise) {
 						promise = this.executeTask(startedTasks, task, resolver, trigger);
-						startedTasks[task._id] = promise;
+						startedTasks[key] = promise;
 					}
 					promises.push(promise);
+				} else {
+					this.log(nls.localize('dependencyFailed', 'Couldn\'t resolve dependent task \'{0}\' in workspace folder \'{1}\'', dependency.task, dependency.workspaceFolder.name));
+					this.showOutput();
 				}
 			});
 		}
@@ -318,14 +322,15 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 				const onExit = terminal.onExit((exitCode) => {
 					onData.dispose();
 					onExit.dispose();
-					delete this.activeTasks[task._id];
+					let key = Task.getMapKey(task);
+					delete this.activeTasks[key];
 					this.emit(TaskSystemEvents.Changed);
 					switch (task.command.presentation.panel) {
 						case PanelKind.Dedicated:
-							this.sameTaskTerminals[task._id] = terminal.id.toString();
+							this.sameTaskTerminals[key] = terminal.id.toString();
 							break;
 						case PanelKind.Shared:
-							this.idleTaskTerminals.set(task._id, terminal.id.toString(), Touch.First);
+							this.idleTaskTerminals.set(key, terminal.id.toString(), Touch.First);
 							break;
 					}
 					let remaining = decoder.end();
@@ -365,14 +370,15 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 				const onExit = terminal.onExit((exitCode) => {
 					onData.dispose();
 					onExit.dispose();
-					delete this.activeTasks[task._id];
+					let key = Task.getMapKey(task);
+					delete this.activeTasks[key];
 					this.emit(TaskSystemEvents.Changed);
 					switch (task.command.presentation.panel) {
 						case PanelKind.Dedicated:
-							this.sameTaskTerminals[task._id] = terminal.id.toString();
+							this.sameTaskTerminals[key] = terminal.id.toString();
 							break;
 						case PanelKind.Shared:
-							this.idleTaskTerminals.set(task._id, terminal.id.toString(), Touch.First);
+							this.idleTaskTerminals.set(key, terminal.id.toString(), Touch.First);
 							break;
 					}
 					let remaining = decoder.end();
@@ -395,7 +401,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		if (task.command.presentation.reveal === RevealKind.Always || (task.command.presentation.reveal === RevealKind.Silent && task.problemMatchers.length === 0)) {
 			this.terminalService.showPanel(task.command.presentation.focus);
 		}
-		this.activeTasks[task._id] = { terminal, task, promise };
+		this.activeTasks[Task.getMapKey(task)] = { terminal, task, promise };
 		this.emit(TaskSystemEvents.Changed);
 		return promise.then((summary) => {
 			try {
@@ -407,6 +413,13 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 					success: true,
 					exitCode: summary.exitCode
 				};
+				/* __GDPR__
+					"taskService" : {
+						"${include}": [
+							"${TelemetryEvent}"
+						]
+					}
+				*/
 				this.telemetryService.publicLog(TerminalTaskSystem.TelemetryEventName, telemetryEvent);
 			} catch (error) {
 			}
@@ -420,6 +433,13 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 					command: this.getSanitizedCommand(executedCommand),
 					success: false
 				};
+				/* __GDPR__
+					"taskService" : {
+						"${include}": [
+							"${TelemetryEvent}"
+						]
+					}
+				*/
 				this.telemetryService.publicLog(TerminalTaskSystem.TelemetryEventName, telemetryEvent);
 			} catch (error) {
 			}
@@ -430,7 +450,9 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 	private createTerminal(task: CustomTask | ContributedTask): [ITerminalInstance, string] {
 		let options = this.resolveOptions(task, task.command.options);
 		let { command, args } = this.resolveCommandAndArgs(task);
-		let terminalName = nls.localize('TerminalTaskSystem.terminalName', 'Task - {0}', task.name);
+		let workspaceFolder = Task.getWorkspaceFolder(task);
+		let needsFolderQualification = workspaceFolder && this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE;
+		let terminalName = nls.localize('TerminalTaskSystem.terminalName', 'Task - {0}', needsFolderQualification ? Task.getQualifiedLabel(task) : task.name);
 		let waitOnExit: boolean | string = false;
 		if (task.command.presentation.reveal !== RevealKind.Never || !task.isBackground) {
 			waitOnExit = nls.localize('reuseTerminal', 'Terminal will be reused by tasks, press any key to close it.');
@@ -489,7 +511,11 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			shellArgs.push(commandLine);
 			shellLaunchConfig.args = windowsShellArgs ? shellArgs.join(' ') : shellArgs;
 			if (task.command.presentation.echo) {
-				shellLaunchConfig.initialText = `\x1b[1m> Executing task: ${commandLine} <\x1b[0m\n`;
+				if (needsFolderQualification) {
+					shellLaunchConfig.initialText = `\x1b[1m> Executing task in folder ${workspaceFolder.name}: ${commandLine} <\x1b[0m\n`;
+				} else {
+					shellLaunchConfig.initialText = `\x1b[1m> Executing task: ${commandLine} <\x1b[0m\n`;
+				}
 			}
 		} else {
 			let cwd = options && options.cwd ? options.cwd : process.cwd();
@@ -512,7 +538,11 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 					}
 					return args.join(' ');
 				};
-				shellLaunchConfig.initialText = `\x1b[1m> Executing task: ${shellLaunchConfig.executable} ${getArgsToEcho(shellLaunchConfig.args)} <\x1b[0m\n`;
+				if (needsFolderQualification) {
+					shellLaunchConfig.initialText = `\x1b[1m> Executing task in folder ${workspaceFolder.name}: ${shellLaunchConfig.executable} ${getArgsToEcho(shellLaunchConfig.args)} <\x1b[0m\n`;
+				} else {
+					shellLaunchConfig.initialText = `\x1b[1m> Executing task: ${shellLaunchConfig.executable} ${getArgsToEcho(shellLaunchConfig.args)} <\x1b[0m\n`;
+				}
 			}
 		}
 		if (options.cwd) {
@@ -531,15 +561,16 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		let prefersSameTerminal = task.command.presentation.panel === PanelKind.Dedicated;
 		let allowsSharedTerminal = task.command.presentation.panel === PanelKind.Shared;
 
+		let taskKey = Task.getMapKey(task);
 		let terminalToReuse: TerminalData;
 		if (prefersSameTerminal) {
-			let terminalId = this.sameTaskTerminals[task._id];
+			let terminalId = this.sameTaskTerminals[taskKey];
 			if (terminalId) {
 				terminalToReuse = this.terminals[terminalId];
-				delete this.sameTaskTerminals[task._id];
+				delete this.sameTaskTerminals[taskKey];
 			}
 		} else if (allowsSharedTerminal) {
-			let terminalId = this.idleTaskTerminals.remove(task._id) || this.idleTaskTerminals.shift();
+			let terminalId = this.idleTaskTerminals.remove(taskKey) || this.idleTaskTerminals.shift();
 			if (terminalId) {
 				terminalToReuse = this.terminals[terminalId];
 			}
@@ -550,16 +581,16 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		}
 
 		const result = this.terminalService.createInstance(shellLaunchConfig);
-		const key = result.id.toString();
+		const terminalKey = result.id.toString();
 		result.onDisposed((terminal) => {
-			let terminalData = this.terminals[key];
+			let terminalData = this.terminals[terminalKey];
 			if (terminalData) {
-				delete this.terminals[key];
+				delete this.terminals[terminalKey];
 				delete this.sameTaskTerminals[terminalData.lastTask];
 				this.idleTaskTerminals.delete(terminalData.lastTask);
 			}
 		});
-		this.terminals[key] = { terminal: result, lastTask: task._id };
+		this.terminals[terminalKey] = { terminal: result, lastTask: taskKey };
 		return [result, command];
 	}
 
@@ -646,7 +677,8 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 	}
 
 	private resolveVariable(task: CustomTask | ContributedTask, value: string): string {
-		return this.configurationResolverService.resolve(Task.getWorkspaceFolder(task).uri, value);
+		// TODO@Dirk Task.getWorkspaceFolder should return a WorkspaceFolder that is defined in workspace.ts
+		return this.configurationResolverService.resolve(<any>Task.getWorkspaceFolder(task), value);
 	}
 
 	private resolveOptions(task: CustomTask | ContributedTask, options: CommandOptions): CommandOptions {

@@ -13,6 +13,7 @@ import URI from 'vs/base/common/uri';
 import { MIME_BINARY } from 'vs/base/common/mime';
 import { once } from 'vs/base/common/functional';
 import paths = require('vs/base/common/paths');
+import resources = require('vs/base/common/resources');
 import errors = require('vs/base/common/errors');
 import { isString } from 'vs/base/common/types';
 import { IAction, ActionRunner as BaseActionRunner, IActionRunner } from 'vs/base/common/actions';
@@ -21,7 +22,7 @@ import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import glob = require('vs/base/common/glob');
 import { FileLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ContributableActionProvider } from 'vs/workbench/browser/actions';
 import { IFilesConfiguration, SortOrder } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -350,9 +351,9 @@ export class FileRenderer implements IRenderer {
 		});
 		const styler = attachInputBoxStyler(inputBox, this.themeService);
 
-		const parent = paths.dirname(stat.resource.fsPath);
+		const parent = resources.dirname(stat.resource);
 		inputBox.onDidChange(value => {
-			label.setFile(URI.file(paths.join(parent, value)), labelOptions); // update label icon while typing!
+			label.setFile(parent.with({ path: paths.join(parent.path, value) }), labelOptions); // update label icon while typing!
 		});
 
 		const value = stat.name || '';
@@ -536,6 +537,12 @@ export class FileController extends DefaultController {
 
 	public openEditor(stat: FileStat, options: { preserveFocus: boolean; sideBySide: boolean; pinned: boolean; }): void {
 		if (stat && !stat.isDirectory) {
+			/* __GDPR__
+				"workbenchActionExecuted" : {
+					"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
 			this.telemetryService.publicLog('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'explorer' });
 
 			this.editorService.openEditor({ resource: stat.resource, options }, options.sideBySide).done(null, errors.onUnexpectedError);
@@ -572,11 +579,12 @@ export class FileSorter implements ISorter {
 		// Do not sort roots
 		if (statA.isRoot) {
 			if (statB.isRoot) {
-				const ws = this.contextService.getWorkspace();
-				return ws.folders.indexOf(statA.resource) - ws.folders.indexOf(statB.resource);
+				return this.contextService.getWorkspaceFolder(statA.resource).index - this.contextService.getWorkspaceFolder(statB.resource).index;
 			}
+
 			return -1;
 		}
+
 		if (statB.isRoot) {
 			return 1;
 		}
@@ -608,6 +616,9 @@ export class FileSorter implements ISorter {
 				}
 
 				break;
+
+			case 'mixed':
+				break; // not sorting when "mixed" is on
 
 			default: /* 'default', 'modified' */
 				if (statA.isDirectory && !statB.isDirectory) {
@@ -646,6 +657,10 @@ export class FileSorter implements ISorter {
 				return comparers.compareFileNames(statA.name, statB.name);
 		}
 	}
+
+	public dispose(): void {
+		this.toDispose = dispose(this.toDispose);
+	}
 }
 
 // Explorer Filter
@@ -654,22 +669,28 @@ export class FileFilter implements IFilter {
 	private static MAX_SIBLINGS_FILTER_THRESHOLD = 2000;
 
 	private hiddenExpressionPerRoot: Map<string, glob.IExpression>;
+	private workspaceFolderChangeListener: IDisposable;
 
 	constructor(
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		this.hiddenExpressionPerRoot = new Map<string, glob.IExpression>();
-		this.contextService.onDidChangeWorkspaceFolders(() => this.updateConfiguration());
+
+		this.registerListeners();
+	}
+
+	public registerListeners(): void {
+		this.workspaceFolderChangeListener = this.contextService.onDidChangeWorkspaceFolders(() => this.updateConfiguration());
 	}
 
 	public updateConfiguration(): boolean {
 		let needsRefresh = false;
 		this.contextService.getWorkspace().folders.forEach(folder => {
-			const configuration = this.configurationService.getConfiguration<IFilesConfiguration>(undefined, { resource: folder });
+			const configuration = this.configurationService.getConfiguration<IFilesConfiguration>(undefined, { resource: folder.uri });
 			const excludesConfig = (configuration && configuration.files && configuration.files.exclude) || Object.create(null);
-			needsRefresh = needsRefresh || !objects.equals(this.hiddenExpressionPerRoot.get(folder.toString()), excludesConfig);
-			this.hiddenExpressionPerRoot.set(folder.toString(), objects.clone(excludesConfig)); // do not keep the config, as it gets mutated under our hoods
+			needsRefresh = needsRefresh || !objects.equals(this.hiddenExpressionPerRoot.get(folder.uri.toString()), excludesConfig);
+			this.hiddenExpressionPerRoot.set(folder.uri.toString(), objects.clone(excludesConfig)); // do not keep the config, as it gets mutated under our hoods
 		});
 
 		return needsRefresh;
@@ -698,6 +719,10 @@ export class FileFilter implements IFilter {
 		}
 
 		return true;
+	}
+
+	public dispose(): void {
+		this.workspaceFolderChangeListener = dispose(this.workspaceFolderChangeListener);
 	}
 }
 
@@ -734,7 +759,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		}
 
 		if (stat.isDirectory) {
-			return URI.from({ scheme: 'folder', path: stat.resource.fsPath }); // indicates that we are dragging a folder
+			return URI.from({ scheme: 'folder', path: stat.resource.path }); // indicates that we are dragging a folder
 		}
 
 		return stat.resource;
@@ -818,11 +843,11 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 					return true; // Can not move anything onto itself
 				}
 
-				if (!isCopy && paths.isEqual(paths.dirname(source.resource.fsPath), target.resource.fsPath)) {
+				if (!isCopy && resources.dirname(source.resource).toString() === target.resource.toString()) {
 					return true; // Can not move a file to the same parent unless we copy
 				}
 
-				if (paths.isEqualOrParent(target.resource.fsPath, source.resource.fsPath, !isLinux /* ignorecase */)) {
+				if (resources.isEqualOrParent(target.resource, source.resource, !isLinux /* ignorecase */)) {
 					return true; // Can not move a parent folder into one of its children
 				}
 
@@ -843,7 +868,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 				return fromDesktop || isCopy ? DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY(true) : DRAG_OVER_ACCEPT_BUBBLE_DOWN(true);
 			}
 
-			if (this.contextService.getWorkspace().folders.every(r => r.toString() !== target.resource.toString())) {
+			if (this.contextService.getWorkspace().folders.every(folder => folder.uri.toString() !== target.resource.toString())) {
 				return fromDesktop || isCopy ? DRAG_OVER_ACCEPT_BUBBLE_UP_COPY : DRAG_OVER_ACCEPT_BUBBLE_UP;
 			}
 		}
@@ -899,19 +924,19 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 				});
 
 				if (result) {
-					const currentFolders = this.contextService.getWorkspace().folders;
+					const currentFolders = this.contextService.getWorkspace().folders.map(folder => folder.uri);
 					const newRoots = [...currentFolders, ...folders];
 
-					return this.windowService.createAndOpenWorkspace(distinct(newRoots.map(root => root.fsPath)));
+					// Create and open workspace
+					return this.workspaceEditingService.createAndEnterWorkspace(distinct(newRoots.map(root => root.fsPath)));
 				}
 			}
 
 			// Handle dropped files (only support FileStat as target)
 			else if (target instanceof FileStat) {
 				const importAction = this.instantiationService.createInstance(ImportFileAction, tree, target, null);
-				return importAction.run({
-					input: { paths: droppedResources.map(res => res.resource.fsPath) }
-				});
+
+				return importAction.run(droppedResources.map(res => res.resource));
 			}
 
 			return void 0;
@@ -943,18 +968,18 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 			};
 
 			// 1. check for dirty files that are being moved and backup to new target
-			const dirty = this.textFileService.getDirty().filter(d => paths.isEqualOrParent(d.fsPath, source.resource.fsPath, !isLinux /* ignorecase */));
+			const dirty = this.textFileService.getDirty().filter(d => resources.isEqualOrParent(d, source.resource, !isLinux /* ignorecase */));
 			return TPromise.join(dirty.map(d => {
 				let moved: URI;
 
 				// If the dirty file itself got moved, just reparent it to the target folder
-				if (paths.isEqual(source.resource.fsPath, d.fsPath)) {
-					moved = URI.file(paths.join(target.resource.fsPath, source.name));
+				if (source.resource.toString() === d.toString()) {
+					moved = target.resource.with({ path: paths.join(target.resource.path, source.name) });
 				}
 
 				// Otherwise, a parent of the dirty resource got moved, so we have to reparent more complicated. Example:
 				else {
-					moved = URI.file(paths.join(target.resource.fsPath, d.fsPath.substr(source.parent.resource.fsPath.length + 1)));
+					moved = target.resource.with({ path: paths.join(target.resource.path, d.path.substr(source.parent.resource.path.length + 1)) });
 				}
 
 				dirtyMoved.push(moved);
@@ -969,7 +994,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 
 				// 3.) run the move operation
 				.then(() => {
-					const targetResource = URI.file(paths.join(target.resource.fsPath, source.name));
+					const targetResource = target.resource.with({ path: paths.join(target.resource.path, source.name) });
 					let didHandleConflict = false;
 
 					return this.fileService.moveFile(source.resource, targetResource).then(null, error => {
@@ -987,7 +1012,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 
 							// Move with overwrite if the user confirms
 							if (this.messageService.confirm(confirm)) {
-								const targetDirty = this.textFileService.getDirty().filter(d => paths.isEqualOrParent(d.fsPath, targetResource.fsPath, !isLinux /* ignorecase */));
+								const targetDirty = this.textFileService.getDirty().filter(d => resources.isEqualOrParent(d, targetResource, !isLinux /* ignorecase */));
 
 								// Make sure to revert all dirty in target first to be able to overwrite properly
 								return this.textFileService.revertAll(targetDirty, { soft: true /* do not attempt to load content from disk */ }).then(() => {

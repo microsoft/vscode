@@ -5,8 +5,8 @@
 
 import { DocumentHighlightProvider, DocumentHighlight, DocumentHighlightKind, TextDocument, Position, Range, CancellationToken } from 'vscode';
 
-import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
+import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/convert';
 
 
 export default class TypeScriptDocumentHighlightProvider implements DocumentHighlightProvider {
@@ -18,11 +18,7 @@ export default class TypeScriptDocumentHighlightProvider implements DocumentHigh
 		if (!filepath) {
 			return Promise.resolve<DocumentHighlight[]>([]);
 		}
-		const args: Proto.FileLocationRequestArgs = {
-			file: filepath,
-			line: position.line + 1,
-			offset: position.character + 1
-		};
+		const args = vsPositionToTsFileLocation(filepath, position);
 		return this.client.execute('occurrences', args, token).then((response): DocumentHighlight[] => {
 			let data = response.body;
 			if (data && data.length) {
@@ -37,10 +33,10 @@ export default class TypeScriptDocumentHighlightProvider implements DocumentHigh
 						return [];
 					}
 				}
-				return data.map((item) => {
-					return new DocumentHighlight(new Range(item.start.line - 1, item.start.offset - 1, item.end.line - 1, item.end.offset - 1),
-						item.isWriteAccess ? DocumentHighlightKind.Write : DocumentHighlightKind.Read);
-				});
+				return data.map(item =>
+					new DocumentHighlight(
+						tsTextSpanToVsRange(item),
+						item.isWriteAccess ? DocumentHighlightKind.Write : DocumentHighlightKind.Read));
 			}
 			return [];
 		}, () => {

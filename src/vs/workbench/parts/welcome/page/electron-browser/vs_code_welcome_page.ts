@@ -15,7 +15,7 @@ export default () => `
 	<div class="welcomePage">
 		<div class="title">
 			<h1 class="caption">${escape(localize('welcomePage.vscode', "Visual Studio Code"))}</h1>
-			<p class="subtitle detail">${escape(localize('welcomePage.editingEvolved', "Editing evolved"))}</p>
+			<p class="subtitle detail">${escape(localize({ key: 'welcomePage.editingEvolved', comment: ['Shown as subtitle on the Welcome page.'] }, "Editing evolved"))}</p>
 		</div>
 		<div class="row">
 			<div class="splash">

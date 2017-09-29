@@ -32,6 +32,14 @@
 		{
 			"scopeName": "source.c.platform",
 			"path": "./syntaxes/Platform.tmLanguage"
+		}],
+		"snippets": [{
+			"language": "c",
+			"path": "./snippets/c.json"
+		},
+		{
+			"language": "cpp",
+			"path": "./snippets/cpp.json"
 		}]
 	}
 }

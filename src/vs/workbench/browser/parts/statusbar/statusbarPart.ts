@@ -55,7 +55,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(this.contextService.onDidChangeWorkspaceFolders(() => this.updateStyles()));
+		this.toUnbind.push(this.contextService.onDidChangeWorkbenchState(() => this.updateStyles()));
 	}
 
 	public addEntry(entry: IStatusbarEntry, alignment: StatusbarAlignment, priority: number = 0): IDisposable {
@@ -293,6 +293,12 @@ class StatusBarEntryItem implements IStatusbarItem {
 			const action = this.instantiationService.createInstance(builtInActionDescriptor.syncDescriptor);
 
 			if (action.enabled) {
+				/* __GDPR__
+					"workbenchActionExecuted" : {
+						"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
 				this.telemetryService.publicLog('workbenchActionExecuted', { id: action.id, from: 'status bar' });
 				(action.run() || TPromise.as(null)).done(() => {
 					action.dispose();

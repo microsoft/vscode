@@ -5,7 +5,6 @@
 
 import * as fs from 'fs';
 import { dirname } from 'path';
-var rimraf = require('rimraf');
 
 /**
  * Contains methods that are commonly used across test areas.
@@ -23,28 +22,6 @@ export class Util {
 				throw e;
 			}
 		}
-	}
-
-	public rimraf(directory: string): Promise<any> {
-		return new Promise((res, rej) => {
-			rimraf(directory, (err) => {
-				if (err) {
-					rej(err);
-				}
-				res();
-			});
-		});
-	}
-
-	public static rimraf(directory: string): Promise<any> {
-		return new Promise((res, rej) => {
-			rimraf(directory, (err) => {
-				if (err) {
-					rej(err);
-				}
-				res();
-			});
-		});
 	}
 
 	public static removeFile(filePath: string): void {

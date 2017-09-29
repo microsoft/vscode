@@ -10,7 +10,6 @@
 	"textFileEditor": "Szövegfájlszerkesztő",
 	"binaryFileEditor": "Bináris fájlszerkesztő",
 	"filesConfigurationTitle": "Fájlok",
-	"exclude": "Globális minták konfigurálása fájlok és mappák kiszűréséhez.",
 	"files.exclude.boolean": "A globális minta, amire illesztve lesznek a fájlok elérési útjai. A minta engedélyezéséhez vagy letiltásához állítsa igaz vagy hamis értékre.",
 	"files.exclude.when": "További ellenőrzés elvégzése egy egyező fájl testvérein. Az egyező fájlnévhez használja a $(basename) változót.",
 	"associations": "Rendeljen nyelveket a fájlokhoz (pl: \"*.kiterjesztés\": \"html\"). Ezek a hozzárendelések elsőbbséget élveznek a telepített nyelvek által definiált alapértelmezett beállításokkal szemben.",

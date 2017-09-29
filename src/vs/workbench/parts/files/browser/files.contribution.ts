@@ -13,9 +13,9 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory, EditorInput, IFileEditorInput } from 'vs/workbench/common/editor';
+import { IEditorRegistry, IEditorInputFactory, EditorInput, IFileEditorInput } from 'vs/workbench/common/editor';
 import { AutoSaveConfiguration, HotExitConfiguration, SUPPORTED_ENCODINGS } from 'vs/platform/files/common/files';
-import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { FILE_EDITOR_INPUT_ID, VIEWLET_ID, SortOrderConfiguration } from 'vs/workbench/parts/files/common/files';
 import { FileEditorTracker } from 'vs/workbench/parts/files/common/editors/fileEditorTracker';
 import { SaveErrorHandler } from 'vs/workbench/parts/files/browser/saveErrorHandler';
@@ -29,8 +29,8 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
-import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { DirtyFilesTracker } from 'vs/workbench/parts/files/common/dirtyFilesTracker';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 
 // Viewlet Action
 export class OpenExplorerViewletAction extends ToggleViewletAction {
@@ -113,7 +113,7 @@ interface ISerializedFileInput {
 class FileEditorInputFactory implements IEditorInputFactory {
 
 	constructor(
-		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
+		@ITextResourceConfigurationService private configurationService: ITextResourceConfigurationService
 	) {
 	}
 
@@ -122,13 +122,9 @@ class FileEditorInputFactory implements IEditorInputFactory {
 		const resource = fileEditorInput.getResource();
 		const fileInput: ISerializedFileInput = {
 			resource: resource.toString(), // Keep for backwards compatibility
-			resourceJSON: resource.toJSON()
+			resourceJSON: resource.toJSON(),
+			encoding: fileEditorInput.getEncoding()
 		};
-
-		const encoding = fileEditorInput.getPreferredEncoding();
-		if (encoding && encoding !== this.configurationService.lookup('files.encoding', { resource }).value) {
-			fileInput.encoding = encoding;
-		}
 
 		return JSON.stringify(fileInput);
 	}
@@ -172,7 +168,7 @@ configurationRegistry.registerConfiguration({
 	'properties': {
 		'files.exclude': {
 			'type': 'object',
-			'description': nls.localize('exclude', "Configure glob patterns for excluding files and folders."),
+			'description': nls.localize('exclude', "Configure glob patterns for excluding files and folders. For example, the files explorer decides which files and folders to show or hide based on this setting."),
 			'default': { '**/.git': true, '**/.svn': true, '**/.hg': true, '**/CVS': true, '**/.DS_Store': true },
 			'scope': ConfigurationScope.RESOURCE,
 			'additionalProperties': {
@@ -239,6 +235,13 @@ configurationRegistry.registerConfiguration({
 			'overridable': true,
 			'scope': ConfigurationScope.RESOURCE
 		},
+		'files.trimFinalNewlines': {
+			'type': 'boolean',
+			'default': false,
+			'description': nls.localize('trimFinalNewlines', "When enabled, will trim all new lines after the final new line at the end of the file when saving it."),
+			'overridable': true,
+			'scope': ConfigurationScope.RESOURCE
+		},
 		'files.autoSave': {
 			'type': 'string',
 			'enum': [AutoSaveConfiguration.OFF, AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, , AutoSaveConfiguration.ON_WINDOW_CHANGE],
@@ -295,7 +298,8 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': false,
 			'description': nls.localize('formatOnSave', "Format a file on save. A formatter must be available, the file must not be auto-saved, and editor must not be shutting down."),
-			'overridable': true
+			'overridable': true,
+			'scope': ConfigurationScope.RESOURCE
 		}
 	}
 });

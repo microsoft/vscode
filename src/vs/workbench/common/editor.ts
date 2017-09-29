@@ -33,10 +33,6 @@ export interface IEditorDescriptor {
 	describes(obj: any): boolean;
 }
 
-export const Extensions = {
-	Editors: 'workbench.contributions.editors'
-};
-
 /**
  * Text diff editor id.
  */
@@ -207,6 +203,11 @@ export abstract class EditorInput implements IEditorInput {
 	 * Subclasses should extend if they can contribute.
 	 */
 	public getTelemetryDescriptor(): object {
+		/* __GDPR__FRAGMENT__
+			"EditorTelemetryDescriptor" : {
+				"typeId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		return { typeId: this.getTypeId() };
 	}
 
@@ -796,6 +797,19 @@ export const EditorOpenPositioning = {
 };
 
 export interface IWorkbenchEditorConfiguration {
+	/* __GDPR__FRAGMENT__
+		"IWorkbenchEditorConfiguration" : {
+			"showTabs" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"tabCloseButton": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"showIcons": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"enablePreview": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"enablePreviewFromQuickOpen": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"closeOnFileDelete": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"openPositioning": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"revealIfOpen": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"swipeToNavigate": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		}
+	*/
 	workbench: {
 		editor: {
 			showTabs: boolean;

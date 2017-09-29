@@ -25,6 +25,7 @@ const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
 export abstract class SimpleFindWidget extends Widget {
 	protected _findInput: FindInput;
 	protected _domNode: HTMLElement;
+	protected _innerDomNode: HTMLElement;
 	protected _isVisible: boolean;
 	protected _focusTracker: dom.IFocusTracker;
 	protected _findInputFocusTracker: dom.IFocusTracker;
@@ -91,14 +92,19 @@ export abstract class SimpleFindWidget extends Widget {
 			onKeyDown: (e) => { }
 		});
 
-		this._domNode = document.createElement('div');
-		this._domNode.classList.add('simple-find-part');
-		this._domNode.appendChild(this._findInput.domNode);
-		this._domNode.appendChild(prevBtn.domNode);
-		this._domNode.appendChild(nextBtn.domNode);
-		this._domNode.appendChild(closeBtn.domNode);
+		this._innerDomNode = document.createElement('div');
+		this._innerDomNode.classList.add('simple-find-part');
+		this._innerDomNode.appendChild(this._findInput.domNode);
+		this._innerDomNode.appendChild(prevBtn.domNode);
+		this._innerDomNode.appendChild(nextBtn.domNode);
+		this._innerDomNode.appendChild(closeBtn.domNode);
 
-		this.onkeyup(this._domNode, e => {
+		// _domNode wraps _innerDomNode, ensuring that
+		this._domNode = document.createElement('div');
+		this._domNode.classList.add('simple-find-part-wrapper');
+		this._domNode.appendChild(this._innerDomNode);
+
+		this.onkeyup(this._innerDomNode, e => {
 			if (e.equals(KeyCode.Escape)) {
 				this.hide();
 				e.preventDefault();
@@ -106,7 +112,7 @@ export abstract class SimpleFindWidget extends Widget {
 			}
 		});
 
-		this._focusTracker = this._register(dom.trackFocus(this._domNode));
+		this._focusTracker = this._register(dom.trackFocus(this._innerDomNode));
 		this._register(this._focusTracker.addFocusListener(this.onFocusTrackerFocus.bind(this)));
 		this._register(this._focusTracker.addBlurListener(this.onFocusTrackerBlur.bind(this)));
 
@@ -114,7 +120,7 @@ export abstract class SimpleFindWidget extends Widget {
 		this._register(this._findInputFocusTracker.addFocusListener(this.onFindInputFocusTrackerFocus.bind(this)));
 		this._register(this._findInputFocusTracker.addBlurListener(this.onFindInputFocusTrackerBlur.bind(this)));
 
-		this._register(dom.addDisposableListener(this._domNode, 'click', (event) => {
+		this._register(dom.addDisposableListener(this._innerDomNode, 'click', (event) => {
 			event.stopPropagation();
 		}));
 	}
@@ -163,13 +169,13 @@ export abstract class SimpleFindWidget extends Widget {
 		this._isVisible = true;
 
 		setTimeout(() => {
-			dom.addClass(this._domNode, 'visible');
-			this._domNode.setAttribute('aria-hidden', 'false');
+			dom.addClass(this._innerDomNode, 'visible');
+			this._innerDomNode.setAttribute('aria-hidden', 'false');
 			if (!this.animate) {
-				dom.addClass(this._domNode, 'noanimation');
+				dom.addClass(this._innerDomNode, 'noanimation');
 			}
 			setTimeout(() => {
-				dom.removeClass(this._domNode, 'noanimation');
+				dom.removeClass(this._innerDomNode, 'noanimation');
 				this._findInput.select();
 			}, 200);
 		}, 0);
@@ -179,8 +185,8 @@ export abstract class SimpleFindWidget extends Widget {
 		if (this._isVisible) {
 			this._isVisible = false;
 
-			dom.removeClass(this._domNode, 'visible');
-			this._domNode.setAttribute('aria-hidden', 'true');
+			dom.removeClass(this._innerDomNode, 'visible');
+			this._innerDomNode.setAttribute('aria-hidden', 'true');
 		}
 	}
 

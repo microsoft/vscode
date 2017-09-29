@@ -11,7 +11,6 @@
 	"endOfLineLineFeed": "LF",
 	"endOfLineCarriageReturnLineFeed": "CRLF",
 	"tabFocusModeEnabled": "タブによるフォーカスの移動",
-	"screenReaderDetected": "スクリーン リーダーを検出しました",
 	"screenReaderDetectedExtra": "スクリーン リーダーを使用しない場合、`editor.accessibilitySupport` を \"off\" にしてください。",
 	"disableTabMode": "アクセシビリティ モードを無効にする",
 	"gotoLine": "行へ移動",
@@ -47,5 +46,9 @@
 	"reopenWithEncoding": "エンコード付きで再度開く",
 	"guessedEncoding": "コンテンツから推測",
 	"pickEncodingForReopen": "ファイルを再度開くときのファイルのエンコードの選択",
-	"pickEncodingForSave": "保存時のファイルのエンコードの選択"
+	"pickEncodingForSave": "保存時のファイルのエンコードの選択",
+	"screenReaderDetectedExplanation.question": "VS Codeの操作にスクリーンリーダーを使用していますか?",
+	"screenReaderDetectedExplanation.answerYes": "はい",
+	"screenReaderDetectedExplanation.answerNo": "いいえ",
+	"screenReaderDetectedExplanation.body1": "VS Codeは現在スクリーンリーダーの使用状況に最適化されています。"
 }

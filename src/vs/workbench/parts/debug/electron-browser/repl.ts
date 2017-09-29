@@ -180,7 +180,7 @@ export class Repl extends Panel implements IPrivateReplService {
 
 		modes.SuggestRegistry.register({ scheme: debug.DEBUG_SCHEME }, {
 			triggerCharacters: ['.'],
-			provideCompletionItems: (model: IReadOnlyModel, position: Position, token: CancellationToken): Thenable<modes.ISuggestResult> => {
+			provideCompletionItems: (model: IReadOnlyModel, position: Position, _context: modes.SuggestContext, token: CancellationToken): Thenable<modes.ISuggestResult> => {
 				const word = this.replInput.getModel().getWordAtPosition(position);
 				const overwriteBefore = word ? word.word.length : 0;
 				const text = this.replInput.getModel().getLineContent(position.lineNumber);

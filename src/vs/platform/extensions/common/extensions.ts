@@ -102,4 +102,14 @@ export interface IExtensionService {
 	 * Restarts the extension host.
 	 */
 	restartExtensionHost(): void;
+
+	/**
+	 * Starts the extension host.
+	 */
+	startExtensionHost(): void;
+
+	/**
+	 * Stops the extension host.
+	 */
+	stopExtensionHost(): void;
 }

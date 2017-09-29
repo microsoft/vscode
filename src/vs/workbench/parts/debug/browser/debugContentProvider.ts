@@ -14,6 +14,19 @@ import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/s
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { DEBUG_SCHEME, IDebugService, IProcess } from 'vs/workbench/parts/debug/common/debug';
 
+/**
+ * Debug URI format
+ *
+ * a debug URI represents a Source object and the debug session where the Source comes from.
+ *
+ *       debug:arbitrary_path?session=123e4567-e89b-12d3-a456-426655440000&ref=1016
+ *       \___/ \____________/ \__________________________________________/ \______/
+ *         |          |                             |                          |
+ *      scheme   source.path                    session id            source.referencequery
+ *
+ * the arbitrary_path and the session id are encoded with 'encodeURIComponent'
+ *
+ */
 export class DebugContentProvider implements IWorkbenchContribution, ITextModelContentProvider {
 
 	constructor(
@@ -43,7 +56,7 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 						case 'session':
 							process = this.debugService.findProcessByUUID(decodeURIComponent(pair[1]));
 							break;
-						case 'sourceRef':
+						case 'ref':
 							sourceRef = parseInt(pair[1]);
 							break;
 					}
@@ -76,7 +89,7 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 
 		return process.session.source({ sourceReference: sourceRef, source: rawSource }).then(response => {
 
-			const mime = response.body.mimeType || guessMimeTypes(resource.toString())[0];
+			const mime = response.body.mimeType || guessMimeTypes(resource.path)[0];
 			const modePromise = this.modeService.getOrCreateMode(mime);
 			const model = this.modelService.createModel(response.body.content, modePromise, resource);
 

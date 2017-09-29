@@ -10,7 +10,7 @@ import {
 	DocumentRangeFormattingRequest, Disposable, ServerCapabilities
 } from 'vscode-languageserver';
 
-import { DocumentColorRequest, ServerCapabilities as CPServerCapabilities } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
+import { DocumentColorRequest, ServerCapabilities as CPServerCapabilities, ColorPresentationRequest } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
 
 import { xhr, XHRResponse, configure as configureHttpRequests, getErrorStatusDescription } from 'request-light';
 import fs = require('fs');
@@ -33,6 +33,10 @@ namespace SchemaAssociationNotification {
 
 namespace VSCodeContentRequest {
 	export const type: RequestType<string, string, any, any> = new RequestType('vscode/content');
+}
+
+namespace SchemaContentChangeNotification {
+	export const type: NotificationType<string, any> = new NotificationType('json/schemaContent');
 }
 
 // Create a connection for the server
@@ -172,6 +176,11 @@ connection.onNotification(SchemaAssociationNotification.type, associations => {
 	updateConfiguration();
 });
 
+// A schema has changed
+connection.onNotification(SchemaContentChangeNotification.type, uri => {
+	languageService.resetSchema(uri);
+});
+
 function updateConfiguration() {
 	let languageSettings: LanguageSettings = {
 		validate: true,
@@ -307,6 +316,15 @@ connection.onRequest(DocumentColorRequest.type, params => {
 	if (document) {
 		let jsonDocument = getJSONDocument(document);
 		return languageService.findDocumentColors(document, jsonDocument);
+	}
+	return [];
+});
+
+connection.onRequest(ColorPresentationRequest.type, params => {
+	let document = documents.get(params.textDocument.uri);
+	if (document) {
+		let jsonDocument = getJSONDocument(document);
+		return languageService.getColorPresentations(document, jsonDocument, params.colorInfo);
 	}
 	return [];
 });
