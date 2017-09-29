@@ -44,6 +44,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 						if (ContributedTask.is(task)) {
 							let uri = (task._source as any as ExtensionTaskSourceTransfer).__workspaceFolder;
 							if (uri) {
+								delete (task._source as any as ExtensionTaskSourceTransfer).__workspaceFolder;
 								(task._source as any).workspaceFolder = this._workspaceContextServer.getWorkspaceFolder(uri);
 							}
 						}

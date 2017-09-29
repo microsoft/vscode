@@ -341,6 +341,7 @@ namespace Tasks {
 		} else if (taskScope === types.TaskScope.Workspace) {
 			scope = TaskSystem.TaskScope.Workspace;
 		} else {
+			scope = TaskSystem.TaskScope.Folder;
 			workspaceFolder = taskScope;
 		}
 		let source: TaskSystem.ExtensionTaskSource = {
