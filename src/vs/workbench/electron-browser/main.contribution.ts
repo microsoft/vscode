@@ -386,8 +386,8 @@ if (isMacintosh) {
 		'description': nls.localize('titleBarStyle', "Adjust the appearance of the window title bar. Changes require a full restart to apply.")
 	};
 
-	// macOS Sierra (10.12.x = darwin 16.x) and electron > 1.4.6 only
-	if (os.release().indexOf('16.') === 0 && process.versions.electron !== '1.4.6') {
+	// Minimum: macOS Sierra (10.12.x = darwin 16.x)
+	if (parseFloat(os.release()) >= 16) {
 		properties['window.nativeTabs'] = {
 			'type': 'boolean',
 			'default': false,
