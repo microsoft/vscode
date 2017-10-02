@@ -194,7 +194,7 @@ export class Workspace implements IWorkspace {
 	private updateFoldersMap(): void {
 		this._foldersMap = new StringTrieMap<WorkspaceFolder>();
 		for (const folder of this.folders) {
-			this._foldersMap.insert(folder.uri.toString(), folder);
+			this._foldersMap.set(folder.uri.toString(), folder);
 		}
 	}
 

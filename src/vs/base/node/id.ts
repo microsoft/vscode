@@ -30,13 +30,13 @@ export const virtualMachineHint: { value(): number } = new class {
 		if (!this._virtualMachineOUIs) {
 			this._virtualMachineOUIs = new StringTrieMap<boolean>(s => s.split(/[-:]/));
 			// this._virtualMachineOUIs.insert('00-00-00', true);
-			this._virtualMachineOUIs.insert('00-50-56', true);
-			this._virtualMachineOUIs.insert('00-0C-29', true);
-			this._virtualMachineOUIs.insert('00-05-69', true);
-			this._virtualMachineOUIs.insert('00-03-FF', true);
-			this._virtualMachineOUIs.insert('00-1C-42', true);
-			this._virtualMachineOUIs.insert('00-16-3E', true);
-			this._virtualMachineOUIs.insert('08-00-27', true);
+			this._virtualMachineOUIs.set('00-50-56', true);
+			this._virtualMachineOUIs.set('00-0C-29', true);
+			this._virtualMachineOUIs.set('00-05-69', true);
+			this._virtualMachineOUIs.set('00-03-FF', true);
+			this._virtualMachineOUIs.set('00-1C-42', true);
+			this._virtualMachineOUIs.set('00-16-3E', true);
+			this._virtualMachineOUIs.set('08-00-27', true);
 
 		}
 		return this._virtualMachineOUIs.findSubstr(mac);

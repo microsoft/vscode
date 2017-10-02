@@ -38,9 +38,9 @@ export class TestConfigurationService extends EventEmitter implements IConfigura
 
 	public setUserConfiguration(key: any, value: any, root?: URI): Thenable<void> {
 		if (root) {
-			const configForRoot = this.configurationByRoot.lookUp(root.fsPath) || Object.create(null);
+			const configForRoot = this.configurationByRoot.get(root.fsPath) || Object.create(null);
 			configForRoot[key] = value;
-			this.configurationByRoot.insert(root.fsPath, configForRoot);
+			this.configurationByRoot.set(root.fsPath, configForRoot);
 		} else {
 			this.configuration[key] = value;
 		}

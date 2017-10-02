@@ -66,10 +66,10 @@ function toIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], recurse
 export function toDeepIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], to: URI[]): TPromise<IFileStat> {
 
 	const trie = new StringTrieMap<true>();
-	trie.insert(tuple[0].toString(), true);
+	trie.set(tuple[0].toString(), true);
 
 	if (!isFalsyOrEmpty(to)) {
-		to.forEach(uri => trie.insert(uri.toString(), true));
+		to.forEach(uri => trie.set(uri.toString(), true));
 	}
 
 	return toIFileStat(provider, tuple, candidate => {

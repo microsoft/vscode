@@ -423,7 +423,7 @@ export class TrieMap<K, V> {
 		this._splitter = key => splitter(key).filter(part => Boolean(part));
 	}
 
-	insert(path: K, element: V): void {
+	set(path: K, element: V): void {
 		const parts = this._splitter(path);
 		let i = 0;
 
@@ -449,7 +449,7 @@ export class TrieMap<K, V> {
 		node.element = element;
 	}
 
-	lookUp(path: K): V {
+	get(path: K): V {
 		const parts = this._splitter(path);
 
 		let { children } = this._root;

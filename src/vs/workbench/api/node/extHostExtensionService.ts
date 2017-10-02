@@ -216,7 +216,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 						if (err) {
 							reject(err);
 						} else {
-							trie.insert(path, ext);
+							trie.set(path, ext);
 							resolve(void 0);
 						}
 					});

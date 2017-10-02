@@ -522,7 +522,7 @@ export class SearchResult extends Disposable {
 		});
 		// otherFiles is the fallback for missing values in the TrieMap. So we do not insert it.
 		this._folderMatches.slice(0, this.folderMatches.length - 1)
-			.forEach(fm => this._folderMatchesMap.insert(fm.resource().fsPath, fm));
+			.forEach(fm => this._folderMatchesMap.set(fm.resource().fsPath, fm));
 	}
 
 	public get searchModel(): SearchModel {
