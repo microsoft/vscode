@@ -54,7 +54,7 @@ import { attachQuickOpenStyler } from 'vs/platform/theme/common/styler';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITree, IActionProvider } from 'vs/base/parts/tree/browser/tree';
 import { BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { FileKind } from 'vs/platform/files/common/files';
+import { FileKind, IFileService } from 'vs/platform/files/common/files';
 
 const HELP_PREFIX = '?';
 
@@ -1168,7 +1168,8 @@ class EditorHistoryHandler {
 	constructor(
 		@IHistoryService private historyService: IHistoryService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IFileService private fileService: IFileService
 	) {
 	}
 
@@ -1189,7 +1190,7 @@ class EditorHistoryHandler {
 		history.forEach(input => {
 			let resource: URI;
 			if (input instanceof EditorInput) {
-				resource = toResource(input, { filter: ['file', 'untitled'] });
+				resource = resourceForEditorHistory(input, this.fileService);
 			} else {
 				resource = (input as IResourceInput).resource;
 			}
@@ -1245,14 +1246,15 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		@ITextFileService private textFileService: ITextFileService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IEnvironmentService environmentService: IEnvironmentService
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IFileService private fileService: IFileService
 	) {
 		super(editorService);
 
 		this.input = input;
 
 		if (input instanceof EditorInput) {
-			this.resource = toResource(input, { filter: ['file', 'untitled'] });
+			this.resource = resourceForEditorHistory(input, fileService);
 			this.label = input.getName();
 			this.description = input.getDescription();
 			this.dirty = input.isDirty();
@@ -1315,6 +1317,18 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 
 		return super.run(mode, context);
 	}
+}
+
+function resourceForEditorHistory(input: EditorInput, fileService: IFileService): URI {
+	const resource = toResource(input);
+
+	// For the editor history we only prefer resources that are either untitled or
+	// can be handled by the file service which indicates they are editable resources.
+	if (resource && (fileService.canHandleResource(resource) || resource.scheme === 'untitled')) {
+		return resource;
+	}
+
+	return void 0;
 }
 
 export class RemoveFromEditorHistoryAction extends Action {
