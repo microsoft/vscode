@@ -901,7 +901,6 @@ export class DebugService implements debug.IDebugService {
 					this.viewletService.openViewlet(debug.VIEWLET_ID);
 				}
 
-				this.extensionService.activateByEvent(`onDebug:${configuration.type}`).done(null, errors.onUnexpectedError);
 				this.debugType.set(configuration.type);
 				if (this.model.getProcesses().length > 1) {
 					this.viewModel.setMultiProcessView(true);
