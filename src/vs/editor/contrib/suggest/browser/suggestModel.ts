@@ -143,6 +143,9 @@ export class SuggestModel implements IDisposable {
 		this._toDispose.push(this._editor.onDidChangeCursorSelection(e => {
 			this._onCursorChange(e);
 		}));
+		this._toDispose.push(this._editor.onDidChangeModelContent(e => {
+			this._refilterCompletionItems();
+		}));
 
 		this._updateTriggerCharacters();
 		this._updateQuickSuggest();
@@ -254,7 +257,8 @@ export class SuggestModel implements IDisposable {
 
 		if (!e.selection.isEmpty()
 			|| e.source !== 'keyboard'
-			|| e.reason !== CursorChangeReason.NotSet) {
+			|| e.reason !== CursorChangeReason.NotSet
+		) {
 
 			if (this._state === State.Idle) {
 				// Early exit if nothing needs to be done!
@@ -320,8 +324,15 @@ export class SuggestModel implements IDisposable {
 					});
 				}
 			}
+		}
+	}
 
-		} else {
+	private _refilterCompletionItems(): void {
+		if (this._state === State.Idle) {
+			return;
+		}
+		const model = this._editor.getModel();
+		if (model) {
 			// refine active suggestion
 			this._triggerRefilter.cancelAndSet(() => {
 				const position = this._editor.getPosition();

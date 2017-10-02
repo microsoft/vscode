@@ -20,6 +20,8 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { Range } from 'vs/editor/common/core/range';
 
 function createMockEditor(model: Model): MockCodeEditor {
 	const contextKeyService = new MockContextKeyService();
@@ -489,6 +491,49 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				editor.trigger('keyboard', Handler.Type, { text: 'foo.' });
 			}, event => {
 				assert.equal(triggerCharacter, '.');
+			});
+		});
+	});
+
+	test('Mac press and hold accent character insertion does not update suggestions, #35269', function () {
+		disposables.push(SuggestRegistry.register({ scheme: 'test' }, {
+			provideCompletionItems(doc, pos) {
+				return <ISuggestResult>{
+					incomplete: true,
+					suggestions: [{
+						label: 'abc',
+						type: 'property',
+						insertText: 'abc',
+						overwriteBefore: pos.column - 1
+					}, {
+						label: 'äbc',
+						type: 'property',
+						insertText: 'äbc',
+						overwriteBefore: pos.column - 1
+					}]
+				};
+			}
+		}));
+
+		model.setValue('');
+		return withOracle((model, editor) => {
+
+			return assertEvent(model.onDidSuggest, () => {
+				editor.setPosition({ lineNumber: 1, column: 1 });
+				editor.trigger('keyboard', Handler.Type, { text: 'a' });
+			}, event => {
+				assert.equal(event.completionModel.items.length, 1);
+				assert.equal(event.completionModel.items[0].suggestion.label, 'abc');
+
+				return assertEvent(model.onDidSuggest, () => {
+					editor.executeEdits('test', [EditOperation.replace(new Range(1, 1, 1, 2), 'ä')]);
+
+				}, event => {
+					// suggest model changed to äbc
+					assert.equal(event.completionModel.items.length, 1);
+					assert.equal(event.completionModel.items[0].suggestion.label, 'äbc');
+
+				});
 			});
 		});
 	});
