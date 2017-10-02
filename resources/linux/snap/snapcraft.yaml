@@ -14,14 +14,6 @@ parts:
   code:
     plugin: dump
     source: .
-    # source: https://az764295.vo.msecnd.net/stable/27492b6bf3acb0775d82d2f87b25a93490673c6d/code_1.16.1-1505406497_amd64.deb
-    # source-type: deb
-    # Correct path to icon.
-    # Remove translated Name[xx]=
-    #  - Due to http://pad.lv/1662456
-    # prepare: |
-    #   sed -i 's|Icon=.code|Icon=/usr/share/pixmaps/code\.png|g' usr/share/applications/code.desktop
-    #   sed -i '/^Name\[/d' usr/share/applications/code.desktop
     after:
       - desktop-gtk2
     stage-packages:
