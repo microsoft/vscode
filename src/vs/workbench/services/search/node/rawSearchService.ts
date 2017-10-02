@@ -14,7 +14,6 @@ gracefulFs.gracefulify(fs);
 import arrays = require('vs/base/common/arrays');
 import { compareByScore } from 'vs/base/common/comparers';
 import objects = require('vs/base/common/objects');
-import scorer = require('vs/base/common/scorer');
 import strings = require('vs/base/common/strings');
 import { PPromise, TPromise } from 'vs/base/common/winjs.base';
 import { FileWalker, Engine as FileSearchEngine } from 'vs/workbench/services/search/node/fileSearch';
@@ -24,6 +23,7 @@ import { Engine as TextSearchEngine } from 'vs/workbench/services/search/node/te
 import { TextSearchWorkerProvider } from 'vs/workbench/services/search/node/textSearchWorkerProvider';
 import { IRawSearchService, IRawSearch, IRawFileMatch, ISerializedFileMatch, ISerializedSearchProgressItem, ISerializedSearchComplete, ISearchEngine, IFileSearchProgressItem, ITelemetryEvent } from './search';
 import { ICachedSearchStats, IProgress } from 'vs/platform/search/common/search';
+import { fuzzyContains } from 'vs/base/common/strings';
 
 export class SearchService implements IRawSearchService {
 
@@ -300,7 +300,7 @@ export class SearchService implements IRawSearchService {
 					let entry = cachedEntries[i];
 
 					// Check if this entry is a match for the search value
-					if (!scorer.matches(entry.relativePath, normalizedSearchValueLowercase)) {
+					if (!fuzzyContains(entry.relativePath, normalizedSearchValueLowercase)) {
 						continue;
 					}
 

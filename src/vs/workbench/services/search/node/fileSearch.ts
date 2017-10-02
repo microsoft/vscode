@@ -14,7 +14,6 @@ import { isEqualOrParent } from 'vs/base/common/paths';
 import { Readable } from 'stream';
 import { TPromise } from 'vs/base/common/winjs.base';
 
-import scorer = require('vs/base/common/scorer');
 import objects = require('vs/base/common/objects');
 import arrays = require('vs/base/common/arrays');
 import platform = require('vs/base/common/platform');
@@ -681,7 +680,7 @@ export class FileWalker {
 				return true; // support the all-matching wildcard
 			}
 
-			return scorer.matches(path, this.normalizedFilePatternLowercase);
+			return strings.fuzzyContains(path, this.normalizedFilePatternLowercase);
 		}
 
 		// No patterns means we match all

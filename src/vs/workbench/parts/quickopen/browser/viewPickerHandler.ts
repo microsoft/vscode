@@ -8,7 +8,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import errors = require('vs/base/common/errors');
 import strings = require('vs/base/common/strings');
-import scorer = require('vs/base/common/scorer');
 import { Mode, IEntryRunContext, IAutoFocus, IQuickNavigateConfiguration, IModel } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenModel, QuickOpenEntryGroup, QuickOpenEntry } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenHandler, QuickOpenAction } from 'vs/workbench/browser/quickopen';
@@ -83,7 +82,7 @@ export class ViewPickerHandler extends QuickOpenHandler {
 				return true;
 			}
 
-			if (!scorer.matches(e.getLabel(), normalizedSearchValueLowercase) && !scorer.matches(e.getCategory(), normalizedSearchValueLowercase)) {
+			if (!strings.fuzzyContains(normalizedSearchValueLowercase, e.getLabel()) && !strings.fuzzyContains(normalizedSearchValueLowercase, e.getCategory())) {
 				return false;
 			}
 

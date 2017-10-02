@@ -99,6 +99,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	private previousValue = '';
 	private visibilityChangeTimeoutHandle: number;
 	private closeOnFocusLost: boolean;
+	private editorHistoryHandler: EditorHistoryHandler;
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -121,6 +122,8 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		this.mapContextKeyToContext = {};
 
 		this.promisesToCompleteOnHide = [];
+
+		this.editorHistoryHandler = this.instantiationService.createInstance(EditorHistoryHandler);
 
 		this.inQuickOpenMode = new RawContextKey<boolean>('inQuickOpen', false).bindTo(contextKeyService);
 
@@ -717,7 +720,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	}
 
 	private getEditorHistoryWithGroupLabel(): QuickOpenModel {
-		const entries: QuickOpenEntry[] = this.getEditorHistoryEntries();
+		const entries: QuickOpenEntry[] = this.editorHistoryHandler.getResults();
 
 		// Apply label to first entry
 		if (entries.length > 0) {
@@ -815,7 +818,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	private handleDefaultHandler(handler: QuickOpenHandlerDescriptor, value: string, currentResultToken: string): TPromise<void> {
 
 		// Fill in history results if matching
-		const matchingHistoryEntries = this.getEditorHistoryEntries(value);
+		const matchingHistoryEntries = this.editorHistoryHandler.getResults(value);
 		if (matchingHistoryEntries.length > 0) {
 			matchingHistoryEntries[0] = new EditorHistoryEntryGroup(matchingHistoryEntries[0], nls.localize('historyMatches', "recently opened"), false);
 		}
@@ -855,59 +858,6 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 				}
 			});
 		});
-	}
-
-	private getEditorHistoryEntries(searchValue?: string): QuickOpenEntry[] {
-		if (searchValue) {
-			searchValue = searchValue.replace(/ /g, ''); // get rid of all whitespace
-		}
-
-		// Just return all if we are not searching
-		const history = this.historyService.getHistory();
-		if (!searchValue) {
-			return history.map(input => this.instantiationService.createInstance(EditorHistoryEntry, input));
-		}
-
-		const searchInPath = searchValue.indexOf(paths.nativeSep) >= 0;
-
-		const results: QuickOpenEntry[] = [];
-		history.forEach(input => {
-			let resource: URI;
-			if (input instanceof EditorInput) {
-				resource = toResource(input, { filter: ['file', 'untitled'] });
-			} else {
-				resource = (input as IResourceInput).resource;
-			}
-
-			if (!resource) {
-				return; //For now, only support to match on inputs that provide resource information
-			}
-
-			let searchTargetToMatch: string;
-			if (searchInPath) {
-				searchTargetToMatch = labels.getPathLabel(resource, this.contextService);
-			} else if (input instanceof EditorInput) {
-				searchTargetToMatch = input.getName();
-			} else {
-				searchTargetToMatch = paths.basename((input as IResourceInput).resource.fsPath);
-			}
-
-			// Check if this entry is a match for the search value
-			if (!filters.matchesFuzzy(searchValue, searchTargetToMatch)) {
-				return;
-			}
-
-			const entry = this.instantiationService.createInstance(EditorHistoryEntry, input);
-
-			const { labelHighlights, descriptionHighlights } = QuickOpenEntry.highlight(entry, searchValue);
-			entry.setHighlights(labelHighlights, descriptionHighlights);
-
-			results.push(entry);
-		});
-
-		// Sort
-		const normalizedSearchValue = strings.stripWildcards(searchValue.toLowerCase());
-		return results.sort((elementA: EditorHistoryEntry, elementB: EditorHistoryEntry) => QuickOpenEntry.compare(elementA, elementB, normalizedSearchValue));
 	}
 
 	private mergeResults(quickOpenModel: QuickOpenModel, handlerResults: QuickOpenEntry[], groupLabel: string): void {
@@ -1210,6 +1160,69 @@ class PickOpenActionProvider implements IActionProvider {
 
 	public getActionItem(tree: ITree, element: PickOpenEntry, action: Action): BaseActionItem {
 		return null;
+	}
+}
+
+class EditorHistoryHandler {
+
+	constructor(
+		@IHistoryService private historyService: IHistoryService,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
+	) {
+	}
+
+	public getResults(searchValue?: string): QuickOpenEntry[] {
+		if (searchValue) {
+			searchValue = searchValue.replace(/ /g, ''); // get rid of all whitespace
+		}
+
+		// Just return all if we are not searching
+		const history = this.historyService.getHistory();
+		if (!searchValue) {
+			return history.map(input => this.instantiationService.createInstance(EditorHistoryEntry, input));
+		}
+
+		const searchInPath = searchValue.indexOf(paths.nativeSep) >= 0;
+
+		const results: QuickOpenEntry[] = [];
+		history.forEach(input => {
+			let resource: URI;
+			if (input instanceof EditorInput) {
+				resource = toResource(input, { filter: ['file', 'untitled'] });
+			} else {
+				resource = (input as IResourceInput).resource;
+			}
+
+			if (!resource) {
+				return; //For now, only support to match on inputs that provide resource information
+			}
+
+			let searchTargetToMatch: string;
+			if (searchInPath) {
+				searchTargetToMatch = labels.getPathLabel(resource, this.contextService);
+			} else if (input instanceof EditorInput) {
+				searchTargetToMatch = input.getName();
+			} else {
+				searchTargetToMatch = paths.basename((input as IResourceInput).resource.fsPath);
+			}
+
+			// Check if this entry is a match for the search value
+			if (!filters.matchesFuzzy(searchValue, searchTargetToMatch)) {
+				return;
+			}
+
+			const entry = this.instantiationService.createInstance(EditorHistoryEntry, input);
+
+			const { labelHighlights, descriptionHighlights } = QuickOpenEntry.highlight(entry, searchValue);
+			entry.setHighlights(labelHighlights, descriptionHighlights);
+
+			results.push(entry);
+		});
+
+		// Sort
+		const normalizedSearchValue = strings.stripWildcards(searchValue.toLowerCase());
+		return results.sort((elementA: EditorHistoryEntry, elementB: EditorHistoryEntry) => QuickOpenEntry.compare(elementA, elementB, normalizedSearchValue));
 	}
 }
 

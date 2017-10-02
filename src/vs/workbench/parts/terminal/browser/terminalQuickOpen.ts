@@ -6,7 +6,6 @@
 
 import nls = require('vs/nls');
 import strings = require('vs/base/common/strings');
-import scorer = require('vs/base/common/scorer');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Mode, IEntryRunContext, IAutoFocus, IQuickNavigateConfiguration, IModel } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenModel, QuickOpenEntry } from 'vs/base/parts/quickopen/browser/quickOpenModel';
@@ -97,7 +96,7 @@ export class TerminalPickerHandler extends QuickOpenHandler {
 				return true;
 			}
 
-			if (!scorer.matches(e.getLabel(), normalizedSearchValueLowercase)) {
+			if (!strings.fuzzyContains(normalizedSearchValueLowercase, e.getLabel())) {
 				return false;
 			}
 

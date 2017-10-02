@@ -7,7 +7,6 @@
 import { PPromise, TPromise } from 'vs/base/common/winjs.base';
 import uri from 'vs/base/common/uri';
 import objects = require('vs/base/common/objects');
-import scorer = require('vs/base/common/scorer');
 import strings = require('vs/base/common/strings');
 import { getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client, IIPCOptions } from 'vs/base/parts/ipc/node/ipc.cp';
@@ -192,7 +191,7 @@ export class SearchService implements ISearchService {
 				return false; // if we match on file pattern, we have to ignore non file resources
 			}
 
-			if (!scorer.matches(resource.fsPath, strings.stripWildcards(query.filePattern).toLowerCase())) {
+			if (!strings.fuzzyContains(resource.fsPath, strings.stripWildcards(query.filePattern).toLowerCase())) {
 				return false;
 			}
 		}
