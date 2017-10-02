@@ -27,7 +27,7 @@ import { VIEWLET_ID, FileOnDiskContentProvider } from 'vs/workbench/parts/files/
 import labels = require('vs/base/common/labels');
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService, IFileStat } from 'vs/platform/files/common/files';
-import { toResource, IEditorIdentifier, EditorInput } from 'vs/workbench/common/editor';
+import { toResource, IEditorIdentifier } from 'vs/workbench/common/editor';
 import { FileStat, Model, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerModel';
 import { ExplorerView } from 'vs/workbench/parts/files/browser/views/explorerView';
 import { ExplorerViewlet } from 'vs/workbench/parts/files/browser/explorerViewlet';
@@ -35,10 +35,10 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { IQuickOpenService, IFilePickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { Position, IResourceInput, IEditorInput, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
+import { Position, IResourceInput, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature2, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -1183,47 +1183,32 @@ export class GlobalCompareResourcesAction extends Action {
 			// Keep as resource to compare
 			globalResourceToCompare = activeResource;
 
-			// Pick another entry from history
-			interface IHistoryPickEntry extends IFilePickOpenEntry {
-				input: IEditorInput | IResourceInput;
+			// Use show for pick without open
+			// Allow history and file pick with filter
+			return this.quickOpenService.show(null, {
+				openOnSelection: false,
+				historyFilter: { resourceType: ['file', 'untitled'], exclude: [globalResourceToCompare.toString()] },
+				inputPlaceHolder: nls.localize('selectFileForCompare', "Select a file to compare with ...")
 			}
+			).then(pick => {
+				// We can only compare file resources
+				if (typeof pick !== 'boolean' && pick.getResource() !== undefined) {
 
-			const history = this.historyService.getHistory();
-			const picks: IHistoryPickEntry[] = history.map(input => {
-				let resource: URI;
-				let label: string;
-				let description: string;
+					const resolvedPickResource = pick.getResource();
+					const fileCompareError = nls.localize('unableToFileToCompare', "The selected file can not be compared with '{0}'.", paths.basename(globalResourceToCompare.fsPath));
+					if (resolvedPickResource === null) {
+						this.messageService.show(Severity.Info, fileCompareError);
+						return void 0;
+					}
 
-				if (input instanceof EditorInput) {
-					resource = toResource(input);
-				} else {
-					resource = (input as IResourceInput).resource;
-				}
-
-				// Cannot compare file with self - exclude active file
-				if (!!resource && resource.toString() === globalResourceToCompare.toString()) {
-					return void 0;
-				}
-
-				if (!resource) {
-					return void 0; // only support to compare with files and untitled
-				}
-
-				label = paths.basename(resource.fsPath);
-				description = labels.getPathLabel(resources.dirname(resource), this.contextService, this.environmentService);
-
-				return <IHistoryPickEntry>{ input, resource, label, description };
-			}).filter(p => !!p);
-
-			return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickHistory', "Select a previously opened file to compare with"), autoFocus: { autoFocusFirstEntry: true }, matchOnDescription: true }).then(pick => {
-				if (pick) {
-					const compareAction = this.instantiationService.createInstance(CompareResourcesAction, pick.resource, null);
+					const compareAction = this.instantiationService.createInstance(CompareResourcesAction, resolvedPickResource, null);
 					if (compareAction._isEnabled()) {
 						compareAction.run().done(() => compareAction.dispose());
 					} else {
-						this.messageService.show(Severity.Info, nls.localize('unableToFileToCompare', "The selected file can not be compared with '{0}'.", paths.basename(globalResourceToCompare.fsPath)));
+						this.messageService.show(Severity.Info, fileCompareError);
 					}
 				}
+				return void 0;
 			});
 		} else {
 			this.messageService.show(Severity.Info, nls.localize('openFileToCompare', "Open a file first to compare it with another file."));

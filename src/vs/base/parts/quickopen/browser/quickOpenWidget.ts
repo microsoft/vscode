@@ -60,6 +60,7 @@ export interface IShowOptions {
 	quickNavigateConfiguration?: IQuickNavigateConfiguration;
 	autoFocus?: IAutoFocus;
 	inputSelection?: IRange;
+	openOnSelection?: boolean;
 }
 
 export interface IQuickOpenUsageLogger {
@@ -113,6 +114,8 @@ export class QuickOpenWidget implements IModelProvider {
 	private callbacks: IQuickOpenCallbacks;
 	private toUnbind: IDisposable[];
 	private quickNavigateConfiguration: IQuickNavigateConfiguration;
+	private openOnSelection: boolean;
+	private selectedPick: any;
 	private container: HTMLElement;
 	private treeElement: HTMLElement;
 	private inputElement: HTMLElement;
@@ -133,6 +136,7 @@ export class QuickOpenWidget implements IModelProvider {
 		mixin(this.styles, defaultStyles, false);
 		this.usageLogger = usageLogger;
 		this.model = null;
+		this.selectedPick = null;
 	}
 
 	public getElement(): Builder {
@@ -145,6 +149,10 @@ export class QuickOpenWidget implements IModelProvider {
 
 	public setCallbacks(callbacks: IQuickOpenCallbacks): void {
 		this.callbacks = callbacks;
+	}
+
+	public getSelectedPick(): any {
+		return this.selectedPick;
 	}
 
 	public create(): HTMLElement {
@@ -218,7 +226,14 @@ export class QuickOpenWidget implements IModelProvider {
 
 						const focus = this.tree.getFocus();
 						if (focus) {
-							this.elementSelected(focus, e, shouldOpenInBackground ? Mode.OPEN_IN_BACKGROUND : Mode.OPEN);
+							var mode: Mode;
+							if (this.openOnSelection === false) {
+								mode = Mode.PICK;
+							} else {
+								mode = shouldOpenInBackground ? Mode.OPEN_IN_BACKGROUND : Mode.OPEN;
+							}
+							this.elementSelected(focus, e, mode);
+
 						}
 					}
 				});
@@ -518,13 +533,20 @@ export class QuickOpenWidget implements IModelProvider {
 	private elementSelected(value: any, event?: any, preferredMode?: Mode): void {
 		let hide = true;
 
-		// Trigger open of element on selection
+		// Trigger open or pick of element on selection
 		if (this.isVisible()) {
-			let mode = preferredMode || Mode.OPEN;
+			// Save selected object for return to client
+			this.selectedPick = value;
+			// Skip open if pick mode
+			if (preferredMode === Mode.PICK) {
+				hide = true;
+			} else {
+				let mode = preferredMode || Mode.OPEN;
 
-			const context: IEntryRunContext = { event, keymods: this.extractKeyMods(event), quickNavigateConfiguration: this.quickNavigateConfiguration };
+				const context: IEntryRunContext = { event, keymods: this.extractKeyMods(event), quickNavigateConfiguration: this.quickNavigateConfiguration };
 
-			hide = this.model.runner.run(value, mode, context);
+				hide = this.model.runner.run(value, mode, context);
+			}
 		}
 
 		// add telemetry when an item is accepted, logging the index of the item in the list and the length of the list
@@ -560,6 +582,9 @@ export class QuickOpenWidget implements IModelProvider {
 		this.visible = true;
 		this.isLoosingFocus = false;
 		this.quickNavigateConfiguration = options ? options.quickNavigateConfiguration : void 0;
+
+		// Option to pick instead of open
+		this.openOnSelection = (options && (options.openOnSelection !== undefined)) ? options.openOnSelection : true;
 
 		// Adjust UI for quick navigate mode
 		if (this.quickNavigateConfiguration) {
@@ -821,6 +846,9 @@ export class QuickOpenWidget implements IModelProvider {
 		if (this.callbacks.onHide) {
 			this.callbacks.onHide(reason);
 		}
+
+		// Clear selected pick
+		this.selectedPick = null;
 	}
 
 	public getQuickNavigateConfiguration(): IQuickNavigateConfiguration {

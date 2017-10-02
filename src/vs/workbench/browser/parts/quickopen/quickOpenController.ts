@@ -99,6 +99,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	private previousValue = '';
 	private visibilityChangeTimeoutHandle: number;
 	private closeOnFocusLost: boolean;
+	private openOnSelection: boolean;
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -538,13 +539,23 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		}, 100 /* to prevent flashing, we accumulate visibility changes over a timeout of 100ms */);
 	}
 
-	public show(prefix?: string, options?: IShowOptions): TPromise<void> {
+	public show(prefix?: string, options?: IShowOptions): TPromise<any> {
 		let quickNavigateConfiguration = options ? options.quickNavigateConfiguration : void 0;
 		let inputSelection = options ? options.inputSelection : void 0;
 
+		// Options to allow pack but not open, history filter, input placeholder
+		let inputPlaceHolder = options ? options.inputPlaceHolder : void 0;
+		this.openOnSelection = (options && (options.openOnSelection !== undefined)) ? options.openOnSelection : true;
+		let historyFilter = options ? options.historyFilter : { resourceType: [], exclude: [] };
+
+		// Enable pick return, can be several object types
+		var selectedShowPick: any;
+		selectedShowPick = null;
+
 		this.previousValue = prefix;
 
-		const promiseCompletedOnHide = new TPromise<void>(c => {
+		// Allow any object return type for pick mode
+		const promiseCompletedOnHide = new TPromise<any>(c => {
 			this.promisesToCompleteOnHide.push(c);
 		});
 
@@ -564,19 +575,31 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		this.resolveHandler(handlerDescriptor)
 			.done(null, errors.onUnexpectedError);
 
+		// Input prompt option
+		if (!inputPlaceHolder) {
+			inputPlaceHolder = this.hasHandler(HELP_PREFIX) ? nls.localize('quickOpenInput', "Type '?' to get help on the actions you can take from here") : '';
+		}
+
 		// Create upon first open
 		if (!this.quickOpenWidget) {
 			this.quickOpenWidget = new QuickOpenWidget(
 				withElementById(this.partService.getWorkbenchElementId()).getHTMLElement(),
 				{
-					onOk: () => { /* ignore */ },
+					onOk: () => { // Capture and return pick option
+						if (!this.openOnSelection) {
+							selectedShowPick = this.quickOpenWidget.getSelectedPick();
+							// Shift off first promise, this is the top level return
+							const showPickPromise = this.promisesToCompleteOnHide.shift();
+							showPickPromise(selectedShowPick);
+						}
+					},
 					onCancel: () => { /* ignore */ },
 					onType: (value: string) => this.onType(value || ''),
 					onShow: () => this.handleOnShow(false),
 					onHide: (reason) => this.handleOnHide(false, reason),
 					onFocusLost: () => !this.closeOnFocusLost
 				}, {
-					inputPlaceHolder: this.hasHandler(HELP_PREFIX) ? nls.localize('quickOpenInput', "Type '?' to get help on the actions you can take from here") : '',
+					inputPlaceHolder: inputPlaceHolder,
 					keyboardSupport: false
 				},
 				this.telemetryService
@@ -587,6 +610,8 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 			this.toUnbind.push(this.listService.register(this.quickOpenWidget.getTree()));
 			DOM.addClass(quickOpenContainer, 'show-file-icons');
 			this.positionQuickOpenWidget();
+		} else { // Update input placeholder
+			this.quickOpenWidget.setPlaceHolder(inputPlaceHolder);
 		}
 
 		// Layout
@@ -599,7 +624,33 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 			if (prefix) {
 				this.quickOpenWidget.show(prefix, { quickNavigateConfiguration, inputSelection });
 			} else {
-				const editorHistory = this.getEditorHistoryWithGroupLabel();
+				let editorHistory = this.getEditorHistoryWithGroupLabel();
+
+				// Apply history filter (include scheme types, exclude resource names)
+				if (!!historyFilter) {
+					editorHistory.entries = editorHistory.entries.filter((entry, index) => {
+						let resource = entry.getResource();
+
+						// Filter schemes
+						if (historyFilter.resourceType.length > 0) {
+							if (resource === null) {
+								return false;
+							}
+							if (historyFilter.resourceType.indexOf(resource.scheme) === -1) {
+								return false;
+							}
+						}
+						// Filter out excluded resource names or labels
+						if (historyFilter.exclude.length > 0) {
+							let resourceName = (resource === null) ? entry.getLabel() : resource.toString();
+							if (historyFilter.exclude.indexOf(resourceName) >= 0) {
+								return false;
+							}
+						}
+						return true;
+					});
+				}
+
 				if (editorHistory.getEntries().length < 2) {
 					quickNavigateConfiguration = null; // If no entries can be shown, default to normal quick open mode
 				}
@@ -616,7 +667,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 				const registry = Registry.as<IQuickOpenRegistry>(Extensions.Quickopen);
 				this.setQuickOpenContextKey(registry.getDefaultQuickOpenHandler().contextKey);
 
-				this.quickOpenWidget.show(editorHistory, { quickNavigateConfiguration, autoFocus, inputSelection });
+				this.quickOpenWidget.show(editorHistory, { quickNavigateConfiguration, autoFocus, inputSelection, openOnSelection: this.openOnSelection });
 			}
 		}
 
