@@ -157,7 +157,7 @@ async function publish(commit: string, quality: string, platform: string, type: 
 
 	console.log('Publishing...');
 	console.log('Quality:', quality);
-	console.log('Platforn:', platform);
+	console.log('Platform:', platform);
 	console.log('Type:', type);
 	console.log('Name:', name);
 	console.log('Version:', version);
