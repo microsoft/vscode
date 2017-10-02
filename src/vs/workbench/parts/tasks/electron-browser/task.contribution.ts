@@ -5,10 +5,10 @@
 'use strict';
 
 import 'vs/css!./media/task.contribution';
-import 'vs/workbench/parts/tasks/browser/taskQuickOpen';
 
 import * as nls from 'vs/nls';
 
+import { QuickOpenHandler } from 'vs/workbench/parts/tasks/browser/taskQuickOpen';
 import { TPromise } from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
 import * as Objects from 'vs/base/common/objects';
@@ -2428,8 +2428,8 @@ const tasksPickerContextKey = 'inTasksPicker';
 
 quickOpenRegistry.registerQuickOpenHandler(
 	new QuickOpenHandlerDescriptor(
-		'vs/workbench/parts/tasks/browser/taskQuickOpen',
-		'QuickOpenHandler',
+		QuickOpenHandler,
+		QuickOpenHandler.ID,
 		'task ',
 		tasksPickerContextKey,
 		nls.localize('quickOpen.task', "Run Task")

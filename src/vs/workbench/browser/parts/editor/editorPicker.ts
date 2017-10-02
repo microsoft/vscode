@@ -220,12 +220,16 @@ export abstract class EditorGroupPicker extends BaseEditorPicker {
 
 export class GroupOnePicker extends EditorGroupPicker {
 
+	public static readonly ID = 'workbench.picker.editors.one';
+
 	protected getPosition(): Position {
 		return Position.ONE;
 	}
 }
 
 export class GroupTwoPicker extends EditorGroupPicker {
+
+	public static readonly ID = 'workbench.picker.editors.two';
 
 	protected getPosition(): Position {
 		return Position.TWO;
@@ -234,12 +238,16 @@ export class GroupTwoPicker extends EditorGroupPicker {
 
 export class GroupThreePicker extends EditorGroupPicker {
 
+	public static readonly ID = 'workbench.picker.editors.three';
+
 	protected getPosition(): Position {
 		return Position.THREE;
 	}
 }
 
 export class AllEditorsPicker extends BaseEditorPicker {
+
+	public static readonly ID = 'workbench.picker.editors';
 
 	protected getEditorEntries(): EditorPickerEntry[] {
 		const entries: EditorPickerEntry[] = [];

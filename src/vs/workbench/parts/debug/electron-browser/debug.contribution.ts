@@ -40,6 +40,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import URI from 'vs/base/common/uri';
 import { DebugViewlet } from 'vs/workbench/parts/debug/browser/debugViewlet';
 import { Repl } from 'vs/workbench/parts/debug/electron-browser/repl';
+import { DebugQuickOpenHandler } from 'vs/workbench/parts/debug/browser/debugQuickOpen';
 
 class OpenDebugViewletAction extends ToggleViewletAction {
 	public static ID = VIEWLET_ID;
@@ -137,8 +138,8 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(SelectAndStartAction, 
 // Register Quick Open
 (<IQuickOpenRegistry>Registry.as(QuickOpenExtensions.Quickopen)).registerQuickOpenHandler(
 	new QuickOpenHandlerDescriptor(
-		'vs/workbench/parts/debug/browser/debugQuickOpen',
-		'DebugQuickOpenHandler',
+		DebugQuickOpenHandler,
+		DebugQuickOpenHandler.ID,
 		'debug ',
 		'inLaunchConfigurationsPicker',
 		nls.localize('debugCommands', "Debug Configuration")

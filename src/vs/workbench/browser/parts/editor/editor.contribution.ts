@@ -40,6 +40,7 @@ import { getQuickNavigateHandler, inQuickOpenContext } from 'vs/workbench/browse
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { isMacintosh } from 'vs/base/common/platform';
+import { GroupOnePicker, GroupTwoPicker, GroupThreePicker, AllEditorsPicker } from 'vs/workbench/browser/parts/editor/editorPicker';
 
 // Register String Editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -262,8 +263,8 @@ const editorPickerContext = ContextKeyExpr.and(inQuickOpenContext, ContextKeyExp
 
 Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpenHandler(
 	new QuickOpenHandlerDescriptor(
-		'vs/workbench/browser/parts/editor/editorPicker',
-		'GroupOnePicker',
+		GroupOnePicker,
+		GroupOnePicker.ID,
 		NAVIGATE_IN_GROUP_ONE_PREFIX,
 		editorPickerContextKey,
 		[
@@ -288,8 +289,8 @@ Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpen
 
 Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpenHandler(
 	new QuickOpenHandlerDescriptor(
-		'vs/workbench/browser/parts/editor/editorPicker',
-		'GroupTwoPicker',
+		GroupTwoPicker,
+		GroupTwoPicker.ID,
 		NAVIGATE_IN_GROUP_TWO_PREFIX,
 		editorPickerContextKey,
 		[]
@@ -298,8 +299,8 @@ Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpen
 
 Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpenHandler(
 	new QuickOpenHandlerDescriptor(
-		'vs/workbench/browser/parts/editor/editorPicker',
-		'GroupThreePicker',
+		GroupThreePicker,
+		GroupThreePicker.ID,
 		NAVIGATE_IN_GROUP_THREE_PREFIX,
 		editorPickerContextKey,
 		[]
@@ -308,8 +309,8 @@ Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpen
 
 Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpenHandler(
 	new QuickOpenHandlerDescriptor(
-		'vs/workbench/browser/parts/editor/editorPicker',
-		'AllEditorsPicker',
+		AllEditorsPicker,
+		AllEditorsPicker.ID,
 		NAVIGATE_ALL_EDITORS_GROUP_PREFIX,
 		editorPickerContextKey,
 		[

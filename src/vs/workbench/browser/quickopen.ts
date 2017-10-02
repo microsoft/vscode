@@ -20,7 +20,8 @@ import { EditorOptions, EditorInput } from 'vs/workbench/common/editor';
 import { IResourceInput, IEditorInput, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
-import { AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 
 export interface IWorkbenchQuickOpenConfiguration {
 	workbench: {
@@ -128,7 +129,7 @@ export interface QuickOpenHandlerHelpEntry {
 /**
  * A lightweight descriptor of a quick open handler.
  */
-export class QuickOpenHandlerDescriptor extends AsyncDescriptor<QuickOpenHandler> {
+export class QuickOpenHandlerDescriptor extends SyncDescriptor<QuickOpenHandler> {
 	public prefix: string;
 	public description: string;
 	public contextKey: string;
@@ -138,12 +139,12 @@ export class QuickOpenHandlerDescriptor extends AsyncDescriptor<QuickOpenHandler
 
 	private id: string;
 
-	constructor(moduleId: string, ctorName: string, prefix: string, contextKey: string, description: string, instantProgress?: boolean);
-	constructor(moduleId: string, ctorName: string, prefix: string, contextKey: string, helpEntries: QuickOpenHandlerHelpEntry[], instantProgress?: boolean);
-	constructor(moduleId: string, ctorName: string, prefix: string, contextKey: string, param: any, instantProgress: boolean = false) {
-		super(moduleId, ctorName);
+	constructor(ctor: IConstructorSignature0<QuickOpenHandler>, id: string, prefix: string, contextKey: string, description: string, instantProgress?: boolean);
+	constructor(ctor: IConstructorSignature0<QuickOpenHandler>, id: string, prefix: string, contextKey: string, helpEntries: QuickOpenHandlerHelpEntry[], instantProgress?: boolean);
+	constructor(ctor: IConstructorSignature0<QuickOpenHandler>, id: string, prefix: string, contextKey: string, param: any, instantProgress: boolean = false) {
+		super(ctor);
 
-		this.id = moduleId + ctorName;
+		this.id = id;
 		this.prefix = prefix;
 		this.contextKey = contextKey;
 		this.instantProgress = instantProgress;

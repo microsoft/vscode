@@ -39,6 +39,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { KeymapExtensions, BetterMergeDisabled } from 'vs/workbench/parts/extensions/electron-browser/extensionsUtils';
 import { adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IEditorRegistry } from 'vs/workbench/common/editor';
+import { GalleryExtensionsHandler, ExtensionsHandler } from 'vs/workbench/parts/extensions/browser/extensionsQuickOpen';
 
 // Singletons
 registerSingleton(IExtensionGalleryService, ExtensionGalleryService);
@@ -56,8 +57,8 @@ Registry.as<IOutputChannelRegistry>(OutputExtensions.OutputChannels)
 // Quickopen
 Registry.as<IQuickOpenRegistry>(Extensions.Quickopen).registerQuickOpenHandler(
 	new QuickOpenHandlerDescriptor(
-		'vs/workbench/parts/extensions/browser/extensionsQuickOpen',
-		'ExtensionsHandler',
+		ExtensionsHandler,
+		ExtensionsHandler.ID,
 		'ext ',
 		null,
 		localize('extensionsCommands', "Manage Extensions"),
@@ -67,8 +68,8 @@ Registry.as<IQuickOpenRegistry>(Extensions.Quickopen).registerQuickOpenHandler(
 
 Registry.as<IQuickOpenRegistry>(Extensions.Quickopen).registerQuickOpenHandler(
 	new QuickOpenHandlerDescriptor(
-		'vs/workbench/parts/extensions/browser/extensionsQuickOpen',
-		'GalleryExtensionsHandler',
+		GalleryExtensionsHandler,
+		GalleryExtensionsHandler.ID,
 		'ext install ',
 		null,
 		localize('galleryExtensionsCommands', "Install Gallery Extensions"),
