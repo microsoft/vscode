@@ -33,6 +33,7 @@ import { QUICKOPEN_ACTION_ID, getQuickNavigateHandler } from 'vs/workbench/brows
 import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs/workbench/browser/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { TogglePanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
 
 const quickOpenRegistry = (<IQuickOpenRegistry>Registry.as(QuickOpenExtensions.Quickopen));
 
@@ -120,11 +121,12 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('terminal.integrated.fontFamily', "Controls the font family of the terminal, this defaults to editor.fontFamily's value."),
 			'type': 'string'
 		},
-		'terminal.integrated.fontLigatures': {
-			'description': nls.localize('terminal.integrated.fontLigatures', "Controls whether font ligatures are enabled in the terminal."),
-			'type': 'boolean',
-			'default': false
-		},
+		// TODO: Support font ligatures
+		// 'terminal.integrated.fontLigatures': {
+		// 	'description': nls.localize('terminal.integrated.fontLigatures', "Controls whether font ligatures are enabled in the terminal."),
+		// 	'type': 'boolean',
+		// 	'default': false
+		// },
 		'terminal.integrated.fontSize': {
 			'description': nls.localize('terminal.integrated.fontSize', "Controls the font size in pixels of the terminal."),
 			'type': 'number',
@@ -133,13 +135,13 @@ configurationRegistry.registerConfiguration({
 		'terminal.integrated.lineHeight': {
 			'description': nls.localize('terminal.integrated.lineHeight', "Controls the line height of the terminal, this number is multipled by the terminal font size to get the actual line-height in pixels."),
 			'type': 'number',
-			'default': 1.2
+			'default': 1
 		},
-		'terminal.integrated.enableBold': {
-			'type': 'boolean',
-			'description': nls.localize('terminal.integrated.enableBold', "Whether to enable bold text within the terminal, this requires support from the terminal shell."),
-			'default': true
-		},
+		// 'terminal.integrated.enableBold': {
+		// 	'type': 'boolean',
+		// 	'description': nls.localize('terminal.integrated.enableBold', "Whether to enable bold text within the terminal, this requires support from the terminal shell."),
+		// 	'default': true
+		// },
 		'terminal.integrated.cursorBlinking': {
 			'description': nls.localize('terminal.integrated.cursorBlinking', "Controls whether the terminal cursor blinks."),
 			'type': 'boolean',
@@ -229,6 +231,7 @@ configurationRegistry.registerConfiguration({
 				NavigateLeftAction.ID,
 				DeleteWordLeftTerminalAction.ID,
 				DeleteWordRightTerminalAction.ID,
+				TogglePanelAction.ID,
 				'workbench.action.quickOpenView'
 			].sort()
 		},
@@ -340,7 +343,7 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusTerminalFin
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Focus Find Widget', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(HideTerminalFindWidgetAction, HideTerminalFindWidgetAction.ID, HideTerminalFindWidgetAction.LABEL, {
 	primary: KeyCode.Escape,
-	secondary: [KeyCode.Shift | KeyCode.Escape]
+	secondary: [KeyMod.Shift | KeyCode.Escape]
 }, ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE)), 'Terminal: Hide Find Widget', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowNextFindTermTerminalFindWidgetAction, ShowNextFindTermTerminalFindWidgetAction.ID, ShowNextFindTermTerminalFindWidgetAction.LABEL, {
 	primary: KeyMod.Alt | KeyCode.DownArrow

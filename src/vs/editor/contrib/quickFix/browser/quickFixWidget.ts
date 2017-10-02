@@ -54,7 +54,8 @@ export class QuickFixContextMenu {
 				return at;
 			},
 			getActions: () => actions,
-			onHide: () => { this._visible = false; }
+			onHide: () => { this._visible = false; },
+			autoSelectFirstItem: true
 		});
 	}
 

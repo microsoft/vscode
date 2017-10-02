@@ -7,35 +7,154 @@
 
 declare module 'vscode' {
 
-	export interface OpenDialogOptions {
-		defaultResource?: Uri;
-		openLabel?: string;
-		openFiles?: boolean;
-		openFolders?: boolean;
-		openMany?: boolean;
-	}
-
-	export interface SaveDialogOptions {
-		defaultResource?: Uri;
-		saveLabel?: string;
-	}
-
 	export namespace window {
-		export function showOpenDialog(options: OpenDialogOptions): Thenable<Uri[]>;
-		export function showSaveDialog(options: SaveDialogOptions): Thenable<Uri>;
+
+		/**
+		 * Shows a selection list of [workspace folders](#workspace.workspaceFolders) to pick from.
+		 * Returns `undefined` if no folder is open.
+		 *
+		 * @param options Configures the behavior of the workspace folder list.
+		 * @return A promise that resolves to the workspace folder or `undefined`.
+		 */
+		export function showWorkspaceFolderPick(options?: WorkspaceFolderPickOptions): Thenable<WorkspaceFolder | undefined>;
+	}
+
+	/**
+	 * Options to configure the behaviour of the [workspace folder](#WorkspaceFolder) pick UI.
+	 */
+	export interface WorkspaceFolderPickOptions {
+
+		/**
+		 * An optional string to show as place holder in the input box to guide the user what to pick on.
+		 */
+		placeHolder?: string;
+
+		/**
+		 * Set to `true` to keep the picker open when focus moves to another part of the editor or to another window.
+		 */
+		ignoreFocusOut?: boolean;
+	}
+
+
+	// export enum FileErrorCodes {
+	// 	/**
+	// 	 * Not owner.
+	// 	 */
+	// 	EPERM = 1,
+	// 	/**
+	// 	 * No such file or directory.
+	// 	 */
+	// 	ENOENT = 2,
+	// 	/**
+	// 	 * I/O error.
+	// 	 */
+	// 	EIO = 5,
+	// 	/**
+	// 	 * Permission denied.
+	// 	 */
+	// 	EACCES = 13,
+	// 	/**
+	// 	 * File exists.
+	// 	 */
+	// 	EEXIST = 17,
+	// 	/**
+	// 	 * Not a directory.
+	// 	 */
+	// 	ENOTDIR = 20,
+	// 	/**
+	// 	 * Is a directory.
+	// 	 */
+	// 	EISDIR = 21,
+	// 	/**
+	// 	 *  File too large.
+	// 	 */
+	// 	EFBIG = 27,
+	// 	/**
+	// 	 * No space left on device.
+	// 	 */
+	// 	ENOSPC = 28,
+	// 	/**
+	// 	 * Directory is not empty.
+	// 	 */
+	// 	ENOTEMPTY = 66,
+	// 	/**
+	// 	 * Invalid file handle.
+	// 	 */
+	// 	ESTALE = 70,
+	// 	/**
+	// 	 * Illegal NFS file handle.
+	// 	 */
+	// 	EBADHANDLE = 10001,
+	// }
+
+	export enum FileChangeType {
+		Updated = 0,
+		Added = 1,
+		Deleted = 2
+	}
+
+	export interface FileChange {
+		type: FileChangeType;
+		resource: Uri;
+	}
+
+	export enum FileType {
+		File = 0,
+		Dir = 1,
+		Symlink = 2
+	}
+
+	export interface FileStat {
+		id: number | string;
+		mtime: number;
+		// atime: number;
+		size: number;
+		type: FileType;
 	}
 
 	// todo@joh discover files etc
 	export interface FileSystemProvider {
-		// todo@joh -> added, deleted, renamed, changed
-		onDidChange: Event<Uri>;
 
-		resolveContents(resource: Uri): string | Thenable<string>;
-		writeContents(resource: Uri, contents: string): void | Thenable<void>;
+		onDidChange?: Event<FileChange[]>;
 
-		// -- search
-		// todo@joh - extract into its own provider?
-		findFiles(query: string, progress: Progress<Uri>, token?: CancellationToken): Thenable<void>;
+		root: Uri;
+
+		// more...
+		//
+		utimes(resource: Uri, mtime: number, atime: number): Thenable<FileStat>;
+
+		stat(resource: Uri): Thenable<FileStat>;
+
+		read(resource: Uri, offset: number, length: number, progress: Progress<Uint8Array>): Thenable<number>;
+
+		// todo@remote
+		// offset - byte offset to start
+		// count - number of bytes to write
+		// Thenable<number> - number of bytes actually written
+		write(resource: Uri, content: Uint8Array): Thenable<void>;
+
+		// todo@remote
+		// Thenable<FileStat>
+		move(resource: Uri, target: Uri): Thenable<FileStat>;
+
+		// todo@remote
+		// helps with performance bigly
+		// copy?(from: Uri, to: Uri): Thenable<void>;
+
+		// todo@remote
+		// Thenable<FileStat>
+		mkdir(resource: Uri): Thenable<FileStat>;
+
+		readdir(resource: Uri): Thenable<[Uri, FileStat][]>;
+
+		// todo@remote
+		// ? merge both
+		// ? recursive del
+		rmdir(resource: Uri): Thenable<void>;
+		unlink(resource: Uri): Thenable<void>;
+
+		// todo@remote
+		// create(resource: Uri): Thenable<FileStat>;
 	}
 
 	export namespace workspace {
@@ -102,76 +221,12 @@ declare module 'vscode' {
 		readonly alpha: number;
 
 		constructor(red: number, green: number, blue: number, alpha: number);
-
-		/**
-		 * Creates a color from the HSLA space.
-		 *
-		 * @param hue The hue component in the range [0-1].
-		 * @param saturation The saturation component in the range [0-1].
-		 * @param luminance The luminance component in the range [0-1].
-		 * @param alpha The alpha component in the range [0-1].
-		 */
-		static fromHSLA(hue: number, saturation: number, luminance: number, alpha: number): Color;
-
-		/**
-		 * Creates a color by from a hex string. Supported formats are: #RRGGBB, #RRGGBBAA, #RGB, #RGBA.
-		 * <code>null</code> is returned if the string does not match one of the supported formats.
-		 * @param hex a string to parse
-		 */
-		static fromHex(hex: string): Color | null;
 	}
-
-	/**
-	 * A color format is either a single format or a combination of two
-	 * formats: an opaque one and a transparent one. The format itself
-	 * is a string representation of how the color can be formatted. It
-	 * supports the use of placeholders, similar to how snippets work.
-	 * Each placeholder, surrounded by curly braces `{}`, requires a
-	 * variable name and can optionally specify a number format and range
-	 * for that variable's value.
-	 *
-	 * Supported variables:
-	 *  - `red`
-	 *  - `green`
-	 *  - `blue`
-	 *  - `hue`
-	 *  - `saturation`
-	 *  - `luminance`
-	 *  - `alpha`
-	 *
-	 * Supported number formats:
-	 *  - `f`, float with 2 decimal points. This is the default format. Default range is `[0-1]`.
-	 *  - `Xf`, float with `X` decimal points. Default range is `[0-1]`.
-	 *  - `d`, decimal. Default range is `[0-255]`.
-	 *  - `x`, `X`, hexadecimal. Default range is `[00-FF]`.
-	 *
-	 * The default number format is float. The default number range is `[0-1]`.
-	 *
-	 * As an example, take the color `Color(1, 0.5, 0, 1)`. Here's how
-	 * different formats would format it:
-	 *
-	 *  - CSS RGB
-	 *   - Format: `rgb({red:d[0-255]}, {green:d[0-255]}, {blue:d[0-255]})`
-	 *   - Output: `rgb(255, 127, 0)`
-	 *
-	 *  - CSS RGBA
-	 *   - Format: `rgba({red:d[0-255]}, {green:d[0-255]}, {blue:d[0-255]}, {alpha})`
-	 *   - Output: `rgba(255, 127, 0, 1)`
-	 *
-	 *  - CSS Hexadecimal
-	 *   - Format: `#{red:X}{green:X}{blue:X}`
-	 *   - Output: `#FF7F00`
-	 *
-	 *  - CSS HSLA
-	 *   - Format: `hsla({hue:d[0-360]}, {saturation:d[0-100]}%, {luminance:d[0-100]}%, {alpha})`
-	 *   - Output: `hsla(30, 100%, 50%, 1)`
-	 */
-	export type ColorFormat = string | { opaque: string, transparent: string };
 
 	/**
 	 * Represents a color range from a document.
 	 */
-	export class ColorRange {
+	export class ColorInformation {
 
 		/**
 		 * The range in the document where this color appers.
@@ -184,18 +239,40 @@ declare module 'vscode' {
 		color: Color;
 
 		/**
-		 * The other formats this color range supports the color to be formatted in.
-		 */
-		availableFormats: ColorFormat[];
-
-		/**
 		 * Creates a new color range.
 		 *
 		 * @param range The range the color appears in. Must not be empty.
 		 * @param color The value of the color.
 		 * @param format The format in which this color is currently formatted.
 		 */
-		constructor(range: Range, color: Color, availableFormats: ColorFormat[]);
+		constructor(range: Range, color: Color);
+	}
+
+	export class ColorPresentation {
+		/**
+		 * The label of this color presentation. It will be shown on the color
+		 * picker header. By default this is also the text that is inserted when selecting
+		 * this color presentation.
+		 */
+		label: string;
+		/**
+		 * An [edit](#TextEdit) which is applied to a document when selecting
+		 * this presentation for the color.  When `falsy` the [label](#ColorPresentation.label)
+		 * is used.
+		 */
+		textEdit?: TextEdit;
+		/**
+		 * An optional array of additional [text edits](#TextEdit) that are applied when
+		 * selecting this color presentation. Edits must not overlap with the main [edit](#ColorPresentation.textEdit) nor with themselves.
+		 */
+		additionalTextEdits?: TextEdit[];
+
+		/**
+		 * Creates a new color presentation.
+		 *
+		 * @param label The label of this color presentation.
+		 */
+		constructor(label: string);
 	}
 
 	/**
@@ -208,10 +285,14 @@ declare module 'vscode' {
 		 *
 		 * @param document The document in which the command was invoked.
 		 * @param token A cancellation token.
-		 * @return An array of [color ranges](#ColorRange) or a thenable that resolves to such. The lack of a result
+		 * @return An array of [color informations](#ColorInformation) or a thenable that resolves to such. The lack of a result
 		 * can be signaled by returning `undefined`, `null`, or an empty array.
 		 */
-		provideDocumentColors(document: TextDocument, token: CancellationToken): ProviderResult<ColorRange[]>;
+		provideDocumentColors(document: TextDocument, token: CancellationToken): ProviderResult<ColorInformation[]>;
+		/**
+		 * Provide representations for a color.
+		 */
+		provideColorPresentations(document: TextDocument, colorInfo: ColorInformation, token: CancellationToken): ProviderResult<ColorPresentation[]>;
 	}
 
 	export namespace languages {

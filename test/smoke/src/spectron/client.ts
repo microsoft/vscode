@@ -12,9 +12,10 @@ import { SpectronApplication } from './application';
  */
 export class SpectronClient {
 
-	private readonly retryCount = 50;
+	// waitFor calls should not take more than 200 * 100 = 20 seconds to complete, excluding
+	// the time it takes for the actual retry call to complete
+	private readonly retryCount = 200;
 	private readonly retryDuration = 100; // in milliseconds
-	private captureIndex = 1;
 
 	constructor(public spectron: Application, private application: SpectronApplication) {
 	}
@@ -34,6 +35,12 @@ export class SpectronClient {
 	public async waitForText(selector: string, text?: string, accept?: (result: string) => boolean): Promise<string> {
 		accept = accept ? accept : result => text !== void 0 ? text === result : !!result;
 		return this.waitFor(() => this.spectron.client.getText(selector), accept, `getText with selector ${selector}`);
+	}
+
+	public async waitForTextContent(selector: string, textContent?: string, accept?: (result: string) => boolean): Promise<string> {
+		accept = accept ? accept : (result => textContent !== void 0 ? textContent === result : !!result);
+		const fn = async () => await this.spectron.client.selectorExecute(selector, div => Array.isArray(div) ? div[0].textContent : div.textContent);
+		return this.waitFor(fn, s => accept!(typeof s === 'string' ? s : ''), `getTextContent with selector ${selector}`);
 	}
 
 	public async waitForValue(selector: string, value?: string, accept?: (result: string) => boolean): Promise<any> {
@@ -87,13 +94,21 @@ export class SpectronClient {
 			.then(result => result.value);
 	}
 
+	public async waitForVisibility(selector: string, accept: (result: boolean) => boolean = result => result): Promise<any> {
+		return this.waitFor(() => this.spectron.client.isVisible(selector), accept, `isVisible with selector ${selector}`);
+	}
+
 	public async element(selector: string): Promise<Element> {
 		return this.spectron.client.element(selector)
 			.then(result => result.value);
 	}
 
-	public async waitForActiveElement(accept: (result: Element | undefined) => boolean = result => !!result): Promise<any> {
-		return this.waitFor<RawResult<Element>>(() => this.spectron.client.elementActive(), result => accept(result ? result.value : void 0), `elementActive`);
+	public async waitForActiveElement(selector: string): Promise<any> {
+		return this.waitFor(
+			() => this.spectron.client.execute(s => document.activeElement.matches(s), selector),
+			r => r.value,
+			`wait for active element: ${selector}`
+		);
 	}
 
 	public async waitForAttribute(selector: string, attribute: string, accept: (result: string) => boolean = result => !!result): Promise<string> {
@@ -136,28 +151,41 @@ export class SpectronClient {
 		return this.spectron.client.getTitle();
 	}
 
-	public async waitFor<T>(func: () => T | Promise<T | undefined>, accept?: (result: T) => boolean | Promise<boolean>, timeoutMessage?: string): Promise<T>;
-	public async waitFor<T>(func: () => T | Promise<T>, accept: (result: T) => boolean | Promise<boolean> = result => !!result, timeoutMessage?: string): Promise<T> {
-		let trial = 1;
+	private running = false;
+	public async waitFor<T>(func: () => T | Promise<T | undefined>, accept?: (result: T) => boolean | Promise<boolean>, timeoutMessage?: string, retryCount?: number): Promise<T>;
+	public async waitFor<T>(func: () => T | Promise<T>, accept: (result: T) => boolean | Promise<boolean> = result => !!result, timeoutMessage?: string, retryCount?: number): Promise<T> {
+		if (this.running) {
+			throw new Error('Not allowed to run nested waitFor calls!');
+		}
 
-		while (true) {
-			if (trial > this.retryCount) {
-				await this.application.screenshot.capture(timeoutMessage || ('' + this.captureIndex++));
-				throw new Error(`${timeoutMessage}: Timed out after ${this.retryCount * this.retryDuration} seconds.`);
+		this.running = true;
+
+		try {
+			let trial = 1;
+			retryCount = typeof retryCount === 'number' ? retryCount : this.retryCount;
+
+			while (true) {
+				if (trial > retryCount) {
+					await this.application.screenCapturer.capture('timeout');
+					throw new Error(`${timeoutMessage}: Timed out after ${(retryCount * this.retryDuration) / 1000} seconds.`);
+				}
+
+				let result;
+				try {
+					result = await func();
+				} catch (e) {
+					// console.log(e);
+				}
+
+				if (accept(result)) {
+					return result;
+				}
+
+				await new Promise(resolve => setTimeout(resolve, this.retryDuration));
+				trial++;
 			}
-
-			let result;
-			try {
-				result = await func();
-			} catch (e) {
-			}
-
-			if (accept(result)) {
-				return result;
-			}
-
-			await new Promise(resolve => setTimeout(resolve, this.retryDuration));
-			trial++;
+		} finally {
+			this.running = false;
 		}
 	}
 

@@ -93,9 +93,9 @@ export function getOutOfWorkspaceEditorResources(editorGroupService: IEditorGrou
 	editorGroupService.getStacksModel().groups.forEach(group => {
 		const editors = group.getEditors();
 		editors.forEach(editor => {
-			const fileResource = toResource(editor, { supportSideBySide: true, filter: 'file' });
-			if (fileResource && !contextService.isInsideWorkspace(fileResource)) {
-				resources.push(fileResource);
+			const resource = toResource(editor, { supportSideBySide: true });
+			if (resource && !contextService.isInsideWorkspace(resource)) {
+				resources.push(resource);
 			}
 		});
 	});

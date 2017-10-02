@@ -14,9 +14,13 @@ import pkg from 'vs/platform/node/package';
 import * as fs from 'fs';
 import * as paths from 'path';
 import * as os from 'os';
+import { whenDeleted } from 'vs/base/node/pfs';
 
 function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
-	return argv['list-extensions'] || !!argv['install-extension'] || !!argv['uninstall-extension'];
+	return !!argv['install-source']
+		|| !!argv['list-extensions']
+		|| !!argv['install-extension']
+		|| !!argv['uninstall-extension'];
 }
 
 interface IMainCli {
@@ -105,14 +109,7 @@ export function main(argv: string[]): TPromise<void> {
 				child.once('exit', () => c(null));
 
 				// Complete when wait marker file is deleted
-				const interval = setInterval(() => {
-					fs.exists(waitMarkerFilePath, exists => {
-						if (!exists) {
-							clearInterval(interval);
-							c(null);
-						}
-					});
-				}, 1000);
+				whenDeleted(waitMarkerFilePath).done(c, c);
 			});
 		}
 	}

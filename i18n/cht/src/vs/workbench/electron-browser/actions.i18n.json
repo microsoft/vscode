@@ -42,5 +42,8 @@
 	"navigateUp": "導覽至 [檢視上方]",
 	"navigateDown": "導覽至 [檢視下方]",
 	"increaseViewSize": "增加目前的檢視大小",
-	"decreaseViewSize": "縮小目前的檢視大小"
+	"decreaseViewSize": "縮小目前的檢視大小",
+	"showPreviousTab": "顯示前一個視窗索引標籤",
+	"showNextWindowTab": "顯示下一個視窗索引標籤",
+	"mergeAllWindowTabs": "合併所有視窗"
 }

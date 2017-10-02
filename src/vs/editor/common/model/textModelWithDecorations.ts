@@ -19,8 +19,9 @@ import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 
 export const ClassName = {
-	EditorWarningDecoration: 'greensquiggly',
-	EditorErrorDecoration: 'redsquiggly'
+	EditorInfoDecoration: 'infosquiggly',
+	EditorWarningDecoration: 'warningsquiggly',
+	EditorErrorDecoration: 'errorsquiggly'
 };
 
 class DecorationsTracker {

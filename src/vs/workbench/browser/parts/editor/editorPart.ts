@@ -20,17 +20,17 @@ import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Scope as MementoScope } from 'vs/workbench/common/memento';
 import { Part } from 'vs/workbench/browser/part';
-import { BaseEditor, EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IEditorRegistry, Extensions as EditorExtensions, EditorInput, EditorOptions, ConfirmResult, IWorkbenchEditorConfiguration, IEditorDescriptor, TextEditorOptions, SideBySideEditorInput, TextCompareEditorVisible, TEXT_DIFF_EDITOR_ID } from 'vs/workbench/common/editor';
+import { BaseEditor, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { IEditorRegistry, EditorInput, EditorOptions, ConfirmResult, IWorkbenchEditorConfiguration, IEditorDescriptor, TextEditorOptions, SideBySideEditorInput, TextCompareEditorVisible, TEXT_DIFF_EDITOR_ID } from 'vs/workbench/common/editor';
 import { EditorGroupsControl, Rochade, IEditorGroupsControl, ProgressState } from 'vs/workbench/browser/parts/editor/editorGroupsControl';
 import { WorkbenchProgressService } from 'vs/workbench/services/progress/browser/progressService';
-import { IEditorGroupService, GroupOrientation, GroupArrangement, ITabOptions, IMoveOptions } from 'vs/workbench/services/group/common/groupService';
+import { IEditorGroupService, GroupOrientation, GroupArrangement, IEditorTabOptions, IMoveOptions } from 'vs/workbench/services/group/common/groupService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorPart } from 'vs/workbench/services/editor/browser/editorService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { Position, POSITIONS, Direction } from 'vs/platform/editor/common/editor';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IMessageService, IMessageWithAction, Severity } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -44,6 +44,7 @@ import { EDITOR_GROUP_BACKGROUND } from 'vs/workbench/common/theme';
 import { createCSSRule } from 'vs/base/browser/dom';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { join } from 'vs/base/common/paths';
+import { isCommonCodeEditor } from 'vs/editor/common/editorCommon';
 
 class ProgressMonitor {
 
@@ -91,7 +92,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	private editorGroupsControl: IEditorGroupsControl;
 	private memento: object;
 	private stacks: EditorStacksModel;
-	private tabOptions: ITabOptions;
+	private tabOptions: IEditorTabOptions;
 	private forceHideTabs: boolean;
 	private doNotFireTabOptionsChanged: boolean;
 	private revealIfOpen: boolean;
@@ -100,7 +101,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	private _onEditorsMoved: Emitter<void>;
 	private _onEditorOpenFail: Emitter<EditorInput>;
 	private _onGroupOrientationChanged: Emitter<void>;
-	private _onTabOptionsChanged: Emitter<ITabOptions>;
+	private _onTabOptionsChanged: Emitter<IEditorTabOptions>;
 
 	private textCompareEditorVisible: IContextKey<boolean>;
 
@@ -134,7 +135,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this._onEditorsMoved = new Emitter<void>();
 		this._onEditorOpenFail = new Emitter<EditorInput>();
 		this._onGroupOrientationChanged = new Emitter<void>();
-		this._onTabOptionsChanged = new Emitter<ITabOptions>();
+		this._onTabOptionsChanged = new Emitter<IEditorTabOptions>();
 
 		this.visibleEditors = [];
 
@@ -159,18 +160,27 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				previewEditors: editorConfig.enablePreview,
 				showIcons: editorConfig.showIcons,
 				showTabs: editorConfig.showTabs,
-				tabCloseButton: editorConfig.tabCloseButton
+				tabCloseButton: editorConfig.tabCloseButton,
+				labelFormat: editorConfig.labelFormat,
 			};
 
 			this.revealIfOpen = editorConfig.revealIfOpen;
 
+			/* __GDPR__
+				"workbenchEditorConfiguration" : {
+					"${include}": [
+						"${IWorkbenchEditorConfiguration}"
+					]
+				}
+			*/
 			this.telemetryService.publicLog('workbenchEditorConfiguration', editorConfig);
 		} else {
 			this.tabOptions = {
 				previewEditors: true,
 				showIcons: false,
 				showTabs: true,
-				tabCloseButton: 'right'
+				tabCloseButton: 'right',
+				labelFormat: 'default',
 			};
 
 			this.revealIfOpen = false;
@@ -221,7 +231,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				previewEditors: newPreviewEditors,
 				showIcons: editorConfig.showIcons,
 				tabCloseButton: editorConfig.tabCloseButton,
-				showTabs: this.forceHideTabs ? false : editorConfig.showTabs
+				showTabs: this.forceHideTabs ? false : editorConfig.showTabs,
+				labelFormat: editorConfig.labelFormat,
 			};
 
 			if (!this.doNotFireTabOptionsChanged && !objects.equals(oldTabOptions, this.tabOptions)) {
@@ -244,10 +255,24 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	}
 
 	private onEditorOpened(identifier: EditorIdentifier): void {
+		/* __GDPR__
+			"editorOpened" : {
+				"${include}": [
+					"${EditorTelemetryDescriptor}"
+				]
+			}
+		*/
 		this.telemetryService.publicLog('editorOpened', identifier.editor.getTelemetryDescriptor());
 	}
 
 	private onEditorClosed(event: EditorCloseEvent): void {
+		/* __GDPR__
+			"editorClosed" : {
+				"${include}": [
+					"${EditorTelemetryDescriptor}"
+				]
+			}
+		*/
 		this.telemetryService.publicLog('editorClosed', event.editor.getTelemetryDescriptor());
 	}
 
@@ -278,11 +303,11 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		return this._onGroupOrientationChanged.event;
 	}
 
-	public get onTabOptionsChanged(): Event<ITabOptions> {
+	public get onTabOptionsChanged(): Event<IEditorTabOptions> {
 		return this._onTabOptionsChanged.event;
 	}
 
-	public getTabOptions(): ITabOptions {
+	public getTabOptions(): IEditorTabOptions {
 		return this.tabOptions;
 	}
 
@@ -315,6 +340,11 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Opened to the side
 		if (position !== Position.ONE) {
+			/* __GDPR__
+				"workbenchSideEditorOpened" : {
+					"position" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
 			this.telemetryService.publicLog('workbenchSideEditorOpened', { position: position });
 		}
 
@@ -1293,6 +1323,20 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				group.unpin(input);
 			});
 		}
+	}
+
+	public invokeWithinEditorContext<T>(fn: (accessor: ServicesAccessor) => T): T {
+		const activeEditor = this.getActiveEditor();
+		if (activeEditor) {
+			const activeEditorControl = activeEditor.getControl();
+			if (isCommonCodeEditor(activeEditorControl)) {
+				return activeEditorControl.invokeWithinContext(fn);
+			}
+
+			return this.editorGroupsControl.getInstantiationService(activeEditor.position).invokeFunction(fn);
+		}
+
+		return this.instantiationService.invokeFunction(fn);
 	}
 
 	public layout(dimension: Dimension): Dimension[] {

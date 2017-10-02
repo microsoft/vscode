@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -e
 
 . ./build/tfs/common/node.sh
@@ -11,13 +11,20 @@ VSO_PAT="$2"
 
 echo "machine monacotools.visualstudio.com password $VSO_PAT" > ~/.netrc
 
+export SCREENSHOTS="$AGENT_BUILDDIRECTORY/smoketest-screenshots"
+
 function configureEnvironment {
 	id -u testuser &>/dev/null || (useradd -m testuser; chpasswd <<< testuser:testpassword)
 	sudo -i -u testuser -- sh -c 'git config --global user.name "VS Code Agent" &&  git config --global user.email "monacotools@microsoft.com"'
+
+	sudo rm -rf $SCREENSHOTS
+	mkdir -p $SCREENSHOTS
+	chown -R testuser $SCREENSHOTS
 }
 
 function runSmokeTest {
-	DISPLAY=:10 sudo -i -u testuser -- sh -c "cd $BUILD_SOURCESDIRECTORY/test/smoke && ./node_modules/.bin/mocha --build $AGENT_BUILDDIRECTORY/VSCode-linux-x64/code-insiders --screenshot"
+	DISPLAY=:10 sudo -i -u testuser -- sh -c "cd $BUILD_SOURCESDIRECTORY/test/smoke && ./node_modules/.bin/mocha --build $AGENT_BUILDDIRECTORY/VSCode-linux-x64/code-insiders --screenshots $SCREENSHOTS"
+	#DISPLAY=:10 sudo -i -u testuser -- sh -c "cd /vso/work/2/s/test/smoke && ./node_modules/.bin/mocha --build /vso/work/2/VSCode-linux-x64/code-insiders --screenshots ~/screenshots"
 }
 
 step "Install dependencies" \

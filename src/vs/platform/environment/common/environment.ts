@@ -40,6 +40,9 @@ export interface ParsedArgs {
 	'enable-proposed-api'?: string | string[];
 	'open-url'?: string | string[];
 	'skip-getting-started'?: boolean;
+	'sticky-quickopen'?: boolean;
+	'export-default-configuration'?: string;
+	'install-source'?: string;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
@@ -100,4 +103,6 @@ export interface IEnvironmentService {
 	sharedIPCHandle: string;
 
 	nodeCachedDataDir: string;
+
+	installSource: string;
 }

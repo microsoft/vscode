@@ -10,6 +10,7 @@
 	"welcomePage.newFile": "Nouveau fichier",
 	"welcomePage.openFolder": "Ouvrir un dossier...",
 	"welcomePage.cloneGitRepository": "Cloner le dépôt Git...",
+	"welcomePage.addWorkspaceFolder": "Ajouter un dossier d’espace de travail...",
 	"welcomePage.recent": "Récent",
 	"welcomePage.moreRecent": "Plus...",
 	"welcomePage.noRecentFolders": "Aucun dossier récent",
@@ -35,8 +36,6 @@
 	"welcomePage.showCommandsDescription": "La palette de commandes ({0}) permet d'accéder rapidement aux commandes pour en rechercher une",
 	"welcomePage.interfaceOverview": "Vue d'ensemble de l'interface",
 	"welcomePage.interfaceOverviewDescription": "Obtenez une superposition visuelle mettant en évidence les principaux composants de l'IU",
-	"welcomePage.deployToAzure": "Déployer des applications sur le cloud",
-	"welcomePage.deployToAzureDescription": "Découvrir comment déployer vos applications Node sur Azure App Service",
 	"welcomePage.interactivePlayground": "Terrain de jeu interactif",
 	"welcomePage.interactivePlaygroundDescription": "Essayez les fonctionnalités essentielles de l'éditeur en suivant une brève procédure pas à pas"
 }

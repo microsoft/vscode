@@ -91,7 +91,7 @@ export class Search extends Viewlet {
 		await this.spectron.client.click(`${Search.SEARCH_VIEWLET_XPATH} .results .monaco-tree-rows>:nth-child(${index}) .filematch .action-label.icon.action-replace-all`);
 	}
 
-	public async getResultText(): Promise<string> {
-		return this.spectron.client.waitForText(`${Search.SEARCH_VIEWLET_XPATH} .messages[aria-hidden="false"] .message>p`);
+	public async waitForResultText(text: string): Promise<void> {
+		await this.spectron.client.waitForText(`${Search.SEARCH_VIEWLET_XPATH} .messages[aria-hidden="false"] .message>p`, text);
 	}
 }

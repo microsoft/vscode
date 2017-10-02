@@ -33,11 +33,11 @@
 	visibility: hidden;
 }
 
-.extensions-viewlet > .extensions .header {
+.extensions-viewlet > .extensions .panel-header {
 	padding-right: 12px;
 }
 
-.extensions-viewlet > .extensions .header > .title {
+.extensions-viewlet > .extensions .panel-header > .title {
 	flex: 1;
 }
 
@@ -94,7 +94,6 @@
 	overflow: hidden;
 	flex: 1;
 	min-width: 0;
-
 }
 
 .extensions-viewlet > .extensions .extension > .details > .header-container > .header > .name {

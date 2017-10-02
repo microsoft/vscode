@@ -18,7 +18,7 @@ import { IExtensionMemento, ExtensionsActivator, ActivatedExtension, IExtensionA
 import { Barrier } from 'vs/workbench/services/extensions/node/barrier';
 import { ExtHostThreadService } from 'vs/workbench/services/thread/node/extHostThreadService';
 import { realpath } from 'fs';
-import { TrieMap } from 'vs/base/common/map';
+import { StringTrieMap } from 'vs/base/common/map';
 
 class ExtensionMemento implements IExtensionMemento {
 
@@ -116,7 +116,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	private readonly _storagePath: ExtensionStoragePath;
 	private readonly _proxy: MainThreadExtensionServiceShape;
 	private _activator: ExtensionsActivator;
-	private _extensionPathIndex: TPromise<TrieMap<IExtensionDescription>>;
+	private _extensionPathIndex: TPromise<StringTrieMap<IExtensionDescription>>;
 	/**
 	 * This class is constructed manually because it is a service, so it doesn't use any ctor injection
 	 */
@@ -204,9 +204,9 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	}
 
 	// create trie to enable fast 'filename -> extension id' look up
-	public getExtensionPathIndex(): TPromise<TrieMap<IExtensionDescription>> {
+	public getExtensionPathIndex(): TPromise<StringTrieMap<IExtensionDescription>> {
 		if (!this._extensionPathIndex) {
-			const trie = new TrieMap<IExtensionDescription>();
+			const trie = new StringTrieMap<IExtensionDescription>();
 			const extensions = this.getAllExtensionDescriptions().map(ext => {
 				if (!ext.main) {
 					return undefined;
@@ -281,6 +281,13 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
 	private _doActivateExtension(extensionDescription: IExtensionDescription, startup: boolean): TPromise<ActivatedExtension> {
 		let event = getTelemetryActivationEvent(extensionDescription);
+		/* __GDPR__
+			"activatePlugin" : {
+				"${include}": [
+					"${TelemetryActivationEvent}"
+				]
+			}
+		*/
 		this._mainThreadTelemetry.$publicLog('activatePlugin', event);
 		if (!extensionDescription.main) {
 			// Treat the extension as being empty => NOT AN ERROR CASE
@@ -380,6 +387,21 @@ function loadCommonJSModule<T>(modulePath: string, activationTimesBuilder: Exten
 }
 
 function getTelemetryActivationEvent(extensionDescription: IExtensionDescription): any {
+	/* __GDPR__FRAGMENT__
+		"TelemetryActivationEvent" : {
+			"id": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+			"name": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+			"publisherDisplayName": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+			"activationEvents": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"isBuiltin": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"${wildcard}": [
+				{
+					"${prefix}": "contribution.",
+					"${classification}": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			]
+		}
+	*/
 	let event = {
 		id: extensionDescription.id,
 		name: extensionDescription.name,

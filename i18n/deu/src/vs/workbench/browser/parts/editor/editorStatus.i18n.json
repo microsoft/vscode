@@ -11,7 +11,6 @@
 	"endOfLineLineFeed": "LF",
 	"endOfLineCarriageReturnLineFeed": "CRLF",
 	"tabFocusModeEnabled": "TAB-TASTE verschiebt Fokus",
-	"screenReaderDetected": "Sprachausgabe erkannt",
 	"screenReaderDetectedExtra": "Wenn Sie keine Sprachausgabe verwenden, ändern Sie die Einstellung \"editor.accessibilitySupport\" in \"Aus\".",
 	"disableTabMode": "Barrierefreiheitsmodus deaktivieren",
 	"gotoLine": "Gehe zu Zeile",
@@ -47,5 +46,7 @@
 	"reopenWithEncoding": "Mit Codierung erneut öffnen",
 	"guessedEncoding": "Vom Inhalt abgeleitet",
 	"pickEncodingForReopen": "Dateicodierung zum erneuten Öffnen der Datei auswählen",
-	"pickEncodingForSave": "Dateicodierung auswählen, mit der gespeichert werden soll"
+	"pickEncodingForSave": "Dateicodierung auswählen, mit der gespeichert werden soll",
+	"screenReaderDetectedExplanation.answerYes": "Ja",
+	"screenReaderDetectedExplanation.answerNo": "Nein"
 }

@@ -42,8 +42,8 @@ function matchAll(pattern: RegExp, text: string): Array<RegExpMatchArray> {
 
 export default class LinkProvider implements vscode.DocumentLinkProvider {
 	private linkPattern = /(\[[^\]]*\]\(\s*?)(((((?=.*\)\)+)|(?=.*\)\]+))[^\s\)]+?)|([^\s]+)))\)/g;
-	private referenceLinkPattern = /(\[([^\]]+)\]\[\s*?)(\w*)\]/g;
-	private definitionPattern = /^([\t ]*\[(\w+)\]:\s*)(\S+)/gm;
+	private referenceLinkPattern = /(\[([^\]]+)\]\[\s*?)([^\s\]]*?)\]/g;
+	private definitionPattern = /^([\t ]*\[([^\]]+)\]:\s*)(\S+)/gm;
 
 	public provideDocumentLinks(
 		document: vscode.TextDocument,

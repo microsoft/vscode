@@ -6,14 +6,16 @@
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction } from 'vs/base/common/actions';
+import * as lifecycle from 'vs/base/common/lifecycle';
+import * as errors from 'vs/base/common/errors';
 import { isFullWidthCharacter, removeAnsiEscapeCodes, endsWith } from 'vs/base/common/strings';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import * as dom from 'vs/base/browser/dom';
 import severity from 'vs/base/common/severity';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { ITree, IAccessibilityProvider, IDataSource, IRenderer, IActionProvider } from 'vs/base/parts/tree/browser/tree';
+import { ITree, IAccessibilityProvider, ContextMenuEvent, IDataSource, IRenderer, IActionProvider } from 'vs/base/parts/tree/browser/tree';
 import { ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
-import { IExpressionContainer, IExpression } from 'vs/workbench/parts/debug/common/debug';
+import { IExpressionContainer, IExpression, IReplElementSource } from 'vs/workbench/parts/debug/common/debug';
 import { Model, OutputNameValueElement, Expression, OutputElement, Variable } from 'vs/workbench/parts/debug/common/debugModel';
 import { renderVariable, renderExpressionValue, IVariableTemplateData, BaseDebugController } from 'vs/workbench/parts/debug/electron-browser/debugViewer';
 import { ClearReplAction } from 'vs/workbench/parts/debug/browser/debugActions';
@@ -63,6 +65,9 @@ interface IExpressionTemplateData {
 interface IValueOutputTemplateData {
 	container: HTMLElement;
 	value: HTMLElement;
+	source: HTMLElement;
+	getReplElementSource(): IReplElementSource;
+	toDispose: lifecycle.IDisposable[];
 }
 
 interface IKeyValueOutputTemplateData {
@@ -174,10 +179,25 @@ export class ReplExpressionsRenderer implements IRenderer {
 		if (templateId === ReplExpressionsRenderer.VALUE_OUTPUT_TEMPLATE_ID) {
 			let data: IValueOutputTemplateData = Object.create(null);
 			dom.addClass(container, 'output');
-			let expression = dom.append(container, $('.output.expression'));
+			let expression = dom.append(container, $('.output.expression.value-and-source'));
 
 			data.container = container;
 			data.value = dom.append(expression, $('span.value'));
+			data.source = dom.append(expression, $('.source'));
+			data.toDispose = [];
+			data.toDispose.push(dom.addDisposableListener(data.source, 'click', e => {
+				e.preventDefault();
+				e.stopPropagation();
+				const source = data.getReplElementSource();
+				if (source) {
+					source.source.openInEditor(this.editorService, {
+						startLineNumber: source.lineNumber,
+						startColumn: source.column,
+						endLineNumber: source.lineNumber,
+						endColumn: source.column
+					}).done(undefined, errors.onUnexpectedError);
+				}
+			}));
 
 			return data;
 		}
@@ -224,7 +244,8 @@ export class ReplExpressionsRenderer implements IRenderer {
 
 		// value
 		dom.clearNode(templateData.value);
-		templateData.value.className = '';
+		// Reset classes to clear ansi decorations since templates are reused
+		templateData.value.className = 'value';
 		let result = this.handleANSIOutput(output.value);
 		if (typeof result === 'string') {
 			renderExpressionValue(result, templateData.value, {
@@ -236,6 +257,9 @@ export class ReplExpressionsRenderer implements IRenderer {
 		}
 
 		dom.addClass(templateData.value, (output.severity === severity.Warning) ? 'warn' : (output.severity === severity.Error) ? 'error' : 'info');
+		templateData.source.textContent = output.sourceData ? `${output.sourceData.source.name}:${output.sourceData.lineNumber}` : '';
+		templateData.source.title = output.sourceData ? output.sourceData.source.uri.toString() : '';
+		templateData.getReplElementSource = () => output.sourceData;
 	}
 
 	private renderOutputNameValue(tree: ITree, output: OutputNameValueElement, templateData: IKeyValueOutputTemplateData): void {
@@ -352,7 +376,9 @@ export class ReplExpressionsRenderer implements IRenderer {
 	}
 
 	public disposeTemplate(tree: ITree, templateId: string, templateData: any): void {
-		// noop
+		if (templateData.toDispose) {
+			lifecycle.dispose(templateData.toDispose);
+		}
 	}
 }
 
@@ -430,5 +456,9 @@ export class ReplExpressionsController extends BaseDebugController {
 		this.lastSelectedString = selection.toString();
 
 		return true;
+	}
+
+	public onContextMenu(tree: ITree, element: any, event: ContextMenuEvent): boolean {
+		return super.onContextMenu(tree, element, event, false);
 	}
 }

@@ -72,6 +72,11 @@ export class ResourceEditorInput extends EditorInput {
 		const descriptor = super.getTelemetryDescriptor();
 		descriptor['resource'] = telemetryURIDescriptor(this.resource);
 
+		/* __GDPR__FRAGMENT__
+			"EditorTelemetryDescriptor" : {
+				"resource": { "${inline}": [ "${URIDescriptor}" ] }
+			}
+		*/
 		return descriptor;
 	}
 

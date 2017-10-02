@@ -5,11 +5,7 @@
 
 import Event, { Emitter } from 'vs/base/common/event';
 import { Color } from 'vs/base/common/color';
-import { IColorFormatter } from 'vs/editor/common/modes';
-
-function canFormat(formatter: IColorFormatter, color: Color): boolean {
-	return color.isOpaque() || formatter.supportsTransparency;
-}
+import { IColorPresentation } from 'vs/editor/common/modes';
 
 export class ColorPickerModel {
 
@@ -26,13 +22,24 @@ export class ColorPickerModel {
 		}
 
 		this._color = color;
-		this._checkFormat();
 		this._onDidChangeColor.fire(color);
 	}
 
-	get formatter(): IColorFormatter { return this.formatters[this.formatterIndex]; }
+	get presentation(): IColorPresentation { return this.colorPresentations[this.presentationIndex]; }
 
-	readonly formatters: IColorFormatter[];
+	private _colorPresentations: IColorPresentation[];
+
+	get colorPresentations(): IColorPresentation[] {
+		return this._colorPresentations;
+	}
+
+	set colorPresentations(colorPresentations: IColorPresentation[]) {
+		this._colorPresentations = colorPresentations;
+		if (this.presentationIndex > colorPresentations.length - 1) {
+			this.presentationIndex = 0;
+		}
+		this._onDidChangePresentation.fire(this.presentation);
+	}
 
 	private _onColorFlushed = new Emitter<Color>();
 	readonly onColorFlushed: Event<Color> = this._onColorFlushed.event;
@@ -40,49 +47,32 @@ export class ColorPickerModel {
 	private _onDidChangeColor = new Emitter<Color>();
 	readonly onDidChangeColor: Event<Color> = this._onDidChangeColor.event;
 
-	private _onDidChangeFormatter = new Emitter<IColorFormatter>();
-	readonly onDidChangeFormatter: Event<IColorFormatter> = this._onDidChangeFormatter.event;
+	private _onDidChangePresentation = new Emitter<IColorPresentation>();
+	readonly onDidChangePresentation: Event<IColorPresentation> = this._onDidChangePresentation.event;
 
-	constructor(color: Color, availableFormatters: IColorFormatter[], private formatterIndex: number) {
-		if (availableFormatters.length === 0) {
-			throw new Error('Color picker needs formats');
-		}
-
-		if (formatterIndex < 0 || formatterIndex >= availableFormatters.length) {
-			throw new Error('Formatter index out of bounds');
-		}
-
+	constructor(color: Color, availableColorPresentations: IColorPresentation[], private presentationIndex: number) {
 		this.originalColor = color;
-		this.formatters = availableFormatters;
 		this._color = color;
+		this._colorPresentations = availableColorPresentations;
 	}
 
-	selectNextColorFormat(): void {
-		const oldFomatterIndex = this.formatterIndex;
-		this._checkFormat((this.formatterIndex + 1) % this.formatters.length);
-		if (oldFomatterIndex !== this.formatterIndex) {
-			this.flushColor();
+	selectNextColorPresentation(): void {
+		this.presentationIndex = (this.presentationIndex + 1) % this.colorPresentations.length;
+		this.flushColor();
+		this._onDidChangePresentation.fire(this.presentation);
+	}
+
+	guessColorPresentation(color: Color, originalText: string): void {
+		for (let i = 0; i < this.colorPresentations.length; i++) {
+			if (originalText === this.colorPresentations[i].label) {
+				this.presentationIndex = i;
+				this._onDidChangePresentation.fire(this.presentation);
+				break;
+			}
 		}
 	}
 
 	flushColor(): void {
 		this._onColorFlushed.fire(this._color);
-	}
-
-	private _checkFormat(start = this.formatterIndex): void {
-		let isNewFormat = this.formatterIndex !== start;
-		this.formatterIndex = start;
-
-		while (!canFormat(this.formatter, this._color)) {
-			this.formatterIndex = (this.formatterIndex + 1) % this.formatters.length;
-
-			if (this.formatterIndex === start) {
-				return;
-			}
-		}
-
-		if (isNewFormat) {
-			this._onDidChangeFormatter.fire(this.formatter);
-		}
 	}
 }

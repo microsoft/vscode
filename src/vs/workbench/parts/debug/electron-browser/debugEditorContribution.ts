@@ -365,7 +365,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 		// First call stack frame that is available is the frame where exception has been thrown
 		const exceptionSf = first(callStack, sf => sf.source && sf.source.available, undefined);
-		if (!exceptionSf) {
+		if (!exceptionSf || exceptionSf !== focusedSf) {
 			this.closeExceptionWidget();
 			return;
 		}
@@ -411,6 +411,9 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	}
 
 	public addLaunchConfiguration(): TPromise<any> {
+		/* __GDPR__
+			"debug/addLaunchConfiguration" : {}
+		*/
 		this.telemetryService.publicLog('debug/addLaunchConfiguration');
 		let configurationsArrayPosition: Position;
 		const model = this.editor.getModel();

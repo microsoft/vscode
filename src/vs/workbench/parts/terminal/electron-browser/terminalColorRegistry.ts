@@ -21,13 +21,11 @@ export const TERMINAL_FOREGROUND_COLOR = registerColor('terminal.foreground', {
 }, nls.localize('terminal.foreground', 'The foreground color of the terminal.'));
 export const TERMINAL_CURSOR_FOREGROUND_COLOR = registerColor('terminalCursor.foreground', null, nls.localize('terminalCursor.foreground', 'The foreground color of the terminal cursor.'));
 export const TERMINAL_CURSOR_BACKGROUND_COLOR = registerColor('terminalCursor.background', null, nls.localize('terminalCursor.background', 'The background color of the terminal cursor. Allows customizing the color of a character overlapped by a block cursor.'));
-
-// TODO: Reinstate, see #28397
-// export const TERMINAL_SELECTION_BACKGROUND_COLOR = registerColor('terminal.selectionBackground', {
-// 	light: '#000',
-// 	dark: '#FFF',
-// 	hc: '#FFF'
-// }, nls.localize('terminal.selectionBackground', 'The selection background color of the terminal.'));
+export const TERMINAL_SELECTION_BACKGROUND_COLOR = registerColor('terminal.selectionBackground', {
+	light: '#00000040',
+	dark: '#FFFFFF40',
+	hc: '#FFFFFF80'
+}, nls.localize('terminal.selectionBackground', 'The selection background color of the terminal.'));
 
 const ansiColorMap = {
 	'terminal.ansiBlack': {

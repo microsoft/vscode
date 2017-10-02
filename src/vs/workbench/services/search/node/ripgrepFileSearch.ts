@@ -6,7 +6,9 @@
 import * as cp from 'child_process';
 import { rgPath } from 'vscode-ripgrep';
 
+import { isMacintosh as isMac } from 'vs/base/common/platform';
 import * as glob from 'vs/base/common/glob';
+import { normalizeNFD } from 'vs/base/common/strings';
 
 import { IFolderSearch } from './search';
 import { foldersToIncludeGlobs, foldersToRgExcludeGlobs } from './ripgrepTextSearch';
@@ -24,14 +26,14 @@ function getRgArgs(folderQuery: IFolderSearch, includePattern: glob.IExpression,
 
 	// includePattern can't have siblingClauses
 	foldersToIncludeGlobs([folderQuery], includePattern, false).forEach(globArg => {
-		args.push('-g', globArg);
+		args.push('-g', isMac ? normalizeNFD(globArg) : globArg);
 	});
 
 	let siblingClauses: glob.IExpression;
 
 	const rgGlobs = foldersToRgExcludeGlobs([folderQuery], excludePattern, undefined, false);
 	rgGlobs.globArgs
-		.forEach(rgGlob => args.push('-g', `!${rgGlob}`));
+		.forEach(rgGlob => args.push('-g', `!${isMac ? normalizeNFD(rgGlob) : rgGlob}`));
 	siblingClauses = rgGlobs.siblingClauses;
 
 	// Don't use .gitignore or .ignore

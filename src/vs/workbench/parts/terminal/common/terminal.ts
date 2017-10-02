@@ -58,12 +58,12 @@ export interface ITerminalConfiguration {
 		osx: string[];
 		windows: string[];
 	};
-	enableBold: boolean;
+	// enableBold: boolean;
 	rightClickCopyPaste: boolean;
 	cursorBlinking: boolean;
 	cursorStyle: string;
 	fontFamily: string;
-	fontLigatures: boolean;
+	// fontLigatures: boolean;
 	fontSize: number;
 	lineHeight: number;
 	setLocaleVariables: boolean;
@@ -91,10 +91,10 @@ export interface ITerminalConfigHelper {
 
 export interface ITerminalFont {
 	fontFamily: string;
-	fontSize: string;
+	fontSize: number;
 	lineHeight: number;
-	charWidth: number;
-	charHeight: number;
+	charWidth?: number;
+	charHeight?: number;
 }
 
 export interface IShellLaunchConfig {
@@ -232,7 +232,7 @@ export interface ITerminalInstance {
 	 * added to the DOM.
 	 * @return The ID of the new matcher, this can be used to deregister.
 	 */
-	registerLinkMatcher(regex: RegExp, handler: (url: string) => void, matchIndex?: number, validationCallback?: (uri: string, element: HTMLElement, callback: (isValid: boolean) => void) => void): number;
+	registerLinkMatcher(regex: RegExp, handler: (url: string) => void, matchIndex?: number, validationCallback?: (uri: string, callback: (isValid: boolean) => void) => void): number;
 
 	/**
 	 * Deregisters a link matcher if it has been registered.

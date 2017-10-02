@@ -1788,6 +1788,11 @@ declare module monaco.editor {
 		 */
 		onDidChangeLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable;
 		/**
+		 * An event emitted when the language configuration associated with the model has changed.
+		 * @event
+		 */
+		onDidChangeLanguageConfiguration(listener: (e: IModelLanguageConfigurationChangedEvent) => void): IDisposable;
+		/**
 		 * An event emitted right before disposing the model.
 		 * @event
 		 */
@@ -2186,6 +2191,11 @@ declare module monaco.editor {
 		 */
 		onDidChangeModelLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable;
 		/**
+		 * An event emitted when the language configuration of the current model has changed.
+		 * @event
+		 */
+		onDidChangeModelLanguageConfiguration(listener: (e: IModelLanguageConfigurationChangedEvent) => void): IDisposable;
+		/**
 		 * An event emitted when the options of the current model has changed.
 		 * @event
 		 */
@@ -2417,6 +2427,12 @@ declare module monaco.editor {
 		 * New language
 		 */
 		readonly newLanguage: string;
+	}
+
+	/**
+	 * An event describing that the language configuration associated with a model has changed.
+	 */
+	export interface IModelLanguageConfigurationChangedEvent {
 	}
 
 	export interface IModelContentChange {
@@ -2681,6 +2697,17 @@ declare module monaco.editor {
 		 * Defaults to 120.
 		 */
 		maxColumn?: number;
+	}
+
+	/**
+	 * Configuration options for editor minimap
+	 */
+	export interface IEditorLightbulbOptions {
+		/**
+		 * Enable the lightbulb code action.
+		 * Defaults to true.
+		 */
+		enabled?: boolean;
 	}
 
 	/**
@@ -3019,6 +3046,10 @@ declare module monaco.editor {
 		 */
 		codeLens?: boolean;
 		/**
+		 * Control the behavior and rendering of the code action lightbulb.
+		 */
+		lightbulb?: IEditorLightbulbOptions;
+		/**
 		 * Enable code folding
 		 * Defaults to true in vscode and to false in monaco-editor.
 		 */
@@ -3296,6 +3327,7 @@ declare module monaco.editor {
 		readonly matchBrackets: boolean;
 		readonly find: InternalEditorFindOptions;
 		readonly colorDecorators: boolean;
+		readonly lightbulbEnabled: boolean;
 	}
 
 	/**
@@ -4141,6 +4173,10 @@ declare module monaco.languages {
 		 */
 		documentation?: string;
 		/**
+		 * A command that should be run upon acceptance of this item.
+		 */
+		command?: Command;
+		/**
 		 * A string that should be used when comparing this item
 		 * with other items. When `falsy` the [label](#CompletionItem.label)
 		 * is used.
@@ -4198,6 +4234,23 @@ declare module monaco.languages {
 	}
 
 	/**
+	 * Contains additional information about the context in which
+	 * [completion provider](#CompletionItemProvider.provideCompletionItems) is triggered.
+	 */
+	export interface CompletionContext {
+		/**
+		 * How the completion was triggered.
+		 */
+		triggerKind: SuggestTriggerKind;
+		/**
+		 * Character that triggered the completion item provider.
+		 *
+		 * `undefined` if provider was not triggered by a character.
+		 */
+		triggerCharacter?: string;
+	}
+
+	/**
 	 * The completion item provider interface defines the contract between extensions and
 	 * the [IntelliSense](https://code.visualstudio.com/docs/editor/intellisense).
 	 *
@@ -4213,7 +4266,7 @@ declare module monaco.languages {
 		/**
 		 * Provide completion items for the given position and document.
 		 */
-		provideCompletionItems(model: editor.IReadOnlyModel, position: Position, token: CancellationToken): CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
+		provideCompletionItems(document: editor.IReadOnlyModel, position: Position, token: CancellationToken, context: CompletionContext): CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
 		/**
 		 * Given a completion item fill in more data, like [doc-comment](#CompletionItem.documentation)
 		 * or [details](#CompletionItem.detail).
@@ -4279,6 +4332,10 @@ declare module monaco.languages {
 		 */
 		surroundingPairs?: IAutoClosingPair[];
 		/**
+		 * The language's folding rules.
+		 */
+		folding?: FoldingRules;
+		/**
 		 * **Deprecated** Do not use.
 		 *
 		 * @deprecated Will be replaced by a better API soon.
@@ -4306,6 +4363,34 @@ declare module monaco.languages {
 		 * If a line matches this pattern, then its indentation should not be changed and it should not be evaluated against the other rules.
 		 */
 		unIndentedLinePattern?: RegExp;
+	}
+
+	/**
+	 * Describes language specific folding markers such as '#region' and '#endregion'.
+	 * The start and end regexes will be tested against the contents of all lines and must be designed efficiently:
+	 * - the regex should start with '^'
+	 * - regexp flags (i, g) are ignored
+	 */
+	export interface FoldingMarkers {
+		start: RegExp;
+		end: RegExp;
+	}
+
+	/**
+	 * Describes folding rules for a language.
+	 */
+	export interface FoldingRules {
+		/**
+		 * Used by the indentation based strategy to decide wheter empty lines belong to the previous or the next block.
+		 * A language adheres to the off-side rule if blocks in that language are expressed by their indentation.
+		 * See [wikipedia](https://en.wikipedia.org/wiki/Off-side_rule) for more information.
+		 * If not set, `false` is used and empty lines belong to the previous block.
+		 */
+		offSide?: boolean;
+		/**
+		 * Region markers used by the language.
+		 */
+		markers?: FoldingMarkers;
 	}
 
 	/**
@@ -4446,6 +4531,14 @@ declare module monaco.languages {
 	}
 
 	/**
+	 * How a suggest provider was triggered.
+	 */
+	export enum SuggestTriggerKind {
+		Invoke = 0,
+		TriggerCharacter = 1,
+	}
+
+	/**
 	 * Represents a parameter of a callable-signature. A parameter can
 	 * have a label and a doc-comment.
 	 */
@@ -4459,7 +4552,7 @@ declare module monaco.languages {
 		 * The human-readable doc-comment of this signature. Will be shown
 		 * in the UI but can be omitted.
 		 */
-		documentation?: string;
+		documentation?: string | IMarkdownString;
 	}
 
 	/**
@@ -4477,7 +4570,7 @@ declare module monaco.languages {
 		 * The human-readable doc-comment of this signature. Will be shown
 		 * in the UI but can be omitted.
 		 */
-		documentation?: string;
+		documentation?: string | IMarkdownString;
 		/**
 		 * The parameters of this signature.
 		 */
@@ -4807,17 +4900,31 @@ declare module monaco.languages {
 	}
 
 	/**
-	 * A color formatter.
+	 * String representations for a color
 	 */
-	export interface IColorFormatter {
-		readonly supportsTransparency: boolean;
-		format(color: IColor): string;
+	export interface IColorPresentation {
+		/**
+		 * The label of this color presentation. It will be shown on the color
+		 * picker header. By default this is also the text that is inserted when selecting
+		 * this color presentation.
+		 */
+		label: string;
+		/**
+		 * An [edit](#TextEdit) which is applied to a document when selecting
+		 * this presentation for the color.
+		 */
+		textEdit?: TextEdit;
+		/**
+		 * An optional array of additional [text edits](#TextEdit) that are applied when
+		 * selecting this color presentation.
+		 */
+		additionalTextEdits?: TextEdit[];
 	}
 
 	/**
 	 * A color range is a range in a text model which represents a color.
 	 */
-	export interface IColorRange {
+	export interface IColorInformation {
 		/**
 		 * The range within the model.
 		 */
@@ -4826,10 +4933,6 @@ declare module monaco.languages {
 		 * The color represented in this range.
 		 */
 		color: IColor;
-		/**
-		 * The available formats for this specific color.
-		 */
-		formatters: IColorFormatter[];
 	}
 
 	/**
@@ -4839,7 +4942,11 @@ declare module monaco.languages {
 		/**
 		 * Provides the color ranges for a specific model.
 		 */
-		provideColorRanges(model: editor.IReadOnlyModel, token: CancellationToken): IColorRange[] | Thenable<IColorRange[]>;
+		provideDocumentColors(model: editor.IReadOnlyModel, token: CancellationToken): IColorInformation[] | Thenable<IColorInformation[]>;
+		/**
+		 * Provide the string representations for a color.
+		 */
+		provideColorPresentations(model: editor.IReadOnlyModel, colorInfo: IColorInformation, token: CancellationToken): IColorPresentation[] | Thenable<IColorPresentation[]>;
 	}
 
 	export interface IResourceEdit {

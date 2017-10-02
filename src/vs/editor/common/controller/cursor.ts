@@ -13,7 +13,6 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection, ISelection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { CursorColumns, CursorConfiguration, EditOperationResult, CursorContext, CursorState, RevealTarget, IColumnSelectData, ICursors } from 'vs/editor/common/controller/cursorCommon';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperations';
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
 import { TextModelEventType, ModelRawContentChangedEvent, RawContentChangedType } from 'vs/editor/common/model/textModelEvents';
@@ -21,7 +20,6 @@ import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import Event, { Emitter } from 'vs/base/common/event';
-// import { ScreenReaderMessageGenerator } from "vs/editor/common/controller/accGenerator";
 
 function containsLineMappingChanged(events: viewEvents.ViewEvent[]): boolean {
 	for (let i = 0, len = events.length; i < len; i++) {
@@ -151,11 +149,10 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 			this.context = new CursorContext(this._configuration, this._model, this._viewModel);
 			this._cursors.updateContext(this.context);
 		};
-		this._register(this._model.onDidChangeLanguage((e) => {
+		this._register(model.onDidChangeLanguage((e) => {
 			updateCursorContext();
 		}));
-		this._register(LanguageConfigurationRegistry.onDidChange(() => {
-			// TODO@Alex: react only if certain supports changed? (and if my model's mode changed)
+		this._register(model.onDidChangeLanguageConfiguration(() => {
 			updateCursorContext();
 		}));
 		this._register(model.onDidChangeOptions(() => {

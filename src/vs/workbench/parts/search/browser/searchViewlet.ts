@@ -41,7 +41,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, IConfirmation } from 'vs/platform/message/common/message';
 import { IProgressService } from 'vs/platform/progress/common/progress';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -103,6 +103,8 @@ export class SearchViewlet extends Viewlet {
 	private selectCurrentMatchEmitter: Emitter<string>;
 	private delayedRefresh: Delayer<void>;
 
+	private searchWithoutFolderMessageBuilder: Builder;
+
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IFileService private fileService: IFileService,
@@ -141,12 +143,19 @@ export class SearchViewlet extends Viewlet {
 
 		this.toUnbind.push(this.fileService.onFileChanges(e => this.onFilesChanged(e)));
 		this.toUnbind.push(this.untitledEditorService.onDidChangeDirty(e => this.onUntitledDidChangeDirty(e)));
+		this.toUnbind.push(this.contextService.onDidChangeWorkbenchState(() => this.onDidChangeWorkbenchState()));
 
 		this.selectCurrentMatchEmitter = new Emitter<string>();
 		debounceEvent(this.selectCurrentMatchEmitter.event, (l, e) => e, 100, /*leading=*/true)
 			(() => this.selectCurrentMatch());
 
 		this.delayedRefresh = new Delayer<void>(250);
+	}
+
+	private onDidChangeWorkbenchState(): void {
+		if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.searchWithoutFolderMessageBuilder) {
+			this.searchWithoutFolderMessageBuilder.hide();
+		}
 	}
 
 	public create(parent: Builder): TPromise<void> {
@@ -239,7 +248,7 @@ export class SearchViewlet extends Viewlet {
 		}).getHTMLElement();
 
 		this.messages = builder.div({ 'class': 'messages' }).hide().clone();
-		if (!this.contextService.hasWorkspace()) {
+		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this.searchWithoutFolderMessage(this.clearMessage());
 		}
 
@@ -458,6 +467,8 @@ export class SearchViewlet extends Viewlet {
 	}
 
 	private clearMessage(): Builder {
+		this.searchWithoutFolderMessageBuilder = void 0;
+
 		return this.messages.empty().show()
 			.asContainer().div({ 'class': 'message' })
 			.asContainer();
@@ -468,8 +479,12 @@ export class SearchViewlet extends Viewlet {
 			this.results = div;
 			this.results.addClass('show-file-icons');
 
-			let dataSource = new SearchDataSource(this.contextService.hasMultiFolderWorkspace());
+			let dataSource = this.instantiationService.createInstance(SearchDataSource);
+			this.toUnbind.push(dataSource);
+
 			let renderer = this.instantiationService.createInstance(SearchRenderer, this.getActionRunner(), this);
+			this.toUnbind.push(renderer);
+
 			let dnd = new SimpleFileResourceDragAndDrop(obj => obj instanceof FileMatch ? obj.resource() : void 0);
 
 			this.tree = new Tree(div.getHTMLElement(), {
@@ -640,10 +655,14 @@ export class SearchViewlet extends Viewlet {
 	public focus(): void {
 		super.focus();
 
-		let selectedText = this.getSearchTextFromEditor();
-		if (selectedText) {
-			this.searchWidget.searchInput.setValue(selectedText);
+		// If focus is inside the search viewlet, don't add the selected text to the search widget
+		if (!(document.activeElement.compareDocumentPosition(this.domNode.getHTMLElement()) & Node.DOCUMENT_POSITION_CONTAINS)) {
+			const selectedText = this.getSearchTextFromEditor();
+			if (selectedText) {
+				this.searchWidget.searchInput.setValue(selectedText);
+			}
 		}
+
 		this.searchWidget.focus();
 	}
 
@@ -749,7 +768,7 @@ export class SearchViewlet extends Viewlet {
 	public clearSearchResults(): void {
 		this.viewModel.searchResult.clear();
 		this.showEmptyStage();
-		if (!this.contextService.hasWorkspace()) {
+		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this.searchWithoutFolderMessage(this.clearMessage());
 		}
 		this.searchWidget.clear();
@@ -834,6 +853,9 @@ export class SearchViewlet extends Viewlet {
 	}
 
 	public toggleQueryDetails(moveFocus?: boolean, show?: boolean, skipLayout?: boolean, reverse?: boolean): void {
+		/* __GDPR__
+			"search.toggleQueryDetails" : {}
+		*/
 		this.telemetryService.publicLog('search.toggleQueryDetails');
 
 		let cls = 'more';
@@ -867,22 +889,22 @@ export class SearchViewlet extends Viewlet {
 	public searchInFolder(resource: URI): void {
 		let folderPath = null;
 		const workspace = this.contextService.getWorkspace();
-		if (workspace && resource) {
-			if (this.contextService.hasFolderWorkspace()) {
+		if (resource) {
+			if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 				// Show relative path from the root for single-root mode
-				folderPath = paths.relative(workspace.roots[0].fsPath, resource.fsPath);
+				folderPath = paths.relative(workspace.folders[0].uri.fsPath, resource.fsPath);
 				if (folderPath && folderPath !== '.') {
 					folderPath = './' + folderPath;
 				}
 			} else {
-				const owningRoot = this.contextService.getRoot(resource);
-				if (owningRoot) {
-					const owningRootBasename = paths.basename(owningRoot.fsPath);
+				const owningFolder = this.contextService.getWorkspaceFolder(resource);
+				if (owningFolder) {
+					const owningRootBasename = paths.basename(owningFolder.uri.fsPath);
 
 					// If this root is the only one with its basename, use a relative ./ path. If there is another, use an absolute path
-					const isUniqueRoot = workspace.roots.filter(root => paths.basename(root.fsPath) === owningRootBasename).length === 1;
-					if (isUniqueRoot) {
-						folderPath = `./${owningRootBasename}/${paths.relative(owningRoot.fsPath, resource.fsPath)}`;
+					const isUniqueFolder = workspace.folders.filter(folder => paths.basename(folder.uri.fsPath) === owningRootBasename).length === 1;
+					if (isUniqueFolder) {
+						folderPath = `./${owningRootBasename}/${paths.relative(owningFolder.uri.fsPath, resource.fsPath)}`;
 					} else {
 						folderPath = resource.fsPath;
 					}
@@ -956,7 +978,7 @@ export class SearchViewlet extends Viewlet {
 			excludePattern,
 			includePattern
 		};
-		const folderResources = this.contextService.hasWorkspace() ? this.contextService.getWorkspace().roots : [];
+		const folderResources = this.contextService.getWorkspace().folders;
 
 		const onQueryValidationError = (err: Error) => {
 			this.searchWidget.searchInput.showMessage({ content: err.message, type: MessageType.ERROR });
@@ -965,7 +987,7 @@ export class SearchViewlet extends Viewlet {
 
 		let query: ISearchQuery;
 		try {
-			query = this.queryBuilder.text(content, folderResources, options);
+			query = this.queryBuilder.text(content, folderResources.map(folder => folder.uri), options);
 		} catch (err) {
 			onQueryValidationError(err);
 			return;
@@ -988,11 +1010,12 @@ export class SearchViewlet extends Viewlet {
 			});
 
 		return TPromise.join(folderQueriesExistP).then(existResults => {
-			const nonExistantFolders = existResults.map((exists, i) => ({ exists, query: query.folderQueries[i] }))
-				.filter(folderExists => !folderExists.exists);
-
-			if (nonExistantFolders.length) {
-				const nonExistantPath = nonExistantFolders[0].query.folder.fsPath;
+			// If no folders exist, show an error message about the first one
+			const existingFolderQueries = query.folderQueries.filter((folderQuery, i) => existResults[i]);
+			if (!query.folderQueries.length || existingFolderQueries.length) {
+				query.folderQueries = existingFolderQueries;
+			} else {
+				const nonExistantPath = query.folderQueries[0].folder.fsPath;
 				const searchPathNotFoundError = nls.localize('searchPathNotFoundError', "Search path not found: {0}", nonExistantPath);
 				return TPromise.wrapError(new Error(searchPathNotFoundError));
 			}
@@ -1119,7 +1142,7 @@ export class SearchViewlet extends Viewlet {
 					}).on(dom.EventType.CLICK, (e: MouseEvent) => {
 						dom.EventHelper.stop(e, false);
 
-						let editorPromise = this.contextService.hasWorkspace() ? this.preferencesService.openWorkspaceSettings() : this.preferencesService.openGlobalSettings();
+						let editorPromise = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? this.preferencesService.openWorkspaceSettings() : this.preferencesService.openGlobalSettings();
 						editorPromise.done(editor => {
 							if (editor instanceof PreferencesEditor) {
 								editor.focusSearch('.exclude');
@@ -1144,7 +1167,7 @@ export class SearchViewlet extends Viewlet {
 					});
 				}
 
-				if (!this.contextService.hasWorkspace()) {
+				if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 					this.searchWithoutFolderMessage(div);
 				}
 			} else {
@@ -1267,7 +1290,9 @@ export class SearchViewlet extends Viewlet {
 	}
 
 	private searchWithoutFolderMessage(div: Builder): void {
-		$(div).p({ text: nls.localize('searchWithoutFolder', "You have not yet opened a folder. Only open files are currently searched - ") })
+		this.searchWithoutFolderMessageBuilder = $(div);
+
+		this.searchWithoutFolderMessageBuilder.p({ text: nls.localize('searchWithoutFolder', "You have not yet opened a folder. Only open files are currently searched - ") })
 			.asContainer().a({
 				'class': ['pointer', 'prominent'],
 				'tabindex': '0',
@@ -1307,6 +1332,9 @@ export class SearchViewlet extends Viewlet {
 			return TPromise.as(true);
 		}
 
+		/* __GDPR__
+			"searchResultChosen" : {}
+		*/
 		this.telemetryService.publicLog('searchResultChosen');
 
 		return (this.viewModel.isReplaceActive() && !!this.viewModel.replaceString) ?

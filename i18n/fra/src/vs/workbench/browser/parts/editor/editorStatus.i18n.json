@@ -11,7 +11,6 @@
 	"endOfLineLineFeed": "LF",
 	"endOfLineCarriageReturnLineFeed": "CRLF",
 	"tabFocusModeEnabled": "La touche Tab déplace le focus",
-	"screenReaderDetected": "Lecteur d'écran détecté",
 	"screenReaderDetectedExtra": "Si vous n'utilisez pas de lecteur d'écran, définissez le paramètre 'editor.accessibilitySupport' sur \"désactivé\".",
 	"disableTabMode": "Désactiver le mode d'accessibilité",
 	"gotoLine": "Atteindre la ligne",
@@ -47,5 +46,9 @@
 	"reopenWithEncoding": "Rouvrir avec l'encodage",
 	"guessedEncoding": "Deviné à partir du contenu",
 	"pickEncodingForReopen": "Sélectionner l'encodage du fichier pour rouvrir le fichier",
-	"pickEncodingForSave": "Sélectionner l'encodage du fichier à utiliser pour l'enregistrement"
+	"pickEncodingForSave": "Sélectionner l'encodage du fichier à utiliser pour l'enregistrement",
+	"screenReaderDetectedExplanation.question": "Est-ce que vous utilisez un lecteur d’écran pour faire fonctionner VS Code ?",
+	"screenReaderDetectedExplanation.answerYes": "Oui",
+	"screenReaderDetectedExplanation.answerNo": "Non",
+	"screenReaderDetectedExplanation.body1": "VS Code est maintenant optimisé pour une utilisation avec un lecteur d’écran."
 }

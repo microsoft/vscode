@@ -137,6 +137,9 @@ export class ReplaceService implements IReplaceService {
 	}
 
 	public openReplacePreview(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
+		/* __GDPR__
+			"replace.open.previewEditor" : {}
+		*/
 		this.telemetryService.publicLog('replace.open.previewEditor');
 		const fileMatch = element instanceof Match ? element.parent() : element;
 

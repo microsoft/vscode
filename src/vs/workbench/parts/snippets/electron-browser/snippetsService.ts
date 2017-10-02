@@ -25,6 +25,7 @@ import { Snippet, ISnippetsService } from 'vs/workbench/parts/snippets/electron-
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/platform/extensions/common/extensionsRegistry';
 import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchModeService';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 
 namespace schema {
 
@@ -35,11 +36,19 @@ namespace schema {
 
 	export function isValidSnippet(extension: IExtensionPointUser<ISnippetsExtensionPoint[]>, snippet: ISnippetsExtensionPoint, modeService: IModeService): boolean {
 		if (!snippet.language || (typeof snippet.language !== 'string') || !modeService.isRegisteredMode(snippet.language)) {
-			extension.collector.error(localize('invalid.language', "Unknown language in `contributes.{0}.language`. Provided value: {0}", String(snippet.language)));
+			extension.collector.error(localize(
+				'invalid.language',
+				"Unknown language in `contributes.{0}.language`. Provided value: {1}",
+				extension.description.name, String(snippet.language)
+			));
 			return false;
 
 		} else if (!snippet.path || (typeof snippet.path !== 'string')) {
-			extension.collector.error(localize('invalid.path.0', "Expected string in `contributes.{0}.path`. Provided value: {0}", String(snippet.path)));
+			extension.collector.error(localize(
+				'invalid.path.0',
+				"Expected string in `contributes.{0}.path`. Provided value: {1}",
+				extension.description.name, String(snippet.path)
+			));
 			return false;
 
 		} else {
@@ -241,7 +250,7 @@ export class SnippetSuggestion implements ISuggestion {
 	label: string;
 	detail: string;
 	insertText: string;
-	documentation: string;
+	documentation: MarkdownString;
 	overwriteBefore: number;
 	sortText: string;
 	noAutoAccept: boolean;
@@ -263,7 +272,7 @@ export class SnippetSuggestion implements ISuggestion {
 	}
 
 	resolve(): this {
-		this.documentation = new SnippetParser().text(this.snippet.codeSnippet);
+		this.documentation = new MarkdownString().appendCodeblock('', new SnippetParser().text(this.snippet.codeSnippet));
 		return this;
 	}
 

@@ -247,6 +247,8 @@ class KeyboardController<T> implements IDisposable {
 		onKeyDown.filter(e => e.keyCode === KeyCode.DownArrow).on(this.onDownArrow, this, this.disposables);
 		onKeyDown.filter(e => e.keyCode === KeyCode.PageUp).on(this.onPageUpArrow, this, this.disposables);
 		onKeyDown.filter(e => e.keyCode === KeyCode.PageDown).on(this.onPageDownArrow, this, this.disposables);
+		onKeyDown.filter(e => (platform.isMacintosh ? e.metaKey : e.ctrlKey) && e.keyCode === KeyCode.KEY_A).on(this.onCtrlA, this, this.disposables);
+		onKeyDown.filter(e => e.keyCode === KeyCode.Escape).on(this.onEscape, this, this.disposables);
 	}
 
 	private onEnter(e: StandardKeyboardEvent): void {
@@ -285,6 +287,20 @@ class KeyboardController<T> implements IDisposable {
 		e.stopPropagation();
 		this.list.focusNextPage();
 		this.list.reveal(this.list.getFocus()[0]);
+		this.view.domNode.focus();
+	}
+
+	private onCtrlA(e: StandardKeyboardEvent): void {
+		e.preventDefault();
+		e.stopPropagation();
+		this.list.setSelection(range(this.list.length));
+		this.view.domNode.focus();
+	}
+
+	private onEscape(e: StandardKeyboardEvent): void {
+		e.preventDefault();
+		e.stopPropagation();
+		this.list.setSelection([]);
 		this.view.domNode.focus();
 	}
 
@@ -348,8 +364,6 @@ class MouseController<T> implements IDisposable {
 	}
 
 	private onMouseDown(e: IListMouseEvent<T>): void {
-		e.preventDefault();
-		e.stopPropagation();
 		this.view.domNode.focus();
 
 		let reference = this.list.getFocus()[0];
@@ -373,9 +387,6 @@ class MouseController<T> implements IDisposable {
 	}
 
 	private onPointer(e: IListMouseEvent<T>): void {
-		e.preventDefault();
-		e.stopPropagation();
-
 		if (isSelectionChangeEvent(e)) {
 			return;
 		}
@@ -388,9 +399,6 @@ class MouseController<T> implements IDisposable {
 	}
 
 	private onDoubleClick(e: IListMouseEvent<T>): void {
-		e.preventDefault();
-		e.stopPropagation();
-
 		if (isSelectionChangeEvent(e)) {
 			return;
 		}
@@ -406,7 +414,7 @@ class MouseController<T> implements IDisposable {
 		if (isSelectionRangeChangeEvent(e) && reference !== undefined) {
 			const min = Math.min(reference, focus);
 			const max = Math.max(reference, focus);
-			const rangeSelection = range(max + 1, min);
+			const rangeSelection = range(min, max + 1);
 			const selection = this.list.getSelection();
 			const contiguousRange = getContiguousRangeContaining(disjunction(selection, [reference]), reference);
 
@@ -696,6 +704,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	set scrollTop(scrollTop: number) {
 		this.view.setScrollTop(scrollTop);
+	}
+
+	domFocus(): void {
+		this.view.domNode.focus();
 	}
 
 	layout(height?: number): void {

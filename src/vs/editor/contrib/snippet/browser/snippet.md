@@ -17,7 +17,7 @@ Placeholders can have choices as values. The syntax is a comma-separated enumera
 Variables
 --
 
-With `$name` or `${name:default}` you can insert the value of a variable. When a variable isn’t set its *default* or the empty string is inserted. When a varibale is unknown (that is, its name isn’t defined) the name of the variable is inserted and it is transformed into a placeholder. The following variables can be used:
+With `$name` or `${name:default}` you can insert the value of a variable. When a variable isn’t set its *default* or the empty string is inserted. When a variable is unknown (that is, its name isn’t defined) the name of the variable is inserted and it is transformed into a placeholder. The following variables can be used:
 
 * `TM_SELECTED_TEXT` The currently selected text or the empty string
 * `TM_CURRENT_LINE` The contents of the current line
@@ -27,6 +27,31 @@ With `$name` or `${name:default}` you can insert the value of a variable. When a
 * `TM_FILENAME` The filename of the current document
 * `TM_DIRECTORY` The direcorty of the current document
 * `TM_FILEPATH` The full file path of the current document
+
+Variable-Transform
+--
+
+Transformations allow to modify the value of a variable before it is being inserted. The definition of a transformation consists of three parts:
+
+1. A regular expression that is matched against the value of a variable, or the empty string when the variable cannot be resolved.
+2. A "format string" that allows to reference matching groups from the regular expression. The format string also for conditional inserts and simple modifications.
+3. Options that are passed to the regular expression
+
+The following sample inserts the name of the current file without its ending, so from `foo.txt` it makes `foo`.
+
+```
+${TM_FILENAME/(.*)\..+$/$1/}
+  |           |         | |
+  |           |         | |-> no options
+  |           |         |
+  |           |         |-> references the contents of the first
+  |           |             capture group
+  |           |
+  |           |-> regex to capture everything before
+  |               the final `.suffix`
+  |
+  |-> resolves to the filename
+```
 
 
 Grammar
@@ -39,7 +64,16 @@ any         ::= tabstop | placeholder | choice | variable | text
 tabstop     ::= '$' int | '${' int '}'
 placeholder ::= '${' int ':' any '}'
 choice      ::= '${' int '|' text (',' text)* '|}'
-variable    ::= '$' var | '${' var }' | '${' var ':' any '}'
+variable    ::= '$' var | '${' var }'
+                | '${' var ':' any '}'
+                | '${' var '/' regex '/' (format | text)+ '/' options '}'
+format      ::= '$' int | '${' int '}'
+                | '${' int ':' '/upcase' | '/downcase' | '/capitalize' '}'
+                | '${' int ':+' if '}'
+                | '${' int ':?' if ':' else '}'
+                | '${' int ':-' else '}' '${' int ':' else '}'
+regex       ::= JavaScript Regular Expression value (ctor-string)
+options     ::= JavaScript Regular Expression option (ctor-options)
 var         ::= [_a-zA-Z] [_a-zA-Z0-9]*
 int         ::= [0-9]+
 text        ::= .*

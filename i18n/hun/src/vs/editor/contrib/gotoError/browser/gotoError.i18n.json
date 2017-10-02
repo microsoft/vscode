@@ -9,5 +9,6 @@
 	"markerAction.previous.label": "Előző hiba vagy figyelmeztetés",
 	"editorMarkerNavigationError": "A szerkesztőablak jelzőnavigációs moduljának színe hiba esetén.",
 	"editorMarkerNavigationWarning": "A szerkesztőablak jelzőnavigációs moduljának színe figyelmeztetés esetén.",
+	"editorMarkerNavigationInfo": "A szerkesztőablak jelzőnavigációs moduljának színe információ esetén.",
 	"editorMarkerNavigationBackground": "A szerkesztőablak jelzőnavigációs moduljának háttérszíne."
 }

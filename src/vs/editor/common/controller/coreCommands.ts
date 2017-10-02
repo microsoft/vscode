@@ -1273,7 +1273,8 @@ export namespace CoreNavigationCommands {
 			const lastAddedCursorIndex = cursors.getLastAddedCursorIndex();
 
 			let newStates = cursors.getAll().slice(0);
-			newStates[lastAddedCursorIndex] = CursorMoveCommands.word(context, newStates[lastAddedCursorIndex], true, args.position);
+			let lastAddedState = newStates[lastAddedCursorIndex];
+			newStates[lastAddedCursorIndex] = CursorMoveCommands.word(context, lastAddedState, lastAddedState.modelState.hasSelection(), args.position);
 
 			context.model.pushStackElement();
 			cursors.setStates(

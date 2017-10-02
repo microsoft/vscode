@@ -27,8 +27,8 @@ export function activate(context): void {
 	//settings.json suggestions
 	context.subscriptions.push(registerSettingsCompletions());
 
-	//extensions.json suggestions
-	context.subscriptions.push(registerExtensionsCompletions());
+	//extensions suggestions
+	context.subscriptions.push(...registerExtensionsCompletions());
 
 	// launch.json decorations
 	context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(editor => updateLaunchJsonDecorations(editor), null, context.subscriptions));
@@ -67,41 +67,67 @@ function registerSettingsCompletions(): vscode.Disposable {
 	});
 }
 
-function registerExtensionsCompletions(): vscode.Disposable {
+interface IExtensionsContent {
+	recommendations: string[];
+}
+
+function registerExtensionsCompletions(): vscode.Disposable[] {
+	return [registerExtensionsCompletionsInExtensionsDocument(), registerExtensionsCompletionsInWorkspaceConfigurationDocument()];
+}
+
+function registerExtensionsCompletionsInExtensionsDocument(): vscode.Disposable {
 	return vscode.languages.registerCompletionItemProvider({ pattern: '**/extensions.json' }, {
 		provideCompletionItems(document, position, token) {
 			const location = getLocation(document.getText(), document.offsetAt(position));
 			const range = document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
 			if (location.path[0] === 'recommendations') {
-				const config = parse(document.getText());
-				const alreadyEnteredExtensions = config && config.recommendations || [];
-				if (Array.isArray(alreadyEnteredExtensions)) {
-					const knownExtensionProposals = vscode.extensions.all.filter(e =>
-						!(e.id.startsWith('vscode.')
-							|| e.id === 'Microsoft.vscode-markdown'
-							|| alreadyEnteredExtensions.indexOf(e.id) > -1));
-					if (knownExtensionProposals.length) {
-						return knownExtensionProposals.map(e => {
-							const item = new vscode.CompletionItem(e.id);
-							const insertText = `"${e.id}"`;
-							item.kind = vscode.CompletionItemKind.Value;
-							item.insertText = insertText;
-							item.range = range;
-							item.filterText = insertText;
-							return item;
-						});
-					} else {
-						const example = new vscode.CompletionItem(localize('exampleExtension', "Example"));
-						example.insertText = '"vscode.csharp"';
-						example.kind = vscode.CompletionItemKind.Value;
-						example.range = range;
-						return [example];
-					}
-				}
+				const extensionsContent = <IExtensionsContent>parse(document.getText());
+				return provideInstalledExtensionProposals(extensionsContent, range);
 			}
 			return [];
 		}
 	});
+}
+
+function registerExtensionsCompletionsInWorkspaceConfigurationDocument(): vscode.Disposable {
+	return vscode.languages.registerCompletionItemProvider({ pattern: '**/*.code-workspace' }, {
+		provideCompletionItems(document, position, token) {
+			const location = getLocation(document.getText(), document.offsetAt(position));
+			const range = document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
+			if (location.path[0] === 'extensions' && location.path[1] === 'recommendations') {
+				const extensionsContent = <IExtensionsContent>parse(document.getText())['extensions'];
+				return provideInstalledExtensionProposals(extensionsContent, range);
+			}
+			return [];
+		}
+	});
+}
+
+function provideInstalledExtensionProposals(extensionsContent: IExtensionsContent, range: vscode.Range): vscode.ProviderResult<vscode.CompletionItem[] | vscode.CompletionList> {
+	const alreadyEnteredExtensions = extensionsContent && extensionsContent.recommendations || [];
+	if (Array.isArray(alreadyEnteredExtensions)) {
+		const knownExtensionProposals = vscode.extensions.all.filter(e =>
+			!(e.id.startsWith('vscode.')
+				|| e.id === 'Microsoft.vscode-markdown'
+				|| alreadyEnteredExtensions.indexOf(e.id) > -1));
+		if (knownExtensionProposals.length) {
+			return knownExtensionProposals.map(e => {
+				const item = new vscode.CompletionItem(e.id);
+				const insertText = `"${e.id}"`;
+				item.kind = vscode.CompletionItemKind.Value;
+				item.insertText = insertText;
+				item.range = range;
+				item.filterText = insertText;
+				return item;
+			});
+		} else {
+			const example = new vscode.CompletionItem(localize('exampleExtension', "Example"));
+			example.insertText = '"vscode.csharp"';
+			example.kind = vscode.CompletionItemKind.Value;
+			example.range = range;
+			return [example];
+		}
+	}
 }
 
 function newSimpleCompletionItem(label: string, range: vscode.Range, description?: string, insertText?: string): vscode.CompletionItem {

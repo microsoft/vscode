@@ -93,7 +93,7 @@ export class ColorExtensionPoint {
 
 				extensionValue.forEach(extension => {
 					if (typeof extension.id !== 'string' || extension.id.length === 0) {
-						collector.error(nls.localize('invalid.id', "'configuration.colors.id' must be defined an can not be empty"));
+						collector.error(nls.localize('invalid.id', "'configuration.colors.id' must be defined and can not be empty"));
 						return;
 					}
 					if (!extension.id.match(colorIdPattern)) {
@@ -101,11 +101,11 @@ export class ColorExtensionPoint {
 						return;
 					}
 					if (typeof extension.description !== 'string' || extension.id.length === 0) {
-						collector.error(nls.localize('invalid.description', "'configuration.colors.description' must be defined an can not be empty"));
+						collector.error(nls.localize('invalid.description', "'configuration.colors.description' must be defined and can not be empty"));
 						return;
 					}
 					let defaults = extension.defaults;
-					if (typeof defaults !== 'object' || typeof defaults.light !== 'string' || typeof defaults.dark !== 'string' || typeof defaults.highContrast !== 'string') {
+					if (!defaults || typeof defaults !== 'object' || typeof defaults.light !== 'string' || typeof defaults.dark !== 'string' || typeof defaults.highContrast !== 'string') {
 						collector.error(nls.localize('invalid.defaults', "'configuration.colors.defaults' must be defined and must contain 'light', 'dark' and 'highContrast'"));
 						return;
 					}

@@ -15,8 +15,8 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IMessageService } from 'vs/platform/message/common/message';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IDebugService, IConfig, IEnablement, CONTEXT_NOT_IN_DEBUG_MODE, CONTEXT_IN_DEBUG_MODE, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution } from 'vs/workbench/parts/debug/common/debug';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IDebugService, ILaunch, IConfig, IEnablement, CONTEXT_NOT_IN_DEBUG_MODE, CONTEXT_IN_DEBUG_MODE, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution } from 'vs/workbench/parts/debug/common/debug';
 import { Expression, Variable, Breakpoint, FunctionBreakpoint } from 'vs/workbench/parts/debug/common/debugModel';
 import { IExtensionsViewlet, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/parts/extensions/common/extensions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -28,19 +28,21 @@ export function registerCommands(): void {
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		handler(accessor: ServicesAccessor, configurationOrName: IConfig | string, folderUri?: uri) {
 			const debugService = accessor.get(IDebugService);
+			const manager = debugService.getConfigurationManager();
 			if (!configurationOrName) {
-				configurationOrName = debugService.getConfigurationManager().selectedName;
+				configurationOrName = manager.selectedName;
 			}
 
-			if (!folderUri) {
-				const selectedLaunch = debugService.getConfigurationManager().selectedLaunch;
-				folderUri = selectedLaunch ? selectedLaunch.workspaceUri : undefined;
+			let launch: ILaunch;
+			if (folderUri) {
+				launch = manager.getLaunches().filter(l => l.workspace.uri.toString() === folderUri.toString()).pop();
 			}
+			const workspace = launch ? launch.workspace : manager.selectedLaunch ? manager.selectedLaunch.workspace : undefined;
 
 			if (typeof configurationOrName === 'string') {
-				debugService.startDebugging(folderUri, configurationOrName);
+				debugService.startDebugging(workspace, configurationOrName);
 			} else {
-				debugService.createProcess(folderUri, configurationOrName);
+				debugService.createProcess(workspace, configurationOrName);
 			}
 		},
 		when: CONTEXT_NOT_IN_DEBUG_MODE,
@@ -204,11 +206,11 @@ export function registerCommands(): void {
 		primary: undefined,
 		handler: (accessor, workspaceUri: string) => {
 			const manager = accessor.get(IDebugService).getConfigurationManager();
-			if (!accessor.get(IWorkspaceContextService).hasWorkspace()) {
+			if (accessor.get(IWorkspaceContextService).getWorkbenchState() === WorkbenchState.EMPTY) {
 				accessor.get(IMessageService).show(severity.Info, nls.localize('noFolderDebugConfig', "Please first open a folder in order to do advanced debug configuration."));
 				return TPromise.as(null);
 			}
-			const launch = manager.getLaunches().filter(l => l.workspaceUri.toString() === workspaceUri).pop() || manager.selectedLaunch;
+			const launch = manager.getLaunches().filter(l => l.workspace.uri.toString() === workspaceUri).pop() || manager.selectedLaunch;
 
 			return launch.openConfigFile(false).done(editor => {
 				if (editor) {

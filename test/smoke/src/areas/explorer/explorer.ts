@@ -10,7 +10,7 @@ import { Viewlet } from '../workbench/viewlet';
 export class Explorer extends Viewlet {
 
 	private static EXPLORER_VIEWLET = 'div[id="workbench.view.explorer"]';
-	private static OPEN_EDITORS_VIEW = `${Explorer.EXPLORER_VIEWLET} .split-view-view:nth-child(1) .title span`;
+	private static OPEN_EDITORS_VIEW = `${Explorer.EXPLORER_VIEWLET} .split-view-view:nth-child(1) .title`;
 
 	constructor(spectron: SpectronApplication) {
 		super(spectron);
@@ -25,14 +25,8 @@ export class Explorer extends Viewlet {
 	}
 
 	public async openFile(fileName: string): Promise<any> {
-		let selector = `div[class="monaco-icon-label file-icon ${fileName}-name-file-icon ${this.getExtensionSelector(fileName)} explorer-item"]`;
-		try {
-			await this.spectron.client.doubleClickAndWait(selector);
-			await this.spectron.client.waitForElement(`.tabs-container div[aria-label="${fileName}, tab"]`);
-			await this.spectron.client.waitForElement(`.monaco-editor.focused`);
-		} catch (e) {
-			return Promise.reject(`Cannot fine ${fileName} in a viewlet.`);
-		}
+		await this.spectron.client.doubleClickAndWait(`div[class="monaco-icon-label file-icon ${fileName}-name-file-icon ${this.getExtensionSelector(fileName)} explorer-item"]`);
+		await this.spectron.workbench.waitForEditorFocus(fileName);
 	}
 
 	public getExtensionSelector(fileName: string): string {

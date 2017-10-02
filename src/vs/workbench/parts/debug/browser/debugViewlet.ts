@@ -9,7 +9,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction } from 'vs/base/common/actions';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { PersistentViewsViewlet } from 'vs/workbench/browser/parts/views/views';
+import { PersistentViewsViewlet } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDebugService, VIEWLET_ID, State } from 'vs/workbench/parts/debug/common/debug';
 import { StartAction, ToggleReplAction, ConfigureAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { StartDebugActionItem } from 'vs/workbench/parts/debug/browser/debugActionItems';
@@ -26,7 +26,6 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 
 export class DebugViewlet extends PersistentViewsViewlet {
 
-	private actions: IAction[];
 	private startDebugActionItem: StartDebugActionItem;
 	private progressRunner: IProgressRunner;
 
@@ -47,18 +46,18 @@ export class DebugViewlet extends PersistentViewsViewlet {
 		this.progressRunner = null;
 
 		this._register(this.debugService.onDidChangeState(state => this.onDebugServiceStateChange(state)));
+		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateTitleArea()));
 	}
 
-	public create(parent: Builder): TPromise<void> {
-		return super.create(parent).then(() => DOM.addClass(this.viewletContainer, 'debug-viewlet'));
+	async create(parent: Builder): TPromise<void> {
+		await super.create(parent);
+
+		const el = parent.getHTMLElement();
+		DOM.addClass(el, 'debug-viewlet');
 	}
 
 	public focus(): void {
 		super.focus();
-
-		if (!this.contextService.hasWorkspace()) {
-			this.views[0].focusBody();
-		}
 
 		if (this.startDebugActionItem) {
 			this.startDebugActionItem.focus();
@@ -66,16 +65,11 @@ export class DebugViewlet extends PersistentViewsViewlet {
 	}
 
 	public getActions(): IAction[] {
-		if (!this.actions) {
-			this.actions = [];
-			this.actions.push(this.instantiationService.createInstance(StartAction, StartAction.ID, StartAction.LABEL));
-			if (this.contextService.hasWorkspace()) {
-				this.actions.push(this.instantiationService.createInstance(ConfigureAction, ConfigureAction.ID, ConfigureAction.LABEL));
-			}
-			this.actions.push(this._register(this.instantiationService.createInstance(ToggleReplAction, ToggleReplAction.ID, ToggleReplAction.LABEL)));
-		}
-
-		return this.actions;
+		const actions = [];
+		actions.push(this.instantiationService.createInstance(StartAction, StartAction.ID, StartAction.LABEL));
+		actions.push(this.instantiationService.createInstance(ConfigureAction, ConfigureAction.ID, ConfigureAction.LABEL));
+		actions.push(this._register(this.instantiationService.createInstance(ToggleReplAction, ToggleReplAction.ID, ToggleReplAction.LABEL)));
+		return actions;
 	}
 
 	public getSecondaryActions(): IAction[] {
@@ -83,7 +77,7 @@ export class DebugViewlet extends PersistentViewsViewlet {
 	}
 
 	public getActionItem(action: IAction): IActionItem {
-		if (action.id === StartAction.ID && this.contextService.hasWorkspace()) {
+		if (action.id === StartAction.ID && !!this.debugService.getConfigurationManager().selectedLaunch) {
 			this.startDebugActionItem = this.instantiationService.createInstance(StartDebugActionItem, null, action);
 			return this.startDebugActionItem;
 		}

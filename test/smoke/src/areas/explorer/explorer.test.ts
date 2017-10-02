@@ -3,33 +3,41 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
 import { SpectronApplication } from '../../spectron/application';
 
 describe('Explorer', () => {
 	let app: SpectronApplication;
-	before(() => { app = new SpectronApplication(); return app.start(); });
+	before(() => { app = new SpectronApplication(); return app.start('Explorer'); });
 	after(() => app.stop());
-	beforeEach(function () { app.createScreenshotCapturer(this.currentTest); });
+	beforeEach(function () { app.screenCapturer.testName = this.currentTest.title; });
 
 	it('quick open search produces correct result', async function () {
+		const expectedNames = [
+			'.eslintrc.json',
+			'tasks.json',
+			'app.js',
+			'index.js',
+			'users.js',
+			'package.json',
+			'jsconfig.json'
+		];
+
 		await app.workbench.quickopen.openQuickOpen();
 		await app.client.type('.js');
-		const elements = await app.workbench.quickopen.getQuickOpenElements();
+		await app.workbench.quickopen.waitForQuickOpenElements(names => expectedNames.every(n => names.some(m => n === m)));
 		await app.client.keys(['Escape', 'NULL']);
-
-		app.screenshot.capture('Quick open result');
-		assert.equal(elements.length, 7, 'There are 7 elements in quick open');
 	});
 
 	it('quick open respects fuzzy matching', async function () {
+		const expectedNames = [
+			'tasks.json',
+			'app.js',
+			'package.json'
+		];
+
 		await app.workbench.quickopen.openQuickOpen();
 		await app.client.type('a.s');
-
-		const elements = await app.workbench.quickopen.getQuickOpenElements();
+		await app.workbench.quickopen.waitForQuickOpenElements(names => expectedNames.every(n => names.some(m => n === m)));
 		await app.client.keys(['Escape', 'NULL']);
-
-		app.screenshot.capture('fuzzy match result');
-		assert.equal(elements.length, 3, 'There are 3 elements in quick open');
 	});
 });

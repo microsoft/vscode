@@ -9,18 +9,15 @@ import { SpectronApplication } from '../../spectron/application';
 
 describe('Editor', () => {
 	let app: SpectronApplication;
-	before(() => { app = new SpectronApplication(); return app.start(); });
+	before(() => { app = new SpectronApplication(); return app.start('Editor'); });
 	after(() => app.stop());
-	beforeEach(function () { app.createScreenshotCapturer(this.currentTest); });
+	beforeEach(function () { app.screenCapturer.testName = this.currentTest.title; });
 
 	it('shows correct quick outline', async function () {
 		await app.workbench.quickopen.openFile('www');
 
-		const outline = await app.workbench.editor.openOutline();
-
-		const symbols = await outline.getQuickOpenElements();
-		await app.screenshot.capture('Javascript Outline result');
-		assert.equal(symbols.length, 12, 'Quick outline elements count does not match to expected.');
+		await app.workbench.editor.openOutline();
+		await app.workbench.quickopen.waitForQuickOpenElements(names => names.length >= 6);
 	});
 
 	it(`finds 'All References' to 'app'`, async function () {
@@ -28,12 +25,8 @@ describe('Editor', () => {
 
 		const references = await app.workbench.editor.findReferences('app', 7);
 
-		const countInTitle = await references.getCountFromTitle();
-		await app.screenshot.capture('References result');
-		assert.equal(countInTitle, 3, 'References count in widget title is not as expected.');
-		const referencesCount = await references.getCount();
-		assert.equal(referencesCount, 3, 'References count in tree is not as expected.');
-
+		await references.waitForReferencesCountInTitle(3);
+		await references.waitForReferencesCount(3);
 		await references.close();
 	});
 
@@ -45,7 +38,7 @@ describe('Editor', () => {
 		await rename.rename('newApp');
 
 		const actual = await app.client.waitForText(selector, 'newApp');
-		await app.screenshot.capture('Rename result');
+		await app.screenCapturer.capture('Rename result');
 		assert.equal(actual, 'newApp');
 	});
 
@@ -70,7 +63,7 @@ describe('Editor', () => {
 
 		await app.workbench.editor.gotoDefinition('express', 11);
 
-		assert.ok(await app.workbench.waitForActiveOpen('index.d.ts'), 'Tab opened when navigating to definition is not as expected.');
+		await app.workbench.waitForActiveTab('index.d.ts');
 	});
 
 	it(`verifies that 'Peek Definition' works`, async function () {
@@ -78,8 +71,6 @@ describe('Editor', () => {
 
 		const peek = await app.workbench.editor.peekDefinition('express', 11);
 
-		const definitionFilename = await peek.getFileNameFromTitle();
-		await app.screenshot.capture('Peek definition result');
-		assert.equal(definitionFilename, 'index.d.ts', 'Peek result is not as expected.');
+		await peek.waitForFile('index.d.ts');
 	});
 });

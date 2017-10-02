@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import { parse, ParseError } from 'vs/base/common/json';
 import { readFile } from 'vs/base/node/pfs';
-import { CharacterPair, LanguageConfiguration, IAutoClosingPair, IAutoClosingPairConditional, IndentationRule, CommentRule } from 'vs/editor/common/modes/languageConfiguration';
+import { CharacterPair, LanguageConfiguration, IAutoClosingPair, IAutoClosingPairConditional, IndentationRule, CommentRule, FoldingRules } from 'vs/editor/common/modes/languageConfiguration';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
@@ -35,6 +35,7 @@ interface ILanguageConfiguration {
 	surroundingPairs?: (CharacterPair | IAutoClosingPair)[];
 	wordPattern?: string | IRegExp;
 	indentationRules?: IIndentationRules;
+	folding?: FoldingRules;
 }
 
 export class LanguageConfigurationFileHandler {
@@ -115,6 +116,15 @@ export class LanguageConfigurationFileHandler {
 			if (indentationRules) {
 				richEditConfig.indentationRules = indentationRules;
 			}
+		}
+
+		if (configuration.folding) {
+			let markers = configuration.folding.markers;
+
+			richEditConfig.folding = {
+				offSide: configuration.folding.offSide,
+				markers: markers ? { start: new RegExp(markers.start), end: new RegExp(markers.end) } : void 0
+			};
 		}
 
 		LanguageConfigurationRegistry.register(languageIdentifier, richEditConfig);
@@ -377,7 +387,32 @@ const schema: IJSONSchema = {
 					}
 				}
 			}
+		},
+		folding: {
+			type: 'object',
+			description: nls.localize('schema.folding', 'The language\'s folding settings.'),
+			properties: {
+				offSide: {
+					type: 'boolean',
+					description: nls.localize('schema.folding.offSide', 'A language adheres to the off-side rule if blocks in that language are expressed by their indentation. If set, empty lines belong to the subsequent block.'),
+				},
+				markers: {
+					type: 'object',
+					description: nls.localize('schema.folding.markers', 'Language specific folding markers such as \'#region\' and \'#endregion\'. The start and end regexes will be tested against the contents of all lines and must be designed efficiently'),
+					properties: {
+						start: {
+							type: 'string',
+							description: nls.localize('schema.folding.markers.start', 'The RegExp pattern for the start marker. The regexp must start with \'^\'.')
+						},
+						end: {
+							type: 'string',
+							description: nls.localize('schema.folding.markers.end', 'The RegExp pattern for the end marker. The regexp must start with \'^\'.')
+						},
+					}
+				}
+			}
 		}
+
 	}
 };
 let schemaRegistry = <IJSONContributionRegistry>Registry.as(Extensions.JSONContribution);

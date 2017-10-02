@@ -65,6 +65,11 @@ export class TelemetryService implements ITelemetryService {
 		if (this._configurationService) {
 			this._updateUserOptIn();
 			this._configurationService.onDidUpdateConfiguration(this._updateUserOptIn, this, this._disposables);
+			/* __GDPR__
+				"optInStatus" : {
+					"optIn" : { "classification": "SystemMetaData", "purpose": "BusinessInsight" }
+				}
+			*/
 			this.publicLog('optInStatus', { optIn: this._userOptIn });
 		}
 	}

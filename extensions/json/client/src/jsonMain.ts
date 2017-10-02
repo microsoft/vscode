@@ -6,19 +6,23 @@
 
 import * as path from 'path';
 
-import { workspace, languages, ExtensionContext, extensions, Uri, TextDocument, ColorRange, Color } from 'vscode';
+import { workspace, languages, ExtensionContext, extensions, Uri, TextDocument, ColorInformation, Color, ColorPresentation } from 'vscode';
 import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
-import { ConfigurationFeature } from 'vscode-languageclient/lib/proposed';
-
-import { DocumentColorRequest } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
+import { ConfigurationFeature } from 'vscode-languageclient/lib/configuration.proposed';
+import { DocumentColorRequest, DocumentColorParams, ColorPresentationParams, ColorPresentationRequest } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
 
 
 import * as nls from 'vscode-nls';
+import { hash } from './utils/hash';
 let localize = nls.loadMessageBundle();
 
 namespace VSCodeContentRequest {
 	export const type: RequestType<string, string, any, any> = new RequestType('vscode/content');
+}
+
+namespace SchemaContentChangeNotification {
+	export const type: NotificationType<string, any> = new NotificationType('json/schemaContent');
 }
 
 export interface ISchemaAssociations {
@@ -56,16 +60,13 @@ interface JSONSchemaSettings {
 	schema?: any;
 }
 
-const ColorFormat_HEX = {
-	opaque: '"#{red:X}{green:X}{blue:X}"',
-	transparent: '"#{red:X}{green:X}{blue:X}{alpha:X}"'
-};
-
 export function activate(context: ExtensionContext) {
+
+	let toDispose = context.subscriptions;
 
 	let packageInfo = getPackageInfo(context);
 	let telemetryReporter: TelemetryReporter = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
-	context.subscriptions.push(telemetryReporter);
+	toDispose.push(telemetryReporter);
 
 	// The server is implemented in node
 	let serverModule = context.asAbsolutePath(path.join('server', 'out', 'jsonServerMain.js'));
@@ -102,6 +103,7 @@ export function activate(context: ExtensionContext) {
 	client.registerFeature(new ConfigurationFeature(client));
 
 	let disposable = client.start();
+	toDispose.push(disposable);
 	client.onReady().then(() => {
 		client.onTelemetry(e => {
 			if (telemetryReporter) {
@@ -119,26 +121,46 @@ export function activate(context: ExtensionContext) {
 			});
 		});
 
+		let handleContentChange = (uri: Uri) => {
+			if (uri.scheme === 'vscode' && uri.authority === 'schemas') {
+				client.sendNotification(SchemaContentChangeNotification.type, uri.toString());
+			}
+		};
+		toDispose.push(workspace.onDidChangeTextDocument(e => handleContentChange(e.document.uri)));
+		toDispose.push(workspace.onDidCloseTextDocument(d => handleContentChange(d.uri)));
+
 		client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context));
 
 		// register color provider
-		context.subscriptions.push(languages.registerColorProvider(documentSelector, {
-			provideDocumentColors(document: TextDocument): Thenable<ColorRange[]> {
-				let params = client.code2ProtocolConverter.asDocumentSymbolParams(document);
+		toDispose.push(languages.registerColorProvider(documentSelector, {
+			provideDocumentColors(document: TextDocument): Thenable<ColorInformation[]> {
+				let params: DocumentColorParams = {
+					textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document)
+				};
 				return client.sendRequest(DocumentColorRequest.type, params).then(symbols => {
 					return symbols.map(symbol => {
 						let range = client.protocol2CodeConverter.asRange(symbol.range);
-						let color = new Color(symbol.color.red * 255, symbol.color.green * 255, symbol.color.blue * 255, symbol.color.alpha);
-						return new ColorRange(range, color, [ColorFormat_HEX]);
+						let color = new Color(symbol.color.red, symbol.color.green, symbol.color.blue, symbol.color.alpha);
+						return new ColorInformation(range, color);
+					});
+				});
+			},
+			provideColorPresentations(document: TextDocument, colorInfo: ColorInformation): Thenable<ColorPresentation[]> {
+				let params: ColorPresentationParams = {
+					textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document),
+					colorInfo: { range: client.code2ProtocolConverter.asRange(colorInfo.range), color: colorInfo.color }
+				};
+				return client.sendRequest(ColorPresentationRequest.type, params).then(presentations => {
+					return presentations.map(p => {
+						let presentation = new ColorPresentation(p.label);
+						presentation.textEdit = p.textEdit && client.protocol2CodeConverter.asTextEdit(p.textEdit);
+						presentation.additionalTextEdits = p.additionalTextEdits && client.protocol2CodeConverter.asTextEdits(p.additionalTextEdits);
+						return presentation;
 					});
 				});
 			}
 		}));
 	});
-
-	// Push the disposable to the context's subscriptions so that the
-	// client can be deactivated on extension deactivation
-	context.subscriptions.push(disposable);
 
 	languages.setLanguageConfiguration('json', {
 		wordPattern: /("(?:[^\\\"]*(?:\\.)?)*"?)|[^\s{}\[\],:]+/,
@@ -186,8 +208,6 @@ function getSettings(): Settings {
 	let httpSettings = workspace.getConfiguration('http');
 	let jsonSettings = workspace.getConfiguration('json');
 
-	let schemas = [];
-
 	let settings: Settings = {
 		http: {
 			proxy: httpSettings.get('proxy'),
@@ -195,39 +215,67 @@ function getSettings(): Settings {
 		},
 		json: {
 			format: jsonSettings.get('format'),
-			schemas: schemas,
+			schemas: [],
 		}
 	};
-	let settingsSchemas = jsonSettings.get('schemas');
-	if (Array.isArray(settingsSchemas)) {
-		schemas.push(...settingsSchemas);
-	}
+	let schemaSettingsById: { [schemaId: string]: JSONSchemaSettings } = Object.create(null);
+	let collectSchemaSettings = (schemaSettings: JSONSchemaSettings[], rootPath?: string, fileMatchPrefix?: string) => {
+		for (let setting of schemaSettings) {
+			let url = getSchemaId(setting, rootPath);
+			if (!url) {
+				continue;
+			}
+			let schemaSetting = schemaSettingsById[url];
+			if (!schemaSetting) {
+				schemaSetting = schemaSettingsById[url] = { url, fileMatch: [] };
+				settings.json.schemas.push(schemaSetting);
+			}
+			let fileMatches = setting.fileMatch;
+			if (Array.isArray(fileMatches)) {
+				if (fileMatchPrefix) {
+					fileMatches = fileMatches.map(m => fileMatchPrefix + m);
+				}
+				schemaSetting.fileMatch.push(...fileMatches);
+			}
+			if (setting.schema) {
+				schemaSetting.schema = setting.schema;
+			}
+		}
+	};
 
+	// merge global and folder settings. Qualify all file matches with the folder path.
+	let globalSettings = jsonSettings.get<JSONSchemaSettings[]>('schemas');
+	if (Array.isArray(globalSettings)) {
+		collectSchemaSettings(globalSettings, workspace.rootPath);
+	}
 	let folders = workspace.workspaceFolders;
 	if (folders) {
-		folders.forEach(folder => {
-			let jsonConfig = workspace.getConfiguration('json', folder.uri);
-			let schemaConfigInfo = jsonConfig.inspect<JSONSchemaSettings[]>('schemas');
+		for (let folder of folders) {
+			let folderUri = folder.uri;
+			let schemaConfigInfo = workspace.getConfiguration('json', folderUri).inspect<JSONSchemaSettings[]>('schemas');
 			let folderSchemas = schemaConfigInfo.workspaceFolderValue;
 			if (Array.isArray(folderSchemas)) {
-				folderSchemas.forEach(schema => {
-					let url = schema.url;
-					if (!url && schema.schema) {
-						url = schema.schema.id;
-					}
-					if (url && url[0] === '.') {
-						url = Uri.file(path.normalize(path.join(folder.uri.fsPath, url))).toString();
-					}
-					let fileMatch = schema.fileMatch;
-					if (fileMatch) {
-						fileMatch = fileMatch.map(m => folder.uri.toString() + '*' + m);
-					}
-					schemas.push({ url, fileMatch, schema: schema.schema });
-				});
+				let folderPath = folderUri.toString();
+				if (folderPath[folderPath.length - 1] !== '/') {
+					folderPath = folderPath + '/';
+				}
+				collectSchemaSettings(folderSchemas, folderUri.fsPath, folderPath + '*');
 			};
-		});
+		};
 	}
 	return settings;
+}
+
+function getSchemaId(schema: JSONSchemaSettings, rootPath?: string) {
+	let url = schema.url;
+	if (!url) {
+		if (schema.schema) {
+			url = schema.schema.id || `vscode://schemas/custom/${encodeURIComponent(hash(schema.schema).toString(16))}`;
+		}
+	} else if (rootPath && (url[0] === '.' || url[0] === '/')) {
+		url = Uri.file(path.normalize(path.join(rootPath, url))).toString();
+	}
+	return url;
 }
 
 function getPackageInfo(context: ExtensionContext): IPackageInfo {

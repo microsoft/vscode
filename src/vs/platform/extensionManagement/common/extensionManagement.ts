@@ -79,6 +79,12 @@ export interface IView {
 	name: string;
 }
 
+export interface IColor {
+	id: string;
+	description: string;
+	defaults: { light: string, dark: string, highContrast: string };
+}
+
 export interface IExtensionContributions {
 	commands?: ICommand[];
 	configuration?: IConfiguration;
@@ -90,7 +96,9 @@ export interface IExtensionContributions {
 	menus?: { [context: string]: IMenu[] };
 	snippets?: ISnippet[];
 	themes?: ITheme[];
+	iconThemes?: ITheme[];
 	views?: { [location: string]: IView[] };
+	colors: IColor[];
 }
 
 export interface IExtensionManifest {
@@ -225,12 +233,12 @@ export interface DidInstallExtensionEvent {
 	zipPath?: string;
 	gallery?: IGalleryExtension;
 	local?: ILocalExtension;
-	error?: Error;
+	error?: string;
 }
 
 export interface DidUninstallExtensionEvent {
 	id: string;
-	error?: Error;
+	error?: string;
 }
 
 export interface IExtensionManagementService {
@@ -242,7 +250,7 @@ export interface IExtensionManagementService {
 	onDidUninstallExtension: Event<DidUninstallExtensionEvent>;
 
 	install(zipPath: string): TPromise<void>;
-	installFromGallery(extension: IGalleryExtension, promptToInstallDependencies?: boolean): TPromise<void>;
+	installFromGallery(extension: IGalleryExtension): TPromise<void>;
 	uninstall(extension: ILocalExtension, force?: boolean): TPromise<void>;
 	getInstalled(type?: LocalExtensionType): TPromise<ILocalExtension[]>;
 }
@@ -291,7 +299,7 @@ export const IExtensionTipsService = createDecorator<IExtensionTipsService>('ext
 
 export interface IExtensionTipsService {
 	_serviceBrand: any;
-	getRecommendations(): string[];
+	getRecommendations(installedExtensions: string[], searchText: string): string[];
 	getWorkspaceRecommendations(): TPromise<string[]>;
 	getKeymapRecommendations(): string[];
 	getKeywordsForExtension(extension: string): string[];

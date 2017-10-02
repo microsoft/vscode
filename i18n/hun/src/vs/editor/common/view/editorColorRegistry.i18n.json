@@ -22,6 +22,8 @@
 	"errorBorder": "A hibákat jelző hullámvonal keretszíne a szerkesztőablakban.",
 	"warningForeground": "A figyelmeztetéseket jelző hullámvonal előtérszíne a szerkesztőablakban.",
 	"warningBorder": "A figyelmeztetéseket jelző hullámvonal keretszíne a szerkesztőablakban.",
+	"infoForeground": "Az információkat jelző hullámvonal előtérszíne a szerkesztőablakban.",
+	"infoBorder": "Az információkat jelző hullámvonal keretszíne a szerkesztőablakban. ",
 	"overviewRulerRangeHighlight": "A kiemelt tartományokat jelölő jelzések színe az áttekintősávon.",
 	"overviewRuleError": "A hibákat jelölő jelzések színe az áttekintősávon.",
 	"overviewRuleWarning": "A figyelmeztetéseket jelölő jelzések színe az áttekintősávon.",

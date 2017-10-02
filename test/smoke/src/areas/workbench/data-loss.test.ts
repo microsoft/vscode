@@ -8,28 +8,32 @@ import { SpectronApplication } from '../../spectron/application';
 
 describe('Dataloss', () => {
 	let app: SpectronApplication;
-	before(() => { app = new SpectronApplication(); return app.start(); });
+	before(() => { app = new SpectronApplication(); return app.start('Dataloss'); });
 	after(() => app.stop());
-	beforeEach(function () { app.createScreenshotCapturer(this.currentTest); });
+	beforeEach(function () { app.screenCapturer.testName = this.currentTest.title; });
 
 	it(`verifies that 'hot exit' works for dirty files`, async function () {
 		const textToType = 'Hello, Code', textToTypeInUntitled = 'Hello, Unitled Code', fileName = 'readme.md', untitled = 'Untitled-1';
 		await app.workbench.newUntitledFile();
 		await app.client.type(textToTypeInUntitled);
+		await app.screenCapturer.capture('Untitled file before reload');
 		await app.workbench.explorer.openFile(fileName);
 		await app.client.type(textToType);
+		await app.screenCapturer.capture(`${fileName} before reload`);
+		await app.screenCapturer.capture('Before reload');
 
 		await app.reload();
+		await app.screenCapturer.capture('After reload');
 
-		assert.ok(await app.workbench.waitForActiveOpen(fileName, true), `${fileName} tab is not present or is not active after reopening.`);
-		let actual = await app.workbench.editor.getEditorFirstLineText();
-		app.screenshot.capture(fileName + ' text');
-		assert.ok(actual.startsWith(textToType), `${actual} did not start with ${textToType}`);
+		await app.workbench.waitForActiveTab(fileName, true);
+		await app.screenCapturer.capture(`${fileName} after reload`);
+		let actual = await app.workbench.editor.waitForActiveEditorFirstLineText(fileName);
+		assert.ok(actual.startsWith(textToType), `'${actual}' did not start with '${textToType}'`);
 
-		assert.ok(await app.workbench.waitForOpen(untitled, true), `${untitled} tab is not present after reopening.`);
+		await app.workbench.waitForTab(untitled, true);
 		await app.workbench.selectTab('Untitled-1', true);
-		actual = await app.workbench.editor.getEditorFirstLineText();
-		app.screenshot.capture('Untitled file text');
-		assert.ok(actual.startsWith(textToTypeInUntitled), `${actual} did not start with ${textToTypeInUntitled}`);
+		await app.screenCapturer.capture('Untitled file after reload');
+		actual = await app.workbench.editor.waitForActiveEditorFirstLineText('Untitled-1');
+		assert.ok(actual.startsWith(textToTypeInUntitled), `'${actual}' did not start with '${textToTypeInUntitled}'`);
 	});
 });

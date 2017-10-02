@@ -149,7 +149,7 @@ export function expandEmmetAbbreviation(args): Thenable<boolean> {
 			return;
 		}
 
-		let currentNode = getNode(rootNode, position);
+		let currentNode = getNode(rootNode, position, true);
 		if (!isValidLocationForEmmetAbbreviation(currentNode, syntax, position)) {
 			return;
 		}
@@ -189,7 +189,6 @@ export function isValidLocationForEmmetAbbreviation(currentNode: Node, syntax: s
 	}
 
 	if (isStyleSheet(syntax)) {
-
 		// If current node is a rule or at-rule, then perform additional checks to ensure
 		// emmet suggestions are not provided in the rule selector
 		if (currentNode.type !== 'rule' && currentNode.type !== 'at-rule') {

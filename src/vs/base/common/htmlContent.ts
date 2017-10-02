@@ -56,7 +56,7 @@ export function isEmptyMarkdownString(oneOrMany: IMarkdownString | IMarkdownStri
 export function isMarkdownString(thing: any): thing is IMarkdownString {
 	if (thing instanceof MarkdownString) {
 		return true;
-	} else if (typeof thing === 'object') {
+	} else if (thing && typeof thing === 'object') {
 		return typeof (<IMarkdownString>thing).value === 'string'
 			&& (typeof (<IMarkdownString>thing).isTrusted === 'boolean' || (<IMarkdownString>thing).isTrusted === void 0);
 	}

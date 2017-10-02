@@ -14,7 +14,6 @@
 	"selectWorkspace": "Ordner für den Arbeitsbereich auswählen",
 	"removeFolderFromWorkspace": "Ordner aus dem Arbeitsbereich entfernen",
 	"saveWorkspaceAsAction": "Arbeitsbereich speichern unter...",
-	"saveEmptyWorkspaceNotSupported": "Öffnen Sie zum Speichern zunächst einen Arbeitsbereich.",
 	"save": "&&Speichern",
 	"saveWorkspace": "Arbeitsbereich speichern",
 	"openWorkspaceAction": "Arbeitsbereich öffnen...",

@@ -46,7 +46,7 @@ const _linkProvider = new class implements vscode.DocumentLinkProvider {
 
 			const offset = lookUp(match[1]);
 			if (offset === -1) {
-				console.warn(match[1]);
+				console.warn(`Could not find symbol for link ${match[1]}`);
 				continue;
 			}
 

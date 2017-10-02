@@ -16,14 +16,25 @@ export interface IWorkspaceEditingService {
 	_serviceBrand: ServiceIdentifier<any>;
 
 	/**
-	 * add roots to the existing workspace
+	 * add folders to the existing workspace
 	 */
-	addRoots(roots: URI[]): TPromise<void>;
+	addFolders(folders: URI[]): TPromise<void>;
 
 	/**
-	 * remove roots from the existing workspace
+	 * remove folders from the existing workspace
 	 */
-	removeRoots(roots: URI[]): TPromise<void>;
+	removeFolders(folders: URI[]): TPromise<void>;
+
+	/**
+	 * creates a new workspace with the provided folders and opens it. if path is provided
+	 * the workspace will be saved into that location.
+	 */
+	createAndEnterWorkspace(folders?: string[], path?: string): TPromise<void>;
+
+	/**
+	 * saves the workspace to the provided path and opens it. requires a workspace to be opened.
+	 */
+	saveAndEnterWorkspace(path: string): TPromise<void>;
 }
 
 export const IWorkspaceMigrationService = createDecorator<IWorkspaceMigrationService>('workspaceMigrationService');

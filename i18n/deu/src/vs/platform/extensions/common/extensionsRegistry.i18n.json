@@ -16,7 +16,7 @@
 	"vscode.extension.activationEvents": "Aktivierungsereignisse für die VS Code-Extension.",
 	"vscode.extension.activationEvents.onLanguage": "Ein Aktivierungsereignis wird beim Öffnen einer Datei ausgegeben, die in die angegebene Sprache aufgelöst wird.",
 	"vscode.extension.activationEvents.onCommand": "Ein Aktivierungsereignis wird beim Aufrufen des angegebenen Befehls ausgegeben.",
-	"vscode.extension.activationEvents.onDebug": "Ein Aktivierungsereignis wird beim Starten einer Debugsitzung des angegebenen Typs ausgegeben.",
+	"vscode.extension.activationEvents.onDebug": "Ein Aktivierungsereignis wird ausgesandt, wenn ein Benutzer eine Debugging startet, oder eine Debug-Konfiguration erstellt.",
 	"vscode.extension.activationEvents.workspaceContains": "Ein Aktivierungsereignis wird beim Öffnen eines Ordners ausgegeben, der mindestens eine Datei enthält, die mit dem angegebenen Globmuster übereinstimmt.",
 	"vscode.extension.activationEvents.onView": "Ein Aktivierungsereignis wird beim Erweitern der angegebenen Ansicht ausgegeben.",
 	"vscode.extension.activationEvents.star": "Ein Aktivierungsereignis wird beim Start von VS Code ausgegeben. Damit für die Endbenutzer eine bestmögliche Benutzerfreundlichkeit sichergestellt ist, verwenden Sie dieses Aktivierungsereignis in Ihrer Erweiterung nur dann, wenn in Ihrem Anwendungsfall keine andere Kombination an Aktivierungsereignissen funktioniert.",

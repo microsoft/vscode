@@ -7,10 +7,10 @@
 import * as crypto from 'crypto';
 
 import URI from 'vs/base/common/uri';
-import { Color as BaseColor, HSLA } from 'vs/base/common/color';
 import { illegalArgument } from 'vs/base/common/errors';
 import * as vscode from 'vscode';
 import { isMarkdownString } from 'vs/base/common/htmlContent';
+import { IRelativePattern } from 'vs/base/common/glob';
 
 export class Disposable {
 
@@ -824,12 +824,33 @@ export class CodeLens {
 	}
 }
 
+export class MarkdownString {
+
+	value: string;
+	isTrusted?: boolean;
+
+	constructor(value?: string) {
+		this.value = value || '';
+	}
+
+	appendText(value: string): MarkdownString {
+		// escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
+		this.value += value.replace(/[\\`*_{}[\]()#+\-.!]/g, '\\$&');
+		return this;
+	}
+
+	appendMarkdown(value: string): MarkdownString {
+		this.value += value;
+		return this;
+	}
+}
+
 export class ParameterInformation {
 
 	label: string;
-	documentation?: string;
+	documentation?: string | MarkdownString;
 
-	constructor(label: string, documentation?: string) {
+	constructor(label: string, documentation?: string | MarkdownString) {
 		this.label = label;
 		this.documentation = documentation;
 	}
@@ -838,10 +859,10 @@ export class ParameterInformation {
 export class SignatureInformation {
 
 	label: string;
-	documentation?: string;
+	documentation?: string | MarkdownString;
 	parameters: ParameterInformation[];
 
-	constructor(label: string, documentation?: string) {
+	constructor(label: string, documentation?: string | MarkdownString) {
 		this.label = label;
 		this.documentation = documentation;
 		this.parameters = [];
@@ -857,6 +878,16 @@ export class SignatureHelp {
 	constructor() {
 		this.signatures = [];
 	}
+}
+
+export enum CompletionTriggerKind {
+	Invoke = 0,
+	TriggerCharacter = 1
+}
+
+export interface CompletionContext {
+	triggerKind: CompletionTriggerKind;
+	triggerCharacter: string;
 }
 
 export enum CompletionItemKind {
@@ -892,7 +923,7 @@ export class CompletionItem {
 	label: string;
 	kind: CompletionItemKind;
 	detail: string;
-	documentation: string;
+	documentation: string | MarkdownString;
 	sortText: string;
 	filterText: string;
 	insertText: string | SnippetString;
@@ -933,6 +964,7 @@ export class CompletionList {
 }
 
 export enum ViewColumn {
+	Active = -1,
 	One = 1,
 	Two = 2,
 	Three = 3
@@ -1031,45 +1063,44 @@ export class Color {
 		this.blue = blue;
 		this.alpha = alpha;
 	}
-
-	static fromHSLA(hue: number, saturation: number, luminance: number, alpha: number): Color {
-		const color = new BaseColor(new HSLA(hue, saturation, luminance, alpha)).rgba;
-		return new Color(color.r, color.g, color.b, color.a);
-	}
-
-	static fromHex(hex: string): Color | null {
-		let baseColor = BaseColor.Format.CSS.parseHex(hex);
-		if (baseColor) {
-			const rgba = baseColor.rgba;
-			return new Color(rgba.r, rgba.g, rgba.b, rgba.a);
-		}
-		return null;
-	}
 }
 
 export type IColorFormat = string | { opaque: string, transparent: string };
 
-export class ColorRange {
+export class ColorInformation {
 	range: Range;
 
 	color: Color;
 
-	availableFormats: IColorFormat[];
-
-	constructor(range: Range, color: Color, availableFormats: IColorFormat[]) {
+	constructor(range: Range, color: Color) {
 		if (color && !(color instanceof Color)) {
 			throw illegalArgument('color');
-		}
-		if (availableFormats && !Array.isArray(availableFormats)) {
-			throw illegalArgument('availableFormats');
 		}
 		if (!Range.isRange(range) || range.isEmpty) {
 			throw illegalArgument('range');
 		}
 		this.range = range;
 		this.color = color;
-		this.availableFormats = availableFormats;
 	}
+}
+
+export class ColorPresentation {
+	label: string;
+	textEdit?: TextEdit;
+	additionalTextEdits?: TextEdit[];
+
+	constructor(label: string) {
+		if (!label || typeof label !== 'string') {
+			throw illegalArgument('label');
+		}
+		this.label = label;
+	}
+}
+
+export enum ColorFormat {
+	RGB = 0,
+	HEX = 1,
+	HSL = 2
 }
 
 export enum TaskRevealKind {
@@ -1208,10 +1239,16 @@ export class ShellExecution implements vscode.ShellExecution {
 	}
 }
 
+export enum TaskScope {
+	Global = 1,
+	Workspace = 2
+}
+
 export class Task implements vscode.Task {
 
 	private _definition: vscode.TaskDefinition;
 	private _definitionKey: string;
+	private _scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder;
 	private _name: string;
 	private _execution: ProcessExecution | ShellExecution;
 	private _problemMatchers: string[];
@@ -1221,11 +1258,29 @@ export class Task implements vscode.Task {
 	private _group: TaskGroup;
 	private _presentationOptions: vscode.TaskPresentationOptions;
 
-	constructor(definition: vscode.TaskDefinition, name: string, source: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string | string[]) {
+	constructor(definition: vscode.TaskDefinition, name: string, source: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string | string[]);
+	constructor(definition: vscode.TaskDefinition, scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder, name: string, source: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string | string[]);
+	constructor(definition: vscode.TaskDefinition, arg2: string | (vscode.TaskScope.Global | vscode.TaskScope.Workspace) | vscode.WorkspaceFolder, arg3: any, arg4?: any, arg5?: any, arg6?: any) {
 		this.definition = definition;
-		this.name = name;
-		this.source = source;
-		this.execution = execution;
+		let problemMatchers: string | string[];
+		if (typeof arg2 === 'string') {
+			this.name = arg2;
+			this.source = arg3;
+			this.execution = arg4;
+			problemMatchers = arg5;
+		} else if (arg2 === TaskScope.Global || arg2 === TaskScope.Workspace) {
+			this.target = arg2;
+			this.name = arg3;
+			this.source = arg4;
+			this.execution = arg5;
+			problemMatchers = arg6;
+		} else {
+			this.target = arg2;
+			this.name = arg3;
+			this.source = arg4;
+			this.execution = arg5;
+			problemMatchers = arg6;
+		}
 		if (typeof problemMatchers === 'string') {
 			this._problemMatchers = [problemMatchers];
 			this._hasDefinedMatchers = true;
@@ -1258,6 +1313,14 @@ export class Task implements vscode.Task {
 			this._definitionKey = hash.digest('hex');
 		}
 		return this._definitionKey;
+	}
+
+	get scope(): vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder {
+		return this._scope;
+	}
+
+	set target(value: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder) {
+		this._scope = value;
 	}
 
 	get name(): string {
@@ -1382,4 +1445,24 @@ export enum ConfigurationTarget {
 	Workspace = 2,
 
 	WorkspaceFolder = 3
+}
+
+export class RelativePattern implements IRelativePattern {
+	base: string;
+	pattern: string;
+
+	constructor(base: vscode.WorkspaceFolder | string, pattern: string) {
+		if (typeof base !== 'string') {
+			if (!base || !URI.isUri(base.uri)) {
+				throw illegalArgument('base');
+			}
+		}
+
+		if (typeof pattern !== 'string') {
+			throw illegalArgument('pattern');
+		}
+
+		this.base = typeof base === 'string' ? base : base.uri.fsPath;
+		this.pattern = pattern;
+	}
 }

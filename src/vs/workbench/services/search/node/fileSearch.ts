@@ -49,6 +49,7 @@ interface IDirectoryTree {
 
 export class FileWalker {
 	private config: IRawSearch;
+	private useRipgrep: boolean;
 	private filePattern: string;
 	private normalizedFilePatternLowercase: string;
 	private includePattern: glob.ParsedExpression;
@@ -73,6 +74,7 @@ export class FileWalker {
 
 	constructor(config: IRawSearch) {
 		this.config = config;
+		this.useRipgrep = config.useRipgrep !== false;
 		this.filePattern = config.filePattern;
 		this.includePattern = config.includePattern && glob.parse(config.includePattern);
 		this.maxResults = config.maxResults || null;
@@ -153,7 +155,7 @@ export class FileWalker {
 
 			let traverse = this.nodeJSTraversal;
 			if (!this.maxFilesize) {
-				if (this.config.useRipgrep) {
+				if (this.useRipgrep) {
 					this.traversal = Traversal.Ripgrep;
 					traverse = this.cmdTraversal;
 				} else if (platform.isMacintosh) {
@@ -208,25 +210,43 @@ export class FileWalker {
 	private cmdTraversal(folderQuery: IFolderSearch, onResult: (result: IRawFileMatch) => void, cb: (err?: Error) => void): void {
 		const rootFolder = folderQuery.folder;
 		const isMac = platform.isMacintosh;
+		let cmd: childProcess.ChildProcess;
+		const killCmd = () => cmd && cmd.kill();
+
 		let done = (err?: Error) => {
+			process.removeListener('exit', killCmd);
 			done = () => { };
 			cb(err);
 		};
 		let leftover = '';
 		let first = true;
 		const tree = this.initDirectoryTree();
-		const useRipgrep = this.config.useRipgrep;
-		const cmd = useRipgrep ? spawnRipgrepCmd(folderQuery, this.config.includePattern, this.folderExcludePatterns.get(folderQuery.folder)).cmd : this.spawnFindCmd(folderQuery);
-		this.collectStdout(cmd, 'utf8', (err: Error, stdout?: string, last?: boolean) => {
+
+		const useRipgrep = this.useRipgrep;
+		let noSiblingsClauses: boolean;
+		let filePatternSeen = false;
+		if (useRipgrep) {
+			const ripgrep = spawnRipgrepCmd(folderQuery, this.config.includePattern, this.folderExcludePatterns.get(folderQuery.folder).expression);
+			cmd = ripgrep.cmd;
+			noSiblingsClauses = !Object.keys(ripgrep.siblingClauses).length;
+		} else {
+			cmd = this.spawnFindCmd(folderQuery);
+		}
+
+		process.on('exit', killCmd);
+		this.collectStdout(cmd, 'utf8', useRipgrep, (err: Error, stdout?: string, last?: boolean) => {
 			if (err) {
 				done(err);
+				return;
+			}
+			if (this.isLimitHit) {
 				return;
 			}
 
 			// Mac: uses NFD unicode form on disk, but we want NFC
 			const normalized = leftover + (isMac ? strings.normalizeNFC(stdout) : stdout);
 			const relativeFiles = normalized.split(useRipgrep ? '\n' : '\n./');
-			if (first && normalized.length >= 2) {
+			if (!useRipgrep && first && normalized.length >= 2) {
 				first = false;
 				relativeFiles[0] = relativeFiles[0].trim().substr(2);
 			}
@@ -243,6 +263,40 @@ export class FileWalker {
 
 			if (relativeFiles.length && relativeFiles[0].indexOf('\n') !== -1) {
 				done(new Error('Splitting up files failed'));
+				return;
+			}
+
+			this.cmdResultCount += relativeFiles.length;
+
+			if (useRipgrep && noSiblingsClauses) {
+				for (const relativePath of relativeFiles) {
+					if (relativePath === this.filePattern) {
+						filePatternSeen = true;
+					}
+					const basename = path.basename(relativePath);
+					this.matchFile(onResult, { base: rootFolder, relativePath, basename });
+					if (this.isLimitHit) {
+						killCmd();
+						break;
+					}
+				}
+				if (last || this.isLimitHit) {
+					if (!filePatternSeen) {
+						this.checkFilePatternRelativeMatch(folderQuery.folder, (match, size) => {
+							if (match) {
+								this.resultCount++;
+								onResult({
+									base: folderQuery.folder,
+									relativePath: this.filePattern,
+									basename: path.basename(this.filePattern),
+								});
+							}
+							done();
+						});
+					} else {
+						done();
+					}
+				}
 				return;
 			}
 
@@ -311,9 +365,9 @@ export class FileWalker {
 	/**
 	 * Public for testing.
 	 */
-	public readStdout(cmd: childProcess.ChildProcess, encoding: string, cb: (err: Error, stdout?: string) => void): void {
+	public readStdout(cmd: childProcess.ChildProcess, encoding: string, isRipgrep: boolean, cb: (err: Error, stdout?: string) => void): void {
 		let all = '';
-		this.collectStdout(cmd, encoding, (err: Error, stdout?: string, last?: boolean) => {
+		this.collectStdout(cmd, encoding, isRipgrep, (err: Error, stdout?: string, last?: boolean) => {
 			if (err) {
 				cb(err);
 				return;
@@ -326,7 +380,7 @@ export class FileWalker {
 		});
 	}
 
-	private collectStdout(cmd: childProcess.ChildProcess, encoding: string, cb: (err: Error, stdout?: string, last?: boolean) => void): void {
+	private collectStdout(cmd: childProcess.ChildProcess, encoding: string, isRipgrep: boolean, cb: (err: Error, stdout?: string, last?: boolean) => void): void {
 		let done = (err: Error, stdout?: string, last?: boolean) => {
 			if (err || last) {
 				done = () => { };
@@ -343,8 +397,9 @@ export class FileWalker {
 		});
 
 		cmd.on('close', (code: number) => {
-			if (code !== 0) {
-				done(new Error(`find failed with error code ${code}: ${this.decodeData(stderr, encoding)}`));
+			// ripgrep returns code=1 when no results are found
+			if (code !== 0 && ((isRipgrep && stderr.length) || !isRipgrep)) {
+				done(new Error(`command failed with error code ${code}: ${this.decodeData(stderr, encoding)}`));
 			} else {
 				done(null, '', true);
 			}
@@ -382,8 +437,6 @@ export class FileWalker {
 	}
 
 	private addDirectoryEntries({ pathToEntries }: IDirectoryTree, base: string, relativeFiles: string[], onResult: (result: IRawFileMatch) => void) {
-		this.cmdResultCount += relativeFiles.length;
-
 		// Support relative paths to files from a root resource (ignores excludes)
 		if (relativeFiles.indexOf(this.filePattern) !== -1) {
 			const basename = path.basename(this.filePattern);
@@ -435,6 +488,10 @@ export class FileWalker {
 					}
 
 					self.matchFile(onResult, entry);
+				}
+
+				if (self.isLimitHit) {
+					break;
 				}
 			};
 		}
@@ -689,8 +746,8 @@ class AbsoluteAndRelativeParsedExpression {
 	private absoluteParsedExpr: glob.ParsedExpression;
 	private relativeParsedExpr: glob.ParsedExpression;
 
-	constructor(expr: glob.IExpression, private root: string) {
-		this.init(expr);
+	constructor(public expression: glob.IExpression, private root: string) {
+		this.init(expression);
 	}
 
 	/**

@@ -37,6 +37,11 @@
         }
       },
       {
+        "command": "git.close",
+        "title": "%command.close%",
+        "category": "Git"
+      },
+      {
         "command": "git.refresh",
         "title": "%command.refresh%",
         "category": "Git",
@@ -530,6 +535,11 @@
           "when": "config.git.enabled && scmProvider == git"
         },
         {
+          "command": "git.stageAll",
+          "group": "4_stage",
+          "when": "config.git.enabled && scmProvider == git"
+        },
+        {
           "command": "git.unstageAll",
           "group": "4_stage",
           "when": "config.git.enabled && scmProvider == git"
@@ -557,6 +567,13 @@
         {
           "command": "git.showOutput",
           "group": "7_repository",
+          "when": "config.git.enabled && scmProvider == git"
+        }
+      ],
+      "scm/sourceControl": [
+        {
+          "command": "git.close",
+          "group": "navigation",
           "when": "config.git.enabled && scmProvider == git"
         }
       ],
@@ -688,7 +705,7 @@
         {
           "command": "git.openChange",
           "group": "navigation",
-          "when": "config.git.enabled && gitOpenRepositoryCount != 0 && !isInDiffEditor && resourceScheme != extension"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0 && !isInDiffEditor && resourceScheme == file"
         },
         {
           "command": "git.stageSelectedRanges",

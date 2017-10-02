@@ -30,12 +30,14 @@ import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { TerminalLinkHandler } from 'vs/workbench/parts/terminal/electron-browser/terminalLinkHandler';
 import { TerminalWidgetManager } from 'vs/workbench/parts/terminal/browser/terminalWidgetManager';
-import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, ITheme, ICssStyleCollector, IThemeService } from 'vs/platform/theme/common/themeService';
 import { scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground } from 'vs/platform/theme/common/colorRegistry';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import pkg from 'vs/platform/node/package';
+import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/parts/terminal/electron-browser/terminalColorRegistry';
+import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -132,7 +134,8 @@ export class TerminalInstance implements ITerminalInstance {
 		@IWorkbenchEditorService private _editorService: IWorkbenchEditorService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IClipboardService private _clipboardService: IClipboardService,
-		@IHistoryService private _historyService: IHistoryService
+		@IHistoryService private _historyService: IHistoryService,
+		@IThemeService private _themeService: IThemeService
 	) {
 		this._instanceDisposables = [];
 		this._processDisposables = [];
@@ -202,8 +205,20 @@ export class TerminalInstance implements ITerminalInstance {
 			return null;
 		}
 		const font = this._configHelper.getFont();
-		this._cols = Math.max(Math.floor(dimension.width / font.charWidth), 1);
-		this._rows = Math.max(Math.floor(dimension.height / font.charHeight), 1);
+
+		// Because xterm.js converts from CSS pixels to actual pixels through
+		// the use of canvas, window.devicePixelRatio needs to be used here in
+		// order to be precise. font.charWidth/charHeight alone as insufficient
+		// when window.devicePixelRatio changes.
+		const scaledWidthAvailable = dimension.width * window.devicePixelRatio;
+		const scaledCharWidth = Math.floor(font.charWidth * window.devicePixelRatio);
+		this._cols = Math.max(Math.floor(scaledWidthAvailable / scaledCharWidth), 1);
+
+		const scaledHeightAvailable = dimension.height * window.devicePixelRatio;
+		const scaledCharHeight = Math.ceil(font.charHeight * window.devicePixelRatio);
+		const scaledLineHeight = Math.floor(scaledCharHeight * font.lineHeight);
+		this._rows = Math.max(Math.floor(scaledHeightAvailable / scaledLineHeight), 1);
+
 		return dimension.width;
 	}
 
@@ -245,8 +260,13 @@ export class TerminalInstance implements ITerminalInstance {
 	 * Create xterm.js instance and attach data listeners.
 	 */
 	protected _createXterm(): void {
+		const font = this._configHelper.getFont(true);
 		this._xterm = new XTermTerminal({
-			scrollback: this._configHelper.config.scrollback
+			scrollback: this._configHelper.config.scrollback,
+			theme: this._getXtermTheme(),
+			fontFamily: font.fontFamily,
+			fontSize: font.fontSize,
+			lineHeight: font.lineHeight
 		});
 		if (this._shellLaunchConfig.initialText) {
 			this._xterm.writeln(this._shellLaunchConfig.initialText);
@@ -268,6 +288,7 @@ export class TerminalInstance implements ITerminalInstance {
 		});
 		this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, platform.platform, this._initialCwd);
 		this._linkHandler.registerLocalLinkHandler();
+		this._instanceDisposables.push(this._themeService.onThemeChange(theme => this._updateTheme(theme)));
 	}
 
 	public attachToElement(container: HTMLElement): void {
@@ -364,7 +385,7 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 	}
 
-	public registerLinkMatcher(regex: RegExp, handler: (url: string) => void, matchIndex?: number, validationCallback?: (uri: string, element: HTMLElement, callback: (isValid: boolean) => void) => void): number {
+	public registerLinkMatcher(regex: RegExp, handler: (url: string) => void, matchIndex?: number, validationCallback?: (uri: string, callback: (isValid: boolean) => void) => void): number {
 		return this._linkHandler.registerCustomLinkHandler(regex, handler, matchIndex, validationCallback);
 	}
 
@@ -407,10 +428,8 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public notifyFindWidgetFocusChanged(isFocused: boolean): void {
-		// In order to support escape to close the find widget when the terminal
-		// is focused terminalFocus needs to be true when either the terminal or
-		// the find widget are focused.
-		this._terminalFocusContextKey.set(isFocused || document.activeElement === this._xterm.textarea);
+		const terminalFocused = !isFocused && (document.activeElement === this._xterm.textarea || document.activeElement === this._xterm.element);
+		this._terminalFocusContextKey.set(terminalFocused);
 	}
 
 	public dispose(): void {
@@ -881,6 +900,17 @@ export class TerminalInstance implements ITerminalInstance {
 			return;
 		}
 		if (this._xterm) {
+			const font = this._configHelper.getFont();
+			if (this._xterm.getOption('lineHeight') !== font.lineHeight) {
+				this._xterm.setOption('lineHeight', font.lineHeight);
+			}
+			if (this._xterm.getOption('fontSize') !== font.fontSize) {
+				this._xterm.setOption('fontSize', font.fontSize);
+			}
+			if (this._xterm.getOption('fontFamily') !== font.fontFamily) {
+				this._xterm.setOption('fontFamily', font.fontFamily);
+			}
+
 			this._xterm.resize(this._cols, this._rows);
 			this._xterm.element.style.width = terminalWidth + 'px';
 		}
@@ -931,6 +961,46 @@ export class TerminalInstance implements ITerminalInstance {
 			this._onTitleChanged.fire(title);
 		}
 	}
+
+	private _getXtermTheme(theme?: ITheme): any {
+		if (!theme) {
+			theme = this._themeService.getTheme();
+		}
+
+		const foregroundColor = theme.getColor(TERMINAL_FOREGROUND_COLOR);
+		const backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || theme.getColor(PANEL_BACKGROUND);
+		const cursorColor = theme.getColor(TERMINAL_CURSOR_FOREGROUND_COLOR) || foregroundColor;
+		const cursorAccentColor = theme.getColor(TERMINAL_CURSOR_BACKGROUND_COLOR) || backgroundColor;
+		const selectionColor = theme.getColor(TERMINAL_SELECTION_BACKGROUND_COLOR);
+
+		return {
+			background: backgroundColor ? backgroundColor.toString() : null,
+			foreground: foregroundColor ? foregroundColor.toString() : null,
+			cursor: cursorColor ? cursorColor.toString() : null,
+			cursorAccent: cursorAccentColor ? cursorAccentColor.toString() : null,
+			selection: selectionColor ? selectionColor.toString() : null,
+			black: theme.getColor(ansiColorIdentifiers[0]).toString(),
+			red: theme.getColor(ansiColorIdentifiers[1]).toString(),
+			green: theme.getColor(ansiColorIdentifiers[2]).toString(),
+			yellow: theme.getColor(ansiColorIdentifiers[3]).toString(),
+			blue: theme.getColor(ansiColorIdentifiers[4]).toString(),
+			magenta: theme.getColor(ansiColorIdentifiers[5]).toString(),
+			cyan: theme.getColor(ansiColorIdentifiers[6]).toString(),
+			white: theme.getColor(ansiColorIdentifiers[7]).toString(),
+			brightBlack: theme.getColor(ansiColorIdentifiers[8]).toString(),
+			brightRed: theme.getColor(ansiColorIdentifiers[9]).toString(),
+			brightGreen: theme.getColor(ansiColorIdentifiers[10]).toString(),
+			brightYellow: theme.getColor(ansiColorIdentifiers[11]).toString(),
+			brightBlue: theme.getColor(ansiColorIdentifiers[12]).toString(),
+			brightMagenta: theme.getColor(ansiColorIdentifiers[13]).toString(),
+			brightCyan: theme.getColor(ansiColorIdentifiers[14]).toString(),
+			brightWhite: theme.getColor(ansiColorIdentifiers[15]).toString()
+		};
+	}
+
+	private _updateTheme(theme?: ITheme): void {
+		this._xterm.setOption('theme', this._getXtermTheme(theme));
+	}
 }
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
@@ -941,7 +1011,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		collector.addRule(`
 			.monaco-workbench .panel.integrated-terminal .xterm.focus .xterm-viewport,
 			.monaco-workbench .panel.integrated-terminal .xterm:focus .xterm-viewport,
-			.monaco-workbench .panel.integrated-terminal .xterm:hover .xterm-viewport { background-color: ${scrollbarSliderBackgroundColor}; }`
+			.monaco-workbench .panel.integrated-terminal .xterm:hover .xterm-viewport { background-color: ${scrollbarSliderBackgroundColor} !important; }`
 		);
 	}
 

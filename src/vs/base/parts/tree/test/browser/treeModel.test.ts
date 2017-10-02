@@ -7,7 +7,6 @@
 
 import assert = require('assert');
 import lifecycle = require('vs/base/common/lifecycle');
-import ee = require('vs/base/common/eventEmitter');
 import _ = require('vs/base/parts/tree/browser/tree');
 import WinJS = require('vs/base/common/winjs.base');
 import Events = require('vs/base/common/eventEmitter');
@@ -75,7 +74,7 @@ class EventCounter {
 		this._count = 0;
 	}
 
-	public listen(emitter: ee.IEventEmitter, event: string, fn: (e) => void = null): () => void {
+	public listen(emitter: Events.IEventEmitter, event: string, fn: (e) => void = null): () => void {
 		let r = emitter.addListener(event, (e) => {
 			this._count++;
 			if (fn) {

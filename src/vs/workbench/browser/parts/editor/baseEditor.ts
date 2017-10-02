@@ -9,7 +9,7 @@ import types = require('vs/base/common/types');
 import { Builder } from 'vs/base/browser/builder';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Panel } from 'vs/workbench/browser/panel';
-import { EditorInput, EditorOptions, IEditorDescriptor, IEditorInputFactory, IEditorRegistry, Extensions, IFileInputFactory } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, IEditorDescriptor, IEditorInputFactory, IEditorRegistry, IFileInputFactory } from 'vs/workbench/common/editor';
 import { IEditor, Position } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 import { SyncDescriptor, AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -301,5 +301,9 @@ class EditorRegistry implements IEditorRegistry {
 		return this.editorInputFactoryInstances[editorInputId];
 	}
 }
+
+export const Extensions = {
+	Editors: 'workbench.contributions.editors'
+};
 
 Registry.add(Extensions.Editors, new EditorRegistry());

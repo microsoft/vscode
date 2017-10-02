@@ -90,33 +90,23 @@ export class ResourceGlobMatcher {
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(() => this.onConfigurationChanged()));
-		this.toUnbind.push(this.contextService.onDidChangeWorkspaceRoots(() => this.onDidChangeWorkspaceRoots()));
-	}
-
-	private onConfigurationChanged(): void {
-		this.updateExcludes(true);
-	}
-
-	private onDidChangeWorkspaceRoots(): void {
-		this.updateExcludes(true);
+		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(() => this.updateExcludes(true)));
+		this.toUnbind.push(this.contextService.onDidChangeWorkspaceFolders(() => this.updateExcludes(true)));
 	}
 
 	private updateExcludes(fromEvent: boolean): void {
 		let changed = false;
 
 		// Add excludes per workspaces that got added
-		if (this.contextService.hasWorkspace()) {
-			this.contextService.getWorkspace().roots.forEach(root => {
-				const rootExcludes = this.globFn(root);
-				if (!this.mapRootToExpressionConfig.has(root.toString()) || !objects.equals(this.mapRootToExpressionConfig.get(root.toString()), rootExcludes)) {
-					changed = true;
+		this.contextService.getWorkspace().folders.forEach(folder => {
+			const rootExcludes = this.globFn(folder.uri);
+			if (!this.mapRootToExpressionConfig.has(folder.uri.toString()) || !objects.equals(this.mapRootToExpressionConfig.get(folder.uri.toString()), rootExcludes)) {
+				changed = true;
 
-					this.mapRootToParsedExpression.set(root.toString(), this.parseFn(rootExcludes));
-					this.mapRootToExpressionConfig.set(root.toString(), objects.clone(rootExcludes));
-				}
-			});
-		}
+				this.mapRootToParsedExpression.set(folder.uri.toString(), this.parseFn(rootExcludes));
+				this.mapRootToExpressionConfig.set(folder.uri.toString(), objects.clone(rootExcludes));
+			}
+		});
 
 		// Remove excludes per workspace no longer present
 		this.mapRootToExpressionConfig.forEach((value, root) => {
@@ -124,7 +114,7 @@ export class ResourceGlobMatcher {
 				return; // always keep this one
 			}
 
-			if (!this.contextService.getRoot(URI.parse(root))) {
+			if (!this.contextService.getWorkspaceFolder(URI.parse(root))) {
 				this.mapRootToParsedExpression.delete(root);
 				this.mapRootToExpressionConfig.delete(root);
 
@@ -147,11 +137,11 @@ export class ResourceGlobMatcher {
 	}
 
 	public matches(resource: URI): boolean {
-		const root = this.contextService.getRoot(resource);
+		const folder = this.contextService.getWorkspaceFolder(resource);
 
 		let expressionForRoot: ParsedExpression;
-		if (root && this.mapRootToParsedExpression.has(root.toString())) {
-			expressionForRoot = this.mapRootToParsedExpression.get(root.toString());
+		if (folder && this.mapRootToParsedExpression.has(folder.uri.toString())) {
+			expressionForRoot = this.mapRootToParsedExpression.get(folder.uri.toString());
 		} else {
 			expressionForRoot = this.mapRootToParsedExpression.get(ResourceGlobMatcher.NO_ROOT);
 		}
@@ -161,8 +151,8 @@ export class ResourceGlobMatcher {
 		// a glob pattern of "src/**" will not match on an absolute path "/folder/src/file.txt"
 		// but can match on "src/file.txt"
 		let resourcePathToMatch: string;
-		if (root) {
-			resourcePathToMatch = paths.normalize(paths.relative(root.fsPath, resource.fsPath));
+		if (folder) {
+			resourcePathToMatch = paths.normalize(paths.relative(folder.uri.fsPath, resource.fsPath));
 		} else {
 			resourcePathToMatch = resource.fsPath;
 		}

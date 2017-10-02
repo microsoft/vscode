@@ -25,7 +25,7 @@ interface IFullTerminalConfiguration {
 	};
 }
 
-const DEFAULT_LINE_HEIGHT = 1.2;
+const DEFAULT_LINE_HEIGHT = 1.0;
 
 /**
  * Encapsulates terminal configuration logic, the primary purpose of this file is so that platform
@@ -55,11 +55,12 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 			this._charMeasureElement = document.createElement('div');
 			this.panelContainer.appendChild(this._charMeasureElement);
 		}
+		// TODO: This should leverage CharMeasure
 		const style = this._charMeasureElement.style;
 		style.display = 'block';
 		style.fontFamily = fontFamily;
 		style.fontSize = fontSize + 'px';
-		style.lineHeight = lineHeight.toString(10);
+		style.lineHeight = 'normal';
 		this._charMeasureElement.innerText = 'X';
 		const rect = this._charMeasureElement.getBoundingClientRect();
 		style.display = 'none';
@@ -71,10 +72,10 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 
 		this._lastFontMeasurement = {
 			fontFamily,
-			fontSize: fontSize + 'px',
+			fontSize,
 			lineHeight,
 			charWidth: rect.width,
-			charHeight: rect.height
+			charHeight: Math.ceil(rect.height)
 		};
 		return this._lastFontMeasurement;
 	}
@@ -83,7 +84,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	 * Gets the font information based on the terminal.integrated.fontFamily
 	 * terminal.integrated.fontSize, terminal.integrated.lineHeight configuration properties
 	 */
-	public getFont(): ITerminalFont {
+	public getFont(excludeDimensions?: boolean): ITerminalFont {
 		const config = this._configurationService.getConfiguration();
 		const editorConfig = (<IEditorConfiguration>config).editor;
 		const terminalConfig = this.config;
@@ -93,9 +94,14 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		if (fontSize <= 0) {
 			fontSize = EDITOR_FONT_DEFAULTS.fontSize;
 		}
-		let lineHeight = terminalConfig.lineHeight <= 0 ? DEFAULT_LINE_HEIGHT : terminalConfig.lineHeight;
-		if (!lineHeight) {
-			lineHeight = DEFAULT_LINE_HEIGHT;
+		const lineHeight = terminalConfig.lineHeight ? Math.max(terminalConfig.lineHeight, 1) : DEFAULT_LINE_HEIGHT;
+
+		if (excludeDimensions) {
+			return {
+				fontFamily,
+				fontSize,
+				lineHeight
+			};
 		}
 
 		return this._measureFont(fontFamily, fontSize, lineHeight);

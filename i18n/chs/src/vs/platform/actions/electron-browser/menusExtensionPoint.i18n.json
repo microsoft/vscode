@@ -13,6 +13,7 @@
 	"vscode.extension.contributes.menuItem.group": "此命令所属的组",
 	"vscode.extension.contributes.menus": "向编辑器提供菜单项",
 	"menus.commandPalette": "命令面板",
+	"menus.touchBar": "Multi-Touch Bar (仅 macOS)",
 	"menus.editorTitle": "编辑器标题菜单",
 	"menus.editorContext": "编辑器上下文菜单",
 	"menus.explorerContext": "文件资源管理器上下文菜单",

@@ -16,7 +16,7 @@
 	"vscode.extension.activationEvents": "A VS Code kiegészítő aktiválási eseményei.",
 	"vscode.extension.activationEvents.onLanguage": "Aktiváló esemény, ami akkor fut le, ha az adott nyelvhez társított fájl kerül megnyitásra.",
 	"vscode.extension.activationEvents.onCommand": "Aktiváló esemény, ami akkor fut le, amikor a megadott parancsot meghívják.",
-	"vscode.extension.activationEvents.onDebug": "Aktiváló esemény, ami akkor fut le, amikor elindul az adott típusú hibakeresési folyamat.",
+	"vscode.extension.activationEvents.onDebug": "Aktiváló esemény, ami akkor fut le, ha a felhasználó hibakeresést indít el vagy beállítani készül a hibakeresési konfigurációt.",
 	"vscode.extension.activationEvents.workspaceContains": "Aktiváló esemény, ami akkor fut le, ha egy olyan mappa kerül megnyitásra, amiben legalább egy olyan fájl van, amely illeszkedik a megadott globális mintára.",
 	"vscode.extension.activationEvents.onView": "Aktiváló esemény, ami akkor fut le, amikor a megadott nézetet kiterjesztik.",
 	"vscode.extension.activationEvents.star": "Aktiváló esemény, ami a VS Code indításakor fut le. A jó felhasználói élmény érdekében csak akkor használja ezt az eseményt, ha más aktiváló események nem alkalmasak az adott kiegészítő esetében.",

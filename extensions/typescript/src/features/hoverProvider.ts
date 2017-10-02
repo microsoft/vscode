@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { HoverProvider, Hover, TextDocument, Position, Range, CancellationToken } from 'vscode';
+import { HoverProvider, Hover, TextDocument, Position, CancellationToken } from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
 import { tagsMarkdownPreview } from './previewer';
+import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/convert';
 
 export default class TypeScriptHoverProvider implements HoverProvider {
 
@@ -19,19 +20,14 @@ export default class TypeScriptHoverProvider implements HoverProvider {
 		if (!filepath) {
 			return undefined;
 		}
-		const args: Proto.FileLocationRequestArgs = {
-			file: filepath,
-			line: position.line + 1,
-			offset: position.character + 1
-		};
-
+		const args = vsPositionToTsFileLocation(filepath, position);
 		try {
 			const response = await this.client.execute('quickinfo', args, token);
 			if (response && response.body) {
 				const data = response.body;
 				return new Hover(
 					TypeScriptHoverProvider.getContents(data),
-					new Range(data.start.line - 1, data.start.offset - 1, data.end.line - 1, data.end.offset - 1));
+					tsTextSpanToVsRange(data));
 			}
 		} catch (e) {
 			// noop
@@ -40,10 +36,14 @@ export default class TypeScriptHoverProvider implements HoverProvider {
 	}
 
 	private static getContents(data: Proto.QuickInfoResponseBody) {
+		const parts = [];
+
+		if (data.displayString) {
+			parts.push({ language: 'typescript', value: data.displayString });
+		}
+
 		const tags = tagsMarkdownPreview(data.tags);
-		return [
-			{ language: 'typescript', value: data.displayString },
-			data.documentation + (tags ? '\n\n' + tags : '')
-		];
+		parts.push(data.documentation + (tags ? '\n\n' + tags : ''));
+		return parts;
 	}
 }

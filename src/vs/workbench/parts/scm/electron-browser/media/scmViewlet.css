@@ -19,12 +19,36 @@
 }
 
 .scm-viewlet:not(.empty) .empty-message,
-.scm-viewlet.empty .monaco-split-view{
+.scm-viewlet.empty .monaco-panel-view {
 	display: none;
 }
 
 .scm-viewlet .scm-status {
 	height: 100%;
+}
+
+.scm-viewlet .monaco-list-row > .scm-provider {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+}
+
+.scm-viewlet .monaco-list-row > .scm-provider > input {
+	flex-shrink: 0;
+}
+
+.scm-viewlet .scm-provider > .count {
+	margin: 0 0.5em;
+}
+
+.scm-viewlet .scm-provider > .count.hidden {
+	display: none;
+}
+
+.scm-viewlet .scm-provider > .name > .type {
+	opacity: 0.7;
+	margin-left: 0.5em;
+	font-size: 0.9em;
 }
 
 .scm-viewlet .monaco-list-row {
@@ -125,4 +149,8 @@
 
 .scm-viewlet .scm-editor.scroll > .monaco-inputbox > .wrapper > textarea.input {
 	overflow-y: scroll;
+}
+
+.scm-viewlet .spacer {
+	flex: 1;
 }

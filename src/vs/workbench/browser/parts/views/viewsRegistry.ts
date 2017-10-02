@@ -6,7 +6,7 @@
 import Event, { Emitter } from 'vs/base/common/event';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ITreeViewDataProvider } from 'vs/workbench/common/views';
-import { IViewConstructorSignature } from 'vs/workbench/browser/parts/views/views';
+import { localize } from 'vs/nls';
 
 export class ViewLocation {
 
@@ -39,7 +39,8 @@ export interface IViewDescriptor {
 
 	readonly location: ViewLocation;
 
-	readonly ctor: IViewConstructorSignature;
+	// TODO do we really need this?!
+	readonly ctor: any;
 
 	readonly when?: ContextKeyExpr;
 
@@ -94,6 +95,9 @@ export const ViewsRegistry: IViewsRegistry = new class {
 					views = [];
 					this._views.set(viewDescriptor.location, views);
 				}
+				if (views.some(v => v.id === viewDescriptor.id)) {
+					throw new Error(localize('duplicateId', "A view with id `{0}` is already registered in the location `{1}`", viewDescriptor.id, viewDescriptor.location.id));
+				}
 				views.push(viewDescriptor);
 			}
 			this._onViewsRegistered.fire(viewDescriptors);
@@ -117,7 +121,7 @@ export const ViewsRegistry: IViewsRegistry = new class {
 	}
 
 	registerTreeViewDataProvider<T>(id: string, factory: ITreeViewDataProvider) {
-		if (!this.isViewRegistered(id)) {
+		if (!this.isDataProviderRegistered(id)) {
 			// TODO: throw error
 		}
 		this._treeViewDataPoviders.set(id, factory);
@@ -136,7 +140,7 @@ export const ViewsRegistry: IViewsRegistry = new class {
 		return this._treeViewDataPoviders.get(id);
 	}
 
-	private isViewRegistered(id: string): boolean {
+	private isDataProviderRegistered(id: string): boolean {
 		let registered = false;
 		this._views.forEach(views => registered = registered || views.some(view => view.id === id));
 		return registered;

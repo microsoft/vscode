@@ -12,25 +12,25 @@ const SYNC_STATUSBAR = 'div[id="workbench.parts.statusbar"] .statusbar-entry a[t
 
 describe('Git', () => {
 	let app: SpectronApplication;
-	before(() => { app = new SpectronApplication(); return app.start(); });
+	before(() => { app = new SpectronApplication(); return app.start('Git'); });
 	after(() => app.stop());
-	beforeEach(function () { app.createScreenshotCapturer(this.currentTest); });
+	beforeEach(function () { app.screenCapturer.testName = this.currentTest.title; });
 
 	it('reflects working tree changes', async function () {
 		await app.workbench.scm.openSCMViewlet();
 
-		await app.workbench.openFile('app.js');
+		await app.workbench.quickopen.openFile('app.js');
 		await app.client.type('.foo{}');
 		await app.workbench.saveOpenedFile();
 
-		await app.workbench.openFile('index.jade');
+		await app.workbench.quickopen.openFile('index.jade');
 		await app.client.type('hello world');
 		await app.workbench.saveOpenedFile();
 
 		await app.workbench.scm.refreshSCMViewlet();
 		const appJs = await app.workbench.scm.waitForChange(c => c.name === 'app.js');
 		const indexJade = await app.workbench.scm.waitForChange(c => c.name === 'index.jade');
-		app.screenshot.capture('changes');
+		await app.screenCapturer.capture('changes');
 
 		assert.equal(appJs.name, 'app.js');
 		assert.equal(appJs.type, 'Modified');
@@ -68,7 +68,7 @@ describe('Git', () => {
 		await app.workbench.scm.commit('first commit');
 		await app.client.waitForText(SYNC_STATUSBAR, ' 0↓ 1↑');
 
-		await app.command('Stage All Changes');
+		await app.workbench.quickopen.runCommand('Git: Stage All Changes');
 		await app.workbench.scm.waitForChange(c => c.name === 'index.jade' && c.type === 'Index Modified');
 
 		await app.workbench.scm.commit('second commit');

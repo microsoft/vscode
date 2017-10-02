@@ -19,18 +19,19 @@ export class References {
 		await this.spectron.client.waitForElement(References.REFERENCES_WIDGET);
 	}
 
-	public async getCountFromTitle(): Promise<number> {
-		const titleCount = await this.spectron.client.waitForText(References.REFERENCES_TITLE_COUNT);
-		const matches = titleCount.match(/\d+/);
-		return matches ? parseInt(matches[0]) : 0;
+	public async waitForReferencesCountInTitle(count: number): Promise<void> {
+		await this.spectron.client.waitForText(References.REFERENCES_TITLE_COUNT, void 0, titleCount => {
+			const matches = titleCount.match(/\d+/);
+			return matches ? parseInt(matches[0]) === count : false;
+		});
 	}
 
-	public async getFileNameFromTitle(): Promise<string> {
-		return await this.spectron.client.waitForText(References.REFERENCES_TITLE_FILE_NAME);
+	public async waitForReferencesCount(count: number): Promise<void> {
+		await this.spectron.client.waitForElements(References.REFERENCES, result => result && result.length === count);
 	}
 
-	public async getCount(): Promise<number> {
-		return (await this.spectron.client.waitForElements(References.REFERENCES)).length;
+	public async waitForFile(file: string): Promise<void> {
+		await this.spectron.client.waitForText(References.REFERENCES_TITLE_FILE_NAME, file);
 	}
 
 	public async close(): Promise<void> {

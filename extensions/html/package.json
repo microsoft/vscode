@@ -92,7 +92,7 @@
             "null"
           ],
           "scope": "resource",
-          "default": "a, abbr, acronym, b, bdo, big, br, button, cite, code, dfn, em, i, img, input, kbd, label, map, object, q, samp, select, small, span, strong, sub, sup, textarea, tt, var",
+          "default": "",
           "description": "%html.format.unformatted.desc%"
         },
         "html.format.contentUnformatted": {
@@ -101,7 +101,7 @@
             "null"
           ],
           "scope": "resource",
-          "default": "pre",
+          "default": "pre,code,textarea",
           "description": "%html.format.contentUnformatted.desc%"
         },
         "html.format.indentInnerHtml": {
@@ -216,9 +216,9 @@
   },
   "dependencies": {
     "vscode-extension-telemetry": "0.0.8",
-    "vscode-languageclient": "3.4.0-next.17",
-    "vscode-languageserver-protocol": "^3.1.1",
-    "vscode-languageserver-types": "^3.3.0",
+    "vscode-languageclient": "^3.4.2",
+    "vscode-languageserver-protocol": "^3.4.2",
+    "vscode-languageserver-types": "^3.4.0",
     "vscode-nls": "2.0.2"
   },
   "devDependencies": {
