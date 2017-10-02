@@ -432,6 +432,30 @@ suite('Map', () => {
 		assert.equal(map.get('/user/foo/bar/boo'), undefined);
 	});
 
+	test('TernarySearchTree (PathSegments) - superstr', function () {
+
+		const map = new TernarySearchTree<number>(new PathSegments());
+		map.set('/user/foo/bar', 1);
+		map.set('/user/foo', 2);
+		map.set('/user/foo/flip/flop', 3);
+		map.set('/usr/foo', 4);
+
+		const elements = map.findSuperstr('/user');
+		const [first, second, third] = elements.sort();
+
+		assert.equal(elements.length, 3);
+		assert.equal(first, 1);
+		assert.equal(second, 2);
+		assert.equal(third, 3);
+
+		assert.deepEqual(map.findSuperstr('/usr'), [4]);
+
+		assert.equal(map.findSuperstr('/not'), undefined);
+		assert.equal(map.findSuperstr('/us'), undefined);
+		assert.equal(map.findSuperstr('/usrr'), undefined);
+		assert.equal(map.findSuperstr('/userr'), undefined);
+	});
+
 	test('TrieMap - basics', function () {
 
 		const map = new StringTrieMap<number>();

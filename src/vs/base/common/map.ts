@@ -388,6 +388,33 @@ export class TernarySearchTree<E> {
 		}
 	}
 
+	findSuperstr(key: string): E[] {
+		const segements = this._segements.reset(key);
+		const bucket: E[] = [];
+		this._findSuperstr(this._root, segements.next(), segements, bucket);
+		return bucket.length ? bucket : undefined;
+	}
+
+	private _findSuperstr(node: TernarySearchTreeNode<E>, key: string, segments: IKeySegements, bucket: E[]): void {
+		if (!node) {
+			return;
+		} else if (node.str > key) {
+			// left
+			this._findSuperstr(node.left, key, segments, bucket);
+		} else if (node.str < key) {
+			// right
+			this._findSuperstr(node.right, key, segments, bucket);
+		} else {
+			let nextKey = segments.next();
+			if (nextKey) {
+				this._findSuperstr(node.mid, nextKey, segments, bucket);
+			} else {
+				//
+				this._forEach(node.mid, [], (entry) => bucket.push(entry[1]));
+			}
+		}
+	}
+
 	forEach(callback: (entry: [string, E]) => any) {
 		this._forEach(this._root, [], callback);
 	}
