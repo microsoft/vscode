@@ -10,7 +10,7 @@ import errors = require('vs/base/common/errors');
 import URI from 'vs/base/common/uri';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { IEditor as IBaseEditor, IEditorInput, ITextEditorOptions, IResourceInput, ITextEditorSelection, Position as GroupPosition } from 'vs/platform/editor/common/editor';
-import { EditorInput, IEditorCloseEvent, IEditorRegistry, toResource, IEditorGroup } from 'vs/workbench/common/editor';
+import { Extensions as EditorExtensions, EditorInput, IEditorCloseEvent, IEditorRegistry, toResource, IEditorGroup, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { FileChangesEvent, IFileService, FileChangeType } from 'vs/platform/files/common/files';
@@ -709,7 +709,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 			return; // nothing to save because history was not used
 		}
 
-		const registry = Registry.as<IEditorRegistry>(Extensions.Editors);
+		const registry = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories);
 
 		const entries: ISerializedEditorHistoryEntry[] = this.history.map(input => {
 
@@ -743,7 +743,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 			entries = JSON.parse(entriesRaw).filter(entry => !!entry);
 		}
 
-		const registry = Registry.as<IEditorRegistry>(Extensions.Editors);
+		const registry = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories);
 
 		this.history = entries.map(entry => {
 			const serializedEditorHistoryEntry = entry as ISerializedEditorHistoryEntry;

@@ -11,7 +11,7 @@ import { Action, IAction } from 'vs/base/common/actions';
 import { IEditorQuickOpenEntry, IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 import { StatusbarItemDescriptor, StatusbarAlignment, IStatusbarRegistry, Extensions as StatusExtensions } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { EditorInput, IEditorRegistry, IEditorInputFactory, SideBySideEditorInput } from 'vs/workbench/common/editor';
+import { EditorInput, IEditorRegistry, IEditorInputFactory, SideBySideEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
 import { TextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -143,7 +143,7 @@ class UntitledEditorInputFactory implements IEditorInputFactory {
 	}
 }
 
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditorInputFactory(UntitledEditorInput.ID, UntitledEditorInputFactory);
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(UntitledEditorInput.ID, UntitledEditorInputFactory);
 
 interface ISerializedSideBySideEditorInput {
 	name: string;
@@ -163,7 +163,7 @@ class SideBySideEditorInputFactory implements IEditorInputFactory {
 		const input = <SideBySideEditorInput>editorInput;
 
 		if (input.details && input.master) {
-			const registry = Registry.as<IEditorRegistry>(EditorExtensions.Editors);
+			const registry = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories);
 			const detailsInputFactory = registry.getEditorInputFactory(input.details.getTypeId());
 			const masterInputFactory = registry.getEditorInputFactory(input.master.getTypeId());
 
@@ -190,7 +190,7 @@ class SideBySideEditorInputFactory implements IEditorInputFactory {
 	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
 		const deserialized: ISerializedSideBySideEditorInput = JSON.parse(serializedEditorInput);
 
-		const registry = Registry.as<IEditorRegistry>(EditorExtensions.Editors);
+		const registry = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories);
 		const detailsInputFactory = registry.getEditorInputFactory(deserialized.detailsTypeId);
 		const masterInputFactory = registry.getEditorInputFactory(deserialized.masterTypeId);
 
@@ -207,7 +207,7 @@ class SideBySideEditorInputFactory implements IEditorInputFactory {
 	}
 }
 
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditorInputFactory(SideBySideEditorInput.ID, SideBySideEditorInputFactory);
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(SideBySideEditorInput.ID, SideBySideEditorInputFactory);
 
 // Register Editor Status
 const statusBar = Registry.as<IStatusbarRegistry>(StatusExtensions.Statusbar);

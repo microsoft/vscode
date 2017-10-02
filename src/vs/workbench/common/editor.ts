@@ -15,6 +15,7 @@ import { IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IBaseRe
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 export const TextCompareEditorVisible = new RawContextKey<boolean>('textCompareEditorVisible', false);
 
@@ -75,6 +76,9 @@ export interface IEditorRegistry {
 	 * Returns an array of registered editors known to the platform.
 	 */
 	getEditors(): IEditorDescriptor[];
+}
+
+export interface IEditorInputFactoryRegistry {
 
 	/**
 	 * Registers the file input factory to use for file inputs.
@@ -910,3 +914,55 @@ function doGetEditorResource(editor: IEditorInput): URI {
 
 	return null;
 }
+
+class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
+	private instantiationService: IInstantiationService;
+	private fileInputFactory: IFileInputFactory;
+	private editorInputFactoryConstructors: { [editorInputId: string]: IConstructorSignature0<IEditorInputFactory> } = Object.create(null);
+	private editorInputFactoryInstances: { [editorInputId: string]: IEditorInputFactory } = Object.create(null);
+
+	constructor() {
+	}
+
+	public setInstantiationService(service: IInstantiationService): void {
+		this.instantiationService = service;
+
+		for (let key in this.editorInputFactoryConstructors) {
+			const element = this.editorInputFactoryConstructors[key];
+			this.createEditorInputFactory(key, element);
+		}
+
+		this.editorInputFactoryConstructors = {};
+	}
+
+	private createEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>): void {
+		const instance = this.instantiationService.createInstance(ctor);
+		this.editorInputFactoryInstances[editorInputId] = instance;
+	}
+
+	public registerFileInputFactory(factory: IFileInputFactory): void {
+		this.fileInputFactory = factory;
+	}
+
+	public getFileInputFactory(): IFileInputFactory {
+		return this.fileInputFactory;
+	}
+
+	public registerEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>): void {
+		if (!this.instantiationService) {
+			this.editorInputFactoryConstructors[editorInputId] = ctor;
+		} else {
+			this.createEditorInputFactory(editorInputId, ctor);
+		}
+	}
+
+	public getEditorInputFactory(editorInputId: string): IEditorInputFactory {
+		return this.editorInputFactoryInstances[editorInputId];
+	}
+}
+
+export const Extensions = {
+	EditorInputFactories: 'workbench.contributions.editor.inputFactories'
+};
+
+Registry.add(Extensions.EditorInputFactories, new EditorInputFactoryRegistry());

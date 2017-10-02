@@ -13,7 +13,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IEditorRegistry, IEditorInputFactory, EditorInput, IFileEditorInput } from 'vs/workbench/common/editor';
+import { IEditorRegistry, IEditorInputFactory, EditorInput, IFileEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
 import { AutoSaveConfiguration, HotExitConfiguration, SUPPORTED_ENCODINGS } from 'vs/platform/files/common/files';
 import { EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { FILE_EDITOR_INPUT_ID, VIEWLET_ID, SortOrderConfiguration } from 'vs/workbench/parts/files/common/files';
@@ -97,7 +97,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 );
 
 // Register default file input factory
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerFileInputFactory({
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerFileInputFactory({
 	createFileInput: (resource, encoding, instantiationService): IFileEditorInput => {
 		return instantiationService.createInstance(FileEditorInput, resource, encoding);
 	}
@@ -140,7 +140,7 @@ class FileEditorInputFactory implements IEditorInputFactory {
 	}
 }
 
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditorInputFactory(FILE_EDITOR_INPUT_ID, FileEditorInputFactory);
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(FILE_EDITOR_INPUT_ID, FileEditorInputFactory);
 
 // Register File Editor Tracker
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
