@@ -170,23 +170,26 @@ export class SearchService implements IRawSearchService {
 			allResultsPromise = this.preventCancellation(allResultsPromise);
 		}
 
+		let chained: TPromise<void>;
 		return new PPromise<[ISerializedSearchComplete, IRawFileMatch[]], IProgress>((c, e, p) => {
-			allResultsPromise.then(([result, results]) => {
+			chained = allResultsPromise.then(([result, results]) => {
 				const scorerCache: ScorerCache = cache ? cache.scorerCache : Object.create(null);
 				const unsortedResultTime = Date.now();
-				const sortedResults = this.sortResults(config, results, scorerCache);
-				const sortedResultTime = Date.now();
+				return this.sortResults(config, results, scorerCache)
+					.then(sortedResults => {
+						const sortedResultTime = Date.now();
 
-				c([{
-					stats: objects.assign({}, result.stats, {
-						unsortedResultTime,
-						sortedResultTime
-					}),
-					limitHit: result.limitHit || typeof config.maxResults === 'number' && results.length > config.maxResults
-				}, sortedResults]);
+						c([{
+							stats: objects.assign({}, result.stats, {
+								unsortedResultTime,
+								sortedResultTime
+							}),
+							limitHit: result.limitHit || typeof config.maxResults === 'number' && results.length > config.maxResults
+						}, sortedResults]);
+					});
 			}, e, p);
 		}, () => {
-			allResultsPromise.cancel();
+			chained.cancel();
 		});
 	}
 
@@ -207,47 +210,50 @@ export class SearchService implements IRawSearchService {
 		const cacheLookupStartTime = Date.now();
 		const cached = this.getResultsFromCache(cache, config.filePattern);
 		if (cached) {
+			let chained: TPromise<void>;
 			return new PPromise<[ISerializedSearchComplete, IRawFileMatch[]], IProgress>((c, e, p) => {
-				cached.then(([result, results, cacheStats]) => {
+				chained = cached.then(([result, results, cacheStats]) => {
 					const cacheLookupResultTime = Date.now();
-					const sortedResults = this.sortResults(config, results, cache.scorerCache);
-					const sortedResultTime = Date.now();
+					return this.sortResults(config, results, cache.scorerCache)
+						.then(sortedResults => {
+							const sortedResultTime = Date.now();
 
-					const stats: ICachedSearchStats = {
-						fromCache: true,
-						cacheLookupStartTime: cacheLookupStartTime,
-						cacheFilterStartTime: cacheStats.cacheFilterStartTime,
-						cacheLookupResultTime: cacheLookupResultTime,
-						cacheEntryCount: cacheStats.cacheFilterResultCount,
-						resultCount: results.length
-					};
-					if (config.sortByScore) {
-						stats.unsortedResultTime = cacheLookupResultTime;
-						stats.sortedResultTime = sortedResultTime;
-					}
-					if (!cacheStats.cacheWasResolved) {
-						stats.joined = result.stats;
-					}
-					c([
-						{
-							limitHit: result.limitHit || typeof config.maxResults === 'number' && results.length > config.maxResults,
-							stats: stats
-						},
-						sortedResults
-					]);
+							const stats: ICachedSearchStats = {
+								fromCache: true,
+								cacheLookupStartTime: cacheLookupStartTime,
+								cacheFilterStartTime: cacheStats.cacheFilterStartTime,
+								cacheLookupResultTime: cacheLookupResultTime,
+								cacheEntryCount: cacheStats.cacheFilterResultCount,
+								resultCount: results.length
+							};
+							if (config.sortByScore) {
+								stats.unsortedResultTime = cacheLookupResultTime;
+								stats.sortedResultTime = sortedResultTime;
+							}
+							if (!cacheStats.cacheWasResolved) {
+								stats.joined = result.stats;
+							}
+							c([
+								{
+									limitHit: result.limitHit || typeof config.maxResults === 'number' && results.length > config.maxResults,
+									stats: stats
+								},
+								sortedResults
+							]);
+						});
 				}, e, p);
 			}, () => {
-				cached.cancel();
+				chained.cancel();
 			});
 		}
 		return undefined;
 	}
 
-	private sortResults(config: IRawSearch, results: IRawFileMatch[], scorerCache: ScorerCache): IRawFileMatch[] {
+	private sortResults(config: IRawSearch, results: IRawFileMatch[], scorerCache: ScorerCache): TPromise<IRawFileMatch[]> {
 		const filePattern = config.filePattern;
 		const normalizedSearchValue = strings.stripWildcards(filePattern).toLowerCase();
 		const compare = (elementA: IRawFileMatch, elementB: IRawFileMatch) => compareResourcesByScore(elementA, elementB, FileMatchResourceAccessor, filePattern, normalizedSearchValue, scorerCache);
-		return arrays.top(results, compare, config.maxResults);
+		return arrays.topAsync(results, compare, config.maxResults, 10000);
 	}
 
 	private sendProgress(results: ISerializedFileMatch[], progressCb: (batch: ISerializedFileMatch[]) => void, batchSize: number) {
