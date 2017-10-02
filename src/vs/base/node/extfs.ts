@@ -450,3 +450,19 @@ export function realpath(path: string, callback: (error: Error, realpath: string
 function normalizePath(path: string): string {
 	return strings.rtrim(paths.normalize(path), paths.sep);
 }
+
+export function watch(path: string, onChange: (type: string, path: string) => void): fs.FSWatcher {
+	const watcher = fs.watch(path);
+	watcher.on('change', (type, raw) => {
+		let file = raw.toString();
+		if (platform.isMacintosh) {
+			// Mac: uses NFD unicode form on disk, but we want NFC
+			// See also https://github.com/nodejs/node/issues/2165
+			file = strings.normalizeNFC(file);
+		}
+
+		onChange(type, file);
+	});
+
+	return watcher;
+}
