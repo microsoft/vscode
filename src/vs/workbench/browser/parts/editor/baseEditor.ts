@@ -11,9 +11,10 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Panel } from 'vs/workbench/browser/panel';
 import { EditorInput, EditorOptions, IEditorDescriptor, IEditorRegistry } from 'vs/workbench/common/editor';
 import { IEditor, Position } from 'vs/platform/editor/common/editor';
-import { SyncDescriptor, AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 
 /**
  * The base class of editors in the workbench. Editors register themselves for specific editor inputs.
@@ -128,12 +129,12 @@ export abstract class BaseEditor extends Panel implements IEditor {
  * A lightweight descriptor of an editor. The descriptor is deferred so that heavy editors
  * can load lazily in the workbench.
  */
-export class EditorDescriptor extends AsyncDescriptor<BaseEditor> implements IEditorDescriptor {
+export class EditorDescriptor extends SyncDescriptor<BaseEditor> implements IEditorDescriptor {
 	private id: string;
 	private name: string;
 
-	constructor(id: string, name: string, moduleId: string, ctorName: string) {
-		super(moduleId, ctorName);
+	constructor(ctor: IConstructorSignature0<BaseEditor>, id: string, name: string) {
+		super(ctor);
 
 		this.id = id;
 		this.name = name;

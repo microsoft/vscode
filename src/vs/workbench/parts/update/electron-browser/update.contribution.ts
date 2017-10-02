@@ -33,10 +33,9 @@ Registry.as<IGlobalActivityRegistry>(GlobalActivityExtensions)
 
 // Editor
 const editorDescriptor = new EditorDescriptor(
+	ReleaseNotesEditor,
 	ReleaseNotesEditor.ID,
-	nls.localize('release notes', "Release notes"),
-	'vs/workbench/parts/update/electron-browser/releaseNotesEditor',
-	'ReleaseNotesEditor'
+	nls.localize('release notes', "Release notes")
 );
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors)

@@ -78,10 +78,9 @@ Registry.as<IQuickOpenRegistry>(Extensions.Quickopen).registerQuickOpenHandler(
 
 // Editor
 const editorDescriptor = new EditorDescriptor(
+	ExtensionEditor,
 	ExtensionEditor.ID,
-	localize('extension', "Extension"),
-	'vs/workbench/parts/extensions/browser/extensionEditor',
-	'ExtensionEditor'
+	localize('extension', "Extension")
 );
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors)

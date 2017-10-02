@@ -13,7 +13,7 @@ import { ArrayNavigator, INavigator } from 'vs/base/common/iterator';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { toResource, SideBySideEditorInput, EditorOptions, EditorInput, IEditorRegistry } from 'vs/workbench/common/editor';
-import { BaseEditor, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { BaseEditor, Extensions as EditorExtensions } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 import { IEditorControl, Position, Verbosity } from 'vs/platform/editor/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
@@ -527,13 +527,11 @@ class SideBySidePreferencesWidget extends Widget {
 	}
 
 	public setInput(defaultPreferencesEditorInput: DefaultPreferencesEditorInput, editablePreferencesEditorInput: EditorInput, options?: EditorOptions): TPromise<{ defaultPreferencesRenderer: IPreferencesRenderer<ISetting>, editablePreferencesRenderer: IPreferencesRenderer<ISetting> }> {
-		return this.getOrCreateEditablePreferencesEditor(editablePreferencesEditorInput)
-			.then(() => {
-				this.dolayout(this.sash.getVerticalSashLeft());
-				return TPromise.join([this.updateInput(this.defaultPreferencesEditor, defaultPreferencesEditorInput, DefaultSettingsEditorContribution.ID, toResource(editablePreferencesEditorInput), options),
-				this.updateInput(this.editablePreferencesEditor, editablePreferencesEditorInput, SettingsEditorContribution.ID, defaultPreferencesEditorInput.getResource(), options)])
-					.then(([defaultPreferencesRenderer, editablePreferencesRenderer]) => ({ defaultPreferencesRenderer, editablePreferencesRenderer }));
-			});
+		this.getOrCreateEditablePreferencesEditor(editablePreferencesEditorInput);
+		this.dolayout(this.sash.getVerticalSashLeft());
+		return TPromise.join([this.updateInput(this.defaultPreferencesEditor, defaultPreferencesEditorInput, DefaultSettingsEditorContribution.ID, toResource(editablePreferencesEditorInput), options),
+		this.updateInput(this.editablePreferencesEditor, editablePreferencesEditorInput, SettingsEditorContribution.ID, defaultPreferencesEditorInput.getResource(), options)])
+			.then(([defaultPreferencesRenderer, editablePreferencesRenderer]) => ({ defaultPreferencesRenderer, editablePreferencesRenderer }));
 	}
 
 	public layout(dimension: Dimension): void {
@@ -569,20 +567,19 @@ class SideBySidePreferencesWidget extends Widget {
 		}
 	}
 
-	private getOrCreateEditablePreferencesEditor(editorInput: EditorInput): TPromise<BaseEditor> {
+	private getOrCreateEditablePreferencesEditor(editorInput: EditorInput): BaseEditor {
 		if (this.editablePreferencesEditor) {
-			return TPromise.as(this.editablePreferencesEditor);
+			return this.editablePreferencesEditor;
 		}
 		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editorInput);
-		return this.instantiationService.createInstance(<EditorDescriptor>descriptor)
-			.then((editor: BaseEditor) => {
-				this.editablePreferencesEditor = editor;
-				this.editablePreferencesEditor.create(new Builder(this.editablePreferencesEditorContainer));
-				this.editablePreferencesEditor.setVisible(true);
-				(<CodeEditor>this.editablePreferencesEditor.getControl()).onDidFocusEditor(() => this.lastFocusedEditor = this.editablePreferencesEditor);
-				this.lastFocusedEditor = this.editablePreferencesEditor;
-				return editor;
-			});
+		const editor = (<any>this).instantiationService.createInstance(descriptor); // TODO@Ben why?
+		this.editablePreferencesEditor = editor;
+		this.editablePreferencesEditor.create(new Builder(this.editablePreferencesEditorContainer));
+		this.editablePreferencesEditor.setVisible(true);
+		(<CodeEditor>this.editablePreferencesEditor.getControl()).onDidFocusEditor(() => this.lastFocusedEditor = this.editablePreferencesEditor);
+		this.lastFocusedEditor = this.editablePreferencesEditor;
+
+		return editor;
 	}
 
 	private updateInput(editor: BaseEditor, input: EditorInput, editorContributionId: string, associatedPreferencesModelUri: URI, options: EditorOptions): TPromise<IPreferencesRenderer<ISetting>> {

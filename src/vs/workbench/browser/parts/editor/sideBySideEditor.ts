@@ -4,13 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import * as strings from 'vs/base/common/strings';
 import * as DOM from 'vs/base/browser/dom';
 import { Dimension, Builder } from 'vs/base/browser/builder';
 
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEditorRegistry, EditorInput, EditorOptions, SideBySideEditorInput } from 'vs/workbench/common/editor';
-import { BaseEditor, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { BaseEditor, Extensions as EditorExtensions } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorControl, Position, IEditor } from 'vs/platform/editor/common/editor';
 import { VSash } from 'vs/base/browser/ui/sash/sash';
 
@@ -110,7 +109,7 @@ export class SideBySideEditor extends BaseEditor {
 		return this.detailsEditor;
 	}
 
-	private updateInput(oldInput: SideBySideEditorInput, newInput: SideBySideEditorInput, options?: EditorOptions): TPromise<void> {
+	private updateInput(oldInput: SideBySideEditorInput, newInput: SideBySideEditorInput, options?: EditorOptions): void {
 		if (!newInput.matches(oldInput)) {
 			if (oldInput) {
 				this.disposeEditors();
@@ -126,24 +125,20 @@ export class SideBySideEditor extends BaseEditor {
 		}
 	}
 
-	private setNewInput(newInput: SideBySideEditorInput, options?: EditorOptions): TPromise<void> {
-		return TPromise.join([
-			this._createEditor(<EditorInput>newInput.details, this.detailsEditorContainer),
-			this._createEditor(<EditorInput>newInput.master, this.masterEditorContainer)
-		]).then(result => this.onEditorsCreated(result[0], result[1], newInput.details, newInput.master, options));
+	private setNewInput(newInput: SideBySideEditorInput, options?: EditorOptions): void {
+		const detailsEditor = this._createEditor(<EditorInput>newInput.details, this.detailsEditorContainer);
+		const masterEditor = this._createEditor(<EditorInput>newInput.master, this.masterEditorContainer);
+
+		this.onEditorsCreated(detailsEditor, masterEditor, newInput.details, newInput.master, options);
 	}
 
-	private _createEditor(editorInput: EditorInput, container: HTMLElement): TPromise<BaseEditor> {
+	private _createEditor(editorInput: EditorInput, container: HTMLElement): BaseEditor {
 		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editorInput);
-		if (!descriptor) {
-			return TPromise.wrapError<BaseEditor>(new Error(strings.format('Can not find a registered editor for the input {0}', editorInput)));
-		}
-		return this.instantiationService.createInstance(<EditorDescriptor>descriptor)
-			.then((editor: BaseEditor) => {
-				editor.create(new Builder(container));
-				editor.setVisible(this.isVisible(), this.position);
-				return editor;
-			});
+
+		const editor = (<any>this).instantiationService.createInstance(descriptor); // TODO@Ben why?
+		editor.create(new Builder(container));
+		editor.setVisible(this.isVisible(), this.position);
+		return editor;
 	}
 
 	private onEditorsCreated(details: BaseEditor, master: BaseEditor, detailsInput: EditorInput, masterInput: EditorInput, options: EditorOptions): TPromise<void> {

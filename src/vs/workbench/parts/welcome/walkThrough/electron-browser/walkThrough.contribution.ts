@@ -22,10 +22,11 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors)
-	.registerEditor(new EditorDescriptor(WalkThroughPart.ID,
+	.registerEditor(new EditorDescriptor(
+		WalkThroughPart,
+		WalkThroughPart.ID,
 		localize('walkThrough.editor.label', "Interactive Playground"),
-		'vs/workbench/parts/welcome/walkThrough/electron-browser/walkThroughPart',
-		'WalkThroughPart'),
+	),
 	[new SyncDescriptor(WalkThroughInput)]);
 
 Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)

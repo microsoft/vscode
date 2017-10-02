@@ -35,10 +35,9 @@ registerSingleton(IPreferencesService, PreferencesService);
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new EditorDescriptor(
+		PreferencesEditor,
 		PreferencesEditor.ID,
-		nls.localize('defaultPreferencesEditor', "Default Preferences Editor"),
-		'vs/workbench/parts/preferences/browser/preferencesEditor',
-		'PreferencesEditor'
+		nls.localize('defaultPreferencesEditor', "Default Preferences Editor")
 	),
 	[
 		new SyncDescriptor(PreferencesEditorInput)
@@ -47,10 +46,9 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new EditorDescriptor(
+		KeybindingsEditor,
 		KeybindingsEditor.ID,
-		nls.localize('keybindingsEditor', "Keybindings Editor"),
-		'vs/workbench/parts/preferences/browser/keybindingsEditor',
-		'KeybindingsEditor'
+		nls.localize('keybindingsEditor', "Keybindings Editor")
 	),
 	[
 		new SyncDescriptor(KeybindingsEditorInput)

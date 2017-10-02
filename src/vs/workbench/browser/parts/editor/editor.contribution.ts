@@ -44,10 +44,9 @@ import { isMacintosh } from 'vs/base/common/platform';
 // Register String Editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new EditorDescriptor(
+		TextResourceEditor,
 		TextResourceEditor.ID,
 		nls.localize('textEditor', "Text Editor"),
-		'vs/workbench/browser/parts/editor/textResourceEditor',
-		'TextResourceEditor'
 	),
 	[
 		new SyncDescriptor(UntitledEditorInput),
@@ -58,10 +57,9 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 // Register Text Diff Editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new EditorDescriptor(
+		TextDiffEditor,
 		TextDiffEditor.ID,
-		nls.localize('textDiffEditor', "Text Diff Editor"),
-		'vs/workbench/browser/parts/editor/textDiffEditor',
-		'TextDiffEditor'
+		nls.localize('textDiffEditor', "Text Diff Editor")
 	),
 	[
 		new SyncDescriptor(DiffEditorInput)
@@ -71,10 +69,9 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 // Register Binary Resource Diff Editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new EditorDescriptor(
+		BinaryResourceDiffEditor,
 		BinaryResourceDiffEditor.ID,
-		nls.localize('binaryDiffEditor', "Binary Diff Editor"),
-		'vs/workbench/browser/parts/editor/binaryDiffEditor',
-		'BinaryResourceDiffEditor'
+		nls.localize('binaryDiffEditor', "Binary Diff Editor")
 	),
 	[
 		new SyncDescriptor(DiffEditorInput)
@@ -83,10 +80,9 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new EditorDescriptor(
+		SideBySideEditor,
 		SideBySideEditor.ID,
-		nls.localize('sideBySideEditor', "Side by Side Editor"),
-		'vs/workbench/browser/parts/editor/sideBySideEditor',
-		'SideBySideEditor'
+		nls.localize('sideBySideEditor', "Side by Side Editor")
 	),
 	[
 		new SyncDescriptor(SideBySideEditorInput)

@@ -31,10 +31,10 @@ function getActivePreviewsForResource(accessor: ServicesAccessor, resource: URI 
 }
 
 // --- Register Editor
-(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(new EditorDescriptor(HtmlPreviewPart.ID,
-	localize('html.editor.label', "Html Preview"),
-	'vs/workbench/parts/html/browser/htmlPreviewPart',
-	'HtmlPreviewPart'),
+(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(new EditorDescriptor(
+	HtmlPreviewPart,
+	HtmlPreviewPart.ID,
+	localize('html.editor.label', "Html Preview")),
 	[new SyncDescriptor(HtmlInput)]);
 
 // --- Register Commands

@@ -74,10 +74,9 @@ registry.registerWorkbenchAction(
 // Register file editors
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new EditorDescriptor(
-		TextFileEditor.ID, // explicit dependency because we don't want these editors lazy loaded
-		nls.localize('textFileEditor', "Text File Editor"),
-		'vs/workbench/parts/files/browser/editors/textFileEditor',
-		'TextFileEditor'
+		TextFileEditor,
+		TextFileEditor.ID,
+		nls.localize('textFileEditor', "Text File Editor")
 	),
 	[
 		new SyncDescriptor<EditorInput>(FileEditorInput)
@@ -86,10 +85,9 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new EditorDescriptor(
-		BinaryFileEditor.ID, // explicit dependency because we don't want these editors lazy loaded
-		nls.localize('binaryFileEditor', "Binary File Editor"),
-		'vs/workbench/parts/files/browser/editors/binaryFileEditor',
-		'BinaryFileEditor'
+		BinaryFileEditor,
+		BinaryFileEditor.ID,
+		nls.localize('binaryFileEditor', "Binary File Editor")
 	),
 	[
 		new SyncDescriptor<EditorInput>(FileEditorInput)
