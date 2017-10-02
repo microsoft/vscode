@@ -79,7 +79,6 @@ export class QuickOpen {
 		await this.waitForQuickOpenOpened();
 		for (let from = 0; from < index; from++) {
 			await this.spectron.client.keys(['ArrowDown', 'NULL']);
-			this.spectron.wait(3);
 		}
 		await this.spectron.client.keys(['Enter', 'NULL']);
 		await this.waitForQuickOpenClosed();

@@ -29,7 +29,7 @@ describe('Data Migration', () => {
 		await app.workbench.editor.waitForTypeInEditor('Untitled-1', textToType);
 
 		await app.stop();
-		await app.wait(.5); // wait until all resources are released (e.g. locked local storage)
+		await new Promise(c => setTimeout(c, 500)); // wait until all resources are released (e.g. locked local storage)
 		// Checking latest version for the restored state
 
 		app = new SpectronApplication(LATEST_PATH);
@@ -58,7 +58,7 @@ describe('Data Migration', () => {
 		await app.client.type(secondTextPart);
 
 		await app.stop();
-		await app.wait(); // wait until all resources are released (e.g. locked local storage)
+		await new Promise(c => setTimeout(c, 1000)); // wait until all resources are released (e.g. locked local storage)
 
 		// Checking latest version for the restored state
 		app = new SpectronApplication(LATEST_PATH);
