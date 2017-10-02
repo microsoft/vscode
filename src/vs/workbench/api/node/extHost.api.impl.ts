@@ -5,7 +5,7 @@
 'use strict';
 
 import { Emitter } from 'vs/base/common/event';
-import { StringTrieMap } from 'vs/base/common/map';
+import { TernarySearchTree } from 'vs/base/common/map';
 import { score } from 'vs/editor/common/modes/languageSelector';
 import * as Platform from 'vs/base/common/platform';
 import * as errors from 'vs/base/common/errors';
@@ -83,7 +83,7 @@ export function createApiFactory(
 
 	// Addressable instances
 	const extHostHeapService = threadService.set(ExtHostContext.ExtHostHeapService, new ExtHostHeapService());
-	const extHostDocumentsAndEditors = threadService.set(ExtHostContext.ExtHostDocumentsAndEditors, new ExtHostDocumentsAndEditors(threadService, extensionService));
+	const extHostDocumentsAndEditors = threadService.set(ExtHostContext.ExtHostDocumentsAndEditors, new ExtHostDocumentsAndEditors(threadService));
 	const extHostDocuments = threadService.set(ExtHostContext.ExtHostDocuments, new ExtHostDocuments(threadService, extHostDocumentsAndEditors));
 	const extHostDocumentContentProviders = threadService.set(ExtHostContext.ExtHostDocumentContentProviders, new ExtHostDocumentContentProvider(threadService, extHostDocumentsAndEditors));
 	const extHostDocumentSaveParticipant = threadService.set(ExtHostContext.ExtHostDocumentSaveParticipant, new ExtHostDocumentSaveParticipant(extHostDocuments, threadService.get(MainContext.MainThreadEditors)));
@@ -674,7 +674,7 @@ export function initializeExtensionApi(extensionService: ExtHostExtensionService
 	return extensionService.getExtensionPathIndex().then(trie => defineAPI(apiFactory, trie));
 }
 
-function defineAPI(factory: IExtensionApiFactory, extensionPaths: StringTrieMap<IExtensionDescription>): void {
+function defineAPI(factory: IExtensionApiFactory, extensionPaths: TernarySearchTree<IExtensionDescription>): void {
 
 	// each extension is meant to get its own api implementation
 	const extApiImpl = new Map<string, typeof vscode>();

@@ -12,7 +12,7 @@ import { WalkThroughContentProvider, WalkThroughSnippetContentProvider } from 'v
 import { EditorWalkThroughAction, EditorWalkThroughInputFactory } from 'vs/workbench/parts/welcome/walkThrough/electron-browser/editor/editorWalkThrough';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IEditorRegistry } from 'vs/workbench/common/editor';
+import { IEditorRegistry, Extensions as EditorInputExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
@@ -33,7 +33,7 @@ Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
 	new SyncActionDescriptor(EditorWalkThroughAction, EditorWalkThroughAction.ID, EditorWalkThroughAction.LABEL),
 	'Help: Interactive Playground', localize('help', "Help"));
 
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditorInputFactory(EditorWalkThroughInputFactory.ID, EditorWalkThroughInputFactory);
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(EditorWalkThroughInputFactory.ID, EditorWalkThroughInputFactory);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(WalkThroughContentProvider);

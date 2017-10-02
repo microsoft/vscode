@@ -6,12 +6,8 @@
 'use strict';
 
 import Event, { Emitter, once } from 'vs/base/common/event';
-import { IEditorRegistry, EditorInput, toResource, IEditorStacksModel, IEditorGroup, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, EditorOpenPositioning, SideBySideEditorInput } from 'vs/workbench/common/editor';
+import { Extensions, IEditorInputFactoryRegistry, EditorInput, toResource, IEditorStacksModel, IEditorGroup, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, EditorOpenPositioning, SideBySideEditorInput } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
-// TODO@Ben fix layering issues
-// tslint:disable-next-line:import-patterns
-// tslint:disable-next-line:layering
-import { Extensions } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -641,7 +637,7 @@ export class EditorGroup implements IEditorGroup {
 	}
 
 	public serialize(): ISerializedEditorGroup {
-		const registry = Registry.as<IEditorRegistry>(Extensions.Editors);
+		const registry = Registry.as<IEditorInputFactoryRegistry>(Extensions.EditorInputFactories);
 
 		// Serialize all editor inputs so that we can store them.
 		// Editors that cannot be serialized need to be ignored
@@ -675,7 +671,7 @@ export class EditorGroup implements IEditorGroup {
 	}
 
 	private deserialize(data: ISerializedEditorGroup): void {
-		const registry = Registry.as<IEditorRegistry>(Extensions.Editors);
+		const registry = Registry.as<IEditorInputFactoryRegistry>(Extensions.EditorInputFactories);
 
 		this._label = data.label;
 		this.editors = data.editors.map(e => {

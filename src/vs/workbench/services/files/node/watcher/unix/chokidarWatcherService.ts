@@ -63,6 +63,12 @@ export class ChokidarWatcherService implements IWatcherService {
 
 		return new TPromise<void>((c, e, p) => {
 			chokidarWatcher.on('all', (type: string, path: string) => {
+				if (isMacintosh) {
+					// Mac: uses NFD unicode form on disk, but we want NFC
+					// See also https://github.com/nodejs/node/issues/2165
+					path = strings.normalizeNFC(path);
+				}
+
 				if (path.indexOf(realBasePath) < 0) {
 					return; // we really only care about absolute paths here in our basepath context here
 				}

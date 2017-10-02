@@ -14,7 +14,7 @@ import types = require('vs/base/common/types');
 import { isWindows } from 'vs/base/common/platform';
 import strings = require('vs/base/common/strings');
 import { IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
-import { QuickOpenEntry, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import { QuickOpenEntry, QuickOpenModel, ResourceAccessor } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
 import { FileEntry, OpenFileHandler, FileQuickOpenModel } from 'vs/workbench/parts/search/browser/openFileHandler';
 import * as openSymbolHandler from 'vs/workbench/parts/search/browser/openSymbolHandler';
@@ -24,6 +24,10 @@ import { ISearchStats, ICachedSearchStats, IUncachedSearchStats } from 'vs/platf
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchSearchConfiguration } from 'vs/workbench/parts/search/common/search';
+import { IRange } from 'vs/editor/common/core/range';
+import { compareResourcesByScore } from 'vs/base/common/scorer';
+
+export import OpenSymbolHandler = openSymbolHandler.OpenSymbolHandler; // OpenSymbolHandler is used from an extension and must be in the main bundle file so it can load
 
 const objects_assign: <T, U>(destination: T, source: U) => T & U = objects.assign;
 
@@ -106,10 +110,6 @@ interface ITelemetryData {
 	};
 	files: ISearchStats;
 }
-
-// OpenSymbolHandler is used from an extension and must be in the main bundle file so it can load
-export import OpenSymbolHandler = openSymbolHandler.OpenSymbolHandler;
-import { IRange } from 'vs/editor/common/core/range';
 
 export class OpenAnythingHandler extends QuickOpenHandler {
 
@@ -216,7 +216,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 				// Sort
 				const unsortedResultTime = Date.now();
 				const normalizedSearchValue = strings.stripWildcards(searchValue).toLowerCase();
-				const compare = (elementA: QuickOpenEntry, elementB: QuickOpenEntry) => QuickOpenEntry.compareByScore(elementA, elementB, searchValue, normalizedSearchValue, this.scorerCache);
+				const compare = (elementA: QuickOpenEntry, elementB: QuickOpenEntry) => compareResourcesByScore(elementA, elementB, ResourceAccessor, searchValue, normalizedSearchValue, this.scorerCache);
 				const viewResults = arrays.top(mergedResults, compare, OpenAnythingHandler.MAX_DISPLAYED_RESULTS);
 				const sortedResultTime = Date.now();
 

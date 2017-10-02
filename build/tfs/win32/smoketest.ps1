@@ -41,9 +41,7 @@ step "Run smoke test" {
 	$Screenshots = "$env:AGENT_BUILDDIRECTORY\smoketest-screenshots"
 	Remove-Item -Recurse -Force -ErrorAction Ignore $Screenshots
 
-	exec { & Push-Location test\smoke }
-	exec { & .\node_modules\.bin/mocha --build "$env:AGENT_BUILDDIRECTORY\VSCode-win32-$global:arch\Code - Insiders.exe" --screenshots "$Screenshots" }
-	exec { & Pop-Location }
+	exec { & npm run smoketest -- --build "$env:AGENT_BUILDDIRECTORY\VSCode-win32-$global:arch" --screenshots "$Screenshots" }
 }
 
 done

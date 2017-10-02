@@ -322,6 +322,16 @@ suite('Strings', () => {
 		assert.equal(strings.getLeadingWhitespace('  ', 0, 1), ' ');
 		assert.equal(strings.getLeadingWhitespace('\t\tfunction foo(){', 0, 1), '\t');
 		assert.equal(strings.getLeadingWhitespace('\t\tfunction foo(){', 0, 2), '\t\t');
+	});
 
+	test('fuzzyContains', function () {
+		assert.ok(!strings.fuzzyContains(void 0, null));
+		assert.ok(strings.fuzzyContains('hello world', 'h'));
+		assert.ok(!strings.fuzzyContains('hello world', 'q'));
+		assert.ok(strings.fuzzyContains('hello world', 'hw'));
+		assert.ok(strings.fuzzyContains('hello world', 'horl'));
+		assert.ok(strings.fuzzyContains('hello world', 'd'));
+		assert.ok(!strings.fuzzyContains('hello world', 'wh'));
+		assert.ok(!strings.fuzzyContains('d', 'dd'));
 	});
 });

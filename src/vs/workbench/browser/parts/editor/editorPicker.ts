@@ -10,11 +10,9 @@ import nls = require('vs/nls');
 import labels = require('vs/base/common/labels');
 import URI from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
-import strings = require('vs/base/common/strings');
 import { IIconLabelOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IAutoFocus, Mode, IEntryRunContext, IQuickNavigateConfiguration, IModel } from 'vs/base/parts/quickopen/common/quickOpen';
-import { QuickOpenModel, QuickOpenEntry, QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import scorer = require('vs/base/common/scorer');
+import { QuickOpenModel, QuickOpenEntry, QuickOpenEntryGroup, ResourceAccessor } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { getIconClasses } from 'vs/workbench/browser/labels';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -25,6 +23,8 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EditorInput, toResource, IEditorGroup, IEditorStacksModel } from 'vs/workbench/common/editor';
+import { stripWildcards, fuzzyContains } from 'vs/base/common/strings';
+import { compareResourcesByScore } from 'vs/base/common/scorer';
 
 export class EditorPickerEntry extends QuickOpenEntryGroup {
 	private stacks: IEditorStacksModel;
@@ -104,7 +104,7 @@ export abstract class BaseEditorPicker extends QuickOpenHandler {
 
 	public getResults(searchValue: string): TPromise<QuickOpenModel> {
 		searchValue = searchValue.trim();
-		const normalizedSearchValueLowercase = strings.stripWildcards(searchValue).toLowerCase();
+		const normalizedSearchValueLowercase = stripWildcards(searchValue).toLowerCase();
 
 		const editorEntries = this.getEditorEntries();
 		if (!editorEntries.length) {
@@ -120,7 +120,7 @@ export abstract class BaseEditorPicker extends QuickOpenHandler {
 
 			const resource = e.getResource();
 			const targetToMatch = resource ? labels.getPathLabel(e.getResource(), this.contextService) : e.getLabel();
-			if (!scorer.matches(targetToMatch, normalizedSearchValueLowercase)) {
+			if (!fuzzyContains(targetToMatch, normalizedSearchValueLowercase)) {
 				return false;
 			}
 
@@ -137,7 +137,7 @@ export abstract class BaseEditorPicker extends QuickOpenHandler {
 					return stacks.positionOfGroup(e1.group) - stacks.positionOfGroup(e2.group);
 				}
 
-				return QuickOpenEntry.compareByScore(e1, e2, searchValue, normalizedSearchValueLowercase, this.scorerCache);
+				return compareResourcesByScore(e1, e2, ResourceAccessor, searchValue, normalizedSearchValueLowercase, this.scorerCache);
 			});
 		}
 

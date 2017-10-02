@@ -9,9 +9,8 @@ import types = require('vs/base/common/types');
 import { Builder } from 'vs/base/browser/builder';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Panel } from 'vs/workbench/browser/panel';
-import { EditorInput, EditorOptions, IEditorDescriptor, IEditorInputFactory, IEditorRegistry, IFileInputFactory } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, IEditorDescriptor, IEditorRegistry } from 'vs/workbench/common/editor';
 import { IEditor, Position } from 'vs/platform/editor/common/editor';
-import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 import { SyncDescriptor, AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -157,29 +156,9 @@ const INPUT_DESCRIPTORS_PROPERTY = '__$inputDescriptors';
 
 class EditorRegistry implements IEditorRegistry {
 	private editors: EditorDescriptor[];
-	private instantiationService: IInstantiationService;
-	private fileInputFactory: IFileInputFactory;
-	private editorInputFactoryConstructors: { [editorInputId: string]: IConstructorSignature0<IEditorInputFactory> } = Object.create(null);
-	private editorInputFactoryInstances: { [editorInputId: string]: IEditorInputFactory } = Object.create(null);
 
 	constructor() {
 		this.editors = [];
-	}
-
-	public setInstantiationService(service: IInstantiationService): void {
-		this.instantiationService = service;
-
-		for (let key in this.editorInputFactoryConstructors) {
-			const element = this.editorInputFactoryConstructors[key];
-			this.createEditorInputFactory(key, element);
-		}
-
-		this.editorInputFactoryConstructors = {};
-	}
-
-	private createEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>): void {
-		const instance = this.instantiationService.createInstance(ctor);
-		this.editorInputFactoryInstances[editorInputId] = instance;
 	}
 
 	public registerEditor(descriptor: EditorDescriptor, editorInputDescriptor: SyncDescriptor<EditorInput>): void;
@@ -279,26 +258,6 @@ class EditorRegistry implements IEditorRegistry {
 		}
 
 		return inputClasses;
-	}
-
-	public registerFileInputFactory(factory: IFileInputFactory): void {
-		this.fileInputFactory = factory;
-	}
-
-	public getFileInputFactory(): IFileInputFactory {
-		return this.fileInputFactory;
-	}
-
-	public registerEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>): void {
-		if (!this.instantiationService) {
-			this.editorInputFactoryConstructors[editorInputId] = ctor;
-		} else {
-			this.createEditorInputFactory(editorInputId, ctor);
-		}
-	}
-
-	public getEditorInputFactory(editorInputId: string): IEditorInputFactory {
-		return this.editorInputFactoryInstances[editorInputId];
 	}
 }
 

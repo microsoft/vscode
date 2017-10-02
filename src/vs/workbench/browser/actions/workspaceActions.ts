@@ -11,13 +11,12 @@ import nls = require('vs/nls');
 import { distinct } from 'vs/base/common/arrays';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import URI from 'vs/base/common/uri';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { WORKSPACE_FILTER } from 'vs/platform/workspaces/common/workspaces';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isLinux } from 'vs/base/common/platform';
 import { dirname } from 'vs/base/common/paths';
@@ -26,7 +25,7 @@ import { isParent, FileKind } from 'vs/platform/files/common/files';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService, IFilePickOpenEntry, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 
 export class OpenFolderAction extends Action {
 
@@ -133,6 +132,48 @@ export class AddRootFolderAction extends BaseWorkspacesAction {
 	}
 }
 
+export class GlobalRemoveRootFolderAction extends BaseWorkspacesAction {
+
+	static ID = 'workbench.action.removeRootFolder';
+	static LABEL = nls.localize('globalRemoveFolderFromWorkspace', "Remove Folder from Workspace...");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowService windowService: IWindowService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
+		@ICommandService private commandService: ICommandService
+	) {
+		super(id, label, windowService, environmentService, contextService);
+	}
+
+	public run(): TPromise<any> {
+		const state = this.contextService.getWorkbenchState();
+
+		// Workspace / Folder
+		if (state === WorkbenchState.WORKSPACE || state === WorkbenchState.FOLDER) {
+			return this.commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND).then(folder => {
+				if (folder) {
+
+					// Folder: close workspace
+					if (state === WorkbenchState.FOLDER) {
+						return this.windowService.closeWorkspace().then(() => true);
+					}
+
+					// Workspace: remove folder
+					return this.workspaceEditingService.removeFolders([folder.uri]).then(() => true);
+				}
+
+				return true;
+			});
+		}
+
+		return TPromise.as(true);
+	}
+}
+
 class NewWorkspaceAction extends BaseWorkspacesAction {
 
 	static ID = 'workbench.action.newWorkspace';
@@ -196,7 +237,6 @@ export class SaveWorkspaceAsAction extends BaseWorkspacesAction {
 		@IWindowService windowService: IWindowService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IMessageService private messageService: IMessageService,
 		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService
 	) {
 		super(id, label, windowService, environmentService, contextService);

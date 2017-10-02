@@ -242,7 +242,13 @@ function isCamelCasePattern(word: string): boolean {
 }
 
 export function matchesCamelCase(word: string, camelCaseWord: string): IMatch[] {
-	if (!camelCaseWord || camelCaseWord.length === 0) {
+	if (!camelCaseWord) {
+		return null;
+	}
+
+	camelCaseWord = camelCaseWord.trim();
+
+	if (camelCaseWord.length === 0) {
 		return null;
 	}
 

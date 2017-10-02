@@ -16,7 +16,7 @@ import paths = require('vs/base/common/paths');
 import { IconLabel, IIconLabelOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IQuickNavigateConfiguration, IModel, IDataSource, IFilter, IAccessiblityProvider, IRenderer, IRunner, Mode } from 'vs/base/parts/quickopen/common/quickOpen';
 import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
-import { compareAnything, compareByScore as doCompareByScore } from 'vs/base/common/comparers';
+import { compareAnything } from 'vs/base/common/comparers';
 import { ActionBar, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import DOM = require('vs/base/browser/dom');
@@ -37,14 +37,15 @@ export interface IHighlight {
 
 let IDS = 0;
 
-class EntryAccessor {
+export class ResourceAccessor {
 
-	public static getLabel(entry: QuickOpenEntry) {
+	public static getResourceLabel(entry: QuickOpenEntry) {
 		return entry.getLabel();
 	}
 
 	public static getResourcePath(entry: QuickOpenEntry) {
 		const resource = entry.getResource();
+
 		return resource && resource.fsPath;
 	}
 }
@@ -196,10 +197,6 @@ export class QuickOpenEntry {
 		}
 
 		return compareAnything(nameA, nameB, lookFor);
-	}
-
-	public static compareByScore(elementA: QuickOpenEntry, elementB: QuickOpenEntry, lookFor: string, lookForNormalizedLower: string, scorerCache?: { [key: string]: number }): number {
-		return doCompareByScore(elementA, elementB, EntryAccessor, lookFor, lookForNormalizedLower, scorerCache);
 	}
 
 	/**

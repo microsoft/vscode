@@ -18,7 +18,7 @@ import { IExtensionMemento, ExtensionsActivator, ActivatedExtension, IExtensionA
 import { Barrier } from 'vs/workbench/services/extensions/node/barrier';
 import { ExtHostThreadService } from 'vs/workbench/services/thread/node/extHostThreadService';
 import { realpath } from 'fs';
-import { StringTrieMap } from 'vs/base/common/map';
+import { TernarySearchTree } from 'vs/base/common/map';
 
 class ExtensionMemento implements IExtensionMemento {
 
@@ -116,7 +116,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	private readonly _storagePath: ExtensionStoragePath;
 	private readonly _proxy: MainThreadExtensionServiceShape;
 	private _activator: ExtensionsActivator;
-	private _extensionPathIndex: TPromise<StringTrieMap<IExtensionDescription>>;
+	private _extensionPathIndex: TPromise<TernarySearchTree<IExtensionDescription>>;
 	/**
 	 * This class is constructed manually because it is a service, so it doesn't use any ctor injection
 	 */
@@ -204,9 +204,9 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	}
 
 	// create trie to enable fast 'filename -> extension id' look up
-	public getExtensionPathIndex(): TPromise<StringTrieMap<IExtensionDescription>> {
+	public getExtensionPathIndex(): TPromise<TernarySearchTree<IExtensionDescription>> {
 		if (!this._extensionPathIndex) {
-			const trie = new StringTrieMap<IExtensionDescription>();
+			const tree = TernarySearchTree.forPaths<IExtensionDescription>();
 			const extensions = this.getAllExtensionDescriptions().map(ext => {
 				if (!ext.main) {
 					return undefined;
@@ -216,13 +216,13 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 						if (err) {
 							reject(err);
 						} else {
-							trie.insert(path, ext);
+							tree.set(path, ext);
 							resolve(void 0);
 						}
 					});
 				});
 			});
-			this._extensionPathIndex = TPromise.join(extensions).then(() => trie);
+			this._extensionPathIndex = TPromise.join(extensions).then(() => tree);
 		}
 		return this._extensionPathIndex;
 	}

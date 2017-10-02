@@ -813,9 +813,11 @@ export class ChangeModeAction extends Action {
 		}
 
 		const textModel = editorWidget.getModel();
-		let resource = toResource(activeEditor.input, { supportSideBySide: true });
+		const resource = toResource(activeEditor.input, { supportSideBySide: true });
+
+		let hasLanguageSupport = !!resource;
 		if (resource.scheme === 'untitled' && !this.untitledEditorService.hasAssociatedFilePath(resource)) {
-			resource = void 0; // no configuration for untitled resources (e.g. "Untitled-1")
+			hasLanguageSupport = false; // no configuration for untitled resources (e.g. "Untitled-1")
 		}
 
 		// Compute mode
@@ -855,7 +857,7 @@ export class ChangeModeAction extends Action {
 			};
 		});
 
-		if (resource) {
+		if (hasLanguageSupport) {
 			picks[0].separator = { border: true, label: nls.localize('languagesPicks', "languages (identifier)") };
 		}
 
@@ -863,7 +865,7 @@ export class ChangeModeAction extends Action {
 		let configureModeAssociations: IPickOpenEntry;
 		let configureModeSettings: IPickOpenEntry;
 		let galleryAction: Action;
-		if (resource) {
+		if (hasLanguageSupport) {
 			const ext = paths.extname(resource.fsPath) || paths.basename(resource.fsPath);
 
 			galleryAction = this.instantiationService.createInstance(ShowLanguageExtensionsAction, ext);
@@ -882,7 +884,7 @@ export class ChangeModeAction extends Action {
 			label: nls.localize('autoDetect', "Auto Detect")
 		};
 
-		if (resource) {
+		if (hasLanguageSupport) {
 			picks.unshift(autoDetectMode);
 		}
 

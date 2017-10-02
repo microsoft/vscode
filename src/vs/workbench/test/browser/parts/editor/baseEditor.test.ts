@@ -7,7 +7,7 @@
 
 import * as assert from 'assert';
 import { BaseEditor, EditorDescriptor, Extensions } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { EditorInput, EditorOptions, IEditorRegistry, IEditorInputFactory } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, IEditorRegistry, IEditorInputFactory, IEditorInputFactoryRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import * as Platform from 'vs/platform/registry/common/platform';
@@ -22,6 +22,7 @@ import URI from 'vs/base/common/uri';
 const NullThemeService = new TestThemeService();
 
 let EditorRegistry: IEditorRegistry = Platform.Registry.as(Extensions.Editors);
+let EditorInputRegistry: IEditorInputFactoryRegistry = Platform.Registry.as(EditorExtensions.EditorInputFactories);
 
 export class MyEditor extends BaseEditor {
 
@@ -194,10 +195,10 @@ suite('Workbench BaseEditor', () => {
 	});
 
 	test('Editor Input Factory', function () {
-		EditorRegistry.setInstantiationService(workbenchInstantiationService());
-		EditorRegistry.registerEditorInputFactory('myInputId', MyInputFactory);
+		EditorInputRegistry.setInstantiationService(workbenchInstantiationService());
+		EditorInputRegistry.registerEditorInputFactory('myInputId', MyInputFactory);
 
-		let factory = EditorRegistry.getEditorInputFactory('myInputId');
+		let factory = EditorInputRegistry.getEditorInputFactory('myInputId');
 		assert(factory);
 	});
 
