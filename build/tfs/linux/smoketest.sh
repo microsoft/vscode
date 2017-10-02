@@ -23,8 +23,7 @@ function configureEnvironment {
 }
 
 function runSmokeTest {
-	DISPLAY=:10 sudo -i -u testuser -- sh -c "cd $BUILD_SOURCESDIRECTORY/test/smoke && ./node_modules/.bin/mocha --build $AGENT_BUILDDIRECTORY/VSCode-linux-x64/code-insiders --screenshots $SCREENSHOTS"
-	#DISPLAY=:10 sudo -i -u testuser -- sh -c "cd /vso/work/2/s/test/smoke && ./node_modules/.bin/mocha --build /vso/work/2/VSCode-linux-x64/code-insiders --screenshots ~/screenshots"
+	DISPLAY=:10 sudo -i -u testuser -- sh -c "cd $BUILD_SOURCESDIRECTORY/test/smoke && ./node_modules/.bin/mocha --build $AGENT_BUILDDIRECTORY/VSCode-linux-x64 --screenshots $SCREENSHOTS"
 }
 
 step "Install dependencies" \
