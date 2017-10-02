@@ -1230,9 +1230,12 @@ export class CommandCenter {
 		}
 
 		const branchName = repository.HEAD && repository.HEAD.name || '';
-		const picks = repository.remotes.map(r => r.name);
-		const placeHolder = localize('pick remote', "Pick a remote to publish the branch '{0}' to:", branchName);
-		const choice = await window.showQuickPick(picks, { placeHolder });
+		const selectRemote = async () => {
+			const picks = repository.remotes.map(r => r.name);
+			const placeHolder = localize('pick remote', "Pick a remote to publish the branch '{0}' to:", branchName);
+			return await window.showQuickPick(picks, { placeHolder });
+		};
+		const choice = remotes.length === 1 ? remotes[0].name : await selectRemote();
 
 		if (!choice) {
 			return;
