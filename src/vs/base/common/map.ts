@@ -304,11 +304,19 @@ class TernarySearchTreeNode<E> {
 
 export class TernarySearchTree<E> {
 
+	static forPaths<E>(): TernarySearchTree<E> {
+		return new TernarySearchTree<E>(new PathSegments());
+	}
+
+	static forStrings<E>(): TernarySearchTree<E> {
+		return new TernarySearchTree<E>(new StringSegments());
+	}
+
 	private _segements: IKeySegements;
 	private _root: TernarySearchTreeNode<E>;
 
-	constructor(splitter: IKeySegements = new StringSegments()) {
-		this._segements = splitter;
+	constructor(segments: IKeySegements) {
+		this._segements = segments;
 	}
 
 	set(key: string, element: E): void {
@@ -431,121 +439,6 @@ export class TernarySearchTree<E> {
 			callback([this._segements.join(newParts), node.element]);
 		}
 		this._forEach(node.mid, newParts, callback);
-	}
-}
-
-// --- trie'ish datastructure
-
-class Node<E> {
-	element?: E;
-	readonly children = new Map<string, Node<E>>();
-}
-
-export class TrieMap<K, V> {
-
-	private readonly _splitter: (key: K) => string[];
-	private _root = new Node<V>();
-
-	constructor(splitter: (key: K) => string[]) {
-		this._splitter = key => splitter(key).filter(part => Boolean(part));
-	}
-
-	set(path: K, element: V): void {
-		const parts = this._splitter(path);
-		let i = 0;
-
-		// find insertion node
-		let node = this._root;
-		for (; i < parts.length; i++) {
-			let child = node.children.get(parts[i]);
-			if (child) {
-				node = child;
-				continue;
-			}
-			break;
-		}
-
-		// create new nodes
-		let newNode: Node<V>;
-		for (; i < parts.length; i++) {
-			newNode = new Node<V>();
-			node.children.set(parts[i], newNode);
-			node = newNode;
-		}
-
-		node.element = element;
-	}
-
-	get(path: K): V {
-		const parts = this._splitter(path);
-
-		let { children } = this._root;
-		let node: Node<V>;
-		for (const part of parts) {
-			node = children.get(part);
-			if (!node) {
-				return undefined;
-			}
-			children = node.children;
-		}
-
-		return node.element;
-	}
-
-	findSubstr(path: K): V {
-		const parts = this._splitter(path);
-
-		let lastNode: Node<V>;
-		let { children } = this._root;
-		for (const part of parts) {
-			const node = children.get(part);
-			if (!node) {
-				break;
-			}
-			if (node.element) {
-				lastNode = node;
-			}
-			children = node.children;
-		}
-
-		// return the last matching node
-		// that had an element
-		if (lastNode) {
-			return lastNode.element;
-		}
-		return undefined;
-	}
-
-	findSuperstr(path: K): TrieMap<K, V> {
-		const parts = this._splitter(path);
-
-		let { children } = this._root;
-		let node: Node<V>;
-		for (const part of parts) {
-			node = children.get(part);
-			if (!node) {
-				return undefined;
-			}
-			children = node.children;
-		}
-
-		const result = new TrieMap<K, V>(this._splitter);
-		result._root = node;
-		return result;
-	}
-}
-
-
-/**
- * A trie map that allows for fast look up when keys are substrings
- * to the actual search keys (dir/subdir-problem).
- */
-export class StringTrieMap<E> extends TrieMap<string, E> {
-
-	static PathSplitter = (s: string) => s.split(/[\\/]/).filter(s => !!s);
-
-	constructor(splitter = StringTrieMap.PathSplitter) {
-		super(splitter);
 	}
 }
 

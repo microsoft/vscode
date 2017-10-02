@@ -13,7 +13,7 @@ import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspa
 import { IWorkspaceData, ExtHostWorkspaceShape, MainContext, MainThreadWorkspaceShape, IMainContext } from './extHost.protocol';
 import * as vscode from 'vscode';
 import { compare } from 'vs/base/common/strings';
-import { TernarySearchTree, PathSegments } from 'vs/base/common/map';
+import { TernarySearchTree } from 'vs/base/common/map';
 import { IRelativePattern } from 'vs/base/common/glob';
 
 class Workspace2 extends Workspace {
@@ -23,7 +23,7 @@ class Workspace2 extends Workspace {
 	}
 
 	private readonly _workspaceFolders: vscode.WorkspaceFolder[] = [];
-	private readonly _structure = new TernarySearchTree<vscode.WorkspaceFolder>(new PathSegments());
+	private readonly _structure = TernarySearchTree.forPaths<vscode.WorkspaceFolder>();
 
 	private constructor(data: IWorkspaceData) {
 		super(data.id, data.name, data.folders.map(folder => new WorkspaceFolder(folder)));

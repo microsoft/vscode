@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { StringTrieMap } from 'vs/base/common/map';
+import { TernarySearchTree } from 'vs/base/common/map';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
@@ -17,7 +17,7 @@ export class TestConfigurationService extends EventEmitter implements IConfigura
 
 	private configuration = Object.create(null);
 
-	private configurationByRoot: StringTrieMap<any> = new StringTrieMap<any>();
+	private configurationByRoot: TernarySearchTree<any> = TernarySearchTree.forPaths<any>();
 
 	public reloadConfiguration<T>(section?: string): TPromise<T> {
 		return TPromise.as(this.getConfiguration());

@@ -6,7 +6,7 @@
 'use strict';
 
 
-import { BoundedMap, StringTrieMap, ResourceMap, TernarySearchTree, StringSegments, PathSegments } from 'vs/base/common/map';
+import { BoundedMap, ResourceMap, TernarySearchTree, StringSegments, PathSegments } from 'vs/base/common/map';
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 
@@ -329,23 +329,23 @@ suite('Map', () => {
 
 	test('TernarySearchTree - set', function () {
 
-		let trie = new TernarySearchTree<number>();
+		let trie = TernarySearchTree.forStrings<number>();
 		trie.set('foobar', 1);
 		trie.set('foobaz', 2);
 
 		assertTernarySearchTree(trie, ['foobar', 1], ['foobaz', 2]); // longer
 
-		trie = new TernarySearchTree<number>();
+		trie = TernarySearchTree.forStrings<number>();
 		trie.set('foobar', 1);
 		trie.set('fooba', 2);
 		assertTernarySearchTree(trie, ['foobar', 1], ['fooba', 2]); // shorter
 
-		trie = new TernarySearchTree<number>();
+		trie = TernarySearchTree.forStrings<number>();
 		trie.set('foo', 1);
 		trie.set('foo', 2);
 		assertTernarySearchTree(trie, ['foo', 2]);
 
-		trie = new TernarySearchTree<number>();
+		trie = TernarySearchTree.forStrings<number>();
 		trie.set('foo', 1);
 		trie.set('foobar', 2);
 		trie.set('bar', 3);
@@ -363,7 +363,7 @@ suite('Map', () => {
 
 	test('TernarySearchTree - findLongestMatch', function () {
 
-		let trie = new TernarySearchTree<number>();
+		let trie = TernarySearchTree.forStrings<number>();
 		trie.set('foo', 1);
 		trie.set('foobar', 2);
 		trie.set('foobaz', 3);
@@ -454,54 +454,6 @@ suite('Map', () => {
 		assert.equal(map.findSuperstr('/us'), undefined);
 		assert.equal(map.findSuperstr('/usrr'), undefined);
 		assert.equal(map.findSuperstr('/userr'), undefined);
-	});
-
-	test('TrieMap - basics', function () {
-
-		const map = new StringTrieMap<number>();
-
-		map.set('/user/foo/bar', 1);
-		map.set('/user/foo', 2);
-		map.set('/user/foo/flip/flop', 3);
-
-		assert.equal(map.findSubstr('/user/bar'), undefined);
-		assert.equal(map.findSubstr('/user/foo'), 2);
-		assert.equal(map.findSubstr('\\user\\foo'), 2);
-		assert.equal(map.findSubstr('/user/foo/ba'), 2);
-		assert.equal(map.findSubstr('/user/foo/far/boo'), 2);
-		assert.equal(map.findSubstr('/user/foo/bar'), 1);
-		assert.equal(map.findSubstr('/user/foo/bar/far/boo'), 1);
-
-	});
-
-	test('TrieMap - lookup', function () {
-
-		const map = new StringTrieMap<number>();
-		map.set('/user/foo/bar', 1);
-		map.set('/user/foo', 2);
-		map.set('/user/foo/flip/flop', 3);
-
-		assert.equal(map.get('/foo'), undefined);
-		assert.equal(map.get('/user'), undefined);
-		assert.equal(map.get('/user/foo'), 2);
-		assert.equal(map.get('/user/foo/bar'), 1);
-		assert.equal(map.get('/user/foo/bar/boo'), undefined);
-	});
-
-	test('TrieMap - superstr', function () {
-
-		const map = new StringTrieMap<number>();
-		map.set('/user/foo/bar', 1);
-		map.set('/user/foo', 2);
-		map.set('/user/foo/flip/flop', 3);
-
-		const supMap = map.findSuperstr('/user');
-
-		assert.equal(supMap.get('foo'), 2);
-		assert.equal(supMap.get('foo/bar'), 1);
-		assert.equal(supMap.get('foo/flip/flop'), 3);
-		assert.equal(supMap.get('foo/flip/flop/bar'), undefined);
-		assert.equal(supMap.get('user'), undefined);
 	});
 
 	test('ResourceMap - basics', function () {
