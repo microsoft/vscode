@@ -31,6 +31,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import { DirtyFilesTracker } from 'vs/workbench/parts/files/common/dirtyFilesTracker';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { ExplorerViewlet } from 'vs/workbench/parts/files/browser/explorerViewlet';
 
 // Viewlet Action
 export class OpenExplorerViewletAction extends ToggleViewletAction {
@@ -49,8 +50,7 @@ export class OpenExplorerViewletAction extends ToggleViewletAction {
 
 // Register Viewlet
 Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new ViewletDescriptor(
-	'vs/workbench/parts/files/browser/explorerViewlet',
-	'ExplorerViewlet',
+	ExplorerViewlet,
 	VIEWLET_ID,
 	nls.localize('explore', "Explorer"),
 	'explore',

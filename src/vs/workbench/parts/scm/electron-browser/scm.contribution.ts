@@ -17,6 +17,7 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { StatusUpdater, StatusBarController } from './scmActivity';
+import { SCMViewlet } from 'vs/workbench/parts/scm/electron-browser/scmViewlet';
 
 class OpenSCMViewletAction extends ToggleViewletAction {
 
@@ -32,8 +33,7 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(DirtyDiffDecorator);
 
 const viewletDescriptor = new ViewletDescriptor(
-	'vs/workbench/parts/scm/electron-browser/scmViewlet',
-	'SCMViewlet',
+	SCMViewlet,
 	VIEWLET_ID,
 	localize('source control', "Source Control"),
 	'scm',

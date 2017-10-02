@@ -38,6 +38,8 @@ import { ViewLocation, ViewsRegistry } from 'vs/workbench/browser/parts/views/vi
 import { isMacintosh } from 'vs/base/common/platform';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import URI from 'vs/base/common/uri';
+import { DebugViewlet } from 'vs/workbench/parts/debug/browser/debugViewlet';
+import { Repl } from 'vs/workbench/parts/debug/electron-browser/repl';
 
 class OpenDebugViewletAction extends ToggleViewletAction {
 	public static ID = VIEWLET_ID;
@@ -69,8 +71,7 @@ class OpenDebugPanelAction extends TogglePanelAction {
 
 // register viewlet
 Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new ViewletDescriptor(
-	'vs/workbench/parts/debug/browser/debugViewlet',
-	'DebugViewlet',
+	DebugViewlet,
 	VIEWLET_ID,
 	nls.localize('debug', "Debug"),
 	'debug',
@@ -86,8 +87,7 @@ const openPanelKb: IKeybindings = {
 
 // register repl panel
 Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescriptor(
-	'vs/workbench/parts/debug/electron-browser/repl',
-	'Repl',
+	Repl,
 	REPL_ID,
 	nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugPanel' }, 'Debug Console'),
 	'repl',

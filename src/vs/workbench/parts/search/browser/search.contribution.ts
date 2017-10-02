@@ -248,8 +248,7 @@ class ShowAllSymbolsAction extends Action {
 
 // Register Viewlet
 Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new ViewletDescriptor(
-	'vs/workbench/parts/search/browser/searchViewlet',
-	'SearchViewlet',
+	SearchViewlet,
 	Constants.VIEWLET_ID,
 	nls.localize('name', "Search"),
 	'search',

@@ -29,7 +29,7 @@ import { OpenExtensionsFolderAction, InstallVSIXAction } from 'vs/workbench/part
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { ExtensionEditor } from 'vs/workbench/parts/extensions/browser/extensionEditor';
-import { StatusUpdater } from 'vs/workbench/parts/extensions/electron-browser/extensionsViewlet';
+import { StatusUpdater, ExtensionsViewlet } from 'vs/workbench/parts/extensions/electron-browser/extensionsViewlet';
 import { IQuickOpenRegistry, Extensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import jsonContributionRegistry = require('vs/platform/jsonschemas/common/jsonContributionRegistry');
@@ -89,8 +89,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors)
 
 // Viewlet
 const viewletDescriptor = new ViewletDescriptor(
-	'vs/workbench/parts/extensions/electron-browser/extensionsViewlet',
-	'ExtensionsViewlet',
+	ExtensionsViewlet,
 	VIEWLET_ID,
 	localize('extensions', "Extensions"),
 	'extensions',
