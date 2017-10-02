@@ -220,6 +220,193 @@ export class BoundedMap<T> {
 	}
 }
 
+export interface IKeySegements {
+	reset(key: string): this;
+	join(segments: string[]): string;
+	done(): boolean;
+	next(): string;
+}
+
+export class StringSegments implements IKeySegements {
+	private _value: string;
+	private _pos: number;
+
+	reset(key: string): this {
+		this._value = key;
+		this._pos = 0;
+		return this;
+	}
+	join(segments: string[]): string {
+		return segments.join('');
+	}
+	done(): boolean {
+		return this._pos >= this._value.length;
+	}
+	next(): string {
+		return this._value[this._pos++];
+	}
+}
+
+export class PathSegments implements IKeySegements {
+
+	private static _fwd = '/'.charCodeAt(0);
+	private static _bwd = '\\'.charCodeAt(0);
+
+	private _value: string;
+	private _pos: number;
+
+	reset(key: string): this {
+		this._value = key;
+		this._pos = 0;
+		return this;
+	}
+	join(segments: string[]): string {
+		return segments.join('/');
+	}
+	done(): boolean {
+		return this._pos >= this._value.length;
+	}
+	next(): string {
+		// this._data = key.split(/[\\/]/).filter(s => !!s);
+		let pos = this._pos;
+		loop: for (; pos < this._value.length; pos++) {
+			switch (this._value.charCodeAt(pos)) {
+				case PathSegments._fwd:
+				case PathSegments._bwd:
+					// found it
+					break loop;
+			}
+		}
+
+		if (pos > this._pos) {
+			// did advance
+			let ret = this._value.substring(this._pos, pos);
+			this._pos = pos + 1;
+			return ret;
+
+		} else {
+			// maybe just separators in a row
+			this._pos += 1;
+			return !this.done()
+				? this.next()
+				: undefined;
+		}
+	}
+}
+
+class TernarySearchTreeNode<E> {
+	str: string;
+	element: E;
+	left: TernarySearchTreeNode<E>;
+	mid: TernarySearchTreeNode<E>;
+	right: TernarySearchTreeNode<E>;
+}
+
+export class TernarySearchTree<E> {
+
+	private _segements: IKeySegements;
+	private _root: TernarySearchTreeNode<E>;
+
+	constructor(splitter: IKeySegements = new StringSegments()) {
+		this._segements = splitter;
+	}
+
+	set(key: string, element: E): void {
+		const segements = this._segements.reset(key);
+		this._root = this._set(this._root, segements.next(), segements, element);
+	}
+
+	private _set(node: TernarySearchTreeNode<E>, key: string, segements: IKeySegements, element: E): TernarySearchTreeNode<E> {
+
+		if (!node) {
+			node = new TernarySearchTreeNode<E>();
+			node.str = key;
+		}
+
+		if (node.str > key) {
+			// left
+			node.left = this._set(node.left, key, segements, element);
+		} else if (node.str < key) {
+			// right
+			node.right = this._set(node.right, key, segements, element);
+		} else {
+			// mid
+			let nextKey = segements.next();
+			if (nextKey) {
+				node.mid = this._set(node.mid, nextKey, segements, element);
+			} else {
+				node.element = element;
+			}
+		}
+
+		return node;
+	}
+
+	get(key: string): E {
+		const segements = this._segements.reset(key);
+		return this._get(this._root, segements.next(), segements);
+	}
+
+	private _get(node: TernarySearchTreeNode<E>, key: string, segements: IKeySegements): E {
+		if (!node) {
+			return undefined;
+		} else if (node.str > key) {
+			// left
+			return this._get(node.left, key, segements);
+		} else if (node.str < key) {
+			// right
+			return this._get(node.right, key, segements);
+		} else {
+			let nextKey = segements.next();
+			return nextKey ?
+				this._get(node.mid, nextKey, segements)
+				: node.element;
+		}
+	}
+
+	findSubstr(key: string): E {
+		const segements = this._segements.reset(key);
+		return this._findSubstr(this._root, segements.next(), segements, undefined);
+	}
+
+	private _findSubstr(node: TernarySearchTreeNode<E>, key: string, segements: IKeySegements, candidate: E): E {
+		if (!node) {
+			return candidate;
+		} else if (node.str > key) {
+			// left
+			return this._findSubstr(node.left, key, segements, candidate);
+		} else if (node.str < key) {
+			// right
+			return this._findSubstr(node.right, key, segements, candidate);
+		} else {
+			let nextKey = segements.next();
+			if (nextKey) {
+				return this._findSubstr(node.mid, nextKey, segements, node.element || candidate);
+			} else {
+				return node.element || candidate;
+			}
+		}
+	}
+
+	forEach(callback: (entry: [string, E]) => any) {
+		this._forEach(this._root, [], callback);
+	}
+
+	private _forEach(node: TernarySearchTreeNode<E>, parts: string[], callback: (entry: [string, E]) => any) {
+		if (!node) {
+			return;
+		}
+		this._forEach(node.left, parts, callback);
+		this._forEach(node.right, parts, callback);
+		let newParts = parts.slice();
+		newParts.push(node.str);
+		if (node.element) {
+			callback([this._segements.join(newParts), node.element]);
+		}
+		this._forEach(node.mid, newParts, callback);
+	}
+}
+
 // --- trie'ish datastructure
 
 class Node<E> {

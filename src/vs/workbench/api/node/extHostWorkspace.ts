@@ -13,7 +13,7 @@ import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspa
 import { IWorkspaceData, ExtHostWorkspaceShape, MainContext, MainThreadWorkspaceShape, IMainContext } from './extHost.protocol';
 import * as vscode from 'vscode';
 import { compare } from 'vs/base/common/strings';
-import { TrieMap } from 'vs/base/common/map';
+import { TernarySearchTree, PathSegments } from 'vs/base/common/map';
 import { IRelativePattern } from 'vs/base/common/glob';
 
 class Workspace2 extends Workspace {
@@ -23,7 +23,7 @@ class Workspace2 extends Workspace {
 	}
 
 	private readonly _workspaceFolders: vscode.WorkspaceFolder[] = [];
-	private readonly _structure = new TrieMap<URI, vscode.WorkspaceFolder>(uri => [uri.scheme, uri.authority].concat(uri.path.split('/')));
+	private readonly _structure = new TernarySearchTree<vscode.WorkspaceFolder>(new PathSegments());
 
 	private constructor(data: IWorkspaceData) {
 		super(data.id, data.name, data.folders.map(folder => new WorkspaceFolder(folder)));
@@ -32,7 +32,7 @@ class Workspace2 extends Workspace {
 		this.folders.forEach(({ name, uri, index }) => {
 			const workspaceFolder = { name, uri, index };
 			this._workspaceFolders.push(workspaceFolder);
-			this._structure.insert(workspaceFolder.uri, workspaceFolder);
+			this._structure.set(workspaceFolder.uri.toString(), workspaceFolder);
 		});
 	}
 
@@ -41,11 +41,11 @@ class Workspace2 extends Workspace {
 	}
 
 	getWorkspaceFolder(uri: URI, resolveParent?: boolean): vscode.WorkspaceFolder {
-		if (resolveParent && this._structure.lookUp(uri)) {
+		if (resolveParent && this._structure.get(uri.toString())) {
 			// `uri` is a workspace folder so we check for its parent
 			uri = uri.with({ path: dirname(uri.path) });
 		}
-		return this._structure.findSubstr(uri);
+		return this._structure.findSubstr(uri.toString());
 	}
 }
 

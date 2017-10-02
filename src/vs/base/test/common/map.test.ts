@@ -6,7 +6,7 @@
 'use strict';
 
 
-import { BoundedMap, StringTrieMap, ResourceMap } from 'vs/base/common/map';
+import { BoundedMap, StringTrieMap, ResourceMap, TernarySearchTree, StringSegments, PathSegments } from 'vs/base/common/map';
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 
@@ -311,6 +311,126 @@ suite('Map', () => {
 		assert.ok(!map.has('4'));
 	});
 
+	function assertTernarySearchTree<E>(trie: TernarySearchTree<E>, ...elements: [string, E][]) {
+		const map = new Map<string, E>();
+		for (const [key, value] of elements) {
+			map.set(key, value);
+		}
+		map.forEach((value, key) => {
+			assert.equal(trie.get(key), value);
+		});
+		trie.forEach(entry => {
+			const [key, element] = entry;
+			assert.equal(element, map.get(key));
+			map.delete(key);
+		});
+		assert.equal(map.size, 0);
+	}
+
+	test('TernarySearchTree - set', function () {
+
+		let trie = new TernarySearchTree<number>();
+		trie.set('foobar', 1);
+		trie.set('foobaz', 2);
+
+		assertTernarySearchTree(trie, ['foobar', 1], ['foobaz', 2]); // longer
+
+		trie = new TernarySearchTree<number>();
+		trie.set('foobar', 1);
+		trie.set('fooba', 2);
+		assertTernarySearchTree(trie, ['foobar', 1], ['fooba', 2]); // shorter
+
+		trie = new TernarySearchTree<number>();
+		trie.set('foo', 1);
+		trie.set('foo', 2);
+		assertTernarySearchTree(trie, ['foo', 2]);
+
+		trie = new TernarySearchTree<number>();
+		trie.set('foo', 1);
+		trie.set('foobar', 2);
+		trie.set('bar', 3);
+		trie.set('foob', 4);
+		trie.set('bazz', 5);
+
+		assertTernarySearchTree(trie,
+			['foo', 1],
+			['foobar', 2],
+			['bar', 3],
+			['foob', 4],
+			['bazz', 5]
+		);
+	});
+
+	test('TernarySearchTree - findLongestMatch', function () {
+
+		let trie = new TernarySearchTree<number>();
+		trie.set('foo', 1);
+		trie.set('foobar', 2);
+		trie.set('foobaz', 3);
+
+		assert.equal(trie.findSubstr('f'), undefined);
+		assert.equal(trie.findSubstr('z'), undefined);
+		assert.equal(trie.findSubstr('foo'), 1);
+		assert.equal(trie.findSubstr('fooö'), 1);
+		assert.equal(trie.findSubstr('fooba'), 1);
+		assert.equal(trie.findSubstr('foobarr'), 2);
+		assert.equal(trie.findSubstr('foobazrr'), 3);
+	});
+
+	test('TernarySearchTree - basics', function () {
+		const trie = new TernarySearchTree<number>(new StringSegments());
+
+		trie.set('foo', 1);
+		trie.set('bar', 2);
+		trie.set('foobar', 3);
+
+		assert.equal(trie.get('foo'), 1);
+		assert.equal(trie.get('bar'), 2);
+		assert.equal(trie.get('foobar'), 3);
+		assert.equal(trie.get('foobaz'), undefined);
+		assert.equal(trie.get('foobarr'), undefined);
+
+		assert.equal(trie.findSubstr('fo'), undefined);
+		assert.equal(trie.findSubstr('foo'), 1);
+		assert.equal(trie.findSubstr('foooo'), 1);
+	});
+
+	test('TernarySearchTree (PathSegments) - basics', function () {
+		let trie = new TernarySearchTree<number>(new PathSegments());
+
+		trie.set('/user/foo/bar', 1);
+		trie.set('/user/foo', 2);
+		trie.set('/user/foo/flip/flop', 3);
+
+		assert.equal(trie.get('/user/foo/bar'), 1);
+		assert.equal(trie.get('/user/foo'), 2);
+		assert.equal(trie.get('/user//foo'), 2);
+		assert.equal(trie.get('/user\\foo'), 2);
+		assert.equal(trie.get('/user/foo/flip/flop'), 3);
+
+		assert.equal(trie.findSubstr('/user/bar'), undefined);
+		assert.equal(trie.findSubstr('/user/foo'), 2);
+		assert.equal(trie.findSubstr('\\user\\foo'), 2);
+		assert.equal(trie.findSubstr('/user//foo'), 2);
+		assert.equal(trie.findSubstr('/user/foo/ba'), 2);
+		assert.equal(trie.findSubstr('/user/foo/far/boo'), 2);
+		assert.equal(trie.findSubstr('/user/foo/bar'), 1);
+		assert.equal(trie.findSubstr('/user/foo/bar/far/boo'), 1);
+	});
+
+	test('TernarySearchTree (PathSegments) - lookup', function () {
+
+		const map = new TernarySearchTree<number>(new PathSegments());
+		map.set('/user/foo/bar', 1);
+		map.set('/user/foo', 2);
+		map.set('/user/foo/flip/flop', 3);
+
+		assert.equal(map.get('/foo'), undefined);
+		assert.equal(map.get('/user'), undefined);
+		assert.equal(map.get('/user/foo'), 2);
+		assert.equal(map.get('/user/foo/bar'), 1);
+		assert.equal(map.get('/user/foo/bar/boo'), undefined);
+	});
 
 	test('TrieMap - basics', function () {
 
