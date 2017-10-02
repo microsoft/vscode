@@ -37,14 +37,15 @@ export interface IHighlight {
 
 let IDS = 0;
 
-export class EntryAccessor {
+export class ResourceAccessor {
 
-	public static getLabel(entry: QuickOpenEntry) {
+	public static getResourceLabel(entry: QuickOpenEntry) {
 		return entry.getLabel();
 	}
 
 	public static getResourcePath(entry: QuickOpenEntry) {
 		const resource = entry.getResource();
+
 		return resource && resource.fsPath;
 	}
 }

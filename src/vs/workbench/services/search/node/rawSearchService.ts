@@ -12,7 +12,6 @@ import gracefulFs = require('graceful-fs');
 gracefulFs.gracefulify(fs);
 
 import arrays = require('vs/base/common/arrays');
-import { compareByScore } from 'vs/base/common/comparers';
 import objects = require('vs/base/common/objects');
 import strings = require('vs/base/common/strings');
 import { PPromise, TPromise } from 'vs/base/common/winjs.base';
@@ -24,6 +23,7 @@ import { TextSearchWorkerProvider } from 'vs/workbench/services/search/node/text
 import { IRawSearchService, IRawSearch, IRawFileMatch, ISerializedFileMatch, ISerializedSearchProgressItem, ISerializedSearchComplete, ISearchEngine, IFileSearchProgressItem, ITelemetryEvent } from './search';
 import { ICachedSearchStats, IProgress } from 'vs/platform/search/common/search';
 import { fuzzyContains } from 'vs/base/common/strings';
+import { compareResourcesByScore } from 'vs/base/common/scorer';
 
 export class SearchService implements IRawSearchService {
 
@@ -246,7 +246,7 @@ export class SearchService implements IRawSearchService {
 	private sortResults(config: IRawSearch, results: IRawFileMatch[], scorerCache: ScorerCache): IRawFileMatch[] {
 		const filePattern = config.filePattern;
 		const normalizedSearchValue = strings.stripWildcards(filePattern).toLowerCase();
-		const compare = (elementA: IRawFileMatch, elementB: IRawFileMatch) => compareByScore(elementA, elementB, FileMatchAccessor, filePattern, normalizedSearchValue, scorerCache);
+		const compare = (elementA: IRawFileMatch, elementB: IRawFileMatch) => compareResourcesByScore(elementA, elementB, FileMatchResourceAccessor, filePattern, normalizedSearchValue, scorerCache);
 		return arrays.top(results, compare, config.maxResults);
 	}
 
@@ -409,9 +409,9 @@ interface ScorerCache {
 	[key: string]: number;
 }
 
-class FileMatchAccessor {
+class FileMatchResourceAccessor {
 
-	public static getLabel(match: IRawFileMatch): string {
+	public static getResourceLabel(match: IRawFileMatch): string {
 		return match.basename;
 	}
 

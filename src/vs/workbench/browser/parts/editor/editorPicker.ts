@@ -12,7 +12,7 @@ import URI from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
 import { IIconLabelOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IAutoFocus, Mode, IEntryRunContext, IQuickNavigateConfiguration, IModel } from 'vs/base/parts/quickopen/common/quickOpen';
-import { QuickOpenModel, QuickOpenEntry, QuickOpenEntryGroup, EntryAccessor } from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import { QuickOpenModel, QuickOpenEntry, QuickOpenEntryGroup, ResourceAccessor } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { getIconClasses } from 'vs/workbench/browser/labels';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -23,8 +23,8 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EditorInput, toResource, IEditorGroup, IEditorStacksModel } from 'vs/workbench/common/editor';
-import { compareByScore } from 'vs/base/common/comparers';
 import { stripWildcards, fuzzyContains } from 'vs/base/common/strings';
+import { compareResourcesByScore } from 'vs/base/common/scorer';
 
 export class EditorPickerEntry extends QuickOpenEntryGroup {
 	private stacks: IEditorStacksModel;
@@ -137,7 +137,7 @@ export abstract class BaseEditorPicker extends QuickOpenHandler {
 					return stacks.positionOfGroup(e1.group) - stacks.positionOfGroup(e2.group);
 				}
 
-				return compareByScore(e1, e2, EntryAccessor, searchValue, normalizedSearchValueLowercase, this.scorerCache);
+				return compareResourcesByScore(e1, e2, ResourceAccessor, searchValue, normalizedSearchValueLowercase, this.scorerCache);
 			});
 		}
 

@@ -5,6 +5,8 @@
 
 'use strict';
 
+import { compareByPrefix, compareAnything } from 'vs/base/common/comparers';
+
 // Based on material from:
 /*!
 BEGIN THIRD PARTY
@@ -152,3 +154,55 @@ function isUpper(code: number): boolean {
 /*!
 END THIRD PARTY
 */
+
+export interface IScorableResourceAccessor<T> {
+	getResourceLabel(t: T): string;
+	getResourcePath(t: T): string;
+}
+
+export function compareResourcesByScore<T>(resourceA: T, resourceB: T, accessor: IScorableResourceAccessor<T>, lookFor: string, lookForNormalizedLower: string, scorerCache?: { [key: string]: number }): number {
+	const resourceLabelA = accessor.getResourceLabel(resourceA);
+	const resourceLabelB = accessor.getResourceLabel(resourceB);
+
+	// treat prefix matches highest in any case
+	const prefixCompare = compareByPrefix(resourceLabelA, resourceLabelB, lookFor);
+	if (prefixCompare) {
+		return prefixCompare;
+	}
+
+	// Give higher importance to label score
+	const resourceLabelScoreA = score(resourceLabelA, lookFor, scorerCache);
+	const resourceLabelScoreB = score(resourceLabelB, lookFor, scorerCache);
+
+	if (resourceLabelScoreA !== resourceLabelScoreB) {
+		return resourceLabelScoreA > resourceLabelScoreB ? -1 : 1;
+	}
+
+	// Score on full resource path comes next (if available)
+	let resourcePathA = accessor.getResourcePath(resourceA);
+	let resourcePathB = accessor.getResourcePath(resourceB);
+	if (resourcePathA && resourcePathB) {
+		const resourceAScore = score(resourcePathA, lookFor, scorerCache);
+		const resourceBScore = score(resourcePathB, lookFor, scorerCache);
+
+		if (resourceAScore !== resourceBScore) {
+			return resourceAScore > resourceBScore ? -1 : 1;
+		}
+	}
+
+	// At this place, the scores are identical so we check for string lengths and favor shorter ones
+	if (resourceLabelA.length !== resourceLabelB.length) {
+		return resourceLabelA.length < resourceLabelB.length ? -1 : 1;
+	}
+
+	if (resourcePathA && resourcePathB && resourcePathA.length !== resourcePathB.length) {
+		return resourcePathA.length < resourcePathB.length ? -1 : 1;
+	}
+
+	// Finally compare by label or resource path
+	if (resourceLabelA === resourceLabelB && resourcePathA && resourcePathB) {
+		return compareAnything(resourcePathA, resourcePathB, lookForNormalizedLower);
+	}
+
+	return compareAnything(resourceLabelA, resourceLabelB, lookForNormalizedLower);
+}
