@@ -370,7 +370,7 @@ export interface IRawAdapter extends IRawEnvAdapter {
 	enableBreakpointsFor?: { languageIds: string[] };
 	configurationAttributes?: any;
 	configurationSnippets?: IJSONSchemaSnippet[];
-	initialConfigurations?: any[] | string;
+	initialConfigurations?: any[];
 	startSessionCommand?: string;
 	languages?: string[];
 	variables?: { [key: string]: string };

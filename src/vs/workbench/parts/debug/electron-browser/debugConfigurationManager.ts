@@ -556,7 +556,7 @@ class Launch implements ILaunch {
 				return this.configurationManager.guessAdapter(type).then(adapter => {
 					if (adapter) {
 						return this.configurationManager.provideDebugConfigurations(this.workspace.uri, adapter.type).then(initialConfigs => {
-							return adapter.getInitialConfigurationContent(this.workspace.uri, initialConfigs);
+							return adapter.getInitialConfigurationContent(initialConfigs);
 						});
 					} else {
 						return undefined;
