@@ -35,7 +35,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { RawDebugSession } from 'vs/workbench/parts/debug/electron-browser/rawDebugSession';
-import { Model, ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, Expression, OutputNameValueElement, ExpressionContainer, Process } from 'vs/workbench/parts/debug/common/debugModel';
+import { Model, ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, Expression, RawObjectReplElement, ExpressionContainer, Process } from 'vs/workbench/parts/debug/common/debugModel';
 import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
 import * as debugactions from 'vs/workbench/parts/debug/browser/debugActions';
 import { ConfigurationManager } from 'vs/workbench/parts/debug/electron-browser/debugConfigurationManager';
@@ -209,7 +209,7 @@ export class DebugService implements debug.IDebugService {
 					}
 
 					// show object
-					this.logToRepl(new OutputNameValueElement((<any>a).prototype, a, undefined, nls.localize('snapshotObj', "Only primitive values are shown for this object.")), sev, source);
+					this.logToRepl(new RawObjectReplElement((<any>a).prototype, a, undefined, nls.localize('snapshotObj', "Only primitive values are shown for this object.")), sev, source);
 				}
 
 				// string: watch out for % replacement directive

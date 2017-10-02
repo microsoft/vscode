@@ -27,22 +27,21 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 
 const MAX_REPL_LENGTH = 10000;
 
-export abstract class AbstractOutputElement implements IReplElement {
+export abstract class AbstractReplElement implements IReplElement {
 	private static ID_COUNTER = 0;
 
-	constructor(public sourceData: IReplElementSource, private id = AbstractOutputElement.ID_COUNTER++) {
+	constructor(public sourceData: IReplElementSource, private id = AbstractReplElement.ID_COUNTER++) {
 		// noop
 	}
 
 	public getId(): string {
-		return `outputelement:${this.id}`;
+		return `replelement:${this.id}`;
 	}
 
 	abstract toString(): string;
 }
 
-export class OutputElement extends AbstractOutputElement {
-
+export class SimpleReplElement extends AbstractReplElement {
 
 	constructor(
 		public value: string,
@@ -57,7 +56,7 @@ export class OutputElement extends AbstractOutputElement {
 	}
 }
 
-export class OutputNameValueElement extends AbstractOutputElement implements IExpression {
+export class RawObjectReplElement extends AbstractReplElement implements IExpression {
 
 	private static MAX_CHILDREN = 1000; // upper bound of children per value
 
@@ -86,11 +85,11 @@ export class OutputNameValueElement extends AbstractOutputElement implements IEx
 	public getChildren(): TPromise<IExpression[]> {
 		let result: IExpression[] = [];
 		if (Array.isArray(this.valueObj)) {
-			result = (<any[]>this.valueObj).slice(0, OutputNameValueElement.MAX_CHILDREN)
-				.map((v, index) => new OutputNameValueElement(String(index), v));
+			result = (<any[]>this.valueObj).slice(0, RawObjectReplElement.MAX_CHILDREN)
+				.map((v, index) => new RawObjectReplElement(String(index), v));
 		} else if (isObject(this.valueObj)) {
-			result = Object.getOwnPropertyNames(this.valueObj).slice(0, OutputNameValueElement.MAX_CHILDREN)
-				.map(key => new OutputNameValueElement(key, this.valueObj[key]));
+			result = Object.getOwnPropertyNames(this.valueObj).slice(0, RawObjectReplElement.MAX_CHILDREN)
+				.map(key => new RawObjectReplElement(key, this.valueObj[key]));
 		}
 
 		return TPromise.as(result);
@@ -957,23 +956,23 @@ export class Model implements IModel {
 			.then(() => this._onDidChangeREPLElements.fire());
 	}
 
-	public appendToRepl(output: string | IExpression, severity: severity, source?: IReplElementSource): void {
-		if (typeof output === 'string') {
-			const previousOutput = this.replElements.length && (this.replElements[this.replElements.length - 1] as OutputElement);
+	public appendToRepl(data: string | IExpression, severity: severity, source?: IReplElementSource): void {
+		if (typeof data === 'string') {
+			const previousElement = this.replElements.length && (this.replElements[this.replElements.length - 1] as SimpleReplElement);
 
-			const toAdd = output.split('\n').map((line, index) => new OutputElement(line, severity, index === 0 ? source : undefined));
-			if (previousOutput && previousOutput.value === '') {
-				// remove potential empty lines between different output types
+			const toAdd = data.split('\n').map((line, index) => new SimpleReplElement(line, severity, index === 0 ? source : undefined));
+			if (previousElement && previousElement.value === '') {
+				// remove potential empty lines between different repl types
 				this.replElements.pop();
-			} else if (previousOutput instanceof OutputElement && severity === previousOutput.severity && toAdd.length && toAdd[0].sourceData === previousOutput.sourceData) {
-				previousOutput.value += toAdd.shift().value;
+			} else if (previousElement instanceof SimpleReplElement && severity === previousElement.severity && toAdd.length && toAdd[0].sourceData === previousElement.sourceData) {
+				previousElement.value += toAdd.shift().value;
 			}
 			this.addReplElements(toAdd);
 		} else {
 			// TODO@Isidor hack, we should introduce a new type which is an output that can fetch children like an expression
-			(<any>output).severity = severity;
-			(<any>output).sourceData = source;
-			this.addReplElements([output]);
+			(<any>data).severity = severity;
+			(<any>data).sourceData = source;
+			this.addReplElements([data]);
 		}
 
 		this._onDidChangeREPLElements.fire();
