@@ -22,9 +22,7 @@ import { MainContext, MainThreadTelemetryShape, MainThreadLanguageFeaturesShape,
 import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
-import { containsCommandLink } from 'vs/base/common/htmlContent';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { once } from 'vs/base/common/functional';
 
 // --- adapter
 
@@ -179,7 +177,6 @@ class HoverAdapter {
 	constructor(
 		private readonly _documents: ExtHostDocuments,
 		private readonly _provider: vscode.HoverProvider,
-		private readonly _telemetryLog: (name: string, data: object) => void,
 	) {
 		//
 	}
@@ -200,14 +197,7 @@ class HoverAdapter {
 				value.range = new Range(pos, pos);
 			}
 
-			const result = TypeConverters.fromHover(value);
-
-			// we wanna know which extension uses command links
-			// because that is a potential trick-attack on users
-			if (result.contents.some(h => containsCommandLink(h.value))) {
-				this._telemetryLog('usesCommandLink', { from: 'hover' });
-			}
-			return result;
+			return TypeConverters.fromHover(value);
 		});
 	}
 }
@@ -878,11 +868,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	registerHoverProvider(selector: vscode.DocumentSelector, provider: vscode.HoverProvider, extensionId?: string): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter.set(handle, new HoverAdapter(this._documents, provider, once((name: string, data: any) => {
-			data['extension'] = extensionId;
-			// __GDPR__TODO__ Dynamic event names and dynamic properties. Can not be registered statically.
-			this._telemetry.$publicLog(name, data);
-		})));
+		this._adapter.set(handle, new HoverAdapter(this._documents, provider));
 		this._proxy.$registerHoverProvider(handle, selector);
 		return this._createDisposable(handle);
 	}
