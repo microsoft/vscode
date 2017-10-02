@@ -371,7 +371,6 @@ export interface IRawAdapter extends IRawEnvAdapter {
 	configurationAttributes?: any;
 	configurationSnippets?: IJSONSchemaSnippet[];
 	initialConfigurations?: any[];
-	startSessionCommand?: string;
 	languages?: string[];
 	variables?: { [key: string]: string };
 	aiKey?: string;
@@ -409,13 +408,6 @@ export interface IConfigurationManager {
 	 * Allows to register on change of selected debug configuration.
 	 */
 	onDidSelectConfiguration: Event<void>;
-
-	/**
-	 * Returns a "startSessionCommand" contribution for an adapter with the passed type.
-	 * If no type is specified will try to automatically pick an adapter by looking at
-	 * the active editor language and matching it against the "languages" contribution of an adapter.
-	 */
-	getStartSessionCommand(type?: string): TPromise<{ command: string, type: string }>;
 
 	registerDebugConfigurationProvider(handle: number, debugConfigurationProvider: IDebugConfigurationProvider): void;
 	unregisterDebugConfigurationProvider(handle: number): void;
@@ -590,7 +582,7 @@ export interface IDebugService {
 	/**
 	 * Starts debugging. If the configOrName is not passed uses the selected configuration in the debug dropdown.
 	 * Also saves all files, manages if compounds are present in the configuration
-	 * and calls the startSessionCommand if an adapter registered it.
+	 * and resolveds configurations via DebugConfigurationProviders.
 	 */
 	startDebugging(root: IWorkspaceFolder, configOrName?: IConfig | string, noDebug?: boolean): TPromise<any>;
 
