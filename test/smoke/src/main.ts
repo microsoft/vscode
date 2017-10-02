@@ -89,7 +89,7 @@ if (testCodePath) {
 	process.env.VSCODE_CLI = '1';
 }
 
-if (!fs.existsSync(process.env.VSCODE_PATH)) {
+if (!fs.existsSync(process.env.VSCODE_PATH || '')) {
 	fail(`Can't find Code at ${process.env.VSCODE_PATH}.`);
 }
 
