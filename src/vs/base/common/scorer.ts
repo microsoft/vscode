@@ -373,25 +373,47 @@ export function compareItemsByScore<T>(itemA: T, itemB: T, query: string, access
 		return scoreA > scoreB ? -1 : 1;
 	}
 
-	// 6.) at this point, scores are identical for both paths
+	// 6.) at this point, scores are identical for both items so we start to sort by length
 
+	// check for label + description length and prefer shorter
 	const labelA = accessor.getItemLabel(itemA);
 	const labelB = accessor.getItemLabel(itemB);
 
-	if (labelA.length !== labelB.length) {
-		return labelA.length - labelB.length; // prefer shorter labels
+	const descriptionA = accessor.getItemDescription(itemA);
+	const descriptionB = accessor.getItemDescription(itemB);
+
+	const labelDescriptionALength = labelA.length + (descriptionA ? descriptionA.length : 0);
+	const labelDescriptionBLength = labelB.length + (descriptionB ? descriptionB.length : 0);
+
+	if (labelDescriptionALength !== labelDescriptionBLength) {
+		return labelDescriptionALength - labelDescriptionBLength;
 	}
 
+	// check for path length and prefer shorter
 	const pathA = accessor.getItemPath(itemA);
 	const pathB = accessor.getItemPath(itemB);
 
 	if (pathA && pathB && pathA.length !== pathB.length) {
-		return pathA.length - pathB.length; // prefer shorter paths
+		return pathA.length - pathB.length;
 	}
 
-	if (labelA === labelB && pathA && pathB) {
-		return compareAnything(pathA, pathB, query); // compare paths if labels are identical
+	// 7.) finally we have equal scores and equal length, we fallback to comparer
+
+	// compare by label
+	if (labelA !== labelB) {
+		return compareAnything(labelA, labelB, query);
 	}
 
-	return compareAnything(labelA, labelB, query); // finally compare by labels
+	// compare by description
+	if (descriptionA && descriptionB && descriptionA !== descriptionB) {
+		return compareAnything(descriptionA, descriptionB, query);
+	}
+
+	// compare by path
+	if (pathA && pathB && pathA !== pathB) {
+		return compareAnything(pathA, pathB, query);
+	}
+
+	// equal
+	return 0;
 }

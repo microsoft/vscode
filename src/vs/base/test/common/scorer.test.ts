@@ -366,4 +366,17 @@ suite('Scorer', () => {
 		assert.equal(res[1], resourceB);
 		assert.equal(res[2], resourceC);
 	});
+
+	test('compareFilesByScore - prefer shorter paths (bug #17443)', function () {
+		const resourceA = URI.file('config/test/t1.js');
+		const resourceB = URI.file('config/test.js');
+		const resourceC = URI.file('config/test/t2.js');
+
+		let query = 'co/te';
+
+		let res = [resourceA, resourceB, resourceC].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+		assert.equal(res[1], resourceA);
+		assert.equal(res[2], resourceC);
+	});
 });
