@@ -5,6 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
+import { TPromise } from 'vs/base/common/winjs.base';
 import arrays = require('vs/base/common/arrays');
 
 suite('Arrays', () => {
@@ -215,5 +216,58 @@ suite('Arrays', () => {
 		assert.deepEqual(arrays.top([3, 2, 1], cmp, 3), [1, 2, 3]);
 		assert.deepEqual(arrays.top([4, 6, 2, 7, 8, 3, 5, 1], cmp, 3), [1, 2, 3]);
 	});
+
+	test('topAsync', function (done) {
+		const cmp = (a, b) => {
+			assert.strictEqual(typeof a, 'number', 'typeof a');
+			assert.strictEqual(typeof b, 'number', 'typeof b');
+			return a - b;
+		};
+
+		testTopAsync(cmp, 1)
+			.then(() => {
+				return testTopAsync(cmp, 2);
+			})
+			.then(done, done);
+	});
+
+	function testTopAsync(cmp: any, m: number) {
+		return TPromise.as(null).then(() => {
+			return arrays.topAsync([], cmp, 1, m)
+				.then(result => {
+					assert.deepEqual(result, []);
+				});
+		}).then(() => {
+			return arrays.topAsync([1], cmp, 0, m)
+				.then(result => {
+					assert.deepEqual(result, []);
+				});
+		}).then(() => {
+			return arrays.topAsync([1, 2], cmp, 1, m)
+				.then(result => {
+					assert.deepEqual(result, [1]);
+				});
+		}).then(() => {
+			return arrays.topAsync([2, 1], cmp, 1, m)
+				.then(result => {
+					assert.deepEqual(result, [1]);
+				});
+		}).then(() => {
+			return arrays.topAsync([1, 3, 2], cmp, 2, m)
+				.then(result => {
+					assert.deepEqual(result, [1, 2]);
+				});
+		}).then(() => {
+			return arrays.topAsync([3, 2, 1], cmp, 3, m)
+				.then(result => {
+					assert.deepEqual(result, [1, 2, 3]);
+				});
+		}).then(() => {
+			return arrays.topAsync([4, 6, 2, 7, 8, 3, 5, 1], cmp, 3, m)
+				.then(result => {
+					assert.deepEqual(result, [1, 2, 3]);
+				});
+		});
+	}
 });
 

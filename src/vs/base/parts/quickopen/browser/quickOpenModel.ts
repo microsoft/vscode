@@ -24,6 +24,7 @@ import { IQuickOpenStyles } from 'vs/base/parts/quickopen/browser/quickOpenWidge
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { OS } from 'vs/base/common/platform';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { IItemAccessor } from 'vs/base/common/scorer';
 
 export interface IContext {
 	event: any;
@@ -37,18 +38,24 @@ export interface IHighlight {
 
 let IDS = 0;
 
-export class ResourceAccessor {
+export class QuickOpenItemAccessorClass implements IItemAccessor<QuickOpenEntry> {
 
-	public static getResourceLabel(entry: QuickOpenEntry) {
+	public getItemLabel(entry: QuickOpenEntry): string {
 		return entry.getLabel();
 	}
 
-	public static getResourcePath(entry: QuickOpenEntry) {
+	public getItemDescription(entry: QuickOpenEntry): string {
+		return entry.getDescription();
+	}
+
+	public getItemPath(entry: QuickOpenEntry): string {
 		const resource = entry.getResource();
 
-		return resource && resource.fsPath;
+		return resource ? resource.fsPath : void 0;
 	}
 }
+
+export const QuickOpenItemAccessor = new QuickOpenItemAccessorClass();
 
 export class QuickOpenEntry {
 	private id: string;

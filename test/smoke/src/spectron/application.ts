@@ -98,7 +98,7 @@ export class SpectronApplication {
 	public async reload(): Promise<any> {
 		await this.workbench.quickopen.runCommand('Reload Window');
 		// TODO @sandy: Find a proper condition to wait for reload
-		await this.wait(.5);
+		await new Promise(c => setTimeout(c, 500));
 		await this.checkWindowReady();
 	}
 
@@ -107,10 +107,6 @@ export class SpectronApplication {
 			await this.screenCapturer.capture('Stopping application');
 			return await this.spectron.stop();
 		}
-	}
-
-	public wait(seconds: number = 1): Promise<any> {
-		return new Promise(resolve => setTimeout(resolve, seconds * 1000));
 	}
 
 	private async startApplication(testSuiteName: string, codeArgs: string[] = [], env = process.env): Promise<any> {

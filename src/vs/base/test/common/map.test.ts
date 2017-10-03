@@ -378,7 +378,7 @@ suite('Map', () => {
 	});
 
 	test('TernarySearchTree - basics', function () {
-		const trie = new TernarySearchTree<number>(new StringSegments());
+		let trie = new TernarySearchTree<number>(new StringSegments());
 
 		trie.set('foo', 1);
 		trie.set('bar', 2);
@@ -393,6 +393,18 @@ suite('Map', () => {
 		assert.equal(trie.findSubstr('fo'), undefined);
 		assert.equal(trie.findSubstr('foo'), 1);
 		assert.equal(trie.findSubstr('foooo'), 1);
+
+
+		trie.delete('foobar');
+		trie.delete('bar');
+		assert.equal(trie.get('foobar'), undefined);
+		assert.equal(trie.get('bar'), undefined);
+
+		trie.set('foobar', 17);
+		trie.set('barr', 18);
+		assert.equal(trie.get('foobar'), 17);
+		assert.equal(trie.get('barr'), 18);
+		assert.equal(trie.get('bar'), undefined);
 	});
 
 	test('TernarySearchTree (PathSegments) - basics', function () {
@@ -449,6 +461,7 @@ suite('Map', () => {
 		assert.equal(third, 3);
 
 		assert.deepEqual(map.findSuperstr('/usr'), [4]);
+		assert.deepEqual(map.findSuperstr('/usr/foo'), [4]);
 
 		assert.equal(map.findSuperstr('/not'), undefined);
 		assert.equal(map.findSuperstr('/us'), undefined);

@@ -56,9 +56,8 @@ export class NodeCachedDataCleaner {
 
 				entries.forEach(entry => {
 					// name check
-					// * name is a git commit id (40 hex characters)
 					// * not the current cached data folder
-					if (entry.match(/^[a-f0-9]{40}$/i) && entry !== nodeCachedDataCurrent) {
+					if (entry !== nodeCachedDataCurrent) {
 
 						const path = join(nodeCachedDataRootDir, entry);
 						deletes.push(stat(path).then(stats => {

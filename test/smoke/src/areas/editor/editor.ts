@@ -93,6 +93,18 @@ export class Editor {
 		await this.spectron.client.waitAndClick(selector);
 	}
 
+	public async waitForTypeInEditor(filename: string, text: string): Promise<any> {
+		const editor = `.monaco-editor[data-uri$="${filename}"]`;
+		await this.spectron.client.waitAndClick(editor);
+
+		const textarea = `${editor} textarea`;
+		await this.spectron.client.waitForActiveElement(textarea);
+
+		await this.spectron.client.type(text);
+
+		await this.waitForEditorContents(filename, c => c.indexOf(text) > -1);
+	}
+
 	public async waitForEditorContents(filename: string, accept: (contents: string) => boolean): Promise<any> {
 		const selector = `.monaco-editor[data-uri$="${filename}"] .view-lines`;
 		return this.spectron.client.waitForTextContent(selector, undefined, c => accept(c.replace(/\u00a0/g, ' ')));
@@ -103,35 +115,35 @@ export class Editor {
 		return this.spectron.client.waitForActiveElement(selector);
 	}
 
-	public async waitForActiveEditorFirstLineText(filename: string): Promise<string> {
-		const selector = `.editor-container .monaco-editor[data-uri$="${filename}"] textarea`;
-		const result = await this.spectron.client.waitFor(
-			() => this.spectron.client.spectron.client.execute(s => {
-				if (!document.activeElement.matches(s)) {
-					return undefined;
-				}
+	// public async waitForActiveEditorFirstLineText(filename: string): Promise<string> {
+	// 	const selector = `.editor-container .monaco-editor[data-uri$="${filename}"] textarea`;
+	// 	const result = await this.spectron.client.waitFor(
+	// 		() => this.spectron.client.spectron.client.execute(s => {
+	// 			if (!document.activeElement.matches(s)) {
+	// 				return undefined;
+	// 			}
 
-				let element: Element | null = document.activeElement;
-				while (element && !/monaco-editor/.test(element.className) && element !== document.body) {
-					element = element.parentElement;
-				}
+	// 			let element: Element | null = document.activeElement;
+	// 			while (element && !/monaco-editor/.test(element.className) && element !== document.body) {
+	// 				element = element.parentElement;
+	// 			}
 
-				if (element && /monaco-editor/.test(element.className)) {
-					const firstLine = element.querySelector('.view-lines span span:nth-child(1)');
+	// 			if (element && /monaco-editor/.test(element.className)) {
+	// 				const firstLine = element.querySelector('.view-lines span span:nth-child(1)');
 
-					if (firstLine) {
-						return (firstLine.textContent || '').replace(/\u00a0/g, ' '); // DAMN
-					}
-				}
+	// 				if (firstLine) {
+	// 					return (firstLine.textContent || '').replace(/\u00a0/g, ' '); // DAMN
+	// 				}
+	// 			}
 
-				return undefined;
-			}, selector),
-			r => typeof r.value === 'string',
-			`wait for active editor first line: ${selector}`
-		);
+	// 			return undefined;
+	// 		}, selector),
+	// 		r => typeof r.value === 'string',
+	// 		`wait for active editor first line: ${selector}`
+	// 	);
 
-		return result.value;
-	}
+	// 	return result.value;
+	// }
 
 	private async getClassSelectors(term: string, viewline: number): Promise<string[]> {
 		const result: { text: string, className: string }[] = await this.spectron.webclient.selectorExecute(`${Editor.VIEW_LINES}>:nth-child(${viewline}) span span`,

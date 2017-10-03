@@ -2,7 +2,7 @@
   "name": "code-oss-dev",
   "version": "1.18.0",
   "electronVersion": "1.7.7",
-  "distro": "844fa1b49cad5939922e15bf69321330bce65831",
+  "distro": "cfbce18a88745d9ba30090debefffa6961303b2f",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -45,7 +45,7 @@
     "vscode-ripgrep": "0.0.27",
     "vscode-textmate": "^3.1.5",
     "winreg": "1.2.0",
-    "xterm": "Tyriar/xterm.js#vscode-release/1.17",
+    "xterm": "Tyriar/xterm.js#vscode-release/1.18",
     "yauzl": "2.8.0"
   },
   "devDependencies": {

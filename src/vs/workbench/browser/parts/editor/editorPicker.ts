@@ -7,12 +7,11 @@
 import 'vs/css!./media/editorpicker';
 import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
-import labels = require('vs/base/common/labels');
 import URI from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
 import { IIconLabelOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IAutoFocus, Mode, IEntryRunContext, IQuickNavigateConfiguration, IModel } from 'vs/base/parts/quickopen/common/quickOpen';
-import { QuickOpenModel, QuickOpenEntry, QuickOpenEntryGroup, ResourceAccessor } from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import { QuickOpenModel, QuickOpenEntry, QuickOpenEntryGroup, QuickOpenItemAccessor } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { getIconClasses } from 'vs/workbench/browser/labels';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -23,8 +22,8 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EditorInput, toResource, IEditorGroup, IEditorStacksModel } from 'vs/workbench/common/editor';
-import { stripWildcards, fuzzyContains } from 'vs/base/common/strings';
-import { compareResourcesByScore } from 'vs/base/common/scorer';
+import { stripWildcards } from 'vs/base/common/strings';
+import { compareItemsByScore, scoreItem, ScorerCache } from 'vs/base/common/scorer';
 
 export class EditorPickerEntry extends QuickOpenEntryGroup {
 	private stacks: IEditorStacksModel;
@@ -89,7 +88,7 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 }
 
 export abstract class BaseEditorPicker extends QuickOpenHandler {
-	private scorerCache: { [key: string]: number };
+	private scorerCache: ScorerCache;
 
 	constructor(
 		@IInstantiationService protected instantiationService: IInstantiationService,
@@ -103,9 +102,6 @@ export abstract class BaseEditorPicker extends QuickOpenHandler {
 	}
 
 	public getResults(searchValue: string): TPromise<QuickOpenModel> {
-		searchValue = searchValue.trim();
-		const normalizedSearchValueLowercase = stripWildcards(searchValue).toLowerCase();
-
 		const editorEntries = this.getEditorEntries();
 		if (!editorEntries.length) {
 			return TPromise.as(null);
@@ -113,19 +109,19 @@ export abstract class BaseEditorPicker extends QuickOpenHandler {
 
 		const stacks = this.editorGroupService.getStacksModel();
 
+		searchValue = stripWildcards(searchValue.trim());
+
 		const entries = editorEntries.filter(e => {
 			if (!searchValue) {
 				return true;
 			}
 
-			const resource = e.getResource();
-			const targetToMatch = resource ? labels.getPathLabel(e.getResource(), this.contextService) : e.getLabel();
-			if (!fuzzyContains(targetToMatch, normalizedSearchValueLowercase)) {
+			const itemScore = scoreItem(e, searchValue, QuickOpenItemAccessor, this.scorerCache);
+			if (!itemScore.score) {
 				return false;
 			}
 
-			const { labelHighlights, descriptionHighlights } = QuickOpenEntry.highlight(e, searchValue, true /* fuzzy highlight */);
-			e.setHighlights(labelHighlights, descriptionHighlights);
+			e.setHighlights(itemScore.labelMatch, itemScore.descriptionMatch);
 
 			return true;
 		});
@@ -137,7 +133,7 @@ export abstract class BaseEditorPicker extends QuickOpenHandler {
 					return stacks.positionOfGroup(e1.group) - stacks.positionOfGroup(e2.group);
 				}
 
-				return compareResourcesByScore(e1, e2, ResourceAccessor, searchValue, normalizedSearchValueLowercase, this.scorerCache);
+				return compareItemsByScore(e1, e2, searchValue, QuickOpenItemAccessor, this.scorerCache);
 			});
 		}
 
@@ -220,12 +216,16 @@ export abstract class EditorGroupPicker extends BaseEditorPicker {
 
 export class GroupOnePicker extends EditorGroupPicker {
 
+	public static readonly ID = 'workbench.picker.editors.one';
+
 	protected getPosition(): Position {
 		return Position.ONE;
 	}
 }
 
 export class GroupTwoPicker extends EditorGroupPicker {
+
+	public static readonly ID = 'workbench.picker.editors.two';
 
 	protected getPosition(): Position {
 		return Position.TWO;
@@ -234,12 +234,16 @@ export class GroupTwoPicker extends EditorGroupPicker {
 
 export class GroupThreePicker extends EditorGroupPicker {
 
+	public static readonly ID = 'workbench.picker.editors.three';
+
 	protected getPosition(): Position {
 		return Position.THREE;
 	}
 }
 
 export class AllEditorsPicker extends BaseEditorPicker {
+
+	public static readonly ID = 'workbench.picker.editors';
 
 	protected getEditorEntries(): EditorPickerEntry[] {
 		const entries: EditorPickerEntry[] = [];

@@ -78,8 +78,8 @@ describe('Statusbar', () => {
 		await app.workbench.statusbar.clickOn(StatusBarElement.EOL_STATUS);
 
 		await app.workbench.quickopen.waitForQuickOpenOpened();
-
 		await app.workbench.quickopen.selectQuickOpenElement(1);
+
 		await app.workbench.statusbar.waitForEOL('CRLF');
 	});
 });

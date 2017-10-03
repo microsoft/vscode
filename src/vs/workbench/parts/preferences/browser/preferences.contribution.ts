@@ -9,8 +9,7 @@ import URI from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
-import { EditorInput, IEditorRegistry, IEditorInputFactory } from 'vs/workbench/common/editor';
-import { EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { EditorInput, IEditorInputFactory, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
@@ -30,15 +29,15 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 
 registerSingleton(IPreferencesService, PreferencesService);
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new EditorDescriptor(
+		PreferencesEditor,
 		PreferencesEditor.ID,
-		nls.localize('defaultPreferencesEditor', "Default Preferences Editor"),
-		'vs/workbench/parts/preferences/browser/preferencesEditor',
-		'PreferencesEditor'
+		nls.localize('defaultPreferencesEditor', "Default Preferences Editor")
 	),
 	[
 		new SyncDescriptor(PreferencesEditorInput)
@@ -47,10 +46,9 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new EditorDescriptor(
+		KeybindingsEditor,
 		KeybindingsEditor.ID,
-		nls.localize('keybindingsEditor', "Keybindings Editor"),
-		'vs/workbench/parts/preferences/browser/keybindingsEditor',
-		'KeybindingsEditor'
+		nls.localize('keybindingsEditor', "Keybindings Editor")
 	),
 	[
 		new SyncDescriptor(KeybindingsEditorInput)
@@ -75,7 +73,7 @@ class PreferencesEditorInputFactory implements IEditorInputFactory {
 		const input = <PreferencesEditorInput>editorInput;
 
 		if (input.details && input.master) {
-			const registry = Registry.as<IEditorRegistry>(EditorExtensions.Editors);
+			const registry = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories);
 			const detailsInputFactory = registry.getEditorInputFactory(input.details.getTypeId());
 			const masterInputFactory = registry.getEditorInputFactory(input.master.getTypeId());
 
@@ -102,7 +100,7 @@ class PreferencesEditorInputFactory implements IEditorInputFactory {
 	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
 		const deserialized: ISerializedPreferencesEditorInput = JSON.parse(serializedEditorInput);
 
-		const registry = Registry.as<IEditorRegistry>(EditorExtensions.Editors);
+		const registry = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories);
 		const detailsInputFactory = registry.getEditorInputFactory(deserialized.detailsTypeId);
 		const masterInputFactory = registry.getEditorInputFactory(deserialized.masterTypeId);
 
@@ -157,9 +155,9 @@ class DefaultPreferencesEditorInputFactory implements IEditorInputFactory {
 	}
 }
 
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditorInputFactory(PreferencesEditorInput.ID, PreferencesEditorInputFactory);
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditorInputFactory(DefaultPreferencesEditorInput.ID, DefaultPreferencesEditorInputFactory);
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditorInputFactory(KeybindingsEditorInput.ID, KeybindingsEditorInputFactory);
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(PreferencesEditorInput.ID, PreferencesEditorInputFactory);
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(DefaultPreferencesEditorInput.ID, DefaultPreferencesEditorInputFactory);
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(KeybindingsEditorInput.ID, KeybindingsEditorInputFactory);
 
 // Contribute Global Actions
 const category = nls.localize('preferences', "Preferences");

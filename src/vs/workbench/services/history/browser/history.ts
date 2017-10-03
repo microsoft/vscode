@@ -10,7 +10,7 @@ import errors = require('vs/base/common/errors');
 import URI from 'vs/base/common/uri';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { IEditor as IBaseEditor, IEditorInput, ITextEditorOptions, IResourceInput, ITextEditorSelection, Position as GroupPosition } from 'vs/platform/editor/common/editor';
-import { EditorInput, IEditorCloseEvent, IEditorRegistry, toResource, IEditorGroup } from 'vs/workbench/common/editor';
+import { Extensions as EditorExtensions, EditorInput, IEditorCloseEvent, toResource, IEditorGroup, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { FileChangesEvent, IFileService, FileChangeType } from 'vs/platform/files/common/files';
@@ -30,7 +30,7 @@ import { parse, IExpression } from 'vs/base/common/glob';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
-import { Extensions } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { IEditorRegistry, Extensions } from 'vs/workbench/browser/editor';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -245,12 +245,13 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 
 		// Track closing of pinned editor to support to reopen closed editors
 		if (event.pinned) {
-			const file = toResource(event.editor, { filter: 'file' }); // we only support files to reopen
-			if (file) {
+			const resource = toResource(event.editor);
+			const supportsReopen = resource && this.fileService.canHandleResource(resource); // we only support file'ish things to reopen
+			if (supportsReopen) {
 
 				// Remove all inputs matching and add as last recently closed
 				this.removeFromRecentlyClosedFiles(event.editor);
-				this.recentlyClosedFiles.push({ resource: file, index: event.index });
+				this.recentlyClosedFiles.push({ resource, index: event.index });
 
 				// Bounding
 				if (this.recentlyClosedFiles.length > HistoryService.MAX_RECENTLY_CLOSED_EDITORS) {
@@ -591,9 +592,10 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	}
 
 	private preferResourceInput(input: IEditorInput): IEditorInput | IResourceInput {
-		const file = toResource(input, { filter: 'file' });
-		if (file) {
-			return { resource: file };
+		const resource = toResource(input);
+		const preferResourceInput = resource && this.fileService.canHandleResource(resource); // file'ish things prefer resources
+		if (preferResourceInput) {
+			return { resource };
 		}
 
 		return input;
@@ -678,9 +680,9 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 
 		if (arg2 instanceof EditorInput) {
-			const file = toResource(arg2, { filter: 'file' });
+			const resource = toResource(arg2);
 
-			return file && file.toString() === resource.toString();
+			return resource && this.fileService.canHandleResource(resource) && resource.toString() === resource.toString();
 		}
 
 		const resourceInput = arg2 as IResourceInput;
@@ -707,7 +709,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 			return; // nothing to save because history was not used
 		}
 
-		const registry = Registry.as<IEditorRegistry>(Extensions.Editors);
+		const registry = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories);
 
 		const entries: ISerializedEditorHistoryEntry[] = this.history.map(input => {
 
@@ -741,7 +743,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 			entries = JSON.parse(entriesRaw).filter(entry => !!entry);
 		}
 
-		const registry = Registry.as<IEditorRegistry>(Extensions.Editors);
+		const registry = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories);
 
 		this.history = entries.map(entry => {
 			const serializedEditorHistoryEntry = entry as ISerializedEditorHistoryEntry;

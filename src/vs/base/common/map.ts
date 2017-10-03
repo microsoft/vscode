@@ -223,7 +223,7 @@ export class BoundedMap<T> {
 export interface IKeySegements {
 	reset(key: string): this;
 	join(segments: string[]): string;
-	done(): boolean;
+	hasNext(): boolean;
 	next(): string;
 }
 
@@ -239,8 +239,8 @@ export class StringSegments implements IKeySegements {
 	join(segments: string[]): string {
 		return segments.join('');
 	}
-	done(): boolean {
-		return this._pos >= this._value.length;
+	hasNext(): boolean {
+		return this._pos < this._value.length;
 	}
 	next(): string {
 		return this._value[this._pos++];
@@ -263,8 +263,8 @@ export class PathSegments implements IKeySegements {
 	join(segments: string[]): string {
 		return segments.join('/');
 	}
-	done(): boolean {
-		return this._pos >= this._value.length;
+	hasNext(): boolean {
+		return this._pos < this._value.length;
 	}
 	next(): string {
 		// this._data = key.split(/[\\/]/).filter(s => !!s);
@@ -287,7 +287,7 @@ export class PathSegments implements IKeySegements {
 		} else {
 			// maybe just separators in a row
 			this._pos += 1;
-			return !this.done()
+			return this.hasNext()
 				? this.next()
 				: undefined;
 		}
@@ -300,6 +300,10 @@ class TernarySearchTreeNode<E> {
 	left: TernarySearchTreeNode<E>;
 	mid: TernarySearchTreeNode<E>;
 	right: TernarySearchTreeNode<E>;
+
+	isEmpty(): boolean {
+		return !this.left && !this.mid && !this.right && !this.element;
+	}
 }
 
 export class TernarySearchTree<E> {
@@ -312,19 +316,19 @@ export class TernarySearchTree<E> {
 		return new TernarySearchTree<E>(new StringSegments());
 	}
 
-	private _segements: IKeySegements;
+	private _segments: IKeySegements;
 	private _root: TernarySearchTreeNode<E>;
 
 	constructor(segments: IKeySegements) {
-		this._segements = segments;
+		this._segments = segments;
 	}
 
 	set(key: string, element: E): void {
-		const segements = this._segements.reset(key);
+		const segements = this._segments.reset(key);
 		this._root = this._set(this._root, segements.next(), segements, element);
 	}
 
-	private _set(node: TernarySearchTreeNode<E>, key: string, segements: IKeySegements, element: E): TernarySearchTreeNode<E> {
+	private _set(node: TernarySearchTreeNode<E>, key: string, segments: IKeySegements, element: E): TernarySearchTreeNode<E> {
 
 		if (!node) {
 			node = new TernarySearchTreeNode<E>();
@@ -333,71 +337,92 @@ export class TernarySearchTree<E> {
 
 		if (node.str > key) {
 			// left
-			node.left = this._set(node.left, key, segements, element);
+			node.left = this._set(node.left, key, segments, element);
 		} else if (node.str < key) {
 			// right
-			node.right = this._set(node.right, key, segements, element);
-		} else {
+			node.right = this._set(node.right, key, segments, element);
+		} else if (segments.hasNext()) {
 			// mid
-			let nextKey = segements.next();
-			if (nextKey) {
-				node.mid = this._set(node.mid, nextKey, segements, element);
-			} else {
-				node.element = element;
-			}
+			node.mid = this._set(node.mid, segments.next(), segments, element);
+		} else {
+			node.element = element;
 		}
 
 		return node;
 	}
 
 	get(key: string): E {
-		const segements = this._segements.reset(key);
+		const segements = this._segments.reset(key);
 		return this._get(this._root, segements.next(), segements);
 	}
 
-	private _get(node: TernarySearchTreeNode<E>, key: string, segements: IKeySegements): E {
+	private _get(node: TernarySearchTreeNode<E>, key: string, segments: IKeySegements): E {
 		if (!node) {
 			return undefined;
 		} else if (node.str > key) {
 			// left
-			return this._get(node.left, key, segements);
+			return this._get(node.left, key, segments);
 		} else if (node.str < key) {
 			// right
-			return this._get(node.right, key, segements);
+			return this._get(node.right, key, segments);
+		} else if (segments.hasNext()) {
+			// mid
+			return this._get(node.mid, segments.next(), segments);
 		} else {
-			let nextKey = segements.next();
-			return nextKey ?
-				this._get(node.mid, nextKey, segements)
-				: node.element;
+			return node.element;
 		}
 	}
 
+	delete(key: string): void {
+		const segments = this._segments.reset(key);
+		this._delete(this._root, segments.next(), segments);
+	}
+
+	private _delete(node: TernarySearchTreeNode<E>, key: string, segments: IKeySegements): TernarySearchTreeNode<E> {
+		if (!node) {
+			return undefined;
+		} else if (node.str > key) {
+			// left
+			node.left = this._delete(node.left, key, segments);
+		} else if (node.str < key) {
+			// right
+			node.right = this._delete(node.right, key, segments);
+		} else if (segments.hasNext()) {
+			// mid
+			node.mid = this._delete(node.mid, segments.next(), segments);
+		} else {
+			// remove element
+			node.element = undefined;
+		}
+
+		return node.isEmpty() ? undefined : node;
+	}
+
 	findSubstr(key: string): E {
-		const segements = this._segements.reset(key);
+		const segements = this._segments.reset(key);
 		return this._findSubstr(this._root, segements.next(), segements, undefined);
 	}
 
-	private _findSubstr(node: TernarySearchTreeNode<E>, key: string, segements: IKeySegements, candidate: E): E {
+	private _findSubstr(node: TernarySearchTreeNode<E>, key: string, segments: IKeySegements, candidate: E): E {
 		if (!node) {
 			return candidate;
 		} else if (node.str > key) {
 			// left
-			return this._findSubstr(node.left, key, segements, candidate);
+			return this._findSubstr(node.left, key, segments, candidate);
 		} else if (node.str < key) {
 			// right
-			return this._findSubstr(node.right, key, segements, candidate);
+			return this._findSubstr(node.right, key, segments, candidate);
+		} else if (segments.hasNext()) {
+			// mid
+			return this._findSubstr(node.mid, segments.next(), segments, node.element || candidate);
 		} else {
-			let nextKey = segements.next();
-			if (nextKey) {
-				return this._findSubstr(node.mid, nextKey, segements, node.element || candidate);
-			} else {
-				return node.element || candidate;
-			}
+			return node.element || candidate;
 		}
+
 	}
 
 	findSuperstr(key: string): E[] {
-		const segements = this._segements.reset(key);
+		const segements = this._segments.reset(key);
 		const bucket: E[] = [];
 		this._findSuperstr(this._root, segements.next(), segements, bucket);
 		return bucket.length ? bucket : undefined;
@@ -412,14 +437,16 @@ export class TernarySearchTree<E> {
 		} else if (node.str < key) {
 			// right
 			this._findSuperstr(node.right, key, segments, bucket);
+		} else if (segments.hasNext()) {
+			// mid
+			this._findSuperstr(node.mid, segments.next(), segments, bucket);
 		} else {
-			let nextKey = segments.next();
-			if (nextKey) {
-				this._findSuperstr(node.mid, nextKey, segments, bucket);
-			} else {
-				//
-				this._forEach(node.mid, [], (entry) => bucket.push(entry[1]));
+			// collect
+			if (node.element) {
+				bucket.push(node.element);
 			}
+			this._forEach(node.mid, [], (entry) => bucket.push(entry[1]));
+
 		}
 	}
 
@@ -436,7 +463,7 @@ export class TernarySearchTree<E> {
 		let newParts = parts.slice();
 		newParts.push(node.str);
 		if (node.element) {
-			callback([this._segements.join(newParts), node.element]);
+			callback([this._segments.join(newParts), node.element]);
 		}
 		this._forEach(node.mid, newParts, callback);
 	}

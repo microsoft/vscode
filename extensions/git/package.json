@@ -806,6 +806,7 @@
     }
   },
   "dependencies": {
+    "byline": "^5.0.0",
     "iconv-lite": "0.4.15",
     "vscode-extension-telemetry": "0.0.8",
     "vscode-nls": "2.0.2"

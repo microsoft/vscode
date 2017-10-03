@@ -23,7 +23,7 @@ import { TextSearchWorkerProvider } from 'vs/workbench/services/search/node/text
 import { IRawSearchService, IRawSearch, IRawFileMatch, ISerializedFileMatch, ISerializedSearchProgressItem, ISerializedSearchComplete, ISearchEngine, IFileSearchProgressItem, ITelemetryEvent } from './search';
 import { ICachedSearchStats, IProgress } from 'vs/platform/search/common/search';
 import { fuzzyContains } from 'vs/base/common/strings';
-import { compareResourcesByScore } from 'vs/base/common/scorer';
+import { compareItemsByScore, IItemAccessor, ScorerCache } from 'vs/base/common/scorer';
 
 export class SearchService implements IRawSearchService {
 
@@ -170,23 +170,26 @@ export class SearchService implements IRawSearchService {
 			allResultsPromise = this.preventCancellation(allResultsPromise);
 		}
 
+		let chained: TPromise<void>;
 		return new PPromise<[ISerializedSearchComplete, IRawFileMatch[]], IProgress>((c, e, p) => {
-			allResultsPromise.then(([result, results]) => {
+			chained = allResultsPromise.then(([result, results]) => {
 				const scorerCache: ScorerCache = cache ? cache.scorerCache : Object.create(null);
 				const unsortedResultTime = Date.now();
-				const sortedResults = this.sortResults(config, results, scorerCache);
-				const sortedResultTime = Date.now();
+				return this.sortResults(config, results, scorerCache)
+					.then(sortedResults => {
+						const sortedResultTime = Date.now();
 
-				c([{
-					stats: objects.assign({}, result.stats, {
-						unsortedResultTime,
-						sortedResultTime
-					}),
-					limitHit: result.limitHit || typeof config.maxResults === 'number' && results.length > config.maxResults
-				}, sortedResults]);
+						c([{
+							stats: objects.assign({}, result.stats, {
+								unsortedResultTime,
+								sortedResultTime
+							}),
+							limitHit: result.limitHit || typeof config.maxResults === 'number' && results.length > config.maxResults
+						}, sortedResults]);
+					});
 			}, e, p);
 		}, () => {
-			allResultsPromise.cancel();
+			chained.cancel();
 		});
 	}
 
@@ -207,47 +210,53 @@ export class SearchService implements IRawSearchService {
 		const cacheLookupStartTime = Date.now();
 		const cached = this.getResultsFromCache(cache, config.filePattern);
 		if (cached) {
+			let chained: TPromise<void>;
 			return new PPromise<[ISerializedSearchComplete, IRawFileMatch[]], IProgress>((c, e, p) => {
-				cached.then(([result, results, cacheStats]) => {
+				chained = cached.then(([result, results, cacheStats]) => {
 					const cacheLookupResultTime = Date.now();
-					const sortedResults = this.sortResults(config, results, cache.scorerCache);
-					const sortedResultTime = Date.now();
+					return this.sortResults(config, results, cache.scorerCache)
+						.then(sortedResults => {
+							const sortedResultTime = Date.now();
 
-					const stats: ICachedSearchStats = {
-						fromCache: true,
-						cacheLookupStartTime: cacheLookupStartTime,
-						cacheFilterStartTime: cacheStats.cacheFilterStartTime,
-						cacheLookupResultTime: cacheLookupResultTime,
-						cacheEntryCount: cacheStats.cacheFilterResultCount,
-						resultCount: results.length
-					};
-					if (config.sortByScore) {
-						stats.unsortedResultTime = cacheLookupResultTime;
-						stats.sortedResultTime = sortedResultTime;
-					}
-					if (!cacheStats.cacheWasResolved) {
-						stats.joined = result.stats;
-					}
-					c([
-						{
-							limitHit: result.limitHit || typeof config.maxResults === 'number' && results.length > config.maxResults,
-							stats: stats
-						},
-						sortedResults
-					]);
+							const stats: ICachedSearchStats = {
+								fromCache: true,
+								cacheLookupStartTime: cacheLookupStartTime,
+								cacheFilterStartTime: cacheStats.cacheFilterStartTime,
+								cacheLookupResultTime: cacheLookupResultTime,
+								cacheEntryCount: cacheStats.cacheFilterResultCount,
+								resultCount: results.length
+							};
+							if (config.sortByScore) {
+								stats.unsortedResultTime = cacheLookupResultTime;
+								stats.sortedResultTime = sortedResultTime;
+							}
+							if (!cacheStats.cacheWasResolved) {
+								stats.joined = result.stats;
+							}
+							c([
+								{
+									limitHit: result.limitHit || typeof config.maxResults === 'number' && results.length > config.maxResults,
+									stats: stats
+								},
+								sortedResults
+							]);
+						});
 				}, e, p);
 			}, () => {
-				cached.cancel();
+				chained.cancel();
 			});
 		}
 		return undefined;
 	}
 
-	private sortResults(config: IRawSearch, results: IRawFileMatch[], scorerCache: ScorerCache): IRawFileMatch[] {
-		const filePattern = config.filePattern;
-		const normalizedSearchValue = strings.stripWildcards(filePattern).toLowerCase();
-		const compare = (elementA: IRawFileMatch, elementB: IRawFileMatch) => compareResourcesByScore(elementA, elementB, FileMatchResourceAccessor, filePattern, normalizedSearchValue, scorerCache);
-		return arrays.top(results, compare, config.maxResults);
+	private sortResults(config: IRawSearch, results: IRawFileMatch[], scorerCache: ScorerCache): TPromise<IRawFileMatch[]> {
+		// we use the same compare function that is used later when showing the results using fuzzy scoring
+		// this is very important because we are also limiting the number of results by config.maxResults
+		// and as such we want the top items to be included in this result set if the number of items
+		// exceeds config.maxResults.
+		const compare = (matchA: IRawFileMatch, matchB: IRawFileMatch) => compareItemsByScore(matchA, matchB, strings.stripWildcards(config.filePattern), FileMatchItemAccessor, scorerCache);
+
+		return arrays.topAsync(results, compare, config.maxResults, 10000);
 	}
 
 	private sendProgress(results: ISerializedFileMatch[], progressCb: (batch: ISerializedFileMatch[]) => void, batchSize: number) {
@@ -405,20 +414,22 @@ class Cache {
 	public scorerCache: ScorerCache = Object.create(null);
 }
 
-interface ScorerCache {
-	[key: string]: number;
-}
+class FileMatchItemAccessorClass implements IItemAccessor<IRawFileMatch> {
 
-class FileMatchResourceAccessor {
-
-	public static getResourceLabel(match: IRawFileMatch): string {
-		return match.basename;
+	public getItemLabel(match: IRawFileMatch): string {
+		return match.basename; // e.g. myFile.txt
 	}
 
-	public static getResourcePath(match: IRawFileMatch): string {
-		return match.relativePath;
+	public getItemDescription(match: IRawFileMatch): string {
+		return match.relativePath.substr(0, match.relativePath.length - match.basename.length - 1); // e.g. some/path/to/file
+	}
+
+	public getItemPath(match: IRawFileMatch): string {
+		return match.relativePath; // e.g. some/path/to/file/myFile.txt
 	}
 }
+
+const FileMatchItemAccessor = new FileMatchItemAccessorClass();
 
 interface CacheStats {
 	cacheWasResolved: boolean;

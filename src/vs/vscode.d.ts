@@ -1661,7 +1661,7 @@ declare module 'vscode' {
 		 * @return A human readable string which is presented as diagnostic message.
 		 * Return `undefined`, `null`, or the empty string when 'value' is valid.
 		 */
-		validateInput?(value: string): string | undefined | null;
+		validateInput?(value: string): string | undefined | null | Thenable<string | undefined | null>;
 	}
 
 	/**

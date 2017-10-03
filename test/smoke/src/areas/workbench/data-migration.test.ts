@@ -19,17 +19,17 @@ describe('Data Migration', () => {
 
 	it('checks if the Untitled file is restored migrating from stable to latest', async function () {
 		const textToType = 'Very dirty file';
-		console.log(STABLE_PATH);
+
 		// Setting up stable version
 		let app = new SpectronApplication(STABLE_PATH);
 		await app.start('Data Migration');
 		app.screenCapturer.testName = 'Untitled is restorted';
 
 		await app.workbench.newUntitledFile();
-		await app.client.type(textToType);
+		await app.workbench.editor.waitForTypeInEditor('Untitled-1', textToType);
 
 		await app.stop();
-		await app.wait(.5); // wait until all resources are released (e.g. locked local storage)
+		await new Promise(c => setTimeout(c, 500)); // wait until all resources are released (e.g. locked local storage)
 		// Checking latest version for the restored state
 
 		app = new SpectronApplication(LATEST_PATH);
@@ -37,9 +37,9 @@ describe('Data Migration', () => {
 		app.screenCapturer.testName = 'Untitled is restorted';
 
 		assert.ok(await app.workbench.waitForActiveTab('Untitled-1', true), `Untitled-1 tab is not present after migration.`);
-		const actual = await app.workbench.editor.waitForActiveEditorFirstLineText('Untitled-1');
+
+		await app.workbench.editor.waitForEditorContents('Untitled-1', c => c.indexOf(textToType) > -1);
 		await app.screenCapturer.capture('Untitled file text');
-		assert.ok(actual.startsWith(textToType), `${actual} did not start with ${textToType}`);
 	});
 
 	it('checks if the newly created dirty file is restored migrating from stable to latest', async function () {
@@ -58,7 +58,7 @@ describe('Data Migration', () => {
 		await app.client.type(secondTextPart);
 
 		await app.stop();
-		await app.wait(); // wait until all resources are released (e.g. locked local storage)
+		await new Promise(c => setTimeout(c, 1000)); // wait until all resources are released (e.g. locked local storage)
 
 		// Checking latest version for the restored state
 		app = new SpectronApplication(LATEST_PATH);
@@ -67,9 +67,7 @@ describe('Data Migration', () => {
 
 		const filename = fileName.split('/')[1];
 		assert.ok(await app.workbench.waitForActiveTab(filename), `Untitled-1 tab is not present after migration.`);
-		const actual = await app.workbench.editor.waitForActiveEditorFirstLineText(filename);
-		await app.screenCapturer.capture(fileName + ' text');
-		assert.ok(actual.startsWith(firstTextPart.concat(secondTextPart)), `${actual} did not start with ${firstTextPart.concat(secondTextPart)}`);
+		await app.workbench.editor.waitForEditorContents(filename, c => c.indexOf(firstTextPart + secondTextPart) > -1);
 
 		await Util.removeFile(`${fileName}`);
 	});
