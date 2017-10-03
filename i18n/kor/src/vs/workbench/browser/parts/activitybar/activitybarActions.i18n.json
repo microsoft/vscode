@@ -6,6 +6,7 @@
 {
 	"badgeTitle": "{0} - {1}",
 	"titleKeybinding": "{0}({1})",
+	"removeFromActivityBar": "작업 막대에서 숨기기",
 	"keepInActivityBar": "작업 막대에 유지",
 	"additionalViews": "추가 뷰",
 	"numberBadge": "{0}({1})",

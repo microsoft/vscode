@@ -35,6 +35,7 @@
 	"openPreviousEditorInGroup": "Открыть предыдущий редактор в группе",
 	"navigateNext": "Далее",
 	"navigatePrevious": "Назад",
+	"navigateLast": "Перейти к последнему",
 	"reopenClosedEditor": "Открыть закрытый редактор",
 	"clearRecentFiles": "Очистить недавно открытые",
 	"showEditorsInFirstGroup": "Показать редакторы в первой группе",

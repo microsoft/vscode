@@ -17,6 +17,8 @@
 	"open": "열기",
 	"openFolder": "폴더 열기",
 	"openFile": "파일 열기",
+	"workspaceOpenedMessage": "'{0}' 작업 영역을 저장할 수 없음",
+	"workspaceOpenedDetail": "작업 영역이 이미 다른 창에 열렸습니다. 먼저 해당 창을 닫은 후 다시 시도하세요.",
 	"openWorkspace": "열기(&&O)",
 	"openWorkspaceTitle": "작업 영역 열기",
 	"save": "저장(&&S)",

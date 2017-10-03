@@ -6,6 +6,7 @@
 {
 	"invalidManifest": "Die Erweiterung ist ungültig: \"package.json\" ist keine JSON-Datei.",
 	"restartCodeLocal": "Bitte starten Sie Code vor der Neuinstallation von {0} neu.",
+	"restartCodeGallery": "Bitte vor der Neuinstallation VSCode neu starten.",
 	"uninstallDependeciesConfirmation": "Möchten Sie nur \"{0}\" oder auch die zugehörigen Abhängigkeiten deinstallieren?",
 	"uninstallOnly": "Nur",
 	"uninstallAll": "Alle",
