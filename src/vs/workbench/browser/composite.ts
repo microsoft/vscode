@@ -9,12 +9,11 @@ import { IAction, IActionRunner, ActionRunner } from 'vs/base/common/actions';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Component } from 'vs/workbench/common/component';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IComposite } from 'vs/workbench/common/composite';
 import { IEditorControl } from 'vs/platform/editor/common/editor';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
+import { IConstructorSignature0, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 /**
  * Composites are layed out in the sidebar and panel part of the workbench. At a time only one composite
@@ -230,19 +229,24 @@ export abstract class Composite extends Component implements IComposite {
 /**
  * A composite descriptor is a leightweight descriptor of a composite in the workbench.
  */
-export abstract class CompositeDescriptor<T extends Composite> extends SyncDescriptor<T> {
+export abstract class CompositeDescriptor<T extends Composite> {
 	public id: string;
 	public name: string;
 	public cssClass: string;
 	public order: number;
 
-	constructor(ctor: IConstructorSignature0<Composite>, id: string, name: string, cssClass?: string, order?: number) {
-		super(ctor);
+	private ctor: IConstructorSignature0<T>;
 
+	constructor(ctor: IConstructorSignature0<T>, id: string, name: string, cssClass?: string, order?: number) {
+		this.ctor = ctor;
 		this.id = id;
 		this.name = name;
 		this.cssClass = cssClass;
 		this.order = order;
+	}
+
+	public instantiate(instantiationService: IInstantiationService): T {
+		return instantiationService.createInstance(this.ctor);
 	}
 }
 

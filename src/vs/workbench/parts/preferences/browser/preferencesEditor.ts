@@ -571,7 +571,7 @@ class SideBySidePreferencesWidget extends Widget {
 			return this.editablePreferencesEditor;
 		}
 		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editorInput);
-		const editor = (<any>this).instantiationService.createInstance(descriptor); // TODO@Ben why?
+		const editor = descriptor.instantiate(this.instantiationService);
 		this.editablePreferencesEditor = editor;
 		this.editablePreferencesEditor.create(new Builder(this.editablePreferencesEditorContainer));
 		this.editablePreferencesEditor.setVisible(true);

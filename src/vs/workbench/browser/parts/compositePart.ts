@@ -185,7 +185,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			const progressService = this.instantiationService.createInstance(WorkbenchProgressService, this.progressBar, compositeDescriptor.id, isActive);
 			const compositeInstantiationService = this.instantiationService.createChild(new ServiceCollection([IProgressService, progressService]));
 
-			const composite = (<any>compositeInstantiationService).createInstance(compositeDescriptor); // TODO@Ben why?
+			const composite = compositeDescriptor.instantiate(compositeInstantiationService);
 			this.mapProgressServiceToComposite[composite.getId()] = progressService;
 
 			// Remember as Instantiated

@@ -154,10 +154,6 @@ export class ViewletDescriptor extends CompositeDescriptor<Viewlet> {
 		private _extensionId?: string
 	) {
 		super(ctor, id, name, cssClass, order);
-
-		if (_extensionId) {
-			this.appendStaticArguments([id]); // Pass viewletId to external viewlet, which doesn't know its id until runtime.
-		}
 	}
 
 	public get extensionId(): string {

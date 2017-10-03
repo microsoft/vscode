@@ -471,7 +471,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		const progressService = this.instantiationService.createInstance(WorkbenchProgressService, this.editorGroupsControl.getProgressBar(position), descriptor.getId(), true);
 		const editorInstantiationService = this.editorGroupsControl.getInstantiationService(position).createChild(new ServiceCollection([IProgressService, progressService]));
 
-		const editor = (<any>editorInstantiationService).createInstance(descriptor); // TODO@Ben why?
+		const editor = descriptor.instantiate(editorInstantiationService);
 
 		this.instantiatedEditors[position].push(editor);
 

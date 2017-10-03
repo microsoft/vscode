@@ -9,13 +9,13 @@ import { EditorInput } from 'vs/workbench/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
+import { IConstructorSignature0, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { isArray } from 'vs/base/common/types';
 
 export interface IEditorDescriptor {
+	instantiate(instantiationService: IInstantiationService): BaseEditor;
 
 	getId(): string;
-
 	getName(): string;
 
 	describes(obj: any): boolean;
@@ -55,15 +55,19 @@ export interface IEditorRegistry {
  * A lightweight descriptor of an editor. The descriptor is deferred so that heavy editors
  * can load lazily in the workbench.
  */
-export class EditorDescriptor extends SyncDescriptor<BaseEditor> implements IEditorDescriptor {
+export class EditorDescriptor implements IEditorDescriptor {
+	private ctor: IConstructorSignature0<BaseEditor>;
 	private id: string;
 	private name: string;
 
 	constructor(ctor: IConstructorSignature0<BaseEditor>, id: string, name: string) {
-		super(ctor);
-
+		this.ctor = ctor;
 		this.id = id;
 		this.name = name;
+	}
+
+	public instantiate(instantiationService: IInstantiationService): BaseEditor {
+		return instantiationService.createInstance(this.ctor);
 	}
 
 	public getId(): string {

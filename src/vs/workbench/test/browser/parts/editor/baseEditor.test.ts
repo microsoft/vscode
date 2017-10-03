@@ -167,10 +167,10 @@ suite('Workbench BaseEditor', () => {
 
 		let inst = new TestInstantiationService();
 
-		const editor = inst.createInstance(EditorRegistry.getEditor(inst.createInstance(MyResourceInput, 'fake', '', URI.file('/fake'))), 'id');
+		const editor = EditorRegistry.getEditor(inst.createInstance(MyResourceInput, 'fake', '', URI.file('/fake'))).instantiate(inst);
 		assert.strictEqual(editor.getId(), 'myEditor');
 
-		const otherEditor = inst.createInstance(EditorRegistry.getEditor(inst.createInstance(ResourceEditorInput, 'fake', '', URI.file('/fake'))), 'id');
+		const otherEditor = EditorRegistry.getEditor(inst.createInstance(ResourceEditorInput, 'fake', '', URI.file('/fake'))).instantiate(inst);
 		assert.strictEqual(otherEditor.getId(), 'myOtherEditor');
 
 		(<any>EditorRegistry).setEditors(oldEditors);
@@ -186,7 +186,7 @@ suite('Workbench BaseEditor', () => {
 
 		let inst = new TestInstantiationService();
 
-		const editor = inst.createInstance(EditorRegistry.getEditor(inst.createInstance(MyResourceInput, 'fake', '', URI.file('/fake'))), 'id');
+		const editor = EditorRegistry.getEditor(inst.createInstance(MyResourceInput, 'fake', '', URI.file('/fake'))).instantiate(inst);
 		assert.strictEqual('myOtherEditor', editor.getId());
 
 		(<any>EditorRegistry).setEditors(oldEditors);

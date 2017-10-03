@@ -136,9 +136,10 @@ export class SideBySideEditor extends BaseEditor {
 	private _createEditor(editorInput: EditorInput, container: HTMLElement): BaseEditor {
 		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editorInput);
 
-		const editor = (<any>this).instantiationService.createInstance(descriptor); // TODO@Ben why?
+		const editor = descriptor.instantiate(this.instantiationService);
 		editor.create(new Builder(container));
 		editor.setVisible(this.isVisible(), this.position);
+
 		return editor;
 	}
 

@@ -992,7 +992,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		}
 
 		// Otherwise load and create
-		return this.mapResolvedHandlersToPrefix[id] = TPromise.as((<any>this).instantiationService.createInstance(handler)); // TODO@Ben why?
+		return this.mapResolvedHandlersToPrefix[id] = TPromise.as(handler.instantiate(this.instantiationService));
 	}
 
 	public layout(dimension: Dimension): void {
