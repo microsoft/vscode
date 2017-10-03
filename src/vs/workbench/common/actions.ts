@@ -5,13 +5,12 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import collections = require('vs/base/common/collections');
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IAction } from 'vs/base/common/actions';
-import { KeybindingsRegistry, ICommandAndKeybindingRule } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { ICommandHandler } from 'vs/platform/commands/common/commands';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -65,83 +64,87 @@ interface IActionMeta {
 }
 
 class WorkbenchActionRegistry implements IWorkbenchActionRegistry {
-	private workbenchActions: collections.IStringDictionary<SyncActionDescriptor>;
-	private mapActionIdToMeta: { [id: string]: IActionMeta; };
-
-	constructor() {
-		this.workbenchActions = Object.create(null);
-		this.mapActionIdToMeta = Object.create(null);
-	}
 
 	public registerWorkbenchAction(descriptor: SyncActionDescriptor, alias: string, category?: string): void {
-		if (!this.workbenchActions[descriptor.id]) {
-			this.workbenchActions[descriptor.id] = descriptor;
-			registerWorkbenchCommandFromAction(descriptor);
-
-			const meta: IActionMeta = { alias };
-			if (typeof category === 'string') {
-				meta.category = category;
-			}
-
-			this.mapActionIdToMeta[descriptor.id] = meta;
-		}
+		registerWorkbenchCommandFromAction(descriptor, alias, category);
 	}
 
 	public unregisterWorkbenchAction(id: string): boolean {
-		if (!this.workbenchActions[id]) {
-			return false;
-		}
-
-		delete this.workbenchActions[id];
-		delete this.mapActionIdToMeta[id];
-
 		return true;
 	}
 
 	public getWorkbenchAction(id: string): SyncActionDescriptor {
-		return this.workbenchActions[id] || null;
+		return null;
 	}
 
 	public getCategory(id: string): string {
-		return (this.mapActionIdToMeta[id] && this.mapActionIdToMeta[id].category) || null;
+		const commandAction = MenuRegistry.getCommand(id);
+		if (!commandAction || !commandAction.category) {
+			return null;
+		}
+		const { category } = commandAction;
+		if (typeof category === 'string') {
+			return category;
+		} else {
+			return category.value;
+		}
 	}
 
 	public getAlias(id: string): string {
-		return (this.mapActionIdToMeta[id] && this.mapActionIdToMeta[id].alias) || null;
+		const commandAction = MenuRegistry.getCommand(id);
+		if (!commandAction) {
+			return null;
+		}
+		const { title } = commandAction;
+		if (typeof title === 'string') {
+			return null;
+		} else {
+			return title.original;
+		}
 	}
 
 	public getWorkbenchActions(): SyncActionDescriptor[] {
-		return collections.values(this.workbenchActions);
-	}
-
-	public setWorkbenchActions(actions: SyncActionDescriptor[]): void {
-		this.workbenchActions = Object.create(null);
-		this.mapActionIdToMeta = Object.create(null);
-
-		actions.forEach(action => this.registerWorkbenchAction(action, ''), this);
+		return [];
 	}
 }
 
 Registry.add(Extensions.WorkbenchActions, new WorkbenchActionRegistry());
 
-function registerWorkbenchCommandFromAction(descriptor: SyncActionDescriptor): void {
-	const when = descriptor.keybindingContext;
-	const weight = (typeof descriptor.keybindingWeight === 'undefined' ? KeybindingsRegistry.WEIGHT.workbenchContrib() : descriptor.keybindingWeight);
-	const keybindings = descriptor.keybindings;
+function registerWorkbenchCommandFromAction(descriptor: SyncActionDescriptor, alias: string, category?: string): void {
 
-	const desc: ICommandAndKeybindingRule = {
-		id: descriptor.id,
-		handler: createCommandHandler(descriptor),
-		weight: weight,
-		when: when,
-		primary: keybindings && keybindings.primary,
-		secondary: keybindings && keybindings.secondary,
-		win: keybindings && keybindings.win,
-		mac: keybindings && keybindings.mac,
-		linux: keybindings && keybindings.linux
-	};
+	CommandsRegistry.registerCommand(descriptor.id, createCommandHandler(descriptor));
 
-	KeybindingsRegistry.registerCommandAndKeybindingRule(desc);
+	{
+		// register keybinding
+		const when = descriptor.keybindingContext;
+		const weight = (typeof descriptor.keybindingWeight === 'undefined' ? KeybindingsRegistry.WEIGHT.workbenchContrib() : descriptor.keybindingWeight);
+		const keybindings = descriptor.keybindings;
+		KeybindingsRegistry.registerKeybindingRule({
+			id: descriptor.id,
+			weight: weight,
+			when: when,
+			primary: keybindings && keybindings.primary,
+			secondary: keybindings && keybindings.secondary,
+			win: keybindings && keybindings.win,
+			mac: keybindings && keybindings.mac,
+			linux: keybindings && keybindings.linux
+		});
+	}
+
+	{
+		// register menu item
+		if (descriptor.label) {
+			// slightly weird if-check required because of
+			// https://github.com/Microsoft/vscode/blob/d28ace31aa147596e35adf101a27768a048c79ec/src/vs/workbench/parts/files/browser/fileActions.contribution.ts#L194
+			MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+				command: {
+					id: descriptor.id,
+					title: { value: descriptor.label, original: alias },
+					category
+				}
+			});
+		}
+	}
 }
 
 function createCommandHandler(descriptor: SyncActionDescriptor): ICommandHandler {
