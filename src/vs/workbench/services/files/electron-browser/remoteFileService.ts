@@ -10,8 +10,7 @@ import { IContent, IStreamContent, IFileStat, IResolveContentOptions, IUpdateCon
 import { TPromise } from 'vs/base/common/winjs.base';
 import { basename, join } from 'path';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { groupBy, isFalsyOrEmpty, distinct } from 'vs/base/common/arrays';
-import { compare } from 'vs/base/common/strings';
+import { isFalsyOrEmpty, distinct } from 'vs/base/common/arrays';
 import { Schemas } from 'vs/base/common/network';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { decodeStream, encode, UTF8, UTF8_with_bom } from 'vs/base/node/encoding';
@@ -172,7 +171,18 @@ export class RemoteFileService extends FileService {
 	}
 
 	resolveFiles(toResolve: { resource: URI; options?: IResolveFileOptions; }[]): TPromise<IResolveFileResult[], any> {
-		const groups = groupBy(toResolve, (a, b) => compare(a.resource.scheme, b.resource.scheme));
+
+		// soft-groupBy, keep order, don't rearrange/merge groups
+		let groups: (typeof toResolve)[] = [];
+		let group: typeof toResolve;
+		for (const request of toResolve) {
+			if (!group || group[0].resource.scheme !== request.resource.scheme) {
+				group = [];
+				groups.push(group);
+			}
+			group.push(request);
+		}
+
 		const promises: TPromise<IResolveFileResult[], any>[] = [];
 		for (const group of groups) {
 			if (group[0].resource.scheme === Schemas.file) {
