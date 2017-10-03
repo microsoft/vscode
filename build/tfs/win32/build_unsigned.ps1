@@ -47,6 +47,13 @@ step "Run unit tests" {
   exec { & .\scripts\test.bat --build --reporter dot }
 }
 
+step "Run smoke test" {
+	$Screenshots = "$env:AGENT_BUILDDIRECTORY\smoketest-screenshots"
+	Remove-Item -Recurse -Force -ErrorAction Ignore $Screenshots
+
+	exec { & npm run smoketest -- --build "$env:AGENT_BUILDDIRECTORY\VSCode-win32-$global:arch" --screenshots "$Screenshots" }
+}
+
 step "Create archive and setup package" {
 	exec { & npm run gulp -- "vscode-win32-$global:arch-archive" "vscode-win32-$global:arch-setup" }
 }
