@@ -447,6 +447,9 @@ export class TernarySearchTree<E> {
 				this._findSuperstr(node.mid, nextKey, segments, bucket);
 			} else {
 				//
+				if (node.element) {
+					bucket.push(node.element);
+				}
 				this._forEach(node.mid, [], (entry) => bucket.push(entry[1]));
 			}
 		}

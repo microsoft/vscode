@@ -461,6 +461,7 @@ suite('Map', () => {
 		assert.equal(third, 3);
 
 		assert.deepEqual(map.findSuperstr('/usr'), [4]);
+		assert.deepEqual(map.findSuperstr('/usr/foo'), [4]);
 
 		assert.equal(map.findSuperstr('/not'), undefined);
 		assert.equal(map.findSuperstr('/us'), undefined);
