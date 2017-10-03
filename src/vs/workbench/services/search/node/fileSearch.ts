@@ -179,15 +179,10 @@ export class FileWalker {
 			flow.parallel<IFolderSearch, void>(folderQueries, (folderQuery: IFolderSearch, rootFolderDone: (err: Error, result: void) => void) => {
 				this.call(traverse, this, folderQuery, onResult, (err?: Error) => {
 					if (err) {
-						if (isNodeTraversal) {
-							rootFolderDone(err, undefined);
-						} else {
-							// fallback
-							const errorMessage = toErrorMessage(err);
-							console.error(errorMessage);
-							this.errors.push(errorMessage);
-							this.nodeJSTraversal(folderQuery, onResult, err => rootFolderDone(err, undefined));
-						}
+						const errorMessage = toErrorMessage(err);
+						console.error(errorMessage);
+						this.errors.push(errorMessage);
+						rootFolderDone(err, undefined);
 					} else {
 						rootFolderDone(undefined, undefined);
 					}
