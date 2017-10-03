@@ -244,6 +244,10 @@ class MainPanel extends ViewletPanel {
 		this.list.setSelection([...selection.slice(0, index), ...selection.slice(index + 1)]);
 	}
 
+	getSelection(): ISCMRepository[] {
+		return this.list.getSelectedElements();
+	}
+
 	private splice(index: number, deleteCount: number, repositories: ISCMRepository[] = []): void {
 		const wasEmpty = this.list.length === 0;
 
@@ -854,6 +858,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 			this.addPanel(this.mainPanel, this.mainPanel.minimumSize, 0);
 
 			const selectionChangeDisposable = this.mainPanel.onSelectionChange(this.onSelectionChange, this);
+			this.onSelectionChange(this.mainPanel.getSelection());
 
 			this.mainPanelDisposable = toDisposable(() => {
 				this.removePanel(this.mainPanel);
