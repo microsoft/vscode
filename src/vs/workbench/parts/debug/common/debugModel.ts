@@ -282,7 +282,7 @@ export class Variable extends ExpressionContainer implements IExpression {
 		public available = true,
 		startOfVariables = 0
 	) {
-		super(process, reference, `variable:${parent.getId()}:${name}:${reference}`, namedVariables, indexedVariables, startOfVariables);
+		super(process, reference, `variable:${parent.getId()}:${name}`, namedVariables, indexedVariables, startOfVariables);
 		this.value = value;
 	}
 
@@ -313,6 +313,7 @@ export class Scope extends ExpressionContainer implements IScope {
 
 	constructor(
 		stackFrame: IStackFrame,
+		index: number,
 		public name: string,
 		reference: number,
 		public expensive: boolean,
@@ -320,7 +321,7 @@ export class Scope extends ExpressionContainer implements IScope {
 		indexedVariables: number,
 		public range?: IRange
 	) {
-		super(stackFrame.thread.process, reference, `scope:${stackFrame.getId()}:${name}:${reference}`, namedVariables, indexedVariables);
+		super(stackFrame.thread.process, reference, `scope:${stackFrame.getId()}:${name}:${index}`, namedVariables, indexedVariables);
 	}
 }
 
@@ -348,7 +349,7 @@ export class StackFrame implements IStackFrame {
 		if (!this.scopes) {
 			this.scopes = this.thread.process.session.scopes({ frameId: this.frameId }).then(response => {
 				return response && response.body && response.body.scopes ?
-					response.body.scopes.map(rs => new Scope(this, rs.name, rs.variablesReference, rs.expensive, rs.namedVariables, rs.indexedVariables,
+					response.body.scopes.map((rs, index) => new Scope(this, index, rs.name, rs.variablesReference, rs.expensive, rs.namedVariables, rs.indexedVariables,
 						rs.line && rs.column && rs.endLine && rs.endColumn ? new Range(rs.line, rs.column, rs.endLine, rs.endColumn) : null)) : [];
 			}, err => []);
 		}
