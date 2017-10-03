@@ -45,7 +45,7 @@ BEGIN THIRD PARTY
  * Start of word/path bonus: 7
  * Start of string bonus: 8
  */
-export function _doScore(target: string, query: string): Score {
+export function _doScore(target: string, query: string, inverse?: boolean): Score {
 	if (!target || !query) {
 		return NO_SCORE; // return early if target or query are undefined
 	}
@@ -62,11 +62,25 @@ export function _doScore(target: string, query: string): Score {
 
 	const matchingPositions: number[] = [];
 
-	let index = 0;
-	let startAt = 0;
+	let index: number;
+	let startAt: number;
+	if (!inverse) {
+		index = 0;
+		startAt = 0;
+	} else {
+		index = queryLen - 1; // inverse: from end of query to beginning
+		startAt = target.length - 1; // inverse: from end of target to beginning
+	}
+
 	let score = 0;
-	while (index < queryLen) {
-		let indexOf = targetLower.indexOf(queryLower[index], startAt);
+	while (inverse ? index >= 0 : index < queryLen) {
+		let indexOf: number;
+		if (!inverse) {
+			indexOf = targetLower.indexOf(queryLower[index], startAt);
+		} else {
+			indexOf = targetLower.lastIndexOf(queryLower[index], startAt); // inverse: look from the end
+		}
+
 		if (indexOf < 0) {
 
 			// console.log(`Character not part of target ${query[index]}`);
@@ -120,8 +134,18 @@ export function _doScore(target: string, query: string): Score {
 
 		// console.groupEnd();
 
-		startAt = indexOf + 1;
-		index++;
+		if (!inverse) {
+			startAt = indexOf + 1;
+			index++;
+		} else {
+			startAt = indexOf - 1; // inverse: go to begining from end
+			index--; // inverse: also for query index
+		}
+	}
+
+	// inverse: flip the matching positions so that they appear in order
+	if (inverse) {
+		matchingPositions.reverse();
 	}
 
 	const res: Score = (score > 0) ? [score, matchingPositions] : NO_SCORE;
@@ -248,7 +272,18 @@ function doScoreItem<T>(label: string, description: string, path: string, query:
 		const descriptionPrefixLength = descriptionPrefix.length;
 		const descriptionAndLabel = `${descriptionPrefix}${label}`;
 
-		const [labelDescriptionScore, labelDescriptionPositions] = _doScore(descriptionAndLabel, query);
+		let [labelDescriptionScore, labelDescriptionPositions] = _doScore(descriptionAndLabel, query);
+
+		// Optimize for file paths: score from the back to the beginning to catch more specific folder
+		// names that match on the end of the file. This yields better results in most cases.
+		if (!!path) {
+			const [labelDescriptionScoreInverse, labelDescriptionPositionsInverse] = _doScore(descriptionAndLabel, query, true /* inverse */);
+			if (labelDescriptionScoreInverse && labelDescriptionScoreInverse > labelDescriptionScore) {
+				labelDescriptionScore = labelDescriptionScoreInverse;
+				labelDescriptionPositions = labelDescriptionPositionsInverse;
+			}
+		}
+
 		if (labelDescriptionScore) {
 			const labelDescriptionMatches = createMatches(labelDescriptionPositions);
 			const labelMatch: IMatch[] = [];

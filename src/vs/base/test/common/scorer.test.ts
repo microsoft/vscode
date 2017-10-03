@@ -79,7 +79,7 @@ suite('Scorer', () => {
 		assert.equal(positions[1], 6);
 	});
 
-	test('scoreFile - matches are proper', function () {
+	test('scoreItem - matches are proper', function () {
 		let res = scorer.scoreItem(null, 'something', ResourceAccessor, cache);
 		assert.ok(!res.score);
 
@@ -151,7 +151,25 @@ suite('Scorer', () => {
 		assert.ok(pathRes.score > noRes.score);
 	});
 
-	test('compareFilesByScore - identity', function () {
+	test('scoreItem - optimize for file paths', function () {
+		const resource = URI.file('/xyz/others/spath/some/xsp/file123.txt');
+
+		// xsp is more relevant to the end of the file path even though it matches
+		// fuzzy also in the beginning. we verify the more relevant match at the
+		// end gets returned.
+		const pathRes = scorer.scoreItem(resource, 'xspfile123', ResourceAccessor, cache);
+		assert.ok(pathRes.score);
+		assert.ok(pathRes.descriptionMatch);
+		assert.ok(pathRes.labelMatch);
+		assert.equal(pathRes.labelMatch.length, 1);
+		assert.equal(pathRes.labelMatch[0].start, 0);
+		assert.equal(pathRes.labelMatch[0].end, 7);
+		assert.equal(pathRes.descriptionMatch.length, 1);
+		assert.equal(pathRes.descriptionMatch[0].start, 23);
+		assert.equal(pathRes.descriptionMatch[0].end, 26);
+	});
+
+	test('compareItemsByScore - identity', function () {
 		const resourceA = URI.file('/some/path/fileA.txt');
 		const resourceB = URI.file('/some/path/other/fileB.txt');
 		const resourceC = URI.file('/unrelated/some/path/other/fileC.txt');
