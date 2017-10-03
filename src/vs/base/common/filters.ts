@@ -109,6 +109,7 @@ function _matchesSubString(word: string, wordToMatchAgainst: string, i: number, 
 			if (result = _matchesSubString(word, wordToMatchAgainst, i + 1, j + 1)) {
 				return join({ start: j, end: j + 1 }, result);
 			}
+			return null;
 		}
 
 		return _matchesSubString(word, wordToMatchAgainst, i, j + 1);
