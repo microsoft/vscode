@@ -39,5 +39,20 @@ step "Build minified" \
 step "Run unit tests" \
 	./scripts/test.sh --build --reporter dot
 
+function smoketest {
+ 	SCREENSHOTS="$AGENT_BUILDDIRECTORY/smoketest-screenshots"
+	rm -rf $SCREENSHOTS
+	mkdir -p $SCREENSHOTS
+
+	id -u testuser &>/dev/null || (useradd -m testuser; chpasswd <<< testuser:testpassword)
+	sudo -i -u testuser -- sh -c 'git config --global user.name "VS Code Agent" &&  git config --global user.email "monacotools@microsoft.com"'
+	chown -R testuser $SCREENSHOTS
+
+	DISPLAY=:10 sudo -i -u testuser -- sh -c "cd $BUILD_SOURCESDIRECTORY/test/smoke && ./node_modules/.bin/mocha --build $AGENT_BUILDDIRECTORY/VSCode-linux-x64 --screenshots $SCREENSHOTS"
+}
+
+step "Run smoke test" \
+	smoketest
+
 step "Publish release" \
 	./build/tfs/linux/release.sh

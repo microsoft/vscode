@@ -52,4 +52,11 @@ step "Run unit tests" {
 #   exec { & .\scripts\test-integration.bat }
 # }
 
+step "Run smoke test" {
+	$Screenshots = "$env:AGENT_BUILDDIRECTORY\smoketest-screenshots"
+	Remove-Item -Recurse -Force -ErrorAction Ignore $Screenshots
+
+	exec { & npm run smoketest -- --build "$env:AGENT_BUILDDIRECTORY\VSCode-win32-$global:arch" --screenshots "$Screenshots" }
+}
+
 done

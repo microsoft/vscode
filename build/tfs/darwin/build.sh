@@ -37,6 +37,16 @@ step "Run unit tests" \
 step "Run integration tests" \
 	./scripts/test-integration.sh
 
+function smoketest {
+	SCREENSHOTS="$AGENT_BUILDDIRECTORY/smoketest-screenshots"
+	rm -rf $SCREENSHOTS
+
+	npm run smoketest -- --build "$AGENT_BUILDDIRECTORY/VSCode-darwin/Visual Studio Code - Insiders.app"  --screenshots $SCREENSHOTS
+}
+
+step "Run smoke test" \
+	smoketest
+
 step "Publish release" \
 	./build/tfs/darwin/release.sh
 
