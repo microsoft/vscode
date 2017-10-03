@@ -851,8 +851,9 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 
 		if (shouldMainPanelBeVisible) {
 			this.mainPanel = this.instantiationService.createInstance(MainPanel, this);
-			const selectionChangeDisposable = this.mainPanel.onSelectionChange(this.onSelectionChange, this);
 			this.addPanel(this.mainPanel, this.mainPanel.minimumSize, 0);
+
+			const selectionChangeDisposable = this.mainPanel.onSelectionChange(this.onSelectionChange, this);
 
 			this.mainPanelDisposable = toDisposable(() => {
 				this.removePanel(this.mainPanel);
@@ -959,7 +960,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 	}
 
 	protected isSingleView(): boolean {
-		return super.isSingleView() && this.repositories.length === 1;
+		return super.isSingleView() && this.repositoryPanels.length === 1;
 	}
 
 	hide(repository: ISCMRepository): void {
@@ -969,7 +970,6 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 
 		this.mainPanel.hide(repository);
 	}
-
 
 	dispose(): void {
 		this.disposables = dispose(this.disposables);

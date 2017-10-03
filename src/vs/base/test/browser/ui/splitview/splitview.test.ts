@@ -311,4 +311,33 @@ suite('Splitview', () => {
 		view2.dispose();
 		view1.dispose();
 	});
+
+	test('issue #35497', () => {
+		const view1 = new TestView(160, Number.POSITIVE_INFINITY);
+		const view2 = new TestView(66, 66);
+
+		const splitview = new SplitView(container);
+		splitview.layout(986);
+
+		splitview.addView(view1, 142, 0);
+		assert.equal(view1.size, 986, 'first view is stretched');
+
+		view2.onDidRender(() => {
+			assert.throws(() => splitview.resizeView(1, 922));
+			assert.throws(() => splitview.resizeView(1, 922));
+		});
+
+		splitview.addView(view2, 66, 0);
+		assert.equal(view2.size, 66, 'second view is fixed');
+		assert.equal(view1.size, 986 - 66, 'first view is collapsed');
+
+		const viewContainers = container.querySelectorAll('.split-view-view');
+		assert.equal(viewContainers.length, 2, 'there are two view containers');
+		assert.equal((viewContainers.item(0) as HTMLElement).style.height, '66px', 'second view container is 66px');
+		assert.equal((viewContainers.item(1) as HTMLElement).style.height, `${986 - 66}px`, 'first view container is 66px');
+
+		splitview.dispose();
+		view2.dispose();
+		view1.dispose();
+	});
 });
