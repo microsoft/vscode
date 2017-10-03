@@ -20,6 +20,7 @@
 	"menus.editorTabContext": "Menu contextuel des onglets de l'éditeur",
 	"menus.debugCallstackContext": "Menu contextuel de la pile d'appels de débogage",
 	"menus.scmTitle": "Menu du titre du contrôle de code source",
+	"menus.scmSourceControl": "Le menu de contrôle de code source",
 	"menus.resourceGroupContext": "Menu contextuel du groupe de ressources du contrôle de code source",
 	"menus.resourceStateContext": "Menu contextuel de l'état des ressources du contrôle de code source",
 	"view.viewTitle": "Menu de titre de la vue ajoutée",

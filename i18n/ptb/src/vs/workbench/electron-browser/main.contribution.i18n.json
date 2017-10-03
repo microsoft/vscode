@@ -10,7 +10,6 @@
 	"workspaces": "Espaços de trabalho",
 	"developer": "Desenvolvedor",
 	"showEditorTabs": "Controla se os editores abertos devem ou não serem exibidos em abas.",
-	"workbench.editor.labelFormat.default": "Mostrar o nome do arquivo. Quando as guias estão habilitadas e dois arquivos têm o mesmo nome em um grupo, as seções distintas de cada caminho de arquivo são adicionadas. Quando as guias estão desativadas, o caminho relativo à raiz do espaço de trabalho é mostrado se o editor estiver ativo.",
 	"workbench.editor.labelFormat.short": "Mostrar o nome do arquivo seguido pelo nome do diretório.",
 	"workbench.editor.labelFormat.medium": "Mostrar o nome do arquivo seguido pelo seu caminho relativo à raiz do espaço de trabalho.",
 	"workbench.editor.labelFormat.long": "Mostrar o nome do arquivo seguido pelo seu caminho absoluto.",

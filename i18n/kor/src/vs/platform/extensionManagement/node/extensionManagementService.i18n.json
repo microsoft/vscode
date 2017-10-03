@@ -6,6 +6,7 @@
 {
 	"invalidManifest": "잘못된 확장: package.json이 JSON 파일이 아닙니다.",
 	"restartCodeLocal": "{0}을(를) 다시 설치하기 전에 Code를 다시 시작하세요.",
+	"restartCodeGallery": "다시 설치하기 전에 Code를 다시 시작하세요.",
 	"uninstallDependeciesConfirmation": "'{0}'만 제거할까요, 아니면 종속성도 제거할까요?",
 	"uninstallOnly": "만",
 	"uninstallAll": "모두",

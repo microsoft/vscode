@@ -38,5 +38,6 @@
 	"workbench.action.terminal.focusFindWidget": "파인드 위젯 포커스",
 	"workbench.action.terminal.hideFindWidget": "파인드 위젯 숨기기",
 	"nextTerminalFindTerm": "다음 검색어 표시",
-	"previousTerminalFindTerm": "이전 검색어 표시"
+	"previousTerminalFindTerm": "이전 검색어 표시",
+	"quickOpenTerm": "활성 터미널 전환"
 }

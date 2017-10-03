@@ -20,6 +20,7 @@
 	"menus.editorTabContext": "Menu di scelta rapida delle schede dell'editor",
 	"menus.debugCallstackContext": "Menu di scelta rapida dello stack di chiamate di debug",
 	"menus.scmTitle": "Menu del titolo del controllo del codice sorgente",
+	"menus.scmSourceControl": "Menu del controllo del codice sorgente",
 	"menus.resourceGroupContext": "Menu di scelta rapida del gruppo di risorse del controllo del codice sorgente",
 	"menus.resourceStateContext": "Menu di scelta rapida dello stato delle risorse del controllo del codice sorgente",
 	"view.viewTitle": "Menu del titolo della visualizzazione contribuita",
