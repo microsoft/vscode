@@ -9,6 +9,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { TypeConstraint, validateConstraints } from 'vs/base/common/types';
 import { ServicesAccessor, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 export const ICommandService = createDecorator<ICommandService>('commandService');
 
@@ -33,6 +34,7 @@ export interface ICommandHandler {
 
 export interface ICommand {
 	handler: ICommandHandler;
+	precondition?: ContextKeyExpr;
 	description?: ICommandHandlerDescription;
 }
 
@@ -52,6 +54,7 @@ export interface ICommandRegistry {
 function isCommand(thing: any): thing is ICommand {
 	return typeof thing === 'object'
 		&& typeof (<ICommand>thing).handler === 'function'
+		&& (!(<ICommand>thing).precondition || typeof (<ICommand>thing).precondition === 'object')
 		&& (!(<ICommand>thing).description || typeof (<ICommand>thing).description === 'object');
 }
 
@@ -71,24 +74,20 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 			command = { handler: commandOrDesc };
 
 		} else {
-			const { handler, description } = commandOrDesc;
-			if (description) {
+			if (commandOrDesc.description) {
 				// add argument validation if rich command metadata is provided
 				const constraints: TypeConstraint[] = [];
-				for (let arg of description.args) {
+				for (let arg of commandOrDesc.description.args) {
 					constraints.push(arg.constraint);
 				}
-				command = {
-					description,
-					handler(accessor, ...args: any[]) {
-						validateConstraints(args, constraints);
-						return handler(accessor, ...args);
-					}
+				const actualHandler = commandOrDesc.handler;
+				commandOrDesc.handler = function (accessor, ...args: any[]) {
+					validateConstraints(args, constraints);
+					return actualHandler(accessor, ...args);
 				};
-			} else {
-				// add as simple handler
-				command = { handler };
 			}
+
+			command = commandOrDesc;
 		}
 
 		// find a place to store the command
