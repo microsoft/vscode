@@ -367,7 +367,7 @@ export function commonPrefixLength<T>(one: T[], other: T[], equals: (a: T, b: T)
 }
 
 export function flatten<T>(arr: T[][]): T[] {
-	return arr.reduce((r, v) => r.concat(v), []);
+	return [].concat(...arr);
 }
 
 export function range(to: number): number[];
