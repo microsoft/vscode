@@ -5,7 +5,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { wireCancellationToken } from 'vs/base/common/async';
+import { wireCancellationToken, asWinJsPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { QuickPickOptions, QuickPickItem, InputBoxOptions, WorkspaceFolderPickOptions, WorkspaceFolder } from 'vscode';
 import { MainContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, MyQuickPickItems, IMainContext } from './extHost.protocol';
@@ -21,7 +21,7 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 	private _commands: ExtHostCommands;
 
 	private _onDidSelectItem: (handle: number) => void;
-	private _validateInput: (input: string) => string;
+	private _validateInput: (input: string) => string | Thenable<string>;
 
 	constructor(mainContext: IMainContext, workspace: ExtHostWorkspace, commands: ExtHostCommands) {
 		this._proxy = mainContext.get(MainContext.MainThreadQuickOpen);
@@ -120,7 +120,7 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 
 	$validateInput(input: string): TPromise<string> {
 		if (this._validateInput) {
-			return TPromise.as(this._validateInput(input));
+			return asWinJsPromise(_ => this._validateInput(input));
 		}
 		return undefined;
 	}
