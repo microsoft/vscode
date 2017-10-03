@@ -45,5 +45,7 @@
 	"decreaseViewSize": "縮小目前的檢視大小",
 	"showPreviousTab": "顯示前一個視窗索引標籤",
 	"showNextWindowTab": "顯示下一個視窗索引標籤",
-	"mergeAllWindowTabs": "合併所有視窗"
+	"moveWindowTabToNewWindow": "將視窗索引標籤移至新的視窗",
+	"mergeAllWindowTabs": "合併所有視窗",
+	"toggleWindowTabsBar": "切換視窗索引標籤列"
 }

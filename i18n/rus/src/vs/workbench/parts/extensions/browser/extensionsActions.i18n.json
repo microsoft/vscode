@@ -53,6 +53,7 @@
 	"showAzureExtensionsShort": "Расширения Azure",
 	"OpenExtensionsFile.failed": "Не удается создать файл \"extensions.json\" в папке \".vscode\" ({0}).",
 	"configureWorkspaceRecommendedExtensions": "Настроить рекомендуемые расширения (рабочая область)",
+	"configureWorkspaceFolderRecommendedExtensions": "Настроить рекомендуемые расширения (папка рабочей области)",
 	"builtin": "Встроенное",
 	"disableAll": "Отключить все установленные расширения",
 	"disableAllWorkspace": "Отключить все установленные расширения для этой рабочей области",
