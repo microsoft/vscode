@@ -33,6 +33,7 @@ export interface ICommandHandler {
 }
 
 export interface ICommand {
+	id: string;
 	handler: ICommandHandler;
 	precondition?: ContextKeyExpr;
 	description?: ICommandHandlerDescription;
@@ -46,7 +47,7 @@ export interface ICommandHandlerDescription {
 
 export interface ICommandRegistry {
 	registerCommand(id: string, command: ICommandHandler): IDisposable;
-	registerCommand(id: string, command: ICommand): IDisposable;
+	registerCommand(command: ICommand): IDisposable;
 	getCommand(id: string): ICommand;
 	getCommands(): ICommandsMap;
 }
@@ -62,42 +63,41 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 
 	private _commands = new Map<string, ICommand | ICommand[]>();
 
-	registerCommand(id: string, commandOrDesc: ICommandHandler | ICommand): IDisposable {
+	registerCommand(idOrCommand: string | ICommand, handler?: ICommandHandler): IDisposable {
 
-		if (!commandOrDesc) {
+		if (!idOrCommand) {
 			throw new Error(`invalid command`);
 		}
 
-		let command: ICommand;
-		if (!isCommand(commandOrDesc)) {
-			// simple handler
-			command = { handler: commandOrDesc };
-
-		} else {
-			if (commandOrDesc.description) {
-				// add argument validation if rich command metadata is provided
-				const constraints: TypeConstraint[] = [];
-				for (let arg of commandOrDesc.description.args) {
-					constraints.push(arg.constraint);
-				}
-				const actualHandler = commandOrDesc.handler;
-				commandOrDesc.handler = function (accessor, ...args: any[]) {
-					validateConstraints(args, constraints);
-					return actualHandler(accessor, ...args);
-				};
+		if (typeof idOrCommand === 'string') {
+			if (!handler) {
+				throw new Error(`invalid command`);
 			}
+			return this.registerCommand({ id: idOrCommand, handler });
+		}
 
-			command = commandOrDesc;
+		// add argument validation if rich command metadata is provided
+		if (idOrCommand.description) {
+			const constraints: TypeConstraint[] = [];
+			for (let arg of idOrCommand.description.args) {
+				constraints.push(arg.constraint);
+			}
+			const actualHandler = idOrCommand.handler;
+			idOrCommand.handler = function (accessor, ...args: any[]) {
+				validateConstraints(args, constraints);
+				return actualHandler(accessor, ...args);
+			};
 		}
 
 		// find a place to store the command
+		const { id } = idOrCommand;
 		const commandOrArray = this._commands.get(id);
 		if (commandOrArray === void 0) {
-			this._commands.set(id, command);
+			this._commands.set(id, idOrCommand);
 		} else if (Array.isArray(commandOrArray)) {
-			commandOrArray.unshift(command);
+			commandOrArray.unshift(idOrCommand);
 		} else {
-			this._commands.set(id, [command, commandOrArray]);
+			this._commands.set(id, [idOrCommand, commandOrArray]);
 		}
 
 		return {
@@ -106,7 +106,7 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 				if (Array.isArray(commandOrArray)) {
 					// remove from array, remove array
 					// if last element removed
-					const idx = commandOrArray.indexOf(command);
+					const idx = commandOrArray.indexOf(idOrCommand);
 					if (idx >= 0) {
 						commandOrArray.splice(idx, 1);
 						if (commandOrArray.length === 0) {

@@ -117,7 +117,8 @@ suite('CommandService', function () {
 		);
 
 		let counter = 0;
-		let reg = CommandsRegistry.registerCommand('bar', {
+		let reg = CommandsRegistry.registerCommand({
+			id: 'bar',
 			handler: () => { counter += 1; },
 			precondition: ContextKeyExpr.has('foocontext')
 		});

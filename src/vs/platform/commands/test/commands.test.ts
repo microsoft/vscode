@@ -60,7 +60,8 @@ suite('Command Tests', function () {
 			assert.ok(typeof args === 'string');
 		});
 
-		CommandsRegistry.registerCommand('test3', {
+		CommandsRegistry.registerCommand({
+			id: 'test3',
 			handler: function (accessor, args) {
 				return true;
 			},
@@ -81,7 +82,8 @@ suite('Command Tests', function () {
 		let r1 = CommandsRegistry.registerCommand('foo', () => { });
 
 		const precondition = new RawContextKey<boolean>('ddd', false);
-		let r2 = CommandsRegistry.registerCommand('bar', {
+		let r2 = CommandsRegistry.registerCommand({
+			id: 'bar',
 			handler: () => { },
 			precondition
 		});
