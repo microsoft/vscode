@@ -6,8 +6,8 @@
 'use strict';
 
 import * as assert from 'assert';
-import { BaseEditor, EditorDescriptor, Extensions } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { EditorInput, EditorOptions, IEditorRegistry, IEditorInputFactory, IEditorInputFactoryRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
+import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { EditorInput, EditorOptions, IEditorInputFactory, IEditorInputFactoryRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import * as Platform from 'vs/platform/registry/common/platform';
@@ -18,6 +18,7 @@ import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestSe
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import URI from 'vs/base/common/uri';
+import { IEditorRegistry, Extensions, EditorDescriptor } from 'vs/workbench/browser/editor';
 
 const NullThemeService = new TestThemeService();
 

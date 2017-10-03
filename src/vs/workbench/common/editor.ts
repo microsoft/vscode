@@ -12,7 +12,6 @@ import URI from 'vs/base/common/uri';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IEditor, IEditorViewState, IModel, ScrollType } from 'vs/editor/common/editorCommon';
 import { IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, Position, Verbosity } from 'vs/platform/editor/common/editor';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -23,15 +22,6 @@ export enum ConfirmResult {
 	SAVE,
 	DONT_SAVE,
 	CANCEL
-}
-
-export interface IEditorDescriptor {
-
-	getId(): string;
-
-	getName(): string;
-
-	describes(obj: any): boolean;
 }
 
 /**
@@ -46,36 +36,6 @@ export const BINARY_DIFF_EDITOR_ID = 'workbench.editors.binaryResourceDiffEditor
 
 export interface IFileInputFactory {
 	createFileInput(resource: URI, encoding: string, instantiationService: IInstantiationService): IFileEditorInput;
-}
-
-export interface IEditorRegistry {
-
-	/**
-	 * Registers an editor to the platform for the given input type. The second parameter also supports an
-	 * array of input classes to be passed in. If the more than one editor is registered for the same editor
-	 * input, the input itself will be asked which editor it prefers if this method is provided. Otherwise
-	 * the first editor in the list will be returned.
-	 *
-	 * @param editorInputDescriptor a constructor function that returns an instance of EditorInput for which the
-	 * registered editor should be used for.
-	 */
-	registerEditor(descriptor: IEditorDescriptor, editorInputDescriptor: SyncDescriptor<EditorInput>): void;
-	registerEditor(descriptor: IEditorDescriptor, editorInputDescriptor: SyncDescriptor<EditorInput>[]): void;
-
-	/**
-	 * Returns the editor descriptor for the given input or null if none.
-	 */
-	getEditor(input: EditorInput): IEditorDescriptor;
-
-	/**
-	 * Returns the editor descriptor for the given identifier or null if none.
-	 */
-	getEditorById(editorId: string): IEditorDescriptor;
-
-	/**
-	 * Returns an array of registered editors known to the platform.
-	 */
-	getEditors(): IEditorDescriptor[];
 }
 
 export interface IEditorInputFactoryRegistry {
