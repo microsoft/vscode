@@ -113,7 +113,7 @@ function _divideAndMerge<T>(data: T[], compare: (a: T, b: T) => number): void {
 export function groupBy<T>(data: T[], compare: (a: T, b: T) => number): T[][] {
 	const result: T[][] = [];
 	let currentGroup: T[];
-	for (const element of data.slice(0).sort(compare)) {
+	for (const element of mergeSort(data.slice(0), compare)) {
 		if (!currentGroup || compare(currentGroup[0], element) !== 0) {
 			currentGroup = [element];
 			result.push(currentGroup);
