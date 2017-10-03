@@ -34,6 +34,8 @@ import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandler
 import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs/workbench/browser/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { TogglePanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
+import { TerminalPanel } from 'vs/workbench/parts/terminal/electron-browser/terminalPanel';
+import { TerminalPickerHandler } from 'vs/workbench/parts/terminal/browser/terminalQuickOpen';
 
 const quickOpenRegistry = (<IQuickOpenRegistry>Registry.as(QuickOpenExtensions.Quickopen));
 
@@ -41,8 +43,8 @@ const inTerminalsPicker = 'inTerminalPicker';
 
 quickOpenRegistry.registerQuickOpenHandler(
 	new QuickOpenHandlerDescriptor(
-		'vs/workbench/parts/terminal/browser/terminalQuickOpen',
-		'TerminalPickerHandler',
+		TerminalPickerHandler,
+		TerminalPickerHandler.ID,
 		TERMINAL_PICKER_PREFIX,
 		inTerminalsPicker,
 		nls.localize('quickOpen.terminal', "Show All Opened Terminals")
@@ -256,8 +258,7 @@ configurationRegistry.registerConfiguration({
 registerSingleton(ITerminalService, TerminalService);
 
 (<panel.PanelRegistry>Registry.as(panel.Extensions.Panels)).registerPanel(new panel.PanelDescriptor(
-	'vs/workbench/parts/terminal/electron-browser/terminalPanel',
-	'TerminalPanel',
+	TerminalPanel,
 	TERMINAL_PANEL_ID,
 	nls.localize('terminal', "Terminal"),
 	'terminal',

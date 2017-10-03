@@ -13,9 +13,8 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IEditorRegistry, IEditorInputFactory, EditorInput, IFileEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
+import { IEditorInputFactory, EditorInput, IFileEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
 import { AutoSaveConfiguration, HotExitConfiguration, SUPPORTED_ENCODINGS } from 'vs/platform/files/common/files';
-import { EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { FILE_EDITOR_INPUT_ID, VIEWLET_ID, SortOrderConfiguration } from 'vs/workbench/parts/files/common/files';
 import { FileEditorTracker } from 'vs/workbench/parts/files/common/editors/fileEditorTracker';
 import { SaveErrorHandler } from 'vs/workbench/parts/files/browser/saveErrorHandler';
@@ -31,6 +30,8 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import { DirtyFilesTracker } from 'vs/workbench/parts/files/common/dirtyFilesTracker';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { ExplorerViewlet } from 'vs/workbench/parts/files/browser/explorerViewlet';
+import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 
 // Viewlet Action
 export class OpenExplorerViewletAction extends ToggleViewletAction {
@@ -49,8 +50,7 @@ export class OpenExplorerViewletAction extends ToggleViewletAction {
 
 // Register Viewlet
 Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new ViewletDescriptor(
-	'vs/workbench/parts/files/browser/explorerViewlet',
-	'ExplorerViewlet',
+	ExplorerViewlet,
 	VIEWLET_ID,
 	nls.localize('explore', "Explorer"),
 	'explore',
@@ -74,10 +74,9 @@ registry.registerWorkbenchAction(
 // Register file editors
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new EditorDescriptor(
-		TextFileEditor.ID, // explicit dependency because we don't want these editors lazy loaded
-		nls.localize('textFileEditor', "Text File Editor"),
-		'vs/workbench/parts/files/browser/editors/textFileEditor',
-		'TextFileEditor'
+		TextFileEditor,
+		TextFileEditor.ID,
+		nls.localize('textFileEditor', "Text File Editor")
 	),
 	[
 		new SyncDescriptor<EditorInput>(FileEditorInput)
@@ -86,10 +85,9 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new EditorDescriptor(
-		BinaryFileEditor.ID, // explicit dependency because we don't want these editors lazy loaded
-		nls.localize('binaryFileEditor', "Binary File Editor"),
-		'vs/workbench/parts/files/browser/editors/binaryFileEditor',
-		'BinaryFileEditor'
+		BinaryFileEditor,
+		BinaryFileEditor.ID,
+		nls.localize('binaryFileEditor', "Binary File Editor")
 	),
 	[
 		new SyncDescriptor<EditorInput>(FileEditorInput)

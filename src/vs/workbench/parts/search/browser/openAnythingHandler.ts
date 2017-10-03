@@ -113,6 +113,8 @@ interface ITelemetryData {
 
 export class OpenAnythingHandler extends QuickOpenHandler {
 
+	public static readonly ID = 'workbench.picker.anything';
+
 	private static LINE_COLON_PATTERN = /[#|:|\(](\d*)([#|:|,](\d*))?\)?$/;
 
 	private static FILE_SEARCH_DELAY = 300;

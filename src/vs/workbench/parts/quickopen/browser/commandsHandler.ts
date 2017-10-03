@@ -386,6 +386,9 @@ class ActionCommandEntry extends BaseCommandEntry {
 const wordFilter = or(matchesPrefix, matchesWords, matchesContiguousSubString);
 
 export class CommandsHandler extends QuickOpenHandler {
+
+	public static readonly ID = 'workbench.picker.commands';
+
 	private lastSearchValue: string;
 	private commandHistoryEnabled: boolean;
 	private commandsHistory: CommandsHistory;

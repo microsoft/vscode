@@ -38,6 +38,8 @@ class SimpleEntry extends QuickOpenEntry {
 
 export class ExtensionsHandler extends QuickOpenHandler {
 
+	public static readonly ID = 'workbench.picker.extensions';
+
 	constructor( @IViewletService private viewletService: IViewletService) {
 		super();
 	}
@@ -66,6 +68,8 @@ export class ExtensionsHandler extends QuickOpenHandler {
 }
 
 export class GalleryExtensionsHandler extends QuickOpenHandler {
+
+	public static readonly ID = 'workbench.picker.gallery';
 
 	constructor( @IViewletService private viewletService: IViewletService) {
 		super();

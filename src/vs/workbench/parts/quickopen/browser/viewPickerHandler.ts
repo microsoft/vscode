@@ -63,6 +63,8 @@ export class ViewEntry extends QuickOpenEntryGroup {
 
 export class ViewPickerHandler extends QuickOpenHandler {
 
+	public static readonly ID = 'workbench.picker.views';
+
 	constructor(
 		@IViewletService private viewletService: IViewletService,
 		@IOutputService private outputService: IOutputService,

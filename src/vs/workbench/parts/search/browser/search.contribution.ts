@@ -41,6 +41,8 @@ import { SearchViewlet } from 'vs/workbench/parts/search/browser/searchViewlet';
 import { ListFocusContext } from 'vs/platform/list/browser/listService';
 import { IOutputChannelRegistry, Extensions as OutputExt } from 'vs/workbench/parts/output/common/output';
 import { defaultQuickOpenContextKey } from 'vs/workbench/browser/parts/quickopen/quickopen';
+import { OpenSymbolHandler } from 'vs/workbench/parts/search/browser/openSymbolHandler';
+import { OpenAnythingHandler } from 'vs/workbench/parts/search/browser/openAnythingHandler';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService);
 replaceContributions();
@@ -248,8 +250,7 @@ class ShowAllSymbolsAction extends Action {
 
 // Register Viewlet
 Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new ViewletDescriptor(
-	'vs/workbench/parts/search/browser/searchViewlet',
-	'SearchViewlet',
+	SearchViewlet,
 	Constants.VIEWLET_ID,
 	nls.localize('name', "Search"),
 	'search',
@@ -295,8 +296,8 @@ actionBarRegistry.registerActionBarContributor(Scope.VIEWER, ExplorerViewerActio
 // Register Quick Open Handler
 Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerDefaultQuickOpenHandler(
 	new QuickOpenHandlerDescriptor(
-		'vs/workbench/parts/search/browser/openAnythingHandler',
-		'OpenAnythingHandler',
+		OpenAnythingHandler,
+		OpenAnythingHandler.ID,
 		'',
 		defaultQuickOpenContextKey,
 		nls.localize('openAnythingHandlerDescription', "Go to File")
@@ -305,8 +306,8 @@ Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerDefaultQu
 
 Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpenHandler(
 	new QuickOpenHandlerDescriptor(
-		'vs/workbench/parts/search/browser/openAnythingHandler',
-		'OpenSymbolHandler',
+		OpenSymbolHandler,
+		OpenSymbolHandler.ID,
 		ALL_SYMBOLS_PREFIX,
 		'inWorkspaceSymbolsPicker',
 		[

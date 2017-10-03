@@ -60,6 +60,8 @@ class HelpEntry extends QuickOpenEntryGroup {
 
 export class HelpHandler extends QuickOpenHandler {
 
+	public static readonly ID = 'workbench.picker.help';
+
 	constructor( @IQuickOpenService private quickOpenService: IQuickOpenService) {
 		super();
 	}

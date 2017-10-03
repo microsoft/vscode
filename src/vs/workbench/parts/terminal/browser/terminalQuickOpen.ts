@@ -78,6 +78,8 @@ export class CreateTerminal extends QuickOpenEntry {
 
 export class TerminalPickerHandler extends QuickOpenHandler {
 
+	public static readonly ID = 'workbench.picker.terminals';
+
 	constructor(
 		@ITerminalService private terminalService: ITerminalService,
 		@IPanelService private panelService: IPanelService

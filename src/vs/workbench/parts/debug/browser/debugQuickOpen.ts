@@ -46,6 +46,8 @@ class DebugEntry extends Model.QuickOpenEntry {
 
 export class DebugQuickOpenHandler extends Quickopen.QuickOpenHandler {
 
+	public static readonly ID = 'workbench.picker.launch';
+
 	constructor(
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IDebugService private debugService: IDebugService,
