@@ -10,6 +10,7 @@ import { Ref, RefType, Git, GitErrorCodes, Branch } from './git';
 import { Repository, Resource, Status, CommitOptions, ResourceGroupType } from './repository';
 import { Model } from './model';
 import { toGitUri, fromGitUri } from './uri';
+import { grep } from './util';
 import { applyLineChanges, intersectDiffWithRange, toLineRanges, invertLineChange } from './staging';
 import * as path from 'path';
 import * as os from 'os';
@@ -486,12 +487,20 @@ export class CommandCenter {
 		}
 
 		const selection = resourceStates.filter(s => s instanceof Resource) as Resource[];
-		const mergeConflicts = selection.filter(s => s.resourceGroupType === ResourceGroupType.Merge);
+		const merge = selection.filter(s => s.resourceGroupType === ResourceGroupType.Merge);
+		const bothModified = merge.filter(s => s.type === Status.BOTH_MODIFIED);
+		const promises = bothModified.map(s => grep(s.resourceUri.fsPath, /^<{7}|^={7}|^>{7}/));
+		const unresolvedBothModified = await Promise.all<boolean>(promises);
+		const resolvedConflicts = bothModified.filter((s, i) => !unresolvedBothModified[i]);
+		const unresolvedConflicts = [
+			...merge.filter(s => s.type !== Status.BOTH_MODIFIED),
+			...bothModified.filter((s, i) => unresolvedBothModified[i])
+		];
 
-		if (mergeConflicts.length > 0) {
-			const message = mergeConflicts.length > 1
-				? localize('confirm stage files with merge conflicts', "Are you sure you want to stage {0} files with merge conflicts?", mergeConflicts.length)
-				: localize('confirm stage file with merge conflicts', "Are you sure you want to stage {0} with merge conflicts?", path.basename(mergeConflicts[0].resourceUri.fsPath));
+		if (unresolvedConflicts.length > 0) {
+			const message = unresolvedConflicts.length > 1
+				? localize('confirm stage files with merge conflicts', "Are you sure you want to stage {0} files with merge conflicts?", unresolvedConflicts.length)
+				: localize('confirm stage file with merge conflicts', "Are you sure you want to stage {0} with merge conflicts?", path.basename(unresolvedConflicts[0].resourceUri.fsPath));
 
 			const yes = localize('yes', "Yes");
 			const pick = await window.showWarningMessage(message, { modal: true }, yes);
@@ -501,10 +510,8 @@ export class CommandCenter {
 			}
 		}
 
-		const workingTree = selection
-			.filter(s => s.resourceGroupType === ResourceGroupType.WorkingTree);
-
-		const scmResources = [...workingTree, ...mergeConflicts];
+		const workingTree = selection.filter(s => s.resourceGroupType === ResourceGroupType.WorkingTree);
+		const scmResources = [...workingTree, ...resolvedConflicts, ...unresolvedConflicts];
 
 		if (!scmResources.length) {
 			return;
