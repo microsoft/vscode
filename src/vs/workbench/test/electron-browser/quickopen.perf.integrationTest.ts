@@ -185,8 +185,6 @@ class TestExperimentService implements IExperimentService {
 	_serviceBrand: any;
 
 	getExperiments(): IExperiments {
-		return {
-			ripgrepQuickSearch: true,
-		};
+		return {};
 	}
 }

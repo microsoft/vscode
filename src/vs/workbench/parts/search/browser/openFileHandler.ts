@@ -32,7 +32,6 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IRange } from 'vs/editor/common/core/range';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/parts/search/common/search';
-import { IExperimentService } from 'vs/platform/telemetry/common/experiments';
 
 export class FileQuickOpenModel extends QuickOpenModel {
 
@@ -123,7 +122,6 @@ export class OpenFileHandler extends QuickOpenHandler {
 		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ISearchService private searchService: ISearchService,
-		@IExperimentService private experimentService: IExperimentService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super();
@@ -196,7 +194,6 @@ export class OpenFileHandler extends QuickOpenHandler {
 			cacheKey: cacheKey,
 			maxResults: 0,
 			sortByScore: true,
-			useRipgrep: this.experimentService.getExperiments().ripgrepQuickSearch
 		};
 
 		const folderResources = this.contextService.getWorkspace().folders.map(folder => folder.uri);

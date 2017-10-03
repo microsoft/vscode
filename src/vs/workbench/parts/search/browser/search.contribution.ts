@@ -359,7 +359,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'search.useRipgrep': {
 			'type': 'boolean',
-			'description': nls.localize('useRipgrep', "Controls whether to use ripgrep in text search"),
+			'description': nls.localize('useRipgrep', "Controls whether to use ripgrep in text and file search"),
 			'default': true
 		},
 		'search.useIgnoreFilesByDefault': {
