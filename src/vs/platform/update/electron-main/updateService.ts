@@ -253,7 +253,7 @@ export class UpdateService implements IUpdateService {
 		}
 
 		return process.platform;
-	}
+	}//
 
 	quitAndInstall(): TPromise<void> {
 		if (!this._availableUpdate) {
