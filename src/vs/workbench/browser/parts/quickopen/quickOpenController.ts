@@ -20,7 +20,7 @@ import { Action, IAction } from 'vs/base/common/actions';
 import { IIconLabelOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Mode, IEntryRunContext, IAutoFocus, IQuickNavigateConfiguration, IModel } from 'vs/base/parts/quickopen/common/quickOpen';
-import { QuickOpenEntry, QuickOpenModel, QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import { QuickOpenEntry, QuickOpenModel, QuickOpenEntryGroup, compareEntries, QuickOpenItemAccessorClass } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenWidget, HideReason } from 'vs/base/parts/quickopen/browser/quickOpenWidget';
 import { ContributableActionProvider } from 'vs/workbench/browser/actions';
 import labels = require('vs/base/common/labels');
@@ -55,6 +55,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ITree, IActionProvider } from 'vs/base/parts/tree/browser/tree';
 import { BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { FileKind, IFileService } from 'vs/platform/files/common/files';
+import { scoreItem, ScorerCache, compareItemsByScore } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 
 const HELP_PREFIX = '?';
 
@@ -458,7 +459,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 								return pickA.index - pickB.index; // restore natural order
 							}
 
-							return QuickOpenEntry.compare(pickA, pickB, normalizedSearchValue);
+							return compareEntries(pickA, pickB, normalizedSearchValue);
 						});
 
 						this.pickOpenWidget.refresh(model, value ? { autoFocusFirstEntry: true } : autoFocus);
@@ -1164,6 +1165,7 @@ class PickOpenActionProvider implements IActionProvider {
 }
 
 class EditorHistoryHandler {
+	private scorerCache: ScorerCache;
 
 	constructor(
 		@IHistoryService private historyService: IHistoryService,
@@ -1171,11 +1173,12 @@ class EditorHistoryHandler {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IFileService private fileService: IFileService
 	) {
+		this.scorerCache = Object.create(null);
 	}
 
 	public getResults(searchValue?: string): QuickOpenEntry[] {
 		if (searchValue) {
-			searchValue = searchValue.replace(/ /g, ''); // get rid of all whitespace
+			searchValue = strings.stripWildcards(searchValue.replace(/ /g, '')); // get rid of all whitespace and wildcards
 		}
 
 		// Just return all if we are not searching
@@ -1184,48 +1187,56 @@ class EditorHistoryHandler {
 			return history.map(input => this.instantiationService.createInstance(EditorHistoryEntry, input));
 		}
 
-		const searchInPath = searchValue.indexOf(paths.nativeSep) >= 0;
+		// Otherwise filter by search value and sort by score. Include matches on description
+		// in case the user is explicitly including path separators.
+		const accessor = searchValue.indexOf(paths.nativeSep) >= 0 ? MatchOnDescription : DoNotMatchOnDescription;
+		return history
 
-		const results: QuickOpenEntry[] = [];
-		history.forEach(input => {
-			let resource: URI;
-			if (input instanceof EditorInput) {
-				resource = resourceForEditorHistory(input, this.fileService);
-			} else {
-				resource = (input as IResourceInput).resource;
-			}
+			// For now, only support to match on inputs that provide resource information
+			.filter(input => {
+				let resource: URI;
+				if (input instanceof EditorInput) {
+					resource = resourceForEditorHistory(input, this.fileService);
+				} else {
+					resource = (input as IResourceInput).resource;
+				}
 
-			if (!resource) {
-				return; //For now, only support to match on inputs that provide resource information
-			}
+				return !!resource;
+			})
 
-			let searchTargetToMatch: string;
-			if (searchInPath) {
-				searchTargetToMatch = labels.getPathLabel(resource, this.contextService);
-			} else if (input instanceof EditorInput) {
-				searchTargetToMatch = input.getName();
-			} else {
-				searchTargetToMatch = paths.basename((input as IResourceInput).resource.fsPath);
-			}
+			// Conver to quick open entries
+			.map(input => this.instantiationService.createInstance(EditorHistoryEntry, input))
 
-			// Check if this entry is a match for the search value
-			if (!filters.matchesFuzzy(searchValue, searchTargetToMatch)) {
-				return;
-			}
+			// Make sure the search value is matching
+			.filter(e => {
+				const itemScore = scoreItem(e, searchValue, false, accessor, this.scorerCache);
+				if (!itemScore.score) {
+					return false;
+				}
 
-			const entry = this.instantiationService.createInstance(EditorHistoryEntry, input);
+				e.setHighlights(itemScore.labelMatch, itemScore.descriptionMatch);
 
-			const { labelHighlights, descriptionHighlights } = QuickOpenEntry.highlight(entry, searchValue);
-			entry.setHighlights(labelHighlights, descriptionHighlights);
+				return true;
+			})
 
-			results.push(entry);
-		});
-
-		// Sort
-		const normalizedSearchValue = strings.stripWildcards(searchValue.toLowerCase());
-		return results.sort((elementA: EditorHistoryEntry, elementB: EditorHistoryEntry) => QuickOpenEntry.compare(elementA, elementB, normalizedSearchValue));
+			// Sort by score
+			.sort((e1, e2) => compareItemsByScore(e1, e2, searchValue, false, accessor, this.scorerCache));
 	}
 }
+
+class EditorHistoryItemAccessorClass extends QuickOpenItemAccessorClass {
+
+	constructor(private allowMatchOnDescription: boolean) {
+		super();
+	}
+
+	public getItemDescription(entry: QuickOpenEntry): string {
+		return this.allowMatchOnDescription ? entry.getDescription() : void 0;
+	}
+}
+
+const MatchOnDescription = new EditorHistoryItemAccessorClass(true);
+const DoNotMatchOnDescription = new EditorHistoryItemAccessorClass(false);
 
 export class EditorHistoryEntryGroup extends QuickOpenEntryGroup {
 	// Marker class

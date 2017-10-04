@@ -6,15 +6,13 @@
 'use strict';
 
 import { compareAnything } from 'vs/base/common/comparers';
-import { matchesPrefix, IMatch, createMatches, matchesCamelCase } from 'vs/base/common/filters';
+import { matchesPrefix, IMatch, createMatches, matchesCamelCase, isSeparatorAtPos, isUpper } from 'vs/base/common/filters';
 import { isEqual, nativeSep } from 'vs/base/common/paths';
 
 export type Score = [number /* score */, number[] /* match positions */];
 export type ScorerCache = { [key: string]: IItemScore };
 
 const NO_SCORE: Score = [0, []];
-
-const wordPathBoundary = ['-', '_', ' ', '/', '\\', '.'];
 
 // Based on material from:
 /*!
@@ -45,7 +43,7 @@ BEGIN THIRD PARTY
  * Start of word/path bonus: 7
  * Start of string bonus: 8
  */
-export function _doScore(target: string, query: string, inverse?: boolean): Score {
+export function _doScore(target: string, query: string, fuzzy: boolean, inverse?: boolean): Score {
 	if (!target || !query) {
 		return NO_SCORE; // return early if target or query are undefined
 	}
@@ -72,8 +70,34 @@ export function _doScore(target: string, query: string, inverse?: boolean): Scor
 		startAt = target.length - 1; // inverse: from end of target to beginning
 	}
 
+	// When not searching fuzzy, we require the query to be contained fully
+	// in the target string.
+	if (!fuzzy) {
+		let indexOfQueryInTarget: number;
+		if (!inverse) {
+			indexOfQueryInTarget = targetLower.indexOf(queryLower);
+		} else {
+			indexOfQueryInTarget = targetLower.lastIndexOf(queryLower);
+		}
+
+		if (indexOfQueryInTarget === -1) {
+			// console.log(`Characters not matching consecutively ${queryLower} within ${targetLower}`);
+
+			return NO_SCORE;
+		}
+
+		// Adjust the start position with the offset of the query
+		if (!inverse) {
+			startAt = indexOfQueryInTarget;
+		} else {
+			startAt = indexOfQueryInTarget + query.length;
+		}
+	}
+
 	let score = 0;
 	while (inverse ? index >= 0 : index < queryLen) {
+
+		// Check for query character being contained in target
 		let indexOf: number;
 		if (!inverse) {
 			indexOf = targetLower.indexOf(queryLower[index], startAt);
@@ -82,10 +106,9 @@ export function _doScore(target: string, query: string, inverse?: boolean): Scor
 		}
 
 		if (indexOf < 0) {
-
 			// console.log(`Character not part of target ${query[index]}`);
 
-			score = 0; // This makes sure that the query is contained in the target
+			score = 0;
 			break;
 		}
 
@@ -119,7 +142,7 @@ export function _doScore(target: string, query: string, inverse?: boolean): Scor
 		}
 
 		// After separator bonus
-		else if (wordPathBoundary.some(w => w === target[indexOf - 1])) {
+		else if (isSeparatorAtPos(target, indexOf - 1)) {
 			score += 7;
 
 			// console.log('After separtor bonus: +7');
@@ -156,9 +179,6 @@ export function _doScore(target: string, query: string, inverse?: boolean): Scor
 	return res;
 }
 
-function isUpper(code: number): boolean {
-	return 65 <= code && code <= 90;
-}
 /*!
 END THIRD PARTY
 */
@@ -209,7 +229,7 @@ const LABEL_PREFIX_SCORE = 1 << 17;
 const LABEL_CAMELCASE_SCORE = 1 << 16;
 const LABEL_SCORE_THRESHOLD = 1 << 15;
 
-export function scoreItem<T>(item: T, query: string, accessor: IItemAccessor<T>, cache: ScorerCache): IItemScore {
+export function scoreItem<T>(item: T, query: string, fuzzy: boolean, accessor: IItemAccessor<T>, cache: ScorerCache): IItemScore {
 	if (!item || !query) {
 		return NO_ITEM_SCORE; // we need an item and query to score on at least
 	}
@@ -221,9 +241,11 @@ export function scoreItem<T>(item: T, query: string, accessor: IItemAccessor<T>,
 
 	const description = accessor.getItemDescription(item);
 
-	let cacheHash = label + query;
+	let cacheHash: string;
 	if (description) {
-		cacheHash += description;
+		cacheHash = `${label}${description}${query}${fuzzy}`;
+	} else {
+		cacheHash = `${label}${query}${fuzzy}`;
 	}
 
 	const cached = cache[cacheHash];
@@ -231,13 +253,13 @@ export function scoreItem<T>(item: T, query: string, accessor: IItemAccessor<T>,
 		return cached;
 	}
 
-	const itemScore = doScoreItem(label, description, accessor.getItemPath(item), query, accessor);
+	const itemScore = doScoreItem(label, description, accessor.getItemPath(item), query, fuzzy, accessor);
 	cache[cacheHash] = itemScore;
 
 	return itemScore;
 }
 
-function doScoreItem<T>(label: string, description: string, path: string, query: string, accessor: IItemAccessor<T>): IItemScore {
+function doScoreItem<T>(label: string, description: string, path: string, query: string, fuzzy: boolean, accessor: IItemAccessor<T>): IItemScore {
 
 	// 1.) treat identity matches on full path highest
 	if (path && isEqual(query, path, true)) {
@@ -257,7 +279,7 @@ function doScoreItem<T>(label: string, description: string, path: string, query:
 	}
 
 	// 4.) prefer scores on the label if any
-	const [labelScore, labelPositions] = _doScore(label, query);
+	const [labelScore, labelPositions] = _doScore(label, query, fuzzy);
 	if (labelScore) {
 		return { score: labelScore + LABEL_SCORE_THRESHOLD, labelMatch: createMatches(labelPositions) };
 	}
@@ -272,12 +294,12 @@ function doScoreItem<T>(label: string, description: string, path: string, query:
 		const descriptionPrefixLength = descriptionPrefix.length;
 		const descriptionAndLabel = `${descriptionPrefix}${label}`;
 
-		let [labelDescriptionScore, labelDescriptionPositions] = _doScore(descriptionAndLabel, query);
+		let [labelDescriptionScore, labelDescriptionPositions] = _doScore(descriptionAndLabel, query, fuzzy);
 
 		// Optimize for file paths: score from the back to the beginning to catch more specific folder
 		// names that match on the end of the file. This yields better results in most cases.
 		if (!!path) {
-			const [labelDescriptionScoreInverse, labelDescriptionPositionsInverse] = _doScore(descriptionAndLabel, query, true /* inverse */);
+			const [labelDescriptionScoreInverse, labelDescriptionPositionsInverse] = _doScore(descriptionAndLabel, query, fuzzy, true /* inverse */);
 			if (labelDescriptionScoreInverse && labelDescriptionScoreInverse > labelDescriptionScore) {
 				labelDescriptionScore = labelDescriptionScoreInverse;
 				labelDescriptionPositions = labelDescriptionPositionsInverse;
@@ -316,9 +338,9 @@ function doScoreItem<T>(label: string, description: string, path: string, query:
 	return NO_ITEM_SCORE;
 }
 
-export function compareItemsByScore<T>(itemA: T, itemB: T, query: string, accessor: IItemAccessor<T>, cache: ScorerCache): number {
-	const scoreA = scoreItem(itemA, query, accessor, cache).score;
-	const scoreB = scoreItem(itemB, query, accessor, cache).score;
+export function compareItemsByScore<T>(itemA: T, itemB: T, query: string, fuzzy: boolean, accessor: IItemAccessor<T>, cache: ScorerCache): number {
+	const scoreA = scoreItem(itemA, query, fuzzy, accessor, cache).score;
+	const scoreB = scoreItem(itemB, query, fuzzy, accessor, cache).score;
 
 	// 1.) check for identity matches
 	if (scoreA === PATH_IDENTITY_SCORE || scoreB === PATH_IDENTITY_SCORE) {
