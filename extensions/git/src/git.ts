@@ -174,7 +174,7 @@ function cpErrorHandler(cb: (reason?: any) => void): (reason?: any) => void {
 	};
 }
 
-interface SpawnOptions extends cp.SpawnOptions {
+export interface SpawnOptions extends cp.SpawnOptions {
 	input?: string;
 	encoding?: string;
 	log?: boolean;
