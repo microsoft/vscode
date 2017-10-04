@@ -38,11 +38,11 @@ import { IContextKeyService, IContextKey, ContextKeyExpr, RawContextKey } from '
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
 import { rot } from 'vs/base/common/numbers';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { peekViewBorder, peekViewTitleBackground, peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/referenceSearch/browser/referencesWidget';
-import { append, $ } from 'vs/base/browser/dom';
+import { EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 export interface IModelRegistry {
 	getModel(editorModel: common.IEditorModel): DirtyDiffModel;
@@ -50,37 +50,101 @@ export interface IModelRegistry {
 
 export const isDirtyDiffVisible = new RawContextKey<boolean>('dirtyDiffVisible', false);
 
+function getChangeHeight(change: common.IChange): number {
+	const modified = change.modifiedEndLineNumber - change.modifiedStartLineNumber + 1;
+	const original = change.originalEndLineNumber - change.originalStartLineNumber + 1;
+
+	if (change.originalEndLineNumber === 0) {
+		return modified;
+	} else if (change.modifiedEndLineNumber === 0) {
+		return original;
+	} else {
+		return modified + original;
+	}
+}
+
+function getModifiedMiddleLineNumber(change: common.IChange): number {
+	if (change.modifiedEndLineNumber === 0) {
+		return change.modifiedStartLineNumber;
+	} else {
+		return Math.round((change.modifiedEndLineNumber + change.modifiedStartLineNumber) / 2);
+	}
+}
+
 class DirtyDiffWidget extends PeekViewWidget {
 
-	private contents: HTMLElement;
+	private diffEditor: EmbeddedDiffEditorWidget;
+	private change: common.IChange;
+	private didLayout = false;
 
-	constructor(editor: ICodeEditor, private model: DirtyDiffModel, themeService: IThemeService) {
-		super(editor, {});
+	constructor(
+		editor: ICodeEditor,
+		private model: DirtyDiffModel,
+		themeService: IThemeService,
+		private instantiationService: IInstantiationService
+	) {
+		super(editor, { isResizeable: true });
 
 		themeService.onThemeChange(this._applyTheme, this, this._disposables);
 		this._applyTheme(themeService.getTheme());
 
 		this.create();
-		this.setTitle('HELLO');
+		this.setTitle('Diff');
 	}
 
 	showChange(change: common.IChange): void {
-		const originalModel = this.model.originalModel;
+		this.change = change;
+
+		const originalModel = this.model.original;
 
 		if (!originalModel) {
 			return;
 		}
 
-		const range = new Range(change.originalStartLineNumber, 0, change.originalEndLineNumber, Number.MAX_VALUE);
-		const text = originalModel.getValueInRange(range);
-		this.contents.textContent = text;
+		this.diffEditor.setModel(this.model);
 
 		const position = new Position(change.modifiedEndLineNumber, 1);
-		this.show(position, 10);
+		const height = getChangeHeight(change) + /* padding */ 8;
+
+		this.show(position, height);
+
+		// TODO@joao TODO@alex for some reason this doesn't work for some changes
+		// unless we delay it
+		setTimeout(() => this.revealChange(change), 100);
 	}
 
 	protected _fillBody(container: HTMLElement): void {
-		this.contents = append(container, $('.text'));
+		const options: IDiffEditorOptions = {
+			scrollBeyondLastLine: false,
+			scrollbar: {
+				verticalScrollbarSize: 14,
+				horizontal: 'auto',
+				useShadows: true,
+				verticalHasArrows: false,
+				horizontalHasArrows: false
+			},
+			overviewRulerLanes: 2,
+			fixedOverflowWidgets: true,
+			minimap: { enabled: false },
+			renderSideBySide: false
+		};
+
+		this.diffEditor = this.instantiationService.createInstance(EmbeddedDiffEditorWidget, container, options, this.editor);
+	}
+
+	protected _doLayoutBody(heightInPixel: number, widthInPixel: number): void {
+		super._doLayoutBody(heightInPixel, widthInPixel);
+		this.diffEditor.layout({ height: heightInPixel, width: widthInPixel });
+
+		if (!this.didLayout) {
+			this.revealChange(this.change);
+			this.didLayout = true;
+		}
+	}
+
+	private revealChange(change: common.IChange): void {
+		const position = new Position(getModifiedMiddleLineNumber(this.change), 1);
+		this.diffEditor.revealPositionInCenter(position, common.ScrollType.Immediate);
 	}
 
 	private _applyTheme(theme: ITheme) {
@@ -187,7 +251,8 @@ export class DirtyDiffController implements common.IEditorContribution {
 	constructor(
 		private editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IThemeService private themeService: IThemeService
+		@IThemeService private themeService: IThemeService,
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		this.isDirtyDiffVisible = isDirtyDiffVisible.bindTo(contextKeyService);
 	}
@@ -263,7 +328,7 @@ export class DirtyDiffController implements common.IEditorContribution {
 
 		this.changeIndex = -1;
 		this.model = model;
-		this.widget = new DirtyDiffWidget(this.editor, model, this.themeService);
+		this.widget = new DirtyDiffWidget(this.editor, model, this.themeService, this.instantiationService);
 		this.isDirtyDiffVisible.set(true);
 
 		// TODO react on model changes
@@ -434,10 +499,8 @@ class DirtyDiffDecorator {
 export class DirtyDiffModel {
 
 	private _originalModel: common.IModel;
-
-	get originalModel(): common.IModel {
-		return this._originalModel;
-	}
+	get original(): common.IModel { return this._originalModel; }
+	get modified(): common.IModel { return this._editorModel; }
 
 	private diffDelayer: ThrottledDelayer<common.IChange[]>;
 	private _originalURIPromise: TPromise<URI>;
@@ -453,7 +516,7 @@ export class DirtyDiffModel {
 	}
 
 	constructor(
-		private model: common.IModel,
+		private _editorModel: common.IModel,
 		@ISCMService private scmService: ISCMService,
 		@IModelService private modelService: IModelService,
 		@IEditorWorkerService private editorWorkerService: IEditorWorkerService,
@@ -463,7 +526,7 @@ export class DirtyDiffModel {
 	) {
 		this.diffDelayer = new ThrottledDelayer<common.IChange[]>(200);
 
-		this.disposables.push(model.onDidChangeContent(() => this.triggerDiff()));
+		this.disposables.push(_editorModel.onDidChangeContent(() => this.triggerDiff()));
 		scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
 		scmService.repositories.forEach(r => this.onDidAddRepository(r));
 
@@ -493,7 +556,7 @@ export class DirtyDiffModel {
 		return this.diffDelayer
 			.trigger(() => this.diff())
 			.then((changes: common.IChange[]) => {
-				if (!this.model || this.model.isDisposed() || !this._originalModel || this._originalModel.isDisposed()) {
+				if (!this._editorModel || this._editorModel.isDisposed() || !this._originalModel || this._originalModel.isDisposed()) {
 					return undefined; // disposed
 				}
 
@@ -508,15 +571,15 @@ export class DirtyDiffModel {
 
 	private diff(): TPromise<common.IChange[]> {
 		return this.getOriginalURIPromise().then(originalURI => {
-			if (!this.model || this.model.isDisposed() || !originalURI) {
+			if (!this._editorModel || this._editorModel.isDisposed() || !originalURI) {
 				return TPromise.as([]); // disposed
 			}
 
-			if (!this.editorWorkerService.canComputeDirtyDiff(originalURI, this.model.uri)) {
+			if (!this.editorWorkerService.canComputeDirtyDiff(originalURI, this._editorModel.uri)) {
 				return TPromise.as([]); // Files too large
 			}
 
-			return this.editorWorkerService.computeDirtyDiff(originalURI, this.model.uri, true);
+			return this.editorWorkerService.computeDirtyDiff(originalURI, this._editorModel.uri, true);
 		});
 	}
 
@@ -550,7 +613,7 @@ export class DirtyDiffModel {
 
 	private async getOriginalResource(): TPromise<URI> {
 		for (const repository of this.scmService.repositories) {
-			const result = repository.provider.getOriginalResource(this.model.uri);
+			const result = repository.provider.getOriginalResource(this._editorModel.uri);
 
 			if (result) {
 				return result;
@@ -563,7 +626,7 @@ export class DirtyDiffModel {
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
 
-		this.model = null;
+		this._editorModel = null;
 		this._originalModel = null;
 
 		if (this.diffDelayer) {

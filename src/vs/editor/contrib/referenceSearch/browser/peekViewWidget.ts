@@ -165,9 +165,7 @@ export abstract class PeekViewWidget extends ZoneWidget {
 		}
 	}
 
-	protected _fillBody(container: HTMLElement): void {
-		// implement me
-	}
+	protected abstract _fillBody(container: HTMLElement): void;
 
 	public _doLayout(heightInPixel: number, widthInPixel: number): void {
 
