@@ -20,6 +20,7 @@ export const USER_DIR = process.env.VSCODE_USER_DIR as string;
 export const EXTENSIONS_DIR = process.env.VSCODE_EXTENSIONS_DIR as string;
 export const VSCODE_EDITION = process.env.VSCODE_EDITION as string;
 export const SCREENSHOTS_DIR = process.env.SCREENSHOTS_DIR as string;
+export const WAIT_TIME = parseInt(process.env.WAIT_TIME as string);
 
 export enum VSCODE_BUILD {
 	DEV,
@@ -157,26 +158,6 @@ export class SpectronApplication {
 		this._client = new SpectronClient(this.spectron, this);
 		this._workbench = new Workbench(this);
 	}
-
-	/* private async setUpUserDataDirectory(): Promise<string> {
-		const userDataDir = path.join(this._userDir, String(SpectronApplication.count++));
-
-		return new Promise<string>((c, e) => {
-			const settingsDir = path.join(userDataDir, 'User');
-			mkdirp(path.join(userDataDir, 'User'), (error => {
-				if (error) {
-					e(error);
-					return;
-				}
-				try {
-					fs.writeFileSync(path.join(settingsDir, 'settings.json'), `{\n	"telemetry.enableTelemetry": false\n	}`);
-					c(userDataDir);
-				} catch (error) {
-					e(error);
-				}
-			}));
-		});
-	} */
 
 	private async checkWindowReady(): Promise<any> {
 		await this.webclient.waitUntilWindowLoaded();
