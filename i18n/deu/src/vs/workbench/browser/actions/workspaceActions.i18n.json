@@ -17,5 +17,6 @@
 	"save": "&&Speichern",
 	"saveWorkspace": "Arbeitsbereich speichern",
 	"openWorkspaceAction": "Arbeitsbereich öffnen...",
-	"openWorkspaceConfigFile": "Konfigurationsdatei des Arbeitsbereichs öffnen"
+	"openWorkspaceConfigFile": "Konfigurationsdatei des Arbeitsbereichs öffnen",
+	"workspaceFolderPickerPlaceholder": "Arbeitsbereichsordner auswählen"
 }

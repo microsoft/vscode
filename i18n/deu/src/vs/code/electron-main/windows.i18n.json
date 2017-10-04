@@ -17,6 +17,8 @@
 	"open": "Öffnen",
 	"openFolder": "Ordner öffnen",
 	"openFile": "Datei öffnen",
+	"workspaceOpenedMessage": "Der Arbeitsbereich \"{0}\" kann nicht gespeichert werden.",
+	"workspaceOpenedDetail": "Der Arbeitsbereich ist bereits in einem anderen Fenster geöffnet. Schließen Sie zuerst das andere Fenster, und versuchen Sie anschließend noch mal.",
 	"openWorkspace": "&&Öffnen",
 	"openWorkspaceTitle": "Arbeitsbereich öffnen",
 	"save": "&&Speichern",
