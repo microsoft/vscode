@@ -143,9 +143,13 @@ let showReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resour
 
 // register commands
 
-CommandsRegistry.registerCommand('editor.action.findReferences', findReferencesCommand);
+CommandsRegistry.registerCommand({
+	id: 'editor.action.findReferences',
+	handler: findReferencesCommand
+});
 
-CommandsRegistry.registerCommand('editor.action.showReferences', {
+CommandsRegistry.registerCommand({
+	id: 'editor.action.showReferences',
 	handler: showReferencesCommand,
 	description: {
 		description: 'Show references at a position in a file',

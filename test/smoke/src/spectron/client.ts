@@ -25,7 +25,7 @@ export class SpectronClient {
 	}
 
 	public async keys(keys: string[] | string, capture: boolean = true): Promise<any> {
-		return this.spectron.client.keys(keys);
+		return Promise.resolve(this.spectron.client.keys(keys));
 	}
 
 	public async getText(selector: string, capture: boolean = true): Promise<any> {

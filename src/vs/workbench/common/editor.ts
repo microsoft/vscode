@@ -819,10 +819,6 @@ export interface IResourceOptions {
 	filter?: 'file' | 'untitled' | ['file', 'untitled'] | ['untitled', 'file'];
 }
 
-export function hasResource(editor: IEditorInput, options?: IResourceOptions): boolean {
-	return !!toResource(editor, options);
-}
-
 export function toResource(editor: IEditorInput, options?: IResourceOptions): URI {
 	if (!editor) {
 		return null;

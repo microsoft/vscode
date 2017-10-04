@@ -68,6 +68,7 @@ export class ExplorerViewlet extends PersistentViewsViewlet {
 		this._register(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated()));
 		this._register(this.contextService.onDidChangeWorkspaceName(e => this.updateTitleArea()));
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.registerViews()));
+		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.registerViews()));
 	}
 
 	async create(parent: Builder): TPromise<void> {
@@ -93,7 +94,7 @@ export class ExplorerViewlet extends PersistentViewsViewlet {
 		if (!openEditorsViewDescriptorExists) {
 			viewDescriptorsToRegister.push(openEditorsViewDescriptor);
 		}
-		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
+		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY || this.contextService.getWorkspace().folders.length === 0) {
 			if (explorerViewDescriptorExists) {
 				viewDescriptorsToDeregister.push(explorerViewDescriptor.id);
 			}

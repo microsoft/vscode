@@ -33,6 +33,7 @@ const mapExtToMediaMimes: MapExtToMediaMimes = {
 	'.ico': 'image/x-icon',
 	'.tga': 'image/x-tga',
 	'.psd': 'image/vnd.adobe.photoshop',
+	'.webp': 'image/webp',
 	'.mid': 'audio/midi',
 	'.midi': 'audio/midi',
 	'.mp4a': 'audio/mp4',

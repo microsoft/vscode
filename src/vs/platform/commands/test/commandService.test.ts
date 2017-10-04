@@ -12,6 +12,9 @@ import { CommandService } from 'vs/platform/commands/common/commandService';
 import { IExtensionService, ExtensionPointContribution, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IExtensionPoint } from 'vs/platform/extensions/common/extensionsRegistry';
+import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
+import { SimpleConfigurationService } from 'vs/editor/standalone/browser/simpleServices';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 class SimpleExtensionService implements IExtensionService {
 	_serviceBrand: any;
@@ -62,7 +65,7 @@ suite('CommandService', function () {
 				lastEvent = activationEvent;
 				return super.activateByEvent(activationEvent);
 			}
-		});
+		}, new ContextKeyService(new SimpleConfigurationService()));
 
 		return service.executeCommand('foo').then(() => {
 			assert.ok(lastEvent, 'onCommand:foo');
@@ -80,7 +83,7 @@ suite('CommandService', function () {
 			activateByEvent(activationEvent: string): TPromise<void> {
 				return TPromise.wrapError<void>(new Error('bad_activate'));
 			}
-		});
+		}, new ContextKeyService(new SimpleConfigurationService()));
 
 		return service.executeCommand('foo').then(() => assert.ok(false), err => {
 			assert.equal(err.message, 'bad_activate');
@@ -97,7 +100,7 @@ suite('CommandService', function () {
 			onReady() {
 				return new TPromise<boolean>(_resolve => { resolve = _resolve; });
 			}
-		});
+		}, new ContextKeyService(new SimpleConfigurationService()));
 
 		return service.executeCommand('bar').then(() => {
 			reg.dispose();
@@ -105,4 +108,30 @@ suite('CommandService', function () {
 		});
 	});
 
+	test('honor command-precondition', function () {
+		let contextKeyService = new ContextKeyService(new SimpleConfigurationService());
+		let commandService = new CommandService(
+			new InstantiationService(),
+			new SimpleExtensionService(),
+			contextKeyService
+		);
+
+		let counter = 0;
+		let reg = CommandsRegistry.registerCommand({
+			id: 'bar',
+			handler: () => { counter += 1; },
+			precondition: ContextKeyExpr.has('foocontext')
+		});
+
+		return commandService.executeCommand('bar').then(() => {
+			assert.throws(() => { });
+		}, () => {
+			contextKeyService.setContext('foocontext', true);
+			return commandService.executeCommand('bar');
+		}).then(() => {
+			assert.equal(counter, 1);
+			reg.dispose();
+		});
+
+	});
 });

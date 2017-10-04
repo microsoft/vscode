@@ -397,7 +397,7 @@ export class BreakpointsView extends ViewsViewletPanel {
 			ariaHeaderLabel: nls.localize('breakpointsSection', "Breakpoints Section")
 		}, keybindingService, contextMenuService);
 
-		this.minimumBodySize = this.maximumBodySize = 0;
+		this.minimumBodySize = this.maximumBodySize = this.getExpandedBodySize();
 		this.settings = options.viewletSettings;
 		this.breakpointsFocusedContext = CONTEXT_BREAKPOINTS_FOCUSED.bindTo(contextKeyService);
 		this.disposables.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.onBreakpointsChange()));
@@ -488,17 +488,15 @@ export class BreakpointsView extends ViewsViewletPanel {
 	}
 
 	private onBreakpointsChange(): void {
-		const model = this.debugService.getModel();
-
-		const bodySize = BreakpointsView.getExpandedBodySize(model.getBreakpoints().length + model.getExceptionBreakpoints().length + model.getFunctionBreakpoints().length);
-		this.minimumBodySize = this.maximumBodySize = bodySize;
-
+		this.minimumBodySize = this.maximumBodySize = this.getExpandedBodySize();
 		if (this.tree) {
 			this.tree.refresh();
 		}
 	}
 
-	private static getExpandedBodySize(length: number): number {
+	private getExpandedBodySize(): number {
+		const model = this.debugService.getModel();
+		const length = model.getBreakpoints().length + model.getExceptionBreakpoints().length + model.getFunctionBreakpoints().length;
 		return Math.min(BreakpointsView.MAX_VISIBLE_FILES, length) * 22;
 	}
 

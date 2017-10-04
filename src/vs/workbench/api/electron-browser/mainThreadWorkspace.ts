@@ -6,7 +6,7 @@
 
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
-import { ISearchService, QueryType, ISearchQuery, IFolderQuery } from 'vs/platform/search/common/search';
+import { ISearchService, QueryType, ISearchQuery, IFolderQuery, ISearchConfiguration } from 'vs/platform/search/common/search';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -14,7 +14,7 @@ import { MainThreadWorkspaceShape, ExtHostWorkspaceShape, ExtHostContext, MainCo
 import { IFileService } from 'vs/platform/files/common/files';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
-import { IExperimentService } from 'vs/platform/telemetry/common/experiments';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IRelativePattern } from 'vs/base/common/glob';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
@@ -29,7 +29,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		@ISearchService private readonly _searchService: ISearchService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
-		@IExperimentService private _experimentService: IExperimentService,
+		@IConfigurationService private _configurationService: IConfigurationService,
 		@IFileService private readonly _fileService: IFileService
 	) {
 		this._proxy = extHostContext.get(ExtHostContext.ExtHostWorkspace);
@@ -67,13 +67,18 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			folderQueries = [{ folder: URI.file(include.base) }]; // relative pattern: search only in base folder
 		}
 
+		const useRipgrep = folderQueries.every(folderQuery => {
+			const folderConfig = this._configurationService.getConfiguration<ISearchConfiguration>(undefined, { resource: folderQuery.folder });
+			return folderConfig.search.useRipgrep;
+		});
+
 		const query: ISearchQuery = {
 			folderQueries,
 			type: QueryType.File,
 			maxResults,
 			includePattern: { [typeof include === 'string' ? include : !!include ? include.pattern : undefined]: true },
 			excludePattern: { [typeof exclude === 'string' ? exclude : !!exclude ? exclude.pattern : undefined]: true },
-			useRipgrep: this._experimentService.getExperiments().ripgrepQuickSearch
+			useRipgrep
 		};
 		this._searchService.extendQuery(query);
 

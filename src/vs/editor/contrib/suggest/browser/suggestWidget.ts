@@ -34,7 +34,7 @@ import { MarkdownRenderer } from 'vs/editor/contrib/markdown/browser/markdownRen
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 
-const sticky = false; // for development purposes
+const sticky = true; // for development purposes
 const expandSuggestionDocsByDefault = false;
 const maxSuggestionsToShow = 12;
 
@@ -1105,7 +1105,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 registerThemingParticipant((theme, collector) => {
 	let matchHighlight = theme.getColor(editorSuggestWidgetHighlightForeground);
 	if (matchHighlight) {
-		collector.addRule(`.monaco-editor .suggest-widget:not(.frozen) .monaco-highlighted-label .highlight { color: ${matchHighlight}; }`);
+		collector.addRule(`.monaco-editor .suggest-widget:not(.frozen) .monaco-list .monaco-list-row .monaco-highlighted-label .highlight { color: ${matchHighlight}; }`);
 	}
 	let foreground = theme.getColor(editorSuggestWidgetForeground);
 	if (foreground) {
