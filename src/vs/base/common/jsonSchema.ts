@@ -17,7 +17,7 @@ export interface IJSONSchema {
 	additionalProperties?: boolean | IJSONSchema;
 	minProperties?: number;
 	maxProperties?: number;
-	dependencies?: IJSONSchemaMap | string[];
+	dependencies?: IJSONSchemaMap | { [name: string]: string[] };
 	items?: IJSONSchema | IJSONSchema[];
 	minItems?: number;
 	maxItems?: number;
