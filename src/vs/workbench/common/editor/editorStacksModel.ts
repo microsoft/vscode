@@ -1215,7 +1215,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 		// Close the editor when it is no longer open in any group including diff editors
 		editorsToClose.forEach(editorToClose => {
-			const resource = toResource(editorToClose); // prefer resource to not close right-hand side editors of a diff editor
+			const resource = editorToClose ? editorToClose.getResource() : void 0; // prefer resource to not close right-hand side editors of a diff editor
 			if (!this.isOpen(resource || editorToClose)) {
 				editorToClose.close();
 			}

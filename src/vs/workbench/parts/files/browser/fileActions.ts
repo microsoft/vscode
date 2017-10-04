@@ -1177,7 +1177,8 @@ export class GlobalCompareResourcesAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		const activeResource = toResource(this.editorService.getActiveEditorInput());
+		const activeInput = this.editorService.getActiveEditorInput();
+		const activeResource = activeInput ? activeInput.getResource() : void 0;
 		if (activeResource) {
 
 			// Keep as resource to compare
@@ -1195,7 +1196,7 @@ export class GlobalCompareResourcesAction extends Action {
 				let description: string;
 
 				if (input instanceof EditorInput) {
-					resource = toResource(input);
+					resource = input.getResource();
 				} else {
 					resource = (input as IResourceInput).resource;
 				}
