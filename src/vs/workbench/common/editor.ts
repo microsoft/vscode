@@ -125,6 +125,13 @@ export abstract class EditorInput implements IEditorInput {
 	}
 
 	/**
+	 * Returns the associated resource of this input if any.
+	 */
+	public getResource(): URI {
+		return null;
+	}
+
+	/**
 	 * Returns the name of this input that can be shown to the user. Examples include showing the name of the input
 	 * above the editor area when the input is shown.
 	 */
@@ -284,11 +291,6 @@ export interface IEncodingSupport {
  * to register this kind of input to the platform.
  */
 export interface IFileEditorInput extends IEditorInput, IEncodingSupport {
-
-	/**
-	 * Gets the absolute file resource URI this input is about.
-	 */
-	getResource(): URI;
 
 	/**
 	 * Sets the preferred encodingt to use for this input.
@@ -829,7 +831,7 @@ export function toResource(editor: IEditorInput, options?: IResourceOptions): UR
 		editor = editor.master;
 	}
 
-	const resource = doGetEditorResource(editor);
+	const resource = editor.getResource();
 	if (!options || !options.filter) {
 		return resource; // return early if no filter is specified
 	}
@@ -854,18 +856,6 @@ export function toResource(editor: IEditorInput, options?: IResourceOptions): UR
 
 	if (includeUntitled && resource.scheme === 'untitled') {
 		return resource;
-	}
-
-	return null;
-}
-
-// TODO@Ben every editor should have an associated resource
-function doGetEditorResource(editor: IEditorInput): URI {
-	if (editor instanceof EditorInput && typeof (<any>editor).getResource === 'function') {
-		const candidate = (<any>editor).getResource();
-		if (candidate instanceof URI) {
-			return candidate;
-		}
 	}
 
 	return null;

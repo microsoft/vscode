@@ -12,7 +12,7 @@ import { Dimension, Builder } from 'vs/base/browser/builder';
 import { ArrayNavigator, INavigator } from 'vs/base/common/iterator';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { toResource, SideBySideEditorInput, EditorOptions, EditorInput } from 'vs/workbench/common/editor';
+import { SideBySideEditorInput, EditorOptions, EditorInput } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 import { IEditorControl, Position, Verbosity } from 'vs/platform/editor/common/editor';
@@ -226,7 +226,7 @@ export class PreferencesEditor extends BaseEditor {
 	}
 
 	private updateInput(oldInput: PreferencesEditorInput, newInput: PreferencesEditorInput, options?: EditorOptions): TPromise<void> {
-		const resource = toResource(newInput.master);
+		const resource = newInput.master.getResource();
 		this.settingsTargetsWidget.updateTargets(this.getSettingsConfigurationTargetUri(resource), this.getSettingsConfigurationTarget(resource));
 
 		return this.sideBySidePreferencesWidget.setInput(<DefaultPreferencesEditorInput>newInput.details, <EditorInput>newInput.master, options).then(({ defaultPreferencesRenderer, editablePreferencesRenderer }) => {
@@ -267,7 +267,7 @@ export class PreferencesEditor extends BaseEditor {
 
 	private onWorkspaceFoldersChanged(): void {
 		if (this.input) {
-			const settingsResource = toResource((<PreferencesEditorInput>this.input).master);
+			const settingsResource = (<PreferencesEditorInput>this.input).master.getResource();
 			const targetResource = this.getSettingsConfigurationTargetUri(settingsResource);
 			if (!targetResource) {
 				this.switchSettings(this.preferencesService.userSettingsResource);
@@ -277,7 +277,7 @@ export class PreferencesEditor extends BaseEditor {
 
 	private onWorkbenchStateChanged(): void {
 		if (this.input) {
-			const editableSettingsResource = toResource((<PreferencesEditorInput>this.input).master);
+			const editableSettingsResource = (<PreferencesEditorInput>this.input).master.getResource();
 			const newConfigurationTarget = this.getSettingsConfigurationTarget(editableSettingsResource);
 			if (newConfigurationTarget) {
 				if (newConfigurationTarget !== this.settingsTargetsWidget.configurationTarget) {
@@ -528,7 +528,7 @@ class SideBySidePreferencesWidget extends Widget {
 	public setInput(defaultPreferencesEditorInput: DefaultPreferencesEditorInput, editablePreferencesEditorInput: EditorInput, options?: EditorOptions): TPromise<{ defaultPreferencesRenderer: IPreferencesRenderer<ISetting>, editablePreferencesRenderer: IPreferencesRenderer<ISetting> }> {
 		this.getOrCreateEditablePreferencesEditor(editablePreferencesEditorInput);
 		this.dolayout(this.sash.getVerticalSashLeft());
-		return TPromise.join([this.updateInput(this.defaultPreferencesEditor, defaultPreferencesEditorInput, DefaultSettingsEditorContribution.ID, toResource(editablePreferencesEditorInput), options),
+		return TPromise.join([this.updateInput(this.defaultPreferencesEditor, defaultPreferencesEditorInput, DefaultSettingsEditorContribution.ID, editablePreferencesEditorInput.getResource(), options),
 		this.updateInput(this.editablePreferencesEditor, editablePreferencesEditorInput, SettingsEditorContribution.ID, defaultPreferencesEditorInput.getResource(), options)])
 			.then(([defaultPreferencesRenderer, editablePreferencesRenderer]) => ({ defaultPreferencesRenderer, editablePreferencesRenderer }));
 	}
