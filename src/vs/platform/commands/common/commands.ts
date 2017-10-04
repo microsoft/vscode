@@ -10,6 +10,7 @@ import { TypeConstraint, validateConstraints } from 'vs/base/common/types';
 import { ServicesAccessor, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { LinkedList } from 'vs/base/common/linkedList';
 
 export const ICommandService = createDecorator<ICommandService>('commandService');
 
@@ -51,16 +52,9 @@ export interface ICommandRegistry {
 	getCommands(): ICommandsMap;
 }
 
-function isCommand(thing: any): thing is ICommand {
-	return typeof thing === 'object'
-		&& typeof (<ICommand>thing).handler === 'function'
-		&& (!(<ICommand>thing).precondition || typeof (<ICommand>thing).precondition === 'object')
-		&& (!(<ICommand>thing).description || typeof (<ICommand>thing).description === 'object');
-}
-
 export const CommandsRegistry: ICommandRegistry = new class implements ICommandRegistry {
 
-	private _commands = new Map<string, ICommand | ICommand[]>();
+	private _commands = new Map<string, LinkedList<ICommand>>();
 
 	registerCommand(idOrCommand: string | ICommand, handler?: ICommandHandler): IDisposable {
 
@@ -90,30 +84,19 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 
 		// find a place to store the command
 		const { id } = idOrCommand;
-		const commandOrArray = this._commands.get(id);
-		if (commandOrArray === void 0) {
-			this._commands.set(id, idOrCommand);
-		} else if (Array.isArray(commandOrArray)) {
-			commandOrArray.unshift(idOrCommand);
-		} else {
-			this._commands.set(id, [idOrCommand, commandOrArray]);
+
+		let commands = this._commands.get(id);
+		if (!commands) {
+			commands = new LinkedList<ICommand>();
+			this._commands.set(id, commands);
 		}
+
+		let removeFn = commands.unshift(idOrCommand);
 
 		return {
 			dispose: () => {
-				const commandOrArray = this._commands.get(id);
-				if (Array.isArray(commandOrArray)) {
-					// remove from array, remove array
-					// if last element removed
-					const idx = commandOrArray.indexOf(idOrCommand);
-					if (idx >= 0) {
-						commandOrArray.splice(idx, 1);
-						if (commandOrArray.length === 0) {
-							this._commands.delete(id);
-						}
-					}
-				} else if (isCommand(commandOrArray)) {
-					// remove from map
+				removeFn();
+				if (this._commands.get(id).isEmpty()) {
 					this._commands.delete(id);
 				}
 			}
@@ -121,12 +104,11 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 	}
 
 	getCommand(id: string): ICommand {
-		const commandOrArray = this._commands.get(id);
-		if (Array.isArray(commandOrArray)) {
-			return commandOrArray[0];
-		} else {
-			return commandOrArray;
+		const list = this._commands.get(id);
+		if (!list || list.isEmpty()) {
+			return undefined;
 		}
+		return list.iterator().next().value;
 	}
 
 	getCommands(): ICommandsMap {
