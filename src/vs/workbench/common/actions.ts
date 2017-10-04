@@ -15,6 +15,7 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import Severity from 'vs/base/common/severity';
+import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 
 export const Extensions = {
 	WorkbenchActions: 'workbench.contributions.actions'
@@ -30,92 +31,22 @@ export interface IWorkbenchActionRegistry {
 	 * Registers a workbench action to the platform. Workbench actions are not
 	 * visible by default and can only be invoked through a keybinding if provided.
 	 */
-	registerWorkbenchAction(descriptor: SyncActionDescriptor, alias: string, category?: string): void;
-
-	/**
-	 * Unregisters a workbench action from the platform.
-	 */
-	unregisterWorkbenchAction(id: string): boolean;
-
-	/**
-	 * Returns the workbench action descriptor for the given id or null if none.
-	 */
-	getWorkbenchAction(id: string): SyncActionDescriptor;
-
-	/**
-	 * Returns an array of registered workbench actions known to the platform.
-	 */
-	getWorkbenchActions(): SyncActionDescriptor[];
-
-	/**
-	 * Returns the alias associated with the given action or null if none.
-	 */
-	getAlias(actionId: string): string;
-
-	/**
-	 * Returns the category for the given action or null if none.
-	 */
-	getCategory(actionId: string): string;
+	registerWorkbenchAction(descriptor: SyncActionDescriptor, alias: string, category?: string): IDisposable;
 }
 
-interface IActionMeta {
-	alias: string;
-	category?: string;
-}
+Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionRegistry {
 
-class WorkbenchActionRegistry implements IWorkbenchActionRegistry {
-
-	public registerWorkbenchAction(descriptor: SyncActionDescriptor, alias: string, category?: string): void {
-		registerWorkbenchCommandFromAction(descriptor, alias, category);
+	registerWorkbenchAction(descriptor: SyncActionDescriptor, alias: string, category?: string): IDisposable {
+		return this._registerWorkbenchCommandFromAction(descriptor, alias, category);
 	}
 
-	public unregisterWorkbenchAction(id: string): boolean {
-		return true;
-	}
+	private _registerWorkbenchCommandFromAction(descriptor: SyncActionDescriptor, alias: string, category?: string): IDisposable {
+		let registrations: IDisposable[] = [];
 
-	public getWorkbenchAction(id: string): SyncActionDescriptor {
-		return null;
-	}
+		// command
+		registrations.push(CommandsRegistry.registerCommand(descriptor.id, this._createCommandHandler(descriptor)));
 
-	public getCategory(id: string): string {
-		const commandAction = MenuRegistry.getCommand(id);
-		if (!commandAction || !commandAction.category) {
-			return null;
-		}
-		const { category } = commandAction;
-		if (typeof category === 'string') {
-			return category;
-		} else {
-			return category.value;
-		}
-	}
-
-	public getAlias(id: string): string {
-		const commandAction = MenuRegistry.getCommand(id);
-		if (!commandAction) {
-			return null;
-		}
-		const { title } = commandAction;
-		if (typeof title === 'string') {
-			return null;
-		} else {
-			return title.original;
-		}
-	}
-
-	public getWorkbenchActions(): SyncActionDescriptor[] {
-		return [];
-	}
-}
-
-Registry.add(Extensions.WorkbenchActions, new WorkbenchActionRegistry());
-
-function registerWorkbenchCommandFromAction(descriptor: SyncActionDescriptor, alias: string, category?: string): void {
-
-	CommandsRegistry.registerCommand(descriptor.id, createCommandHandler(descriptor));
-
-	{
-		// register keybinding
+		// keybinding
 		const when = descriptor.keybindingContext;
 		const weight = (typeof descriptor.keybindingWeight === 'undefined' ? KeybindingsRegistry.WEIGHT.workbenchContrib() : descriptor.keybindingWeight);
 		const keybindings = descriptor.keybindings;
@@ -129,71 +60,78 @@ function registerWorkbenchCommandFromAction(descriptor: SyncActionDescriptor, al
 			mac: keybindings && keybindings.mac,
 			linux: keybindings && keybindings.linux
 		});
-	}
 
-	{
-		// register menu item
+		// menu item
+		// TODO@Ben slightly weird if-check required because of
+		// https://github.com/Microsoft/vscode/blob/d28ace31aa147596e35adf101a27768a048c79ec/src/vs/workbench/parts/files/browser/fileActions.contribution.ts#L194
 		if (descriptor.label) {
-			// slightly weird if-check required because of
-			// https://github.com/Microsoft/vscode/blob/d28ace31aa147596e35adf101a27768a048c79ec/src/vs/workbench/parts/files/browser/fileActions.contribution.ts#L194
-			MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-				command: {
-					id: descriptor.id,
-					title: { value: descriptor.label, original: alias },
-					category
-				}
-			});
+
+			const command = {
+				id: descriptor.id,
+				title: { value: descriptor.label, original: alias },
+				category
+			};
+
+			MenuRegistry.addCommand(command);
+
+			registrations.push(MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command }));
 		}
-	}
-}
 
-function createCommandHandler(descriptor: SyncActionDescriptor): ICommandHandler {
-	return (accessor, args) => {
-		const messageService = accessor.get(IMessageService);
-		const instantiationService = accessor.get(IInstantiationService);
-		const telemetryService = accessor.get(ITelemetryService);
-		const partService = accessor.get(IPartService);
-
-		TPromise.as(triggerAndDisposeAction(instantiationService, telemetryService, partService, descriptor, args)).done(null, (err) => {
-			messageService.show(Severity.Error, err);
-		});
-	};
-}
-
-function triggerAndDisposeAction(instantitationService: IInstantiationService, telemetryService: ITelemetryService, partService: IPartService, descriptor: SyncActionDescriptor, args: any): TPromise<any> {
-	const actionInstance = instantitationService.createInstance(descriptor.syncDescriptor);
-	actionInstance.label = descriptor.label || actionInstance.label;
-
-	// don't run the action when not enabled
-	if (!actionInstance.enabled) {
-		actionInstance.dispose();
-
-		return void 0;
+		// TODO@alex,joh
+		// support removal of keybinding rule
+		// support removal of command-ui
+		return combinedDisposable(registrations);
 	}
 
-	const from = args && args.from || 'keybinding';
-	if (telemetryService) {
-		/* __GDPR__
-			"workbenchActionExecuted" : {
-				"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		telemetryService.publicLog('workbenchActionExecuted', { id: actionInstance.id, from });
+	private _createCommandHandler(descriptor: SyncActionDescriptor): ICommandHandler {
+		return (accessor, args) => {
+			const messageService = accessor.get(IMessageService);
+			const instantiationService = accessor.get(IInstantiationService);
+			const telemetryService = accessor.get(ITelemetryService);
+			const partService = accessor.get(IPartService);
+
+			TPromise.as(this._triggerAndDisposeAction(instantiationService, telemetryService, partService, descriptor, args)).done(null, (err) => {
+				messageService.show(Severity.Error, err);
+			});
+		};
 	}
 
-	// run action when workbench is created
-	return partService.joinCreation().then(() => {
-		try {
-			return TPromise.as(actionInstance.run(undefined, { from })).then(() => {
-				actionInstance.dispose();
-			}, (err) => {
+	private _triggerAndDisposeAction(instantitationService: IInstantiationService, telemetryService: ITelemetryService, partService: IPartService, descriptor: SyncActionDescriptor, args: any): TPromise<any> {
+		const actionInstance = instantitationService.createInstance(descriptor.syncDescriptor);
+		actionInstance.label = descriptor.label || actionInstance.label;
+
+		// don't run the action when not enabled
+		if (!actionInstance.enabled) {
+			actionInstance.dispose();
+
+			return void 0;
+		}
+
+		const from = args && args.from || 'keybinding';
+		if (telemetryService) {
+			/* __GDPR__
+				"workbenchActionExecuted" : {
+					"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
+			telemetryService.publicLog('workbenchActionExecuted', { id: actionInstance.id, from });
+		}
+
+		// run action when workbench is created
+		return partService.joinCreation().then(() => {
+			try {
+				return TPromise.as(actionInstance.run(undefined, { from })).then(() => {
+					actionInstance.dispose();
+				}, (err) => {
+					actionInstance.dispose();
+					return TPromise.wrapError(err);
+				});
+			} catch (err) {
 				actionInstance.dispose();
 				return TPromise.wrapError(err);
-			});
-		} catch (err) {
-			actionInstance.dispose();
-			return TPromise.wrapError(err);
-		}
-	});
-}
+			}
+		});
+	}
+});
+
