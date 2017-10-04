@@ -122,7 +122,7 @@ function isLower(code: number): boolean {
 	return CharCode.a <= code && code <= CharCode.z;
 }
 
-function isUpper(code: number): boolean {
+export function isUpper(code: number): boolean {
 	return CharCode.A <= code && code <= CharCode.Z;
 }
 
@@ -421,7 +421,7 @@ function printTable(table: number[][], pattern: string, patternLen: number, word
 	return ret;
 }
 
-function isSeparatorAtPos(value: string, index: number): boolean {
+export function isSeparatorAtPos(value: string, index: number): boolean {
 	if (index < 0 || index >= value.length) {
 		return false;
 	}
