@@ -158,26 +158,6 @@ export class SpectronApplication {
 		this._workbench = new Workbench(this);
 	}
 
-	/* private async setUpUserDataDirectory(): Promise<string> {
-		const userDataDir = path.join(this._userDir, String(SpectronApplication.count++));
-
-		return new Promise<string>((c, e) => {
-			const settingsDir = path.join(userDataDir, 'User');
-			mkdirp(path.join(userDataDir, 'User'), (error => {
-				if (error) {
-					e(error);
-					return;
-				}
-				try {
-					fs.writeFileSync(path.join(settingsDir, 'settings.json'), `{\n	"telemetry.enableTelemetry": false\n	}`);
-					c(userDataDir);
-				} catch (error) {
-					e(error);
-				}
-			}));
-		});
-	} */
-
 	private async checkWindowReady(): Promise<any> {
 		await this.webclient.waitUntilWindowLoaded();
 		// Spectron opens multiple terminals in Windows platform
