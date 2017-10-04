@@ -174,7 +174,13 @@ function cpErrorHandler(cb: (reason?: any) => void): (reason?: any) => void {
 	};
 }
 
-async function exec(child: cp.ChildProcess, options: any = {}): Promise<IExecutionResult> {
+interface SpawnOptions extends cp.SpawnOptions {
+	input?: string;
+	encoding?: string;
+	log?: boolean;
+}
+
+async function exec(child: cp.ChildProcess, options: SpawnOptions = {}): Promise<IExecutionResult> {
 	if (!child.stdout || !child.stderr) {
 		throw new GitError({
 			message: 'Failed to get stdout or stderr from git process.'
@@ -365,17 +371,17 @@ export class Git {
 		return path.normalize(result.stdout.trim());
 	}
 
-	async exec(cwd: string, args: string[], options: any = {}): Promise<IExecutionResult> {
+	async exec(cwd: string, args: string[], options: SpawnOptions = {}): Promise<IExecutionResult> {
 		options = assign({ cwd }, options || {});
 		return await this._exec(args, options);
 	}
 
-	stream(cwd: string, args: string[], options: any = {}): cp.ChildProcess {
+	stream(cwd: string, args: string[], options: SpawnOptions = {}): cp.ChildProcess {
 		options = assign({ cwd }, options || {});
 		return this.spawn(args, options);
 	}
 
-	private async _exec(args: string[], options: any = {}): Promise<IExecutionResult> {
+	private async _exec(args: string[], options: SpawnOptions = {}): Promise<IExecutionResult> {
 		const child = this.spawn(args, options);
 
 		if (options.input) {
@@ -402,7 +408,7 @@ export class Git {
 		return result;
 	}
 
-	spawn(args: string[], options: any = {}): cp.ChildProcess {
+	spawn(args: string[], options: SpawnOptions = {}): cp.ChildProcess {
 		if (!this.gitPath) {
 			throw new Error('git could not be found in the system.');
 		}
@@ -520,19 +526,19 @@ export class Repository {
 	}
 
 	// TODO@Joao: rename to exec
-	async run(args: string[], options: any = {}): Promise<IExecutionResult> {
+	async run(args: string[], options: SpawnOptions = {}): Promise<IExecutionResult> {
 		return await this.git.exec(this.repositoryRoot, args, options);
 	}
 
-	stream(args: string[], options: any = {}): cp.ChildProcess {
+	stream(args: string[], options: SpawnOptions = {}): cp.ChildProcess {
 		return this.git.stream(this.repositoryRoot, args, options);
 	}
 
-	spawn(args: string[], options: any = {}): cp.ChildProcess {
+	spawn(args: string[], options: SpawnOptions = {}): cp.ChildProcess {
 		return this.git.spawn(args, options);
 	}
 
-	async config(scope: string, key: string, value: any, options: any): Promise<string> {
+	async config(scope: string, key: string, value: any, options: SpawnOptions): Promise<string> {
 		const args = ['config'];
 
 		if (scope) {
@@ -898,7 +904,8 @@ export class Repository {
 	getStatus(limit = 5000): Promise<{ status: IFileStatus[]; didHitLimit: boolean; }> {
 		return new Promise<{ status: IFileStatus[]; didHitLimit: boolean; }>((c, e) => {
 			const parser = new GitStatusParser();
-			const child = this.stream(['status', '-z', '-u']);
+			const env = { GIT_OPTIONAL_LOCKS: '0' };
+			const child = this.stream(['status', '-z', '-u'], { env });
 
 			const onExit = exitCode => {
 				if (exitCode !== 0) {
