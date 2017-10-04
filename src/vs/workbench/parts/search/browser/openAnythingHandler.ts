@@ -255,9 +255,13 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 				});
 
 				return TPromise.as<QuickOpenModel>(new QuickOpenModel(viewResults));
-			}, (error: Error) => {
+			}, (error: Error[]) => {
 				this.pendingSearch = null;
-				this.messageService.show(Severity.Error, error);
+				if (error && error[0] && error[0].message) {
+					this.messageService.show(Severity.Error, error[0].message.replace(/[\*_\[\]]/g, '\\$&'));
+				} else {
+					this.messageService.show(Severity.Error, error);
+				}
 				return null;
 			});
 

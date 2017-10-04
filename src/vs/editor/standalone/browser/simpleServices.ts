@@ -285,7 +285,8 @@ export class StandaloneCommandService implements ICommandService {
 		this._dynamicCommands = Object.create(null);
 	}
 
-	public addCommand(id: string, command: ICommand): IDisposable {
+	public addCommand(command: ICommand): IDisposable {
+		const { id } = command;
 		this._dynamicCommands[id] = command;
 		return {
 			dispose: () => {
@@ -360,7 +361,8 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 
 		let commandService = this._commandService;
 		if (commandService instanceof StandaloneCommandService) {
-			toDispose.push(commandService.addCommand(commandId, {
+			toDispose.push(commandService.addCommand({
+				id: commandId,
 				handler: handler
 			}));
 		} else {

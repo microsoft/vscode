@@ -10,6 +10,7 @@ import { ICommandService, ICommand, ICommandEvent, CommandsRegistry } from 'vs/p
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import Event, { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export class CommandService extends Disposable implements ICommandService {
 
@@ -22,7 +23,8 @@ export class CommandService extends Disposable implements ICommandService {
 
 	constructor(
 		@IInstantiationService private _instantiationService: IInstantiationService,
-		@IExtensionService private _extensionService: IExtensionService
+		@IExtensionService private _extensionService: IExtensionService,
+		@IContextKeyService private _contextKeyService: IContextKeyService
 	) {
 		super();
 		this._extensionService.onReady().then(value => this._extensionHostIsReady = value);
@@ -46,6 +48,11 @@ export class CommandService extends Disposable implements ICommandService {
 			return TPromise.wrapError(new Error(`command '${id}' not found`));
 		}
 
+		if (command.precondition && !this._contextKeyService.contextMatchesRules(command.precondition)) {
+			// not enabled
+			return TPromise.wrapError(new Error('NOT_ENABLED'));
+		}
+
 		try {
 			this._onWillExecuteCommand.fire({ commandId: id });
 			const result = this._instantiationService.invokeFunction.apply(this._instantiationService, [command.handler].concat(args));
@@ -55,7 +62,7 @@ export class CommandService extends Disposable implements ICommandService {
 		}
 	}
 
-	protected _getCommand(id: string): ICommand {
+	private _getCommand(id: string): ICommand {
 		return CommandsRegistry.getCommand(id);
 	}
 }

@@ -17,6 +17,8 @@ import { MainContext, MainThreadExtensionServiceShape, IWorkspaceData, IEnvironm
 import { IExtensionMemento, ExtensionsActivator, ActivatedExtension, IExtensionAPI, IExtensionContext, EmptyExtension, IExtensionModule, ExtensionActivationTimesBuilder, ExtensionActivationTimes } from 'vs/workbench/api/node/extHostExtensionActivator';
 import { Barrier } from 'vs/workbench/services/extensions/node/barrier';
 import { ExtHostThreadService } from 'vs/workbench/services/thread/node/extHostThreadService';
+import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
+import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { realpath } from 'fs';
 import { TernarySearchTree } from 'vs/base/common/map';
 
@@ -120,7 +122,11 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	/**
 	 * This class is constructed manually because it is a service, so it doesn't use any ctor injection
 	 */
-	constructor(initData: IInitData, threadService: ExtHostThreadService) {
+	constructor(initData: IInitData,
+		threadService: ExtHostThreadService,
+		extHostWorkspace: ExtHostWorkspace,
+		extHostConfiguration: ExtHostConfiguration
+	) {
 		this._barrier = new Barrier();
 		this._registry = new ExtensionDescriptionRegistry(initData.extensions);
 		this._threadService = threadService;
@@ -131,7 +137,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		this._activator = null;
 
 		// initialize API first (i.e. do not release barrier until the API is initialized)
-		const apiFactory = createApiFactory(initData, threadService, this);
+		const apiFactory = createApiFactory(initData, threadService, extHostWorkspace, extHostConfiguration, this);
 
 		initializeExtensionApi(this, apiFactory).then(() => {
 

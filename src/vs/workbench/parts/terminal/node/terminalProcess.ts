@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as cp from 'child_process';
 import * as os from 'os';
 import * as path from 'path';
 import * as pty from 'node-pty';
@@ -56,17 +55,8 @@ function queueProcessExit() {
 		clearTimeout(closeTimeout);
 	}
 	closeTimeout = setTimeout(function () {
-		if (process.platform === 'win32') {
-			// Forcefully kill the entire process tree under the shell process
-			// on Windows as ptyProcess.kill can leave some lingering processes.
-			// See https://github.com/Microsoft/vscode/issues/26807
-			cp.execFile('taskkill.exe', ['/T', '/F', '/PID', ptyProcess.pid.toString()]).on('close', () => {
-				process.exit(exitCode);
-			});
-		} else {
-			ptyProcess.kill();
-			process.exit(exitCode);
-		}
+		ptyProcess.kill();
+		process.exit(exitCode);
 	}, 250);
 }
 
