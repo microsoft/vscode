@@ -12,7 +12,6 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { IMessageService } from 'vs/platform/message/common/message';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import Severity from 'vs/base/common/severity';
 import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
@@ -87,16 +86,15 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 		return (accessor, args) => {
 			const messageService = accessor.get(IMessageService);
 			const instantiationService = accessor.get(IInstantiationService);
-			const telemetryService = accessor.get(ITelemetryService);
 			const partService = accessor.get(IPartService);
 
-			TPromise.as(this._triggerAndDisposeAction(instantiationService, telemetryService, partService, descriptor, args)).done(null, (err) => {
+			TPromise.as(this._triggerAndDisposeAction(instantiationService, partService, descriptor, args)).done(null, (err) => {
 				messageService.show(Severity.Error, err);
 			});
 		};
 	}
 
-	private _triggerAndDisposeAction(instantitationService: IInstantiationService, telemetryService: ITelemetryService, partService: IPartService, descriptor: SyncActionDescriptor, args: any): TPromise<any> {
+	private _triggerAndDisposeAction(instantitationService: IInstantiationService, partService: IPartService, descriptor: SyncActionDescriptor, args: any): TPromise<any> {
 		const actionInstance = instantitationService.createInstance(descriptor.syncDescriptor);
 		actionInstance.label = descriptor.label || actionInstance.label;
 
@@ -108,15 +106,6 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 		}
 
 		const from = args && args.from || 'keybinding';
-		if (telemetryService) {
-			/* __GDPR__
-				"workbenchActionExecuted" : {
-					"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				}
-			*/
-			telemetryService.publicLog('workbenchActionExecuted', { id: actionInstance.id, from });
-		}
 
 		// run action when workbench is created
 		return partService.joinCreation().then(() => {
