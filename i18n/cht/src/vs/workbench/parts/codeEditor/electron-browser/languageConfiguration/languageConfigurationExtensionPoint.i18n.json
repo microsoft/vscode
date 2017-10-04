@@ -36,5 +36,6 @@
 	"schema.indentationRules.unIndentedLinePattern": "若有符合此模式的行，則不應該變更其縮排，並且不使用其他規則比對。",
 	"schema.indentationRules.unIndentedLinePattern.pattern": "適用於 unIndentedLinePattern 的 RegExp 模式。",
 	"schema.indentationRules.unIndentedLinePattern.flags": "適用於 unIndentedLinePattern 的 RegExp 旗標。",
-	"schema.indentationRules.unIndentedLinePattern.errorMessage": "必須符合樣式 `/^([gimuy]+)$/`"
+	"schema.indentationRules.unIndentedLinePattern.errorMessage": "必須符合樣式 `/^([gimuy]+)$/`",
+	"schema.folding": "語言的摺疊設定。"
 }

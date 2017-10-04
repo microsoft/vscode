@@ -47,6 +47,7 @@ import { ITreeItem } from 'vs/workbench/common/views';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { SerializedError } from 'vs/base/common/errors';
+import { IRelativePattern } from 'vs/base/common/glob';
 import { IWorkspaceFolderData } from 'vs/platform/workspace/common/workspace';
 import { IStat, IFileChange } from 'vs/platform/files/common/files';
 
@@ -118,16 +119,16 @@ export interface MainThreadDiagnosticsShape extends IDisposable {
 export interface MainThreadDialogOpenOptions {
 	defaultUri?: URI;
 	openLabel?: string;
-	openFiles?: boolean;
-	openFolders?: boolean;
-	openMany?: boolean;
-	filters: { [name: string]: string[] };
+	canSelectFiles?: boolean;
+	canSelectFolders?: boolean;
+	canSelectMany?: boolean;
+	filters?: { [name: string]: string[] };
 }
 
 export interface MainThreadDialogSaveOptions {
 	defaultUri?: URI;
 	saveLabel?: string;
-	filters: { [name: string]: string[] };
+	filters?: { [name: string]: string[] };
 }
 
 export interface MainThreadDiaglogsShape extends IDisposable {
@@ -311,7 +312,7 @@ export interface MainThreadTelemetryShape extends IDisposable {
 }
 
 export interface MainThreadWorkspaceShape extends IDisposable {
-	$startSearch(include: string, exclude: string, maxResults: number, requestId: number): Thenable<URI[]>;
+	$startSearch(include: string | IRelativePattern, exclude: string | IRelativePattern, maxResults: number, requestId: number): Thenable<URI[]>;
 	$cancelSearch(requestId: number): Thenable<boolean>;
 	$saveAll(includeUntitled?: boolean): Thenable<boolean>;
 }
@@ -479,14 +480,14 @@ export interface ExtHostWorkspaceShape {
 }
 
 export interface ExtHostFileSystemShape {
-	$utimes(handle: number, resource: URI, mtime: number): TPromise<IStat>;
+	$utimes(handle: number, resource: URI, mtime: number, atime: number): TPromise<IStat>;
 	$stat(handle: number, resource: URI): TPromise<IStat>;
-	$read(handle: number, resource: URI): TPromise<void>;
+	$read(handle: number, offset: number, count: number, resource: URI): TPromise<number>;
 	$write(handle: number, resource: URI, content: number[]): TPromise<void>;
 	$unlink(handle: number, resource: URI): TPromise<void>;
-	$rename(handle: number, resource: URI, target: URI): TPromise<void>;
-	$mkdir(handle: number, resource: URI): TPromise<void>;
-	$readdir(handle: number, resource: URI): TPromise<IStat[]>;
+	$move(handle: number, resource: URI, target: URI): TPromise<IStat>;
+	$mkdir(handle: number, resource: URI): TPromise<IStat>;
+	$readdir(handle: number, resource: URI): TPromise<[URI, IStat][]>;
 	$rmdir(handle: number, resource: URI): TPromise<void>;
 }
 

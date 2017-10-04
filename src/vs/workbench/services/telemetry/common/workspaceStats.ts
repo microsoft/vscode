@@ -144,6 +144,34 @@ export class WorkspaceStats {
 		return arr.some(v => v.search(regEx) > -1) || undefined;
 	}
 
+	/* __GDPR__FRAGMENT__
+		"WorkspaceTags" : {
+			"workbench.filesToOpen" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"workbench.filesToCreate" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"workbench.filesToDiff" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"workspace.roots" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+			"workspace.empty" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+			"workspace.grunt" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+			"workspace.gulp" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+			"workspace.jake" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+			"workspace.tsconfig" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+			"workspace.jsconfig" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+			"workspace.config.xml" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+			"workspace.vsc.extension" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+			"workspace.ASP5" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+			"workspace.sln" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+			"workspace.unity" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+			"workspace.npm" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+			"workspace.bower" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+			"workspace.yeoman.code.ext" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+			"workspace.cordova.high" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+			"workspace.cordova.low" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+			"workspace.xamarin.android" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+			"workspace.xamarin.ios" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+			"workspace.android.cpp" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+			"workspace.reactNative" : { "classification": "CustomerContent", "purpose": "FeatureInsight" }
+		}
+	*/
 	private getWorkspaceTags(configuration: IWindowConfiguration): TPromise<Tags> {
 		const tags: Tags = Object.create(null);
 
@@ -245,6 +273,13 @@ export class WorkspaceStats {
 
 	public reportWorkspaceTags(configuration: IWindowConfiguration): void {
 		this.getWorkspaceTags(configuration).then((tags) => {
+			/* __GDPR__
+				"workspce.tags" : {
+					"${include}": [
+						"${WorkspaceTags}"
+					]
+				}
+			*/
 			this.telemetryService.publicLog('workspce.tags', tags);
 		}, error => onUnexpectedError(error));
 	}
@@ -261,6 +296,11 @@ export class WorkspaceStats {
 			const set = domains.reduce((set, list) => list.reduce((set, item) => set.add(item), set), new Set<string>());
 			const list: string[] = [];
 			set.forEach(item => list.push(item));
+			/* __GDPR__
+				"workspace.remotes" : {
+					"domains" : { "classification": "CustomerContent", "purpose": "FeatureInsight" }
+				}
+			*/
 			this.telemetryService.publicLog('workspace.remotes', { domains: list.sort() });
 		}, onUnexpectedError);
 	}
@@ -273,9 +313,21 @@ export class WorkspaceStats {
 				content => getHashedRemotes(content.value),
 				err => [] // ignore missing or binary file
 			);
-		})).then(hashedRemotes => this.telemetryService.publicLog('workspace.hashedRemotes', { remotes: hashedRemotes }), onUnexpectedError);
+		})).then(hashedRemotes => {
+			/* __GDPR__
+				"workspace.hashedRemotes" : {
+					"remotes" : { "classification": "CustomerContent", "purpose": "FeatureInsight" }
+				}
+			*/
+			this.telemetryService.publicLog('workspace.hashedRemotes', { remotes: hashedRemotes });
+		}, onUnexpectedError);
 	}
 
+	/* __GDPR__FRAGMENT__
+		"AzureTags" : {
+			"node" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		}
+	*/
 	private reportAzureNode(workspaceUris: URI[], tags: Tags): TPromise<Tags> {
 		// TODO: should also work for `node_modules` folders several levels down
 		const uris = workspaceUris.map(workspaceUri => {
@@ -296,6 +348,12 @@ export class WorkspaceStats {
 			});
 	}
 
+
+	/* __GDPR__FRAGMENT__
+		"AzureTags" : {
+			"java" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		}
+	*/
 	private reportAzureJava(workspaceUris: URI[], tags: Tags): TPromise<Tags> {
 		return TPromise.join(workspaceUris.map(workspaceUri => {
 			const path = workspaceUri.path;
@@ -318,6 +376,13 @@ export class WorkspaceStats {
 			return this.reportAzureJava(uris, tags);
 		}).then((tags) => {
 			if (Object.keys(tags).length) {
+				/* __GDPR__
+					"workspace.azure" : {
+						"${include}": [
+							"${AzureTags}"
+						]
+					}
+				*/
 				this.telemetryService.publicLog('workspace.azure', tags);
 			}
 		}).then(null, onUnexpectedError);

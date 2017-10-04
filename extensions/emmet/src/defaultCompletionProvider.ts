@@ -9,6 +9,8 @@ import { doComplete, isStyleSheet, getEmmetMode, extractAbbreviation } from 'vsc
 import { isValidLocationForEmmetAbbreviation } from './abbreviationActions';
 import { getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, getEmmetConfiguration } from './util';
 
+const allowedMimeTypesInScriptTag = ['text/html', 'text/plain', 'text/x-template'];
+
 export class DefaultCompletionItemProvider implements vscode.CompletionItemProvider {
 
 	public provideCompletionItems(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): Thenable<vscode.CompletionList> {
@@ -106,12 +108,16 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 					return 'css';
 				}
 				if (currentHtmlNode.name === 'script') {
+					if (currentHtmlNode.attributes
+						&& currentHtmlNode.attributes.some(x => x.name.toString() === 'type' && allowedMimeTypesInScriptTag.indexOf(x.value.toString()) > -1)) {
+						return syntax;
+					}
 					return;
 				}
 			}
 		}
 
-		if (!isValidLocationForEmmetAbbreviation(currentNode, syntax, position, document.getText(document.getWordRangeAtPosition(position)))) {
+		if (!isValidLocationForEmmetAbbreviation(currentNode, syntax, position)) {
 			return;
 		}
 		return syntax;

@@ -242,7 +242,6 @@ export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
 	workspace?: IWorkspaceIdentifier;
 	folderPath?: string;
 
-	isISOKeyboard?: boolean;
 	zoomLevel?: number;
 	fullscreen?: boolean;
 	highContrast?: boolean;

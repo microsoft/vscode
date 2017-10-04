@@ -18,7 +18,7 @@ export interface IProductConfiguration {
 	downloadUrl: string;
 	updateUrl?: string;
 	quality?: string;
-	commit: string;
+	commit?: string;
 	date: string;
 	extensionsGallery: {
 		serviceUrl: string;

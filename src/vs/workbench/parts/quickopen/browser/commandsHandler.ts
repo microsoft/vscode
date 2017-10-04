@@ -297,6 +297,12 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 		TPromise.timeout(50).done(() => {
 			if (action && (!(action instanceof Action) || action.enabled)) {
 				try {
+					/* __GDPR__
+						"workbenchActionExecuted" : {
+							"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						}
+					*/
 					this.telemetryService.publicLog('workbenchActionExecuted', { id: action.id, from: 'quick open' });
 					(action.run() || TPromise.as(null)).done(() => {
 						if (action instanceof Action) {
@@ -380,6 +386,9 @@ class ActionCommandEntry extends BaseCommandEntry {
 const wordFilter = or(matchesPrefix, matchesWords, matchesContiguousSubString);
 
 export class CommandsHandler extends QuickOpenHandler {
+
+	public static readonly ID = 'workbench.picker.commands';
+
 	private lastSearchValue: string;
 	private commandHistoryEnabled: boolean;
 	private commandsHistory: CommandsHistory;

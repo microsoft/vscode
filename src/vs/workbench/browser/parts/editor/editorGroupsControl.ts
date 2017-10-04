@@ -443,6 +443,9 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 				// Log this fact in telemetry
 				if (this.telemetryService) {
+					/* __GDPR__
+						"workbenchEditorMaximized" : {}
+					*/
 					this.telemetryService.publicLog('workbenchEditorMaximized');
 				}
 

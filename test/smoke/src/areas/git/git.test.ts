@@ -19,11 +19,11 @@ describe('Git', () => {
 	it('reflects working tree changes', async function () {
 		await app.workbench.scm.openSCMViewlet();
 
-		await app.workbench.openFile('app.js');
+		await app.workbench.quickopen.openFile('app.js');
 		await app.client.type('.foo{}');
 		await app.workbench.saveOpenedFile();
 
-		await app.workbench.openFile('index.jade');
+		await app.workbench.quickopen.openFile('index.jade');
 		await app.client.type('hello world');
 		await app.workbench.saveOpenedFile();
 

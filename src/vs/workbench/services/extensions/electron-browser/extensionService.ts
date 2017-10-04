@@ -32,6 +32,7 @@ import { ExtHostCustomersRegistry } from 'vs/workbench/api/electron-browser/extH
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { Action } from 'vs/base/common/actions';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { startTimer } from 'vs/base/node/startupTimers';
 
 const SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
 
@@ -299,6 +300,12 @@ export class ExtensionService implements IExtensionService {
 				...this._extensionEnablementService.getWorkspaceDisabledExtensions()
 			];
 
+			/* __GDPR__
+				"extensionsScanned" : {
+					"totalCount" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+					"disabledCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+				}
+			*/
 			this._telemetryService.publicLog('extensionsScanned', {
 				totalCount: installedExtensions.length,
 				disabledCount: disabledExtensions.length
@@ -318,7 +325,12 @@ export class ExtensionService implements IExtensionService {
 			let messageHandler = (msg: IMessage) => this._handleExtensionPointMessage(msg);
 
 			for (let i = 0, len = extensionPoints.length; i < len; i++) {
-				ExtensionService._handleExtensionPoint(extensionPoints[i], availableExtensions, messageHandler);
+				const clock = startTimer(`handleExtensionPoint:${extensionPoints[i].name}`);
+				try {
+					ExtensionService._handleExtensionPoint(extensionPoints[i], availableExtensions, messageHandler);
+				} finally {
+					clock.stop();
+				}
 			}
 
 			this._barrier.open();
@@ -341,6 +353,14 @@ export class ExtensionService implements IExtensionService {
 
 		if (!this._isDev && msg.extensionId) {
 			const { type, extensionId, extensionPointId, message } = msg;
+			/* __GDPR__
+				"extensionsMessage" : {
+					"type" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+					"extensionId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+					"extensionPointId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+					"message": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+				}
+			*/
 			this._telemetryService.publicLog('extensionsMessage', {
 				type, extensionId, extensionPointId, message
 			});

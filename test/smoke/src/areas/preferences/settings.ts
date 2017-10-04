@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SpectronApplication } from '../../spectron/application';
-import { Element } from 'webdriverio';
 
 export enum ActivityBarPosition {
 	LEFT = 0,
@@ -17,18 +16,18 @@ export class SettingsEditor {
 		// noop
 	}
 
-	public async openUserSettings(): Promise<Element> {
+	async openUserSettings(): Promise<void> {
 		await this.spectron.command('workbench.action.openGlobalSettings');
-		return this.spectron.client.waitForElement('.settings-search-input input:focus');
+		await this.spectron.client.waitForActiveElement('.settings-search-input input');
 	}
 
-	public async focusEditableSettings(): Promise<void> {
+	async focusEditableSettings(): Promise<void> {
 		await this.spectron.client.keys(['ArrowDown', 'NULL'], false);
-		await this.spectron.client.waitForElement(`.editable-preferences-editor-container .monaco-editor.focused`);
+		await this.spectron.client.waitForActiveElement('.editable-preferences-editor-container .monaco-editor textarea');
 		await this.spectron.client.keys(['ArrowRight', 'NULL'], false);
 	}
 
-	public async addUserSetting(setting: string, value: string): Promise<void> {
+	async addUserSetting(setting: string, value: string): Promise<void> {
 		await this.openUserSettings();
 
 		// await this.spectron.wait(1);

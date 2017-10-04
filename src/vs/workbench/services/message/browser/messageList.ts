@@ -304,6 +304,12 @@ export class MessageList {
 
 								DOM.EventHelper.stop(e, true);
 
+								/* __GDPR__
+									"workbenchActionExecuted" : {
+										"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+										"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+									}
+								*/
 								this.telemetryService.publicLog('workbenchActionExecuted', { id: action.id, from: 'message' });
 
 								(action.run() || TPromise.as(null))

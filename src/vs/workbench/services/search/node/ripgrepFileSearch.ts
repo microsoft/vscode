@@ -10,18 +10,18 @@ import { isMacintosh as isMac } from 'vs/base/common/platform';
 import * as glob from 'vs/base/common/glob';
 import { normalizeNFD } from 'vs/base/common/strings';
 
-import { IFolderSearch } from './search';
+import { IFolderSearch, IRawSearch } from './search';
 import { foldersToIncludeGlobs, foldersToRgExcludeGlobs } from './ripgrepTextSearch';
 
-export function spawnRipgrepCmd(folderQuery: IFolderSearch, includePattern: glob.IExpression, excludePattern: glob.IExpression) {
-	const rgArgs = getRgArgs(folderQuery, includePattern, excludePattern);
+export function spawnRipgrepCmd(config: IRawSearch, folderQuery: IFolderSearch, includePattern: glob.IExpression, excludePattern: glob.IExpression) {
+	const rgArgs = getRgArgs(config, folderQuery, includePattern, excludePattern);
 	return {
 		cmd: cp.spawn(rgPath, rgArgs.globArgs, { cwd: folderQuery.folder }),
 		siblingClauses: rgArgs.siblingClauses
 	};
 }
 
-function getRgArgs(folderQuery: IFolderSearch, includePattern: glob.IExpression, excludePattern: glob.IExpression) {
+function getRgArgs(config: IRawSearch, folderQuery: IFolderSearch, includePattern: glob.IExpression, excludePattern: glob.IExpression) {
 	const args = ['--files', '--hidden', '--case-sensitive'];
 
 	// includePattern can't have siblingClauses
@@ -36,8 +36,10 @@ function getRgArgs(folderQuery: IFolderSearch, includePattern: glob.IExpression,
 		.forEach(rgGlob => args.push('-g', `!${isMac ? normalizeNFD(rgGlob) : rgGlob}`));
 	siblingClauses = rgGlobs.siblingClauses;
 
-	// Don't use .gitignore or .ignore
-	args.push('--no-ignore');
+	if (config.disregardIgnoreFiles) {
+		// Don't use .gitignore or .ignore
+		args.push('--no-ignore');
+	}
 
 	// Follow symlinks
 	args.push('--follow');

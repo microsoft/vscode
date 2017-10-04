@@ -733,7 +733,8 @@ declare module 'vscode' {
 		/**
 		 * An optional view column in which the [editor](#TextEditor) should be shown.
 		 * The default is the [one](#ViewColumn.One), other values are adjusted to
-		 * be __Min(column, columnCount + 1)__.
+		 * be `Min(column, columnCount + 1)`, the [active](#ViewColumn.Active)-column is
+		 * not adjusted.
 		 */
 		viewColumn?: ViewColumn;
 
@@ -1504,6 +1505,80 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Options to configure the behaviour of a file open dialog.
+	 *
+	 * * Note 1: A dialog can select files, folders, or both. This is not true for Windows
+	 * which enforces to open either files or folder, but *not both*.
+	 * * Note 2: Explictly setting `canSelectFiles` and `canSelectFolders` to `false` is futile
+	 * and the editor then silently adjusts the options to select files.
+	 */
+	export interface OpenDialogOptions {
+		/**
+		 * The resource the dialog shows when opened.
+		 */
+		defaultUri?: Uri;
+
+		/**
+		 * A human-readable string for the open button.
+		 */
+		openLabel?: string;
+
+		/**
+		 * Allow to select files, defaults to `true`.
+		 */
+		canSelectFiles?: boolean;
+
+		/**
+		 * Allow to select folders, defaults to `false`.
+		 */
+		canSelectFolders?: boolean;
+
+		/**
+		 * Allow to select many files or folders.
+		 */
+		canSelectMany?: boolean;
+
+		/**
+		 * A set of file filters that are used by the dialog. Each entry is a human readable label,
+		 * like "TypeScript", and an array of extensions, e.g.
+		 * ```ts
+		 * {
+		 * 	'Images': ['png', 'jpg']
+		 * 	'TypeScript': ['ts', 'tsx']
+		 * }
+		 * ```
+		 */
+		filters?: { [name: string]: string[] };
+	}
+
+	/**
+	 * Options to configure the behaviour of a file save dialog.
+	 */
+	export interface SaveDialogOptions {
+		/**
+		 * The resource the dialog shows when opened.
+		 */
+		defaultUri?: Uri;
+
+		/**
+		 * A human-readable string for the save button.
+		 */
+		saveLabel?: string;
+
+		/**
+		 * A set of file filters that are used by the dialog. Each entry is a human readable label,
+		 * like "TypeScript", and an array of extensions, e.g.
+		 * ```ts
+		 * {
+		 * 	'Images': ['png', 'jpg']
+		 * 	'TypeScript': ['ts', 'tsx']
+		 * }
+		 * ```
+		 */
+		filters?: { [name: string]: string[] };
+	}
+
+	/**
 	 * Represents an action that is shown with an information, warning, or
 	 * error message.
 	 *
@@ -1586,8 +1661,46 @@ declare module 'vscode' {
 		 * @return A human readable string which is presented as diagnostic message.
 		 * Return `undefined`, `null`, or the empty string when 'value' is valid.
 		 */
-		validateInput?(value: string): string | undefined | null;
+		validateInput?(value: string): string | undefined | null | Thenable<string | undefined | null>;
 	}
+
+	/**
+	 * A relative pattern is a helper to construct glob patterns that are matched
+	 * relatively to a base path. The base path can either be an absolute file path
+	 * or a [workspace folder](#WorkspaceFolder).
+	 */
+	class RelativePattern {
+
+		/**
+		 * A base file path to which this pattern will be matched against relatively.
+		 */
+		base: string;
+
+		/**
+		 * A file glob pattern like `*.{ts,js}` that will be matched on file paths
+		 * relative to the base path.
+		 *
+		 * Example: Given a base of `/home/work/folder` and a file path of `/home/work/folder/index.js`,
+		 * the file glob pattern will match on `index.js`.
+		 */
+		pattern: string;
+
+		/**
+		 * Creates a new relative pattern object with a base path and pattern to match. This pattern
+		 * will be matched on file paths relative to the base path.
+		 *
+		 * @param base A base file path to which this pattern will be matched against relatively.
+		 * @param pattern A file glob pattern like `*.{ts,js}` that will be matched on file paths
+		 * relative to the base path.
+		 */
+		constructor(base: WorkspaceFolder | string, pattern: string)
+	}
+
+	/**
+	 * A file glob pattern to match file paths against. This can either be a glob pattern string
+	 * (like `**∕*.{ts,js}` or `*.{ts,js}`) or a [relative pattern](#RelativePattern).
+	 */
+	export type GlobPattern = string | RelativePattern;
 
 	/**
 	 * A document filter denotes a document by different properties like
@@ -1610,9 +1723,10 @@ declare module 'vscode' {
 		scheme?: string;
 
 		/**
-		 * A glob pattern, like `*.{ts,js}`.
+		 * A [glob pattern](#GlobPattern) that is matched on the absolute path of the document. Use a [relative pattern](#RelativePattern)
+		 * to filter documents to a [workspace folder](#WorkspaceFolder).
 		 */
-		pattern?: string;
+		pattern?: GlobPattern;
 	}
 
 	/**
@@ -1623,7 +1737,6 @@ declare module 'vscode' {
 	 * @sample `let sel:DocumentSelector = ['typescript', { language: 'json', pattern: '**∕tsconfig.json' }]`;
 	 */
 	export type DocumentSelector = string | DocumentFilter | (string | DocumentFilter)[];
-
 
 	/**
 	 * A provider result represents the values a provider, like the [`HoverProvider`](#HoverProvider),
@@ -2091,6 +2204,11 @@ declare module 'vscode' {
 		 * how to search given the query string, like substring, indexOf etc. To improve performance implementors can
 		 * skip the [location](#SymbolInformation.location) of symbols and implement `resolveWorkspaceSymbol` to do that
 		 * later.
+		 *
+		 * The `query`-parameter should be interpreted in a *relaxed way* as the editor will apply its own highlighting
+		 * and scoring on the results. A good rule of thumb is to match case-insensitive and to simply check that the
+		 * characters of *query* appear in their order in a candidate symbol. Don't use prefix, substring, or similar
+		 * strict matching.
 		 *
 		 * @param query A non-empty query string.
 		 * @param token A cancellation token.
@@ -3352,9 +3470,24 @@ declare module 'vscode' {
 	 * used to show editors side by side.
 	 */
 	export enum ViewColumn {
+		/**
+		 * A *symbolic* editor column representing the currently
+		 * active column. This value can be used when opening editors, but the
+		 * *resolved* [viewColumn](#TextEditor.viewColumn)-value of editors will always
+		 * be `One`, `Two`, `Three`, or `undefined` but never `Active`.
+		 */
 		Active = -1,
+		/**
+		 * The left most editor column.
+		 */
 		One = 1,
+		/**
+		 * The center editor column.
+		 */
 		Two = 2,
+		/**
+		 * The right most editor column.
+		 */
 		Three = 3
 	}
 
@@ -3932,12 +4065,12 @@ declare module 'vscode' {
 	export class Task {
 
 		/**
-		 * Creates a new task.
+		 * ~~Creates a new task.~~
 		 *
-		 * @deprecated: Use the new constructors that allow specifying a target for the task.
+		 * @deprecated Use the new constructors that allow specifying a target for the task.
 		 *
 		 * @param definition The task definition as defined in the taskDefinitions extension point.
-		 * @param scope The task's name. Is presented in the user interface.
+		 * @param name The task's name. Is presented in the user interface.
 		 * @param source The task's source (e.g. 'gulp', 'npm', ...). Is presented in the user interface.
 		 * @param execution The process or shell execution.
 		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
@@ -3950,8 +4083,7 @@ declare module 'vscode' {
 		 * Creates a new task.
 		 *
 		 * @param definition The task definition as defined in the taskDefinitions extension point.
-		 * @param scope Specifies the task's scope. It is either a global or a workspace task or a task for a specific workspace folder.
-		 * @param workspaceFolder The workspace folder this task is created for.
+		 * @param target Specifies the task's target. It is either a global or a workspace task or a task for a specific workspace folder.
 		 * @param name The task's name. Is presented in the user interface.
 		 * @param source The task's source (e.g. 'gulp', 'npm', ...). Is presented in the user interface.
 		 * @param execution The process or shell execution.
@@ -4254,8 +4386,9 @@ declare module 'vscode' {
 		 * to control where the editor is being shown. Might change the [active editor](#window.activeTextEditor).
 		 *
 		 * @param document A text document to be shown.
-		 * @param column A view column in which the editor should be shown. The default is the [one](#ViewColumn.One), other values
-		 * are adjusted to be __Min(column, columnCount + 1)__.
+		 * @param column A view column in which the [editor](#TextEditor) should be shown. The default is the [one](#ViewColumn.One), other values
+		 * are adjusted to be `Min(column, columnCount + 1)`, the [active](#ViewColumn.Active)-column is
+		 * not adjusted.
 		 * @param preserveFocus When `true` the editor will not take focus.
 		 * @return A promise that resolves to an [editor](#TextEditor).
 		 */
@@ -4266,7 +4399,7 @@ declare module 'vscode' {
 		 * to control options of the editor is being shown. Might change the [active editor](#window.activeTextEditor).
 		 *
 		 * @param document A text document to be shown.
-		 * @param options [Editor options](#ShowTextDocumentOptions) to configure the behavior of showing the [editor](#TextEditor).
+		 * @param options [Editor options](#TextDocumentShowOptions) to configure the behavior of showing the [editor](#TextEditor).
 		 * @return A promise that resolves to an [editor](#TextEditor).
 		 */
 		export function showTextDocument(document: TextDocument, options?: TextDocumentShowOptions): Thenable<TextEditor>;
@@ -4277,7 +4410,7 @@ declare module 'vscode' {
 		 * @see [openTextDocument](#openTextDocument)
 		 *
 		 * @param uri A resource identifier.
-		 * @param options [Editor options](#ShowTextDocumentOptions) to configure the behavior of showing the [editor](#TextEditor).
+		 * @param options [Editor options](#TextDocumentShowOptions) to configure the behavior of showing the [editor](#TextEditor).
 		 * @return A promise that resolves to an [editor](#TextEditor).
 		 */
 		export function showTextDocument(uri: Uri, options?: TextDocumentShowOptions): Thenable<TextEditor>;
@@ -4445,6 +4578,24 @@ declare module 'vscode' {
 		 * @return A promise that resolves to the selected item or `undefined`.
 		 */
 		export function showQuickPick<T extends QuickPickItem>(items: T[] | Thenable<T[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<T | undefined>;
+
+		/**
+		 * Shows a file open dialog to the user which allows to select a file
+		 * for opening-purposes.
+		 *
+		 * @param options Options that control the dialog.
+		 * @returns A promise that resolves to the selected resources or `undefined`.
+		 */
+		export function showOpenDialog(options: OpenDialogOptions): Thenable<Uri[] | undefined>;
+
+		/**
+		 * Shows a file save dialog to the user which allows to select a file
+		 * for saving-purposes.
+		 *
+		 * @param options Options that control the dialog.
+		 * @returns A promise that resolves to the selected resource or `undefined`.
+		 */
+		export function showSaveDialog(options: SaveDialogOptions): Thenable<Uri | undefined>;
 
 		/**
 		 * Opens an input box to ask the user for input.
@@ -4835,13 +4986,16 @@ declare module 'vscode' {
 	export interface WorkspaceFolder {
 
 		/**
-		 * The associated URI for this workspace folder.
+		 * The associated uri for this workspace folder.
+		 *
+		 * *Note:* The [Uri](#Uri)-type was intentionally chosen such that future releases of the editor can support
+		 * workspace folders that are not stored on the local disk, e.g. `ftp://server/workspaces/foo`.
 		 */
 		readonly uri: Uri;
 
 		/**
 		 * The name of this workspace folder. Defaults to
-		 * the basename its [uri-path](#Uri.path)
+		 * the basename of its [uri-path](#Uri.path)
 		 */
 		readonly name: string;
 
@@ -4886,8 +5040,9 @@ declare module 'vscode' {
 		export const onDidChangeWorkspaceFolders: Event<WorkspaceFoldersChangeEvent>;
 
 		/**
-		 * Returns a [workspace folder](#WorkspaceFolder) for the provided resource. When the resource
-		 * is a workspace folder itself, its parent workspace folder or `undefined` is returned.
+		 * Returns the [workspace folder](#WorkspaceFolder) that contains a given uri.
+		 * * returns `undefined` when the given uri doesn't match any workspace folder
+		 * * returns the *input* when the given uri is a workspace folder itself
 		 *
 		 * @param uri An uri.
 		 * @return A workspace folder or `undefined`
@@ -4911,30 +5066,35 @@ declare module 'vscode' {
 		/**
 		 * Creates a file system watcher.
 		 *
-		 * A glob pattern that filters the file events must be provided. Optionally, flags to ignore certain
-		 * kinds of events can be provided. To stop listening to events the watcher must be disposed.
+		 * A glob pattern that filters the file events on their absolute path must be provided. Optionally,
+		 * flags to ignore certain kinds of events can be provided. To stop listening to events the watcher must be disposed.
 		 *
 		 * *Note* that only files within the current [workspace folders](#workspace.workspaceFolders) can be watched.
 		 *
-		 * @param globPattern A glob pattern that is applied to the names of created, changed, and deleted files.
+		 * @param globPattern A [glob pattern](#GlobPattern) that is applied to the absolute paths of created, changed,
+		 * and deleted files. Use a [relative pattern](#RelativePattern) to limit events to a certain [workspace folder](#WorkspaceFolder).
 		 * @param ignoreCreateEvents Ignore when files have been created.
 		 * @param ignoreChangeEvents Ignore when files have been changed.
 		 * @param ignoreDeleteEvents Ignore when files have been deleted.
 		 * @return A new file system watcher instance.
 		 */
-		export function createFileSystemWatcher(globPattern: string, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean): FileSystemWatcher;
+		export function createFileSystemWatcher(globPattern: GlobPattern, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean): FileSystemWatcher;
 
 		/**
-		 * Find files in the workspace.
+		 * Find files across all [workspace folders](#workspace.workspaceFolders) in the workspace.
 		 *
 		 * @sample `findFiles('**∕*.js', '**∕node_modules∕**', 10)`
-		 * @param include A glob pattern that defines the files to search for.
-		 * @param exclude A glob pattern that defines files and folders to exclude.
+		 * @param include A [glob pattern](#GlobPattern) that defines the files to search for. The glob pattern
+		 * will be matched against the file paths of resulting matches relative to their workspace. Use a [relative pattern](#RelativePattern)
+		 * to restrict the search results to a [workspace folder](#WorkspaceFolder).
+		 * @param exclude  A [glob pattern](#GlobPattern) that defines files and folders to exclude. The glob pattern
+		 * will be matched against the file paths of resulting matches relative to their workspace.
 		 * @param maxResults An upper-bound for the result.
 		 * @param token A token that can be used to signal cancellation to the underlying search engine.
-		 * @return A thenable that resolves to an array of resource identifiers.
+		 * @return A thenable that resolves to an array of resource identifiers. Will return no results if no
+		 * [workspace folders](#workspace.workspaceFolders) are opened.
 		 */
-		export function findFiles(include: string, exclude?: string, maxResults?: number, token?: CancellationToken): Thenable<Uri[]>;
+		export function findFiles(include: GlobPattern, exclude?: GlobPattern, maxResults?: number, token?: CancellationToken): Thenable<Uri[]>;
 
 		/**
 		 * Save all dirty files.
@@ -5612,7 +5772,7 @@ declare module 'vscode' {
 		 * ~~The [input box](#SourceControlInputBox) for the last source control
 		 * created by the extension.~~
 		 *
-		 * @deprecated Use [SourceControl.inputBox](#SourceControl.inputBox) instead
+		 * @deprecated Use SourceControl.inputBox instead
 		 */
 		export const inputBox: SourceControlInputBox;
 

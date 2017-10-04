@@ -87,6 +87,13 @@ export abstract class TextFileService implements ITextFileService {
 
 		this.onConfigurationChange(configuration);
 
+		/* __GDPR__
+			"autoSave" : {
+				"${include}": [
+					"${IAutoSaveConfiguration}"
+				]
+			}
+		*/
 		this.telemetryService.publicLog('autoSave', this.getAutoSaveConfiguration());
 
 		this.registerListeners();
@@ -211,6 +218,13 @@ export abstract class TextFileService implements ITextFileService {
 			}
 
 			// Telemetry
+			/* __GDPR__
+				"hotExit:triggered" : {
+					"reason" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"windowCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"fileCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
 			this.telemetryService.publicLog('hotExit:triggered', { reason, windowCount, fileCount: dirtyToBackup.length });
 
 			// Backup

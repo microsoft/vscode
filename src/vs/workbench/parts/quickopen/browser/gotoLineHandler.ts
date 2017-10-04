@@ -20,6 +20,7 @@ import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { IRange } from 'vs/editor/common/core/range';
 import { overviewRulerRangeHighlight } from 'vs/editor/common/view/editorColorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 export const GOTO_LINE_PREFIX = ':';
 
@@ -28,8 +29,44 @@ export class GotoLineAction extends QuickOpenAction {
 	public static ID = 'workbench.action.gotoLine';
 	public static LABEL = nls.localize('gotoLine', "Go to Line...");
 
-	constructor(actionId: string, actionLabel: string, @IQuickOpenService quickOpenService: IQuickOpenService) {
-		super(actionId, actionLabel, GOTO_LINE_PREFIX, quickOpenService);
+	constructor(actionId: string, actionLabel: string,
+		@IQuickOpenService private readonly _quickOpenService: IQuickOpenService,
+		@IWorkbenchEditorService private readonly editorService: IWorkbenchEditorService
+	) {
+		super(actionId, actionLabel, GOTO_LINE_PREFIX, _quickOpenService);
+	}
+
+	public run(): TPromise<void> {
+
+		const editor = getCodeEditor(this.editorService.getActiveEditor());
+		let restoreOptions: IEditorOptions = null;
+
+		if (editor) {
+			const config = editor.getConfiguration();
+			if (config.viewInfo.renderLineNumbers && config.viewInfo.renderRelativeLineNumbers) {
+				editor.updateOptions({
+					lineNumbers: 'on'
+				});
+				restoreOptions = {
+					lineNumbers: 'relative'
+				};
+			}
+		}
+
+		const result = super.run();
+
+		if (restoreOptions) {
+			let toDispose = this._quickOpenService.onHide(() => {
+				if (!toDispose) {
+					return;
+				}
+				toDispose.dispose();
+				toDispose = null;
+				editor.updateOptions(restoreOptions);
+			});
+		}
+
+		return result;
 	}
 }
 
@@ -167,6 +204,9 @@ interface IEditorLineDecoration {
 }
 
 export class GotoLineHandler extends QuickOpenHandler {
+
+	public static readonly ID = 'workbench.picker.line';
+
 	private rangeHighlightDecorationId: IEditorLineDecoration;
 	private lastKnownEditorViewState: IEditorViewState;
 

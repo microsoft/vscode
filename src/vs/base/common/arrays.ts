@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import { TPromise } from 'vs/base/common/winjs.base';
+
 /**
  * Returns the last element of an array.
  * @param array The array.
@@ -111,7 +113,7 @@ function _divideAndMerge<T>(data: T[], compare: (a: T, b: T) => number): void {
 export function groupBy<T>(data: T[], compare: (a: T, b: T) => number): T[][] {
 	const result: T[][] = [];
 	let currentGroup: T[];
-	for (const element of data.slice(0).sort(compare)) {
+	for (const element of mergeSort(data.slice(0), compare)) {
 		if (!currentGroup || compare(currentGroup[0], element) !== 0) {
 			currentGroup = [element];
 			result.push(currentGroup);
@@ -218,7 +220,51 @@ export function top<T>(array: T[], compare: (a: T, b: T) => number, n: number): 
 		return [];
 	}
 	const result = array.slice(0, n).sort(compare);
-	for (let i = n, m = array.length; i < m; i++) {
+	topStep(array, compare, result, n, array.length);
+	return result;
+}
+
+/**
+ * Asynchronous variant of `top()` allowing for splitting up work in batches between which the event loop can run.
+ *
+ * Returns the top N elements from the array.
+ *
+ * Faster than sorting the entire array when the array is a lot larger than N.
+ *
+ * @param array The unsorted array.
+ * @param compare A sort function for the elements.
+ * @param n The number of elements to return.
+ * @param batch The number of elements to examine before yielding to the event loop.
+ * @return The first n elemnts from array when sorted with compare.
+ */
+export function topAsync<T>(array: T[], compare: (a: T, b: T) => number, n: number, batch: number): TPromise<T[]> {
+	if (n === 0) {
+		return TPromise.as([]);
+	}
+	let canceled = false;
+	return new TPromise((resolve, reject) => {
+		(async () => {
+			const o = array.length;
+			const result = array.slice(0, n).sort(compare);
+			for (let i = n, m = Math.min(n + batch, o); i < o; i = m, m = Math.min(m + batch, o)) {
+				if (i > n) {
+					await new Promise(resolve => setTimeout(resolve)); // nextTick() would starve I/O.
+				}
+				if (canceled) {
+					throw new Error('canceled');
+				}
+				topStep(array, compare, result, i, m);
+			}
+			return result;
+		})()
+			.then(resolve, reject);
+	}, () => {
+		canceled = true;
+	});
+}
+
+function topStep<T>(array: T[], compare: (a: T, b: T) => number, result: T[], i: number, m: number): void {
+	for (const n = result.length; i < m; i++) {
 		const element = array[i];
 		if (compare(element, result[n - 1]) < 0) {
 			result.pop();
@@ -226,7 +272,6 @@ export function top<T>(array: T[], compare: (a: T, b: T) => number, n: number): 
 			result.splice(j, 0, element);
 		}
 	}
-	return result;
 }
 
 /**
@@ -322,7 +367,7 @@ export function commonPrefixLength<T>(one: T[], other: T[], equals: (a: T, b: T)
 }
 
 export function flatten<T>(arr: T[][]): T[] {
-	return arr.reduce((r, v) => r.concat(v), []);
+	return [].concat(...arr);
 }
 
 export function range(to: number): number[];

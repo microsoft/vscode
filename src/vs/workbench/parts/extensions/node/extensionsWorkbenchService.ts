@@ -20,7 +20,7 @@ import { IPager, mapPager, singlePagePager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions, IExtensionManifest,
-	InstallExtensionEvent, DidInstallExtensionEvent, LocalExtensionType, DidUninstallExtensionEvent, IExtensionEnablementService, IExtensionTipsService, ErrorCode
+	InstallExtensionEvent, DidInstallExtensionEvent, LocalExtensionType, DidUninstallExtensionEvent, IExtensionEnablementService, IExtensionTipsService
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionIdFromLocal, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -418,6 +418,13 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	}
 
 	open(extension: IExtension, sideByside: boolean = false): TPromise<any> {
+		/* __GDPR__
+			"extensionGallery:open" : {
+				"${include}": [
+					"${GalleryExtensionTelemetryData}"
+				]
+			}
+		*/
 		this.telemetryService.publicLog('extensionGallery:open', extension.telemetryData);
 		return this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension), null, sideByside);
 	}
@@ -527,6 +534,20 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		}
 
 		return this.promptAndSetEnablement(extension, enable, workspace).then(reload => {
+			/* __GDPR__
+				"extension:enable" : {
+					"${include}": [
+						"${GalleryExtensionTelemetryData}"
+					]
+				}
+			*/
+			/* __GDPR__
+				"extension:disable" : {
+					"${include}": [
+						"${GalleryExtensionTelemetryData}"
+					]
+				}
+			*/
 			this.telemetryService.publicLog(enable ? 'extension:enable' : 'extension:disable', extension.telemetryData);
 		});
 	}
@@ -789,11 +810,41 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		return local ? ExtensionState.Installed : ExtensionState.Uninstalled;
 	}
 
-	private reportTelemetry(active: IActiveExtension, errorcode?: ErrorCode): void {
+	private reportTelemetry(active: IActiveExtension, errorcode?: string): void {
 		const data = active.extension.telemetryData;
 		const duration = new Date().getTime() - active.start.getTime();
 		const eventName = toTelemetryEventName(active.operation);
 
+		/* __GDPR__
+			"extensionGallery:install" : {
+				"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"errorcode": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"${include}": [
+					"${GalleryExtensionTelemetryData}"
+				]
+			}
+		*/
+		/* __GDPR__
+			"extensionGallery:update" : {
+				"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"errorcode": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"${include}": [
+					"${GalleryExtensionTelemetryData}"
+				]
+			}
+		*/
+		/* __GDPR__
+			"extensionGallery:uninstall" : {
+				"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"errorcode": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"${include}": [
+					"${GalleryExtensionTelemetryData}"
+				]
+			}
+		*/
 		this.telemetryService.publicLog(eventName, assign(data, { success: !errorcode, duration, errorcode }));
 	}
 
@@ -825,7 +876,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 				return TPromise.as(null);
 			}
 
-			return this.queryGallery({ names: [extensionId] }).then(result => {
+			return this.queryGallery({ names: [extensionId], source: 'uri' }).then(result => {
 				if (result.total < 1) {
 					return TPromise.as(null);
 				}

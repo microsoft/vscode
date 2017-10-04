@@ -853,6 +853,9 @@ export class SearchViewlet extends Viewlet {
 	}
 
 	public toggleQueryDetails(moveFocus?: boolean, show?: boolean, skipLayout?: boolean, reverse?: boolean): void {
+		/* __GDPR__
+			"search.toggleQueryDetails" : {}
+		*/
 		this.telemetryService.publicLog('search.toggleQueryDetails');
 
 		let cls = 'more';
@@ -1007,11 +1010,12 @@ export class SearchViewlet extends Viewlet {
 			});
 
 		return TPromise.join(folderQueriesExistP).then(existResults => {
-			const nonExistantFolders = existResults.map((exists, i) => ({ exists, query: query.folderQueries[i] }))
-				.filter(folderExists => !folderExists.exists);
-
-			if (nonExistantFolders.length) {
-				const nonExistantPath = nonExistantFolders[0].query.folder.fsPath;
+			// If no folders exist, show an error message about the first one
+			const existingFolderQueries = query.folderQueries.filter((folderQuery, i) => existResults[i]);
+			if (!query.folderQueries.length || existingFolderQueries.length) {
+				query.folderQueries = existingFolderQueries;
+			} else {
+				const nonExistantPath = query.folderQueries[0].folder.fsPath;
 				const searchPathNotFoundError = nls.localize('searchPathNotFoundError', "Search path not found: {0}", nonExistantPath);
 				return TPromise.wrapError(new Error(searchPathNotFoundError));
 			}
@@ -1328,6 +1332,9 @@ export class SearchViewlet extends Viewlet {
 			return TPromise.as(true);
 		}
 
+		/* __GDPR__
+			"searchResultChosen" : {}
+		*/
 		this.telemetryService.publicLog('searchResultChosen');
 
 		return (this.viewModel.isReplaceActive() && !!this.viewModel.replaceString) ?

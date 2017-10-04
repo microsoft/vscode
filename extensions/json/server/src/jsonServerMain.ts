@@ -35,6 +35,10 @@ namespace VSCodeContentRequest {
 	export const type: RequestType<string, string, any, any> = new RequestType('vscode/content');
 }
 
+namespace SchemaContentChangeNotification {
+	export const type: NotificationType<string, any> = new NotificationType('json/schemaContent');
+}
+
 // Create a connection for the server
 let connection: IConnection = createConnection();
 
@@ -170,6 +174,11 @@ connection.onDidChangeConfiguration((change) => {
 connection.onNotification(SchemaAssociationNotification.type, associations => {
 	schemaAssociations = associations;
 	updateConfiguration();
+});
+
+// A schema has changed
+connection.onNotification(SchemaContentChangeNotification.type, uri => {
+	languageService.resetSchema(uri);
 });
 
 function updateConfiguration() {

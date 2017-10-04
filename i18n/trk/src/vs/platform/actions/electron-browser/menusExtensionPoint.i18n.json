@@ -13,6 +13,7 @@
 	"vscode.extension.contributes.menuItem.group": "Bu komutun ait olduğu gruba ekle",
 	"vscode.extension.contributes.menus": "Düzenleyiciye menü ögeleri ekler",
 	"menus.commandPalette": "Komut Paleti",
+	"menus.touchBar": "Touch bar (sadece macOS)",
 	"menus.editorTitle": "Düzenleyici başlık menüsü",
 	"menus.editorContext": "Düzenleyici bağlam menüsü",
 	"menus.explorerContext": "Dosya gezgini bağlam menüsü",

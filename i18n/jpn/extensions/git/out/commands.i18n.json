@@ -34,7 +34,7 @@
 	"delete files": "複数のファイルを削除",
 	"there are untracked files single": "破棄すると次の未追跡ファイルがディスクから削除されます: {0}。",
 	"there are untracked files": "破棄すると {0} 個の未追跡ファイルがディスクから削除されます。",
-	"confirm discard all 2": "{0}\n\nこの変更は元に戻すことはできません、現在のワーキング セットは永久に失われます。",
+	"confirm discard all 2": "{0}\n\nこの変更は元に戻すことはできません。現在のワーキング セットは永久に失われます。",
 	"yes discard tracked": "1 つの追跡ファイルを破棄",
 	"yes discard tracked multiple": "{0} 個の追跡ファイルを破棄",
 	"no staged changes": "コミットするステージされた変更がありません。\n\nすべての変更を自動的にステージして、直接コミットしますか?",

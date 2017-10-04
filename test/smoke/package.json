@@ -14,7 +14,7 @@
     "@types/mocha": "^2.2.41",
     "@types/ncp": "^2.0.1",
     "@types/node": "^8.0.26",
-    "@types/rimraf": "^0.0.28",
+    "@types/rimraf": "^2.0.2",
     "@types/webdriverio": "^4.6.1",
     "htmlparser2": "^3.9.2",
     "mocha": "^3.2.0",
@@ -24,7 +24,6 @@
     "spectron": "~3.6.4",
     "strip-json-comments": "^2.0.1",
     "tmp": "0.0.33",
-    "typescript": "^2.2.2",
-    "vscode-uri": "^1.0.1"
+    "typescript": "^2.2.2"
   }
 }

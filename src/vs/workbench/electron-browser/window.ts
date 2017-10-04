@@ -145,6 +145,12 @@ export class ElectronWindow extends Themable {
 			}
 
 			this.commandService.executeCommand(request.id, ...args).done(_ => {
+				/* __GDPR__
+					"commandExecuted" : {
+						"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
 				this.telemetryService.publicLog('commandExecuted', { id: request.id, from: request.from });
 			}, err => {
 				this.messageService.show(Severity.Error, err);
@@ -225,8 +231,8 @@ export class ElectronWindow extends Themable {
 		});
 
 		// keyboard layout changed event
-		ipc.on('vscode:keyboardLayoutChanged', (event, isISOKeyboard: boolean) => {
-			KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged(isISOKeyboard);
+		ipc.on('vscode:keyboardLayoutChanged', event => {
+			KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged();
 		});
 
 		// keyboard layout changed event

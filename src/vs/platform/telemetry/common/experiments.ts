@@ -8,8 +8,12 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
+/* __GDPR__FRAGMENT__
+	"IExperiments" : {
+		"deployToAzureQuickLink" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	}
+*/
 export interface IExperiments {
-	ripgrepQuickSearch: boolean;
 }
 
 export const IExperimentService = createDecorator<IExperimentService>('experimentService');
@@ -25,7 +29,7 @@ export class ExperimentService implements IExperimentService {
 
 	_serviceBrand: any;
 
-	private experiments: IExperiments;
+	private experiments: IExperiments = {}; // Shortcut while there are no experiments.
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
@@ -42,7 +46,6 @@ export class ExperimentService implements IExperimentService {
 
 function loadExperiments(storageService: IStorageService, configurationService: IConfigurationService): IExperiments {
 	const experiments = splitExperimentsRandomness(storageService);
-	experiments.ripgrepQuickSearch = true;
 	return applyOverrides(experiments, configurationService);
 }
 
@@ -58,12 +61,12 @@ function applyOverrides(experiments: IExperiments, configurationService: IConfig
 
 function splitExperimentsRandomness(storageService: IStorageService): IExperiments {
 	const random1 = getExperimentsRandomness(storageService);
-	const [random2, ripgrepQuickSearch] = splitRandom(random1);
-	const [/* random3 */, /* deployToAzureQuickLink */] = splitRandom(random2);
+	const [/* random2 */, /* ripgrepQuickSearch */] = splitRandom(random1);
+	// const [/* random3 */, /* deployToAzureQuickLink */] = splitRandom(random2);
 	// const [random4, /* mergeQuickLinks */] = splitRandom(random3);
 	// const [random5, /* enableWelcomePage */] = splitRandom(random4);
 	return {
-		ripgrepQuickSearch,
+		// ripgrepQuickSearch,
 	};
 }
 

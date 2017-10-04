@@ -273,6 +273,11 @@ export interface TaskDependency {
 	task: string;
 }
 
+export enum GroupType {
+	default = 'default',
+	user = 'user'
+}
+
 export interface ConfigurationProperties {
 
 	/**
@@ -291,9 +296,9 @@ export interface ConfigurationProperties {
 	group?: string;
 
 	/**
-	 * Whether this task is a primary task in the task group.
+	 * The group type
 	 */
-	isDefaultGroupEntry?: boolean;
+	groupType?: GroupType;
 
 	/**
 	 * The presentation options
@@ -448,13 +453,27 @@ export namespace Task {
 			return JSON.stringify(key);
 		}
 		if (ContributedTask.is(task)) {
-			let key: ContributedKey = { type: 'contributed', scope: task._source.scope, id: task.defines._key };
+			let key: ContributedKey = { type: 'contributed', scope: task._source.scope, id: task._id };
 			if (task._source.scope === TaskScope.Folder && task._source.workspaceFolder) {
 				key.folder = task._source.workspaceFolder.uri.toString();
 			}
 			return JSON.stringify(key);
 		}
 		return undefined;
+	}
+
+	export function getMapKey(task: Task): string {
+		if (CustomTask.is(task)) {
+			let workspaceFolder = task._source.config.workspaceFolder;
+			return workspaceFolder ? `${workspaceFolder.uri.toString()}|${task._id}` : task._id;
+		} else if (ContributedTask.is(task)) {
+			let workspaceFolder = task._source.workspaceFolder;
+			return workspaceFolder
+				? `${task._source.scope.toString()}|${workspaceFolder.uri.toString()}|${task._id}`
+				: `${task._source.scope.toString()}|${task._id}`;
+		} else {
+			return task._id;
+		}
 	}
 
 	export function getWorkspaceFolder(task: Task): IWorkspaceFolder | undefined {
@@ -522,6 +541,7 @@ export interface TaskSet {
 }
 
 export interface TaskDefinition {
+	extensionId: string;
 	taskType: string;
 	required: string[];
 	properties: IJSONSchemaMap;

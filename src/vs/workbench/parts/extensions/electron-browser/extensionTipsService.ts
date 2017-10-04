@@ -104,16 +104,42 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		return [];
 	}
 
-	getRecommendations(): string[] {
+	getRecommendations(installedExtensions: string[], searchText: string): string[] {
 		const allRecomendations = this._getAllRecommendationsInProduct();
 		const fileBased = Object.keys(this._fileBasedRecommendations)
-			.filter(recommendation => allRecomendations.indexOf(recommendation) !== -1);
+			.filter(recommendation => {
+				return allRecomendations.indexOf(recommendation) > -1
+					&& installedExtensions.indexOf(recommendation) === -1
+					&& recommendation.toLowerCase().indexOf(searchText) > -1;
+			}).sort((a, b) => {
+				return this._fileBasedRecommendations[a] > this._fileBasedRecommendations[b] ? -1 : 1;
+			});
 
-		const exeBased = distinct(this._exeBasedRecommendations);
+		const exeBased = this._exeBasedRecommendations
+			.filter((recommendation, index) => {
+				return this._exeBasedRecommendations.indexOf(recommendation) === index
+					&& installedExtensions.indexOf(recommendation) === -1
+					&& fileBased.indexOf(recommendation) === -1
+					&& recommendation.toLowerCase().indexOf(searchText) > -1;
+			});
 
+		// Sort recommendations such that few of the exeBased ones show up earliar
+		const x = Math.min(6, fileBased.length);
+		const y = Math.min(4, exeBased.length);
+		const sortedRecommendations = fileBased.slice(0, x);
+		sortedRecommendations.push(...exeBased.slice(0, y));
+		sortedRecommendations.push(...fileBased.slice(x));
+		sortedRecommendations.push(...exeBased.slice(y));
+
+		/* __GDPR__
+			"extensionRecommendations:unfiltered" : {
+				"fileBased" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"exeBased": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		this.telemetryService.publicLog('extensionRecommendations:unfiltered', { fileBased, exeBased });
 
-		return distinct([...fileBased, ...exeBased]);
+		return sortedRecommendations;
 	}
 
 	getKeymapRecommendations(): string[] {
@@ -233,7 +259,12 @@ export class ExtensionTipsService implements IExtensionTipsService {
 							return;
 						}
 
-						const message = localize('reallyRecommended2', "The '{0}' extension is recommended for this file type.", name);
+						let message = localize('reallyRecommended2', "The '{0}' extension is recommended for this file type.", name);
+						// Temporary fix for the only extension pack we recommend. See https://github.com/Microsoft/vscode/issues/35364
+						if (id === 'vscjava.vscode-java-pack') {
+							message = localize('reallyRecommendedExtensionPack', "The '{0}' extension pack is recommended for this file type.", name);
+						}
+
 						const recommendationsAction = this.instantiationService.createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, localize('showRecommendations', "Show Recommendations"));
 						const options = [
 							recommendationsAction.label,
@@ -244,7 +275,13 @@ export class ExtensionTipsService implements IExtensionTipsService {
 						this.choiceService.choose(Severity.Info, message, options, 2).done(choice => {
 							switch (choice) {
 								case 0:
-									this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'show' });
+									/* __GDPR__
+										"extensionRecommendations:popup" : {
+											"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+											"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+										}
+									*/
+									this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'show', extensionId: name });
 									return recommendationsAction.run();
 								case 1: this.importantRecommendationsIgnoreList.push(id);
 									this.storageService.store(
@@ -252,13 +289,31 @@ export class ExtensionTipsService implements IExtensionTipsService {
 										JSON.stringify(this.importantRecommendationsIgnoreList),
 										StorageScope.GLOBAL
 									);
-									this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'neverShowAgain' });
+									/* __GDPR__
+										"extensionRecommendations:popup" : {
+											"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+											"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+										}
+									*/
+									this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'neverShowAgain', extensionId: name });
 									return this.ignoreExtensionRecommendations();
 								case 2:
-									this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'close' });
+									/* __GDPR__
+										"extensionRecommendations:popup" : {
+											"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+											"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+										}
+									*/
+									this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'close', extensionId: name });
 							}
 						}, () => {
-							this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'cancelled' });
+							/* __GDPR__
+								"extensionRecommendations:popup" : {
+									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+									"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+								}
+							*/
+							this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'cancelled', extensionId: name });
 						});
 					});
 			});
@@ -302,15 +357,35 @@ export class ExtensionTipsService implements IExtensionTipsService {
 				this.choiceService.choose(Severity.Info, message, options, 2).done(choice => {
 					switch (choice) {
 						case 0:
+							/* __GDPR__
+								"extensionRecommendations:popup" : {
+									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+								}
+							*/
 							this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'show' });
 							return action.run();
 						case 1:
+							/* __GDPR__
+								"extensionRecommendations:popup" : {
+									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+								}
+							*/
 							this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'neverShowAgain' });
 							return this.storageService.store(storageKey, true, StorageScope.WORKSPACE);
 						case 2:
+							/* __GDPR__
+								"extensionRecommendations:popup" : {
+									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+								}
+							*/
 							this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'close' });
 					}
 				}, () => {
+					/* __GDPR__
+						"extensionRecommendations:popup" : {
+							"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						}
+					*/
 					this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'cancelled' });
 				});
 			});
@@ -318,7 +393,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 	}
 
 	private ignoreExtensionRecommendations() {
-		const message = localize('ignoreExtensionRecommendations', "Do you want to ignore all extension recommendations ?");
+		const message = localize('ignoreExtensionRecommendations', "Do you want to ignore all extension recommendations?");
 		const options = [
 			localize('ignoreAll', "Yes, Ignore All"),
 			localize('no', "No"),
@@ -342,7 +417,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 
 		let findExecutable = (exeName, path) => {
 			return pfs.fileExists(path).then(exists => {
-				if (!foundExecutables.has(exeName)) {
+				if (exists && !foundExecutables.has(exeName)) {
 					foundExecutables.add(exeName);
 					recommendations.push(...product.exeBasedExtensionTips[exeName]['recommendations']);
 				}
@@ -361,7 +436,10 @@ export class ExtensionTipsService implements IExtensionTipsService {
 				if (!windowsPath || typeof windowsPath !== 'string') {
 					return;
 				}
-				windowsPath = windowsPath.replace('%USERPROFILE%', process.env['USERPROFILE']);
+				windowsPath = windowsPath.replace('%USERPROFILE%', process.env['USERPROFILE'])
+					.replace('%ProgramFiles(x86)%', process.env['ProgramFiles(x86)'])
+					.replace('%ProgramFiles%', process.env['ProgramFiles'])
+					.replace('%APPDATA%', process.env['APPDATA']);
 				findExecutable(exeName, windowsPath);
 			} else {
 				findExecutable(exeName, paths.join('/usr/local/bin', exeName));

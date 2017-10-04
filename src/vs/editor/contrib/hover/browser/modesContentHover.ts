@@ -96,8 +96,8 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 			if (!didFindColor && colorData) {
 				didFindColor = true;
 
-				const { color } = colorData.colorInfo;
-				return new ColorHover(d.range, color, colorData.provider);
+				const { color, range } = colorData.colorInfo;
+				return new ColorHover(range, color, colorData.provider);
 			} else {
 				if (isEmptyMarkdownString(d.options.hoverMessage)) {
 					return null;

@@ -30,6 +30,11 @@ export class OpenerService implements IOpenerService {
 
 	open(resource: URI, options?: { openToSide?: boolean }): TPromise<any> {
 
+		/* __GDPR__
+			"openerService" : {
+				"scheme" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		this._telemetryService.publicLog('openerService', { scheme: resource.scheme });
 
 		const { scheme, path, query, fragment } = resource;

@@ -197,6 +197,14 @@ export class SuggestController implements IEditorContribution {
 			}
 
 			this._alertCompletionItem(item);
+			/* __GDPR__
+				"suggestSnippetInsert" : {
+					"suggestionType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"${include}": [
+						"${EditorTelemetryData}"
+					]
+				}
+			*/
 			this._telemetryService.publicLog('suggestSnippetInsert', { ...this._editor.getTelemetryData(), suggestionType: suggestion.type });
 		}
 

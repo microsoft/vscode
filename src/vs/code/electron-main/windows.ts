@@ -33,6 +33,7 @@ import { IWorkspacesMainService, IWorkspaceIdentifier, ISingleFolderWorkspaceIde
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
+import { normalizeNFC } from 'vs/base/common/strings';
 
 enum WindowError {
 	UNRESPONSIVE,
@@ -514,7 +515,7 @@ export class WindowsManager implements IWindowsMainService {
 
 			// Find suitable window or folder path to open files in
 			const fileToCheck = filesToOpen[0] || filesToCreate[0] || filesToDiff[0];
-			const bestWindowOrFolder = findBestWindowOrFolderForFile({
+			let bestWindowOrFolder = findBestWindowOrFolderForFile({
 				windows: WindowsManager.WINDOWS,
 				newWindow: openFilesInNewWindow,
 				reuseWindow: openConfig.forceReuseWindow,
@@ -523,6 +524,12 @@ export class WindowsManager implements IWindowsMainService {
 				userHome: this.environmentService.userHome,
 				workspaceResolver: workspace => this.workspacesService.resolveWorkspaceSync(workspace.configPath)
 			});
+
+			// Special case: we started with --wait and we got back a folder to open. In this case
+			// we actually prefer to not open the folder but operate purely on the file.
+			if (typeof bestWindowOrFolder === 'string' && filesToWait) {
+				bestWindowOrFolder = !openFilesInNewWindow ? this.getLastActiveWindow() : null;
+			}
 
 			// We found a window to open the files in
 			if (bestWindowOrFolder instanceof CodeWindow) {
@@ -1572,6 +1579,7 @@ class FileDialog {
 
 			// Telemetry
 			if (options.telemetryEventName) {
+				// __GDPR__TODO__ Dynamic event names and dynamic properties. Can not be registered statically.
 				this.telemetryService.publicLog(options.telemetryEventName, {
 					...options.telemetryExtraData,
 					outcome: numberOfPaths ? 'success' : 'canceled',
@@ -1625,6 +1633,9 @@ class FileDialog {
 		const focusedWindow = this.windowsMainService.getWindowById(options.windowId) || this.windowsMainService.getFocusedWindow();
 		dialog.showOpenDialog(focusedWindow && focusedWindow.win, options.dialogOptions, paths => {
 			if (paths && paths.length > 0) {
+				if (isMacintosh) {
+					paths = paths.map(path => normalizeNFC(path)); // normalize paths returned from the OS
+				}
 
 				// Remember path in storage for next time
 				this.storageService.setItem(FileDialog.workingDirPickerStorageKey, dirname(paths[0]));
@@ -1797,7 +1808,7 @@ class WorkspacesManager {
 
 			// Save: save workspace, but do not veto unload
 			case ConfirmResult.SAVE: {
-				const target = dialog.showSaveDialog(e.window.win, {
+				let target = dialog.showSaveDialog(e.window.win, {
 					buttonLabel: mnemonicButtonLabel(localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")),
 					title: localize('saveWorkspace', "Save Workspace"),
 					filters: WORKSPACE_FILTER,
@@ -1805,6 +1816,10 @@ class WorkspacesManager {
 				});
 
 				if (target) {
+					if (isMacintosh) {
+						target = normalizeNFC(target); // normalize paths returned from the OS
+					}
+
 					e.veto(this.workspacesService.saveWorkspace(workspace, target).then(() => false, () => false));
 				} else {
 					e.veto(true); // keep veto if no target was provided

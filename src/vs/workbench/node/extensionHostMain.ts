@@ -12,6 +12,8 @@ import { join } from 'path';
 import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { ExtHostThreadService } from 'vs/workbench/services/thread/node/extHostThreadService';
+import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
+import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { QueryType, ISearchQuery } from 'vs/platform/search/common/search';
 import { DiskSearch } from 'vs/workbench/services/search/node/searchService';
@@ -58,6 +60,7 @@ export class ExtensionHostMain {
 	private _workspace: IWorkspaceData;
 	private _environment: IEnvironment;
 	private _extensionService: ExtHostExtensionService;
+	private _extHostConfiguration: ExtHostConfiguration;
 
 	constructor(rpcProtocol: RPCProtocol, initData: IInitData) {
 		this._environment = initData.environment;
@@ -65,7 +68,9 @@ export class ExtensionHostMain {
 
 		// services
 		const threadService = new ExtHostThreadService(rpcProtocol);
-		this._extensionService = new ExtHostExtensionService(initData, threadService);
+		const extHostWorkspace = new ExtHostWorkspace(threadService, initData.workspace);
+		this._extHostConfiguration = new ExtHostConfiguration(threadService.get(MainContext.MainThreadConfiguration), extHostWorkspace, initData.configuration);
+		this._extensionService = new ExtHostExtensionService(initData, threadService, extHostWorkspace, this._extHostConfiguration);
 
 		// error forwarding and stack trace scanning
 		const extensionErrors = new WeakMap<Error, IExtensionDescription>();
@@ -218,11 +223,18 @@ export class ExtensionHostMain {
 			includes[globPattern] = true;
 		});
 
+		const folderQueries = this._workspace.folders.map(folder => ({ folder: folder.uri }));
+		const useRipgrep = folderQueries.every(folderQuery => {
+			const folderConfig = this._extHostConfiguration.getConfiguration('search', folderQuery.folder);
+			return folderConfig.get('useRipgrep', true);
+		});
+
 		const query: ISearchQuery = {
-			folderQueries: this._workspace.folders.map(folder => ({ folder: folder.uri })),
+			folderQueries,
 			type: QueryType.File,
 			maxResults: 1,
-			includePattern: includes
+			includePattern: includes,
+			useRipgrep
 		};
 
 		let result = await this._diskSearch.search(query);

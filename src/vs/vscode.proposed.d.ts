@@ -7,92 +7,7 @@
 
 declare module 'vscode' {
 
-	/**
-	 * Options to configure the behaviour of a file open dialog.
-	 */
-	export interface OpenDialogOptions {
-		/**
-		 * The resource the dialog shows when opened.
-		 */
-		defaultUri?: Uri;
-
-		/**
-		 * A human-readable string for the open button.
-		 */
-		openLabel?: string;
-
-		/**
-		 * Only allow to select files. *Note* that not all operating systems support
-		 * to select files and folders in one dialog instance.
-		 */
-		openFiles?: boolean;
-
-		/**
-		 * Only allow to select folders. *Note* that not all operating systems support
-		 * to select files and folders in one dialog instance.
-		 */
-		openFolders?: boolean;
-
-		/**
-		 * Allow to select many files or folders.
-		 */
-		openMany?: boolean;
-
-		/**
-		 * A set of file filters that are shown in the dialog, e.g.
-		 * ```ts
-		 * {
-		 * 	['Images']: ['*.png', '*.jpg']
-		 * 	['TypeScript']: ['*.ts', '*.tsx']
-		 * }
-		 * ```
-		 */
-		filters: { [name: string]: string[] };
-	}
-
-	/**
-	 * Options to configure the behaviour of a file save dialog.
-	 */
-	export interface SaveDialogOptions {
-		/**
-		 * The resource the dialog shows when opened.
-		 */
-		defaultUri?: Uri;
-
-		/**
-		 * A human-readable string for the save button.
-		 */
-		saveLabel?: string;
-
-		/**
-		 * A set of file filters that are shown in the dialog, e.g.
-		 * ```ts
-		 * {
-		 * 	['Images']: ['*.png', '*.jpg']
-		 * 	['TypeScript']: ['*.ts', '*.tsx']
-		 * }
-		 * ```
-		 */
-		filters: { [name: string]: string[] };
-	}
-
 	export namespace window {
-
-		/**
-		 * Shows a file open dialog to the user.
-		 *
-		 * @param options Options that control the dialog.
-		 * @returns A promise that resolves to the selected resources or `undefined`.
-		 */
-		export function showOpenDialog(options: OpenDialogOptions): Thenable<Uri[] | undefined>;
-
-		/**
-		 * Shows a file save dialog to the user.
-		 *
-		 * @param options Options that control the dialog.
-		 * @returns A promise that resolves to the selected resource or `undefined`.
-		 */
-		export function showSaveDialog(options: SaveDialogOptions): Thenable<Uri | undefined>;
 
 		/**
 		 * Shows a selection list of [workspace folders](#workspace.workspaceFolders) to pick from.
@@ -120,6 +35,58 @@ declare module 'vscode' {
 		ignoreFocusOut?: boolean;
 	}
 
+
+	// export enum FileErrorCodes {
+	// 	/**
+	// 	 * Not owner.
+	// 	 */
+	// 	EPERM = 1,
+	// 	/**
+	// 	 * No such file or directory.
+	// 	 */
+	// 	ENOENT = 2,
+	// 	/**
+	// 	 * I/O error.
+	// 	 */
+	// 	EIO = 5,
+	// 	/**
+	// 	 * Permission denied.
+	// 	 */
+	// 	EACCES = 13,
+	// 	/**
+	// 	 * File exists.
+	// 	 */
+	// 	EEXIST = 17,
+	// 	/**
+	// 	 * Not a directory.
+	// 	 */
+	// 	ENOTDIR = 20,
+	// 	/**
+	// 	 * Is a directory.
+	// 	 */
+	// 	EISDIR = 21,
+	// 	/**
+	// 	 *  File too large.
+	// 	 */
+	// 	EFBIG = 27,
+	// 	/**
+	// 	 * No space left on device.
+	// 	 */
+	// 	ENOSPC = 28,
+	// 	/**
+	// 	 * Directory is not empty.
+	// 	 */
+	// 	ENOTEMPTY = 66,
+	// 	/**
+	// 	 * Invalid file handle.
+	// 	 */
+	// 	ESTALE = 70,
+	// 	/**
+	// 	 * Illegal NFS file handle.
+	// 	 */
+	// 	EBADHANDLE = 10001,
+	// }
+
 	export enum FileChangeType {
 		Updated = 0,
 		Added = 1,
@@ -138,8 +105,9 @@ declare module 'vscode' {
 	}
 
 	export interface FileStat {
-		resource: Uri;
+		id: number | string;
 		mtime: number;
+		// atime: number;
 		size: number;
 		type: FileType;
 	}
@@ -153,15 +121,40 @@ declare module 'vscode' {
 
 		// more...
 		//
-		utimes(resource: Uri, mtime: number): Thenable<FileStat>;
+		utimes(resource: Uri, mtime: number, atime: number): Thenable<FileStat>;
+
 		stat(resource: Uri): Thenable<FileStat>;
-		read(resource: Uri, progress: Progress<Uint8Array>): Thenable<void>;
+
+		read(resource: Uri, offset: number, length: number, progress: Progress<Uint8Array>): Thenable<number>;
+
+		// todo@remote
+		// offset - byte offset to start
+		// count - number of bytes to write
+		// Thenable<number> - number of bytes actually written
 		write(resource: Uri, content: Uint8Array): Thenable<void>;
-		unlink(resource: Uri): Thenable<void>;
-		rename(resource: Uri, target: Uri): Thenable<void>;
-		mkdir(resource: Uri): Thenable<void>;
-		readdir(resource: Uri): Thenable<FileStat[]>;
+
+		// todo@remote
+		// Thenable<FileStat>
+		move(resource: Uri, target: Uri): Thenable<FileStat>;
+
+		// todo@remote
+		// helps with performance bigly
+		// copy?(from: Uri, to: Uri): Thenable<void>;
+
+		// todo@remote
+		// Thenable<FileStat>
+		mkdir(resource: Uri): Thenable<FileStat>;
+
+		readdir(resource: Uri): Thenable<[Uri, FileStat][]>;
+
+		// todo@remote
+		// ? merge both
+		// ? recursive del
 		rmdir(resource: Uri): Thenable<void>;
+		unlink(resource: Uri): Thenable<void>;
+
+		// todo@remote
+		// create(resource: Uri): Thenable<FileStat>;
 	}
 
 	export namespace workspace {

@@ -84,15 +84,15 @@ class RemoteFileSystemProvider implements IFileSystemProvider {
 
 	// --- forwarding calls
 
-	utimes(resource: URI, mtime: number): TPromise<IStat, any> {
-		return this._proxy.$utimes(this._handle, resource, mtime);
+	utimes(resource: URI, mtime: number, atime: number): TPromise<IStat, any> {
+		return this._proxy.$utimes(this._handle, resource, mtime, atime);
 	}
 	stat(resource: URI): TPromise<IStat, any> {
 		return this._proxy.$stat(this._handle, resource);
 	}
-	read(resource: URI, progress: IProgress<Uint8Array>): TPromise<void, any> {
+	read(resource: URI, offset: number, count: number, progress: IProgress<Uint8Array>): TPromise<number, any> {
 		this._reads.set(resource.toString(), progress);
-		return this._proxy.$read(this._handle, resource);
+		return this._proxy.$read(this._handle, offset, count, resource);
 	}
 	reportFileChunk(resource: URI, chunk: number[]): void {
 		this._reads.get(resource.toString()).report(Buffer.from(chunk));
@@ -103,13 +103,13 @@ class RemoteFileSystemProvider implements IFileSystemProvider {
 	unlink(resource: URI): TPromise<void, any> {
 		return this._proxy.$unlink(this._handle, resource);
 	}
-	rename(resource: URI, target: URI): TPromise<void, any> {
-		return this._proxy.$rename(this._handle, resource, target);
+	move(resource: URI, target: URI): TPromise<IStat, any> {
+		return this._proxy.$move(this._handle, resource, target);
 	}
-	mkdir(resource: URI): TPromise<void, any> {
+	mkdir(resource: URI): TPromise<IStat, any> {
 		return this._proxy.$mkdir(this._handle, resource);
 	}
-	readdir(resource: URI): TPromise<IStat[], any> {
+	readdir(resource: URI): TPromise<[URI, IStat][], any> {
 		return this._proxy.$readdir(this._handle, resource);
 	}
 	rmdir(resource: URI): TPromise<void, any> {

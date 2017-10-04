@@ -670,12 +670,15 @@ export class TabsTitleControl extends TitleControl {
 			e.dataTransfer.effectAllowed = 'copyMove';
 
 			// Insert transfer accordingly
-			const fileResource = toResource(editor, { supportSideBySide: true, filter: 'file' });
-			if (fileResource) {
-				const resource = fileResource.toString();
-				e.dataTransfer.setData('URL', resource); // enables cross window DND of tabs
-				e.dataTransfer.setData('DownloadURL', [MIME_BINARY, editor.getName(), resource].join(':')); // enables support to drag a tab as file to desktop
+			const resource = toResource(editor, { supportSideBySide: true });
+			if (resource) {
+				const resourceStr = resource.toString();
+				e.dataTransfer.setData('URL', resourceStr); // enables cross window DND of tabs
 				e.dataTransfer.setData('text/plain', getPathLabel(resource)); // enables dropping tab resource path into text controls
+
+				if (resource.scheme === 'file') {
+					e.dataTransfer.setData('DownloadURL', [MIME_BINARY, editor.getName(), resourceStr].join(':')); // enables support to drag a tab as file to desktop
+				}
 			}
 		}));
 

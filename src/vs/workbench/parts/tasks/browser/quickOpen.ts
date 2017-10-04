@@ -37,7 +37,7 @@ export class TaskEntry extends Model.QuickOpenEntry {
 		if (!workspaceFolder) {
 			return null;
 		}
-		return `(${workspaceFolder.name})`;
+		return `${workspaceFolder.name}`;
 	}
 
 	public getAriaLabel(): string {

@@ -17,6 +17,8 @@
 	"open": "Ouvrir",
 	"openFolder": "Ouvrir le dossier",
 	"openFile": "Ouvrir le fichier",
+	"workspaceOpenedMessage": "Impossible d’enregistrer l’espace de travail '{0}'",
+	"workspaceOpenedDetail": "L’espace de travail est déjà ouvert dans une autre fenêtre. Veuillez s’il vous plaît d’abord fermer cette fenêtre et puis essayez à nouveau.",
 	"openWorkspace": "&&Ouvrir...",
 	"openWorkspaceTitle": "Ouvrir un espace de travail",
 	"save": "&&Enregistrer",

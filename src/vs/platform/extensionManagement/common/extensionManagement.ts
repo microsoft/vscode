@@ -228,23 +228,17 @@ export interface InstallExtensionEvent {
 	gallery?: IGalleryExtension;
 }
 
-export enum ErrorCode {
-	OBSOLETE = 1,
-	GALLERY,
-	LOCAL
-}
-
 export interface DidInstallExtensionEvent {
 	id: string;
 	zipPath?: string;
 	gallery?: IGalleryExtension;
 	local?: ILocalExtension;
-	error?: ErrorCode;
+	error?: string;
 }
 
 export interface DidUninstallExtensionEvent {
 	id: string;
-	error?: ErrorCode;
+	error?: string;
 }
 
 export interface IExtensionManagementService {
@@ -305,7 +299,7 @@ export const IExtensionTipsService = createDecorator<IExtensionTipsService>('ext
 
 export interface IExtensionTipsService {
 	_serviceBrand: any;
-	getRecommendations(): string[];
+	getRecommendations(installedExtensions: string[], searchText: string): string[];
 	getWorkspaceRecommendations(): TPromise<string[]>;
 	getKeymapRecommendations(): string[];
 	getKeywordsForExtension(extension: string): string[];

@@ -98,7 +98,7 @@ export class ConfigureAction extends AbstractDebugAction {
 	}
 
 	public run(event?: any): TPromise<any> {
-		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
+		if (!this.debugService.getConfigurationManager().selectedLaunch) {
 			this.messageService.show(severity.Info, nls.localize('noFolderDebugConfig', "Please first open a folder in order to do advanced debug configuration."));
 			return TPromise.as(null);
 		}

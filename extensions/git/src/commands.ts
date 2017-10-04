@@ -10,6 +10,7 @@ import { Ref, RefType, Git, GitErrorCodes, Branch } from './git';
 import { Repository, Resource, Status, CommitOptions, ResourceGroupType } from './repository';
 import { Model } from './model';
 import { toGitUri, fromGitUri } from './uri';
+import { grep } from './util';
 import { applyLineChanges, intersectDiffWithRange, toLineRanges, invertLineChange } from './staging';
 import * as path from 'path';
 import * as os from 'os';
@@ -92,11 +93,13 @@ class MergeItem implements QuickPickItem {
 
 class CreateBranchItem implements QuickPickItem {
 
+	constructor(private cc: CommandCenter) { }
+
 	get label(): string { return localize('create branch', '$(plus) Create new branch'); }
 	get description(): string { return ''; }
 
 	async run(repository: Repository): Promise<void> {
-		await commands.executeCommand('git.branch');
+		await this.cc.branch(repository);
 	}
 }
 
@@ -257,13 +260,20 @@ export class CommandCenter {
 	}
 
 	@command('git.clone')
-	async clone(): Promise<void> {
-		const url = await window.showInputBox({
-			prompt: localize('repourl', "Repository URL"),
-			ignoreFocusOut: true
-		});
+	async clone(url?: string): Promise<void> {
+		if (!url) {
+			url = await window.showInputBox({
+				prompt: localize('repourl', "Repository URL"),
+				ignoreFocusOut: true
+			});
+		}
 
 		if (!url) {
+			/* __GDPR__
+				"clone" : {
+					"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
 			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'no_URL' });
 			return;
 		}
@@ -278,6 +288,11 @@ export class CommandCenter {
 		});
 
 		if (!parentPath) {
+			/* __GDPR__
+				"clone" : {
+					"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
 			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'no_directory' });
 			return;
 		}
@@ -295,14 +310,30 @@ export class CommandCenter {
 			const result = await window.showInformationMessage(localize('proposeopen', "Would you like to open the cloned repository?"), open);
 
 			const openFolder = result === open;
+			/* __GDPR__
+				"clone" : {
+					"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"openFolder": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+				}
+			*/
 			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'success' }, { openFolder: openFolder ? 1 : 0 });
 			if (openFolder) {
 				commands.executeCommand('vscode.openFolder', Uri.file(repositoryPath));
 			}
 		} catch (err) {
 			if (/already exists and is not an empty directory/.test(err && err.stderr || '')) {
+				/* __GDPR__
+					"clone" : {
+						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
 				this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'directory_not_empty' });
 			} else {
+				/* __GDPR__
+					"clone" : {
+						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
 				this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'error' });
 			}
 			throw err;
@@ -328,6 +359,11 @@ export class CommandCenter {
 
 		await this.git.init(path);
 		await this.model.tryOpenRepository(path);
+	}
+
+	@command('git.close', { repository: true })
+	async close(repository: Repository): Promise<void> {
+		this.model.close(repository);
 	}
 
 	@command('git.openFile')
@@ -451,12 +487,20 @@ export class CommandCenter {
 		}
 
 		const selection = resourceStates.filter(s => s instanceof Resource) as Resource[];
-		const mergeConflicts = selection.filter(s => s.resourceGroupType === ResourceGroupType.Merge);
+		const merge = selection.filter(s => s.resourceGroupType === ResourceGroupType.Merge);
+		const bothModified = merge.filter(s => s.type === Status.BOTH_MODIFIED);
+		const promises = bothModified.map(s => grep(s.resourceUri.fsPath, /^<{7}|^={7}|^>{7}/));
+		const unresolvedBothModified = await Promise.all<boolean>(promises);
+		const resolvedConflicts = bothModified.filter((s, i) => !unresolvedBothModified[i]);
+		const unresolvedConflicts = [
+			...merge.filter(s => s.type !== Status.BOTH_MODIFIED),
+			...bothModified.filter((s, i) => unresolvedBothModified[i])
+		];
 
-		if (mergeConflicts.length > 0) {
-			const message = mergeConflicts.length > 1
-				? localize('confirm stage files with merge conflicts', "Are you sure you want to stage {0} files with merge conflicts?", mergeConflicts.length)
-				: localize('confirm stage file with merge conflicts', "Are you sure you want to stage {0} with merge conflicts?", path.basename(mergeConflicts[0].resourceUri.fsPath));
+		if (unresolvedConflicts.length > 0) {
+			const message = unresolvedConflicts.length > 1
+				? localize('confirm stage files with merge conflicts', "Are you sure you want to stage {0} files with merge conflicts?", unresolvedConflicts.length)
+				: localize('confirm stage file with merge conflicts', "Are you sure you want to stage {0} with merge conflicts?", path.basename(unresolvedConflicts[0].resourceUri.fsPath));
 
 			const yes = localize('yes', "Yes");
 			const pick = await window.showWarningMessage(message, { modal: true }, yes);
@@ -466,10 +510,8 @@ export class CommandCenter {
 			}
 		}
 
-		const workingTree = selection
-			.filter(s => s.resourceGroupType === ResourceGroupType.WorkingTree);
-
-		const scmResources = [...workingTree, ...mergeConflicts];
+		const workingTree = selection.filter(s => s.resourceGroupType === ResourceGroupType.WorkingTree);
+		const scmResources = [...workingTree, ...resolvedConflicts, ...unresolvedConflicts];
 
 		if (!scmResources.length) {
 			return;
@@ -909,7 +951,7 @@ export class CommandCenter {
 		const includeTags = checkoutType === 'all' || checkoutType === 'tags';
 		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote';
 
-		const createBranch = new CreateBranchItem();
+		const createBranch = new CreateBranchItem(this);
 
 		const heads = repository.refs.filter(ref => ref.type === RefType.Head)
 			.map(ref => new CheckoutItem(ref));
@@ -1197,9 +1239,12 @@ export class CommandCenter {
 		}
 
 		const branchName = repository.HEAD && repository.HEAD.name || '';
-		const picks = repository.remotes.map(r => r.name);
-		const placeHolder = localize('pick remote', "Pick a remote to publish the branch '{0}' to:", branchName);
-		const choice = await window.showQuickPick(picks, { placeHolder });
+		const selectRemote = async () => {
+			const picks = repository.remotes.map(r => r.name);
+			const placeHolder = localize('pick remote', "Pick a remote to publish the branch '{0}' to:", branchName);
+			return await window.showQuickPick(picks, { placeHolder });
+		};
+		const choice = remotes.length === 1 ? remotes[0].name : await selectRemote();
 
 		if (!choice) {
 			return;
@@ -1213,27 +1258,27 @@ export class CommandCenter {
 		this.outputChannel.show();
 	}
 
-	@command('git.ignore', { repository: true })
-	async ignore(repository: Repository, ...resourceStates: SourceControlResourceState[]): Promise<void> {
+	@command('git.ignore')
+	async ignore(...resourceStates: SourceControlResourceState[]): Promise<void> {
 		if (resourceStates.length === 0 || !(resourceStates[0].resourceUri instanceof Uri)) {
-			const uri = window.activeTextEditor && window.activeTextEditor.document.uri;
+			const resource = this.getSCMResource();
 
-			if (!uri) {
+			if (!resource) {
 				return;
 			}
 
-			return await repository.ignore([uri]);
+			resourceStates = [resource];
 		}
 
-		const uris = resourceStates
+		const resources = resourceStates
 			.filter(s => s instanceof Resource)
 			.map(r => r.resourceUri);
 
-		if (!uris.length) {
+		if (!resources.length) {
 			return;
 		}
 
-		await repository.ignore(uris);
+		await this.runByRepository(resources, async (repository, resources) => repository.ignore(resources));
 	}
 
 	@command('git.stash', { repository: true })
@@ -1315,6 +1360,11 @@ export class CommandCenter {
 				});
 			}
 
+			/* __GDPR__
+				"git.command" : {
+					"command" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
 			this.telemetryReporter.sendTelemetryEvent('git.command', { command: id });
 
 			return result.catch(async err => {

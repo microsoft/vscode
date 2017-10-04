@@ -253,13 +253,19 @@ function showPreview(cspArbiter: ExtensionContentSecurityPolicyArbiter, uri?: vs
 	const thenable = vscode.commands.executeCommand('vscode.previewHtml',
 		getMarkdownUri(resource),
 		getViewColumn(sideBySide),
-		`Preview '${path.basename(resource.fsPath)}'`,
+		localize('previewTitle', 'Preview {0}', path.basename(resource.fsPath)),
 		{
 			allowScripts: true,
 			allowSvgs: cspArbiter.shouldAllowSvgsForResource(resource)
 		});
 
 	if (telemetryReporter) {
+		/* __GDPR__
+			"openPreview" : {
+				"where" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"how": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		telemetryReporter.sendTelemetryEvent('openPreview', {
 			where: sideBySide ? 'sideBySide' : 'inPlace',
 			how: (uri instanceof vscode.Uri) ? 'action' : 'pallete'

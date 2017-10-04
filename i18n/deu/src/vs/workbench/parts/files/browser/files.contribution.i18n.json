@@ -10,7 +10,6 @@
 	"textFileEditor": "Textdatei-Editor",
 	"binaryFileEditor": "Binärdatei-Editor",
 	"filesConfigurationTitle": "Dateien",
-	"exclude": "Konfiguriert die Globmuster zum Ausschließen von Dateien und Ordnern.",
 	"files.exclude.boolean": "Das Globmuster, mit dem Dateipfade verglichen werden sollen. Legen Sie diesen Wert auf \"true\" oder \"false\" fest, um das Muster zu aktivieren bzw. zu deaktivieren.",
 	"files.exclude.when": "Zusätzliche Überprüfung der gleichgeordneten Elemente einer entsprechenden Datei. Verwenden Sie \"$(basename)\" als Variable für den entsprechenden Dateinamen.",
 	"associations": "Konfigurieren Sie Dateizuordnungen zu Sprachen (beispielsweise \"*.extension\": \"html\"). Diese besitzen Vorrang vor den Standardzuordnungen der installierten Sprachen.",

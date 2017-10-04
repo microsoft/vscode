@@ -143,15 +143,16 @@ function findGitWin32(): Promise<IGit> {
 export function findGit(hint: string | undefined): Promise<IGit> {
 	var first = hint ? findSpecificGit(hint) : Promise.reject<IGit>(null);
 
-	return first.then(void 0, () => {
-		switch (process.platform) {
-			case 'darwin': return findGitDarwin();
-			case 'win32': return findGitWin32();
-			default: return findSpecificGit('git');
-		}
-	});
+	return first
+		.then(void 0, () => {
+			switch (process.platform) {
+				case 'darwin': return findGitDarwin();
+				case 'win32': return findGitWin32();
+				default: return findSpecificGit('git');
+			}
+		})
+		.then(null, () => Promise.reject(new Error('Git installation not found.')));
 }
-
 
 export interface IExecutionResult {
 	exitCode: number;

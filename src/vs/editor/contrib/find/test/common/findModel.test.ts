@@ -2004,6 +2004,29 @@ suite('FindModel', () => {
 		findState.dispose();
 	});
 
+	findTest('issue #32522 replaceAll with ^ on more than 1000 matches', (editor, cursor) => {
+		let initialText = '';
+		for (let i = 0; i < 1100; i++) {
+			initialText += 'line' + i + '\n';
+		}
+		editor.getModel().setValue(initialText);
+		let findState = new FindReplaceState();
+		findState.change({ searchString: '^', replaceString: 'a ', isRegex: true }, false);
+		let findModel = new FindModelBoundToEditorModel(editor, findState);
+
+		findModel.replaceAll();
+
+		let expectedText = '';
+		for (let i = 0; i < 1100; i++) {
+			expectedText += 'a line' + i + '\n';
+		}
+		expectedText += 'a ';
+		assert.equal(editor.getModel().getValue(), expectedText);
+
+		findModel.dispose();
+		findState.dispose();
+	});
+
 	findTest('issue #19740 Find and replace capture group/backreference inserts `undefined` instead of empty string', (editor, cursor) => {
 		let findState = new FindReplaceState();
 		findState.change({ searchString: 'hello(z)?', replaceString: 'hi$1', isRegex: true, matchCase: true }, false);

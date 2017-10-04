@@ -463,29 +463,37 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 	}
 
 	public getPlainTextToCopy(ranges: Range[], emptySelectionClipboard: boolean): string {
-		let newLineCharacter = this.model.getEOL();
+		const newLineCharacter = this.model.getEOL();
 
-		if (ranges.length === 1) {
-			let range: Range = ranges[0];
-			if (range.isEmpty()) {
-				if (emptySelectionClipboard) {
-					let modelLineNumber = this.coordinatesConverter.convertViewPositionToModelPosition(new Position(range.startLineNumber, 1)).lineNumber;
-					return this.model.getLineContent(modelLineNumber) + newLineCharacter;
-				} else {
-					return '';
+		ranges = ranges.slice(0);
+		ranges.sort(Range.compareRangesUsingStarts);
+		const nonEmptyRanges = ranges.filter((r) => !r.isEmpty());
+
+		if (nonEmptyRanges.length === 0) {
+			if (!emptySelectionClipboard) {
+				return '';
+			}
+
+			const modelLineNumbers = ranges.map((r) => {
+				const viewLineStart = new Position(r.startLineNumber, 1);
+				return this.coordinatesConverter.convertViewPositionToModelPosition(viewLineStart).lineNumber;
+			});
+
+			let result = '';
+			for (let i = 0; i < modelLineNumbers.length; i++) {
+				if (i > 0 && modelLineNumbers[i - 1] === modelLineNumbers[i]) {
+					continue;
 				}
+				result += this.model.getLineContent(modelLineNumbers[i]) + newLineCharacter;
 			}
-
-			return this.getValueInRange(range, editorCommon.EndOfLinePreference.TextDefined);
-		} else {
-			ranges = ranges.slice(0).sort(Range.compareRangesUsingStarts);
-			let result: string[] = [];
-			for (let i = 0; i < ranges.length; i++) {
-				result.push(this.getValueInRange(ranges[i], editorCommon.EndOfLinePreference.TextDefined));
-			}
-
-			return result.join(newLineCharacter);
+			return result;
 		}
+
+		let result: string[] = [];
+		for (let i = 0; i < nonEmptyRanges.length; i++) {
+			result.push(this.getValueInRange(nonEmptyRanges[i], editorCommon.EndOfLinePreference.TextDefined));
+		}
+		return result.join(newLineCharacter);
 	}
 
 	public getHTMLToCopy(viewRanges: Range[], emptySelectionClipboard: boolean): string {

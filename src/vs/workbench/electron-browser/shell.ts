@@ -199,6 +199,28 @@ export class WorkbenchShell {
 
 		// Telemetry: workspace info
 		const { filesToOpen, filesToCreate, filesToDiff } = this.configuration;
+		/* __GDPR__
+			"workspaceLoad" : {
+				"userAgent" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"windowSize.innerHeight": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"windowSize.innerWidth": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"windowSize.outerHeight": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"windowSize.outerWidth": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"emptyWorkbench": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"workbench.filesToOpen": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"workbench.filesToCreate": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"workbench.filesToDiff": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"customKeybindingsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"theme": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"language": { "classification": "SystemMetaData", "purpose": "BusinessInsight" },
+				"experiments": { "${inline}": [ "${IExperiments}" ] },
+				"pinnedViewlets": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"restoredViewlet": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"restoredEditors": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"pinnedViewlets": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"startupKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		this.telemetryService.publicLog('workspaceLoad', {
 			userAgent: navigator.userAgent,
 			windowSize: { innerHeight: window.innerHeight, innerWidth: window.innerWidth, outerHeight: window.outerHeight, outerWidth: window.outerWidth },
@@ -221,6 +243,13 @@ export class WorkbenchShell {
 		this.timerService.restoreEditorsDuration = info.restoreEditorsDuration;
 		this.timerService.restoreViewletDuration = info.restoreViewletDuration;
 		this.extensionService.onReady().done(() => {
+			/* __GDPR__
+				"startupTime" : {
+					"${include}": [
+						"${IStartupMetrics}"
+					]
+				}
+			*/
 			this.telemetryService.publicLog('startupTime', this.timerService.startupMetrics);
 		});
 
@@ -288,6 +317,12 @@ export class WorkbenchShell {
 			const idleMonitor = new IdleMonitor(2 * 60 * 1000); // 2 minutes
 
 			const listener = idleMonitor.onStatusChange(status =>
+				/* __GDPR__
+					"UserIdleStart" : {}
+				*/
+				/* __GDPR__
+					"UserIdleStop" : {}
+				*/
 				this.telemetryService.publicLog(status === UserStatus.Active
 					? TelemetryService.IDLE_STOP_EVENT_NAME
 					: TelemetryService.IDLE_START_EVENT_NAME

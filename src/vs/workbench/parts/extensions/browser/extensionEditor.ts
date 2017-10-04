@@ -265,6 +265,13 @@ export class ExtensionEditor extends BaseEditor {
 
 		this.transientDisposables = dispose(this.transientDisposables);
 
+		/* __GDPR__
+			"extensionGallery:openExtension" : {
+				"${include}": [
+					"${GalleryExtensionTelemetryData}"
+				]
+			}
+		*/
 		this.telemetryService.publicLog('extensionGallery:openExtension', extension.telemetryData);
 
 		this.extensionReadme = new Cache(() => extension.getReadme());

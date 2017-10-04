@@ -103,13 +103,13 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 			throw new Error(`${path} cannot be parsed as JSON file (${error}).`);
 		}
 
-		// Filter out folders which do not have a path set
+		// Filter out folders which do not have a path or uri set
 		if (Array.isArray(storedWorkspace.folders)) {
 			storedWorkspace.folders = storedWorkspace.folders.filter(folder => isStoredWorkspaceFolder(folder));
 		}
 
 		// Validate
-		if (!Array.isArray(storedWorkspace.folders) || storedWorkspace.folders.length === 0) {
+		if (!Array.isArray(storedWorkspace.folders)) {
 			throw new Error(`${path} looks like an invalid workspace file.`);
 		}
 

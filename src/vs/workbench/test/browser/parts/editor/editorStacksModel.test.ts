@@ -7,7 +7,7 @@
 
 import * as assert from 'assert';
 import { EditorStacksModel, EditorGroup, EditorCloseEvent } from 'vs/workbench/common/editor/editorStacksModel';
-import { EditorInput, IFileEditorInput, IEditorIdentifier, IEditorGroup, IStacksModelChangeEvent, IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory, IEditorCloseEvent } from 'vs/workbench/common/editor';
+import { Extensions as EditorExtensions, IEditorInputFactoryRegistry, EditorInput, IFileEditorInput, IEditorIdentifier, IEditorGroup, IStacksModelChangeEvent, IEditorInputFactory, IEditorCloseEvent } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
 import { TestStorageService, TestLifecycleService, TestContextService } from 'vs/workbench/test/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -22,7 +22,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import 'vs/workbench/browser/parts/editor/baseEditor';
 
 function create(): EditorStacksModel {
 	let inst = new TestInstantiationService();
@@ -202,7 +201,7 @@ class TestEditorInputFactory implements IEditorInputFactory {
 	}
 }
 
-(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditorInputFactory('testEditorInput', TestEditorInputFactory);
+(<IEditorInputFactoryRegistry>Registry.as(EditorExtensions.EditorInputFactories)).registerEditorInputFactory('testEditorInput', TestEditorInputFactory);
 
 suite('Editor Stacks Model', () => {
 
@@ -1199,7 +1198,7 @@ suite('Editor Stacks Model', () => {
 		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' } });
 		inst.stub(IConfigurationService, config);
 
-		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
+		(<IEditorInputFactoryRegistry>Registry.as(EditorExtensions.EditorInputFactories)).setInstantiationService(inst);
 
 		let model: EditorStacksModel = inst.createInstance(EditorStacksModel, true);
 		let group = model.openGroup('group');
@@ -1244,7 +1243,7 @@ suite('Editor Stacks Model', () => {
 		inst.stub(IConfigurationService, config);
 
 
-		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
+		(<IEditorInputFactoryRegistry>Registry.as(EditorExtensions.EditorInputFactories)).setInstantiationService(inst);
 
 		let model: EditorStacksModel = inst.createInstance(EditorStacksModel, true);
 
@@ -1327,7 +1326,7 @@ suite('Editor Stacks Model', () => {
 		inst.stub(IConfigurationService, config);
 
 
-		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
+		(<IEditorInputFactoryRegistry>Registry.as(EditorExtensions.EditorInputFactories)).setInstantiationService(inst);
 
 		let model: EditorStacksModel = inst.createInstance(EditorStacksModel, true);
 
@@ -1378,7 +1377,7 @@ suite('Editor Stacks Model', () => {
 		inst.stub(IConfigurationService, config);
 
 
-		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
+		(<IEditorInputFactoryRegistry>Registry.as(EditorExtensions.EditorInputFactories)).setInstantiationService(inst);
 
 		let model: EditorStacksModel = inst.createInstance(EditorStacksModel, true);
 
@@ -1419,7 +1418,7 @@ suite('Editor Stacks Model', () => {
 		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' } });
 		inst.stub(IConfigurationService, config);
 
-		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
+		(<IEditorInputFactoryRegistry>Registry.as(EditorExtensions.EditorInputFactories)).setInstantiationService(inst);
 
 		let model: EditorStacksModel = inst.createInstance(EditorStacksModel, false);
 

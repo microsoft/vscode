@@ -13,7 +13,6 @@
 	"invalid.title": "'configuration.title' deve essere una stringa",
 	"vscode.extension.contributes.defaultConfiguration": "Aggiunge come contributo le impostazioni di configurazione predefinite dell'editor in base al linguaggio.",
 	"invalid.properties": "'configuration.properties' deve essere un oggetto",
-	"workspaceConfig.folders.description": "Elenco delle cartelle da caricare nell'area di lavoro. Deve essere un percorso di file, ad esempio `/root/folderA` o `./folderA` per un percorso relativo che verrà risolto in base alla posizione del file dell'area di lavoro.",
-	"workspaceConfig.folder.description": "Percorso di file, ad esempio `/root/folderA` o `./folderA` per un percorso relativo che verrà risolto in base alla posizione del file dell'area di lavoro.",
+	"workspaceConfig.path.description": "Percorso di file, ad esempio `/root/folderA` o `./folderA` per un percorso relativo che verrà risolto in base alla posizione del file dell'area di lavoro.",
 	"workspaceConfig.settings.description": "Impostazioni di area di lavoro"
 }

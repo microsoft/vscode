@@ -5,7 +5,7 @@
 'use strict';
 
 import { Emitter } from 'vs/base/common/event';
-import { StringTrieMap } from 'vs/base/common/map';
+import { TernarySearchTree } from 'vs/base/common/map';
 import { score } from 'vs/editor/common/modes/languageSelector';
 import * as Platform from 'vs/base/common/platform';
 import * as errors from 'vs/base/common/errors';
@@ -76,6 +76,8 @@ function proposedApiFunction<T>(extension: IExtensionDescription, fn: T): T {
 export function createApiFactory(
 	initData: IInitData,
 	threadService: ExtHostThreadService,
+	extHostWorkspace: ExtHostWorkspace,
+	extHostConfiguration: ExtHostConfiguration,
 	extensionService: ExtHostExtensionService
 ): IExtensionApiFactory {
 
@@ -83,16 +85,16 @@ export function createApiFactory(
 
 	// Addressable instances
 	const extHostHeapService = threadService.set(ExtHostContext.ExtHostHeapService, new ExtHostHeapService());
-	const extHostDocumentsAndEditors = threadService.set(ExtHostContext.ExtHostDocumentsAndEditors, new ExtHostDocumentsAndEditors(threadService, extensionService));
+	const extHostDocumentsAndEditors = threadService.set(ExtHostContext.ExtHostDocumentsAndEditors, new ExtHostDocumentsAndEditors(threadService));
 	const extHostDocuments = threadService.set(ExtHostContext.ExtHostDocuments, new ExtHostDocuments(threadService, extHostDocumentsAndEditors));
 	const extHostDocumentContentProviders = threadService.set(ExtHostContext.ExtHostDocumentContentProviders, new ExtHostDocumentContentProvider(threadService, extHostDocumentsAndEditors));
 	const extHostDocumentSaveParticipant = threadService.set(ExtHostContext.ExtHostDocumentSaveParticipant, new ExtHostDocumentSaveParticipant(extHostDocuments, threadService.get(MainContext.MainThreadEditors)));
 	const extHostEditors = threadService.set(ExtHostContext.ExtHostEditors, new ExtHostEditors(threadService, extHostDocumentsAndEditors));
 	const extHostCommands = threadService.set(ExtHostContext.ExtHostCommands, new ExtHostCommands(threadService, extHostHeapService));
 	const extHostTreeViews = threadService.set(ExtHostContext.ExtHostTreeViews, new ExtHostTreeViews(threadService.get(MainContext.MainThreadTreeViews), extHostCommands));
-	const extHostWorkspace = threadService.set(ExtHostContext.ExtHostWorkspace, new ExtHostWorkspace(threadService, initData.workspace));
+	threadService.set(ExtHostContext.ExtHostWorkspace, extHostWorkspace);
 	const extHostDebugService = threadService.set(ExtHostContext.ExtHostDebugService, new ExtHostDebugService(threadService, extHostWorkspace));
-	const extHostConfiguration = threadService.set(ExtHostContext.ExtHostConfiguration, new ExtHostConfiguration(threadService.get(MainContext.MainThreadConfiguration), extHostWorkspace, initData.configuration));
+	threadService.set(ExtHostContext.ExtHostConfiguration, extHostConfiguration);
 	const extHostDiagnostics = threadService.set(ExtHostContext.ExtHostDiagnostics, new ExtHostDiagnostics(threadService));
 	const languageFeatures = threadService.set(ExtHostContext.ExtHostLanguageFeatures, new ExtHostLanguageFeatures(threadService, extHostDocuments, extHostCommands, extHostHeapService, extHostDiagnostics));
 	const extHostFileSystem = threadService.set(ExtHostContext.ExtHostFileSystem, new ExtHostFileSystem(threadService));
@@ -145,6 +147,15 @@ export function createApiFactory(
 					return undefined;
 				}
 				this._seen.add(apiName);
+				/* __GDPR__
+					"apiUsage" : {
+						"name" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"extension": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"${include}": [
+							"${MainThreadData}"
+						]
+					}
+				*/
 				return mainThreadTelemetry.$publicLog('apiUsage', {
 					name: apiName,
 					extension: extension.id
@@ -350,11 +361,17 @@ export function createApiFactory(
 			showQuickPick(items: any, options: vscode.QuickPickOptions, token?: vscode.CancellationToken) {
 				return extHostQuickOpen.showQuickPick(items, options, token);
 			},
-			showWorkspaceFolderPick(options: vscode.WorkspaceFolderPickOptions) {
+			showWorkspaceFolderPick: proposedApiFunction(extension, (options: vscode.WorkspaceFolderPickOptions) => {
 				return extHostQuickOpen.showWorkspaceFolderPick(options);
-			},
+			}),
 			showInputBox(options?: vscode.InputBoxOptions, token?: vscode.CancellationToken) {
 				return extHostQuickOpen.showInput(options, token);
+			},
+			showOpenDialog(options) {
+				return extHostDialogs.showOpenDialog(options);
+			},
+			showSaveDialog(options) {
+				return extHostDialogs.showSaveDialog(options);
 			},
 			createStatusBarItem(position?: vscode.StatusBarAlignment, priority?: number): vscode.StatusBarItem {
 				return extHostStatusBar.createStatusBarEntry(extension.id, <number>position, priority);
@@ -385,12 +402,6 @@ export function createApiFactory(
 			sampleFunction: proposedApiFunction(extension, () => {
 				return extHostMessageService.showMessage(extension, Severity.Info, 'Hello Proposed Api!', {}, []);
 			}),
-			showOpenDialog: proposedApiFunction(extension, options => {
-				return extHostDialogs.showOpenDialog(options);
-			}),
-			showSaveDialog: proposedApiFunction(extension, options => {
-				return extHostDialogs.showSaveDialog(options);
-			})
 		};
 
 		// namespace: workspace
@@ -403,6 +414,7 @@ export function createApiFactory(
 				throw errors.readonly();
 			},
 			getWorkspaceFolder(resource) {
+				apiUsage.publicLog('workspace#getWorkspaceFolder');
 				return extHostWorkspace.getWorkspaceFolder(resource);
 			},
 			get workspaceFolders() {
@@ -438,12 +450,12 @@ export function createApiFactory(
 				let uriPromise: TPromise<URI>;
 
 				let options = uriOrFileNameOrOptions as { language?: string; content?: string; };
-				if (!options || typeof options.language === 'string') {
-					uriPromise = extHostDocuments.createDocumentData(options);
-				} else if (typeof uriOrFileNameOrOptions === 'string') {
+				if (typeof uriOrFileNameOrOptions === 'string') {
 					uriPromise = TPromise.as(URI.file(uriOrFileNameOrOptions));
 				} else if (uriOrFileNameOrOptions instanceof URI) {
 					uriPromise = TPromise.as(<URI>uriOrFileNameOrOptions);
+				} else if (!options || typeof options === 'object') {
+					uriPromise = extHostDocuments.createDocumentData(options);
 				} else {
 					throw new Error('illegal argument - uriOrFileNameOrOptions');
 				}
@@ -493,6 +505,16 @@ export function createApiFactory(
 				return extHostSCM.getLastInputBox(extension);
 			},
 			createSourceControl(id: string, label: string, rootUri?: vscode.Uri) {
+				/* __GDPR__
+					"registerSCMProvider" : {
+						"extensionId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"providerId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+						"providerLabel": { "classification": "PublicPersonalData", "purpose": "FeatureInsight" },
+						"${include}": [
+							"${MainThreadData}"
+						]
+					}
+				*/
 				mainThreadTelemetry.$publicLog('registerSCMProvider', {
 					extensionId: extension.id,
 					providerId: id,
@@ -609,6 +631,7 @@ export function createApiFactory(
 			TaskScope: extHostTypes.TaskScope,
 			Task: extHostTypes.Task,
 			ConfigurationTarget: extHostTypes.ConfigurationTarget,
+			RelativePattern: extHostTypes.RelativePattern,
 
 			// TODO@JOH,remote
 			FileChangeType: <any>FileChangeType,
@@ -653,7 +676,7 @@ export function initializeExtensionApi(extensionService: ExtHostExtensionService
 	return extensionService.getExtensionPathIndex().then(trie => defineAPI(apiFactory, trie));
 }
 
-function defineAPI(factory: IExtensionApiFactory, extensionPaths: StringTrieMap<IExtensionDescription>): void {
+function defineAPI(factory: IExtensionApiFactory, extensionPaths: TernarySearchTree<IExtensionDescription>): void {
 
 	// each extension is meant to get its own api implementation
 	const extApiImpl = new Map<string, typeof vscode>();

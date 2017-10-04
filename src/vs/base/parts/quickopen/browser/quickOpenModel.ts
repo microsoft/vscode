@@ -16,7 +16,7 @@ import paths = require('vs/base/common/paths');
 import { IconLabel, IIconLabelOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IQuickNavigateConfiguration, IModel, IDataSource, IFilter, IAccessiblityProvider, IRenderer, IRunner, Mode } from 'vs/base/parts/quickopen/common/quickOpen';
 import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
-import { compareAnything, compareByScore as doCompareByScore } from 'vs/base/common/comparers';
+import { compareAnything } from 'vs/base/common/comparers';
 import { ActionBar, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import DOM = require('vs/base/browser/dom');
@@ -24,6 +24,7 @@ import { IQuickOpenStyles } from 'vs/base/parts/quickopen/browser/quickOpenWidge
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { OS } from 'vs/base/common/platform';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { IItemAccessor } from 'vs/base/common/scorer';
 
 export interface IContext {
 	event: any;
@@ -37,17 +38,24 @@ export interface IHighlight {
 
 let IDS = 0;
 
-class EntryAccessor {
+export class QuickOpenItemAccessorClass implements IItemAccessor<QuickOpenEntry> {
 
-	public static getLabel(entry: QuickOpenEntry) {
+	public getItemLabel(entry: QuickOpenEntry): string {
 		return entry.getLabel();
 	}
 
-	public static getResourcePath(entry: QuickOpenEntry) {
+	public getItemDescription(entry: QuickOpenEntry): string {
+		return entry.getDescription();
+	}
+
+	public getItemPath(entry: QuickOpenEntry): string {
 		const resource = entry.getResource();
-		return resource && resource.fsPath;
+
+		return resource ? resource.fsPath : void 0;
 	}
 }
+
+export const QuickOpenItemAccessor = new QuickOpenItemAccessorClass();
 
 export class QuickOpenEntry {
 	private id: string;
@@ -196,10 +204,6 @@ export class QuickOpenEntry {
 		}
 
 		return compareAnything(nameA, nameB, lookFor);
-	}
-
-	public static compareByScore(elementA: QuickOpenEntry, elementB: QuickOpenEntry, lookFor: string, lookForNormalizedLower: string, scorerCache?: { [key: string]: number }): number {
-		return doCompareByScore(elementA, elementB, EntryAccessor, lookFor, lookForNormalizedLower, scorerCache);
 	}
 
 	/**

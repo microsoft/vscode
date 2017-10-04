@@ -4173,6 +4173,10 @@ declare module monaco.languages {
 		 */
 		documentation?: string;
 		/**
+		 * A command that should be run upon acceptance of this item.
+		 */
+		command?: Command;
+		/**
 		 * A string that should be used when comparing this item
 		 * with other items. When `falsy` the [label](#CompletionItem.label)
 		 * is used.
@@ -4362,18 +4366,31 @@ declare module monaco.languages {
 	}
 
 	/**
+	 * Describes language specific folding markers such as '#region' and '#endregion'.
+	 * The start and end regexes will be tested against the contents of all lines and must be designed efficiently:
+	 * - the regex should start with '^'
+	 * - regexp flags (i, g) are ignored
+	 */
+	export interface FoldingMarkers {
+		start: RegExp;
+		end: RegExp;
+	}
+
+	/**
 	 * Describes folding rules for a language.
 	 */
 	export interface FoldingRules {
-		indendationBasedFolding?: {
-			/**
-			 * Used by the indentation based strategy to decide wheter empty lines belong to the previous or the next block.
-			 * A language adheres to the off-side rule if blocks in that language are expressed by their indentation.
-			 * See [wikipedia](https://en.wikipedia.org/wiki/Off-side_rule) for more information.
-			 * If not set, `false` is used and empty lines belong to the previous block.
-			 */
-			offSide: boolean;
-		};
+		/**
+		 * Used by the indentation based strategy to decide wheter empty lines belong to the previous or the next block.
+		 * A language adheres to the off-side rule if blocks in that language are expressed by their indentation.
+		 * See [wikipedia](https://en.wikipedia.org/wiki/Off-side_rule) for more information.
+		 * If not set, `false` is used and empty lines belong to the previous block.
+		 */
+		offSide?: boolean;
+		/**
+		 * Region markers used by the language.
+		 */
+		markers?: FoldingMarkers;
 	}
 
 	/**

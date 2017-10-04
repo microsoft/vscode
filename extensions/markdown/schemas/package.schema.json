@@ -24,7 +24,7 @@
 				},
 				"markdown.markdownItPlugins": {
 					"type": "boolean",
-					"description": "Does this extension contributes a markdown-it plugin?"
+					"description": "Does this extension contribute a markdown-it plugin?"
 				}
 			}
 		}

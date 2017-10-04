@@ -23,8 +23,6 @@
 		["'", "'"]
 	],
 	"folding": {
-		"indendationBasedFolding": {
-			"offSide": true
-		}
+		"offSide": true
 	}
 }

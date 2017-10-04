@@ -18,6 +18,7 @@
 	"openFolder": "Abrir Pasta",
 	"openFile": "Abrir Arquivo",
 	"workspaceOpenedMessage": "Não é possível salvar espaço de trabalho '{0}'",
+	"workspaceOpenedDetail": "O espaço de trabalho já está aberto em outra janela. Por favor, feche a janela primeiro e tente novamente.",
 	"openWorkspace": "&&Abrir",
 	"openWorkspaceTitle": "Abrir o Espaço de Trabalho",
 	"save": "&&Salvar",

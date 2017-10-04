@@ -22,6 +22,8 @@
 	"errorBorder": "编辑器中错误波浪线的边框颜色。",
 	"warningForeground": "编辑器中警告波浪线的前景色。",
 	"warningBorder": "编辑器中警告波浪线的边框颜色。",
+	"infoForeground": "编辑器中信息波浪线的前景色。",
+	"infoBorder": "编辑器中信息波浪线的边框颜色。",
 	"overviewRulerRangeHighlight": "概述范围突出显示的标尺标记颜色。",
 	"overviewRuleError": "概述错误的标尺标记颜色。",
 	"overviewRuleWarning": "概述警告的标尺标记颜色。",

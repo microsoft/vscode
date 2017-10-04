@@ -12,7 +12,6 @@ import { first } from 'vs/base/common/arrays';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import * as objects from 'vs/base/common/objects';
 import uri from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
 import * as paths from 'vs/base/common/paths';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { IModel, isCommonCodeEditor } from 'vs/editor/common/editorCommon';
@@ -29,7 +28,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDebugConfigurationProvider, IRawAdapter, ICompound, IDebugConfiguration, DEBUG_SCHEME, IConfig, IEnvConfig, IGlobalConfig, IConfigurationManager, ILaunch } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugConfigurationProvider, IRawAdapter, ICompound, IDebugConfiguration, IConfig, IEnvConfig, IGlobalConfig, IConfigurationManager, ILaunch } from 'vs/workbench/parts/debug/common/debug';
 import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
@@ -82,10 +81,6 @@ export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerE
 			},
 			adapterExecutableCommand: {
 				description: nls.localize('vscode.extension.contributes.debuggers.adapterExecutableCommand', "If specified VS Code will call this command to determine the executable path of the debug adapter and the arguments to pass."),
-				type: 'string'
-			},
-			startSessionCommand: {
-				description: nls.localize('vscode.extension.contributes.debuggers.startSessionCommand', "If specified VS Code will call this command for the \"debug\" or \"run\" actions targeted for this extension."),
 				type: 'string'
 			},
 			configurationSnippets: {
@@ -398,14 +393,14 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 
 	public canSetBreakpointsIn(model: IModel): boolean {
-		if (model.uri.scheme !== Schemas.file && model.uri.scheme !== DEBUG_SCHEME) {
+		const modeId = model ? model.getLanguageIdentifier().language : null;
+		if (!modeId || modeId === 'json') {
+			// do not allow breakpoints in our settings files
 			return false;
 		}
 		if (this.configurationService.getConfiguration<IDebugConfiguration>('debug').allowBreakpointsEverywhere) {
 			return true;
 		}
-
-		const modeId = model ? model.getLanguageIdentifier().language : null;
 
 		return this.breakpointModeIdsSet.has(modeId);
 	}
@@ -445,18 +440,6 @@ export class ConfigurationManager implements IConfigurationManager {
 			});
 	}
 
-	public getStartSessionCommand(type?: string): TPromise<{ command: string, type: string }> {
-		return this.guessAdapter(type).then(adapter => {
-			if (adapter) {
-				return {
-					command: adapter.startSessionCommand,
-					type: adapter.type
-				};
-			}
-			return undefined;
-		});
-	}
-
 	private store(): void {
 		this.storageService.store(DEBUG_SELECTED_CONFIG_NAME_KEY, this.selectedName, StorageScope.WORKSPACE);
 		if (this._selectedLaunch) {
@@ -494,7 +477,7 @@ class Launch implements ILaunch {
 
 	public getConfigurationNames(): string[] {
 		const config = this.configurationService.getConfiguration<IGlobalConfig>('launch', { resource: this.workspace.uri });
-		if (!config || !config.configurations) {
+		if (!config || !config.configurations || !Array.isArray(config.configurations)) {
 			return [];
 		} else {
 			const names = config.configurations.filter(cfg => cfg && typeof cfg.name === 'string').map(cfg => cfg.name);
@@ -519,7 +502,7 @@ class Launch implements ILaunch {
 	}
 
 	public resolveConfiguration(config: IConfig): TPromise<IConfig> {
-		const result = objects.deepClone(config) as IConfig;
+		const result = objects.clone(config) as IConfig;
 		// Set operating system specific properties #1873
 		const setOSProperties = (flag: boolean, osConfig: IEnvConfig) => {
 			if (flag && osConfig) {
@@ -542,7 +525,7 @@ class Launch implements ILaunch {
 	}
 
 	public get uri(): uri {
-		return uri.file(paths.join(this.workspace.uri.fsPath, '/.vscode/launch.json'));
+		return this.workspace.uri.with({ path: paths.join(this.workspace.uri.path, '/.vscode/launch.json') });
 	}
 
 	public openConfigFile(sideBySide: boolean, type?: string): TPromise<IEditor> {
@@ -557,7 +540,7 @@ class Launch implements ILaunch {
 				return this.configurationManager.guessAdapter(type).then(adapter => {
 					if (adapter) {
 						return this.configurationManager.provideDebugConfigurations(this.workspace.uri, adapter.type).then(initialConfigs => {
-							return adapter.getInitialConfigurationContent(this.workspace.uri, initialConfigs);
+							return adapter.getInitialConfigurationContent(initialConfigs);
 						});
 					} else {
 						return undefined;

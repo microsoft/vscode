@@ -3,21 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CodeActionProvider, TextDocument, Range, CancellationToken, CodeActionContext, Command, commands, Uri, workspace, WorkspaceEdit, TextEdit, FormattingOptions, window } from 'vscode';
+import { CodeActionProvider, TextDocument, Range, CancellationToken, CodeActionContext, Command, commands, workspace, WorkspaceEdit } from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
 import { tsTextSpanToVsRange, vsRangeToTsFileRange } from '../utils/convert';
+import FormattingConfigurationManager from './formattingConfigurationManager';
 
 interface NumberSet {
 	[key: number]: boolean;
-}
-
-interface Source {
-	uri: Uri;
-	version: number;
-	range: Range;
-	formattingOptions: FormattingOptions | undefined;
 }
 
 export default class TypeScriptCodeActionProvider implements CodeActionProvider {
@@ -27,6 +21,7 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 
 	constructor(
 		private readonly client: ITypescriptServiceClient,
+		private readonly formattingConfigurationManager: FormattingConfigurationManager,
 		mode: string
 	) {
 		this.commandId = `_typescript.applyCodeAction.${mode}`;
@@ -53,26 +48,14 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 			return [];
 		}
 
-		let formattingOptions: FormattingOptions | undefined = undefined;
-		for (const editor of window.visibleTextEditors) {
-			if (editor.document.fileName === document.fileName) {
-				formattingOptions = { tabSize: editor.options.tabSize, insertSpaces: editor.options.insertSpaces } as FormattingOptions;
-				break;
-			}
-		}
+		await this.formattingConfigurationManager.ensureFormatOptionsForDocument(document, token);
 
-		const source: Source = {
-			uri: document.uri,
-			version: document.version,
-			range: range,
-			formattingOptions: formattingOptions
-		};
 		const args: Proto.CodeFixRequestArgs = {
 			...vsRangeToTsFileRange(file, range),
 			errorCodes: Array.from(supportedActions)
 		};
 		const response = await this.client.execute('getCodeFixes', args, token);
-		return (response.body || []).map(action => this.getCommandForAction(source, action));
+		return (response.body || []).map(action => this.getCommandForAction(action));
 	}
 
 	private get supportedCodeActions(): Thenable<NumberSet> {
@@ -96,15 +79,15 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 				.filter(code => supportedActions[code])));
 	}
 
-	private getCommandForAction(source: Source, action: Proto.CodeAction): Command {
+	private getCommandForAction(action: Proto.CodeAction): Command {
 		return {
 			title: action.description,
 			command: this.commandId,
-			arguments: [source, action]
+			arguments: [action]
 		};
 	}
 
-	private async onCodeAction(source: Source, action: Proto.CodeAction): Promise<boolean> {
+	private async onCodeAction(action: Proto.CodeAction): Promise<boolean> {
 		const workspaceEdit = new WorkspaceEdit();
 		for (const change of action.changes) {
 			for (const textChange of change.textChanges) {
@@ -114,35 +97,6 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 			}
 		}
 
-		const success = workspace.applyEdit(workspaceEdit);
-		if (!success) {
-			return false;
-		}
-
-		let firstEdit: TextEdit | undefined = undefined;
-		for (const [uri, edits] of workspaceEdit.entries()) {
-			if (uri.toString() === source.uri.toString()) {
-				firstEdit = edits[0];
-				break;
-			}
-		}
-
-		if (!firstEdit) {
-			return true;
-		}
-
-		const newLines = firstEdit.newText.match(/\n/g);
-		const editedRange = new Range(
-			firstEdit.range.start.line, 0,
-			firstEdit.range.end.line + 1 + (newLines ? newLines.length : 0), 0);
-		// TODO: Workaround for https://github.com/Microsoft/TypeScript/issues/12249
-		// apply formatting to the source range until TS returns formatted results
-		const edits = (await commands.executeCommand('vscode.executeFormatRangeProvider', source.uri, editedRange, source.formattingOptions || {})) as TextEdit[];
-		if (!edits || !edits.length) {
-			return false;
-		}
-		const formattingEdit = new WorkspaceEdit();
-		formattingEdit.set(source.uri, edits);
-		return workspace.applyEdit(formattingEdit);
+		return workspace.applyEdit(workspaceEdit);
 	}
 }

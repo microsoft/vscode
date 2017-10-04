@@ -35,7 +35,7 @@ export const copyPathCommand = (accessor: ServicesAccessor, resource?: URI) => {
 		const editorService = accessor.get(IWorkbenchEditorService);
 		const activeEditor = editorService.getActiveEditor();
 
-		resource = activeEditor ? toResource(activeEditor.input, { supportSideBySide: true, filter: 'file' }) : void 0;
+		resource = activeEditor ? toResource(activeEditor.input, { supportSideBySide: true }) : void 0;
 		if (activeEditor) {
 			editorGroupService.focusGroup(activeEditor.position); // focus back to active editor group
 		}
@@ -97,13 +97,13 @@ export const revealInExplorerCommand = (accessor: ServicesAccessor, resource: UR
 		if (isInsideWorkspace) {
 			const explorerView = viewlet.getExplorerView();
 			if (explorerView) {
-				explorerView.expand();
+				explorerView.setExpanded(true);
 				explorerView.select(resource, true);
 			}
 		} else {
 			const openEditorsView = viewlet.getOpenEditorsView();
 			if (openEditorsView) {
-				openEditorsView.expand();
+				openEditorsView.setExpanded(true);
 			}
 		}
 	});

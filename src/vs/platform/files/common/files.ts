@@ -15,6 +15,7 @@ import Event from 'vs/base/common/event';
 import { beginsWithIgnoreCase } from 'vs/base/common/strings';
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { isEqualOrParent, isEqual } from 'vs/base/common/resources';
 
 export const IFileService = createDecorator<IFileService>('fileService');
 
@@ -33,11 +34,14 @@ export interface IFileService {
 	onAfterOperation: Event<FileOperationEvent>;
 
 	/**
-	 *
+	 * Registeres a file system provider for a certain scheme.
 	 */
-	registerProvider?(authority: string, provider: IFileSystemProvider): IDisposable;
+	registerProvider?(scheme: string, provider: IFileSystemProvider): IDisposable;
 
-	supportResource?(resource: URI): boolean;
+	/**
+	 * Checks if this file service can handle the given resource.
+	 */
+	canHandleResource?(resource: URI): boolean;
 
 	/**
 	 * Resolve the properties of a file identified by the resource.
@@ -166,7 +170,7 @@ export enum FileType {
 	Symlink = 2
 }
 export interface IStat {
-	resource: URI;
+	id: number | string;
 	mtime: number;
 	size: number;
 	type: FileType;
@@ -178,15 +182,15 @@ export interface IFileSystemProvider {
 
 	// more...
 	//
-	utimes(resource: URI, mtime: number): TPromise<IStat>;
+	utimes(resource: URI, mtime: number, atime: number): TPromise<IStat>;
 	stat(resource: URI): TPromise<IStat>;
-	read(resource: URI, progress: IProgress<Uint8Array>): TPromise<void>;
+	read(resource: URI, offset: number, count: number, progress: IProgress<Uint8Array>): TPromise<number>;
 	write(resource: URI, content: Uint8Array): TPromise<void>;
-	unlink(resource: URI): TPromise<void>;
-	rename(resource: URI, target: URI): TPromise<void>;
-	mkdir(resource: URI): TPromise<void>;
-	readdir(resource: URI): TPromise<IStat[]>;
+	move(from: URI, to: URI): TPromise<IStat>;
+	mkdir(resource: URI): TPromise<IStat>;
+	readdir(resource: URI): TPromise<[URI, IStat][]>;
 	rmdir(resource: URI): TPromise<void>;
+	unlink(resource: URI): TPromise<void>;
 }
 
 
@@ -271,10 +275,10 @@ export class FileChangesEvent extends events.Event {
 
 			// For deleted also return true when deleted folder is parent of target path
 			if (type === FileChangeType.DELETED) {
-				return paths.isEqualOrParent(resource.fsPath, change.resource.fsPath, !isLinux /* ignorecase */);
+				return isEqualOrParent(resource, change.resource, !isLinux /* ignorecase */);
 			}
 
-			return paths.isEqual(resource.fsPath, change.resource.fsPath, !isLinux /* ignorecase */);
+			return isEqual(resource, change.resource, !isLinux /* ignorecase */);
 		});
 	}
 

@@ -380,7 +380,7 @@ export class FileService implements IFileService {
 		return checkFilePromise.then(exists => {
 			if (exists && !options.overwrite) {
 				return TPromise.wrapError<IFileStat>(new FileOperationError(
-					nls.localize('fileExists', "File to create already exits ({0})", resource.toString(true)),
+					nls.localize('fileExists', "File to create already exists ({0})", resource.toString(true)),
 					FileOperationResult.FILE_MODIFIED_SINCE
 				));
 			}
@@ -718,59 +718,56 @@ export class FileService implements IFileService {
 		let watcher = this.activeFileChangesWatchers.get(resource);
 		if (!watcher) {
 			const fsPath = resource.fsPath;
+			const fsName = paths.basename(resource.fsPath);
 
 			try {
-				watcher = fs.watch(fsPath); // will be persistent but not recursive
+				watcher = extfs.watch(fsPath, (eventType: string, filename: string) => {
+					const renamedOrDeleted = ((filename && filename !== fsName) || eventType === 'rename');
+
+					// The file was either deleted or renamed. Many tools apply changes to files in an
+					// atomic way ("Atomic Save") by first renaming the file to a temporary name and then
+					// renaming it back to the original name. Our watcher will detect this as a rename
+					// and then stops to work on Mac and Linux because the watcher is applied to the
+					// inode and not the name. The fix is to detect this case and trying to watch the file
+					// again after a certain delay.
+					// In addition, we send out a delete event if after a timeout we detect that the file
+					// does indeed not exist anymore.
+					if (renamedOrDeleted) {
+
+						// Very important to dispose the watcher which now points to a stale inode
+						this.unwatchFileChanges(resource);
+
+						// Wait a bit and try to install watcher again, assuming that the file was renamed quickly ("Atomic Save")
+						setTimeout(() => {
+							this.existsFile(resource).done(exists => {
+
+								// File still exists, so reapply the watcher
+								if (exists) {
+									this.watchFileChanges(resource);
+								}
+
+								// File seems to be really gone, so emit a deleted event
+								else {
+									this.onRawFileChange({
+										type: FileChangeType.DELETED,
+										path: fsPath
+									});
+								}
+							});
+						}, FileService.FS_REWATCH_DELAY);
+					}
+
+					// Handle raw file change
+					this.onRawFileChange({
+						type: FileChangeType.UPDATED,
+						path: fsPath
+					});
+				});
 			} catch (error) {
 				return; // the path might not exist anymore, ignore this error and return
 			}
 
 			this.activeFileChangesWatchers.set(resource, watcher);
-
-			// eventType is either 'rename' or 'change'
-			const fsName = paths.basename(resource.fsPath);
-			watcher.on('change', (eventType: string, filename: string) => {
-				const renamedOrDeleted = ((filename && filename !== fsName) || eventType === 'rename');
-
-				// The file was either deleted or renamed. Many tools apply changes to files in an
-				// atomic way ("Atomic Save") by first renaming the file to a temporary name and then
-				// renaming it back to the original name. Our watcher will detect this as a rename
-				// and then stops to work on Mac and Linux because the watcher is applied to the
-				// inode and not the name. The fix is to detect this case and trying to watch the file
-				// again after a certain delay.
-				// In addition, we send out a delete event if after a timeout we detect that the file
-				// does indeed not exist anymore.
-				if (renamedOrDeleted) {
-
-					// Very important to dispose the watcher which now points to a stale inode
-					this.unwatchFileChanges(resource);
-
-					// Wait a bit and try to install watcher again, assuming that the file was renamed quickly ("Atomic Save")
-					setTimeout(() => {
-						this.existsFile(resource).done(exists => {
-
-							// File still exists, so reapply the watcher
-							if (exists) {
-								this.watchFileChanges(resource);
-							}
-
-							// File seems to be really gone, so emit a deleted event
-							else {
-								this.onRawFileChange({
-									type: FileChangeType.DELETED,
-									path: fsPath
-								});
-							}
-						});
-					}, FileService.FS_REWATCH_DELAY);
-				}
-
-				// Handle raw file change
-				this.onRawFileChange({
-					type: FileChangeType.UPDATED,
-					path: fsPath
-				});
-			});
 
 			// Errors
 			watcher.on('error', (error: string) => {

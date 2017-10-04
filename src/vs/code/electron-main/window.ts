@@ -21,7 +21,6 @@ import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
 import { IWindowSettings, MenuBarVisibility, IWindowConfiguration, ReadyState, IRunActionInWindowRequest } from 'vs/platform/windows/common/windows';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { KeyboardLayoutMonitor } from 'vs/code/electron-main/keyboard';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspaceIdentifier, IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
@@ -66,6 +65,10 @@ interface IWorkbenchEditorConfiguration {
 	};
 }
 
+interface ITouchBarSegment extends Electron.SegmentedControlSegment {
+	id: string;
+}
+
 export class CodeWindow implements ICodeWindow {
 
 	public static themeStorageKey = 'theme';
@@ -94,7 +97,7 @@ export class CodeWindow implements ICodeWindow {
 	private currentConfig: IWindowConfiguration;
 	private pendingLoadConfig: IWindowConfiguration;
 
-	private touchBarGroups: Map<string, Electron.TouchBarSegmentedControl>;
+	private touchBarGroups: Electron.TouchBarSegmentedControl[];
 
 	constructor(
 		config: IWindowCreationOptions,
@@ -105,7 +108,7 @@ export class CodeWindow implements ICodeWindow {
 		@IWorkspacesMainService private workspaceService: IWorkspacesMainService,
 		@IBackupMainService private backupService: IBackupMainService
 	) {
-		this.touchBarGroups = new Map<string, Electron.TouchBarSegmentedControl>();
+		this.touchBarGroups = [];
 		this._lastFocusTime = -1;
 		this._readyState = ReadyState.NONE;
 		this.whenReadyCallbacks = [];
@@ -116,6 +119,9 @@ export class CodeWindow implements ICodeWindow {
 
 		// respect configured menu bar visibility
 		this.onConfigurationUpdated();
+
+		// macOS: touch bar support
+		this.createTouchBar();
 
 		// Eventing
 		this.registerListeners();
@@ -550,9 +556,6 @@ export class CodeWindow implements ICodeWindow {
 		windowConfiguration.highContrast = isWindows && systemPreferences.isInvertedColorScheme() && (!windowConfig || windowConfig.autoDetectHighContrast);
 		windowConfiguration.accessibilitySupport = app.isAccessibilitySupportEnabled();
 
-		// Set Keyboard Config
-		windowConfiguration.isISOKeyboard = KeyboardLayoutMonitor.INSTANCE.isISOKeyboard();
-
 		// Theme
 		windowConfiguration.baseTheme = this.getBaseTheme();
 		windowConfiguration.backgroundColor = this.getBackgroundColor();
@@ -731,7 +734,13 @@ export class CodeWindow implements ICodeWindow {
 		// Multi Monitor (non-fullscreen): be less strict because metrics can be crazy
 		const bounds = { x: state.x, y: state.y, width: state.width, height: state.height };
 		const display = screen.getDisplayMatching(bounds);
-		if (display && display.bounds.x + display.bounds.width > bounds.x && display.bounds.y + display.bounds.height > bounds.y) {
+		if (
+			display &&												// we have a display matching the desired bounds
+			bounds.x < display.bounds.x + display.bounds.width &&	// prevent window from falling out of the screen to the right
+			bounds.y < display.bounds.y + display.bounds.height &&	// prevent window from falling out of the screen to the bottom
+			bounds.x + bounds.width > display.bounds.x &&			// prevent window from falling out of the screen to the left
+			bounds.y + bounds.height > display.bounds.y				// prevent window from falling out of the scree nto the top
+		) {
 			if (state.mode === WindowMode.Maximized) {
 				const defaults = defaultWindowState(WindowMode.Maximized); // when maximized, make sure we have good values when the user restores the window
 				defaults.x = state.x; // carefull to keep x/y position so that the window ends up on the correct monitor
@@ -866,52 +875,55 @@ export class CodeWindow implements ICodeWindow {
 			return; // only supported on macOS
 		}
 
-		// Clean up previous groups no longer in use
-		const groupHashes: string[] = [];
-		groups.forEach(group => groupHashes.push(this.getTouchBarGroupHash(group)));
-		this.touchBarGroups.forEach((value, key) => {
-			if (groupHashes.indexOf(key) === -1) {
-				this.touchBarGroups.delete(key);
-			}
+		// Update segments for all groups. Setting the segments property
+		// of the group directly prevents ugly flickering from happening
+		this.touchBarGroups.forEach((touchBarGroup, index) => {
+			const commands = groups[index];
+			touchBarGroup.segments = this.createTouchBarGroupSegments(commands);
 		});
-
-		// Build touchbar from groups
-		const touchBarGroups: (Electron.TouchBarGroup | Electron.TouchBarSpacer)[] = [];
-		groups.forEach(group => {
-			if (group.length) {
-				const groupHash = this.getTouchBarGroupHash(group);
-
-				// To avoid flickering, we try to reuse the touch bar group
-				// as much as possible by checking for a previously created
-				// group that has the same number of items with same style.
-				let groupTouchBar: Electron.TouchBarSegmentedControl;
-				if (this.touchBarGroups.has(groupHash)) {
-					groupTouchBar = this.touchBarGroups.get(groupHash);
-				} else {
-					groupTouchBar = this.createTouchBarGroup(group);
-					this.touchBarGroups.set(groupHash, groupTouchBar);
-				}
-
-				// Push and add small space between groups
-				touchBarGroups.push(groupTouchBar);
-				touchBarGroups.push(new TouchBar.TouchBarSpacer({ size: 'small' }));
-			}
-		});
-
-		this._win.setTouchBar(new TouchBar({ items: touchBarGroups }));
 	}
 
-	private getTouchBarGroupHash(items: ICommandAction[]): string {
-		let id = '';
-		items.forEach(item => id += (item.id + item.title + item.iconPath));
+	private createTouchBar(): void {
+		if (!isMacintosh) {
+			return; // only supported on macOS
+		}
 
-		return id;
+		// To avoid flickering, we try to reuse the touch bar group
+		// as much as possible by creating a large number of groups
+		// for reusing later.
+		for (let i = 0; i < 10; i++) {
+			const groupTouchBar = this.createTouchBarGroup();
+			this.touchBarGroups.push(groupTouchBar);
+		}
+
+		// Ugly workaround for native crash on macOS 10.12.1. We are not
+		// leveraging the API for changing the ESC touch bar item.
+		// See https://github.com/electron/electron/issues/10442
+		(<any>this._win)._setEscapeTouchBarItem = () => { };
+
+		this._win.setTouchBar(new TouchBar({ items: this.touchBarGroups }));
 	}
 
-	private createTouchBarGroup(items: ICommandAction[]): Electron.TouchBarSegmentedControl {
+	private createTouchBarGroup(items: ICommandAction[] = []): Electron.TouchBarSegmentedControl {
 
 		// Group Segments
-		const segments = items.map(item => {
+		const segments = this.createTouchBarGroupSegments(items);
+
+		// Group Control
+		const control = new TouchBar.TouchBarSegmentedControl({
+			segments,
+			mode: 'buttons',
+			segmentStyle: 'automatic',
+			change: (selectedIndex) => {
+				this.sendWhenReady('vscode:runAction', { id: (control.segments[selectedIndex] as ITouchBarSegment).id, from: 'touchbar' });
+			}
+		});
+
+		return control;
+	}
+
+	private createTouchBarGroupSegments(items: ICommandAction[] = []): ITouchBarSegment[] {
+		const segments: ITouchBarSegment[] = items.map(item => {
 			let icon: Electron.NativeImage;
 			if (item.iconPath) {
 				icon = nativeImage.createFromPath(item.iconPath);
@@ -921,20 +933,13 @@ export class CodeWindow implements ICodeWindow {
 			}
 
 			return {
+				id: item.id,
 				label: !icon ? item.title as string : void 0,
 				icon
 			};
 		});
 
-		// Group Touch Bar
-		return new TouchBar.TouchBarSegmentedControl({
-			segments,
-			mode: 'buttons',
-			segmentStyle: 'automatic',
-			change: (selectedIndex) => {
-				this.sendWhenReady('vscode:runAction', { id: items[selectedIndex].id, from: 'touchbar' });
-			}
-		});
+		return segments;
 	}
 
 	public dispose(): void {

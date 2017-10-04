@@ -15,6 +15,7 @@
 	"reuseWindow": "Bir dosya veya klasörü son etkin pencerede açmaya zorlayın.",
 	"userDataDir": "Kullanıcı verilerinin tutulacağı klasörü belirtir, root olarak çalışırken yararlıdır.",
 	"verbose": "Ayrıntılı çıktı oluştur (--wait anlamına gelir).",
+	"wait": "Geri dönmeden önce dosyaların kapanmasını bekle.",
 	"extensionHomePath": "Eklentilerin kök dizinini belirle.",
 	"listExtensions": "Yüklü eklentileri listele.",
 	"showVersions": "--list-extensions'u kullanırken, yüklü eklentilerin sürümlerini gösterir.",
