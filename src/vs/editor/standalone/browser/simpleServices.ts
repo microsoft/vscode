@@ -318,10 +318,11 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 	constructor(
 		contextKeyService: IContextKeyService,
 		commandService: ICommandService,
+		telemetryService: ITelemetryService,
 		messageService: IMessageService,
 		domNode: HTMLElement
 	) {
-		super(contextKeyService, commandService, messageService);
+		super(contextKeyService, commandService, telemetryService, messageService);
 
 		this._cachedResolver = null;
 		this._dynamicKeybindings = [];

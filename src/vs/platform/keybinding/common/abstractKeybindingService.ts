@@ -16,6 +16,7 @@ import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IMessageService } from 'vs/platform/message/common/message';
 import Event, { Emitter } from 'vs/base/common/event';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 interface CurrentChord {
 	keypress: string;
@@ -32,13 +33,15 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 	protected _onDidUpdateKeybindings: Emitter<IKeybindingEvent>;
 
 	private _contextKeyService: IContextKeyService;
-	protected _commandService: ICommandService;
 	private _statusService: IStatusbarService;
 	private _messageService: IMessageService;
+	protected _commandService: ICommandService;
+	protected _telemetryService: ITelemetryService;
 
 	constructor(
 		contextKeyService: IContextKeyService,
 		commandService: ICommandService,
+		telemetryService: ITelemetryService,
 		messageService: IMessageService,
 		statusService?: IStatusbarService
 	) {
@@ -161,6 +164,13 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 			this._commandService.executeCommand(resolveResult.commandId, resolveResult.commandArgs || {}).done(undefined, err => {
 				this._messageService.show(Severity.Warning, err);
 			});
+			/* __GDPR__
+				"workbenchActionExecuted" : {
+					"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
+			this._telemetryService.publicLog('workbenchActionExecuted', { id: resolveResult.commandId, from: 'keybinding' });
 		}
 
 		return shouldPreventDefault;
