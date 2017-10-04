@@ -523,6 +523,11 @@ export class RepositoryPanel extends ViewletPanel {
 			.filter(e => !!e && isSCMResource(e))
 			.on(this.pin, this, this.disposables);
 
+		chain(domEvent(container, 'keydown'))
+			.map(e => new StandardKeyboardEvent(e))
+			.filter(e => e.equals(KeyMod.CtrlCmd | KeyCode.KEY_A))
+			.on(this.onDidSelectAll, this, this.disposables);
+
 		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
 		this.disposables.push(this.list);
 
@@ -644,6 +649,30 @@ export class RepositoryPanel extends ViewletPanel {
 
 		this.commandService.executeCommand(id, ...args)
 			.done(undefined, onUnexpectedError);
+	}
+
+	private onDidSelectAll(e: StandardKeyboardEvent): void {
+		const elements = this.repository.provider.resources
+			.reduce<(ISCMResourceGroup | ISCMResource)[]>((r, g) => {
+				if (g.resourceCollection.resources.length === 0 && g.hideWhenEmpty) {
+					return r;
+				}
+
+				return [...r, g, ...g.resourceCollection.resources];
+			}, []);
+
+		let indexes: number[] = [];
+
+		elements.forEach((element, index) => {
+			if (isSCMResource(element)) {
+				indexes.push(index);
+			}
+		});
+
+		this.list.setSelection(indexes);
+
+		e.stopPropagation();
+		e.preventDefault();
 	}
 
 	dispose(): void {
