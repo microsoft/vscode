@@ -11,7 +11,7 @@ import DOM = require('vs/base/browser/dom');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction } from 'vs/base/common/actions';
 import { Button } from 'vs/base/browser/ui/button/button';
-import { $ } from 'vs/base/browser/builder';
+import { $, Builder } from 'vs/base/browser/builder';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ViewsViewletPanel, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -28,6 +28,8 @@ export class EmptyView extends ViewsViewletPanel {
 	public static NAME = nls.localize('noWorkspace', "No Folder Opened");
 
 	private button: Button;
+	private messageDiv: Builder;
+	private titleDiv: Builder;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -38,20 +40,17 @@ export class EmptyView extends ViewsViewletPanel {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService);
-		this.contextService.onDidChangeWorkbenchState(() => this.setButtonLabel());
+		this.contextService.onDidChangeWorkbenchState(() => this.setLabels());
 	}
 
 	public renderHeader(container: HTMLElement): void {
-		let titleDiv = $('div.title').appendTo(container);
-		const name = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? this.contextService.getWorkspace().name : this.name;
-		$('span').text(name).appendTo(titleDiv);
+		this.titleDiv = $('span').text(name).appendTo($('div.title').appendTo(container));
 	}
 
 	protected renderBody(container: HTMLElement): void {
 		DOM.addClass(container, 'explorer-empty-view');
 
-		let titleDiv = $('div.section').appendTo(container);
-		$('p').text(nls.localize('noWorkspaceHelp', "You have not yet opened a folder.")).appendTo(titleDiv);
+		this.messageDiv = $('p').appendTo($('div.section').appendTo(container));
 
 		let section = $('div.section').appendTo(container);
 
@@ -67,12 +66,22 @@ export class EmptyView extends ViewsViewletPanel {
 				errors.onUnexpectedError(err);
 			});
 		});
-		this.setButtonLabel();
+		this.setLabels();
 	}
 
-	private setButtonLabel(): void {
-		if (this.button) {
-			this.button.label = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? nls.localize('addFolder', "Add Folder") : nls.localize('openFolder', "Open Folder");
+	private setLabels(): void {
+		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
+			this.messageDiv.text(nls.localize('noWorkspaceHelp', "You have not yet added a folder to the workspace."));
+			if (this.button) {
+				this.button.label = nls.localize('addFolder', "Add Folder");
+			}
+			this.titleDiv.text(this.contextService.getWorkspace().name);
+		} else {
+			this.messageDiv.text(nls.localize('noFolderHelp', "You have not yet opened a folder."));
+			if (this.button) {
+				this.button.label = nls.localize('openFolder', "Open Folder");
+			}
+			this.titleDiv.text(this.name);
 		}
 	}
 
