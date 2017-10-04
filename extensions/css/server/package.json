@@ -13,7 +13,7 @@
     "vscode-languageserver-protocol": "^3.4.2"
   },
   "devDependencies": {
-    "@types/node": "^6.0.51"
+    "@types/node": "7.0.43"
   },
   "scripts": {
     "compile": "gulp compile-extension:css-server",

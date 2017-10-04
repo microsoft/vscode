@@ -17,8 +17,8 @@
     "vscode-uri": "^1.0.1"
   },
   "devDependencies": {
-    "@types/node": "^6.0.51",
-    "@types/mocha": "^2.2.33"
+    "@types/node": "7.0.43",
+    "@types/mocha": "2.2.33"
   },
   "scripts": {
     "compile": "gulp compile-extension:html-server",

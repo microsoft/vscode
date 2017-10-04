@@ -23,7 +23,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EditorInput, toResource, IEditorGroup, IEditorStacksModel } from 'vs/workbench/common/editor';
 import { stripWildcards } from 'vs/base/common/strings';
-import { compareItemsByScore, scoreItem, ScorerCache } from 'vs/base/common/scorer';
+import { compareItemsByScore, scoreItem, ScorerCache } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 
 export class EditorPickerEntry extends QuickOpenEntryGroup {
 	private stacks: IEditorStacksModel;
@@ -116,7 +116,7 @@ export abstract class BaseEditorPicker extends QuickOpenHandler {
 				return true;
 			}
 
-			const itemScore = scoreItem(e, searchValue, QuickOpenItemAccessor, this.scorerCache);
+			const itemScore = scoreItem(e, searchValue, true, QuickOpenItemAccessor, this.scorerCache);
 			if (!itemScore.score) {
 				return false;
 			}
@@ -133,7 +133,7 @@ export abstract class BaseEditorPicker extends QuickOpenHandler {
 					return stacks.positionOfGroup(e1.group) - stacks.positionOfGroup(e2.group);
 				}
 
-				return compareItemsByScore(e1, e2, searchValue, QuickOpenItemAccessor, this.scorerCache);
+				return compareItemsByScore(e1, e2, searchValue, true, QuickOpenItemAccessor, this.scorerCache);
 			});
 		}
 

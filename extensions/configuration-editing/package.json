@@ -74,6 +74,6 @@
     ]
   },
   "devDependencies": {
-    "@types/node": "^7.0.4"
+    "@types/node": "7.0.4"
   }
 }

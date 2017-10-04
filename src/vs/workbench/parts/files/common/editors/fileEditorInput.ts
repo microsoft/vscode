@@ -126,7 +126,6 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	@memoize
 	private get shortDescription(): string {
-
 		return paths.basename(labels.getPathLabel(resources.dirname(this.resource), void 0, this.environmentService));
 	}
 

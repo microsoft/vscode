@@ -680,9 +680,9 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 
 		if (arg2 instanceof EditorInput) {
-			const resource = toResource(arg2);
+			const inputResource = toResource(arg2);
 
-			return resource && this.fileService.canHandleResource(resource) && resource.toString() === resource.toString();
+			return inputResource && this.fileService.canHandleResource(inputResource) && inputResource.toString() === resource.toString();
 		}
 
 		const resourceInput = arg2 as IResourceInput;

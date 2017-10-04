@@ -30,9 +30,8 @@ export class SettingsEditor {
 	async addUserSetting(setting: string, value: string): Promise<void> {
 		await this.openUserSettings();
 
-		// await this.spectron.wait(1);
 		await this.focusEditableSettings();
-		await this.spectron.client.keys(`"${setting}": ${value}`);
+		await this.spectron.client.keys(`"${setting}": ${value},`);
 		await this.spectron.workbench.saveOpenedFile();
 	}
 }

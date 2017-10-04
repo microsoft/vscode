@@ -126,6 +126,9 @@ export class SpectronApplication {
 		// Prevent Quick Open from closing when focus is stolen, this allows concurrent smoketest suite running
 		args.push('--sticky-quickopen');
 
+		// Disable telemetry for smoke tests
+		args.push('--disable-telemetry');
+
 		// Ensure that running over custom extensions directory, rather than picking up the one that was used by a tester previously
 		args.push(`--extensions-dir=${EXTENSIONS_DIR}`);
 
@@ -154,6 +157,26 @@ export class SpectronApplication {
 		this._client = new SpectronClient(this.spectron, this);
 		this._workbench = new Workbench(this);
 	}
+
+	/* private async setUpUserDataDirectory(): Promise<string> {
+		const userDataDir = path.join(this._userDir, String(SpectronApplication.count++));
+
+		return new Promise<string>((c, e) => {
+			const settingsDir = path.join(userDataDir, 'User');
+			mkdirp(path.join(userDataDir, 'User'), (error => {
+				if (error) {
+					e(error);
+					return;
+				}
+				try {
+					fs.writeFileSync(path.join(settingsDir, 'settings.json'), `{\n	"telemetry.enableTelemetry": false\n	}`);
+					c(userDataDir);
+				} catch (error) {
+					e(error);
+				}
+			}));
+		});
+	} */
 
 	private async checkWindowReady(): Promise<any> {
 		await this.webclient.waitUntilWindowLoaded();
