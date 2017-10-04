@@ -9,7 +9,7 @@ import nls = require('vs/nls');
 import { Action } from 'vs/base/common/actions';
 import { mixin } from 'vs/base/common/objects';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
-import { EditorInput, hasResource, TextEditorOptions, EditorOptions, IEditorIdentifier, IEditorContext, ActiveEditorMoveArguments, ActiveEditorMovePositioning, EditorCommands, ConfirmResult } from 'vs/workbench/common/editor';
+import { EditorInput, TextEditorOptions, EditorOptions, IEditorIdentifier, IEditorContext, ActiveEditorMoveArguments, ActiveEditorMovePositioning, EditorCommands, ConfirmResult } from 'vs/workbench/common/editor';
 import { QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry, QuickOpenAction } from 'vs/workbench/browser/quickopen';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -255,16 +255,13 @@ export class FocusFirstGroupAction extends Action {
 
 		// Since no editor is currently opened, try to open last history entry to the target side
 		const history = this.historyService.getHistory();
-		for (let input of history) {
-
-			// For now only support to open files from history to the side
+		if (history.length > 0) {
+			const input = history[0];
 			if (input instanceof EditorInput) {
-				if (hasResource(input, { filter: ['file', 'untitled'] })) {
-					return this.editorService.openEditor(input, null, Position.ONE);
-				}
-			} else {
-				return this.editorService.openEditor(input as IResourceInput, Position.ONE);
+				return this.editorService.openEditor(input, null, Position.ONE);
 			}
+
+			return this.editorService.openEditor(input as IResourceInput, Position.ONE);
 		}
 
 		return TPromise.as(true);
@@ -327,15 +324,11 @@ export abstract class BaseFocusSideGroupAction extends Action {
 		else if (referenceEditor) {
 			const history = this.historyService.getHistory();
 			for (let input of history) {
-
-				// For now only support to open files from history to the side
-				if (input instanceof EditorInput) {
-					if (hasResource(input, { filter: ['file', 'untitled'] })) {
-						return this.editorService.openEditor(input, { pinned: true }, this.getTargetEditorSide());
-					}
-				} else {
-					return this.editorService.openEditor({ resource: (input as IResourceInput).resource, options: { pinned: true } }, this.getTargetEditorSide());
+				if (input instanceof EditorInput && input.supportsSplitEditor()) {
+					return this.editorService.openEditor(input, { pinned: true }, this.getTargetEditorSide());
 				}
+
+				return this.editorService.openEditor({ resource: (input as IResourceInput).resource, options: { pinned: true } }, this.getTargetEditorSide());
 			}
 		}
 
