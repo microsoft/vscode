@@ -436,7 +436,10 @@ export class ExtensionTipsService implements IExtensionTipsService {
 				if (!windowsPath || typeof windowsPath !== 'string') {
 					return;
 				}
-				windowsPath = windowsPath.replace('%USERPROFILE%', process.env['USERPROFILE']);
+				windowsPath = windowsPath.replace('%USERPROFILE%', process.env['USERPROFILE'])
+					.replace('%ProgramFiles(x86)%', process.env['ProgramFiles(x86)'])
+					.replace('%ProgramFiles%', process.env['ProgramFiles'])
+					.replace('%APPDATA%', process.env['APPDATA']);
 				findExecutable(exeName, windowsPath);
 			} else {
 				findExecutable(exeName, paths.join('/usr/local/bin', exeName));
