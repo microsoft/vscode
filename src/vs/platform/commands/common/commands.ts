@@ -20,8 +20,7 @@ export interface ICommandEvent {
 export interface ICommandService {
 	_serviceBrand: any;
 	onWillExecuteCommand: Event<ICommandEvent>;
-	executeCommand<T>(commandId: string, ...args: any[]): TPromise<T>;
-	executeCommand(commandId: string, ...args: any[]): TPromise<any>;
+	executeCommand<T = any>(commandId: string, ...args: any[]): TPromise<T>;
 }
 
 export interface ICommandsMap {
