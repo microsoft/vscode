@@ -414,7 +414,7 @@ class Cache {
 	public scorerCache: ScorerCache = Object.create(null);
 }
 
-class FileMatchItemAccessorClass implements IItemAccessor<IRawFileMatch> {
+const FileMatchItemAccessor = new class implements IItemAccessor<IRawFileMatch> {
 
 	public getItemLabel(match: IRawFileMatch): string {
 		return match.basename; // e.g. myFile.txt
@@ -427,9 +427,7 @@ class FileMatchItemAccessorClass implements IItemAccessor<IRawFileMatch> {
 	public getItemPath(match: IRawFileMatch): string {
 		return match.relativePath; // e.g. some/path/to/file/myFile.txt
 	}
-}
-
-const FileMatchItemAccessor = new FileMatchItemAccessorClass();
+};
 
 interface CacheStats {
 	cacheWasResolved: boolean;
