@@ -15,32 +15,36 @@ import { $ } from 'vs/base/browser/builder';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ViewsViewletPanel, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
+import { OpenFolderAction, OpenFileFolderAction, AddRootFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 
 export class EmptyView extends ViewsViewletPanel {
 
 	public static ID: string = 'workbench.explorer.emptyView';
 	public static NAME = nls.localize('noWorkspace', "No Folder Opened");
 
-	private openFolderButton: Button;
+	private button: Button;
 
 	constructor(
 		options: IViewletViewOptions,
 		@IThemeService private themeService: IThemeService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextMenuService contextMenuService: IContextMenuService
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService);
+		this.contextService.onDidChangeWorkbenchState(() => this.setButtonLabel());
 	}
 
 	public renderHeader(container: HTMLElement): void {
 		let titleDiv = $('div.title').appendTo(container);
-		$('span').text(this.name).appendTo(titleDiv);
+		const name = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? this.contextService.getWorkspace().name : this.name;
+		$('span').text(name).appendTo(titleDiv);
 	}
 
 	protected renderBody(container: HTMLElement): void {
@@ -51,11 +55,10 @@ export class EmptyView extends ViewsViewletPanel {
 
 		let section = $('div.section').appendTo(container);
 
-		this.openFolderButton = new Button(section);
-		attachButtonStyler(this.openFolderButton, this.themeService);
-		this.openFolderButton.label = nls.localize('openFolder', "Open Folder");
-		this.openFolderButton.addListener('click', () => {
-			const actionClass = env.isMacintosh ? OpenFileFolderAction : OpenFolderAction;
+		this.button = new Button(section);
+		attachButtonStyler(this.button, this.themeService);
+		this.button.addListener('click', () => {
+			const actionClass = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? AddRootFolderAction : env.isMacintosh ? OpenFileFolderAction : OpenFolderAction;
 			const action = this.instantiationService.createInstance<string, string, IAction>(actionClass, actionClass.ID, actionClass.LABEL);
 			this.actionRunner.run(action).done(() => {
 				action.dispose();
@@ -64,6 +67,13 @@ export class EmptyView extends ViewsViewletPanel {
 				errors.onUnexpectedError(err);
 			});
 		});
+		this.setButtonLabel();
+	}
+
+	private setButtonLabel(): void {
+		if (this.button) {
+			this.button.label = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? nls.localize('addFolder', "Add Folder") : nls.localize('openFolder', "Open Folder");
+		}
 	}
 
 	layoutBody(size: number): void {
@@ -79,8 +89,8 @@ export class EmptyView extends ViewsViewletPanel {
 	}
 
 	public focusBody(): void {
-		if (this.openFolderButton) {
-			this.openFolderButton.getElement().focus();
+		if (this.button) {
+			this.button.getElement().focus();
 		}
 	}
 
