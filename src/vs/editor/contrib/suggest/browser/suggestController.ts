@@ -170,45 +170,55 @@ export class SuggestController implements IEditorContribution {
 	}
 
 	private _onDidSelectItem(item: ICompletionItem): void {
-		if (item) {
-			const { suggestion, position } = item;
-			const columnDelta = this._editor.getPosition().column - position.column;
-
-			if (Array.isArray(suggestion.additionalTextEdits)) {
-				this._editor.pushUndoStop();
-				this._editor.executeEdits('suggestController.additionalTextEdits', suggestion.additionalTextEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
-				this._editor.pushUndoStop();
-			}
-
-			let { insertText } = suggestion;
-			if (suggestion.snippetType !== 'textmate') {
-				insertText = SnippetParser.escape(insertText);
-			}
-
-			SnippetController2.get(this._editor).insert(
-				insertText,
-				suggestion.overwriteBefore + columnDelta,
-				suggestion.overwriteAfter
-			);
-
-
-			if (suggestion.command) {
-				this._commandService.executeCommand(suggestion.command.id, ...suggestion.command.arguments).done(undefined, onUnexpectedError);
-			}
-
-			this._alertCompletionItem(item);
-			/* __GDPR__
-				"suggestSnippetInsert" : {
-					"suggestionType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"${include}": [
-						"${EditorTelemetryData}"
-					]
-				}
-			*/
-			this._telemetryService.publicLog('suggestSnippetInsert', { ...this._editor.getTelemetryData(), suggestionType: suggestion.type });
+		if (!item) {
+			this._model.cancel();
+			return;
 		}
 
-		this._model.cancel();
+		const { suggestion, position } = item;
+		const columnDelta = this._editor.getPosition().column - position.column;
+
+		if (Array.isArray(suggestion.additionalTextEdits)) {
+			this._editor.pushUndoStop();
+			this._editor.executeEdits('suggestController.additionalTextEdits', suggestion.additionalTextEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
+			this._editor.pushUndoStop();
+		}
+
+		let { insertText } = suggestion;
+		if (suggestion.snippetType !== 'textmate') {
+			insertText = SnippetParser.escape(insertText);
+		}
+
+		SnippetController2.get(this._editor).insert(
+			insertText,
+			suggestion.overwriteBefore + columnDelta,
+			suggestion.overwriteAfter
+		);
+
+		if (!suggestion.command) {
+			// done
+			this._model.cancel();
+
+		} else if (suggestion.command.id === TriggerSuggestAction.id) {
+			// retigger
+			this._model.trigger({ auto: this._model.state === State.Auto }, true);
+
+		} else {
+			// exec command, done
+			this._commandService.executeCommand(suggestion.command.id, ...suggestion.command.arguments).done(undefined, onUnexpectedError);
+			this._model.cancel();
+		}
+
+		this._alertCompletionItem(item);
+		/* __GDPR__
+		"suggestSnippetInsert" : {
+			"suggestionType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"${include}": [
+				"${EditorTelemetryData}"
+			]
+		}
+		*/
+		this._telemetryService.publicLog('suggestSnippetInsert', { ...this._editor.getTelemetryData(), suggestionType: suggestion.type });
 	}
 
 	private _alertCompletionItem({ suggestion }: ICompletionItem): void {
@@ -288,9 +298,11 @@ export class SuggestController implements IEditorContribution {
 @editorAction
 export class TriggerSuggestAction extends EditorAction {
 
+	static readonly id = 'editor.action.triggerSuggest';
+
 	constructor() {
 		super({
-			id: 'editor.action.triggerSuggest',
+			id: TriggerSuggestAction.id,
 			label: nls.localize('suggest.trigger.label', "Trigger Suggest"),
 			alias: 'Trigger Suggest',
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCompletionItemProvider),
