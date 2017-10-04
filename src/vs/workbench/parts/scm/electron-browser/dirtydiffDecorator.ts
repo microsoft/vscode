@@ -77,9 +77,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 
 		const position = new Position(change.modifiedEndLineNumber, 1);
 		this.show(position, 10);
-
 	}
-
 
 	protected _fillBody(container: HTMLElement): void {
 		this.contents = append(container, $('.text'));
@@ -444,7 +442,7 @@ export class DirtyDiffModel {
 	private diffDelayer: ThrottledDelayer<common.IChange[]>;
 	private _originalURIPromise: TPromise<URI>;
 	private repositoryDisposables = new Set<IDisposable[]>();
-	private toDispose: IDisposable[] = [];
+	private disposables: IDisposable[] = [];
 
 	private _onDidChange = new Emitter<common.IChange[]>();
 	readonly onDidChange: Event<common.IChange[]> = this._onDidChange.event;
@@ -465,8 +463,8 @@ export class DirtyDiffModel {
 	) {
 		this.diffDelayer = new ThrottledDelayer<common.IChange[]>(200);
 
-		this.toDispose.push(model.onDidChangeContent(() => this.triggerDiff()));
-		scmService.onDidAddRepository(this.onDidAddRepository, this, this.toDispose);
+		this.disposables.push(model.onDidChangeContent(() => this.triggerDiff()));
+		scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
 		scmService.repositories.forEach(r => this.onDidAddRepository(r));
 
 		this.triggerDiff();
@@ -538,8 +536,8 @@ export class DirtyDiffModel {
 					.then(ref => {
 						this._originalModel = ref.object.textEditorModel;
 
-						this.toDispose.push(ref);
-						this.toDispose.push(ref.object.textEditorModel.onDidChangeContent(() => this.triggerDiff()));
+						this.disposables.push(ref);
+						this.disposables.push(ref.object.textEditorModel.onDidChangeContent(() => this.triggerDiff()));
 
 						return originalUri;
 					});
@@ -563,7 +561,7 @@ export class DirtyDiffModel {
 	}
 
 	dispose(): void {
-		this.toDispose = dispose(this.toDispose);
+		this.disposables = dispose(this.disposables);
 
 		this.model = null;
 		this._originalModel = null;
@@ -592,7 +590,7 @@ export class DirtyDiffWorkbenchController implements ext.IWorkbenchContribution,
 
 	private models: common.IModel[] = [];
 	private items: { [modelId: string]: DirtyDiffItem; } = Object.create(null);
-	private toDispose: IDisposable[] = [];
+	private disposables: IDisposable[] = [];
 
 	constructor(
 		@IMessageService private messageService: IMessageService,
@@ -601,7 +599,7 @@ export class DirtyDiffWorkbenchController implements ext.IWorkbenchContribution,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		this.toDispose.push(editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
+		this.disposables.push(editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
 	}
 
 	getId(): string {
@@ -664,7 +662,7 @@ export class DirtyDiffWorkbenchController implements ext.IWorkbenchContribution,
 	}
 
 	dispose(): void {
-		this.toDispose = dispose(this.toDispose);
+		this.disposables = dispose(this.disposables);
 		this.models.forEach(m => this.items[m.id].dispose());
 
 		this.models = null;
