@@ -165,6 +165,7 @@ export class ExplorerView extends ViewsViewletPanel {
 
 		this.disposables.push(this.themeService.onDidFileIconThemeChange(onFileIconThemeChange));
 		this.disposables.push(this.contextService.onDidChangeWorkspaceFolders(e => this.refreshFromEvent(e.added)));
+		this.disposables.push(this.contextService.onDidChangeWorkbenchState(e => this.refreshFromEvent(this.contextService.getWorkspace().folders)));
 		onFileIconThemeChange(this.themeService.getFileIconTheme());
 	}
 
