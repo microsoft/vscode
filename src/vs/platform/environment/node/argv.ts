@@ -50,7 +50,8 @@ const options: minimist.Opts = {
 		'nolazy',
 		'skip-getting-started',
 		'sticky-quickopen',
-		'disable-telemetry'
+		'disable-telemetry',
+		'disable-updates'
 	],
 	alias: {
 		add: 'a',
