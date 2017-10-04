@@ -9,6 +9,5 @@
 	"markerAction.previous.label": "Gehe zum vorherigen Fehler oder zur vorherigen Warnung",
 	"editorMarkerNavigationError": "Editormarkierung: Farbe bei Fehler des Navigationswidgets.",
 	"editorMarkerNavigationWarning": "Editormarkierung: Farbe bei Warnung des Navigationswidgets.",
-	"editorMarkerNavigationInfo": "Editormarkierung: Farbe bei Warnung des Navigationswidgets.",
 	"editorMarkerNavigationBackground": "Editormarkierung: Hintergrund des Navigationswidgets."
 }

@@ -17,6 +17,5 @@
 	"save": "Сохранить",
 	"saveWorkspace": "Сохранить рабочую область",
 	"openWorkspaceAction": "Открыть рабочую область...",
-	"openWorkspaceConfigFile": "Открыть файл конфигурации рабочей области",
-	"workspaceFolderPickerPlaceholder": "Выберите папку рабочей области"
+	"openWorkspaceConfigFile": "Открыть файл конфигурации рабочей области"
 }

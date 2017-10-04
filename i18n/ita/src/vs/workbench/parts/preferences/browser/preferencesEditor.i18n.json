@@ -8,7 +8,7 @@
 	"SearchSettingsWidget.AriaLabel": "Cerca impostazioni",
 	"SearchSettingsWidget.Placeholder": "Cerca impostazioni",
 	"totalSettingsMessage": "{0} impostazioni in totale",
-	"noSettingsFound": "Nessun risultato",
+	"noSettingsFound": "Nessuna impostazione corrispondente",
 	"oneSettingFound": "1 impostazione corrispondente",
 	"settingsFound": "{0} impostazioni corrispondenti",
 	"fileEditorWithInputAriaLabel": "{0}. Editor file di testo.",
