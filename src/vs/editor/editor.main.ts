@@ -19,6 +19,13 @@ import { createMonacoEditorAPI } from 'vs/editor/standalone/browser/standaloneEd
 import { createMonacoLanguagesAPI } from 'vs/editor/standalone/browser/standaloneLanguages';
 import { EDITOR_DEFAULTS, WrappingIndent } from 'vs/editor/common/config/editorOptions';
 
+// When missing, polyfill the native promise
+// with our winjs-based polyfill
+import { PolyfillPromise } from 'vs/base/common/winjs.polyfill.promise';
+if (typeof global.Promise === 'undefined') {
+	global.Promise = PolyfillPromise;
+}
+
 // Set defaults for standalone editor
 (<any>EDITOR_DEFAULTS).wrappingIndent = WrappingIndent.None;
 (<any>EDITOR_DEFAULTS.contribInfo).folding = false;
