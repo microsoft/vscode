@@ -39,6 +39,7 @@
 	"schema.indentationRules.unIndentedLinePattern.errorMessage": "Debe coincidir con el patrón `/^([gimuy]+)$/`.",
 	"schema.folding": "Configuración del plegamiento de idioma.",
 	"schema.folding.offSide": "Un idioma se adhiere a la regla del fuera de juego si los bloques en ese idioma se expresan por su sangría. Si se establece, las líneas vacías pertenecen al bloque posterior.",
+	"schema.folding.markers": "Marcadores de plegado específicos de un idioma, como \"'#region\" o \"#endregion\". Se probarán los valores regex en relación con el contenido de todas las líneas, y deben estar diseñados de manera eficiente.",
 	"schema.folding.markers.start": "El patrón de expresión regular para el marcador de inicio. La expresión regular debe comenzar con '^'.",
 	"schema.folding.markers.end": "El patrón de expresión regular para el marcador de fin. La expresión regular debe comenzar con '^'."
 }

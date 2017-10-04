@@ -12,6 +12,7 @@
 	"ConfigurationParser.invalidVaraibleReference": "錯誤: problemMatcher 參考無效: {0}\n",
 	"ConfigurationParser.noTaskType": "錯誤: 工作組態必須具有型別屬性。將會忽略該組態。\n{0}\n",
 	"ConfigurationParser.noTypeDefinition": "錯誤: 沒有已註冊工作類型 '{0}'。您是否忘記安裝提供相應工作提供者的延伸模組?",
+	"ConfigurationParser.missingRequiredProperty": "錯誤: 工作組態 '{0}' 缺少要求的屬性 '{1}'。會略過工作組態。",
 	"ConfigurationParser.notCustom": "錯誤: 未將工作宣告為自訂工作。將會忽略該組態。\n{0}\n",
 	"ConfigurationParser.noTaskName": "錯誤: 工作必須提供 taskName 屬性。即將忽略此工作。\n{0}\n",
 	"taskConfiguration.shellArgs": "警告: 工作 '{0}' 是殼層命令，但命令名稱或其中一個引數有的未逸出的空格。若要確保命令列正確引述，請將引數合併到命令中。",

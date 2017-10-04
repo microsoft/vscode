@@ -6,6 +6,7 @@
 {
 	"invalidManifest": "Недопустимое расширение: package.json не является файлом JSON.",
 	"restartCodeLocal": "Перезапустите код перед переустановкой {0}.",
+	"restartCodeGallery": "Перезапустите Code перед повторной установкой.",
 	"uninstallDependeciesConfirmation": "Вы хотите удалить \"{0}\" отдельно или вместе с зависимостями?",
 	"uninstallOnly": "Только",
 	"uninstallAll": "Все",

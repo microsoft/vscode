@@ -17,6 +17,8 @@
 	"open": "Apri",
 	"openFolder": "Apri cartella",
 	"openFile": "Apri file",
+	"workspaceOpenedMessage": "Non è possibile salvare l'area di lavoro '{0}'",
+	"workspaceOpenedDetail": "L'area di lavoro è già aperta in un'altra finestra. Chiudere tale finestra prima di riprovare.",
 	"openWorkspace": "&&Apri",
 	"openWorkspaceTitle": "Apri area di lavoro",
 	"save": "&&Salva",

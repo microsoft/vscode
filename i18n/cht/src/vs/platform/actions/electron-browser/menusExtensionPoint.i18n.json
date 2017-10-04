@@ -20,6 +20,7 @@
 	"menus.editorTabContext": "編輯器索引標籤操作功能表",
 	"menus.debugCallstackContext": "偵錯呼叫堆疊操作功能表",
 	"menus.scmTitle": "原始檔控制標題功能表",
+	"menus.scmSourceControl": "原始檔控制功能表",
 	"menus.resourceGroupContext": "原始檔控制資源群組操作功能表",
 	"menus.resourceStateContext": "原始檔控制資源群組狀態操作功能表",
 	"view.viewTitle": "這有助於查看標題功能表",

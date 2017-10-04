@@ -42,5 +42,6 @@
 	"navigateUp": "Zur Ansicht darüber navigieren",
 	"navigateDown": "Zur Ansicht darunter navigieren",
 	"increaseViewSize": "Aktuelle Ansicht vergrößern",
-	"decreaseViewSize": "Aktuelle Ansicht verkleinern"
+	"decreaseViewSize": "Aktuelle Ansicht verkleinern",
+	"mergeAllWindowTabs": "Alle Fenster zusammenführen"
 }

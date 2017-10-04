@@ -38,5 +38,6 @@
 	"workbench.action.terminal.focusFindWidget": "Stato attivo su widget Trova",
 	"workbench.action.terminal.hideFindWidget": "Nascondi widget Trova",
 	"nextTerminalFindTerm": "Mostra il termine di ricerca successivo",
-	"previousTerminalFindTerm": "Mostra il termine di ricerca precedente"
+	"previousTerminalFindTerm": "Mostra il termine di ricerca precedente",
+	"quickOpenTerm": "Cambia terminale attivo"
 }

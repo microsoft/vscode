@@ -12,6 +12,8 @@
 	"breakpointRemoved": "已移除中斷點，行 {0}，檔案 {1}",
 	"compoundMustHaveConfigurations": "複合必須設有 \"configurations\" 屬性，才能啟動多個組態。",
 	"configMissing": "'launch.json' 中遺漏組態 '{0}'。",
+	"debugRequestNotSupported": "所選的偵錯組態具有不支援的屬性值 '{0}': '{1}'。",
+	"debugRequesMissing": "所選的偵錯組態遺漏屬性 '{0}'。",
 	"debugTypeNotSupported": "不支援設定的偵錯類型 '{0}'。",
 	"debugTypeMissing": "遺漏所選啟動設定的屬性 'type'。",
 	"preLaunchTaskErrors": "執行 preLaunchTask '{0}' 期間偵測到建置錯誤。",
