@@ -8,7 +8,7 @@ import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Builder, $ } from 'vs/base/browser/builder';
 import URI from 'vs/base/common/uri';
-import { ThrottledDelayer } from 'vs/base/common/async';
+import { ThrottledDelayer, sequence } from 'vs/base/common/async';
 import errors = require('vs/base/common/errors');
 import paths = require('vs/base/common/paths');
 import resources = require('vs/base/common/resources');
@@ -165,7 +165,7 @@ export class ExplorerView extends ViewsViewletPanel {
 
 		this.disposables.push(this.themeService.onDidFileIconThemeChange(onFileIconThemeChange));
 		this.disposables.push(this.contextService.onDidChangeWorkspaceFolders(e => this.refreshFromEvent(e.added)));
-		this.disposables.push(this.contextService.onDidChangeWorkbenchState(e => this.refreshFromEvent(this.contextService.getWorkspace().folders)));
+		this.disposables.push(this.contextService.onDidChangeWorkbenchState(e => this.refreshFromEvent()));
 		onFileIconThemeChange(this.themeService.getFileIconTheme());
 	}
 
@@ -685,7 +685,13 @@ export class ExplorerView extends ViewsViewletPanel {
 		if (this.isVisible()) {
 			this.explorerRefreshDelayer.trigger(() => {
 				if (!this.explorerViewer.getHighlight()) {
-					return this.doRefresh(newRoots.map(r => r.uri));
+					return this.doRefresh(newRoots.map(r => r.uri)).then(() => {
+						if (newRoots.length === 1) {
+							return this.reveal(this.model.findClosest(newRoots[0].uri), 0.5);
+						}
+
+						return undefined;
+					});
 				}
 
 				return TPromise.as(null);
@@ -727,7 +733,7 @@ export class ExplorerView extends ViewsViewletPanel {
 		});
 	}
 
-	private doRefresh(targetsToExpand: URI[] = []): TPromise<void> {
+	private doRefresh(targetsToExpand: URI[] = []): TPromise<any> {
 		const targetsToResolve: { root: FileStat, resource: URI, options: { resolveTo: URI[] } }[] = [];
 		this.model.roots.forEach(root => {
 			const rootAndTargets = { root, resource: root.resource, options: { resolveTo: [] } };
@@ -782,14 +788,19 @@ export class ExplorerView extends ViewsViewletPanel {
 			modelStats.forEach((modelStat, index) => FileStat.mergeLocalWithDisk(modelStat, this.model.roots[index]));
 
 			const input = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? this.model.roots[0] : this.model;
-			const statsToExpand = this.explorerViewer.getExpandedElements().concat(targetsToExpand.map(target => this.model.findClosest(target)));
+			let statsToExpand: FileStat[] = this.explorerViewer.getExpandedElements().concat(targetsToExpand.map(target => this.model.findClosest(target)));
 			if (input === this.explorerViewer.getInput()) {
-				return this.explorerViewer.refresh().then(() => this.explorerViewer.expandAll(statsToExpand));
+				return this.explorerViewer.refresh().then(() => sequence(statsToExpand.map(e => () => this.explorerViewer.expand(e))));
 			}
+
 
 			// Display roots only when multi folder workspace
 			// Make sure to expand all folders that where expanded in the previous session
-			return this.explorerViewer.setInput(input).then(() => this.explorerViewer.expandAll(statsToExpand));
+			if (input === this.model) {
+				// We have transitioned into workspace view -> expand all roots
+				statsToExpand = this.model.roots.concat(statsToExpand);
+			}
+			return this.explorerViewer.setInput(input).then(() => sequence(statsToExpand.map(e => () => this.explorerViewer.expand(e))));
 		}, e => TPromise.wrapError(e));
 
 		this.progressService.showWhile(promise, this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */);
