@@ -46,7 +46,7 @@ const nodeModules = ['electron', 'original-fs']
 
 const builtInExtensions = [
 	{ name: 'ms-vscode.node-debug', version: '1.17.17' },
-	{ name: 'ms-vscode.node-debug2', version: '1.17.5' }
+	{ name: 'ms-vscode.node-debug2', version: '1.17.6' }
 ];
 
 const excludedExtensions = [
@@ -449,6 +449,12 @@ gulp.task('upload-vscode-sourcemaps', ['minify-vscode'], () => {
 
 const allConfigDetailsPath = path.join(os.tmpdir(), 'configuration.json');
 gulp.task('upload-vscode-configuration', ['generate-vscode-configuration'], () => {
+	const branch = process.env.BUILD_SOURCEBRANCH;
+	if (!branch.endsWith('/master') && !branch.indexOf('/release/') >= 0) {
+		console.log(`Only runs on master and release branches, not ${branch}`);
+		return;
+	}
+
 	if (!fs.existsSync(allConfigDetailsPath)) {
 		console.error(`configuration file at ${allConfigDetailsPath} does not exist`);
 		return;

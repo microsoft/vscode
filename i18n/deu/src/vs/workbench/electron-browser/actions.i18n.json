@@ -42,5 +42,10 @@
 	"navigateUp": "Zur Ansicht darüber navigieren",
 	"navigateDown": "Zur Ansicht darunter navigieren",
 	"increaseViewSize": "Aktuelle Ansicht vergrößern",
-	"decreaseViewSize": "Aktuelle Ansicht verkleinern"
+	"decreaseViewSize": "Aktuelle Ansicht verkleinern",
+	"showPreviousTab": "Vorherige Fensterregisterkarte anzeigen",
+	"showNextWindowTab": "Nächste Fensterregisterkarte anzeigen",
+	"moveWindowTabToNewWindow": "Fensterregisterkarte in neues Fenster verschieben",
+	"mergeAllWindowTabs": "Alle Fenster zusammenführen",
+	"toggleWindowTabsBar": "Fensterregisterkarten-Leiste umschalten"
 }

@@ -17,5 +17,6 @@
 	"save": "儲存(&&S)",
 	"saveWorkspace": "儲存工作區",
 	"openWorkspaceAction": "開啟工作區...",
-	"openWorkspaceConfigFile": "開啟工作區組態檔"
+	"openWorkspaceConfigFile": "開啟工作區組態檔",
+	"workspaceFolderPickerPlaceholder": "選取工作區資料夾"
 }
