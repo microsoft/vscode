@@ -19,6 +19,7 @@
 	"eol": "O caractere padrão de fim de linha. Use \\n para LF e \\r\\n para CRLF.",
 	"trimTrailingWhitespace": "Quando habilitado, removerá espaços em branco à direita ao salvar um arquivo.",
 	"insertFinalNewline": "Quando habilitado, inseririrá uma nova linha no final do arquivo quando salvá-lo.",
+	"trimFinalNewlines": "Quando habilitado, removerá todas as novas linhas após a nova linha no final do arquivo ao salvá-lo.",
 	"files.autoSave.off": "Um arquivo sujo nunca é automaticamente salvo.",
 	"files.autoSave.afterDelay": "Um arquivo sujo é salvo automaticamente após configurado em 'files.autoSaveDelay'.",
 	"files.autoSave.onFocusChange": "Um arquivo sujo é salvo automaticamente quando o editor perde o foco.",

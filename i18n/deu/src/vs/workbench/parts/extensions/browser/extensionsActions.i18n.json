@@ -53,6 +53,7 @@
 	"showAzureExtensionsShort": "Azure-Erweiterungen",
 	"OpenExtensionsFile.failed": "Die Datei \"extensions.json\" kann nicht im Ordner \".vscode\" erstellt werden ({0}).",
 	"configureWorkspaceRecommendedExtensions": "Empfohlene Erweiterungen konfigurieren (Arbeitsbereich)",
+	"configureWorkspaceFolderRecommendedExtensions": "Empfohlene Erweiterungen konfigurieren (Arbeitsbereichsordner)",
 	"builtin": "Integriert",
 	"disableAll": "Alle installierten Erweiterungen löschen",
 	"disableAllWorkspace": "Alle installierten Erweiterungen für diesen Arbeitsbereich deaktivieren",
