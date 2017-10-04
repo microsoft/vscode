@@ -16,7 +16,7 @@ export default class CallbackList {
 		if (!this._callbacks) {
 			this._callbacks = new LinkedList<[Function, any]>();
 		}
-		const remove = this._callbacks.insert([callback, context]);
+		const remove = this._callbacks.push([callback, context]);
 		if (Array.isArray(bucket)) {
 			bucket.push({ dispose: remove });
 		}
