@@ -35,6 +35,7 @@
 	"openPreviousEditorInGroup": "開啟群組中上一個編輯器",
 	"navigateNext": "向前",
 	"navigatePrevious": "向後",
+	"navigateLast": "移至最後",
 	"reopenClosedEditor": "重新開啟已關閉的編輯器",
 	"clearRecentFiles": "清理最近開啟的",
 	"showEditorsInFirstGroup": "在第一個群組顯示編輯器",

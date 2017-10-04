@@ -19,5 +19,6 @@
 	"workspaceConfig.name.description": "Un nombre opcional para la carpeta. ",
 	"workspaceConfig.uri.description": "URI de la carpeta",
 	"workspaceConfig.settings.description": "Configuración de área de trabajo",
-	"workspaceConfig.extensions.description": "Extensiones del área de trabajo"
+	"workspaceConfig.extensions.description": "Extensiones del área de trabajo",
+	"unknownWorkspaceProperty": "Propiedad de configuración de espacio de trabajo desconocida"
 }
