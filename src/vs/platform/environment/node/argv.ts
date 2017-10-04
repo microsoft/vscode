@@ -49,7 +49,8 @@ const options: minimist.Opts = {
 		'show-versions',
 		'nolazy',
 		'skip-getting-started',
-		'sticky-quickopen'
+		'sticky-quickopen',
+		'disable-telemetry'
 	],
 	alias: {
 		add: 'a',

@@ -126,6 +126,9 @@ export class SpectronApplication {
 		// Prevent Quick Open from closing when focus is stolen, this allows concurrent smoketest suite running
 		args.push('--sticky-quickopen');
 
+		// Disable telemetry for smoke tests
+		args.push('--disable-telemetry');
+
 		// Ensure that running over custom extensions directory, rather than picking up the one that was used by a tester previously
 		args.push(`--extensions-dir=${EXTENSIONS_DIR}`);
 
