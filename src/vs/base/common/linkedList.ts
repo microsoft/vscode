@@ -24,16 +24,33 @@ export class LinkedList<E> {
 		return !this._first;
 	}
 
-	insert(element: E) {
+	unshift(element: E) {
+		return this.insert(element, false);
+	}
+
+	push(element: E) {
+		return this.insert(element, true);
+	}
+
+	private insert(element: E, atTheEnd: boolean) {
 		const newNode = new Node(element);
 		if (!this._first) {
 			this._first = newNode;
 			this._last = newNode;
-		} else {
+
+		} else if (atTheEnd) {
+			// push
 			const oldLast = this._last;
 			this._last = newNode;
 			newNode.prev = oldLast;
 			oldLast.next = newNode;
+
+		} else {
+			// unshift
+			const oldFirst = this._first;
+			this._first = newNode;
+			newNode.next = oldFirst;
+			oldFirst.prev = newNode;
 		}
 
 		return () => {
