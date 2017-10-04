@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration2';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const CONFIG_DEFAULT_NAME = 'settings';

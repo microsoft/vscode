@@ -35,7 +35,7 @@ export interface IConfigurationRegistry {
 	 * Event that fires whenver a configuratio has been
 	 * registered.
 	 */
-	onDidRegisterConfiguration: Event<IConfigurationRegistry>;
+	onDidRegisterConfiguration: Event<IConfigurationNode[]>;
 
 	/**
 	 * Returns all configuration nodes contributed to this registry.
@@ -90,25 +90,23 @@ export const editorConfigurationSchemaId = 'vscode://schemas/settings/editor';
 const contributionRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 
 class ConfigurationRegistry implements IConfigurationRegistry {
+
 	private configurationContributors: IConfigurationNode[];
 	private configurationProperties: { [qualifiedKey: string]: IJSONSchema };
 	private editorConfigurationSchema: IJSONSchema;
-	private _onDidRegisterConfiguration: Emitter<IConfigurationRegistry>;
 	private overrideIdentifiers: string[] = [];
 	private overridePropertyPattern: string;
+
+	private _onDidRegisterConfiguration: Emitter<IConfigurationNode[]> = new Emitter<IConfigurationNode[]>();
+	readonly onDidRegisterConfiguration: Event<IConfigurationNode[]> = this._onDidRegisterConfiguration.event;
 
 	constructor() {
 		this.configurationContributors = [];
 		this.editorConfigurationSchema = { properties: {}, patternProperties: {}, additionalProperties: false, errorMessage: 'Unknown editor configuration setting' };
-		this._onDidRegisterConfiguration = new Emitter<IConfigurationRegistry>();
 		this.configurationProperties = {};
 		this.computeOverridePropertyPattern();
 
 		contributionRegistry.registerSchema(editorConfigurationSchemaId, this.editorConfigurationSchema);
-	}
-
-	public get onDidRegisterConfiguration() {
-		return this._onDidRegisterConfiguration.event;
 	}
 
 	public registerConfiguration(configuration: IConfigurationNode, validate: boolean = true): void {
@@ -123,7 +121,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 			this.updateSchemaForOverrideSettingsConfiguration(configuration);
 		});
 
-		this._onDidRegisterConfiguration.fire(this);
+		this._onDidRegisterConfiguration.fire(configurations);
 	}
 
 	public registerOverrideIdentifiers(overrideIdentifiers: string[]): void {

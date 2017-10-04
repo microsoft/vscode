@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ConfigWatcher } from 'vs/base/node/config';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, Extensions, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { ConfigurationSource, IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, IConfigurationKeys, ConfigurationModel, IConfigurationOverrides, Configuration, IConfigurationValues, IConfigurationData } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationServiceEvent, IConfigurationOverrides, IConfiguration } from 'vs/platform/configuration/common/configuration2';
+import { ConfigurationModel, Configuration } from 'vs/platform/configuration/common/configuration';
 import { CustomConfigurationModel, DefaultConfigurationModel } from 'vs/platform/configuration/common/model';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -40,52 +40,53 @@ export class ConfigurationService<T> extends Disposable implements IConfiguratio
 		this._register(this.userConfigModelWatcher);
 
 		// Listeners
-		this._register(this.userConfigModelWatcher.onDidUpdateConfiguration(() => this.onConfigurationChange(ConfigurationSource.User)));
-		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidRegisterConfiguration(() => this.onConfigurationChange(ConfigurationSource.Default)));
+		this._register(this.userConfigModelWatcher.onDidUpdateConfiguration(() => this.onDidUpdateConfigModel()));
+		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidRegisterConfiguration(configurationNodes => this.onDidRegisterConfiguration(configurationNodes)));
 	}
 
-	public configuration(): Configuration<any> {
+	public get configuration(): Configuration<any> {
 		return this._configuration || (this._configuration = this.consolidateConfigurations());
 	}
 
-	private onConfigurationChange(source: ConfigurationSource): void {
+	private onDidUpdateConfigModel(): void {
+		// get the diff
+		// reset and trigger
+		this.onConfigurationChange([], []);
+	}
+
+	private onDidRegisterConfiguration(configurations: IConfigurationNode[]): void {
+		// get the diff
+		// reset and trigger
+		this.onConfigurationChange([], []);
+	}
+
+	private onConfigurationChange(sections: string[], keys: string[]): void {
 		this.reset(); // reset our caches
 
-		const cache = this.configuration();
-
-		this._onDidUpdateConfiguration.fire({
-			source,
-			sourceConfig: source === ConfigurationSource.Default ? cache.defaults.contents : cache.user.contents
-		});
+		this._onDidUpdateConfiguration.fire({ sections, keys });
 	}
 
-	public reloadConfiguration<C>(section?: string): TPromise<C> {
-		return new TPromise<C>(c => {
-			this.userConfigModelWatcher.reload(() => {
-				this.reset(); // reset our caches
-				c(this.getConfiguration<C>(section));
-			});
-		});
+	public getConfiguration(section?: string, options?: IConfigurationOverrides): IConfiguration {
+		return this.configuration.getValue(section, options);
 	}
 
-	public getConfiguration<C>(section?: string, options?: IConfigurationOverrides): C {
-		return this.configuration().getValue<C>(section, options);
+	public inspect<T>(key: string): {
+		default: T,
+		user: T,
+		workspace: T,
+		workspaceFolder: T
+		value: T
+	} {
+		return this.configuration.lookup<T>(key);
 	}
 
-	public lookup<C>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<C> {
-		return this.configuration().lookup<C>(key, overrides);
-	}
-
-	public keys(overrides?: IConfigurationOverrides): IConfigurationKeys {
-		return this.configuration().keys(overrides);
-	}
-
-	public values<V>(): IConfigurationValues {
-		return this._configuration.values();
-	}
-
-	public getConfigurationData<T2>(): IConfigurationData<T2> {
-		return this.configuration().toData();
+	public keys(): {
+		default: string[];
+		user: string[];
+		workspace: string[];
+		workspaceFolder: string[];
+	} {
+		return this.configuration.keys();
 	}
 
 	private reset(): void {
