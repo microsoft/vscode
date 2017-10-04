@@ -338,7 +338,7 @@ function doScoreItem<T>(label: string, description: string, path: string, query:
 	return NO_ITEM_SCORE;
 }
 
-export function compareItemsByScore<T>(itemA: T, itemB: T, query: string, fuzzy: boolean, accessor: IItemAccessor<T>, cache: ScorerCache): number {
+export function compareItemsByScore<T>(itemA: T, itemB: T, query: string, fuzzy: boolean, accessor: IItemAccessor<T>, cache: ScorerCache, fallbackComparer = fallbackCompare): number {
 	const scoreA = scoreItem(itemA, query, fuzzy, accessor, cache).score;
 	const scoreB = scoreItem(itemB, query, fuzzy, accessor, cache).score;
 
@@ -395,7 +395,11 @@ export function compareItemsByScore<T>(itemA: T, itemB: T, query: string, fuzzy:
 		return scoreA > scoreB ? -1 : 1;
 	}
 
-	// 6.) at this point, scores are identical for both items so we start to sort by length
+	// 6.) at this point, scores are identical for both items so we start to use the fallback compare
+	return fallbackComparer(itemA, itemB, query, accessor);
+}
+
+export function fallbackCompare<T>(itemA: T, itemB: T, query: string, accessor: IItemAccessor<T>): number {
 
 	// check for label + description length and prefer shorter
 	const labelA = accessor.getItemLabel(itemA);

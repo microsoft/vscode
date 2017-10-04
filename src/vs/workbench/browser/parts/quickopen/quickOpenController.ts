@@ -1219,8 +1219,9 @@ class EditorHistoryHandler {
 				return true;
 			})
 
-			// Sort by score
-			.sort((e1, e2) => compareItemsByScore(e1, e2, searchValue, false, accessor, this.scorerCache));
+			// Sort by score and provide a fallback sorter that keeps the
+			// recency of items in case the score for items is the same
+			.sort((e1, e2) => compareItemsByScore(e1, e2, searchValue, false, accessor, this.scorerCache, (e1, e2, searchValue, accessor) => -1));
 	}
 }
 

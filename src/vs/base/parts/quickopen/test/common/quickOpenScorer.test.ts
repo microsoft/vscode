@@ -407,4 +407,19 @@ suite('Quick Open Scorer', () => {
 		assert.equal(res[1], resourceA);
 		assert.equal(res[2], resourceC);
 	});
+
+	test('compareFilesByScore - allow to provide fallback sorter (bug #31591)', function () {
+		const resourceA = URI.file('virtual/vscode.d.ts');
+		const resourceB = URI.file('vscode/src/vs/vscode.d.ts');
+
+		let query = 'vscode';
+
+		let res = [resourceA, resourceB].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache, (r1, r2, query, ResourceAccessor) => -1));
+		assert.equal(res[0], resourceA);
+		assert.equal(res[1], resourceB);
+
+		res = [resourceB, resourceA].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache, (r1, r2, query, ResourceAccessor) => -1));
+		assert.equal(res[0], resourceB);
+		assert.equal(res[1], resourceA);
+	});
 });
