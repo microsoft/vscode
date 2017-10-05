@@ -64,11 +64,15 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 				return; // already existing
 			}
 
+			// File resource: use "path" property
 			if (folderToAdd.scheme === Schemas.file) {
 				storedFoldersToAdd.push({
 					path: massageFolderPathForWorkspace(folderToAdd.fsPath, workspaceConfigFolder, currentStoredFolders)
 				});
-			} else {
+			}
+
+			// Any other resource: use "uri" property
+			else {
 				storedFoldersToAdd.push({
 					uri: folderToAdd.toString(true)
 				});

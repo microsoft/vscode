@@ -14,7 +14,7 @@ import pfs = require('vs/base/node/pfs');
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { WorkspacesMainService, IStoredWorkspace } from 'vs/platform/workspaces/electron-main/workspacesMainService';
-import { WORKSPACE_EXTENSION, IWorkspaceSavedEvent, IWorkspaceIdentifier, IRawFileWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
+import { WORKSPACE_EXTENSION, IWorkspaceSavedEvent, IWorkspaceIdentifier, IRawFileWorkspaceFolder, IRawUriWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { LogMainService } from 'vs/platform/log/common/log';
 import URI from 'vs/base/common/uri';
 
@@ -73,7 +73,7 @@ suite('WorkspacesMainService', () => {
 		});
 	});
 
-	test('createWorkspaceSync (folders)', () => {
+	test('createWorkspaceSync (folders as paths)', () => {
 		const workspace = service.createWorkspaceSync([process.cwd(), os.tmpdir()]);
 		assert.ok(workspace);
 		assert.ok(fs.existsSync(workspace.configPath));
@@ -83,6 +83,30 @@ suite('WorkspacesMainService', () => {
 		assert.equal(ws.folders.length, 2); //
 		assert.equal((<IRawFileWorkspaceFolder>ws.folders[0]).path, process.cwd());
 		assert.equal((<IRawFileWorkspaceFolder>ws.folders[1]).path, os.tmpdir());
+	});
+
+	test('createWorkspaceSync (folders as file URIs)', () => {
+		const workspace = service.createWorkspaceSync([URI.file(process.cwd()), URI.file(os.tmpdir())]);
+		assert.ok(workspace);
+		assert.ok(fs.existsSync(workspace.configPath));
+		assert.ok(service.isUntitledWorkspace(workspace));
+
+		const ws = JSON.parse(fs.readFileSync(workspace.configPath).toString()) as IStoredWorkspace;
+		assert.equal(ws.folders.length, 2); //
+		assert.equal((<IRawFileWorkspaceFolder>ws.folders[0]).path, process.cwd());
+		assert.equal((<IRawFileWorkspaceFolder>ws.folders[1]).path, os.tmpdir());
+	});
+
+	test('createWorkspaceSync (folders as other resource URIs)', () => {
+		const workspace = service.createWorkspaceSync([URI.from({ scheme: 'myScheme', path: process.cwd() }), URI.from({ scheme: 'myScheme', path: os.tmpdir() })]);
+		assert.ok(workspace);
+		assert.ok(fs.existsSync(workspace.configPath));
+		assert.ok(service.isUntitledWorkspace(workspace));
+
+		const ws = JSON.parse(fs.readFileSync(workspace.configPath).toString()) as IStoredWorkspace;
+		assert.equal(ws.folders.length, 2); //
+		assert.equal((<IRawUriWorkspaceFolder>ws.folders[0]).uri, URI.from({ scheme: 'myScheme', path: process.cwd() }).toString());
+		assert.equal((<IRawUriWorkspaceFolder>ws.folders[1]).uri, URI.from({ scheme: 'myScheme', path: os.tmpdir() }));
 	});
 
 	test('resolveWorkspaceSync', done => {
