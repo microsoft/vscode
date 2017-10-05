@@ -48,7 +48,7 @@ export interface IWindowsService {
 	toggleDevTools(windowId: number): TPromise<void>;
 	closeWorkspace(windowId: number): TPromise<void>;
 	openWorkspace(windowId: number): TPromise<void>;
-	createAndEnterWorkspace(windowId: number, folders?: string[], path?: string): TPromise<IEnterWorkspaceResult>;
+	createAndEnterWorkspace(windowId: number, folderPaths?: string[], path?: string): TPromise<IEnterWorkspaceResult>;
 	saveAndEnterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult>;
 	toggleFullScreen(windowId: number): TPromise<void>;
 	setRepresentedFilename(windowId: number, fileName: string): TPromise<void>;
@@ -116,7 +116,7 @@ export interface IWindowService {
 	closeWorkspace(): TPromise<void>;
 	openWorkspace(): TPromise<void>;
 	updateTouchBar(items: ICommandAction[][]): TPromise<void>;
-	createAndEnterWorkspace(folders?: string[], path?: string): TPromise<IEnterWorkspaceResult>;
+	createAndEnterWorkspace(folderPaths?: string[], path?: string): TPromise<IEnterWorkspaceResult>;
 	saveAndEnterWorkspace(path: string): TPromise<IEnterWorkspaceResult>;
 	toggleFullScreen(): TPromise<void>;
 	setRepresentedFilename(fileName: string): TPromise<void>;

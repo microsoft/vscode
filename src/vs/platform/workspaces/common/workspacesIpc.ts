@@ -19,7 +19,7 @@ export class WorkspacesChannel implements IWorkspacesChannel {
 
 	constructor(private service: IWorkspacesService) { }
 
-	call(command: string, arg?: any): TPromise<any> {
+	public call(command: string, arg?: any): TPromise<any> {
 		switch (command) {
 			case 'createWorkspace': {
 				let folders: any[];
@@ -47,9 +47,9 @@ export class WorkspacesChannelClient implements IWorkspacesService {
 
 	constructor(private channel: IWorkspacesChannel) { }
 
-	createWorkspace(folders?: string[]): TPromise<IWorkspaceIdentifier>;
-	createWorkspace(resources?: URI[]): TPromise<IWorkspaceIdentifier>;
-	createWorkspace(arg1?: any[]): TPromise<IWorkspaceIdentifier> {
+	public createWorkspace(folderPaths?: string[]): TPromise<IWorkspaceIdentifier>;
+	public createWorkspace(folderResources?: URI[]): TPromise<IWorkspaceIdentifier>;
+	public createWorkspace(arg1?: any[]): TPromise<IWorkspaceIdentifier> {
 		return this.channel.call('createWorkspace', arg1);
 	}
 }
