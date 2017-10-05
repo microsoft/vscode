@@ -1652,7 +1652,7 @@ export class SaveAllInGroupAction extends BaseSaveAllAction {
 export class SaveFilesAction extends BaseSaveAllAction {
 
 	public static ID = 'workbench.action.files.saveFiles';
-	public static LABEL = nls.localize('saveFiles', "Save Dirty Files");
+	public static LABEL = nls.localize('saveFiles', "Save All Files");
 
 	protected getSaveAllArguments(): boolean {
 		return this.includeUntitled();
