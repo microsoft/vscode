@@ -156,12 +156,12 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 
 				// File path
 				if (typeof folder === 'string') {
-					return { path: folder } as IRawFileWorkspaceFolder;
+					return { path: massageFolderPathForWorkspace(folder, untitledWorkspaceConfigFolder, []) } as IRawFileWorkspaceFolder;
 				}
 
 				// File URI
 				else if (folder.scheme === 'file') {
-					return { path: folder.fsPath } as IRawFileWorkspaceFolder;
+					return { path: massageFolderPathForWorkspace(folder.fsPath, untitledWorkspaceConfigFolder, []) } as IRawFileWorkspaceFolder;
 				}
 
 				// Any URI
