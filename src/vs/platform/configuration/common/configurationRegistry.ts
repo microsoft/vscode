@@ -114,9 +114,9 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	}
 
 	public registerConfigurations(configurations: IConfigurationNode[], validate: boolean = true): void {
-		const properties = [];
+		const properties: string[] = [];
 		configurations.forEach(configuration => {
-			properties.push(this.validateAndRegisterProperties(configuration, validate)); // fills in defaults
+			properties.push(...this.validateAndRegisterProperties(configuration, validate)); // fills in defaults
 			this.configurationContributors.push(configuration);
 			this.registerJSONConfiguration(configuration);
 			this.updateSchemaForOverrideSettingsConfiguration(configuration);
