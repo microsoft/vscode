@@ -48,8 +48,7 @@ export class QuickOpenEditorWidget implements IOverlayWidget {
 				inputPlaceHolder: null,
 				inputAriaLabel: configuration.inputAriaLabel,
 				keyboardSupport: true
-			},
-			null
+			}
 		);
 		this.styler = attachQuickOpenStyler(this.quickOpenWidget, this.themeService);
 

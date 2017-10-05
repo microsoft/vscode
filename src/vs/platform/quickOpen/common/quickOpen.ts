@@ -178,6 +178,16 @@ export interface IQuickOpenService {
 	close(): void;
 
 	/**
+	 * Picks the next typed value from the quick open history if any.
+	 */
+	nextFromHistory(): void;
+
+	/**
+	 * Picks the previous typed value from the quick open history if any.
+	 */
+	previousFromHistory(): void;
+
+	/**
 	 * Allows to register on the event that quick open is showing
 	 */
 	onShow: Event<void>;

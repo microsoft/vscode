@@ -27,6 +27,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
+import { HistoryNavigator } from 'vs/base/common/history';
 
 export interface IQuickOpenCallbacks {
 	onOk: () => void;
@@ -44,6 +45,8 @@ export interface IQuickOpenOptions extends IQuickOpenStyles {
 	inputAriaLabel?: string;
 	actionProvider?: IActionProvider;
 	keyboardSupport?: boolean;
+	usageLogger?: IQuickOpenUsageLogger;
+	history?: HistoryNavigator<string>;
 }
 
 export interface IQuickOpenStyles extends IInputBoxStyles, ITreeStyles {
@@ -122,16 +125,18 @@ export class QuickOpenWidget implements IModelProvider {
 	private inputChangingTimeoutHandle: number;
 	private styles: IQuickOpenStyles;
 	private renderer: Renderer;
+	private history: HistoryNavigator<string>;
 
-	constructor(container: HTMLElement, callbacks: IQuickOpenCallbacks, options: IQuickOpenOptions, usageLogger?: IQuickOpenUsageLogger) {
+	constructor(container: HTMLElement, callbacks: IQuickOpenCallbacks, options: IQuickOpenOptions) {
 		this.isDisposed = false;
 		this.toUnbind = [];
 		this.container = container;
 		this.callbacks = callbacks;
 		this.options = options;
 		this.styles = options || Object.create(null);
+		this.history = options.history || new HistoryNavigator<string>();
 		mixin(this.styles, defaultStyles, false);
-		this.usageLogger = usageLogger;
+		this.usageLogger = options.usageLogger;
 		this.model = null;
 	}
 
@@ -200,7 +205,8 @@ export class QuickOpenWidget implements IModelProvider {
 					}
 
 					// Pass tree navigation keys to the tree but leave focus in input field
-					else if (keyboardEvent.keyCode === KeyCode.DownArrow || keyboardEvent.keyCode === KeyCode.UpArrow || keyboardEvent.keyCode === KeyCode.PageDown || keyboardEvent.keyCode === KeyCode.PageUp) {
+					// TODO@Ben this is not nice playing with quick open history :/
+					else if ((keyboardEvent.keyCode === KeyCode.DownArrow || keyboardEvent.keyCode === KeyCode.UpArrow) || keyboardEvent.keyCode === KeyCode.PageDown || keyboardEvent.keyCode === KeyCode.PageUp) {
 						DOM.EventHelper.stop(e, true);
 
 						this.navigateInTree(keyboardEvent.keyCode, keyboardEvent.shiftKey);
@@ -791,6 +797,11 @@ export class QuickOpenWidget implements IModelProvider {
 			}
 		}
 
+		// Add history entry if applicable
+		if (reason === HideReason.ELEMENT_SELECTED) {
+			this.history.add(this.inputBox.value);
+		}
+
 		// Clear input field and clear tree
 		this.inputBox.value = '';
 		this.tree.setInput(null);
@@ -915,6 +926,35 @@ export class QuickOpenWidget implements IModelProvider {
 			const focus = this.tree.getFocus();
 			if (focus) {
 				this.elementSelected(focus);
+			}
+		}
+	}
+
+	public nextFromHistory(): void {
+		if (this.isVisible() && this.inputBox) {
+			const next = this.history.next();
+			if (next) {
+				this.setValue(next);
+				this.onType();
+			}
+		}
+	}
+
+	public previousFromHistory(): void {
+		if (this.isVisible() && this.inputBox) {
+			const currentValue = this.inputBox.value;
+
+			let previous: string;
+			if (currentValue.length === 0) {
+				previous = this.history.current();
+			} else {
+				this.history.addIfNotPresent(currentValue);
+				previous = this.history.previous();
+			}
+
+			if (previous) {
+				this.setValue(previous);
+				this.onType();
 			}
 		}
 	}

@@ -46,6 +46,28 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.action.quickOpenHistoryShowNext',
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	when: inQuickOpenContext,
+	primary: KeyMod.Alt | KeyCode.DownArrow,
+	handler: accessor => {
+		const quickOpenService = accessor.get(IQuickOpenService);
+		quickOpenService.nextFromHistory();
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.action.quickOpenHistoryShowPrevious',
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	when: inQuickOpenContext,
+	primary: KeyMod.Alt | KeyCode.UpArrow,
+	handler: accessor => {
+		const quickOpenService = accessor.get(IQuickOpenService);
+		quickOpenService.previousFromHistory();
+	}
+});
+
 const registry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
 
 const globalQuickOpenKeybinding = { primary: KeyMod.CtrlCmd | KeyCode.KEY_P, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_E], mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_P, secondary: null } };

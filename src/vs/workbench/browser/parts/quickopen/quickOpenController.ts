@@ -56,6 +56,7 @@ import { ITree, IActionProvider } from 'vs/base/parts/tree/browser/tree';
 import { BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { FileKind, IFileService } from 'vs/platform/files/common/files';
 import { scoreItem, ScorerCache, compareItemsByScore } from 'vs/base/parts/quickopen/common/quickOpenScorer';
+import { HistoryNavigator } from 'vs/base/common/history';
 
 const HELP_PREFIX = '?';
 
@@ -101,6 +102,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	private visibilityChangeTimeoutHandle: number;
 	private closeOnFocusLost: boolean;
 	private editorHistoryHandler: EditorHistoryHandler;
+	private pickerHistory: HistoryNavigator<string>;
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -127,6 +129,8 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		this.editorHistoryHandler = this.instantiationService.createInstance(EditorHistoryHandler);
 
 		this.inQuickOpenMode = new RawContextKey<boolean>('inQuickOpen', false).bindTo(contextKeyService);
+
+		this.pickerHistory = new HistoryNavigator();
 
 		this._onShow = new Emitter<void>();
 		this._onHide = new Emitter<void>();
@@ -312,9 +316,10 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 					onHide: (reason) => this.handleOnHide(true, reason)
 				}, {
 					inputPlaceHolder: options.placeHolder || '',
-					keyboardSupport: false
-				},
-				this.telemetryService
+					keyboardSupport: false,
+					usageLogger: this.telemetryService,
+					history: this.pickerHistory
+				}
 			);
 			this.toUnbind.push(attachQuickOpenStyler(this.pickOpenWidget, this.themeService, { background: SIDE_BAR_BACKGROUND, foreground: SIDE_BAR_FOREGROUND }));
 
@@ -526,6 +531,22 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		});
 	}
 
+	public nextFromHistory(): void {
+		[this.quickOpenWidget, this.pickOpenWidget].forEach(w => {
+			if (w && w.isVisible()) {
+				w.nextFromHistory();
+			}
+		});
+	}
+
+	public previousFromHistory(): void {
+		[this.quickOpenWidget, this.pickOpenWidget].forEach(w => {
+			if (w && w.isVisible()) {
+				w.previousFromHistory();
+			}
+		});
+	}
+
 	private emitQuickOpenVisibilityChange(isVisible: boolean): void {
 		if (this.visibilityChangeTimeoutHandle) {
 			window.clearTimeout(this.visibilityChangeTimeoutHandle);
@@ -581,9 +602,10 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 					onFocusLost: () => !this.closeOnFocusLost
 				}, {
 					inputPlaceHolder: this.hasHandler(HELP_PREFIX) ? nls.localize('quickOpenInput', "Type '?' to get help on the actions you can take from here") : '',
-					keyboardSupport: false
-				},
-				this.telemetryService
+					keyboardSupport: false,
+					usageLogger: this.telemetryService,
+					history: this.pickerHistory
+				}
 			);
 			this.toUnbind.push(attachQuickOpenStyler(this.quickOpenWidget, this.themeService, { background: SIDE_BAR_BACKGROUND, foreground: SIDE_BAR_FOREGROUND }));
 
