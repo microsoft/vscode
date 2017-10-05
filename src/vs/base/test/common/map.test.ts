@@ -453,15 +453,16 @@ suite('Map', () => {
 		map.set('/usr/foo', 4);
 
 		const elements = map.findSuperstr('/user');
-		const [first, second, third] = elements.sort();
 
-		assert.equal(elements.length, 3);
-		assert.equal(first, 1);
-		assert.equal(second, 2);
-		assert.equal(third, 3);
+		assertTernarySearchTree(elements, ['foo/bar', 1], ['foo', 2], ['foo/flip/flop', 3]);
+		// assert.equal(elements.length, 3);
+		assert.equal(elements.get('foo/bar'), 1);
+		assert.equal(elements.get('foo'), 2);
+		assert.equal(elements.get('foo/flip/flop'), 3);
 
-		assert.deepEqual(map.findSuperstr('/usr'), [4]);
-		assert.deepEqual(map.findSuperstr('/usr/foo'), [4]);
+		assertTernarySearchTree(map.findSuperstr('/usr'), ['foo', 4]);
+		assert.equal(map.findSuperstr('/usr/foo'), undefined);
+		assert.equal(map.get('/usr/foo'), 4);
 
 		assert.equal(map.findSuperstr('/not'), undefined);
 		assert.equal(map.findSuperstr('/us'), undefined);
