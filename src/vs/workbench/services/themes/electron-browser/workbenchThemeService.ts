@@ -645,8 +645,11 @@ function _processIconThemeDocument(id: string, iconThemeDocumentPath: string, ic
 				for (let fileExtension in fileExtensions) {
 					let selectors: string[] = [];
 					let segments = fileExtension.toLowerCase().split('.');
-					for (let i = 0; i < segments.length; i++) {
-						selectors.push(`.${escapeCSS(segments.slice(i).join('.'))}-ext-file-icon`);
+					if (segments.length) {
+						for (let i = 0; i < segments.length; i++) {
+							selectors.push(`.${escapeCSS(segments.slice(i).join('.'))}-ext-file-icon`);
+						}
+						selectors.push('.ext-file-icon'); // extra segment to increase file-ext score
 					}
 					addSelector(`${qualifier} ${selectors.join('')}.file-icon::before`, fileExtensions[fileExtension]);
 					result.hasFileIcons = true;
@@ -659,8 +662,11 @@ function _processIconThemeDocument(id: string, iconThemeDocumentPath: string, ic
 					fileName = fileName.toLowerCase();
 					selectors.push(`.${escapeCSS(fileName)}-name-file-icon`);
 					let segments = fileName.split('.');
-					for (let i = 1; i < segments.length; i++) {
-						selectors.push(`.${escapeCSS(segments.slice(i).join('.'))}-ext-file-icon`);
+					if (segments.length) {
+						for (let i = 1; i < segments.length; i++) {
+							selectors.push(`.${escapeCSS(segments.slice(i).join('.'))}-ext-file-icon`);
+						}
+						selectors.push('.ext-file-icon'); // extra segment to increase file-ext score
 					}
 					addSelector(`${qualifier} ${selectors.join('')}.file-icon::before`, fileNames[fileName]);
 					result.hasFileIcons = true;
