@@ -420,24 +420,42 @@ export class WindowsManager implements IWindowsMainService {
 		// Open based on config
 		const usedWindows = this.doOpen(openConfig, workspacesToOpen, workspacesToRestore, foldersToOpen, foldersToRestore, emptyToRestore, emptyToOpen, filesToOpen, filesToCreate, filesToDiff, filesToWait, foldersToAdd);
 
-		// Make sure to pass focus to one of the windows if we open multiple
+		// Make sure to pass focus to the most relevant of the windows if we open multiple
 		if (usedWindows.length > 1) {
-			let focusLast = true;
+			let focusLastActive = this.windowsState.lastActiveWindow && !openConfig.forceEmpty && !openConfig.cli._.length && (!openConfig.pathsToOpen || !openConfig.pathsToOpen.length);
+			let focusLastOpened = true;
+			let focusLastWindow = true;
 
-			// Only focus the last active window if the user did not open a specific path via
-			// CLI or API. In those cases we do not want windows to get focus from previous
-			// session but actually one of the windows the user explicitly asked to open.
-			const focusLastActive = !openConfig.forceEmpty && !openConfig.cli._.length && (!openConfig.pathsToOpen || !openConfig.pathsToOpen.length);
-			if (focusLastActive && this.windowsState.lastActiveWindow) {
+			// 1.) focus last active window if we are not instructed to open any paths
+			if (focusLastActive) {
 				const lastActiveWindw = usedWindows.filter(w => w.backupPath === this.windowsState.lastActiveWindow.backupPath);
 				if (lastActiveWindw.length) {
 					lastActiveWindw[0].focus();
-					focusLast = false;
+					focusLastOpened = false;
+					focusLastWindow = false;
 				}
 			}
 
-			// Otherwise: focus last window we opened
-			if (focusLast) {
+			// 2.) if instructed to open paths, focus last window which is not restored
+			if (focusLastOpened) {
+				for (let i = usedWindows.length - 1; i >= 0; i--) {
+					const usedWindow = usedWindows[i];
+					if (
+						(usedWindow.openedWorkspace && workspacesToRestore.some(workspace => workspace.id === usedWindow.openedWorkspace.id)) || 	// skip over restored workspace
+						(usedWindow.openedFolderPath && foldersToRestore.some(folder => folder === usedWindow.openedFolderPath)) ||					// skip over restored folder
+						(usedWindow.backupPath && emptyToRestore.some(empty => empty === basename(usedWindow.backupPath)))							// skip over restored empty window
+					) {
+						continue;
+					}
+
+					usedWindow.focus();
+					focusLastWindow = false;
+					break;
+				}
+			}
+
+			// 3.) finally, always ensure to have at least last used window focused
+			if (focusLastWindow) {
 				usedWindows[usedWindows.length - 1].focus();
 			}
 		}
