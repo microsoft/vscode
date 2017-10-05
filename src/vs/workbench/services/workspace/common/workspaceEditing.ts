@@ -35,6 +35,11 @@ export interface IWorkspaceEditingService {
 	 * saves the workspace to the provided path and opens it. requires a workspace to be opened.
 	 */
 	saveAndEnterWorkspace(path: string): TPromise<void>;
+
+	/**
+	 * copies current workspace settings to the target workspace.
+	 */
+	copyWorkspaceSettings(toWorkspace: IWorkspaceIdentifier): TPromise<void>;
 }
 
 export const IWorkspaceMigrationService = createDecorator<IWorkspaceMigrationService>('workspaceMigrationService');

@@ -9,14 +9,14 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import nls = require('vs/nls');
 import { distinct } from 'vs/base/common/arrays';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import URI from 'vs/base/common/uri';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { WORKSPACE_FILTER } from 'vs/platform/workspaces/common/workspaces';
+import { WORKSPACE_FILTER, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isLinux } from 'vs/base/common/platform';
 import { dirname } from 'vs/base/common/paths';
@@ -317,6 +317,49 @@ export class OpenWorkspaceConfigFileAction extends Action {
 
 	public run(): TPromise<any> {
 		return this.editorService.openEditor({ resource: this.workspaceContextService.getWorkspace().configuration });
+	}
+}
+
+export class OpenFolderAsWorkspaceInNewWindowAction extends Action {
+
+	public static ID = 'workbench.action.openFolderAsWorkspaceInNewWindow';
+	public static LABEL = nls.localize('openFolderAsWorkspaceInNewWindow', "Open Folder as Workspace in New Window");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
+		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
+		@IWindowsService private windowsService: IWindowsService,
+		@ICommandService private commandService: ICommandService,
+		@IWorkspacesService private workspacesService: IWorkspacesService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const folders = this.workspaceContextService.getWorkspace().folders;
+
+		let folderPromise: TPromise<IWorkspaceFolder>;
+		if (folders.length === 0) {
+			folderPromise = TPromise.as(null);
+		} else if (folders.length === 1) {
+			folderPromise = TPromise.as(folders[0]);
+		} else {
+			folderPromise = this.commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND);
+		}
+
+		return folderPromise.then(folder => {
+			if (!folder) {
+				return void 0; // need at least one folder
+			}
+
+			return this.workspacesService.createWorkspace([folder.uri.fsPath]).then(newWorkspace => {
+				return this.workspaceEditingService.copyWorkspaceSettings(newWorkspace).then(() => {
+					return this.windowsService.openWindow([newWorkspace.configPath], { forceNewWindow: true });
+				});
+			});
+		});
 	}
 }
 
