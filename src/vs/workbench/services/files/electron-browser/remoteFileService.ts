@@ -72,8 +72,7 @@ export function toDeepIFileStat(provider: IFileSystemProvider, tuple: [URI, ISta
 	}
 
 	return toIFileStat(provider, tuple, candidate => {
-		const sub = trie.findSuperstr(candidate[0].toString());
-		return !!sub;
+		return Boolean(trie.findSuperstr(candidate[0].toString()) || trie.get(candidate[0].toString()));
 	});
 }
 

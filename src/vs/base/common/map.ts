@@ -418,35 +418,33 @@ export class TernarySearchTree<E> {
 		} else {
 			return node.element || candidate;
 		}
-
 	}
 
-	findSuperstr(key: string): E[] {
+	findSuperstr(key: string): TernarySearchTree<E> {
 		const segements = this._segments.reset(key);
-		const bucket: E[] = [];
-		this._findSuperstr(this._root, segements.next(), segements, bucket);
-		return bucket.length ? bucket : undefined;
+		return this._findSuperstr(this._root, segements.next(), segements);
 	}
 
-	private _findSuperstr(node: TernarySearchTreeNode<E>, key: string, segments: IKeySegements, bucket: E[]): void {
+	private _findSuperstr(node: TernarySearchTreeNode<E>, key: string, segments: IKeySegements): TernarySearchTree<E> {
 		if (!node) {
-			return;
+			return undefined;
 		} else if (node.str > key) {
 			// left
-			this._findSuperstr(node.left, key, segments, bucket);
+			return this._findSuperstr(node.left, key, segments);
 		} else if (node.str < key) {
 			// right
-			this._findSuperstr(node.right, key, segments, bucket);
+			return this._findSuperstr(node.right, key, segments);
 		} else if (segments.hasNext()) {
 			// mid
-			this._findSuperstr(node.mid, segments.next(), segments, bucket);
+			return this._findSuperstr(node.mid, segments.next(), segments);
 		} else {
 			// collect
-			if (node.element) {
-				bucket.push(node.element);
+			if (!node.mid) {
+				return undefined;
 			}
-			this._forEach(node.mid, [], (entry) => bucket.push(entry[1]));
-
+			let ret = new TernarySearchTree<E>(this._segments);
+			ret._root = node.mid;
+			return ret;
 		}
 	}
 
