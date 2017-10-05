@@ -159,10 +159,11 @@ export class SpectronApplication {
 		};
 
 		if (LOGS_DIR) {
-			opts.chromeDriverLogPath = path.join(LOGS_DIR, id, 'chromedriver');
-			mkdirp.sync(opts.chromeDriverLogPath);
+			const dir = path.join(LOGS_DIR, id);
+			opts.chromeDriverLogPath = path.join(dir, 'chromedriver.log');
+			mkdirp.sync(dir);
 
-			opts.webdriverLogPath = path.join(LOGS_DIR, id, 'webdriver');
+			opts.webdriverLogPath = path.join(dir, 'webdriver');
 			mkdirp.sync(opts.webdriverLogPath);
 		}
 
