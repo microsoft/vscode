@@ -1324,8 +1324,8 @@ export class WindowsManager implements IWindowsMainService {
 		return this.workspacesManager.saveAndEnterWorkspace(win, path).then(result => this.doEnterWorkspace(win, result));
 	}
 
-	public createAndEnterWorkspace(win: CodeWindow, folders?: string[], path?: string): TPromise<IEnterWorkspaceResult> {
-		return this.workspacesManager.createAndEnterWorkspace(win, folders, path).then(result => this.doEnterWorkspace(win, result));
+	public createAndEnterWorkspace(win: CodeWindow, folderPaths?: string[], path?: string): TPromise<IEnterWorkspaceResult> {
+		return this.workspacesManager.createAndEnterWorkspace(win, folderPaths, path).then(result => this.doEnterWorkspace(win, result));
 	}
 
 	private doEnterWorkspace(win: CodeWindow, result: IEnterWorkspaceResult): IEnterWorkspaceResult {
@@ -1686,12 +1686,12 @@ class WorkspacesManager {
 		return this.doSaveAndOpenWorkspace(window, window.openedWorkspace, path);
 	}
 
-	public createAndEnterWorkspace(window: CodeWindow, folders?: string[], path?: string): TPromise<IEnterWorkspaceResult> {
+	public createAndEnterWorkspace(window: CodeWindow, folderPaths?: string[], path?: string): TPromise<IEnterWorkspaceResult> {
 		if (!window || !window.win || window.readyState !== ReadyState.READY || !this.isValidTargetWorkspacePath(window, path)) {
 			return TPromise.as(null); // return early if the window is not ready or disposed
 		}
 
-		return this.workspacesService.createWorkspace(folders).then(workspace => {
+		return this.workspacesService.createWorkspace(folderPaths).then(workspace => {
 			return this.doSaveAndOpenWorkspace(window, workspace, path);
 		});
 	}
