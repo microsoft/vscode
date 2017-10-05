@@ -80,7 +80,7 @@ suite('WorkspacesMainService', () => {
 		assert.ok(service.isUntitledWorkspace(workspace));
 
 		const ws = JSON.parse(fs.readFileSync(workspace.configPath).toString()) as IStoredWorkspace;
-		assert.equal(ws.folders.length, 2); //
+		assert.equal(ws.folders.length, 2);
 		assert.equal((<IRawFileWorkspaceFolder>ws.folders[0]).path, process.cwd());
 		assert.equal((<IRawFileWorkspaceFolder>ws.folders[1]).path, os.tmpdir());
 	});
@@ -92,7 +92,7 @@ suite('WorkspacesMainService', () => {
 		assert.ok(service.isUntitledWorkspace(workspace));
 
 		const ws = JSON.parse(fs.readFileSync(workspace.configPath).toString()) as IStoredWorkspace;
-		assert.equal(ws.folders.length, 2); //
+		assert.equal(ws.folders.length, 2);
 		assert.equal((<IRawFileWorkspaceFolder>ws.folders[0]).path, process.cwd());
 		assert.equal((<IRawFileWorkspaceFolder>ws.folders[1]).path, os.tmpdir());
 	});
@@ -104,9 +104,9 @@ suite('WorkspacesMainService', () => {
 		assert.ok(service.isUntitledWorkspace(workspace));
 
 		const ws = JSON.parse(fs.readFileSync(workspace.configPath).toString()) as IStoredWorkspace;
-		assert.equal(ws.folders.length, 2); //
-		assert.equal((<IRawUriWorkspaceFolder>ws.folders[0]).uri, URI.from({ scheme: 'myScheme', path: process.cwd() }).toString());
-		assert.equal((<IRawUriWorkspaceFolder>ws.folders[1]).uri, URI.from({ scheme: 'myScheme', path: os.tmpdir() }));
+		assert.equal(ws.folders.length, 2);
+		assert.equal((<IRawUriWorkspaceFolder>ws.folders[0]).uri, URI.from({ scheme: 'myScheme', path: process.cwd() }).toString(true));
+		assert.equal((<IRawUriWorkspaceFolder>ws.folders[1]).uri, URI.from({ scheme: 'myScheme', path: os.tmpdir() }).toString(true));
 	});
 
 	test('resolveWorkspaceSync', done => {
