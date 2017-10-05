@@ -354,7 +354,7 @@ export class OpenFolderAsWorkspaceInNewWindowAction extends Action {
 				return void 0; // need at least one folder
 			}
 
-			return this.workspacesService.createWorkspace([folder.uri.fsPath]).then(newWorkspace => {
+			return this.workspacesService.createWorkspace([folder.uri]).then(newWorkspace => {
 				return this.workspaceEditingService.copyWorkspaceSettings(newWorkspace).then(() => {
 					return this.windowsService.openWindow([newWorkspace.configPath], { forceNewWindow: true });
 				});

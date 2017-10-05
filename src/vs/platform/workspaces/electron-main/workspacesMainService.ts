@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { IWorkspacesMainService, IWorkspaceIdentifier, WORKSPACE_EXTENSION, IWorkspaceSavedEvent, UNTITLED_WORKSPACE_NAME, IResolvedWorkspace, IStoredWorkspaceFolder, isRawFileWorkspaceFolder, isStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesMainService, IWorkspaceIdentifier, WORKSPACE_EXTENSION, IWorkspaceSavedEvent, UNTITLED_WORKSPACE_NAME, IResolvedWorkspace, IStoredWorkspaceFolder, isRawFileWorkspaceFolder, isStoredWorkspaceFolder, IRawFileWorkspaceFolder, IRawUriWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { isParent } from 'vs/platform/files/common/files';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -120,16 +120,20 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 		return isParent(path, this.environmentService.workspacesHome, !isLinux /* ignore case */);
 	}
 
-	public createWorkspace(folders: string[]): TPromise<IWorkspaceIdentifier> {
-		const { workspace, configParent, storedWorkspace } = this.createUntitledWorkspace(folders);
+	public createWorkspace(folders: string[]): TPromise<IWorkspaceIdentifier>;
+	public createWorkspace(resources: URI[]): TPromise<IWorkspaceIdentifier>;
+	public createWorkspace(arg1: string[] | URI[]): TPromise<IWorkspaceIdentifier> {
+		const { workspace, configParent, storedWorkspace } = this.createUntitledWorkspace(arg1);
 
 		return mkdirp(configParent).then(() => {
 			return writeFile(workspace.configPath, JSON.stringify(storedWorkspace, null, '\t')).then(() => workspace);
 		});
 	}
 
-	public createWorkspaceSync(folders: string[]): IWorkspaceIdentifier {
-		const { workspace, configParent, storedWorkspace } = this.createUntitledWorkspace(folders);
+	public createWorkspaceSync(folders: string[]): IWorkspaceIdentifier;
+	public createWorkspaceSync(resources: URI[]): IWorkspaceIdentifier;
+	public createWorkspaceSync(arg1: string[] | URI[]): IWorkspaceIdentifier {
+		const { workspace, configParent, storedWorkspace } = this.createUntitledWorkspace(arg1);
 
 		if (!existsSync(this.workspacesHome)) {
 			mkdirSync(this.workspacesHome);
@@ -142,15 +146,27 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 		return workspace;
 	}
 
-	private createUntitledWorkspace(folders: string[]): { workspace: IWorkspaceIdentifier, configParent: string, storedWorkspace: IStoredWorkspace } {
+	private createUntitledWorkspace(folders: (string | URI)[]): { workspace: IWorkspaceIdentifier, configParent: string, storedWorkspace: IStoredWorkspace } {
 		const randomId = (Date.now() + Math.round(Math.random() * 1000)).toString();
 		const untitledWorkspaceConfigFolder = join(this.workspacesHome, randomId);
 		const untitledWorkspaceConfigPath = join(untitledWorkspaceConfigFolder, UNTITLED_WORKSPACE_NAME);
 
 		const storedWorkspace: IStoredWorkspace = {
-			folders: folders.map(folder => ({
-				path: folder
-			}))
+			folders: folders.map(folder => {
+
+				// File path
+				if (typeof folder === 'string') {
+					return { path: folder } as IRawFileWorkspaceFolder;
+				}
+
+				// File URI
+				else if (folder.scheme === 'file') {
+					return { path: folder.fsPath } as IRawFileWorkspaceFolder;
+				}
+
+				// Any URI
+				return { uri: folder.toString(true) } as IRawUriWorkspaceFolder;
+			})
 		};
 
 		return {
