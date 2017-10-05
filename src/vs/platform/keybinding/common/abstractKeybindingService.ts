@@ -47,6 +47,7 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 	) {
 		this._contextKeyService = contextKeyService;
 		this._commandService = commandService;
+		this._telemetryService = telemetryService;
 		this._statusService = statusService;
 		this._messageService = messageService;
 
