@@ -12,7 +12,7 @@ import Json = require('vs/base/common/json');
 import * as types from 'vs/base/common/types';
 import * as objects from 'vs/base/common/objects';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
-import { IWorkbenchThemeService, IColorTheme, ITokenColorCustomizations, IFileIconTheme, ExtensionData, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, COLOR_THEME_SETTING, ICON_THEME_SETTING, CUSTOM_WORKBENCH_COLORS_SETTING, DEPRECATED_CUSTOM_COLORS_SETTING, CUSTOM_EDITOR_COLORS_SETTING, CUSTOM_EDITOR_SCOPE_COLORS_SETTING } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IWorkbenchThemeService, IColorTheme, ITokenColorCustomizations, IFileIconTheme, ExtensionData, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, COLOR_THEME_SETTING, ICON_THEME_SETTING, CUSTOM_WORKBENCH_COLORS_SETTING, CUSTOM_EDITOR_COLORS_SETTING, CUSTOM_EDITOR_SCOPE_COLORS_SETTING } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -424,10 +424,6 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	private updateColorCustomizations(notify = true): void {
 		let newColorCustomizations = this.configurationService.lookup<IColorCustomizations>(CUSTOM_WORKBENCH_COLORS_SETTING).value || {};
 		let newColorIds = Object.keys(newColorCustomizations);
-		if (newColorIds.length === 0) {
-			newColorCustomizations = this.configurationService.lookup<IColorCustomizations>(DEPRECATED_CUSTOM_COLORS_SETTING).value || {};
-			newColorIds = Object.keys(newColorCustomizations);
-		}
 
 		let newTokenColorCustomizations = this.configurationService.lookup<ITokenColorCustomizations>(CUSTOM_EDITOR_COLORS_SETTING).value || {};
 
@@ -801,11 +797,6 @@ const colorCustomizationsSchema: IJSONSchema = {
 	}]
 };
 
-const deprecatedColorCustomizationsSchema: IJSONSchema = objects.mixin({
-	deprecationMessage: nls.localize('workbenchColors.deprecated', "The setting is no longer experimental and has been renamed to 'workbench.colorCustomizations'"),
-	description: nls.localize('workbenchColors.deprecatedDescription', "Use 'workbench.colorCustomizations' instead")
-}, colorCustomizationsSchema, false);
-
 configurationRegistry.registerConfiguration({
 	id: 'workbench',
 	order: 7.1,
@@ -813,8 +804,7 @@ configurationRegistry.registerConfiguration({
 	properties: {
 		[COLOR_THEME_SETTING]: colorThemeSettingSchema,
 		[ICON_THEME_SETTING]: iconThemeSettingSchema,
-		[CUSTOM_WORKBENCH_COLORS_SETTING]: colorCustomizationsSchema,
-		[DEPRECATED_CUSTOM_COLORS_SETTING]: deprecatedColorCustomizationsSchema
+		[CUSTOM_WORKBENCH_COLORS_SETTING]: colorCustomizationsSchema
 	}
 });
 
