@@ -101,16 +101,18 @@ class DirtyDiffWidget extends PeekViewWidget {
 			return;
 		}
 
+		const onFirstDiffUpdate = once(this.diffEditor.onDidUpdateDiff);
+
+		// TODO@joao TODO@alex need this setTimeout probably because the
+		// non-side-by-side diff still hasn't created the view zones
+		onFirstDiffUpdate(() => setTimeout(() => this.revealChange(change), 0));
+
 		this.diffEditor.setModel(this.model);
 
 		const position = new Position(change.modifiedEndLineNumber, 1);
 		const height = getChangeHeight(change) + /* padding */ 8;
 
 		this.show(position, height);
-
-		// TODO@joao TODO@alex for some reason this doesn't work for some changes
-		// unless we delay it
-		setTimeout(() => this.revealChange(change), 100);
 	}
 
 	protected _fillBody(container: HTMLElement): void {
