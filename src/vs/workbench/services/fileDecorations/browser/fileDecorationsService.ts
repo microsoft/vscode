@@ -37,7 +37,11 @@ export class FileDecorationsService implements IFileDecorationsService {
 				super(label);
 			}
 			dispose() {
-				outer._types.delete(type);
+				let tree = outer._types.get(type);
+				if (tree) {
+					tree.forEach(([key]) => outer._onDidChangeFileDecoration.fire(URI.parse(key)));
+					outer._types.delete(type);
+				}
 			}
 		};
 		this._types.set(type, TernarySearchTree.forPaths<IFileDecoration[]>());
