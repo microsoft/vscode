@@ -20,6 +20,7 @@ export const USER_DIR = process.env.VSCODE_USER_DIR as string;
 export const EXTENSIONS_DIR = process.env.VSCODE_EXTENSIONS_DIR as string;
 export const VSCODE_EDITION = process.env.VSCODE_EDITION as string;
 export const SCREENSHOTS_DIR = process.env.SCREENSHOTS_DIR as string;
+export const LOGS_DIR = process.env.LOGS_DIR as string;
 export const WAIT_TIME = parseInt(process.env.WAIT_TIME as string);
 
 export enum VSCODE_BUILD {
@@ -138,15 +139,15 @@ export class SpectronApplication {
 
 		args.push(...codeArgs);
 
-		chromeDriverArgs.push(`--user-data-dir=${path.join(this._userDir, String(SpectronApplication.count++))}`);
+		const id = String(SpectronApplication.count++);
+		chromeDriverArgs.push(`--user-data-dir=${path.join(this._userDir, id)}`);
 
 		// Spectron always uses the same port number for the chrome driver
 		// and it handles gracefully when two instances use the same port number
 		// This works, but when one of the instances quits, it takes down
 		// chrome driver with it, leaving the other instance in DISPAIR!!! :(
 		const port = await findFreePort();
-
-		this.spectron = new Application({
+		const opts: any = {
 			path: this._electronPath,
 			port,
 			args,
@@ -154,7 +155,14 @@ export class SpectronApplication {
 			chromeDriverArgs,
 			startTimeout: 10000,
 			requireName: 'nodeRequire'
-		});
+		};
+
+		if (LOGS_DIR) {
+			opts.chromeDriverLogPath = path.join(LOGS_DIR, id, 'chromedriver');
+			opts.webdriverLogPath = path.join(LOGS_DIR, id, 'webdriver');
+		}
+
+		this.spectron = new Application(opts);
 		await this.spectron.start();
 
 		this._screenCapturer = new ScreenCapturer(this.spectron, testSuiteName);

@@ -41,7 +41,10 @@ step "Run smoke test" {
 	$Screenshots = "$env:AGENT_BUILDDIRECTORY\smoketest-screenshots"
 	Remove-Item -Recurse -Force -ErrorAction Ignore $Screenshots
 
-	exec { & npm run smoketest -- --build "$env:AGENT_BUILDDIRECTORY\VSCode-win32-$global:arch" --screenshots "$Screenshots" }
+	$Logs = "$env:AGENT_BUILDDIRECTORY\smoketest-logs"
+	Remove-Item -Recurse -Force -ErrorAction Ignore $Logs
+
+	exec { & npm run smoketest -- --build "$env:AGENT_BUILDDIRECTORY\VSCode-win32-$global:arch" --screenshots "$Screenshots" --logs "$Logs" }
 }
 
 done
