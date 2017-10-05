@@ -32,6 +32,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IUpdateService, State as UpdateState } from 'vs/platform/update/common/update';
 import * as semver from 'semver';
 import { OS, isLinux, isWindows } from 'vs/base/common/platform';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 class ApplyUpdateAction extends Action {
 	constructor( @IUpdateService private updateService: IUpdateService) {
@@ -267,8 +268,13 @@ export class Win3264BitContribution implements IWorkbenchContribution {
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMessageService messageService: IMessageService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IEnvironmentService environmentService: IEnvironmentService
 	) {
+		if (environmentService.disableUpdates) {
+			return;
+		}
+
 		const neverShowAgain = new NeverShowAgain(Win3264BitContribution.KEY, storageService);
 
 		if (!neverShowAgain.shouldShow()) {
