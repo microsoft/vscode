@@ -60,7 +60,7 @@ export interface IConfigurationService {
 	updateValue(key: string, value: any, overrides: IConfigurationOverrides, target: ConfigurationTarget): TPromise<void>;
 
 	reloadConfiguration(): TPromise<void>;
-	reloadConfiguration(folder?: IWorkspaceFolder): TPromise<void>;
+	reloadConfiguration(folder: IWorkspaceFolder): TPromise<void>;
 
 	inspect<T>(key: string): {
 		default: T,
