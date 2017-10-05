@@ -498,7 +498,7 @@ export class ElectronWindow extends Themable {
 	}
 
 	private toggleAutoSave(): void {
-		const setting = this.configurationService.lookup(ElectronWindow.AUTO_SAVE_SETTING);
+		const setting = this.configurationService.inspect(ElectronWindow.AUTO_SAVE_SETTING);
 		let userAutoSaveConfig = setting.user;
 		if (types.isUndefinedOrNull(userAutoSaveConfig)) {
 			userAutoSaveConfig = setting.default; // use default if setting not defined

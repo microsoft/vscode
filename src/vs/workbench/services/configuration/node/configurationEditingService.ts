@@ -27,7 +27,7 @@ import { IConfigurationService, IConfigurationOverrides } from 'vs/platform/conf
 import { keyFromOverrideIdentifier } from 'vs/platform/configuration/common/model';
 import { WORKSPACE_CONFIG_DEFAULT_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS, TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY } from 'vs/workbench/services/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IConfigurationEditingService, ConfigurationEditingErrorCode, ConfigurationEditingError, ConfigurationTarget, IConfigurationValue, IConfigurationEditingOptions } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { ConfigurationTarget, ConfigurationEditingErrorCode, ConfigurationEditingError, IConfigurationValue, IConfigurationEditingOptions, IConfigurationEditingService } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { OVERRIDE_PROPERTY_PATTERN, IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IChoiceService, IMessageService, Severity } from 'vs/platform/message/common/message';
@@ -95,9 +95,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 	private writeToBuffer(model: editorCommon.IModel, operation: IConfigurationEditOperation, save: boolean): TPromise<any> {
 		const edit = this.getEdits(model, operation)[0];
 		if (this.applyEditsToBuffer(edit, model) && save) {
-			return this.textFileService.save(operation.resource, { skipSaveParticipants: true /* programmatic change */ })
-				// Reload the configuration so that we make sure all parties are updated
-				.then(() => this.configurationService.reloadConfiguration());
+			return this.textFileService.save(operation.resource, { skipSaveParticipants: true /* programmatic change */ });
 		}
 		return TPromise.as(null);
 	}

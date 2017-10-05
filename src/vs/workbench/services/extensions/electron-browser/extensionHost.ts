@@ -360,7 +360,7 @@ export class ExtensionHostProcessWorker {
 				},
 				workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : <IWorkspaceData>this._contextService.getWorkspace(),
 				extensions: extensionDescriptions,
-				configuration: this._configurationService.getConfigurationData(),
+				configuration: this._configurationService.getConfiguration(),
 				telemetryInfo
 			};
 			return r;

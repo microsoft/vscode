@@ -4,13 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { clone } from 'vs/base/common/objects';
+import { clone, equals } from 'vs/base/common/objects';
 import { CustomConfigurationModel, toValuesTree } from 'vs/platform/configuration/common/model';
-import { ConfigurationModel } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationModel, Configuration as BaseConfiguration, compare } from 'vs/platform/configuration/common/configuration';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, IConfigurationPropertySchema, Extensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { WORKSPACE_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
 import { IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
+import { Workspace } from 'vs/platform/workspace/common/workspace';
+import { StrictResourceMap } from 'vs/base/common/map';
+import URI from 'vs/base/common/uri';
 
 export class WorkspaceConfigurationModel<T> extends CustomConfigurationModel<T> {
 
@@ -177,5 +180,89 @@ export class FolderConfigurationModel<T> extends CustomConfigurationModel<T> {
 	public update(): void {
 		this.workspaceSettingsConfig.reprocess();
 		this.consolidate();
+	}
+}
+
+export class Configuration<T> extends BaseConfiguration<T> {
+
+	constructor(defaults: ConfigurationModel<T>, user: ConfigurationModel<T>, workspaceConfiguration: ConfigurationModel<T>, protected folders: StrictResourceMap<FolderConfigurationModel<T>>, workspace: Workspace) {
+		super(defaults, user, workspaceConfiguration, folders, workspace);
+	}
+
+	updateDefaultConfiguration(defaults: ConfigurationModel<T>): void {
+		this._defaults = defaults;
+		this.merge();
+	}
+
+	updateUserConfiguration(user: ConfigurationModel<T>): string[] {
+		let changedKeys = [];
+		const { added, updated, removed } = compare(this._user, user);
+		changedKeys = [...added, ...updated, ...removed];
+		if (changedKeys.length) {
+			const oldConfiguartion = new Configuration(this._defaults, this._user, this._workspaceConfiguration, this.folders, this._workspace);
+
+			this._user = user;
+			this.merge();
+
+			changedKeys = changedKeys.filter(key => !equals(oldConfiguartion.getValue2(key), this.getValue2(key)));
+			return changedKeys;
+		}
+		return [];
+	}
+
+	updateWorkspaceConfiguration(workspaceConfiguration: ConfigurationModel<T>): string[] {
+		let changedKeys = [];
+		const { added, updated, removed } = compare(this._workspaceConfiguration, workspaceConfiguration);
+		changedKeys = [...added, ...updated, ...removed];
+		if (changedKeys.length) {
+			const oldConfiguartion = new Configuration(this._defaults, this._user, this._workspaceConfiguration, this.folders, this._workspace);
+
+			this._workspaceConfiguration = workspaceConfiguration;
+			this.merge();
+
+			changedKeys = changedKeys.filter(key => !equals(oldConfiguartion.getValue2(key), this.getValue2(key)));
+			return changedKeys;
+		}
+		return [];
+	}
+
+	updateFolderConfiguration(resource: URI, configuration: FolderConfigurationModel<T>): string[] {
+		const currentFolderConfiguration = this.folders.get(resource);
+
+		if (currentFolderConfiguration) {
+			let changedKeys = [];
+			const { added, updated, removed } = compare(currentFolderConfiguration, configuration);
+			changedKeys = [...added, ...updated, ...removed];
+			if (changedKeys.length) {
+				const oldConfiguartion = new Configuration(this._defaults, this._user, this._workspaceConfiguration, this.folders, this._workspace);
+
+				this.folders.set(resource, configuration);
+				this.mergeFolder(resource);
+
+				changedKeys = changedKeys.filter(key => !equals(oldConfiguartion.getValue2(key, { resource }), this.getValue2(key, { resource })));
+				return changedKeys;
+			}
+			return [];
+		}
+
+		this.folders.set(resource, configuration);
+		this.mergeFolder(resource);
+		return configuration.keys;
+	}
+
+	deleteFolderConfiguration(folder: URI): string[] {
+		if (this._workspace && this._workspace.folders.length > 0 && this._workspace.folders[0].uri.toString() === folder.toString()) {
+			// Do not remove workspace configuration
+			return [];
+		}
+
+		const keys = this.folders.get(folder).keys;
+		this.folders.delete(folder);
+		this._foldersConsolidatedConfigurations.delete(folder);
+		return keys;
+	}
+
+	getFolderConfigurationModel(folder: URI): FolderConfigurationModel<T> {
+		return <FolderConfigurationModel<T>>this.folders.get(folder);
 	}
 }

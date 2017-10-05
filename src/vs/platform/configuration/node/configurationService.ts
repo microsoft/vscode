@@ -6,14 +6,24 @@
 
 import { ConfigWatcher } from 'vs/base/node/config';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { IConfigurationService, IConfigurationServiceEvent, IConfigurationOverrides, IConfiguration } from 'vs/platform/configuration/common/configuration2';
-import { ConfigurationModel, Configuration } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationChangeEvent, IConfigurationOverrides, ConfigurationTarget, toConfigurationUpdateEvent, ConfigurationModel, Configuration, compare } from 'vs/platform/configuration/common/configuration';
 import { CustomConfigurationModel, DefaultConfigurationModel } from 'vs/platform/configuration/common/model';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import URI from 'vs/base/common/uri';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { equals } from 'vs/base/common/objects';
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+
+export function isConfigurationOverrides(thing: any): thing is IConfigurationOverrides {
+	return thing
+		&& typeof thing === 'object'
+		&& (!thing.overrideIdentifier || typeof thing.overrideIdentifier === 'string')
+		&& (!thing.resource || thing.resource instanceof URI);
+}
 
 export class ConfigurationService<T> extends Disposable implements IConfigurationService, IDisposable {
 
@@ -22,8 +32,8 @@ export class ConfigurationService<T> extends Disposable implements IConfiguratio
 	private _configuration: Configuration<T>;
 	private userConfigModelWatcher: ConfigWatcher<ConfigurationModel<T>>;
 
-	private _onDidUpdateConfiguration: Emitter<IConfigurationServiceEvent> = this._register(new Emitter<IConfigurationServiceEvent>());
-	public readonly onDidUpdateConfiguration: Event<IConfigurationServiceEvent> = this._onDidUpdateConfiguration.event;
+	private _onDidUpdateConfiguration: Emitter<IConfigurationChangeEvent> = this._register(new Emitter<IConfigurationChangeEvent>());
+	readonly onDidUpdateConfiguration: Event<IConfigurationChangeEvent> = this._onDidUpdateConfiguration.event;
 
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService
@@ -39,38 +49,40 @@ export class ConfigurationService<T> extends Disposable implements IConfiguratio
 		});
 		this._register(this.userConfigModelWatcher);
 
+		this.reset();
+
 		// Listeners
 		this._register(this.userConfigModelWatcher.onDidUpdateConfiguration(() => this.onDidUpdateConfigModel()));
-		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidRegisterConfiguration(configurationNodes => this.onDidRegisterConfiguration(configurationNodes)));
+		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidRegisterConfiguration(configurationProperties => this.onDidRegisterConfiguration(configurationProperties)));
 	}
 
-	public get configuration(): Configuration<any> {
-		return this._configuration || (this._configuration = this.consolidateConfigurations());
+	get configuration(): Configuration<any> {
+		return this._configuration;
 	}
 
-	private onDidUpdateConfigModel(): void {
-		// get the diff
-		// reset and trigger
-		this.onConfigurationChange([], []);
+	getConfiguration<T>(): T
+	getConfiguration<T>(section: string): T
+	getConfiguration<T>(overrides: IConfigurationOverrides): T
+	getConfiguration<T>(section: string, overrides: IConfigurationOverrides): T
+	getConfiguration(arg1?: any, arg2?: any): any {
+		const section = typeof arg1 === 'string' ? arg1 : void 0;
+		const overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : void 0;
+		return this.configuration.getValue(section, overrides);
 	}
 
-	private onDidRegisterConfiguration(configurations: IConfigurationNode[]): void {
-		// get the diff
-		// reset and trigger
-		this.onConfigurationChange([], []);
+	getValue(key: string, overrides: IConfigurationOverrides): any {
+		return this.configuration.getValue2(key, overrides);
 	}
 
-	private onConfigurationChange(sections: string[], keys: string[]): void {
-		this.reset(); // reset our caches
-
-		this._onDidUpdateConfiguration.fire({ sections, keys });
+	updateValue(key: string, value: any): TPromise<void>
+	updateValue(key: string, value: any, overrides: IConfigurationOverrides): TPromise<void>
+	updateValue(key: string, value: any, target: ConfigurationTarget): TPromise<void>
+	updateValue(key: string, value: any, overrides: IConfigurationOverrides, target: ConfigurationTarget): TPromise<void>
+	updateValue(key: string, value: any, arg3?: any, arg4?: any): TPromise<void> {
+		return TPromise.wrapError(new Error('not supported'));
 	}
 
-	public getConfiguration(section?: string, options?: IConfigurationOverrides): IConfiguration {
-		return this.configuration.getValue(section, options);
-	}
-
-	public inspect<T>(key: string): {
+	inspect<T>(key: string): {
 		default: T,
 		user: T,
 		workspace: T,
@@ -80,7 +92,7 @@ export class ConfigurationService<T> extends Disposable implements IConfiguratio
 		return this.configuration.lookup<T>(key);
 	}
 
-	public keys(): {
+	keys(): {
 		default: string[];
 		user: string[];
 		workspace: string[];
@@ -89,13 +101,47 @@ export class ConfigurationService<T> extends Disposable implements IConfiguratio
 		return this.configuration.keys();
 	}
 
-	private reset(): void {
-		this._configuration = this.consolidateConfigurations();
+	reloadConfiguration(folder?: IWorkspaceFolder): TPromise<void> {
+		return folder ? TPromise.as(null) :
+			new TPromise((c, e) => this.userConfigModelWatcher.reload(() => c(this.onDidUpdateConfigModel())));
 	}
 
-	private consolidateConfigurations(): Configuration<T> {
+	private onDidUpdateConfigModel(): void {
+		let changedKeys = [];
+		const { added, updated, removed } = compare(this._configuration.user, this.userConfigModelWatcher.getConfig());
+		changedKeys = [...added, ...updated, ...removed];
+		if (changedKeys.length) {
+			const oldConfiguartion = this._configuration;
+			this.reset();
+			changedKeys = changedKeys.filter(key => !equals(oldConfiguartion.getValue2(key), this._configuration.getValue2(key)));
+			if (changedKeys.length) {
+				this.trigger(changedKeys, ConfigurationTarget.USER);
+			}
+		}
+	}
+
+	private onDidRegisterConfiguration(keys: string[]): void {
+		this.reset(); // reset our caches
+		this.trigger(keys, ConfigurationTarget.DEFAULT);
+	}
+
+	private reset(): void {
 		const defaults = new DefaultConfigurationModel<T>();
 		const user = this.userConfigModelWatcher.getConfig();
-		return new Configuration(defaults, user);
+		this._configuration = new Configuration(defaults, user);
+	}
+
+	private trigger(keys: string[], source: ConfigurationTarget): void {
+		this._onDidUpdateConfiguration.fire(toConfigurationUpdateEvent(keys, source, this.getTargetConfiguration(source)));
+	}
+
+	private getTargetConfiguration(target: ConfigurationTarget): any {
+		switch (target) {
+			case ConfigurationTarget.DEFAULT:
+				return this._configuration.defaults.contents;
+			case ConfigurationTarget.USER:
+				return this._configuration.user.contents;
+		}
+		return {};
 	}
 }

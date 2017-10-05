@@ -120,13 +120,13 @@ export class WatermarkContribution implements IWorkbenchContribution {
 
 		lifecycleService.onShutdown(this.dispose, this);
 		this.partService.joinCreation().then(() => {
-			this.enabled = this.configurationService.lookup<boolean>('workbench.tips.enabled').value;
+			this.enabled = this.configurationService.getValue<boolean>('workbench.tips.enabled');
 			if (this.enabled) {
 				this.create();
 			}
 		});
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => {
-			const enabled = this.configurationService.lookup<boolean>('workbench.tips.enabled').value;
+			const enabled = this.configurationService.getValue<boolean>('workbench.tips.enabled');
 			if (enabled !== this.enabled) {
 				this.enabled = enabled;
 				if (this.enabled) {

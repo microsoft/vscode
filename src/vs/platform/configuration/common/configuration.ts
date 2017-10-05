@@ -9,9 +9,10 @@ import * as types from 'vs/base/common/types';
 import * as objects from 'vs/base/common/objects';
 import URI from 'vs/base/common/uri';
 import { StrictResourceMap } from 'vs/base/common/map';
-import { Workspace } from 'vs/platform/workspace/common/workspace';
+import { Workspace, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
+import { OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
 
 export const IConfigurationService = createDecorator<IConfigurationService>('configurationService');
 
@@ -20,80 +21,79 @@ export interface IConfigurationOverrides {
 	resource?: URI;
 }
 
-export type IConfigurationValues = { [key: string]: IConfigurationValue<any> };
+export enum ConfigurationTarget {
+	DEFAULT = 1,
+	USER,
+	WORKSPACE,
+	WORKSPACE_FOLDER,
+	MEMORY
+}
+
+export interface IConfigurationChangeEvent {
+	keys: string[];
+	sections: string[];
+	overrideIdentifiers?: string[];
+
+	hasSectionChanged(section: string): boolean;
+	hasKeyChanged(key: string): boolean;
+
+	// Following data is used for telemetry
+	source: ConfigurationTarget;
+	sourceConfig: any;
+}
 
 export interface IConfigurationService {
 	_serviceBrand: any;
 
-	getConfigurationData<T>(): IConfigurationData<T>;
+	onDidUpdateConfiguration: Event<IConfigurationChangeEvent>;
 
-	/**
-	 * Fetches the appropriate section of the configuration JSON file.
-	 * This will be an object keyed off the section name.
-	 */
-	getConfiguration<T>(section?: string, overrides?: IConfigurationOverrides): T;
+	getConfiguration<T>(): T;
+	getConfiguration<T>(section: string): T;
+	getConfiguration<T>(overrides: IConfigurationOverrides): T;
+	getConfiguration<T>(section: string, overrides: IConfigurationOverrides): T;
 
-	/**
-	 * Resolves a configuration key to its values in the different scopes
-	 * the setting is defined.
-	 */
-	lookup<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T>;
+	getValue<T>(key: string, overrides?: IConfigurationOverrides): T;
 
-	/**
-	 * Returns the defined keys of configurations in the different scopes
-	 * the key is defined.
-	 */
-	keys(overrides?: IConfigurationOverrides): IConfigurationKeys;
+	updateValue(key: string, value: any): TPromise<void>;
+	updateValue(key: string, value: any, overrides: IConfigurationOverrides): TPromise<void>;
+	updateValue(key: string, value: any, target: ConfigurationTarget): TPromise<void>;
+	updateValue(key: string, value: any, overrides: IConfigurationOverrides, target: ConfigurationTarget): TPromise<void>;
 
-	/**
-	 * Similar to #getConfiguration() but ensures that the latest configuration
-	 * from disk is fetched.
-	 */
-	reloadConfiguration<T>(section?: string): TPromise<T>;
+	reloadConfiguration(): TPromise<void>;
+	reloadConfiguration(folder?: IWorkspaceFolder): TPromise<void>;
 
-	/**
-	 * Event that fires when the configuration changes.
-	 */
-	onDidUpdateConfiguration: Event<IConfigurationServiceEvent>;
+	inspect<T>(key: string): {
+		default: T,
+		user: T,
+		workspace: T,
+		workspaceFolder: T
+		value: T,
+	};
 
-	/**
-	 * Returns the defined values of configurations in the different scopes.
-	 */
-	values(): IConfigurationValues;
+	keys(): {
+		default: string[];
+		user: string[];
+		workspace: string[];
+		workspaceFolder: string[];
+	};
 }
 
-export enum ConfigurationSource {
-	Default = 1,
-	User,
-	Workspace
-}
+export function toConfigurationUpdateEvent(udpated: string[], source: ConfigurationTarget, sourceConfig: any): IConfigurationChangeEvent {
+	const overrideIdentifiers = [];
+	const keys: string[] = [];
+	for (const key of udpated) {
+		if (OVERRIDE_PROPERTY_PATTERN.test(key)) {
+			overrideIdentifiers.push(key);
+		} else {
+			keys.push(key);
+		}
+	}
+	const sections = arrays.distinct(keys.map(key => key.split('.')[0]));
+	const hasSectionChanged = (section) => sections.indexOf(section) !== -1;
+	const hasKeyChanged = (key) => keys.indexOf(key) !== -1;
 
-export interface IConfigurationServiceEvent {
-	/**
-	 * The type of source that triggered this event.
-	 */
-	source: ConfigurationSource;
-	/**
-	 * The part of the configuration contributed by the source of this event.
-	 */
-	sourceConfig: any;
+	return { keys, sections, overrideIdentifiers, source, sourceConfig, hasSectionChanged, hasKeyChanged };
 }
-
-export interface IConfigurationValue<T> {
-	value: T;
-	default: T;
-	user: T;
-	workspace: T;
-	folder: T;
-}
-
-export interface IConfigurationKeys {
-	default: string[];
-	user: string[];
-	workspace: string[];
-	folder: string[];
-}
-
 /**
  * A helper function to get the configuration value with a specific settings path (e.g. config.some.setting)
  */
@@ -197,6 +197,22 @@ export class ConfigurationModel<T> implements IConfiguraionModel<T> {
 	}
 }
 
+export function compare(from: ConfigurationModel<any>, to: ConfigurationModel<any>): { added: string[], removed: string[], updated: string[] } {
+	const added = to.keys.filter(key => from.keys.indexOf(key) === -1);
+	const removed = from.keys.filter(key => to.keys.indexOf(key) === -1);
+	const updated = [];
+
+	for (const key of from.keys) {
+		const value1 = getConfigurationValue(from.contents, key);
+		const value2 = getConfigurationValue(to.contents, key);
+		if (!objects.equals(value1, value2)) {
+			updated.push(key);
+		}
+	}
+
+	return { added, removed, updated };
+}
+
 export interface IConfigurationData<T> {
 	defaults: IConfiguraionModel<T>;
 	user: IConfiguraionModel<T>;
@@ -222,6 +238,10 @@ export class Configuration<T> {
 		return this._user;
 	}
 
+	get workspace(): ConfigurationModel<T> {
+		return this._workspaceConfiguration;
+	}
+
 	protected merge(): void {
 		this._globalConfiguration = new ConfigurationModel<T>().merge(this._defaults).merge(this._user);
 		this._workspaceConsolidatedConfiguration = new ConfigurationModel<T>().merge(this._globalConfiguration).merge(this._workspaceConfiguration);
@@ -238,6 +258,12 @@ export class Configuration<T> {
 	getValue<C>(section: string = '', overrides: IConfigurationOverrides = {}): C {
 		const configModel = this.getConsolidateConfigurationModel(overrides);
 		return section ? configModel.getContentsFor<C>(section) : configModel.contents;
+	}
+
+	getValue2(key: string, overrides: IConfigurationOverrides = {}): any {
+		// make sure to clone the configuration so that the receiver does not tamper with the values
+		const consolidateConfigurationModel = this.getConsolidateConfigurationModel(overrides);
+		return objects.clone(getConfigurationValue<any>(consolidateConfigurationModel.contents, key));
 	}
 
 	lookup<C>(key: string, overrides: IConfigurationOverrides = {}): {

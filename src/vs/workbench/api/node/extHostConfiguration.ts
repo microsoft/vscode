@@ -104,7 +104,7 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 						defaultValue: config.default,
 						globalValue: config.user,
 						workspaceValue: config.workspace,
-						workspaceFolderValue: config.folder
+						workspaceFolderValue: config.workspaceFolder
 					};
 				}
 				return undefined;
