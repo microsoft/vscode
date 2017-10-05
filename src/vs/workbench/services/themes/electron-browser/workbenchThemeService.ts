@@ -787,6 +787,7 @@ const colorCustomizationsSchema: IJSONSchema = {
 	type: ['object'],
 	description: nls.localize('workbenchColors', "Overrides colors from the currently selected color theme."),
 	properties: colorThemeSchema.colorsSchema.properties,
+	additionalProperties: false,
 	default: {},
 	defaultSnippets: [{
 		body: {
@@ -831,6 +832,7 @@ configurationRegistry.registerConfiguration({
 		[CUSTOM_EDITOR_COLORS_SETTING]: {
 			description: nls.localize('editorColors', "Overrides editor colors and font style from the currently selected color theme."),
 			default: {},
+			additionalProperties: false,
 			properties: {
 				comments: tokenGroupSettings(nls.localize('editorColors.comments', "Sets the colors and styles for comments")),
 				strings: tokenGroupSettings(nls.localize('editorColors.strings', "Sets the colors and styles for strings literals.")),
