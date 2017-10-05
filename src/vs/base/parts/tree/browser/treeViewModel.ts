@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { EventEmitter } from 'vs/base/common/eventEmitter';
-import { IIterator, ArrayIterator } from 'vs/base/common/iterator';
+import { INextIterator, ArrayIterator } from 'vs/base/common/iterator';
 import { Item } from './treeModel';
 
 export interface IViewItem {
@@ -30,7 +30,7 @@ export class HeightMap extends EventEmitter {
 		return !last ? 0 : last.top + last.height;
 	}
 
-	public onInsertItems(iterator: IIterator<Item>, afterItemId: string = null): number {
+	public onInsertItems(iterator: INextIterator<Item>, afterItemId: string = null): number {
 		var item: Item;
 		var viewItem: IViewItem;
 		var i: number, j: number;
@@ -90,7 +90,7 @@ export class HeightMap extends EventEmitter {
 	}
 
 	// Contiguous items
-	public onRemoveItems(iterator: IIterator<string>): void {
+	public onRemoveItems(iterator: INextIterator<string>): void {
 		var itemId: string;
 		var viewItem: IViewItem;
 		var startIndex: number = null;
@@ -139,7 +139,7 @@ export class HeightMap extends EventEmitter {
 	}
 
 	// Ordered, but not necessarily contiguous items
-	public onRefreshItems(iterator: IIterator<Item>): void {
+	public onRefreshItems(iterator: INextIterator<Item>): void {
 		var item: Item;
 		var viewItem: IViewItem;
 		var newHeight: number;
