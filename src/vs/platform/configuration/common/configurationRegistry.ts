@@ -29,6 +29,12 @@ export interface IConfigurationRegistry {
 	 */
 	registerConfigurations(configurations: IConfigurationNode[], validate?: boolean): void;
 
+	/**
+	 * Signal that the schema of a configuration setting has changes. It is currently only supported to change enumeration values.
+	 * Property or default value changes are not allowed.
+	 */
+	notifyConfigurationSchemaUpdated(configuration: IConfigurationNode): void;
+
 	registerDefaultConfigurations(defaultConfigurations: IDefaultConfigurationExtension[]): void;
 
 	/**
@@ -124,6 +130,10 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		});
 
 		this._onDidRegisterConfiguration.fire(this);
+	}
+
+	public notifyConfigurationSchemaUpdated(configuration: IConfigurationNode) {
+		contributionRegistry.registerSchema(editorConfigurationSchemaId, this.editorConfigurationSchema);
 	}
 
 	public registerOverrideIdentifiers(overrideIdentifiers: string[]): void {
