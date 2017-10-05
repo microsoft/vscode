@@ -734,11 +734,7 @@ export class ExplorerView extends ViewsViewletPanel {
 	}
 
 	private doRefresh(targetsToExpand: URI[] = []): TPromise<any> {
-		const targetsToResolve: { root: FileStat, resource: URI, options: { resolveTo: URI[] } }[] = [];
-		this.model.roots.forEach(root => {
-			const rootAndTargets = { root, resource: root.resource, options: { resolveTo: [] } };
-			targetsToResolve.push(rootAndTargets);
-		});
+		const targetsToResolve = this.model.roots.map(root => ({ root, resource: root.resource, options: { resolveTo: [] } }));
 
 		// First time refresh: Receive target through active editor input or selection and also include settings from previous session
 		if (!this.isCreated) {
@@ -768,31 +764,17 @@ export class ExplorerView extends ViewsViewletPanel {
 		}
 
 		// Load Root Stat with given target path configured
-		const promise = this.fileService.resolveFiles(targetsToResolve).then(results => {
+		const promise = TPromise.join(targetsToResolve.map((target, index) => this.fileService.resolveFile(target.resource, target.options).then(result => {
 			// Convert to model
-			const modelStats = results.map((result, index) => {
-				if (result.success) {
-					return FileStat.create(result.stat, targetsToResolve[index].root, targetsToResolve[index].options.resolveTo);
-				}
-
-				return FileStat.create({
-					resource: targetsToResolve[index].resource,
-					name: resources.basenameOrAuthority(targetsToResolve[index].resource),
-					mtime: 0,
-					etag: undefined,
-					isDirectory: true,
-					hasChildren: false
-				}, targetsToResolve[index].root);
-			});
+			const modelStat = FileStat.create(result, target.root, target.options.resolveTo);
 			// Subsequent refresh: Merge stat into our local model and refresh tree
-			modelStats.forEach((modelStat, index) => FileStat.mergeLocalWithDisk(modelStat, this.model.roots[index]));
+			FileStat.mergeLocalWithDisk(modelStat, this.model.roots[index]);
 
 			const input = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? this.model.roots[0] : this.model;
 			let statsToExpand: FileStat[] = this.explorerViewer.getExpandedElements().concat(targetsToExpand.map(target => this.model.findClosest(target)));
 			if (input === this.explorerViewer.getInput()) {
 				return this.explorerViewer.refresh().then(() => sequence(statsToExpand.map(e => () => this.explorerViewer.expand(e))));
 			}
-
 
 			// Display roots only when multi folder workspace
 			// Make sure to expand all folders that where expanded in the previous session
@@ -801,7 +783,14 @@ export class ExplorerView extends ViewsViewletPanel {
 				statsToExpand = this.model.roots.concat(statsToExpand);
 			}
 			return this.explorerViewer.setInput(input).then(() => sequence(statsToExpand.map(e => () => this.explorerViewer.expand(e))));
-		}, e => TPromise.wrapError(e));
+		}, e => FileStat.create({
+			resource: target.resource,
+			name: resources.basenameOrAuthority(target.resource),
+			mtime: 0,
+			etag: undefined,
+			isDirectory: true,
+			hasChildren: false
+		}, target.root))));
 
 		this.progressService.showWhile(promise, this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */);
 
