@@ -78,12 +78,20 @@ export interface IConfigurationService {
 	};
 }
 
+export function overrideIdentifierFromKey(key: string): string {
+	return key.substring(1, key.length - 1);
+}
+
+export function keyFromOverrideIdentifier(overrideIdentifier: string): string {
+	return `[${overrideIdentifier}]`;
+}
+
 export function toConfigurationUpdateEvent(udpated: string[], source: ConfigurationTarget, sourceConfig: any): IConfigurationChangeEvent {
 	const overrideIdentifiers = [];
 	const keys: string[] = [];
 	for (const key of udpated) {
 		if (OVERRIDE_PROPERTY_PATTERN.test(key)) {
-			overrideIdentifiers.push(key);
+			overrideIdentifiers.push(overrideIdentifierFromKey(key).trim());
 		} else {
 			keys.push(key);
 		}

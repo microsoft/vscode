@@ -7,7 +7,7 @@
 import { Registry } from 'vs/platform/registry/common/platform';
 import * as json from 'vs/base/common/json';
 import { IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
-import { ConfigurationModel, IOverrides } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationModel, IOverrides, overrideIdentifierFromKey } from 'vs/platform/configuration/common/configuration';
 
 export function getDefaultValues(): any {
 	const valueTreeRoot: any = Object.create(null);
@@ -191,12 +191,4 @@ export class CustomConfigurationModel<T> extends ConfigurationModel<T> {
 		this._contents = toValuesTree(raw, message => console.error(`Conflict in settings file ${this.name}: ${message}`));
 		this._keys = Object.keys(raw);
 	}
-}
-
-export function overrideIdentifierFromKey(key: string): string {
-	return key.substring(1, key.length - 1);
-}
-
-export function keyFromOverrideIdentifier(overrideIdentifier: string): string {
-	return `[${overrideIdentifier}]`;
 }
