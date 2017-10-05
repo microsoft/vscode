@@ -39,7 +39,7 @@
         php: [ roblourens ],
         search: [ roblourens ],
         snippets: [ jrieken ],
-        tasks: [],
+        tasks: [ dbaeumer ],
         typescript: [ mjbvz ],
         workbench: [ bpasero, isidorn, sandy081]
     }
