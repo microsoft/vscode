@@ -17,6 +17,7 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { StatusUpdater, StatusBarController } from './scmActivity';
+import { FileDecorations } from './scmFileDecorations';
 import { SCMViewlet } from 'vs/workbench/parts/scm/electron-browser/scmViewlet';
 
 class OpenSCMViewletAction extends ToggleViewletAction {
@@ -48,6 +49,9 @@ Registry.as(WorkbenchExtensions.Workbench)
 
 Registry.as(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(StatusBarController);
+
+Registry.as(WorkbenchExtensions.Workbench)
+	.registerWorkbenchContribution(FileDecorations);
 
 // Register Action to Open Viewlet
 Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions).registerWorkbenchAction(
