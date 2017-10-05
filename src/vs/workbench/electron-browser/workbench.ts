@@ -98,6 +98,8 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { WorkspaceEditingService } from 'vs/workbench/services/workspace/node/workspaceEditingService';
 import URI from 'vs/base/common/uri';
+import { FileDecorationsService } from 'vs/workbench/services/fileDecorations/browser/fileDecorationsService';
+import { IFileDecorationsService } from 'vs/workbench/services/fileDecorations/browser/fileDecorations';
 
 export const MessagesVisibleContext = new RawContextKey<boolean>('globalMessageVisible', false);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
@@ -582,6 +584,9 @@ export class Workbench implements IPartService {
 
 		// Text File Service
 		serviceCollection.set(ITextFileService, new SyncDescriptor(TextFileService));
+
+		// File Decorations
+		serviceCollection.set(IFileDecorationsService, new SyncDescriptor(FileDecorationsService));
 
 		// SCM Service
 		serviceCollection.set(ISCMService, new SyncDescriptor(SCMService));

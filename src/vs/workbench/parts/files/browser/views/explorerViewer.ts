@@ -57,6 +57,7 @@ import { distinct } from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { getPathLabel } from 'vs/base/common/labels';
 import { extractResources } from 'vs/base/browser/dnd';
+import { IFileDecorationsService } from 'vs/workbench/services/fileDecorations/browser/fileDecorations';
 
 export class FileDataSource implements IDataSource {
 	constructor(
@@ -289,7 +290,8 @@ export class FileRenderer implements IRenderer {
 		state: FileViewletState,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService private themeService: IThemeService
+		@IThemeService private themeService: IThemeService,
+		@IFileDecorationsService private decorationsService: IFileDecorationsService
 	) {
 		this.state = state;
 	}
@@ -323,6 +325,9 @@ export class FileRenderer implements IRenderer {
 				extraClasses.push('nonexistent-root');
 			}
 			templateData.label.setFile(stat.resource, { hidePath: true, fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE, extraClasses });
+
+			let top = this.decorationsService.getTopDecoration(stat.resource, stat.isDirectory);
+			templateData.label.element.style.color = top ? top.color.toString() : '';
 		}
 
 		// Input Box

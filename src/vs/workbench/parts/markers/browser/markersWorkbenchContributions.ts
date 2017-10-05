@@ -17,6 +17,8 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { MarkersPanel } from 'vs/workbench/parts/markers/browser/markersPanel';
 
+import './markersFileDecorations';
+
 export function registerContributions(): void {
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
