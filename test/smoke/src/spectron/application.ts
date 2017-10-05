@@ -11,6 +11,7 @@ import { Workbench } from '../areas/workbench/workbench';
 import * as fs from 'fs';
 import * as cp from 'child_process';
 import * as path from 'path';
+import * as mkdirp from 'mkdirp';
 
 export const LATEST_PATH = process.env.VSCODE_PATH as string;
 export const STABLE_PATH = process.env.VSCODE_STABLE_PATH || '';
@@ -159,7 +160,10 @@ export class SpectronApplication {
 
 		if (LOGS_DIR) {
 			opts.chromeDriverLogPath = path.join(LOGS_DIR, id, 'chromedriver');
+			mkdirp.sync(opts.chromeDriverLogPath);
+
 			opts.webdriverLogPath = path.join(LOGS_DIR, id, 'webdriver');
+			mkdirp.sync(opts.webdriverLogPath);
 		}
 
 		this.spectron = new Application(opts);
