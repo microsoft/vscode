@@ -44,18 +44,20 @@ export class ColorThemeData implements IColorTheme {
 	label: string;
 	settingsId: string;
 	description?: string;
+	isLoaded: boolean;
+	path?: string;
+	extensionData: ExtensionData;
+
 	get tokenColors(): ITokenColorizationRule[] {
 		// Add the custom colors after the theme colors
 		// so that they will override them
 		return this.themeTokenColors.concat(this.customTokenColors);
 	}
-	themeTokenColors: ITokenColorizationRule[] = [];
-	customTokenColors: ITokenColorizationRule[] = [];
-	isLoaded: boolean;
-	path?: string;
-	extensionData: ExtensionData;
-	colorMap: IColorMap = {};
-	customColorMap: IColorMap = {};
+
+	private themeTokenColors: ITokenColorizationRule[] = [];
+	private customTokenColors: ITokenColorizationRule[] = [];
+	private colorMap: IColorMap = {};
+	private customColorMap: IColorMap = {};
 
 	public getColor(colorId: ColorIdentifier, useDefault?: boolean): Color {
 		let color = this.customColorMap[colorId];
@@ -120,16 +122,34 @@ export class ColorThemeData implements IColorTheme {
 
 	public ensureLoaded(themeService: WorkbenchThemeService): TPromise<void> {
 		if (!this.isLoaded) {
-			this.themeTokenColors = [];
-			this.colorMap = {};
 			if (this.path) {
 				return _loadColorThemeFromFile(this.path, this.themeTokenColors, this.colorMap).then(_ => {
 					this.isLoaded = true;
-					_sanitizeTokenColors(this);
+					this.sanitizeTokenColors();
 				});
 			}
 		}
 		return TPromise.as(null);
+	}
+
+	/**
+	 * Place the default settings first and add add the token-info rules
+	 */
+	private sanitizeTokenColors() {
+		let hasDefaultTokens = false;
+		let updatedTokenColors: ITokenColorizationRule[] = [updateDefaultRuleSettings({ settings: {} }, this)];
+		this.tokenColors.forEach(rule => {
+			if (rule.scope) {
+				if (rule.scope === 'token.info-token') {
+					hasDefaultTokens = true;
+				}
+				updatedTokenColors.push(rule);
+			}
+		});
+		if (!hasDefaultTokens) {
+			updatedTokenColors.push(...defaultThemeColors[this.type]);
+		}
+		this.themeTokenColors = updatedTokenColors;
 	}
 
 	toThemeFile() {
@@ -301,25 +321,7 @@ function _loadSyntaxTokensFromFile(themePath: string, resultRules: ITokenColoriz
 		return TPromise.wrapError(new Error(nls.localize('error.cannotload', "Problems loading tmTheme file {0}: {1}", themePath, error.message)));
 	});
 }
-/**
- * Place the default settings first and add add the token-info rules
- */
-function _sanitizeTokenColors(theme: ColorThemeData) {
-	let hasDefaultTokens = false;
-	let updatedTokenColors: ITokenColorizationRule[] = [updateDefaultRuleSettings({ settings: {} }, theme)];
-	theme.tokenColors.forEach(rule => {
-		if (rule.scope) {
-			if (rule.scope === 'token.info-token') {
-				hasDefaultTokens = true;
-			}
-			updatedTokenColors.push(rule);
-		}
-	});
-	if (!hasDefaultTokens) {
-		updatedTokenColors.push(...defaultThemeColors[theme.type]);
-	}
-	theme.themeTokenColors = updatedTokenColors;
-}
+
 
 function updateDefaultRuleSettings(defaultRule: ITokenColorizationRule, theme: ColorThemeData): ITokenColorizationRule {
 	let foreground = theme.getColor(editorForeground) || theme.getDefault(editorForeground);
@@ -328,7 +330,6 @@ function updateDefaultRuleSettings(defaultRule: ITokenColorizationRule, theme: C
 	defaultRule.settings.background = Color.Format.CSS.formatHexA(background);
 	return defaultRule;
 }
-
 
 let defaultThemeColors: { [baseTheme: string]: ITokenColorizationRule[] } = {
 	'light': [

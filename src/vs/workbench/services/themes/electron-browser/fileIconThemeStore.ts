@@ -10,7 +10,6 @@ import * as types from 'vs/base/common/types';
 import * as Paths from 'path';
 import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ExtensionData, IThemeExtensionPoint } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { ColorThemeData } from 'vs/workbench/services/themes/electron-browser/colorThemeData';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -101,7 +100,7 @@ export class FileIconThemeStore {
 				collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", iconThemeExtPoint.name, normalizedAbsolutePath, extensionFolderPath));
 			}
 
-			let themeData = ColorThemeData.fromExtensionTheme(iconTheme, normalizedAbsolutePath, extensionData);
+			let themeData = FileIconThemeData.fromExtensionTheme(iconTheme, normalizedAbsolutePath, extensionData);
 			this.knownIconThemes.push(themeData);
 		});
 
