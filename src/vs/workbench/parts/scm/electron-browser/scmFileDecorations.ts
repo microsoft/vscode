@@ -42,15 +42,13 @@ export class FileDecorations implements IWorkbenchContribution {
 		const listener = provider.onDidChangeResources(() => {
 
 			let newDecorations = new Map<string, URI>();
-			let baseColor = Color.fromHex('#007acc');
-			let factor = 0.0;
+			let color = Color.fromHex('#007aCC');
+
 			for (const group of provider.resources) {
 
-				factor += 0.1;
-				let color = Color.getDarkerColor(baseColor, Color.black, factor);
-
 				for (const resource of group.resourceCollection.resources) {
-
+					// TODO@Joh have a better color and icon which is based
+					// on the resource decoration
 					this._decorationsService.setFileDecorations(type, resource.sourceUri, [{
 						severity: Severity.Info,
 						message: resource.decorations.tooltip,
