@@ -51,6 +51,7 @@ function smoketest {
 	id -u testuser &>/dev/null || (useradd -m testuser; chpasswd <<< testuser:testpassword)
 	sudo -i -u testuser -- sh -c 'git config --global user.name "VS Code Agent" &&  git config --global user.email "monacotools@microsoft.com"'
 	chown -R testuser $SCREENSHOTS
+	chown -R testuser $LOGS
 
 	ps -o pid= -u testuser | xargs sudo kill -9
 	DISPLAY=:10 sudo -i -u testuser -- sh -c "cd $BUILD_SOURCESDIRECTORY/test/smoke && ./node_modules/.bin/mocha --build $AGENT_BUILDDIRECTORY/VSCode-linux-$ARCH --screenshots $SCREENSHOTS --logs $LOGS"
