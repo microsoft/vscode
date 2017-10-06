@@ -518,6 +518,7 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	private updateStateAndEmit(sessionId?: string, newState?: debug.State): void {
+		const previousState = this.state;
 		if (sessionId) {
 			if (newState === debug.State.Inactive) {
 				this.sessionStates.delete(sessionId);
@@ -527,11 +528,13 @@ export class DebugService implements debug.IDebugService {
 		}
 
 		const state = this.state;
-		const stateLabel = debug.State[state];
-		if (stateLabel) {
-			this.debugState.set(stateLabel.toLowerCase());
+		if (previousState !== state) {
+			const stateLabel = debug.State[state];
+			if (stateLabel) {
+				this.debugState.set(stateLabel.toLowerCase());
+			}
+			this._onDidChangeState.fire(state);
 		}
-		this._onDidChangeState.fire(state);
 	}
 
 	public focusStackFrameAndEvaluate(stackFrame: debug.IStackFrame, process?: debug.IProcess, explicit?: boolean): TPromise<void> {
@@ -741,12 +744,15 @@ export class DebugService implements debug.IDebugService {
 					return TPromise.wrapError(errors.create(message, { actions: [this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL), CloseAction] }));
 				}
 
+				const sessionId = generateUuid();
+				this.updateStateAndEmit(sessionId, debug.State.Initializing);
+
 				return this.runPreLaunchTask(root, resolvedConfig.preLaunchTask).then((taskSummary: ITaskSummary) => {
 					const errorCount = resolvedConfig.preLaunchTask ? this.markerService.getStatistics().errors : 0;
 					const successExitCode = taskSummary && taskSummary.exitCode === 0;
 					const failureExitCode = taskSummary && taskSummary.exitCode !== undefined && taskSummary.exitCode !== 0;
 					if (successExitCode || (errorCount === 0 && !failureExitCode)) {
-						return this.doCreateProcess(root, resolvedConfig);
+						return this.doCreateProcess(root, resolvedConfig, sessionId);
 					}
 
 					this.messageService.show(severity.Error, {
@@ -756,7 +762,7 @@ export class DebugService implements debug.IDebugService {
 						actions: [
 							new Action('debug.continue', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
 								this.messageService.hideAll();
-								return this.doCreateProcess(root, resolvedConfig);
+								return this.doCreateProcess(root, resolvedConfig, sessionId);
 							}),
 							this.instantiationService.createInstance(ToggleMarkersPanelAction, ToggleMarkersPanelAction.ID, ToggleMarkersPanelAction.LABEL),
 							CloseAction
@@ -764,6 +770,7 @@ export class DebugService implements debug.IDebugService {
 					});
 					return undefined;
 				}, (err: TaskError) => {
+					this.updateStateAndEmit(sessionId, debug.State.Inactive);
 					this.messageService.show(err.severity, {
 						message: err.message,
 						actions: [
@@ -789,9 +796,8 @@ export class DebugService implements debug.IDebugService {
 		);
 	}
 
-	private doCreateProcess(root: IWorkspaceFolder, configuration: debug.IConfig, sessionId = generateUuid()): TPromise<debug.IProcess> {
+	private doCreateProcess(root: IWorkspaceFolder, configuration: debug.IConfig, sessionId: string): TPromise<debug.IProcess> {
 		configuration.__sessionId = sessionId;
-		this.updateStateAndEmit(sessionId, debug.State.Initializing);
 		this.inDebugMode.set(true);
 
 		return this.telemetryService.getTelemetryInfo().then(info => {

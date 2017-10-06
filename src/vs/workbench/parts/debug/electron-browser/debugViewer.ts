@@ -1237,7 +1237,7 @@ export class BreakpointsRenderer implements IRenderer {
 		data.filePath.textContent = getPathLabel(resources.dirname(breakpoint.uri), this.contextService, this.environmentService);
 		data.checkbox.checked = breakpoint.enabled;
 
-		const debugActive = this.debugService.state === debug.State.Running || this.debugService.state === debug.State.Stopped || this.debugService.state === debug.State.Initializing;
+		const debugActive = this.debugService.state === debug.State.Running || this.debugService.state === debug.State.Stopped;
 		if (debugActive && !breakpoint.verified) {
 			tree.addTraits('disabled', [breakpoint]);
 			if (breakpoint.message) {
