@@ -11,7 +11,6 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ISCMService, ISCMRepository } from 'vs/workbench/services/scm/common/scm';
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
-import { Color } from 'vs/base/common/color';
 
 export class FileDecorations implements IWorkbenchContribution {
 
@@ -42,19 +41,18 @@ export class FileDecorations implements IWorkbenchContribution {
 		const listener = provider.onDidChangeResources(() => {
 
 			let newDecorations = new Map<string, URI>();
-			let color = Color.fromHex('#007aCC');
-
 			for (const group of provider.resources) {
 
 				for (const resource of group.resourceCollection.resources) {
-					// TODO@Joh have a better color and icon which is based
-					// on the resource decoration
+					if (!resource.decorations.color) {
+						continue;
+					}
+
 					this._decorationsService.setFileDecoration(type, resource.sourceUri, {
 						severity: Severity.Info,
 						message: resource.decorations.tooltip,
-						color
+						color: resource.decorations.color
 					});
-
 					newDecorations.set(resource.sourceUri.toString(), resource.sourceUri);
 				}
 			}

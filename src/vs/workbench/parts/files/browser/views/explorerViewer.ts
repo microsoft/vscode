@@ -328,7 +328,9 @@ export class FileRenderer implements IRenderer {
 			templateData.label.setFile(stat.resource, { hidePath: true, fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE, extraClasses });
 
 			let top = this.decorationsService.getTopDecoration(stat.resource, stat.isDirectory);
-			templateData.label.element.style.color = top ? top.color.toString() : '';
+			templateData.label.element.style.color = top
+				? this.themeService.getTheme().getColor(top.color, true).toString()
+				: '';
 		}
 
 		// Input Box
