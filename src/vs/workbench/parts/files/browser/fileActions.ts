@@ -687,7 +687,7 @@ export class BaseDeleteFileAction extends BaseFileAction {
 				message = nls.localize('dirtyMessageFileDelete', "You are deleting a file with unsaved changes. Do you want to continue?");
 			}
 
-			const res = this.messageService.confirm({
+			const res = this.messageService.confirmSync({
 				message,
 				type: 'warning',
 				detail: nls.localize('dirtyWarning', "Your changes will be lost if you don't save them."),
@@ -724,7 +724,7 @@ export class BaseDeleteFileAction extends BaseFileAction {
 					};
 				}
 
-				if (!this.messageService.confirm(confirm)) {
+				if (!this.messageService.confirmSync(confirm)) {
 					return TPromise.as(null);
 				}
 			}
@@ -836,7 +836,7 @@ export class ImportFileAction extends BaseFileAction {
 							type: 'warning'
 						};
 
-						overwrite = this.messageService.confirm(confirm);
+						overwrite = this.messageService.confirmSync(confirm);
 					}
 
 					if (!overwrite) {

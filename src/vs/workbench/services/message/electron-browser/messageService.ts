@@ -9,11 +9,11 @@ import nls = require('vs/nls');
 import product from 'vs/platform/node/product';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { WorkbenchMessageService } from 'vs/workbench/services/message/browser/messageService';
-import { IConfirmation, Severity, IChoiceService } from 'vs/platform/message/common/message';
+import { IConfirmation, Severity, IChoiceService, IConfirmationResult } from 'vs/platform/message/common/message';
 import { isLinux } from 'vs/base/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Action } from 'vs/base/common/actions';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IWindowService, IMessageBoxResult } from 'vs/platform/windows/common/windows';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 
 export class MessageService extends WorkbenchMessageService implements IChoiceService {
@@ -26,8 +26,26 @@ export class MessageService extends WorkbenchMessageService implements IChoiceSe
 		super(container, telemetryService);
 	}
 
-	public confirm(confirmation: IConfirmation): boolean {
+	public confirm(confirmation: IConfirmation): TPromise<IConfirmationResult> {
+		const opts = this.getConfirmOptions(confirmation);
 
+		return this.showMessageBox(opts).then(result => {
+			return {
+				confirmed: result.button === 0 ? true : false,
+				checkboxChecked: result.checkboxChecked
+			} as IConfirmationResult;
+		});
+	}
+
+	public confirmSync(confirmation: IConfirmation): boolean {
+		const opts = this.getConfirmOptions(confirmation);
+
+		const result = this.showMessageBoxSync(opts);
+
+		return result === 0 ? true : false;
+	}
+
+	private getConfirmOptions(confirmation: IConfirmation): Electron.MessageBoxOptions {
 		const buttons: string[] = [];
 		if (confirmation.primaryButton) {
 			buttons.push(confirmation.primaryButton);
@@ -57,15 +75,18 @@ export class MessageService extends WorkbenchMessageService implements IChoiceSe
 			opts.type = confirmation.type;
 		}
 
-		let result = this.showMessageBox(opts);
+		if (confirmation.checkbox) {
+			opts.checkboxLabel = confirmation.checkbox.label;
+			opts.checkboxChecked = confirmation.checkbox.checked;
+		}
 
-		return result === 0 ? true : false;
+		return opts;
 	}
 
 	public choose(severity: Severity, message: string, options: string[], cancelId: number, modal: boolean = false): TPromise<number> {
 		if (modal) {
 			const type: 'none' | 'info' | 'error' | 'question' | 'warning' = severity === Severity.Info ? 'question' : severity === Severity.Error ? 'error' : severity === Severity.Warning ? 'warning' : 'none';
-			return TPromise.wrap(this.showMessageBox({ message, buttons: options, type, cancelId }));
+			return TPromise.wrap(this.showMessageBoxSync({ message, buttons: options, type, cancelId }));
 		}
 
 		let onCancel: () => void = null;
@@ -84,7 +105,25 @@ export class MessageService extends WorkbenchMessageService implements IChoiceSe
 		return promise;
 	}
 
-	private showMessageBox(opts: Electron.MessageBoxOptions): number {
+	private showMessageBox(opts: Electron.MessageBoxOptions): TPromise<IMessageBoxResult> {
+		opts = this.massageMessageBoxOptions(opts);
+
+		return this.windowService.showMessageBox(opts).then(result => {
+			return {
+				button: isLinux ? opts.buttons.length - result.button - 1 : result.button,
+				checkboxChecked: result.checkboxChecked
+			} as IMessageBoxResult;
+		});
+	}
+
+	private showMessageBoxSync(opts: Electron.MessageBoxOptions): number {
+		opts = this.massageMessageBoxOptions(opts);
+
+		const result = this.windowService.showMessageBoxSync(opts);
+		return isLinux ? opts.buttons.length - result - 1 : result;
+	}
+
+	private massageMessageBoxOptions(opts: Electron.MessageBoxOptions): Electron.MessageBoxOptions {
 		opts.buttons = opts.buttons.map(button => mnemonicButtonLabel(button));
 		opts.buttons = isLinux ? opts.buttons.reverse() : opts.buttons;
 
@@ -99,7 +138,6 @@ export class MessageService extends WorkbenchMessageService implements IChoiceSe
 		opts.noLink = true;
 		opts.title = opts.title || product.nameLong;
 
-		const result = this.windowService.showMessageBox(opts);
-		return isLinux ? opts.buttons.length - result - 1 : result;
+		return opts;
 	}
 }
