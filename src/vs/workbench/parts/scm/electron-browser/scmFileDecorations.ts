@@ -6,7 +6,7 @@
 'use strict';
 
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IFileDecorationsService } from 'vs/workbench/services/fileDecorations/browser/fileDecorations';
+import { IResourceDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ISCMService, ISCMRepository } from 'vs/workbench/services/scm/common/scm';
 import URI from 'vs/base/common/uri';
@@ -18,7 +18,7 @@ export class FileDecorations implements IWorkbenchContribution {
 	private readonly _repositoryListeners = new Map<ISCMRepository, IDisposable>();
 
 	constructor(
-		@IFileDecorationsService private _decorationsService: IFileDecorationsService,
+		@IResourceDecorationsService private _decorationsService: IResourceDecorationsService,
 		@ISCMService private _scmService: ISCMService,
 	) {
 		this._scmService.repositories.forEach(this._onDidAddRepository, this);
@@ -47,7 +47,7 @@ export class FileDecorations implements IWorkbenchContribution {
 						continue;
 					}
 
-					this._decorationsService.setFileDecoration(type, resource.sourceUri, {
+					this._decorationsService.setDecoration(type, resource.sourceUri, {
 						severity: Severity.Info,
 						color: resource.decorations.color,
 						icon: { light: resource.decorations.icon, dark: resource.decorations.iconDark }
@@ -58,7 +58,7 @@ export class FileDecorations implements IWorkbenchContribution {
 
 			oldDecorations.forEach((value, key) => {
 				if (!newDecorations.has(key)) {
-					this._decorationsService.setFileDecoration(type, value);
+					this._decorationsService.setDecoration(type, value);
 				}
 			});
 

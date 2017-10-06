@@ -45,7 +45,6 @@ import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/th
 import { isLinux } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
-import { IFileDecorationsService } from 'vs/workbench/services/fileDecorations/browser/fileDecorations';
 
 export interface IExplorerViewOptions extends IViewletViewOptions {
 	viewletState: FileViewletState;
@@ -99,8 +98,7 @@ export class ExplorerView extends ViewsViewletPanel {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IFileDecorationsService private fileDecorationsService: IFileDecorationsService
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService);
 
@@ -168,7 +166,6 @@ export class ExplorerView extends ViewsViewletPanel {
 		this.disposables.push(this.themeService.onDidFileIconThemeChange(onFileIconThemeChange));
 		this.disposables.push(this.contextService.onDidChangeWorkspaceFolders(e => this.refreshFromEvent(e.added)));
 		this.disposables.push(this.contextService.onDidChangeWorkbenchState(e => this.refreshFromEvent()));
-		this.disposables.push(this.fileDecorationsService.onDidChangeFileDecoration(this.onDidChangeFileDecorations, this));
 		onFileIconThemeChange(this.themeService.getFileIconTheme());
 	}
 
@@ -682,19 +679,6 @@ export class ExplorerView extends ViewsViewletPanel {
 
 			return true;
 		}));
-	}
-
-	private onDidChangeFileDecorations(uris: URI[]): void {
-		let seen = new Set<FileStat>();
-		let stack = uris.map(uri => this.model.findClosest(uri));
-		while (stack.length > 0) {
-			let stat = stack.shift();
-			if (stat && !seen.has(stat)) {
-				this.explorerViewer.refresh(stat, false);
-				stack.push(stat.parent);
-				seen.add(stat);
-			}
-		}
 	}
 
 	private refreshFromEvent(newRoots: IWorkspaceFolder[] = []): void {

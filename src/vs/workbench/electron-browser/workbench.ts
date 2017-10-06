@@ -97,9 +97,9 @@ import { OpenRecentAction, ToggleDevToolsAction, ReloadWindowAction, ShowPreviou
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { WorkspaceEditingService } from 'vs/workbench/services/workspace/node/workspaceEditingService';
+import { FileDecorationsService } from 'vs/workbench/services/decorations/browser/decorationsService';
+import { IResourceDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
 import URI from 'vs/base/common/uri';
-import { FileDecorationsService } from 'vs/workbench/services/fileDecorations/browser/fileDecorationsService';
-import { IFileDecorationsService } from 'vs/workbench/services/fileDecorations/browser/fileDecorations';
 
 export const MessagesVisibleContext = new RawContextKey<boolean>('globalMessageVisible', false);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
@@ -586,7 +586,7 @@ export class Workbench implements IPartService {
 		serviceCollection.set(ITextFileService, new SyncDescriptor(TextFileService));
 
 		// File Decorations
-		serviceCollection.set(IFileDecorationsService, new SyncDescriptor(FileDecorationsService));
+		serviceCollection.set(IResourceDecorationsService, new SyncDescriptor(FileDecorationsService));
 
 		// SCM Service
 		serviceCollection.set(ISCMService, new SyncDescriptor(SCMService));

@@ -7,25 +7,36 @@
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import Event, { Emitter, debounceEvent } from 'vs/base/common/event';
-import { IFileDecorationsService, IFileDecoration, DecorationType, IFileDecorationData } from 'vs/workbench/services/fileDecorations/browser/fileDecorations';
+import { IResourceDecorationsService, IResourceDecoration, DecorationType, IResourceDecorationData, IResourceDecorationChangeEvent } from 'vs/workbench/services/fileDecorations/browser/fileDecorations';
 import { TernarySearchTree } from 'vs/base/common/map';
 
-export class FileDecorationsService implements IFileDecorationsService {
+class FileDecorationChangeEvent implements IResourceDecorationChangeEvent {
+
+	private readonly _data = TernarySearchTree.forPaths<boolean>();
+
+	affectsResource(uri: URI): boolean {
+		return this._data.get(uri.toString()) || this._data.findSuperstr(uri.toString()) !== undefined;
+	}
+
+	static debouncer(last: FileDecorationChangeEvent, current: URI) {
+		if (!last) {
+			last = new FileDecorationChangeEvent();
+		}
+		last._data.set(current.toString(), true);
+		return last;
+	}
+}
+
+export class FileDecorationsService implements IResourceDecorationsService {
 
 	readonly _serviceBrand;
 
 	private readonly _onDidChangeFileDecoration = new Emitter<URI>();
-	private readonly _types = new Map<DecorationType, TernarySearchTree<IFileDecoration>>();
+	private readonly _types = new Map<DecorationType, TernarySearchTree<IResourceDecoration>>();
 
-	readonly onDidChangeFileDecoration: Event<URI[]> = debounceEvent<URI, URI[]>(
+	readonly onDidChangeDecorations: Event<IResourceDecorationChangeEvent> = debounceEvent<URI, FileDecorationChangeEvent>(
 		this._onDidChangeFileDecoration.event,
-		(last, current) => {
-			if (!last) {
-				last = [];
-			}
-			last.push(current);
-			return last;
-		}
+		FileDecorationChangeEvent.debouncer
 	);
 
 	registerDecorationType(label: string): DecorationType {
@@ -42,11 +53,11 @@ export class FileDecorationsService implements IFileDecorationsService {
 				}
 			}
 		};
-		this._types.set(type, TernarySearchTree.forPaths<IFileDecoration>());
+		this._types.set(type, TernarySearchTree.forPaths<IResourceDecoration>());
 		return type;
 	}
 
-	setFileDecoration(type: DecorationType, target: URI, data?: IFileDecorationData): void {
+	setDecoration(type: DecorationType, target: URI, data?: IResourceDecorationData): void {
 		if (data) {
 			this._types.get(type).set(target.toString(), { type, ...data });
 		} else {
@@ -55,8 +66,8 @@ export class FileDecorationsService implements IFileDecorationsService {
 		this._onDidChangeFileDecoration.fire(target);
 	}
 
-	getDecorations(uri: URI, includeChildren: boolean): IFileDecoration[] {
-		let ret: IFileDecoration[] = [];
+	getDecorations(uri: URI, includeChildren: boolean): IResourceDecoration[] {
+		let ret: IResourceDecoration[] = [];
 		this._someFileDecoration(uri, includeChildren, decoration => {
 			ret.push(decoration);
 			return false;
@@ -64,8 +75,8 @@ export class FileDecorationsService implements IFileDecorationsService {
 		return ret;
 	}
 
-	getTopDecoration(uri: URI, includeChildren: boolean): IFileDecoration {
-		let top: IFileDecoration;
+	getTopDecoration(uri: URI, includeChildren: boolean): IResourceDecoration {
+		let top: IResourceDecoration;
 		this._someFileDecoration(uri, includeChildren, decoration => {
 			// top is the most severe one,
 			// stop as soon as an error is found
@@ -77,7 +88,7 @@ export class FileDecorationsService implements IFileDecorationsService {
 		return top;
 	}
 
-	private _someFileDecoration(uri: URI, includeChildren: boolean, callback: (a: IFileDecoration) => boolean): void {
+	private _someFileDecoration(uri: URI, includeChildren: boolean, callback: (a: IResourceDecoration) => boolean): void {
 		let key = uri.toString();
 		let done = false;
 		this._types.forEach(tree => {
@@ -96,7 +107,7 @@ export class FileDecorationsService implements IFileDecorationsService {
 		});
 	}
 
-	private static _compareFileDecorationsBySeverity(a: IFileDecoration, b: IFileDecoration): number {
+	private static _compareFileDecorationsBySeverity(a: IResourceDecoration, b: IResourceDecoration): number {
 		return Severity.compare(a.severity, b.severity);
 	}
 }
