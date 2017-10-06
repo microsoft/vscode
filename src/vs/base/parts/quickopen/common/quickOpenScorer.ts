@@ -253,13 +253,13 @@ export function scoreItem<T>(item: T, query: string, fuzzy: boolean, accessor: I
 		return cached;
 	}
 
-	const itemScore = doScoreItem(label, description, accessor.getItemPath(item), query, fuzzy, accessor);
+	const itemScore = doScoreItem(label, description, accessor.getItemPath(item), query, fuzzy);
 	cache[cacheHash] = itemScore;
 
 	return itemScore;
 }
 
-function doScoreItem<T>(label: string, description: string, path: string, query: string, fuzzy: boolean, accessor: IItemAccessor<T>): IItemScore {
+function doScoreItem<T>(label: string, description: string, path: string, query: string, fuzzy: boolean): IItemScore {
 
 	// 1.) treat identity matches on full path highest
 	if (path && isEqual(query, path, true)) {
