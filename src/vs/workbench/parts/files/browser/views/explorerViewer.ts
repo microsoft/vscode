@@ -57,7 +57,6 @@ import { distinct } from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { getPathLabel } from 'vs/base/common/labels';
 import { extractResources } from 'vs/base/browser/dnd';
-import { IFileDecorationsService } from 'vs/workbench/services/fileDecorations/browser/fileDecorations';
 
 export class FileDataSource implements IDataSource {
 	constructor(
@@ -290,8 +289,7 @@ export class FileRenderer implements IRenderer {
 		state: FileViewletState,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService private themeService: IThemeService,
-		@IFileDecorationsService private decorationsService: IFileDecorationsService
+		@IThemeService private themeService: IThemeService
 	) {
 		this.state = state;
 	}
@@ -324,12 +322,13 @@ export class FileRenderer implements IRenderer {
 			if (!stat.exists && stat.isRoot) {
 				extraClasses.push('nonexistent-root');
 			}
-			templateData.label.setFile(stat.resource, { hidePath: true, fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE, extraClasses });
-
-			let top = this.decorationsService.getTopDecoration(stat.resource, stat.isDirectory);
-			templateData.label.element.style.color = top
-				? this.themeService.getTheme().getColor(top.color, true).toString()
-				: '';
+			templateData.label.setFile(stat.resource, {
+				hidePath: true,
+				fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE,
+				extraClasses,
+				showAllDecorations: stat.isDirectory,
+				showDecorations: !stat.isDirectory
+			});
 		}
 
 		// Input Box

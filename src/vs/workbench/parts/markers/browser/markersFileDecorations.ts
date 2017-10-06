@@ -7,7 +7,7 @@
 
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
 import { IMarkerService, IMarker } from 'vs/platform/markers/common/markers';
-import { IFileDecorationsService, DecorationType, IFileDecorationData } from 'vs/workbench/services/fileDecorations/browser/fileDecorations';
+import { IResourceDecorationsService, DecorationType, IResourceDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
@@ -25,7 +25,7 @@ class MarkersFileDecorations implements IWorkbenchContribution {
 
 	constructor(
 		@IMarkerService private _markerService: IMarkerService,
-		@IFileDecorationsService private _decorationsService: IFileDecorationsService,
+		@IResourceDecorationsService private _decorationsService: IResourceDecorationsService,
 		@IConfigurationService private _configurationService: IConfigurationService
 	) {
 		//
@@ -62,11 +62,11 @@ class MarkersFileDecorations implements IWorkbenchContribution {
 				.sort((a, b) => Severity.compare(a.severity, b.severity));
 
 			const data = !isFalsyOrEmpty(markers) ? this._toFileDecorationData(markers[0]) : undefined;
-			this._decorationsService.setFileDecoration(this._type, resource, data);
+			this._decorationsService.setDecoration(this._type, resource, data);
 		}
 	}
 
-	private _toFileDecorationData(marker: IMarker): IFileDecorationData {
+	private _toFileDecorationData(marker: IMarker): IResourceDecorationData {
 		const { severity } = marker;
 		const color = severity === Severity.Error ? editorErrorForeground : editorWarningForeground;
 		return { severity, color };
