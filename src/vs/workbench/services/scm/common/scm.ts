@@ -11,6 +11,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import Event from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Command } from 'vs/editor/common/modes';
+import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 
 export interface IBaselineResourceProvider {
 	getBaselineResource(resource: URI): TPromise<URI>;
@@ -24,6 +25,7 @@ export interface ISCMResourceDecorations {
 	tooltip?: string;
 	strikeThrough?: boolean;
 	faded?: boolean;
+	color?: ColorIdentifier;
 }
 
 export interface ISCMResourceSplice {
