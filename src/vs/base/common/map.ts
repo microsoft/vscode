@@ -323,6 +323,10 @@ export class TernarySearchTree<E> {
 		this._segments = segments;
 	}
 
+	clear(): void {
+		this._root = undefined;
+	}
+
 	set(key: string, element: E): void {
 		const segements = this._segments.reset(key);
 		this._root = this._set(this._root, segements.next(), segements, element);
