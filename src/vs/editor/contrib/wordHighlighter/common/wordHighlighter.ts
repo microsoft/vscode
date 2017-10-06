@@ -159,6 +159,7 @@ class WordHighlighter {
 		}
 		let newDecoration = decorations[newIndex];
 		this.editor.setPosition(newDecoration.Range.getStartPosition());
+		this.editor.revealRangeInCenter(newDecoration.Range);
 		this._run();
 	}
 
@@ -174,6 +175,7 @@ class WordHighlighter {
 		}
 		let newDecoration = decorations[newIndex];
 		this.editor.setPosition(newDecoration.Range.getStartPosition());
+		this.editor.revealRangeInCenter(newDecoration.Range);
 		this._run();
 	}
 
