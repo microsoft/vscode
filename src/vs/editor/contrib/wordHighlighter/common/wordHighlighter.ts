@@ -24,6 +24,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { firstIndex } from 'vs/base/common/arrays';
 
 export const editorWordHighlight = registerColor('editor.wordHighlightBackground', { dark: '#575757B8', light: '#57575740', hc: null }, nls.localize('wordHighlight', 'Background color of a symbol during read-access, like reading a variable.'));
 export const editorWordHighlightStrong = registerColor('editor.wordHighlightStrongBackground', { dark: '#004972B8', light: '#0e639c40', hc: null }, nls.localize('wordHighlightStrong', 'Background color of a symbol during write-access, like writing to a variable.'));
@@ -146,23 +147,9 @@ class WordHighlighter {
 			.sort((a, b) => Range.compareRangesUsingStarts(a.Range, b.Range));
 	}
 
-	private _getCurrentDecoration() {
-		let decorations = this._getSortedDecorations();
-		let currentDecorations = decorations.filter((decoration) => {
-			decoration.Range.containsRange(this._lastWordRange);
-		});
-		if (currentDecorations.length > 0) {
-			return currentDecorations[0];
-		}
-		else {
-			return null;
-		}
-	}
-
 	public moveNext() {
 		let decorations = this._getSortedDecorations();
-		let decoration = this._getCurrentDecoration();
-		let index = decorations.indexOf(decoration);
+		let index = firstIndex(decorations, (decoration) => decoration.Range.containsPosition(this.editor.getPosition()));
 		var newIndex;
 		if (index === decorations.length - 1) {
 			newIndex = 0;
@@ -172,12 +159,12 @@ class WordHighlighter {
 		}
 		let newDecoration = decorations[newIndex];
 		this.editor.setPosition(newDecoration.Range.getStartPosition());
+		this._run();
 	}
 
 	public moveBack() {
 		let decorations = this._getSortedDecorations();
-		let decoration = this._getCurrentDecoration();
-		let index = decorations.indexOf(decoration);
+		let index = firstIndex(decorations, (decoration) => decoration.Range.containsPosition(this.editor.getPosition()));
 		var newIndex;
 		if (index === 0) {
 			newIndex = decorations.length - 1;
@@ -187,6 +174,7 @@ class WordHighlighter {
 		}
 		let newDecoration = decorations[newIndex];
 		this.editor.setPosition(newDecoration.Range.getStartPosition());
+		this._run();
 	}
 
 	private _removeDecorations(): void {
