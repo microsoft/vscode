@@ -23,7 +23,7 @@ export class ResourceContextKey implements IContextKey<URI> {
 	static Filename = new RawContextKey<string>('resourceFilename', undefined);
 	static LangId = new RawContextKey<string>('resourceLangId', undefined);
 	static Resource = new RawContextKey<URI>('resource', undefined);
-	static Extension = new RawContextKey<string>('resourceExtension', undefined);
+	static Extension = new RawContextKey<string>('resourceExtname', undefined);
 
 	private _resourceKey: IContextKey<URI>;
 	private _schemeKey: IContextKey<string>;
