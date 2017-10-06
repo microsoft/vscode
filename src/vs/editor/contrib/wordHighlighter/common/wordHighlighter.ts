@@ -11,7 +11,7 @@ import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { CommonEditorRegistry, commonEditorContribution, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
+import { CommonEditorRegistry, commonEditorContribution, EditorAction, IActionOptions, editorAction } from 'vs/editor/common/editorCommonExtensions';
 import { DocumentHighlight, DocumentHighlightKind, DocumentHighlightProviderRegistry } from 'vs/editor/common/modes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
@@ -20,6 +20,10 @@ import { registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/
 import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 export const editorWordHighlight = registerColor('editor.wordHighlightBackground', { dark: '#575757B8', light: '#57575740', hc: null }, nls.localize('wordHighlight', 'Background color of a symbol during read-access, like reading a variable.'));
 export const editorWordHighlightStrong = registerColor('editor.wordHighlightStrongBackground', { dark: '#004972B8', light: '#0e639c40', hc: null }, nls.localize('wordHighlightStrong', 'Background color of a symbol during write-access, like writing to a variable.'));
@@ -474,4 +478,60 @@ registerThemingParticipant((theme, collector) => {
 
 });
 
-const WordHighlighterCommand = EditorCommand.bindToContribution<WordHighlighterContribution>(WordHighlighterContribution.get);
+class WordHighlightNavigationAction extends EditorAction {
+
+	private _isNext: boolean;
+
+	constructor(next: boolean, opts: IActionOptions) {
+		super(opts);
+		this._isNext = next;
+	}
+
+	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
+		const telemetryService = accessor.get(ITelemetryService);
+
+		const controller = WordHighlighterContribution.get(editor);
+		if (!controller) {
+			return;
+		}
+
+		telemetryService.publicLog('wordHighlightNavigation', { mode: 'go to word highlight', ...editor.getTelemetryData() });
+		if (this._isNext) {
+			controller.moveNext();
+		} else {
+			controller.moveBack();
+		}
+	}
+}
+
+@editorAction
+class NextMarkerAction extends WordHighlightNavigationAction {
+	constructor() {
+		super(true, {
+			id: 'editor.action.wordHighlight.next',
+			label: nls.localize('markerAction.next.label', "Go to Next Symbol Highlight"),
+			alias: 'Go to Next Symbol Highlight',
+			precondition: ctxHasWordHighlights,
+			kbOpts: {
+				kbExpr: EditorContextKeys.focus,
+				primary: KeyCode.F7
+			}
+		});
+	}
+}
+
+@editorAction
+class PrevMarkerAction extends WordHighlightNavigationAction {
+	constructor() {
+		super(false, {
+			id: 'editor.action.wordHighlight.prev',
+			label: nls.localize('markerAction.previous.label', "Go to Previous Symbol Highlight"),
+			alias: 'Go to Previous Symbol Highlight',
+			precondition: ctxHasWordHighlights,
+			kbOpts: {
+				kbExpr: EditorContextKeys.focus,
+				primary: KeyMod.Shift | KeyCode.F7
+			}
+		});
+	}
+}
