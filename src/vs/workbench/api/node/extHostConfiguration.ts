@@ -58,8 +58,8 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 
 	getConfiguration(section?: string, resource?: URI): WorkspaceConfiguration {
 		const config = section
-			? lookUp(this._configuration.getValue(null, { resource }), section)
-			: this._configuration.getValue(null, { resource });
+			? lookUp(this._configuration.getSection(null, { resource }), section)
+			: this._configuration.getSection(null, { resource });
 
 		function parseConfigurationTarget(arg: boolean | ExtHostConfigurationTarget): ConfigurationTarget {
 			if (arg === void 0 || arg === null) {

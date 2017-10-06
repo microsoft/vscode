@@ -67,11 +67,11 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 	getConfiguration(arg1?: any, arg2?: any): any {
 		const section = typeof arg1 === 'string' ? arg1 : void 0;
 		const overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : void 0;
-		return this.configuration.getValue(section, overrides);
+		return this.configuration.getSection(section, overrides);
 	}
 
 	getValue(key: string, overrides: IConfigurationOverrides): any {
-		return this.configuration.getValue2(key, overrides);
+		return this.configuration.getValue(key, overrides);
 	}
 
 	updateValue(key: string, value: any): TPromise<void>
@@ -113,7 +113,7 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 		if (changedKeys.length) {
 			const oldConfiguartion = this._configuration;
 			this.reset();
-			changedKeys = changedKeys.filter(key => !equals(oldConfiguartion.getValue2(key), this._configuration.getValue2(key)));
+			changedKeys = changedKeys.filter(key => !equals(oldConfiguartion.getValue(key), this._configuration.getValue(key)));
 			if (changedKeys.length) {
 				this.trigger(changedKeys, ConfigurationTarget.USER);
 			}

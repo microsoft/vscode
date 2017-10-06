@@ -211,7 +211,7 @@ export class Configuration extends BaseConfiguration {
 			this._user = user;
 			this.merge();
 
-			changedKeys = changedKeys.filter(key => !equals(oldConfiguartion.getValue2(key), this.getValue2(key)));
+			changedKeys = changedKeys.filter(key => !equals(oldConfiguartion.getValue(key), this.getValue(key)));
 			return changedKeys;
 		}
 		return [];
@@ -227,7 +227,7 @@ export class Configuration extends BaseConfiguration {
 			this._workspaceConfiguration = workspaceConfiguration;
 			this.merge();
 
-			changedKeys = changedKeys.filter(key => !equals(oldConfiguartion.getValue2(key), this.getValue2(key)));
+			changedKeys = changedKeys.filter(key => !equals(oldConfiguartion.getValue(key), this.getValue(key)));
 			return changedKeys;
 		}
 		return [];
@@ -246,7 +246,7 @@ export class Configuration extends BaseConfiguration {
 				this.folders.set(resource, configuration);
 				this.mergeFolder(resource);
 
-				changedKeys = changedKeys.filter(key => !equals(oldConfiguartion.getValue2(key, { resource }), this.getValue2(key, { resource })));
+				changedKeys = changedKeys.filter(key => !equals(oldConfiguartion.getValue(key, { resource }), this.getValue(key, { resource })));
 				return changedKeys;
 			}
 			return [];

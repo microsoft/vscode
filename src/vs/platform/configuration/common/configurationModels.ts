@@ -260,12 +260,12 @@ export class Configuration {
 		this._foldersConsolidatedConfigurations.set(folder, this._workspaceConsolidatedConfiguration.merge(this.folders.get(folder)));
 	}
 
-	getValue<C>(section: string = '', overrides: IConfigurationOverrides = {}): C {
+	getSection<C>(section: string = '', overrides: IConfigurationOverrides = {}): C {
 		const configModel = this.getConsolidateConfigurationModel(overrides);
 		return section ? configModel.getContentsFor<C>(section) : configModel.contents;
 	}
 
-	getValue2(key: string, overrides: IConfigurationOverrides = {}): any {
+	getValue(key: string, overrides: IConfigurationOverrides = {}): any {
 		// make sure to clone the configuration so that the receiver does not tamper with the values
 		const consolidateConfigurationModel = this.getConsolidateConfigurationModel(overrides);
 		return objects.clone(getConfigurationValue<any>(consolidateConfigurationModel.contents, key));

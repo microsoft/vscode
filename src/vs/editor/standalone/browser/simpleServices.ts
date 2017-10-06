@@ -459,11 +459,11 @@ export class SimpleConfigurationService implements IConfigurationService {
 	getConfiguration(arg1?: any, arg2?: any): any {
 		const section = typeof arg1 === 'string' ? arg1 : void 0;
 		const overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : void 0;
-		return this.configuration().getValue(section, overrides);
+		return this.configuration().getSection(section, overrides);
 	}
 
 	public getValue<C>(key: string, options?: IConfigurationOverrides): C {
-		return this.configuration().getValue2(key, options);
+		return this.configuration().getValue(key, options);
 	}
 
 	public updateValue(key: string, value: any, arg3?: any, arg4?: any): TPromise<void> {
