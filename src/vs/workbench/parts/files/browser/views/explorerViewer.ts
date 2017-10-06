@@ -41,7 +41,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService, IConfirmation, Severity } from 'vs/platform/message/common/message';
+import { IMessageService, IConfirmation, Severity, IConfirmationResult } from 'vs/platform/message/common/message';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -57,6 +57,7 @@ import { distinct } from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { getPathLabel } from 'vs/base/common/labels';
 import { extractResources } from 'vs/base/browser/dnd';
+import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 
 export class FileDataSource implements IDataSource {
 	constructor(
@@ -728,6 +729,9 @@ export class FileFilter implements IFilter {
 
 // Explorer Drag And Drop Controller
 export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
+
+	private static CONFIRM_DND_SETTING_KEY = 'explorer.confirmDragAndDrop';
+
 	private toDispose: IDisposable[];
 	private dropEnabled: boolean;
 
@@ -742,7 +746,8 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		@IBackupFileService private backupFileService: IBackupFileService,
 		@IWindowService private windowService: IWindowService,
 		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService
 	) {
 		super(stat => this.statToResource(stat));
 
@@ -947,6 +952,41 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		const source: FileStat = data.getData()[0];
 		const isCopy = (originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh);
 
+		let confirmPromise: TPromise<IConfirmationResult>;
+
+		// Handle confirm setting
+		const confirmDragAndDrop = !isCopy && this.configurationService.lookup<boolean>(FileDragAndDrop.CONFIRM_DND_SETTING_KEY).value;
+		if (confirmDragAndDrop) {
+			confirmPromise = this.messageService.confirm({
+				message: nls.localize('confirmMove', "Are you sure you want to move '{0}'?", source.name),
+				checkbox: {
+					label: nls.localize('doNotAskAgain', "Do not ask me again")
+				},
+				type: 'question'
+			});
+		} else {
+			confirmPromise = TPromise.as({ confirmed: true } as IConfirmationResult);
+		}
+
+		return confirmPromise.then(confirmation => {
+
+			// Check for confirmation checkbox
+			let updateConfirmSettingsPromise: TPromise<void> = TPromise.as(void 0);
+			if (confirmation.checkboxChecked === true) {
+				updateConfirmSettingsPromise = this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: FileDragAndDrop.CONFIRM_DND_SETTING_KEY, value: false });
+			}
+
+			return updateConfirmSettingsPromise.then(() => {
+				if (confirmation.confirmed) {
+					return this.doHandleExplorerDrop(tree, data, source, target, isCopy);
+				}
+
+				return TPromise.as(void 0);
+			});
+		});
+	}
+
+	private doHandleExplorerDrop(tree: ITree, data: IDragAndDropData, source: FileStat, target: FileStat, isCopy: boolean): TPromise<void> {
 		return tree.expand(target).then(() => {
 
 			// Reuse duplicate action if user copies
