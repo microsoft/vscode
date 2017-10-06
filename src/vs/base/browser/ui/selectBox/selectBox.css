@@ -7,3 +7,29 @@
 	width: 100%;
 	height: 20px;
 }
+
+.monaco-workbench .select-container-relative {
+	position: relative;
+}
+
+.monaco-workbench .select-box-dropdown-div {
+	display: none;
+}
+
+.monaco-workbench .select-box-dropdown-div.visible {
+	opacity: 1;
+	position: fixed;
+	z-index: 10;
+	overflow-y: hidden;
+	display: block;
+	animation: track 120ms infinite;
+}
+
+@keyframes track {
+	0% { }
+	100% { }
+}
+
+.monaco-workbench .select-box-dropdown option {
+	padding-left: 3px;
+}
