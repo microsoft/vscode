@@ -9,7 +9,6 @@ describe('Search', () => {
 	let app: SpectronApplication;
 	before(() => { app = new SpectronApplication(); return app.start('Search'); });
 	after(() => app.stop());
-	beforeEach(function () { app.screenCapturer.testName = this.currentTest.title; });
 
 	it('searches for body & checks for correct result number', async function () {
 		await app.workbench.search.openSearchViewlet();

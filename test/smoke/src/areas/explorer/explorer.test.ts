@@ -9,7 +9,6 @@ describe('Explorer', () => {
 	let app: SpectronApplication;
 	before(() => { app = new SpectronApplication(); return app.start('Explorer'); });
 	after(() => app.stop());
-	beforeEach(function () { app.screenCapturer.testName = this.currentTest.title; });
 
 	it('quick open search produces correct result', async function () {
 		const expectedNames = [

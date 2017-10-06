@@ -14,7 +14,6 @@ describe('Git', () => {
 	let app: SpectronApplication;
 	before(() => { app = new SpectronApplication(); return app.start('Git'); });
 	after(() => app.stop());
-	beforeEach(function () { app.screenCapturer.testName = this.currentTest.title; });
 
 	it('reflects working tree changes', async function () {
 		await app.workbench.scm.openSCMViewlet();

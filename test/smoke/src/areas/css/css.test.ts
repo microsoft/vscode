@@ -11,7 +11,6 @@ describe('CSS', () => {
 	let app: SpectronApplication;
 	before(function () { app = new SpectronApplication(); return app.start('CSS'); });
 	after(() => app.stop());
-	beforeEach(function () { app.screenCapturer.testName = this.currentTest.title; });
 
 	it('verifies quick outline', async () => {
 		await app.workbench.quickopen.openFile('style.css');

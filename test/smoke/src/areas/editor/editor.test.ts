@@ -11,7 +11,6 @@ describe('Editor', () => {
 	let app: SpectronApplication;
 	before(() => { app = new SpectronApplication(); return app.start('Editor'); });
 	after(() => app.stop());
-	beforeEach(function () { app.screenCapturer.testName = this.currentTest.title; });
 
 	it('shows correct quick outline', async function () {
 		await app.workbench.quickopen.openFile('www');

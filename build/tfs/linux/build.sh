@@ -40,21 +40,16 @@ step "Run unit tests" \
 	./scripts/test.sh --build --reporter dot
 
 function smoketest {
- 	SCREENSHOTS="$AGENT_BUILDDIRECTORY/smoketest-screenshots"
-	rm -rf $SCREENSHOTS
-	mkdir -p $SCREENSHOTS
-
- 	LOGS="$AGENT_BUILDDIRECTORY/smoketest-logs"
-	rm -rf $LOGS
-	mkdir -p $LOGS
-
 	id -u testuser &>/dev/null || (useradd -m testuser; chpasswd <<< testuser:testpassword)
 	sudo -i -u testuser -- sh -c 'git config --global user.name "VS Code Agent" &&  git config --global user.email "monacotools@microsoft.com"'
-	chown -R testuser $SCREENSHOTS
-	chown -R testuser $LOGS
+
+ 	ARTIFACTS="$AGENT_BUILDDIRECTORY/smoketest-artifacts"
+	rm -rf $ARTIFACTS
+	mkdir -p $ARTIFACTS
+	chown -R testuser $ARTIFACTS
 
 	ps -o pid= -u testuser | xargs sudo kill -9
-	DISPLAY=:10 sudo -i -u testuser -- sh -c "cd $BUILD_SOURCESDIRECTORY/test/smoke && ./node_modules/.bin/mocha --build $AGENT_BUILDDIRECTORY/VSCode-linux-$ARCH --screenshots $SCREENSHOTS --logs $LOGS"
+	DISPLAY=:10 sudo -i -u testuser -- sh -c "cd $BUILD_SOURCESDIRECTORY/test/smoke && ./node_modules/.bin/mocha --build $AGENT_BUILDDIRECTORY/VSCode-linux-$ARCH --debug $ARTIFACTS"
 	# DISPLAY=:10 sudo -i -u testuser -- sh -c "cd /vso/work/1/s/test/smoke && ./node_modules/.bin/mocha --build /vso/work/1/VSCode-linux-ia32"
 }
 

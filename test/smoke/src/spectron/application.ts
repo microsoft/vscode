@@ -12,6 +12,7 @@ import * as fs from 'fs';
 import * as cp from 'child_process';
 import * as path from 'path';
 import * as mkdirp from 'mkdirp';
+import { sanitize } from '../helpers/utilities';
 
 export const LATEST_PATH = process.env.VSCODE_PATH as string;
 export const STABLE_PATH = process.env.VSCODE_STABLE_PATH || '';
@@ -20,8 +21,7 @@ export const CODE_WORKSPACE_PATH = process.env.VSCODE_WORKSPACE_PATH as string;
 export const USER_DIR = process.env.VSCODE_USER_DIR as string;
 export const EXTENSIONS_DIR = process.env.VSCODE_EXTENSIONS_DIR as string;
 export const VSCODE_EDITION = process.env.VSCODE_EDITION as string;
-export const SCREENSHOTS_DIR = process.env.SCREENSHOTS_DIR as string;
-export const LOGS_DIR = process.env.LOGS_DIR as string;
+export const ARTIFACTS_DIR = process.env.ARTIFACTS_DIR as string;
 export const WAIT_TIME = parseInt(process.env.WAIT_TIME as string);
 
 export enum VSCODE_BUILD {
@@ -158,19 +158,30 @@ export class SpectronApplication {
 			requireName: 'nodeRequire'
 		};
 
-		if (LOGS_DIR) {
-			const dir = path.join(LOGS_DIR, id);
-			opts.chromeDriverLogPath = path.join(dir, 'chromedriver.log');
-			mkdirp.sync(dir);
+		let screenshotsDirPath: string | undefined = undefined;
 
-			opts.webdriverLogPath = path.join(dir, 'webdriver');
-			mkdirp.sync(opts.webdriverLogPath);
+		if (ARTIFACTS_DIR) {
+			const testsuiteRootPath = path.join(ARTIFACTS_DIR, sanitize(testSuiteName));
+			mkdirp.sync(testsuiteRootPath);
+
+			// Collect screenshots
+			screenshotsDirPath = path.join(testsuiteRootPath, 'screenshots');
+			mkdirp.sync(screenshotsDirPath);
+
+			// Collect chromedriver logs
+			const chromedriverLogPath = path.join(testsuiteRootPath, 'chromedriver.log');
+			opts.chromeDriverLogPath = chromedriverLogPath;
+
+			// Collect webdriver logs
+			const webdriverLogsPath = path.join(testsuiteRootPath, 'webdriver');
+			mkdirp.sync(webdriverLogsPath);
+			opts.webdriverLogPath = webdriverLogsPath;
 		}
 
 		this.spectron = new Application(opts);
 		await this.spectron.start();
 
-		this._screenCapturer = new ScreenCapturer(this.spectron, testSuiteName);
+		this._screenCapturer = new ScreenCapturer(this.spectron, screenshotsDirPath);
 		this._client = new SpectronClient(this.spectron, this);
 		this._workbench = new Workbench(this);
 	}

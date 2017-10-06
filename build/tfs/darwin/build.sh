@@ -38,12 +38,10 @@ step "Run integration tests" \
 	./scripts/test-integration.sh
 
 function smoketest {
-	SCREENSHOTS="$AGENT_BUILDDIRECTORY/smoketest-screenshots"
-	LOGS="$AGENT_BUILDDIRECTORY/smoketest-logs"
-	rm -rf $SCREENSHOTS $LOGS
-	mkdir -p $SCREENSHOTS $LOGS
+	ARTIFACTS="$AGENT_BUILDDIRECTORY/smoketest-artifacts"
+	rm -rf $ARTIFACTS
 
-	npm run smoketest -- --build "$AGENT_BUILDDIRECTORY/VSCode-darwin/Visual Studio Code - Insiders.app"  --screenshots $SCREENSHOTS --logs $LOGS
+	npm run smoketest -- --build "$AGENT_BUILDDIRECTORY/VSCode-darwin/Visual Studio Code - Insiders.app" --debug $ARTIFACTS
 }
 
 step "Run smoke test" \

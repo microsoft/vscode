@@ -21,14 +21,12 @@ const opts = minimist(args, {
 	string: [
 		'build',
 		'stable-build',
-		'screenshots',
-		'logs',
+		'debug',
 		'wait-time'
 	]
 });
 
-opts.screenshots = opts.screenshots === '' ? path.join(testDataPath, 'screenshots') : opts.screenshots;
-opts.logs = opts.logs === '' ? path.join(testDataPath, 'logs') : opts.logs;
+process.env.ARTIFACTS_DIR = opts.debug || '';
 
 const workspacePath = path.join(testDataPath, 'smoketest.code-workspace');
 const testRepoUrl = 'https://github.com/Microsoft/vscode-smoketest-express';
@@ -107,8 +105,6 @@ process.env.VSCODE_EXTENSIONS_DIR = extensionsPath;
 process.env.SMOKETEST_REPO = testRepoLocalDir;
 process.env.VSCODE_WORKSPACE_PATH = workspacePath;
 process.env.VSCODE_KEYBINDINGS_PATH = keybindingsPath;
-process.env.SCREENSHOTS_DIR = opts.screenshots || '';
-process.env.LOGS_DIR = opts.logs || '';
 process.env.WAIT_TIME = opts['wait-time'] || '20';
 
 if (process.env.VSCODE_DEV === '1') {

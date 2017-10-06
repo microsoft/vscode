@@ -12,7 +12,6 @@ describe('Preferences', () => {
 	let app: SpectronApplication;
 	before(() => { app = new SpectronApplication(); return app.start('Preferences'); });
 	after(() => app.stop());
-	beforeEach(function () { app.screenCapturer.testName = this.currentTest.title; });
 
 	it('turns off editor line numbers and verifies the live change', async function () {
 		await app.workbench.explorer.openFile('app.js');

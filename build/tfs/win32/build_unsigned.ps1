@@ -48,13 +48,10 @@ step "Run unit tests" {
 }
 
 step "Run smoke test" {
-	$Screenshots = "$env:AGENT_BUILDDIRECTORY\smoketest-screenshots"
-	Remove-Item -Recurse -Force -ErrorAction Ignore $Screenshots
+	$Artifacts = "$env:AGENT_BUILDDIRECTORY\smoketest-artifacts"
+	Remove-Item -Recurse -Force -ErrorAction Ignore $Artifacts
 
-	$Logs = "$env:AGENT_BUILDDIRECTORY\smoketest-logs"
-	Remove-Item -Recurse -Force -ErrorAction Ignore $Logs
-
-	exec { & npm run smoketest -- --build "$env:AGENT_BUILDDIRECTORY\VSCode-win32-$global:arch" --screenshots "$Screenshots" --logs "$Logs" }
+	exec { & npm run smoketest -- --build "$env:AGENT_BUILDDIRECTORY\VSCode-win32-$global:arch" --debug "$Artifacts" }
 }
 
 step "Create archive and setup package" {
