@@ -61,10 +61,10 @@ suite('Configuration', () => {
 
 	test('Test contents while getting an existing property', () => {
 		let testObject = new CustomConfigurationModel(JSON.stringify({ 'a': 1 }));
-		assert.deepEqual(testObject.getContentsFor('a'), 1);
+		assert.deepEqual(testObject.getSectionContents('a'), 1);
 
 		testObject = new CustomConfigurationModel(JSON.stringify({ 'a': { 'b': 1 } }));
-		assert.deepEqual(testObject.getContentsFor('a'), { 'b': 1 });
+		assert.deepEqual(testObject.getSectionContents('a'), { 'b': 1 });
 	});
 
 	test('Test contents are undefined for non existing properties', () => {
@@ -72,13 +72,13 @@ suite('Configuration', () => {
 			awesome: true
 		}));
 
-		assert.deepEqual(testObject.getContentsFor('unknownproperty'), undefined);
+		assert.deepEqual(testObject.getSectionContents('unknownproperty'), undefined);
 	});
 
 	test('Test contents are undefined for undefined config', () => {
 		const testObject = new CustomConfigurationModel(null);
 
-		assert.deepEqual(testObject.getContentsFor('unknownproperty'), undefined);
+		assert.deepEqual(testObject.getSectionContents('unknownproperty'), undefined);
 	});
 
 	test('Test configWithOverrides gives all content merged with overrides', () => {
@@ -125,7 +125,7 @@ suite('Configuration', () => {
 				}
 			}
 		});
-		assert.equal(true, new DefaultConfigurationModel().getContentsFor('a'));
+		assert.equal(true, new DefaultConfigurationModel().getSectionContents('a'));
 	});
 
 	test('Test registering the language property', () => {
@@ -142,7 +142,7 @@ suite('Configuration', () => {
 				}
 			}
 		});
-		assert.equal(undefined, new DefaultConfigurationModel().getContentsFor('[a]'));
+		assert.equal(undefined, new DefaultConfigurationModel().getSectionContents('[a]'));
 	});
 
 });

@@ -17,7 +17,7 @@ suite('ConfigurationService - Model', () => {
 
 		const testObject = new FolderConfigurationModel(settingsConfig, [], ConfigurationScope.WINDOW);
 
-		assert.equal(testObject.getContentsFor('task'), undefined);
+		assert.equal(testObject.getSectionContents('task'), undefined);
 	});
 
 	test('Test consolidate (settings and tasks)', () => {

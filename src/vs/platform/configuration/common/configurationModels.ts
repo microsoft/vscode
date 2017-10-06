@@ -31,22 +31,8 @@ export class ConfigurationModel implements IConfiguraionModel {
 		return this._keys;
 	}
 
-	public getContentsFor<V>(section: string): V {
-		return objects.clone(this.contents[section]);
-	}
-
-	public override<V>(identifier: string): ConfigurationModel {
-		const result = new ConfigurationModel();
-		const contents = objects.clone<any>(this.contents);
-		if (this._overrides) {
-			for (const override of this._overrides) {
-				if (override.identifiers.indexOf(identifier) !== -1) {
-					merge(contents, override.contents, true);
-				}
-			}
-		}
-		result._contents = contents;
-		return result;
+	public getSectionContents<V>(section: string): V {
+		return this.contents[section];
 	}
 
 	public setValue(key: string, value: any) {
@@ -62,6 +48,20 @@ export class ConfigurationModel implements IConfiguraionModel {
 		if (index !== -1) {
 			this._keys.splice(index, 1);
 		}
+	}
+
+	public override<V>(identifier: string): ConfigurationModel {
+		const result = new ConfigurationModel();
+		const contents = objects.clone<any>(this.contents);
+		if (this._overrides) {
+			for (const override of this._overrides) {
+				if (override.identifiers.indexOf(identifier) !== -1) {
+					merge(contents, override.contents, true);
+				}
+			}
+		}
+		result._contents = contents;
+		return result;
 	}
 
 	public merge(other: ConfigurationModel, overwrite: boolean = true): ConfigurationModel {
@@ -262,13 +262,12 @@ export class Configuration {
 
 	getSection<C>(section: string = '', overrides: IConfigurationOverrides = {}): C {
 		const configModel = this.getConsolidateConfigurationModel(overrides);
-		return section ? configModel.getContentsFor<C>(section) : configModel.contents;
+		return Object.freeze(section ? configModel.getSectionContents<C>(section) : configModel.contents);
 	}
 
 	getValue(key: string, overrides: IConfigurationOverrides = {}): any {
-		// make sure to clone the configuration so that the receiver does not tamper with the values
 		const consolidateConfigurationModel = this.getConsolidateConfigurationModel(overrides);
-		return objects.clone(getConfigurationValue<any>(consolidateConfigurationModel.contents, key));
+		return Object.freeze(getConfigurationValue<any>(consolidateConfigurationModel.contents, key));
 	}
 
 	updateValue(key: string, value: any, overrides: IConfigurationOverrides = {}): void {
@@ -297,18 +296,17 @@ export class Configuration {
 		memory?: C
 		value: C,
 	} {
-		// make sure to clone the configuration so that the receiver does not tamper with the values
 		const consolidateConfigurationModel = this.getConsolidateConfigurationModel(overrides);
 		const folderConfigurationModel = this.getFolderConfigurationModelForResource(overrides.resource);
 		const memoryConfigurationModel = overrides.resource ? this._memoryConfigurationByResource.get(overrides.resource) || this._memoryConfiguration : this._memoryConfiguration;
-		return {
-			default: objects.clone(getConfigurationValue<C>(overrides.overrideIdentifier ? this._defaults.override(overrides.overrideIdentifier).contents : this._defaults.contents, key)),
-			user: objects.clone(getConfigurationValue<C>(overrides.overrideIdentifier ? this._user.override(overrides.overrideIdentifier).contents : this._user.contents, key)),
-			workspace: objects.clone(this._workspace ? getConfigurationValue<C>(overrides.overrideIdentifier ? this._workspaceConfiguration.override(overrides.overrideIdentifier).contents : this._workspaceConfiguration.contents, key) : void 0), //Check on workspace exists or not because _workspaceConfiguration is never null
-			workspaceFolder: objects.clone(folderConfigurationModel ? getConfigurationValue<C>(overrides.overrideIdentifier ? folderConfigurationModel.override(overrides.overrideIdentifier).contents : folderConfigurationModel.contents, key) : void 0),
-			memory: objects.clone(getConfigurationValue<C>(overrides.overrideIdentifier ? memoryConfigurationModel.override(overrides.overrideIdentifier).contents : memoryConfigurationModel.contents, key)),
-			value: objects.clone(getConfigurationValue<C>(consolidateConfigurationModel.contents, key))
-		};
+		return Object.freeze({
+			default: getConfigurationValue<C>(overrides.overrideIdentifier ? this._defaults.override(overrides.overrideIdentifier).contents : this._defaults.contents, key),
+			user: getConfigurationValue<C>(overrides.overrideIdentifier ? this._user.override(overrides.overrideIdentifier).contents : this._user.contents, key),
+			workspace: this._workspace ? getConfigurationValue<C>(overrides.overrideIdentifier ? this._workspaceConfiguration.override(overrides.overrideIdentifier).contents : this._workspaceConfiguration.contents, key) : void 0, //Check on workspace exists or not because _workspaceConfiguration is never null
+			workspaceFolder: folderConfigurationModel ? getConfigurationValue<C>(overrides.overrideIdentifier ? folderConfigurationModel.override(overrides.overrideIdentifier).contents : folderConfigurationModel.contents, key) : void 0,
+			memory: getConfigurationValue<C>(overrides.overrideIdentifier ? memoryConfigurationModel.override(overrides.overrideIdentifier).contents : memoryConfigurationModel.contents, key),
+			value: getConfigurationValue<C>(consolidateConfigurationModel.contents, key)
+		});
 	}
 
 	keys(): {

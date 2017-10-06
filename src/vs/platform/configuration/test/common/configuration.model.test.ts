@@ -67,16 +67,16 @@ suite('Configuration', () => {
 
 	test('Test contents while getting an existing property', () => {
 		let testObject = new ConfigurationModel({ 'a': 1 });
-		assert.deepEqual(testObject.getContentsFor('a'), 1);
+		assert.deepEqual(testObject.getSectionContents('a'), 1);
 
 		testObject = new ConfigurationModel({ 'a': { 'b': 1 } });
-		assert.deepEqual(testObject.getContentsFor('a'), { 'b': 1 });
+		assert.deepEqual(testObject.getSectionContents('a'), { 'b': 1 });
 	});
 
 	test('Test contents are undefined for non existing properties', () => {
 		const testObject = new ConfigurationModel({ awesome: true });
 
-		assert.deepEqual(testObject.getContentsFor('unknownproperty'), undefined);
+		assert.deepEqual(testObject.getSectionContents('unknownproperty'), undefined);
 	});
 
 	test('Test override gives all content merged with overrides', () => {
