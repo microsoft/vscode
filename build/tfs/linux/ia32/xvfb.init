@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 #
 # /etc/rc.d/init.d/xvfbd
 #
