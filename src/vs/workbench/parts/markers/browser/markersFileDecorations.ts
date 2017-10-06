@@ -14,7 +14,6 @@ import { localize } from 'vs/nls';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { Registry } from 'vs/platform/registry/common/platform';
 import Severity from 'vs/base/common/severity';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorErrorForeground, editorWarningForeground } from 'vs/editor/common/view/editorColorRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
@@ -27,7 +26,6 @@ class MarkersFileDecorations implements IWorkbenchContribution {
 	constructor(
 		@IMarkerService private _markerService: IMarkerService,
 		@IFileDecorationsService private _decorationsService: IFileDecorationsService,
-		@IThemeService private _themeService: IThemeService,
 		@IConfigurationService private _configurationService: IConfigurationService
 	) {
 		//
@@ -74,7 +72,7 @@ class MarkersFileDecorations implements IWorkbenchContribution {
 
 	private _toFileDecorationData(marker: IMarker): IFileDecorationData {
 		const { message, severity } = marker;
-		const color = this._themeService.getTheme().getColor(severity === Severity.Error ? editorErrorForeground : editorWarningForeground);
+		const color = severity === Severity.Error ? editorErrorForeground : editorWarningForeground;
 		return { message, severity, color };
 	}
 }

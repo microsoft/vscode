@@ -5,17 +5,17 @@
 'use strict';
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Color } from 'vs/base/common/color';
 import URI from 'vs/base/common/uri';
 import Event from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
+import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 
 export const IFileDecorationsService = createDecorator<IFileDecorationsService>('IFileDecorationsService');
 
 export interface IFileDecoration {
 	readonly type: DecorationType;
 	readonly message: string;
-	readonly color: Color;
+	readonly color: ColorIdentifier;
 	readonly severity: Severity;
 }
 
@@ -31,7 +31,7 @@ export abstract class DecorationType {
 
 export interface IFileDecorationData {
 	message: string;
-	color: Color;
+	color: ColorIdentifier;
 	severity: Severity;
 }
 
