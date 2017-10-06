@@ -19,7 +19,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { FileStat, Model } from 'vs/workbench/parts/files/common/explorerModel';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
-import { OpenFolderAction, OpenFileFolderAction, AddRootFolderAction, RemoveRootFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
+import { OpenFolderAction, OpenFileFolderAction, AddRootFolderAction, RemoveRootFolderAction, OpenFolderSettingsAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { copyFocusedFilesExplorerViewItem, revealInOSFocusedFilesExplorerItem, openFocusedExplorerItemSideBySideCommand, copyPathOfFocusedExplorerItem, copyPathCommand, revealInExplorerCommand, revealInOSCommand, openFolderPickerCommand, openWindowCommand, openFileInNewWindowCommand, deleteFocusedFilesExplorerViewItemCommand, moveFocusedFilesExplorerViewItemToTrashCommand, renameFocusedFilesExplorerViewItemCommand } from 'vs/workbench/parts/files/browser/fileCommands';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -96,10 +96,14 @@ class FilesViewerActionContributor extends ActionBarContributor {
 			addRootFolderAction.order = 52;
 			actions.push(addRootFolderAction);
 
+			const openFolderSettingsActions = this.instantiationService.createInstance(OpenFolderSettingsAction, stat.resource, OpenFolderSettingsAction.ID, OpenFolderSettingsAction.LABEL);
+			openFolderSettingsActions.order = 53;
+			actions.push(openFolderSettingsActions);
 			const removeRootFolderAction = this.instantiationService.createInstance(RemoveRootFolderAction, stat.resource, RemoveRootFolderAction.ID, RemoveRootFolderAction.LABEL);
-			removeRootFolderAction.order = 53;
+			removeRootFolderAction.order = 54;
 			actions.push(removeRootFolderAction);
-			actions.push(new Separator(null, 54));
+
+			actions.push(new Separator(null, 55));
 		}
 
 		// Copy File/Folder
