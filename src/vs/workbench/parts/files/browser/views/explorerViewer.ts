@@ -738,7 +738,6 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 	constructor(
 		@IMessageService private messageService: IMessageService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IProgressService private progressService: IProgressService,
 		@IFileService private fileService: IFileService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -895,8 +894,6 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 				promise = this.handleExplorerDrop(tree, data, target, originalEvent);
 			}
 		}
-
-		this.progressService.showWhile(promise, 800);
 
 		promise.done(null, errors.onUnexpectedError);
 	}
