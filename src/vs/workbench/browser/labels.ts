@@ -69,6 +69,7 @@ export class ResourceLabel extends IconLabel {
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(() => this.render(true /* clear cache */))); // update when file.associations change
 		this.toDispose.push(this.modelService.onModelModeChanged(e => this.onModelModeChanged(e))); // react to model mode changes
 		this.toDispose.push(this.decorationsService.onDidChangeDecorations(this.onFileDecorationsChanges, this)); // react to file decoration changes
+		this.toDispose.push(this.themeService.onThemeChange(() => this.render(false)));
 	}
 
 	private onModelModeChanged(e: { model: IModel; oldModeId: string; }): void {
