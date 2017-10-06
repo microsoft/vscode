@@ -46,13 +46,12 @@ export class FileDecorationsService implements IFileDecorationsService {
 		return type;
 	}
 
-	setFileDecoration(type: DecorationType, target: URI, data: IFileDecorationData): void {
-		this._types.get(type).set(target.toString(), { type, ...data });
-		this._onDidChangeFileDecoration.fire(target);
-	}
-
-	unsetFileDecoration(type: DecorationType, target: URI): void {
-		this._types.get(type).delete(target.toString());
+	setFileDecoration(type: DecorationType, target: URI, data?: IFileDecorationData): void {
+		if (data) {
+			this._types.get(type).set(target.toString(), { type, ...data });
+		} else {
+			this._types.get(type).delete(target.toString());
+		}
 		this._onDidChangeFileDecoration.fire(target);
 	}
 

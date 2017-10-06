@@ -61,19 +61,15 @@ class MarkersFileDecorations implements IWorkbenchContribution {
 			const markers = this._markerService.read({ resource })
 				.sort((a, b) => Severity.compare(a.severity, b.severity));
 
-			if (!isFalsyOrEmpty(markers)) {
-				const data = this._toFileDecorationData(markers[0]);
-				this._decorationsService.setFileDecoration(this._type, resource, data);
-			} else {
-				this._decorationsService.unsetFileDecoration(this._type, resource);
-			}
+			const data = !isFalsyOrEmpty(markers) ? this._toFileDecorationData(markers[0]) : undefined;
+			this._decorationsService.setFileDecoration(this._type, resource, data);
 		}
 	}
 
 	private _toFileDecorationData(marker: IMarker): IFileDecorationData {
-		const { message, severity } = marker;
+		const { severity } = marker;
 		const color = severity === Severity.Error ? editorErrorForeground : editorWarningForeground;
-		return { message, severity, color };
+		return { severity, color };
 	}
 }
 
