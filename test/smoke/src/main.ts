@@ -21,12 +21,12 @@ const opts = minimist(args, {
 	string: [
 		'build',
 		'stable-build',
-		'debug',
+		'log',
 		'wait-time'
 	]
 });
 
-process.env.ARTIFACTS_DIR = opts.debug || '';
+process.env.ARTIFACTS_DIR = opts.log || '';
 
 const workspacePath = path.join(testDataPath, 'smoketest.code-workspace');
 const testRepoUrl = 'https://github.com/Microsoft/vscode-smoketest-express';

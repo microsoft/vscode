@@ -49,7 +49,7 @@ function smoketest {
 	chown -R testuser $ARTIFACTS
 
 	ps -o pid= -u testuser | xargs sudo kill -9
-	DISPLAY=:10 sudo -i -u testuser -- sh -c "cd $BUILD_SOURCESDIRECTORY/test/smoke && ./node_modules/.bin/mocha --build $AGENT_BUILDDIRECTORY/VSCode-linux-$ARCH --debug $ARTIFACTS"
+	DISPLAY=:10 sudo -i -u testuser -- sh -c "cd $BUILD_SOURCESDIRECTORY/test/smoke && ./node_modules/.bin/mocha --build $AGENT_BUILDDIRECTORY/VSCode-linux-$ARCH --log $ARTIFACTS"
 	# DISPLAY=:10 sudo -i -u testuser -- sh -c "cd /vso/work/1/s/test/smoke && ./node_modules/.bin/mocha --build /vso/work/1/VSCode-linux-ia32"
 }
 
