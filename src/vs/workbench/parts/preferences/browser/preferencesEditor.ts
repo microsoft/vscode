@@ -29,7 +29,7 @@ import { SettingsEditorModel, DefaultSettingsEditorModel } from 'vs/workbench/pa
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ICodeEditor, IEditorContributionCtor } from 'vs/editor/browser/editorBrowser';
 import { SearchWidget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
-import { PreferencesSearchProvider } from 'vs/workbench/parts/preferences/browser/preferencesSearch';
+import { PreferencesSearchProvider, PreferencesSearchModel } from 'vs/workbench/parts/preferences/browser/preferencesSearch';
 import { ContextKeyExpr, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Command } from 'vs/editor/common/editorCommonExtensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -106,6 +106,7 @@ export class PreferencesEditor extends BaseEditor {
 	private settingsTargetsWidget: SettingsTargetsWidget;
 	private sideBySidePreferencesWidget: SideBySidePreferencesWidget;
 	private preferencesRenderers: PreferencesRenderers;
+	private searchProvider: PreferencesSearchProvider;
 
 	private delayedFilterLogging: Delayer<void>;
 	private onInput: Emitter<void>;
@@ -127,10 +128,11 @@ export class PreferencesEditor extends BaseEditor {
 		this.defaultSettingsEditorContextKey = CONTEXT_SETTINGS_EDITOR.bindTo(this.contextKeyService);
 		this.focusSettingsContextKey = CONTEXT_SETTINGS_SEARCH_FOCUS.bindTo(this.contextKeyService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
+		this.searchProvider = this.instantiationService.createInstance(PreferencesSearchProvider);
 		this.onInput = new Emitter();
 
 		debounceEvent(this.onInput.event, (l, e) => e, 200, /*leading=*/true)(() => {
-			this.filterPreferences(this.searchWidget.getValue().trim());
+			this.filterPreferences();
 		});
 	}
 
@@ -145,7 +147,7 @@ export class PreferencesEditor extends BaseEditor {
 			placeholder: nls.localize('SearchSettingsWidget.Placeholder', "Search Settings"),
 			focusKey: this.focusSettingsContextKey
 		}));
-		this._register(this.searchWidget.onDidChange(value => this.onInput.fire()));
+		this._register(this.searchWidget.onDidChange(value => this.onInputChanged()));
 		this._register(this.searchWidget.onFocus(() => this.lastFocusedWidget = this.searchWidget));
 		this.lastFocusedWidget = this.searchWidget;
 
@@ -239,8 +241,16 @@ export class PreferencesEditor extends BaseEditor {
 		return this.sideBySidePreferencesWidget.setInput(<DefaultPreferencesEditorInput>newInput.details, <EditorInput>newInput.master, options).then(({ defaultPreferencesRenderer, editablePreferencesRenderer }) => {
 			this.preferencesRenderers.defaultPreferencesRenderer = defaultPreferencesRenderer;
 			this.preferencesRenderers.editablePreferencesRenderer = editablePreferencesRenderer;
-			this.onInput.fire();
+			this.onInputChanged();
 		});
+	}
+
+	private onInputChanged(): void {
+		if (this.searchProvider.remoteSearchEnabled) {
+			this.onInput.fire();
+		} else {
+			this.filterPreferences();
+		}
 	}
 
 	private getSettingsConfigurationTarget(resource: URI): ConfigurationTarget {
@@ -306,8 +316,9 @@ export class PreferencesEditor extends BaseEditor {
 		promise.done(value => this.preferencesService.switchSettings(this.getSettingsConfigurationTarget(resource), resource));
 	}
 
-	private filterPreferences(filter: string) {
-		this.preferencesRenderers.filterPreferences(filter).then(count => {
+	private filterPreferences() {
+		const filter = this.searchWidget.getValue().trim();
+		this.preferencesRenderers.filterPreferences(filter, this.searchProvider).then(count => {
 			const message = filter ? this.showSearchResultsMessage(count) : nls.localize('totalSettingsMessage', "Total {0} Settings", count);
 			this.searchWidget.showMessage(message, count);
 			if (count === 0) {
@@ -414,16 +425,20 @@ class PreferencesRenderers extends Disposable {
 		this._editablePreferencesRenderer = editableSettingsRenderer;
 	}
 
-	public filterPreferences(filter: string): TPromise<number> {
+	public filterPreferences(filter: string, searchProvider: PreferencesSearchProvider): TPromise<number> {
 		if (this._filtersInProgress) {
 			// Resolved/rejected promises have no .cancel()
 			this._filtersInProgress.forEach(p => p.cancel && p.cancel());
 		}
 
-		const searchProvider = new PreferencesSearchProvider(filter);
-		this._filtersInProgress = [
-			this._filterPreferences(filter, searchProvider, this._defaultPreferencesRenderer),
-			this._filterPreferences(filter, searchProvider, this._editablePreferencesRenderer)];
+		if (filter) {
+			const searchModel = searchProvider.startSearch(filter);
+			this._filtersInProgress = [
+				this._filterPreferences(filter, searchModel, this._defaultPreferencesRenderer),
+				this._filterPreferences(filter, searchModel, this._editablePreferencesRenderer)];
+		} else {
+			this._filtersInProgress = [TPromise.wrap(null), TPromise.wrap(null)];
+		}
 
 		return TPromise.join<IFilterResult>(this._filtersInProgress).then(filterResults => {
 			this._filtersInProgress = null;
@@ -435,6 +450,7 @@ class PreferencesRenderers extends Disposable {
 			const consolidatedSettings = this._consolidateSettings(editablePreferencesFilteredGroups, defaultPreferencesFilteredGroups);
 
 			if (defaultPreferencesFilterResult && defaultPreferencesFilterResult.scores) {
+				// Disable navigation for remote settings search
 				this._settingsNavigator = null;
 			} else {
 				this._settingsNavigator = new SettingsNavigator(filter ? consolidatedSettings : []);
@@ -458,11 +474,9 @@ class PreferencesRenderers extends Disposable {
 		return preferencesRenderer ? (<ISettingsEditorModel>preferencesRenderer.preferencesModel).settingsGroups : [];
 	}
 
-	private _filterPreferences(filter: string, searchProvider: PreferencesSearchProvider, preferencesRenderer: IPreferencesRenderer<ISetting>): TPromise<IFilterResult> {
+	private _filterPreferences(filter: string, searchModel: PreferencesSearchModel, preferencesRenderer: IPreferencesRenderer<ISetting>): TPromise<IFilterResult> {
 		if (preferencesRenderer) {
-			const prefSearchP = filter ?
-				searchProvider.filterPreferences(<ISettingsEditorModel>preferencesRenderer.preferencesModel) :
-				TPromise.wrap(null);
+			const prefSearchP = searchModel.filterPreferences(<ISettingsEditorModel>preferencesRenderer.preferencesModel);
 
 			return prefSearchP.then(filterResult => {
 				preferencesRenderer.filterPreferences(filterResult);

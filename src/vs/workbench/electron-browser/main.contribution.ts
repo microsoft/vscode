@@ -200,6 +200,11 @@ let workbenchProperties: { [path: string]: IJSONSchema; } = {
 		'description': nls.localize('openDefaultSettings', "Controls if opening settings also opens an editor showing all default settings."),
 		'default': true
 	},
+	'workbench.settings.useExperimentalRemoteSearch': {
+		'type': 'boolean',
+		'description': nls.localize('useExperimentalRemoteSearch', "Controls whether to use the experimetal remote search engine for settings search."),
+		'default': false
+	},
 	'workbench.sideBar.location': {
 		'type': 'string',
 		'enum': ['left', 'right'],

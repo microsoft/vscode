@@ -14,6 +14,15 @@ import { IRange } from 'vs/editor/common/core/range';
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
+export interface IWorkbenchSettingsConfiguration {
+	workbench: {
+		settings: {
+			openDefaultSettings: boolean;
+			useExperimentalRemoteSearch: boolean;
+		}
+	};
+}
+
 export interface ISettingsGroup {
 	id: string;
 	range: IRange;

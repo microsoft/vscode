@@ -28,7 +28,7 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IPreferencesService, IPreferencesEditorModel, ISetting, getSettingsTargetName } from 'vs/workbench/parts/preferences/common/preferences';
+import { IPreferencesService, IPreferencesEditorModel, ISetting, getSettingsTargetName, IWorkbenchSettingsConfiguration } from 'vs/workbench/parts/preferences/common/preferences';
 import { SettingsEditorModel, DefaultSettingsEditorModel, DefaultKeybindingsEditorModel, defaultKeybindingsContents, WorkspaceConfigModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DefaultPreferencesEditorInput, PreferencesEditorInput } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
@@ -41,15 +41,6 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-
-
-interface IWorkbenchSettingsConfiguration {
-	workbench: {
-		settings: {
-			openDefaultSettings: boolean;
-		}
-	};
-}
 
 const emptyEditableSettingsContent = '{\n}';
 

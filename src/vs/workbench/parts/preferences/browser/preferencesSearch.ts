@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ISettingsEditorModel, IFilterResult, ISetting, ISettingsGroup } from 'vs/workbench/parts/preferences/common/preferences';
+import { ISettingsEditorModel, IFilterResult, ISetting, ISettingsGroup, IWorkbenchSettingsConfiguration } from 'vs/workbench/parts/preferences/common/preferences';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { distinct } from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
@@ -12,6 +12,157 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IMatch, or, matchesContiguousSubString, matchesPrefix, matchesCamelCase, matchesWords } from 'vs/base/common/filters';
+import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+
+export class PreferencesSearchProvider {
+
+	constructor( @IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService) {
+	}
+
+	get remoteSearchEnabled(): boolean {
+		return !!this.configurationService.getConfiguration<IWorkbenchSettingsConfiguration>().workbench.settings.useExperimentalRemoteSearch;
+	}
+
+	startSearch(filter: string): PreferencesSearchModel {
+		return new PreferencesSearchModel(this, filter);
+	}
+}
+
+export class PreferencesSearchModel {
+	private _localProvider: LocalSearchProvider;
+	private _remoteProvider: RemoteSearchProvider;
+
+	constructor(private provider: PreferencesSearchProvider, filter: string) {
+		this._localProvider = new LocalSearchProvider(filter);
+
+		if (this.provider.remoteSearchEnabled) {
+			this._remoteProvider = new RemoteSearchProvider(filter);
+		}
+	}
+
+	filterPreferences(preferencesModel: ISettingsEditorModel): TPromise<IFilterResult> {
+		if (this._remoteProvider) {
+			return this._remoteProvider.filterPreferences(preferencesModel).then(null, err => {
+				return this._localProvider.filterPreferences(preferencesModel);
+			});
+		} else {
+			return this._localProvider.filterPreferences(preferencesModel);
+		}
+	}
+}
+
+class LocalSearchProvider {
+	private _filter: string;
+
+	constructor(filter: string) {
+		this._filter = filter;
+	}
+
+	filterPreferences(preferencesModel: ISettingsEditorModel): TPromise<IFilterResult> {
+		const regex = strings.createRegExp(this._filter, false, { global: true });
+
+		const groupFilter = (group: ISettingsGroup) => {
+			return regex.test(group.title);
+		};
+
+		const settingFilter = (setting: ISetting) => {
+			return new SettingMatches(this._filter, setting, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
+		};
+
+		return TPromise.wrap(preferencesModel.filterSettings(this._filter, groupFilter, settingFilter));
+	}
+}
+
+class RemoteSearchProvider {
+	private _filter: string;
+	private _remoteSearchP: TPromise<{ [key: string]: number }>;
+
+	constructor(filter: string) {
+		this._filter = filter;
+		this._remoteSearchP = filter ? getSettingsFromBing(filter) : TPromise.wrap({});
+	}
+
+	filterPreferences(preferencesModel: ISettingsEditorModel): TPromise<IFilterResult> {
+		return this._remoteSearchP.then(settingsSet => {
+			const settingFilter = (setting: ISetting) => {
+				if (!!settingsSet[setting.key]) {
+					const settingMatches = new SettingMatches(this._filter, setting, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
+					if (settingMatches.length) {
+						return settingMatches;
+					} else {
+						return [new Range(setting.keyRange.startLineNumber, setting.keyRange.startColumn, setting.keyRange.endLineNumber, setting.keyRange.startColumn)];
+					}
+				} else {
+					return null;
+				}
+			};
+
+			const result = preferencesModel.filterSettings(this._filter, group => null, settingFilter);
+			result.scores = settingsSet;
+			return result;
+		});
+	}
+}
+
+function getSettingsFromBing(filter: string): TPromise<{ [key: string]: number }> {
+	const url = prepareUrl(filter);
+	console.log('fetching: ' + url);
+	const start = Date.now();
+	const p = fetch(url, {
+		headers: {
+			'User-Agent': 'request',
+			'Content-Type': 'application/json; charset=utf-8',
+			'api-key': endpoint.key
+		}
+	})
+		.then(r => r.json())
+		.then(result => {
+			console.log('time: ' + (Date.now() - start) / 1000);
+			const suggestions = (result.value || [])
+				.map(r => ({
+					name: r.Setting,
+					score: r['@search.score']
+				}));
+
+			const suggSet = Object.create(null);
+			suggestions.forEach(s => {
+				const name = s.name
+					.replace(/^"/, '')
+					.replace(/"$/, '');
+				suggSet[name] = s.score;
+			});
+
+			return suggSet;
+		});
+
+	return TPromise.as(p as any);
+}
+
+const endpoint = {
+	key: 'F3F22B32DD89DDA74B1935ED0BE6FCBA',
+	urlBase: 'https://vscodesearch6.search.windows.net/indexes/vscodeindex/docs'
+};
+
+const API_VERSION = 'api-version=2015-02-28-Preview';
+const QUERY_TYPE = 'querytype=full';
+const SCORING_PROFILE = 'scoringProfile=ranking1';
+
+function escapeSpecialChars(query: string): string {
+	return query.replace(/\./g, ' ')
+		.replace(/[\\/+\-&|!"~*?:(){}\[\]\^]/g, '\\$&')
+		.replace(/  /g, ' ') // collapse spaces
+		.trim();
+}
+
+function prepareUrl(query: string): string {
+	query = escapeSpecialChars(query);
+	const userQuery = query;
+
+	// Appending Fuzzy after each word.
+	query = query.replace(/\ +/g, '~ ') + '~';
+
+	return `${endpoint.urlBase}?${API_VERSION}&search=${encodeURIComponent(userQuery + ' || ' + query)}&${QUERY_TYPE}&${SCORING_PROFILE}`;
+}
 
 class SettingMatches {
 
@@ -132,133 +283,4 @@ class SettingMatches {
 			endColumn: setting.valueRange.startColumn + match.end + 1
 		};
 	}
-}
-
-export class PreferencesSearchProvider {
-	private _localProvider: LocalSearchProvider;
-	private _remoteProvider: RemoteSearchProvider;
-
-	constructor(filter: string) {
-		this._localProvider = new LocalSearchProvider(filter);
-		this._remoteProvider = new RemoteSearchProvider(filter);
-	}
-
-	filterPreferences(preferencesModel: ISettingsEditorModel): TPromise<IFilterResult> {
-		return this._remoteProvider.filterPreferences(preferencesModel).then(null, err => {
-			return this._localProvider.filterPreferences(preferencesModel);
-		});
-	}
-}
-
-class LocalSearchProvider {
-	private _filter: string;
-
-	constructor(filter: string) {
-		this._filter = filter;
-	}
-
-	filterPreferences(preferencesModel: ISettingsEditorModel): TPromise<IFilterResult> {
-		const regex = strings.createRegExp(this._filter, false, { global: true });
-
-		const groupFilter = (group: ISettingsGroup) => {
-			return regex.test(group.title);
-		};
-
-		const settingFilter = (setting: ISetting) => {
-			return new SettingMatches(this._filter, setting, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
-		};
-
-		return TPromise.wrap(preferencesModel.filterSettings(this._filter, groupFilter, settingFilter));
-	}
-}
-
-class RemoteSearchProvider {
-	private _filter: string;
-	private _remoteSearchP: TPromise<{ [key: string]: number }>;
-
-	constructor(filter: string) {
-		this._filter = filter;
-		this._remoteSearchP = filter ? getSettingsFromBing(filter) : TPromise.wrap({});
-	}
-
-	filterPreferences(preferencesModel: ISettingsEditorModel): TPromise<IFilterResult> {
-		return this._remoteSearchP.then(settingsSet => {
-			const settingFilter = (setting: ISetting) => {
-				if (!!settingsSet[setting.key]) {
-					const settingMatches = new SettingMatches(this._filter, setting, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
-					if (settingMatches.length) {
-						return settingMatches;
-					} else {
-						return [new Range(setting.keyRange.startLineNumber, setting.keyRange.startColumn, setting.keyRange.endLineNumber, setting.keyRange.startColumn)];
-					}
-				} else {
-					return null;
-				}
-			};
-
-			const result = preferencesModel.filterSettings(this._filter, group => null, settingFilter);
-			result.scores = settingsSet;
-			return result;
-		});
-	}
-}
-
-function getSettingsFromBing(filter: string): TPromise<{ [key: string]: number }> {
-	const url = prepareUrl(filter);
-	console.log('fetching: ' + url);
-	const start = Date.now();
-	const p = fetch(url, {
-		headers: {
-			'User-Agent': 'request',
-			'Content-Type': 'application/json; charset=utf-8',
-			'api-key': endpoint.key
-		}
-	})
-		.then(r => r.json())
-		.then(result => {
-			console.log('time: ' + (Date.now() - start) / 1000);
-			const suggestions = (result.value || [])
-				.map(r => ({
-					name: r.Setting,
-					score: r['@search.score']
-				}));
-
-			const suggSet = Object.create(null);
-			suggestions.forEach(s => {
-				const name = s.name
-					.replace(/^"/, '')
-					.replace(/"$/, '');
-				suggSet[name] = s.score;
-			});
-
-			return suggSet;
-		});
-
-	return TPromise.as(p as any);
-}
-
-const endpoint = {
-	key: 'F3F22B32DD89DDA74B1935ED0BE6FCBA',
-	urlBase: 'https://vscodesearch6.search.windows.net/indexes/vscodeindex/docs'
-};
-
-const API_VERSION = 'api-version=2015-02-28-Preview';
-const QUERY_TYPE = 'querytype=full';
-const SCORING_PROFILE = 'scoringProfile=ranking1';
-
-function escapeSpecialChars(query: string): string {
-	return query.replace(/\./g, ' ')
-		.replace(/[\\/+\-&|!"~*?:(){}\[\]\^]/g, '\\$&')
-		.replace(/  /g, ' ') // collapse spaces
-		.trim();
-}
-
-function prepareUrl(query: string): string {
-	query = escapeSpecialChars(query);
-	const userQuery = query;
-
-	// Appending Fuzzy after each word.
-	query = query.replace(/\ +/g, '~ ') + '~';
-
-	return `${endpoint.urlBase}?${API_VERSION}&search=${encodeURIComponent(userQuery + ' || ' + query)}&${QUERY_TYPE}&${SCORING_PROFILE}`;
 }
