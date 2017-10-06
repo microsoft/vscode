@@ -49,11 +49,11 @@ export class FileDecorations implements IWorkbenchContribution {
 				for (const resource of group.resourceCollection.resources) {
 					// TODO@Joh have a better color and icon which is based
 					// on the resource decoration
-					this._decorationsService.setFileDecorations(type, resource.sourceUri, [{
+					this._decorationsService.setFileDecoration(type, resource.sourceUri, {
 						severity: Severity.Info,
 						message: resource.decorations.tooltip,
 						color
-					}]);
+					});
 
 					newDecorations.set(resource.sourceUri.toString(), resource.sourceUri);
 				}
@@ -61,7 +61,7 @@ export class FileDecorations implements IWorkbenchContribution {
 
 			oldDecorations.forEach((value, key) => {
 				if (!newDecorations.has(key)) {
-					this._decorationsService.unsetFileDecorations(type, value);
+					this._decorationsService.unsetFileDecoration(type, value);
 				}
 			});
 

@@ -9,15 +9,13 @@ import Severity from 'vs/base/common/severity';
 import Event, { Emitter, debounceEvent } from 'vs/base/common/event';
 import { IFileDecorationsService, IFileDecoration, DecorationType, IFileDecorationData } from 'vs/workbench/services/fileDecorations/browser/fileDecorations';
 import { TernarySearchTree } from 'vs/base/common/map';
-import { mergeSort, isFalsyOrEmpty } from 'vs/base/common/arrays';
-
 
 export class FileDecorationsService implements IFileDecorationsService {
 
 	readonly _serviceBrand;
 
 	private readonly _onDidChangeFileDecoration = new Emitter<URI>();
-	private readonly _types = new Map<DecorationType, TernarySearchTree<IFileDecoration[]>>();
+	private readonly _types = new Map<DecorationType, TernarySearchTree<IFileDecoration>>();
 
 	readonly onDidChangeFileDecoration: Event<URI[]> = debounceEvent<URI, URI[]>(
 		this._onDidChangeFileDecoration.event,
@@ -44,17 +42,16 @@ export class FileDecorationsService implements IFileDecorationsService {
 				}
 			}
 		};
-		this._types.set(type, TernarySearchTree.forPaths<IFileDecoration[]>());
+		this._types.set(type, TernarySearchTree.forPaths<IFileDecoration>());
 		return type;
 	}
 
-	setFileDecorations(type: DecorationType, target: URI, data: IFileDecorationData[]): void {
-		let decorations = mergeSort(data.map(data => ({ type, ...data })), FileDecorationsService._compareFileDecorationsBySeverity);
-		this._types.get(type).set(target.toString(), decorations);
+	setFileDecoration(type: DecorationType, target: URI, data: IFileDecorationData): void {
+		this._types.get(type).set(target.toString(), { type, ...data });
 		this._onDidChangeFileDecoration.fire(target);
 	}
 
-	unsetFileDecorations(type: DecorationType, target: URI): void {
+	unsetFileDecoration(type: DecorationType, target: URI): void {
 		this._types.get(type).delete(target.toString());
 		this._onDidChangeFileDecoration.fire(target);
 	}
@@ -76,7 +73,7 @@ export class FileDecorationsService implements IFileDecorationsService {
 			if (!top || FileDecorationsService._compareFileDecorationsBySeverity(top, decoration) > 0) {
 				top = decoration;
 			}
-			return top.severity === Severity.Error;
+			return top !== undefined && top.severity === Severity.Error;
 		});
 		return top;
 	}
@@ -91,13 +88,11 @@ export class FileDecorationsService implements IFileDecorationsService {
 			if (includeChildren) {
 				let newTree = tree.findSuperstr(key);
 				if (newTree) {
-					newTree.forEach(([, data]) => done = done || data.some(callback));
+					newTree.forEach(([, deco]) => done = done || callback(deco));
 				}
 			} else {
-				let list = tree.get(key);
-				if (!isFalsyOrEmpty(list)) {
-					done = list.some(callback);
-				}
+				let deco = tree.get(key);
+				done = done || deco && callback(deco);
 			}
 		});
 	}

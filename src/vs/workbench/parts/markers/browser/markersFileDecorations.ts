@@ -44,12 +44,14 @@ class MarkersFileDecorations implements IWorkbenchContribution {
 
 	private _onDidChangeMarker(resources: URI[]): void {
 		for (const resource of resources) {
-			const markers = this._markerService.read({ resource });
+			const markers = this._markerService.read({ resource })
+				.sort((a, b) => Severity.compare(a.severity, b.severity));
+
 			if (!isFalsyOrEmpty(markers)) {
-				const data = markers.map(this._toFileDecorationData, this);
-				this._decorationsService.setFileDecorations(this._type, resource, data);
+				const data = this._toFileDecorationData(markers[0]);
+				this._decorationsService.setFileDecoration(this._type, resource, data);
 			} else {
-				this._decorationsService.unsetFileDecorations(this._type, resource);
+				this._decorationsService.unsetFileDecoration(this._type, resource);
 			}
 		}
 	}

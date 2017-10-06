@@ -43,9 +43,9 @@ export interface IFileDecorationsService {
 
 	registerDecorationType(label: string): DecorationType;
 
-	setFileDecorations(type: DecorationType, target: URI, data: IFileDecorationData[]): void;
+	setFileDecoration(type: DecorationType, target: URI, data: IFileDecorationData): void;
 
-	unsetFileDecorations(type: DecorationType, target: URI): void;
+	unsetFileDecoration(type: DecorationType, target: URI): void;
 
 	getDecorations(uri: URI, includeChildren: boolean): IFileDecoration[];
 
