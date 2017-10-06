@@ -9,8 +9,7 @@ import { TernarySearchTree } from 'vs/base/common/map';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
-import { getConfigurationKeys } from 'vs/platform/configuration/common/model';
-import { IConfigurationOverrides, IConfigurationService, getConfigurationValue } from 'vs/platform/configuration/common/configuration';
+import { getConfigurationKeys, IConfigurationOverrides, IConfigurationService, getConfigurationValue } from 'vs/platform/configuration/common/configuration';
 
 export class TestConfigurationService extends EventEmitter implements IConfigurationService {
 	public _serviceBrand: any;

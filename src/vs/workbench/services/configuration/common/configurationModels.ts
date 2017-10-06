@@ -5,8 +5,8 @@
 'use strict';
 
 import { clone, equals } from 'vs/base/common/objects';
-import { CustomConfigurationModel, toValuesTree } from 'vs/platform/configuration/common/model';
-import { ConfigurationModel, Configuration as BaseConfiguration, compare } from 'vs/platform/configuration/common/configuration';
+import { compare, toValuesTree } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationModel, Configuration as BaseConfiguration, CustomConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, IConfigurationPropertySchema, Extensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { WORKSPACE_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
@@ -185,8 +185,15 @@ export class FolderConfigurationModel<T> extends CustomConfigurationModel<T> {
 
 export class Configuration<T> extends BaseConfiguration<T> {
 
-	constructor(defaults: ConfigurationModel<T>, user: ConfigurationModel<T>, workspaceConfiguration: ConfigurationModel<T>, protected folders: StrictResourceMap<FolderConfigurationModel<T>>, workspace: Workspace) {
-		super(defaults, user, workspaceConfiguration, folders, workspace);
+	constructor(
+		defaults: ConfigurationModel<T>,
+		user: ConfigurationModel<T>,
+		workspaceConfiguration: ConfigurationModel<T>,
+		protected folders: StrictResourceMap<FolderConfigurationModel<T>>,
+		memoryConfiguration: ConfigurationModel<T>,
+		memoryConfigurationByResource: StrictResourceMap<ConfigurationModel<T>>,
+		workspace: Workspace) {
+		super(defaults, user, workspaceConfiguration, folders, memoryConfiguration, memoryConfigurationByResource, workspace);
 	}
 
 	updateDefaultConfiguration(defaults: ConfigurationModel<T>): void {
@@ -199,7 +206,7 @@ export class Configuration<T> extends BaseConfiguration<T> {
 		const { added, updated, removed } = compare(this._user, user);
 		changedKeys = [...added, ...updated, ...removed];
 		if (changedKeys.length) {
-			const oldConfiguartion = new Configuration(this._defaults, this._user, this._workspaceConfiguration, this.folders, this._workspace);
+			const oldConfiguartion = new Configuration(this._defaults, this._user, this._workspaceConfiguration, this.folders, this._memoryConfiguration, this._memoryConfigurationByResource, this._workspace);
 
 			this._user = user;
 			this.merge();
@@ -215,7 +222,7 @@ export class Configuration<T> extends BaseConfiguration<T> {
 		const { added, updated, removed } = compare(this._workspaceConfiguration, workspaceConfiguration);
 		changedKeys = [...added, ...updated, ...removed];
 		if (changedKeys.length) {
-			const oldConfiguartion = new Configuration(this._defaults, this._user, this._workspaceConfiguration, this.folders, this._workspace);
+			const oldConfiguartion = new Configuration(this._defaults, this._user, this._workspaceConfiguration, this.folders, this._memoryConfiguration, this._memoryConfigurationByResource, this._workspace);
 
 			this._workspaceConfiguration = workspaceConfiguration;
 			this.merge();
@@ -234,7 +241,7 @@ export class Configuration<T> extends BaseConfiguration<T> {
 			const { added, updated, removed } = compare(currentFolderConfiguration, configuration);
 			changedKeys = [...added, ...updated, ...removed];
 			if (changedKeys.length) {
-				const oldConfiguartion = new Configuration(this._defaults, this._user, this._workspaceConfiguration, this.folders, this._workspace);
+				const oldConfiguartion = new Configuration(this._defaults, this._user, this._workspaceConfiguration, this.folders, this._memoryConfiguration, this._memoryConfigurationByResource, this._workspace);
 
 				this.folders.set(resource, configuration);
 				this.mergeFolder(resource);

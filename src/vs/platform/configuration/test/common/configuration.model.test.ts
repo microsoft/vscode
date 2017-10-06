@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { ConfigurationModel } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 

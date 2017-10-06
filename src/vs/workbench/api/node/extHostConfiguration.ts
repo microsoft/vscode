@@ -11,7 +11,8 @@ import { WorkspaceConfiguration } from 'vscode';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostConfigurationShape, MainThreadConfigurationShape } from './extHost.protocol';
 import { ConfigurationTarget as ExtHostConfigurationTarget } from './extHostTypes';
-import { IConfigurationData, Configuration } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationData } from 'vs/platform/configuration/common/configuration';
+import { Configuration } from 'vs/platform/configuration/common/configurationModels';
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 
 function lookUp(tree: any, key: string) {

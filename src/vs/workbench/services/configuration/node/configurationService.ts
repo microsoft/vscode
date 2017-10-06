@@ -22,9 +22,9 @@ import { FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files
 import { isLinux } from 'vs/base/common/platform';
 import { ConfigWatcher } from 'vs/base/node/config';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { CustomConfigurationModel } from 'vs/platform/configuration/common/model';
+import { CustomConfigurationModel, ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
+import { IConfigurationChangeEvent, ConfigurationTarget, toConfigurationUpdateEvent, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 import { WorkspaceConfigurationModel, ScopedConfigurationModel, FolderConfigurationModel, FolderSettingsModel, Configuration } from 'vs/workbench/services/configuration/common/configurationModels';
-import { IConfigurationChangeEvent, ConfigurationTarget, toConfigurationUpdateEvent, ConfigurationModel, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceConfigurationService, WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME, WORKSPACE_STANDALONE_CONFIGURATIONS, WORKSPACE_CONFIG_DEFAULT_PATH, TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { ConfigurationService as GlobalConfigurationService, isConfigurationOverrides } from 'vs/platform/configuration/node/configurationService';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -152,13 +152,8 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		if (this.configurationEditingService) {
 			const overrides = isConfigurationOverrides(arg3) ? arg3 : void 0;
 			const target = this.deriveConfigurationTarget(key, value, overrides, overrides ? arg4 : arg3);
-
 			if (target) {
-				if (target === ConfigurationTarget.MEMORY) {
-					return TPromise.as(null);
-				} else {
-					return this.writeConfigurationValue(key, value, target, overrides);
-				}
+				return this.writeConfigurationValue(key, value, target, overrides);
 			}
 		}
 		return TPromise.as(null);
@@ -176,6 +171,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		user: T,
 		workspace: T,
 		workspaceFolder: T,
+		memory?: T,
 		value: T
 	} {
 		return this._configuration.lookup<T>(key);
@@ -329,7 +325,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 				const folderConfigurationModels = new StrictResourceMap<FolderConfigurationModel<any>>();
 				folderConfigurations.forEach((folderConfiguration, index) => folderConfigurationModels.set(folders[index].uri, folderConfiguration));
 
-				this._configuration = new Configuration(<any>this.baseConfigurationService.configuration.defaults, this.baseConfigurationService.configuration.user, workspaceConfiguration, folderConfigurationModels, this.getWorkbenchState() !== WorkbenchState.EMPTY ? this.workspace : null); //TODO: @Sandy Avoid passing null
+				this._configuration = new Configuration(<any>this.baseConfigurationService.configuration.defaults, this.baseConfigurationService.configuration.user, workspaceConfiguration, folderConfigurationModels, new ConfigurationModel(), new StrictResourceMap<ConfigurationModel<any>>(), this.getWorkbenchState() !== WorkbenchState.EMPTY ? this.workspace : null); //TODO: @Sandy Avoid passing null
 				// TODO: compare with old values??
 
 				const keys = this._configuration.keys();
@@ -465,6 +461,21 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	}
 
 	private writeConfigurationValue(key: string, value: any, target: ConfigurationTarget, overrides: IConfigurationOverrides): TPromise<void> {
+		if (target === ConfigurationTarget.DEFAULT) {
+			return TPromise.wrapError(new Error('Invalid configuration target'));
+		}
+
+		let currentTargetValue = this.getTargetValue(key, target, overrides);
+		if (equals(currentTargetValue, value)) {
+			return TPromise.as(null);
+		}
+
+		if (target === ConfigurationTarget.MEMORY) {
+			this._configuration.updateValue(key, value, overrides);
+			this.triggerConfigurationChange([key], target);
+			return TPromise.as(null);
+		}
+
 		return this.configurationEditingService.writeConfiguration(this.toEditableConfigurationTarget(target), { key, value }, { scopes: overrides })
 			.then(() => {
 				switch (target) {
@@ -526,6 +537,23 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		if (keys.length) {
 			this._onDidUpdateConfiguration.fire(toConfigurationUpdateEvent(distinct(keys), target, this.getTargetConfiguration(target)));
 		}
+	}
+
+	private getTargetValue(key: string, target: ConfigurationTarget, overrides?: IConfigurationOverrides): any {
+		const inspect = this.inspect(key, overrides);
+		switch (target) {
+			case ConfigurationTarget.DEFAULT:
+				return inspect.default;
+			case ConfigurationTarget.USER:
+				return inspect.user;
+			case ConfigurationTarget.WORKSPACE:
+				return inspect.workspace;
+			case ConfigurationTarget.WORKSPACE_FOLDER:
+				return inspect.workspaceFolder;
+			case ConfigurationTarget.MEMORY:
+				return inspect.memory;
+		}
+		return void 0;
 	}
 
 	private getTargetConfiguration(target: ConfigurationTarget): any {
