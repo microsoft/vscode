@@ -25,12 +25,12 @@ export function isConfigurationOverrides(thing: any): thing is IConfigurationOve
 		&& (!thing.resource || thing.resource instanceof URI);
 }
 
-export class ConfigurationService<T> extends Disposable implements IConfigurationService, IDisposable {
+export class ConfigurationService extends Disposable implements IConfigurationService, IDisposable {
 
 	_serviceBrand: any;
 
-	private _configuration: Configuration<T>;
-	private userConfigModelWatcher: ConfigWatcher<ConfigurationModel<T>>;
+	private _configuration: Configuration;
+	private userConfigModelWatcher: ConfigWatcher<ConfigurationModel>;
 
 	private _onDidUpdateConfiguration: Emitter<IConfigurationChangeEvent> = this._register(new Emitter<IConfigurationChangeEvent>());
 	readonly onDidUpdateConfiguration: Event<IConfigurationChangeEvent> = this._onDidUpdateConfiguration.event;
@@ -41,8 +41,8 @@ export class ConfigurationService<T> extends Disposable implements IConfiguratio
 		super();
 
 		this.userConfigModelWatcher = new ConfigWatcher(environmentService.appSettingsPath, {
-			changeBufferDelay: 300, onError: error => onUnexpectedError(error), defaultConfig: new CustomConfigurationModel<T>(null, environmentService.appSettingsPath), parse: (content: string, parseErrors: any[]) => {
-				const userConfigModel = new CustomConfigurationModel<T>(content, environmentService.appSettingsPath);
+			changeBufferDelay: 300, onError: error => onUnexpectedError(error), defaultConfig: new CustomConfigurationModel(null, environmentService.appSettingsPath), parse: (content: string, parseErrors: any[]) => {
+				const userConfigModel = new CustomConfigurationModel(content, environmentService.appSettingsPath);
 				parseErrors = [...userConfigModel.errors];
 				return userConfigModel;
 			}
@@ -56,7 +56,7 @@ export class ConfigurationService<T> extends Disposable implements IConfiguratio
 		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidRegisterConfiguration(configurationProperties => this.onDidRegisterConfiguration(configurationProperties)));
 	}
 
-	get configuration(): Configuration<any> {
+	get configuration(): Configuration {
 		return this._configuration;
 	}
 
@@ -126,7 +126,7 @@ export class ConfigurationService<T> extends Disposable implements IConfiguratio
 	}
 
 	private reset(): void {
-		const defaults = new DefaultConfigurationModel<T>();
+		const defaults = new DefaultConfigurationModel();
 		const user = this.userConfigModelWatcher.getConfig();
 		this._configuration = new Configuration(defaults, user);
 	}

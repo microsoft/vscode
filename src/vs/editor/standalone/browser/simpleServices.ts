@@ -442,13 +442,13 @@ export class SimpleConfigurationService implements IConfigurationService {
 	private _onDidUpdateConfiguration = new Emitter<IConfigurationChangeEvent>();
 	public onDidUpdateConfiguration: Event<IConfigurationChangeEvent> = this._onDidUpdateConfiguration.event;
 
-	private _configuration: Configuration<any>;
+	private _configuration: Configuration;
 
 	constructor() {
 		this._configuration = new Configuration(new DefaultConfigurationModel(), new ConfigurationModel());
 	}
 
-	private configuration(): Configuration<any> {
+	private configuration(): Configuration {
 		return this._configuration;
 	}
 

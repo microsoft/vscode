@@ -29,8 +29,8 @@ suite('Configuration', () => {
 	});
 
 	test('simple merge', () => {
-		let base = new ConfigurationModel<any>({ 'a': 1, 'b': 2 });
-		let add = new ConfigurationModel<any>({ 'a': 3, 'c': 4 });
+		let base = new ConfigurationModel({ 'a': 1, 'b': 2 });
+		let add = new ConfigurationModel({ 'a': 3, 'c': 4 });
 		let result = base.merge(add);
 		assert.deepEqual(result.contents, { 'a': 3, 'b': 2, 'c': 4 });
 	});
@@ -43,24 +43,24 @@ suite('Configuration', () => {
 	});
 
 	test('simple merge overrides', () => {
-		let base = new ConfigurationModel<any>({ 'a': { 'b': 1 } }, [], [{ identifiers: ['c'], contents: { 'a': 2 } }]);
-		let add = new ConfigurationModel<any>({ 'a': { 'b': 2 } }, [], [{ identifiers: ['c'], contents: { 'b': 2 } }]);
+		let base = new ConfigurationModel({ 'a': { 'b': 1 } }, [], [{ identifiers: ['c'], contents: { 'a': 2 } }]);
+		let add = new ConfigurationModel({ 'a': { 'b': 2 } }, [], [{ identifiers: ['c'], contents: { 'b': 2 } }]);
 		let result = base.merge(add);
 		assert.deepEqual(result.contents, { 'a': { 'b': 2 } });
 		assert.deepEqual(result.overrides, [{ identifiers: ['c'], contents: { 'a': 2, 'b': 2 } }]);
 	});
 
 	test('recursive merge overrides', () => {
-		let base = new ConfigurationModel<any>({ 'a': { 'b': 1 } }, [], [{ identifiers: ['c'], contents: { 'a': { 'd': 1 } } }]);
-		let add = new ConfigurationModel<any>({ 'a': { 'b': 2 } }, [], [{ identifiers: ['c'], contents: { 'a': { 'e': 2 } } }]);
+		let base = new ConfigurationModel({ 'a': { 'b': 1 } }, [], [{ identifiers: ['c'], contents: { 'a': { 'd': 1 } } }]);
+		let add = new ConfigurationModel({ 'a': { 'b': 2 } }, [], [{ identifiers: ['c'], contents: { 'a': { 'e': 2 } } }]);
 		let result = base.merge(add);
 		assert.deepEqual(result.contents, { 'a': { 'b': 2 } });
 		assert.deepEqual(result.overrides, [{ identifiers: ['c'], contents: { 'a': { 'd': 1, 'e': 2 } } }]);
 	});
 
 	test('merge ignore keys', () => {
-		let base = new ConfigurationModel<any>({ 'a': 1, 'b': 2 });
-		let add = new ConfigurationModel<any>({ 'a': 3, 'c': 4 });
+		let base = new ConfigurationModel({ 'a': 1, 'b': 2 });
+		let add = new ConfigurationModel({ 'a': 3, 'c': 4 });
 		let result = base.merge(add);
 		assert.deepEqual(result.keys, []);
 	});
@@ -69,7 +69,7 @@ suite('Configuration', () => {
 		let testObject = new ConfigurationModel({ 'a': 1 });
 		assert.deepEqual(testObject.getContentsFor('a'), 1);
 
-		testObject = new ConfigurationModel<any>({ 'a': { 'b': 1 } });
+		testObject = new ConfigurationModel({ 'a': { 'b': 1 } });
 		assert.deepEqual(testObject.getContentsFor('a'), { 'b': 1 });
 	});
 
@@ -80,7 +80,7 @@ suite('Configuration', () => {
 	});
 
 	test('Test override gives all content merged with overrides', () => {
-		const testObject = new ConfigurationModel<any>({ 'a': 1, 'c': 1 }, [], [{ identifiers: ['b'], contents: { 'a': 2 } }]);
+		const testObject = new ConfigurationModel({ 'a': 1, 'c': 1 }, [], [{ identifiers: ['b'], contents: { 'a': 2 } }]);
 
 		assert.deepEqual(testObject.override('b').contents, { 'a': 2, 'c': 1 });
 	});

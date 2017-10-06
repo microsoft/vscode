@@ -15,14 +15,14 @@ import { Workspace } from 'vs/platform/workspace/common/workspace';
 import { StrictResourceMap } from 'vs/base/common/map';
 import URI from 'vs/base/common/uri';
 
-export class WorkspaceConfigurationModel<T> extends CustomConfigurationModel<T> {
+export class WorkspaceConfigurationModel extends CustomConfigurationModel {
 
-	private _raw: T;
+	private _raw: any;
 	private _folders: IStoredWorkspaceFolder[];
-	private _worksapaceSettings: ConfigurationModel<T>;
-	private _tasksConfiguration: ConfigurationModel<T>;
-	private _launchConfiguration: ConfigurationModel<T>;
-	private _workspaceConfiguration: ConfigurationModel<T>;
+	private _worksapaceSettings: ConfigurationModel;
+	private _tasksConfiguration: ConfigurationModel;
+	private _launchConfiguration: ConfigurationModel;
+	private _workspaceConfiguration: ConfigurationModel;
 
 	public update(content: string): void {
 		super.update(content);
@@ -34,11 +34,11 @@ export class WorkspaceConfigurationModel<T> extends CustomConfigurationModel<T> 
 		return this._folders;
 	}
 
-	get workspaceConfiguration(): ConfigurationModel<T> {
+	get workspaceConfiguration(): ConfigurationModel {
 		return this._workspaceConfiguration;
 	}
 
-	protected processRaw(raw: T): void {
+	protected processRaw(raw: any): void {
 		this._raw = raw;
 
 		this._folders = (this._raw['folders'] || []) as IStoredWorkspaceFolder[];
@@ -49,27 +49,27 @@ export class WorkspaceConfigurationModel<T> extends CustomConfigurationModel<T> 
 		super.processRaw(raw);
 	}
 
-	private parseConfigurationModel(section: string): ConfigurationModel<T> {
+	private parseConfigurationModel(section: string): ConfigurationModel {
 		const rawSection = this._raw[section] || {};
 		const contents = toValuesTree(rawSection, message => console.error(`Conflict in section '${section}' of workspace configuration file ${message}`));
-		return new ConfigurationModel<T>(contents, Object.keys(rawSection));
+		return new ConfigurationModel(contents, Object.keys(rawSection));
 	}
 
-	private consolidate(): ConfigurationModel<T> {
+	private consolidate(): ConfigurationModel {
 		const keys: string[] = [...this._worksapaceSettings.keys,
 		...this._tasksConfiguration.keys.map(key => `tasks.${key}`),
 		...this._launchConfiguration.keys.map(key => `launch.${key}`)];
 
-		const mergedContents = new ConfigurationModel<T>(<T>{}, keys)
+		const mergedContents = new ConfigurationModel({}, keys)
 			.merge(this._worksapaceSettings)
 			.merge(this._tasksConfiguration)
 			.merge(this._launchConfiguration);
 
-		return new ConfigurationModel<T>(mergedContents.contents, keys, mergedContents.overrides);
+		return new ConfigurationModel(mergedContents.contents, keys, mergedContents.overrides);
 	}
 }
 
-export class ScopedConfigurationModel<T> extends CustomConfigurationModel<T> {
+export class ScopedConfigurationModel extends CustomConfigurationModel {
 
 	constructor(content: string, name: string, public readonly scope: string) {
 		super(null, name);
@@ -85,14 +85,14 @@ export class ScopedConfigurationModel<T> extends CustomConfigurationModel<T> {
 
 }
 
-export class FolderSettingsModel<T> extends CustomConfigurationModel<T> {
+export class FolderSettingsModel extends CustomConfigurationModel {
 
-	private _raw: T;
+	private _raw: any;
 	private _unsupportedKeys: string[];
 
-	protected processRaw(raw: T): void {
+	protected processRaw(raw: any): void {
 		this._raw = raw;
-		const processedRaw = <T>{};
+		const processedRaw = {};
 		this._unsupportedKeys = [];
 		const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
 		for (let key in raw) {
@@ -121,16 +121,16 @@ export class FolderSettingsModel<T> extends CustomConfigurationModel<T> {
 		return !propertySchema.isExecutable;
 	}
 
-	public createWorkspaceConfigurationModel(): ConfigurationModel<any> {
+	public createWorkspaceConfigurationModel(): ConfigurationModel {
 		return this.createScopedConfigurationModel(ConfigurationScope.WINDOW);
 	}
 
-	public createFolderScopedConfigurationModel(): ConfigurationModel<any> {
+	public createFolderScopedConfigurationModel(): ConfigurationModel {
 		return this.createScopedConfigurationModel(ConfigurationScope.RESOURCE);
 	}
 
-	private createScopedConfigurationModel(scope: ConfigurationScope): ConfigurationModel<any> {
-		const workspaceRaw = <T>{};
+	private createScopedConfigurationModel(scope: ConfigurationScope): ConfigurationModel {
+		const workspaceRaw = {};
 		const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
 		for (let key in this._raw) {
 			if (this.getScope(key, configurationProperties) === scope) {
@@ -148,15 +148,15 @@ export class FolderSettingsModel<T> extends CustomConfigurationModel<T> {
 	}
 }
 
-export class FolderConfigurationModel<T> extends CustomConfigurationModel<T> {
+export class FolderConfigurationModel extends CustomConfigurationModel {
 
-	constructor(public readonly workspaceSettingsConfig: FolderSettingsModel<T>, private scopedConfigs: ScopedConfigurationModel<T>[], private scope: ConfigurationScope) {
+	constructor(public readonly workspaceSettingsConfig: FolderSettingsModel, private scopedConfigs: ScopedConfigurationModel[], private scope: ConfigurationScope) {
 		super();
 		this.consolidate();
 	}
 
 	private consolidate(): void {
-		this._contents = <T>{};
+		this._contents = {};
 		this._overrides = [];
 
 		this.doMerge(this, ConfigurationScope.WINDOW === this.scope ? this.workspaceSettingsConfig : this.workspaceSettingsConfig.createFolderScopedConfigurationModel());
@@ -183,25 +183,25 @@ export class FolderConfigurationModel<T> extends CustomConfigurationModel<T> {
 	}
 }
 
-export class Configuration<T> extends BaseConfiguration<T> {
+export class Configuration extends BaseConfiguration {
 
 	constructor(
-		defaults: ConfigurationModel<T>,
-		user: ConfigurationModel<T>,
-		workspaceConfiguration: ConfigurationModel<T>,
-		protected folders: StrictResourceMap<FolderConfigurationModel<T>>,
-		memoryConfiguration: ConfigurationModel<T>,
-		memoryConfigurationByResource: StrictResourceMap<ConfigurationModel<T>>,
+		defaults: ConfigurationModel,
+		user: ConfigurationModel,
+		workspaceConfiguration: ConfigurationModel,
+		protected folders: StrictResourceMap<FolderConfigurationModel>,
+		memoryConfiguration: ConfigurationModel,
+		memoryConfigurationByResource: StrictResourceMap<ConfigurationModel>,
 		workspace: Workspace) {
 		super(defaults, user, workspaceConfiguration, folders, memoryConfiguration, memoryConfigurationByResource, workspace);
 	}
 
-	updateDefaultConfiguration(defaults: ConfigurationModel<T>): void {
+	updateDefaultConfiguration(defaults: ConfigurationModel): void {
 		this._defaults = defaults;
 		this.merge();
 	}
 
-	updateUserConfiguration(user: ConfigurationModel<T>): string[] {
+	updateUserConfiguration(user: ConfigurationModel): string[] {
 		let changedKeys = [];
 		const { added, updated, removed } = compare(this._user, user);
 		changedKeys = [...added, ...updated, ...removed];
@@ -217,7 +217,7 @@ export class Configuration<T> extends BaseConfiguration<T> {
 		return [];
 	}
 
-	updateWorkspaceConfiguration(workspaceConfiguration: ConfigurationModel<T>): string[] {
+	updateWorkspaceConfiguration(workspaceConfiguration: ConfigurationModel): string[] {
 		let changedKeys = [];
 		const { added, updated, removed } = compare(this._workspaceConfiguration, workspaceConfiguration);
 		changedKeys = [...added, ...updated, ...removed];
@@ -233,7 +233,7 @@ export class Configuration<T> extends BaseConfiguration<T> {
 		return [];
 	}
 
-	updateFolderConfiguration(resource: URI, configuration: FolderConfigurationModel<T>): string[] {
+	updateFolderConfiguration(resource: URI, configuration: FolderConfigurationModel): string[] {
 		const currentFolderConfiguration = this.folders.get(resource);
 
 		if (currentFolderConfiguration) {
@@ -269,7 +269,7 @@ export class Configuration<T> extends BaseConfiguration<T> {
 		return keys;
 	}
 
-	getFolderConfigurationModel(folder: URI): FolderConfigurationModel<T> {
-		return <FolderConfigurationModel<T>>this.folders.get(folder);
+	getFolderConfigurationModel(folder: URI): FolderConfigurationModel {
+		return <FolderConfigurationModel>this.folders.get(folder);
 	}
 }

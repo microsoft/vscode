@@ -14,16 +14,16 @@ import { IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN } from 'v
 import { IOverrides, overrideIdentifierFromKey, addToValueTree, toValuesTree, IConfiguraionModel, merge, getConfigurationValue, IConfigurationOverrides, IConfigurationData, getDefaultValues, getConfigurationKeys } from 'vs/platform/configuration/common/configuration';
 import { Workspace } from 'vs/platform/workspace/common/workspace';
 
-export class ConfigurationModel<T> implements IConfiguraionModel<T> {
+export class ConfigurationModel implements IConfiguraionModel {
 
-	constructor(protected _contents: T = <T>{}, protected _keys: string[] = [], protected _overrides: IOverrides<T>[] = []) {
+	constructor(protected _contents: any = {}, protected _keys: string[] = [], protected _overrides: IOverrides[] = []) {
 	}
 
-	public get contents(): T {
+	public get contents(): any {
 		return this._contents;
 	}
 
-	public get overrides(): IOverrides<T>[] {
+	public get overrides(): IOverrides[] {
 		return this._overrides;
 	}
 
@@ -35,8 +35,8 @@ export class ConfigurationModel<T> implements IConfiguraionModel<T> {
 		return objects.clone(this.contents[section]);
 	}
 
-	public override<V>(identifier: string): ConfigurationModel<V> {
-		const result = new ConfigurationModel<V>();
+	public override<V>(identifier: string): ConfigurationModel {
+		const result = new ConfigurationModel();
 		const contents = objects.clone<any>(this.contents);
 		if (this._overrides) {
 			for (const override of this._overrides) {
@@ -64,14 +64,14 @@ export class ConfigurationModel<T> implements IConfiguraionModel<T> {
 		}
 	}
 
-	public merge(other: ConfigurationModel<T>, overwrite: boolean = true): ConfigurationModel<T> {
-		const mergedModel = new ConfigurationModel<T>();
+	public merge(other: ConfigurationModel, overwrite: boolean = true): ConfigurationModel {
+		const mergedModel = new ConfigurationModel();
 		this.doMerge(mergedModel, this, overwrite);
 		this.doMerge(mergedModel, other, overwrite);
 		return mergedModel;
 	}
 
-	protected doMerge(source: ConfigurationModel<T>, target: ConfigurationModel<T>, overwrite: boolean = true) {
+	protected doMerge(source: ConfigurationModel, target: ConfigurationModel, overwrite: boolean = true) {
 		merge(source.contents, objects.clone(target.contents), overwrite);
 		const overrides = objects.clone(source._overrides);
 		for (const override of target._overrides) {
@@ -86,7 +86,7 @@ export class ConfigurationModel<T> implements IConfiguraionModel<T> {
 	}
 }
 
-export class DefaultConfigurationModel<T> extends ConfigurationModel<T> {
+export class DefaultConfigurationModel extends ConfigurationModel {
 
 	constructor() {
 		super(getDefaultValues());
@@ -94,7 +94,7 @@ export class DefaultConfigurationModel<T> extends ConfigurationModel<T> {
 		this._overrides = Object.keys(this._contents)
 			.filter(key => OVERRIDE_PROPERTY_PATTERN.test(key))
 			.map(key => {
-				return <IOverrides<any>>{
+				return <IOverrides>{
 					identifiers: [overrideIdentifierFromKey(key).trim()],
 					contents: toValuesTree(this._contents[key], message => console.error(`Conflict in default settings file: ${message}`))
 				};
@@ -106,11 +106,11 @@ export class DefaultConfigurationModel<T> extends ConfigurationModel<T> {
 	}
 }
 
-interface Overrides<T> extends IOverrides<T> {
+interface Overrides extends IOverrides {
 	raw: any;
 }
 
-export class CustomConfigurationModel<T> extends ConfigurationModel<T> {
+export class CustomConfigurationModel extends ConfigurationModel {
 
 	protected _parseErrors: any[] = [];
 
@@ -126,8 +126,8 @@ export class CustomConfigurationModel<T> extends ConfigurationModel<T> {
 	}
 
 	public update(content: string): void {
-		let parsed: T = <T>{};
-		let overrides: Overrides<T>[] = [];
+		let parsed: any = {};
+		let overrides: Overrides[] = [];
 		let currentProperty: string = null;
 		let currentParent: any = [];
 		let previousParents: any[] = [];
@@ -193,7 +193,7 @@ export class CustomConfigurationModel<T> extends ConfigurationModel<T> {
 		this.processRaw(parsed);
 
 		const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
-		this._overrides = overrides.map<IOverrides<T>>(override => {
+		this._overrides = overrides.map<IOverrides>(override => {
 			// Filter unknown and non-overridable properties
 			const raw = {};
 			for (const key in override.raw) {
@@ -203,61 +203,61 @@ export class CustomConfigurationModel<T> extends ConfigurationModel<T> {
 			}
 			return {
 				identifiers: override.identifiers,
-				contents: <T>toValuesTree(raw, message => console.error(`Conflict in settings file ${this.name}: ${message}`))
+				contents: toValuesTree(raw, message => console.error(`Conflict in settings file ${this.name}: ${message}`))
 			};
 		});
 	}
 
-	protected processRaw(raw: T): void {
+	protected processRaw(raw: any): void {
 		this._contents = toValuesTree(raw, message => console.error(`Conflict in settings file ${this.name}: ${message}`));
 		this._keys = Object.keys(raw);
 	}
 }
 
-export class Configuration<T> {
+export class Configuration {
 
-	private _globalConfiguration: ConfigurationModel<T>;
-	private _workspaceConsolidatedConfiguration: ConfigurationModel<T>;
-	protected _foldersConsolidatedConfigurations: StrictResourceMap<ConfigurationModel<T>>;
-	protected _memoryConsolidatedConfigurations: StrictResourceMap<ConfigurationModel<T>>;
+	private _globalConfiguration: ConfigurationModel;
+	private _workspaceConsolidatedConfiguration: ConfigurationModel;
+	protected _foldersConsolidatedConfigurations: StrictResourceMap<ConfigurationModel>;
+	protected _memoryConsolidatedConfigurations: StrictResourceMap<ConfigurationModel>;
 
-	constructor(protected _defaults: ConfigurationModel<T>,
-		protected _user: ConfigurationModel<T>,
-		protected _workspaceConfiguration: ConfigurationModel<T> = new ConfigurationModel<T>(),
-		protected folders: StrictResourceMap<ConfigurationModel<T>> = new StrictResourceMap<ConfigurationModel<T>>(),
-		protected _memoryConfiguration: ConfigurationModel<T> = new ConfigurationModel<T>(),
-		protected _memoryConfigurationByResource: StrictResourceMap<ConfigurationModel<T>> = new StrictResourceMap<ConfigurationModel<T>>(),
+	constructor(protected _defaults: ConfigurationModel,
+		protected _user: ConfigurationModel,
+		protected _workspaceConfiguration: ConfigurationModel = new ConfigurationModel(),
+		protected folders: StrictResourceMap<ConfigurationModel> = new StrictResourceMap<ConfigurationModel>(),
+		protected _memoryConfiguration: ConfigurationModel = new ConfigurationModel(),
+		protected _memoryConfigurationByResource: StrictResourceMap<ConfigurationModel> = new StrictResourceMap<ConfigurationModel>(),
 		protected _workspace?: Workspace) {
 		this.merge();
 	}
 
-	get defaults(): ConfigurationModel<T> {
+	get defaults(): ConfigurationModel {
 		return this._defaults;
 	}
 
-	get user(): ConfigurationModel<T> {
+	get user(): ConfigurationModel {
 		return this._user;
 	}
 
-	get workspace(): ConfigurationModel<T> {
+	get workspace(): ConfigurationModel {
 		return this._workspaceConfiguration;
 	}
 
 	protected merge(): void {
-		this._globalConfiguration = new ConfigurationModel<T>().merge(this._defaults).merge(this._user);
-		this._workspaceConsolidatedConfiguration = new ConfigurationModel<T>().merge(this._globalConfiguration).merge(this._workspaceConfiguration);
-		this._foldersConsolidatedConfigurations = new StrictResourceMap<ConfigurationModel<T>>();
+		this._globalConfiguration = new ConfigurationModel().merge(this._defaults).merge(this._user);
+		this._workspaceConsolidatedConfiguration = new ConfigurationModel().merge(this._globalConfiguration).merge(this._workspaceConfiguration);
+		this._foldersConsolidatedConfigurations = new StrictResourceMap<ConfigurationModel>();
 		for (const folder of this.folders.keys()) {
 			this.mergeFolder(folder);
 		}
 	}
 
 	protected mergeFolder(folder: URI) {
-		this._foldersConsolidatedConfigurations.set(folder, new ConfigurationModel<T>().merge(this._workspaceConsolidatedConfiguration).merge(this.folders.get(folder)));
+		this._foldersConsolidatedConfigurations.set(folder, new ConfigurationModel().merge(this._workspaceConsolidatedConfiguration).merge(this.folders.get(folder)));
 	}
 
 	protected mergeMemory(folder: URI) {
-		this._foldersConsolidatedConfigurations.set(folder, new ConfigurationModel<T>().merge(this._workspaceConsolidatedConfiguration).merge(this.folders.get(folder)));
+		this._foldersConsolidatedConfigurations.set(folder, new ConfigurationModel().merge(this._workspaceConsolidatedConfiguration).merge(this.folders.get(folder)));
 	}
 
 	getValue<C>(section: string = '', overrides: IConfigurationOverrides = {}): C {
@@ -272,7 +272,7 @@ export class Configuration<T> {
 	}
 
 	updateValue(key: string, value: any, overrides: IConfigurationOverrides = {}): void {
-		let memoryConfiguration: ConfigurationModel<any>;
+		let memoryConfiguration: ConfigurationModel;
 		if (overrides.resource) {
 			let memoryConfiguration = this._memoryConfigurationByResource.get(overrides.resource);
 			if (!memoryConfiguration) {
@@ -326,12 +326,12 @@ export class Configuration<T> {
 		};
 	}
 
-	private getConsolidateConfigurationModel<C>(overrides: IConfigurationOverrides): ConfigurationModel<any> {
+	private getConsolidateConfigurationModel<C>(overrides: IConfigurationOverrides): ConfigurationModel {
 		let configurationModel = this.getConsolidatedConfigurationModelForResource(overrides);
-		return overrides.overrideIdentifier ? configurationModel.override<T>(overrides.overrideIdentifier) : configurationModel;
+		return overrides.overrideIdentifier ? configurationModel.override(overrides.overrideIdentifier) : configurationModel;
 	}
 
-	private getConsolidatedConfigurationModelForResource({ resource }: IConfigurationOverrides): ConfigurationModel<any> {
+	private getConsolidatedConfigurationModelForResource({ resource }: IConfigurationOverrides): ConfigurationModel {
 		if (!this._workspace) {
 			return this._globalConfiguration;
 		}
@@ -354,7 +354,7 @@ export class Configuration<T> {
 		return consolidateConfiguration;
 	}
 
-	private getFolderConfigurationModelForResource(resource?: URI): ConfigurationModel<any> {
+	private getFolderConfigurationModelForResource(resource?: URI): ConfigurationModel {
 		if (!this._workspace || !resource) {
 			return null;
 		}
@@ -363,7 +363,7 @@ export class Configuration<T> {
 		return root ? this.folders.get(root.uri) : null;
 	}
 
-	public toData(): IConfigurationData<any> {
+	public toData(): IConfigurationData {
 		return {
 			defaults: {
 				contents: this._defaults.contents,
@@ -388,18 +388,18 @@ export class Configuration<T> {
 		};
 	}
 
-	public static parse(data: IConfigurationData<any>, workspace: Workspace): Configuration<any> {
+	public static parse(data: IConfigurationData, workspace: Workspace): Configuration {
 		const defaultConfiguration = Configuration.parseConfigurationModel(data.defaults);
 		const userConfiguration = Configuration.parseConfigurationModel(data.user);
 		const workspaceConfiguration = Configuration.parseConfigurationModel(data.workspace);
-		const folders: StrictResourceMap<ConfigurationModel<any>> = Object.keys(data.folders).reduce((result, key) => {
+		const folders: StrictResourceMap<ConfigurationModel> = Object.keys(data.folders).reduce((result, key) => {
 			result.set(URI.parse(key), Configuration.parseConfigurationModel(data.folders[key]));
 			return result;
-		}, new StrictResourceMap<ConfigurationModel<any>>());
-		return new Configuration<any>(defaultConfiguration, userConfiguration, workspaceConfiguration, folders, new ConfigurationModel<any>(), new StrictResourceMap<ConfigurationModel<any>>(), workspace);
+		}, new StrictResourceMap<ConfigurationModel>());
+		return new Configuration(defaultConfiguration, userConfiguration, workspaceConfiguration, folders, new ConfigurationModel(), new StrictResourceMap<ConfigurationModel>(), workspace);
 	}
 
-	private static parseConfigurationModel(model: IConfiguraionModel<any>): ConfigurationModel<any> {
+	private static parseConfigurationModel(model: IConfiguraionModel): ConfigurationModel {
 		return new ConfigurationModel(model.contents, model.keys, model.overrides);
 	}
 }

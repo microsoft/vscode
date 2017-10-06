@@ -39,9 +39,9 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 	private readonly _onDidChangeConfiguration = new Emitter<void>();
 	private readonly _proxy: MainThreadConfigurationShape;
 	private readonly _extHostWorkspace: ExtHostWorkspace;
-	private _configuration: Configuration<any>;
+	private _configuration: Configuration;
 
-	constructor(proxy: MainThreadConfigurationShape, extHostWorkspace: ExtHostWorkspace, data: IConfigurationData<any>) {
+	constructor(proxy: MainThreadConfigurationShape, extHostWorkspace: ExtHostWorkspace, data: IConfigurationData) {
 		this._proxy = proxy;
 		this._extHostWorkspace = extHostWorkspace;
 		this._configuration = Configuration.parse(data, extHostWorkspace.workspace);
@@ -51,7 +51,7 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 		return this._onDidChangeConfiguration && this._onDidChangeConfiguration.event;
 	}
 
-	$acceptConfigurationChanged(data: IConfigurationData<any>) {
+	$acceptConfigurationChanged(data: IConfigurationData) {
 		this._configuration = Configuration.parse(data, this._extHostWorkspace.workspace);
 		this._onDidChangeConfiguration.fire(undefined);
 	}

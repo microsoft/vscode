@@ -76,7 +76,7 @@ export class CodeApplication {
 		@ILogService private logService: ILogService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IConfigurationService private configurationService: ConfigurationService<any>,
+		@IConfigurationService private configurationService: ConfigurationService,
 		@IStorageService private storageService: IStorageService,
 		@IHistoryMainService private historyService: IHistoryMainService
 	) {

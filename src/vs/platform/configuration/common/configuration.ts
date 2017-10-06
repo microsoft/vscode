@@ -80,25 +80,25 @@ export interface IConfigurationService {
 	};
 }
 
-export interface IConfiguraionModel<T> {
-	contents: T;
+export interface IConfiguraionModel {
+	contents: any;
 	keys: string[];
-	overrides: IOverrides<T>[];
+	overrides: IOverrides[];
 }
 
-export interface IOverrides<T> {
-	contents: T;
+export interface IOverrides {
+	contents: any;
 	identifiers: string[];
 }
 
-export interface IConfigurationData<T> {
-	defaults: IConfiguraionModel<T>;
-	user: IConfiguraionModel<T>;
-	workspace: IConfiguraionModel<T>;
-	folders: { [folder: string]: IConfiguraionModel<T> };
+export interface IConfigurationData {
+	defaults: IConfiguraionModel;
+	user: IConfiguraionModel;
+	workspace: IConfiguraionModel;
+	folders: { [folder: string]: IConfiguraionModel };
 }
 
-export function compare(from: IConfiguraionModel<any>, to: IConfiguraionModel<any>): { added: string[], removed: string[], updated: string[] } {
+export function compare(from: IConfiguraionModel, to: IConfiguraionModel): { added: string[], removed: string[], updated: string[] } {
 	const added = to.keys.filter(key => from.keys.indexOf(key) === -1);
 	const removed = from.keys.filter(key => to.keys.indexOf(key) === -1);
 	const updated = [];
