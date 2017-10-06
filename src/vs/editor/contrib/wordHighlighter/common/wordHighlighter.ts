@@ -134,6 +134,57 @@ class WordHighlighter {
 		this._run();
 	}
 
+	private _getSortedDecorations() {
+		return this._decorationIds
+			.map((id) => {
+				return { id: id, Range: this.model.getDecorationRange(id) };
+			})
+			.sort((a, b) => Range.compareRangesUsingStarts(a.Range, b.Range));
+	}
+
+	private _getCurrentDecoration() {
+		let decorations = this._getSortedDecorations();
+		let currentDecorations = decorations.filter((decoration) => {
+			decoration.Range.containsRange(this._lastWordRange);
+		});
+		if (currentDecorations.length > 0) {
+			return currentDecorations[0];
+		}
+		else {
+			return null;
+		}
+	}
+
+	public moveNext() {
+		let decorations = this._getSortedDecorations();
+		let decoration = this._getCurrentDecoration();
+		let index = decorations.indexOf(decoration);
+		var newIndex;
+		if (index === decorations.length - 1) {
+			newIndex = 0;
+		}
+		else {
+			newIndex = index + 1;
+		}
+		let newDecoration = decorations[newIndex];
+		this.editor.setPosition(newDecoration.Range.getStartPosition());
+	}
+
+	public moveBack() {
+		let decorations = this._getSortedDecorations();
+		let decoration = this._getCurrentDecoration();
+		let index = decorations.indexOf(decoration);
+		var newIndex;
+		if (index === 0) {
+			newIndex = decorations.length - 1;
+		}
+		else {
+			newIndex = index - 1;
+		}
+		let newDecoration = decorations[newIndex];
+		this.editor.setPosition(newDecoration.Range.getStartPosition());
+	}
+
 	private _removeDecorations(): void {
 		if (this._decorationIds.length > 0) {
 			// remove decorations
@@ -381,6 +432,14 @@ class WordHighlighterContribution implements editorCommon.IEditorContribution {
 		return false;
 	}
 
+	public moveNext() {
+		this.wordHighligher.moveNext();
+	}
+
+	public moveBack() {
+		this.wordHighligher.moveBack();
+	}
+
 	public restoreViewState(state: boolean | undefined): void {
 		if (state) {
 			this.wordHighligher.restore();
@@ -415,4 +474,4 @@ registerThemingParticipant((theme, collector) => {
 
 });
 
-const MarkerCommand = EditorCommand.bindToContribution<WordHighlighterContribution>(MarkerController.get);
+const WordHighlighterCommand = EditorCommand.bindToContribution<WordHighlighterContribution>(WordHighlighterContribution.get);
