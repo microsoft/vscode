@@ -495,11 +495,11 @@ class WordHighlightNavigationAction extends EditorAction {
 }
 
 @editorAction
-class NextMarkerAction extends WordHighlightNavigationAction {
+class NextWordHighlightAction extends WordHighlightNavigationAction {
 	constructor() {
 		super(true, {
 			id: 'editor.action.wordHighlight.next',
-			label: nls.localize('markerAction.next.label', "Go to Next Symbol Highlight"),
+			label: nls.localize('wordHighlight.next.label', "Go to Next Symbol Highlight"),
 			alias: 'Go to Next Symbol Highlight',
 			precondition: ctxHasWordHighlights,
 			kbOpts: {
@@ -511,11 +511,11 @@ class NextMarkerAction extends WordHighlightNavigationAction {
 }
 
 @editorAction
-class PrevMarkerAction extends WordHighlightNavigationAction {
+class PrevWordHighlightAction extends WordHighlightNavigationAction {
 	constructor() {
 		super(false, {
 			id: 'editor.action.wordHighlight.prev',
-			label: nls.localize('markerAction.previous.label', "Go to Previous Symbol Highlight"),
+			label: nls.localize('wordHighlight.previous.label', "Go to Previous Symbol Highlight"),
 			alias: 'Go to Previous Symbol Highlight',
 			precondition: ctxHasWordHighlights,
 			kbOpts: {
