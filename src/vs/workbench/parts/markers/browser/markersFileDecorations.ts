@@ -16,30 +16,46 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import Severity from 'vs/base/common/severity';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorErrorForeground, editorWarningForeground } from 'vs/editor/common/view/editorColorRegistry';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 class MarkersFileDecorations implements IWorkbenchContribution {
 
 	private readonly _disposables: IDisposable[];
 	private readonly _type: DecorationType;
+	private _markerListener: IDisposable;
 
 	constructor(
 		@IMarkerService private _markerService: IMarkerService,
 		@IFileDecorationsService private _decorationsService: IFileDecorationsService,
-		@IThemeService private _themeService: IThemeService
+		@IThemeService private _themeService: IThemeService,
+		@IConfigurationService private _configurationService: IConfigurationService
 	) {
 		//
 		this._disposables = [
-			this._markerService.onMarkerChanged(this._onDidChangeMarker, this),
+			this._configurationService.onDidUpdateConfiguration(this._updateEnablement, this),
 			this._type = this._decorationsService.registerDecorationType(localize('errorAndWarnings', "Errors & Warnings"))
 		];
+
+		this._updateEnablement();
 	}
 
 	dispose(): void {
+		dispose(this._markerListener);
 		dispose(this._disposables);
 	}
 
 	getId(): string {
 		return 'markers.MarkersFileDecorations';
+	}
+
+	private _updateEnablement(): void {
+		let value = this._configurationService.getConfiguration<{ showOnFiles: boolean }>('problems');
+		if (value) {
+			this._markerListener = this._markerService.onMarkerChanged(this._onDidChangeMarker, this);
+			this._onDidChangeMarker(this._markerService.read().map(marker => marker.resource));
+		} else if (this._markerListener) {
+			this._markerListener.dispose();
+		}
 	}
 
 	private _onDidChangeMarker(resources: URI[]): void {
