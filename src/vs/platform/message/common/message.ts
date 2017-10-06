@@ -25,7 +25,7 @@ export interface IConfirmation {
 	secondaryButton?: string;
 	checkbox?: {
 		label: string;
-		checked: boolean;
+		checked?: boolean;
 	};
 }
 
