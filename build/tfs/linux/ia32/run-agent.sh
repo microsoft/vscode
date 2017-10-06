@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
 if [ ! -f pat ]; then
 	echo "Error: file pat not found"
