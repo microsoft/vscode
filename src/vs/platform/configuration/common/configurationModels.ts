@@ -244,8 +244,8 @@ export class Configuration {
 	}
 
 	protected merge(): void {
-		this._globalConfiguration = new ConfigurationModel().merge(this._defaults).merge(this._user);
-		this._workspaceConsolidatedConfiguration = new ConfigurationModel().merge(this._globalConfiguration).merge(this._workspaceConfiguration);
+		this._globalConfiguration = this._defaults.merge(this._user);
+		this._workspaceConsolidatedConfiguration = this._globalConfiguration.merge(this._workspaceConfiguration);
 		this._foldersConsolidatedConfigurations = new StrictResourceMap<ConfigurationModel>();
 		for (const folder of this.folders.keys()) {
 			this.mergeFolder(folder);
@@ -253,11 +253,11 @@ export class Configuration {
 	}
 
 	protected mergeFolder(folder: URI) {
-		this._foldersConsolidatedConfigurations.set(folder, new ConfigurationModel().merge(this._workspaceConsolidatedConfiguration).merge(this.folders.get(folder)));
+		this._foldersConsolidatedConfigurations.set(folder, this._workspaceConsolidatedConfiguration.merge(this.folders.get(folder)));
 	}
 
 	protected mergeMemory(folder: URI) {
-		this._foldersConsolidatedConfigurations.set(folder, new ConfigurationModel().merge(this._workspaceConsolidatedConfiguration).merge(this.folders.get(folder)));
+		this._foldersConsolidatedConfigurations.set(folder, this._workspaceConsolidatedConfiguration.merge(this.folders.get(folder)));
 	}
 
 	getValue<C>(section: string = '', overrides: IConfigurationOverrides = {}): C {
