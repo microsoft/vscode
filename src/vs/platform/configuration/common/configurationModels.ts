@@ -219,7 +219,6 @@ export class Configuration {
 	private _globalConfiguration: ConfigurationModel;
 	private _workspaceConsolidatedConfiguration: ConfigurationModel;
 	protected _foldersConsolidatedConfigurations: StrictResourceMap<ConfigurationModel>;
-	protected _memoryConsolidatedConfigurations: StrictResourceMap<ConfigurationModel>;
 
 	constructor(protected _defaults: ConfigurationModel,
 		protected _user: ConfigurationModel,
@@ -245,18 +244,18 @@ export class Configuration {
 
 	protected merge(): void {
 		this._globalConfiguration = this._defaults.merge(this._user);
-		this._workspaceConsolidatedConfiguration = this._globalConfiguration.merge(this._workspaceConfiguration);
+		this.updateWorkspaceConsolidateConfiguration();
 		this._foldersConsolidatedConfigurations = new StrictResourceMap<ConfigurationModel>();
 		for (const folder of this.folders.keys()) {
 			this.mergeFolder(folder);
 		}
 	}
 
-	protected mergeFolder(folder: URI) {
-		this._foldersConsolidatedConfigurations.set(folder, this._workspaceConsolidatedConfiguration.merge(this.folders.get(folder)));
+	private updateWorkspaceConsolidateConfiguration() {
+		this._workspaceConsolidatedConfiguration = this._globalConfiguration.merge(this._workspaceConfiguration).merge(this._memoryConfiguration);
 	}
 
-	protected mergeMemory(folder: URI) {
+	protected mergeFolder(folder: URI) {
 		this._foldersConsolidatedConfigurations.set(folder, this._workspaceConsolidatedConfiguration.merge(this.folders.get(folder)));
 	}
 
@@ -281,10 +280,15 @@ export class Configuration {
 		} else {
 			memoryConfiguration = this._memoryConfiguration;
 		}
+
 		if (value === void 0) {
 			memoryConfiguration.removeValue(key);
 		} else {
 			memoryConfiguration.setValue(key, value);
+		}
+
+		if (!overrides.resource) {
+			this.updateWorkspaceConsolidateConfiguration();
 		}
 	}
 
@@ -335,7 +339,7 @@ export class Configuration {
 		}
 
 		if (!resource) {
-			return this._workspaceConsolidatedConfiguration.merge(this._memoryConfiguration);
+			return this._workspaceConsolidatedConfiguration;
 		}
 
 		let consolidateConfiguration = this._workspaceConsolidatedConfiguration;
