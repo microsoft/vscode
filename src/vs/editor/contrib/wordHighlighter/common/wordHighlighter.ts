@@ -11,7 +11,7 @@ import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { CommonEditorRegistry, commonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
+import { CommonEditorRegistry, commonEditorContribution, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
 import { DocumentHighlight, DocumentHighlightKind, DocumentHighlightProviderRegistry } from 'vs/editor/common/modes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
@@ -19,12 +19,15 @@ import { registerColor, editorSelectionHighlight, activeContrastBorder, overview
 import { registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export const editorWordHighlight = registerColor('editor.wordHighlightBackground', { dark: '#575757B8', light: '#57575740', hc: null }, nls.localize('wordHighlight', 'Background color of a symbol during read-access, like reading a variable.'));
 export const editorWordHighlightStrong = registerColor('editor.wordHighlightStrongBackground', { dark: '#004972B8', light: '#0e639c40', hc: null }, nls.localize('wordHighlightStrong', 'Background color of a symbol during write-access, like writing to a variable.'));
 
 export const overviewRulerWordHighlightForeground = registerColor('editorOverviewRuler.wordHighlightForeground', { dark: '#A0A0A0', light: '#A0A0A0', hc: '#A0A0A0' }, nls.localize('overviewRulerWordHighlightForeground', 'Overview ruler marker color for symbol highlights.'));
 export const overviewRulerWordHighlightStrongForeground = registerColor('editorOverviewRuler.wordHighlightStrongForeground', { dark: '#C0A0C0', light: '#C0A0C0', hc: '#C0A0C0' }, nls.localize('overviewRulerWordHighlightStrongForeground', 'Overview ruler marker color for write-access symbol highlights.'));
+
+export const ctxHasWordHighlights = new RawContextKey<boolean>('hasWordHighlights', false);
 
 export function getOccurrencesAtPosition(model: editorCommon.IReadOnlyModel, position: Position): TPromise<DocumentHighlight[]> {
 
@@ -76,8 +79,12 @@ class WordHighlighter {
 	private lastCursorPositionChangeTime: number = 0;
 	private renderDecorationsTimer: number = -1;
 
-	constructor(editor: editorCommon.ICommonCodeEditor) {
+	private _hasWordHighlights: IContextKey<boolean>;
+
+
+	constructor(editor: editorCommon.ICommonCodeEditor, contextKeyService: IContextKeyService) {
 		this.editor = editor;
+		this._hasWordHighlights = ctxHasWordHighlights.bindTo(contextKeyService);
 		this.occurrencesHighlight = this.editor.getConfiguration().contribInfo.occurrencesHighlight;
 		this.model = this.editor.getModel();
 		this.toUnhook = [];
@@ -131,6 +138,7 @@ class WordHighlighter {
 		if (this._decorationIds.length > 0) {
 			// remove decorations
 			this._decorationIds = this.editor.deltaDecorations(this._decorationIds, []);
+			this._hasWordHighlights.set(false);
 		}
 	}
 
@@ -296,6 +304,7 @@ class WordHighlighter {
 		}
 
 		this._decorationIds = this.editor.deltaDecorations(this._decorationIds, decorations);
+		this._hasWordHighlights.set(this.hasDecorations());
 	}
 
 	private static _getDecorationOptions(kind: DocumentHighlightKind): ModelDecorationOptions {
@@ -344,15 +353,21 @@ class WordHighlighter {
 	}
 }
 
+
+
 @commonEditorContribution
 class WordHighlighterContribution implements editorCommon.IEditorContribution {
 
 	private static ID = 'editor.contrib.wordHighlighter';
 
+	public static get(editor: editorCommon.ICommonCodeEditor): WordHighlighterContribution {
+		return editor.getContribution<WordHighlighterContribution>(WordHighlighterContribution.ID);
+	}
+
 	private wordHighligher: WordHighlighter;
 
-	constructor(editor: editorCommon.ICommonCodeEditor) {
-		this.wordHighligher = new WordHighlighter(editor);
+	constructor(editor: editorCommon.ICommonCodeEditor, @IContextKeyService contextKeyService: IContextKeyService) {
+		this.wordHighligher = new WordHighlighter(editor, contextKeyService);
 	}
 
 	public getId(): string {
@@ -399,3 +414,5 @@ registerThemingParticipant((theme, collector) => {
 	}
 
 });
+
+const MarkerCommand = EditorCommand.bindToContribution<WordHighlighterContribution>(MarkerController.get);
