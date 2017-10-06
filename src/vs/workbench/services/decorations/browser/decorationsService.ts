@@ -7,7 +7,7 @@
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import Event, { Emitter, debounceEvent } from 'vs/base/common/event';
-import { IResourceDecorationsService, IResourceDecoration, DecorationType, IResourceDecorationData, IResourceDecorationChangeEvent } from 'vs/workbench/services/fileDecorations/browser/fileDecorations';
+import { IResourceDecorationsService, IResourceDecoration, DecorationType, IResourceDecorationData, IResourceDecorationChangeEvent } from './decorations';
 import { TernarySearchTree } from 'vs/base/common/map';
 
 class FileDecorationChangeEvent implements IResourceDecorationChangeEvent {
