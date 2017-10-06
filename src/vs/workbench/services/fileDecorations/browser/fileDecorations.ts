@@ -12,13 +12,6 @@ import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 
 export const IFileDecorationsService = createDecorator<IFileDecorationsService>('IFileDecorationsService');
 
-export interface IFileDecoration {
-	readonly type: DecorationType;
-	readonly message: string;
-	readonly color: ColorIdentifier;
-	readonly severity: Severity;
-}
-
 export abstract class DecorationType {
 	readonly label: string;
 	protected constructor(label: string) {
@@ -29,10 +22,14 @@ export abstract class DecorationType {
 	}
 }
 
+
+export interface IFileDecoration extends IFileDecorationData {
+	readonly type: DecorationType;
+}
 export interface IFileDecorationData {
-	message: string;
-	color: ColorIdentifier;
-	severity: Severity;
+	readonly severity: Severity;
+	readonly color?: ColorIdentifier;
+	readonly icon?: URI | { dark: URI, light: URI };
 }
 
 export interface IFileDecorationsService {
@@ -43,9 +40,7 @@ export interface IFileDecorationsService {
 
 	registerDecorationType(label: string): DecorationType;
 
-	setFileDecoration(type: DecorationType, target: URI, data: IFileDecorationData): void;
-
-	unsetFileDecoration(type: DecorationType, target: URI): void;
+	setFileDecoration(type: DecorationType, target: URI, data?: IFileDecorationData): void;
 
 	getDecorations(uri: URI, includeChildren: boolean): IFileDecoration[];
 
