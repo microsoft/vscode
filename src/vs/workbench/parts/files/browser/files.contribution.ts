@@ -328,6 +328,11 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('enableDragAndDrop', "Controls if the explorer should allow to move files and folders via drag and drop."),
 			'default': true
 		},
+		'explorer.confirmDelete': {
+			'type': 'boolean',
+			'description': nls.localize('confirmDelete', "Controls if the explorer should ask for confirmation when deleting a file via the trash."),
+			'default': true
+		},
 		'explorer.sortOrder': {
 			'type': 'string',
 			'enum': [SortOrderConfiguration.DEFAULT, SortOrderConfiguration.MIXED, SortOrderConfiguration.FILES_FIRST, SortOrderConfiguration.TYPE, SortOrderConfiguration.MODIFIED],

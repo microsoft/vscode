@@ -40,7 +40,7 @@ import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { Position, IResourceInput, IEditorInput, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature2, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction } from 'vs/platform/message/common/message';
+import { IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction, IConfirmationResult } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
@@ -50,6 +50,8 @@ import { withFocusedFilesExplorer, revealInOSCommand, revealInExplorerCommand, c
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 
 export interface IEditableData {
 	action: IAction;
@@ -623,6 +625,9 @@ export class CreateFolderAction extends BaseCreateAction {
 }
 
 export class BaseDeleteFileAction extends BaseFileAction {
+
+	private static CONFIRM_DELETE_SETTING_KEY = 'explorer.confirmDelete';
+
 	private tree: ITree;
 	private useTrash: boolean;
 	private skipConfirm: boolean;
@@ -635,7 +640,9 @@ export class BaseDeleteFileAction extends BaseFileAction {
 		useTrash: boolean,
 		@IFileService fileService: IFileService,
 		@IMessageService messageService: IMessageService,
-		@ITextFileService textFileService: ITextFileService
+		@ITextFileService textFileService: ITextFileService,
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService
 	) {
 		super(id, label, fileService, messageService, textFileService);
 
@@ -704,51 +711,73 @@ export class BaseDeleteFileAction extends BaseFileAction {
 
 		// Check if file is dirty in editor and save it to avoid data loss
 		return revertPromise.then(() => {
+			let confirmPromise: TPromise<IConfirmationResult>;
 
-			// Ask for Confirm
-			if (!this.skipConfirm) {
-				let confirm: IConfirmation;
-				if (this.useTrash) {
-					confirm = {
-						message: this.element.isDirectory ? nls.localize('confirmMoveTrashMessageFolder', "Are you sure you want to delete '{0}' and its contents?", this.element.name) : nls.localize('confirmMoveTrashMessageFile', "Are you sure you want to delete '{0}'?", this.element.name),
-						detail: isWindows ? nls.localize('undoBin', "You can restore from the recycle bin.") : nls.localize('undoTrash', "You can restore from the trash."),
-						primaryButton,
-						type: 'question'
-					};
-				} else {
-					confirm = {
-						message: this.element.isDirectory ? nls.localize('confirmDeleteMessageFolder', "Are you sure you want to permanently delete '{0}' and its contents?", this.element.name) : nls.localize('confirmDeleteMessageFile', "Are you sure you want to permanently delete '{0}'?", this.element.name),
-						detail: nls.localize('irreversible', "This action is irreversible!"),
-						primaryButton,
-						type: 'warning'
-					};
-				}
-
-				if (!this.messageService.confirmSync(confirm)) {
-					return TPromise.as(null);
-				}
+			// Check if we need to ask for confirmation at all
+			if (this.skipConfirm || (this.useTrash && this.configurationService.lookup<boolean>(BaseDeleteFileAction.CONFIRM_DELETE_SETTING_KEY).value === false)) {
+				confirmPromise = TPromise.as({ confirmed: true } as IConfirmationResult);
 			}
 
-			// Call function
-			const servicePromise = this.fileService.del(this.element.resource, this.useTrash).then(() => {
-				if (this.element.parent) {
-					this.tree.setFocus(this.element.parent); // move focus to parent
+			// Confirm for moving to trash
+			else if (this.useTrash) {
+				confirmPromise = this.messageService.confirm({
+					message: this.element.isDirectory ? nls.localize('confirmMoveTrashMessageFolder', "Are you sure you want to delete '{0}' and its contents?", this.element.name) : nls.localize('confirmMoveTrashMessageFile', "Are you sure you want to delete '{0}'?", this.element.name),
+					detail: isWindows ? nls.localize('undoBin', "You can restore from the recycle bin.") : nls.localize('undoTrash', "You can restore from the trash."),
+					primaryButton,
+					checkbox: {
+						label: nls.localize('doNotAskAgain', "Do not ask me again")
+					},
+					type: 'question'
+				});
+			}
+
+			// Confirm for deleting permanently
+			else {
+				confirmPromise = this.messageService.confirm({
+					message: this.element.isDirectory ? nls.localize('confirmDeleteMessageFolder', "Are you sure you want to permanently delete '{0}' and its contents?", this.element.name) : nls.localize('confirmDeleteMessageFile', "Are you sure you want to permanently delete '{0}'?", this.element.name),
+					detail: nls.localize('irreversible', "This action is irreversible!"),
+					primaryButton,
+					type: 'warning'
+				});
+			}
+
+			return confirmPromise.then(confirmation => {
+
+				// Check for confirmation checkbox
+				let updateConfirmSettingsPromise: TPromise<void> = TPromise.as(void 0);
+				if (confirmation.checkboxChecked === true) {
+					updateConfirmSettingsPromise = this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: BaseDeleteFileAction.CONFIRM_DELETE_SETTING_KEY, value: false });
 				}
-			}, (error: any) => {
 
-				// Allow to retry
-				let extraAction: Action;
-				if (this.useTrash) {
-					extraAction = new Action('permanentDelete', nls.localize('permDelete', "Delete Permanently"), null, true, () => { this.useTrash = false; this.skipConfirm = true; return this.run(); });
-				}
+				return updateConfirmSettingsPromise.then(() => {
 
-				this.onErrorWithRetry(error, () => this.run(), extraAction);
+					// Check for confirmation
+					if (!confirmation.confirmed) {
+						return TPromise.as(null);
+					}
 
-				// Focus back to tree
-				this.tree.DOMFocus();
+					// Call function
+					const servicePromise = this.fileService.del(this.element.resource, this.useTrash).then(() => {
+						if (this.element.parent) {
+							this.tree.setFocus(this.element.parent); // move focus to parent
+						}
+					}, (error: any) => {
+
+						// Allow to retry
+						let extraAction: Action;
+						if (this.useTrash) {
+							extraAction = new Action('permanentDelete', nls.localize('permDelete', "Delete Permanently"), null, true, () => { this.useTrash = false; this.skipConfirm = true; return this.run(); });
+						}
+
+						this.onErrorWithRetry(error, () => this.run(), extraAction);
+
+						// Focus back to tree
+						this.tree.DOMFocus();
+					});
+
+					return servicePromise;
+				});
 			});
-
-			return servicePromise;
 		});
 	}
 }
@@ -762,9 +791,11 @@ export class MoveFileToTrashAction extends BaseDeleteFileAction {
 		element: FileStat,
 		@IFileService fileService: IFileService,
 		@IMessageService messageService: IMessageService,
-		@ITextFileService textFileService: ITextFileService
+		@ITextFileService textFileService: ITextFileService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationEditingService configurationEditingService: IConfigurationEditingService
 	) {
-		super(MoveFileToTrashAction.ID, nls.localize('delete', "Delete"), tree, element, true, fileService, messageService, textFileService);
+		super(MoveFileToTrashAction.ID, nls.localize('delete', "Delete"), tree, element, true, fileService, messageService, textFileService, configurationService, configurationEditingService);
 	}
 }
 
