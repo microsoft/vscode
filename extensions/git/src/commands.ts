@@ -1283,7 +1283,9 @@ export class CommandCenter {
 
 	@command('git.stash', { repository: true })
 	async stash(repository: Repository): Promise<void> {
-		if (repository.workingTreeGroup.resourceStates.length === 0) {
+		const noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0;
+		const noStagedChanges = repository.indexGroup.resourceStates.length === 0;
+		if (noUnstagedChanges && noStagedChanges) {
 			window.showInformationMessage(localize('no changes stash', "There are no changes to stash."));
 			return;
 		}
