@@ -18,6 +18,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { MarkersPanel } from 'vs/workbench/parts/markers/browser/markersPanel';
 
 import './markersFileDecorations';
+import { localize } from 'vs/nls';
 
 export function registerContributions(): void {
 
@@ -49,6 +50,21 @@ export function registerContributions(): void {
 			}
 		}
 	});
+
+	Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+		'id': 'problems',
+		'order': 101,
+		'type': 'object',
+		'properties': {
+			'problems.showOnFiles': {
+				'description': localize('markers.showOnFile', "Show Errors & Warnings in the file explorer."),
+				'type': 'boolean',
+				'default': true
+			}
+		}
+	});
+
+
 
 	// markers panel
 	Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescriptor(
