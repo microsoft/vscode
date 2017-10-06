@@ -10,7 +10,7 @@ import Event from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 
-export const IFileDecorationsService = createDecorator<IFileDecorationsService>('IFileDecorationsService');
+export const IResourceDecorationsService = createDecorator<IResourceDecorationsService>('IFileDecorationsService');
 
 export abstract class DecorationType {
 	readonly label: string;
@@ -22,27 +22,31 @@ export abstract class DecorationType {
 	}
 }
 
-
-export interface IFileDecoration extends IFileDecorationData {
+export interface IResourceDecoration extends IResourceDecorationData {
 	readonly type: DecorationType;
 }
-export interface IFileDecorationData {
+
+export interface IResourceDecorationData {
 	readonly severity: Severity;
 	readonly color?: ColorIdentifier;
 	readonly icon?: URI | { dark: URI, light: URI };
 }
 
-export interface IFileDecorationsService {
+export interface IResourceDecorationChangeEvent {
+	affectsResource(uri: URI): boolean;
+}
+
+export interface IResourceDecorationsService {
 
 	readonly _serviceBrand: any;
 
-	readonly onDidChangeFileDecoration: Event<URI[]>;
+	readonly onDidChangeDecorations: Event<IResourceDecorationChangeEvent>;
 
 	registerDecorationType(label: string): DecorationType;
 
-	setFileDecoration(type: DecorationType, target: URI, data?: IFileDecorationData): void;
+	setDecoration(type: DecorationType, target: URI, data?: IResourceDecorationData): void;
 
-	getDecorations(uri: URI, includeChildren: boolean): IFileDecoration[];
+	getDecorations(uri: URI, includeChildren: boolean): IResourceDecoration[];
 
-	getTopDecoration(uri: URI, includeChildren: boolean): IFileDecoration;
+	getTopDecoration(uri: URI, includeChildren: boolean): IResourceDecoration;
 }

@@ -20,9 +20,11 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IResourceDecorationsService, IResourceDecoration, IResourceDecorationChangeEvent } from 'vs/workbench/services/decorations/browser/decorations';
 import { Schemas } from 'vs/base/common/network';
 import { FileKind } from 'vs/platform/files/common/files';
 import { IModel } from 'vs/editor/common/editorCommon';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export interface IResourceLabel {
 	name: string;
@@ -32,6 +34,8 @@ export interface IResourceLabel {
 
 export interface IResourceLabelOptions extends IIconLabelOptions {
 	fileKind?: FileKind;
+	showDecorations?: boolean;
+	showAllDecorations?: boolean;
 }
 
 export class ResourceLabel extends IconLabel {
@@ -49,7 +53,9 @@ export class ResourceLabel extends IconLabel {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IModeService private modeService: IModeService,
 		@IModelService private modelService: IModelService,
-		@IEnvironmentService protected environmentService: IEnvironmentService
+		@IEnvironmentService protected environmentService: IEnvironmentService,
+		@IResourceDecorationsService protected decorationsService: IResourceDecorationsService,
+		@IThemeService private themeService: IThemeService
 	) {
 		super(container, options);
 
@@ -62,6 +68,7 @@ export class ResourceLabel extends IconLabel {
 		this.extensionService.onReady().then(() => this.render(true /* clear cache */)); // update when extensions are loaded with potentially new languages
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(() => this.render(true /* clear cache */))); // update when file.associations change
 		this.toDispose.push(this.modelService.onModelModeChanged(e => this.onModelModeChanged(e))); // react to model mode changes
+		this.toDispose.push(this.decorationsService.onDidChangeDecorations(this.onFileDecorationsChanges, this)); // react to file decoration changes
 	}
 
 	private onModelModeChanged(e: { model: IModel; oldModeId: string; }): void {
@@ -81,6 +88,18 @@ export class ResourceLabel extends IconLabel {
 			if (this.lastKnownConfiguredLangId !== e.model.getLanguageIdentifier().language) {
 				this.render(true); // update if the language id of the model has changed from our last known state
 			}
+		}
+	}
+
+	private onFileDecorationsChanges(e: IResourceDecorationChangeEvent): void {
+		if (!this.options || !this.label || !this.label.resource) {
+			return;
+		}
+		if (!this.options.showAllDecorations && !this.options.showDecorations) {
+			return;
+		}
+		if (e.affectsResource(this.label.resource)) {
+			this.render(false);
 		}
 	}
 
@@ -159,6 +178,19 @@ export class ResourceLabel extends IconLabel {
 			extraClasses.push(...this.options.extraClasses);
 		}
 
+		let deco: IResourceDecoration;
+		if (this.options) {
+			if (this.options.showDecorations) {
+				deco = this.decorationsService.getTopDecoration(resource, false);
+			} else if (this.options.showAllDecorations) {
+				deco = this.decorationsService.getTopDecoration(resource, true);
+			}
+		}
+
+		// set/unset color from decoration
+		const color = deco && this.themeService.getTheme().getColor(deco.color, true);
+		this.element.style.color = color ? color.toString() : '';
+
 		const italic = this.options && this.options.italic;
 		const matches = this.options && this.options.matches;
 
@@ -204,9 +236,11 @@ export class FileLabel extends ResourceLabel {
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
+		@IResourceDecorationsService decorationsService: IResourceDecorationsService,
+		@IThemeService themeService: IThemeService,
+		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 	) {
-		super(container, options, extensionService, contextService, configurationService, modeService, modelService, environmentService);
+		super(container, options, extensionService, contextService, configurationService, modeService, modelService, environmentService, decorationsService, themeService);
 	}
 
 	public setFile(resource: uri, options?: IFileLabelOptions): void {
