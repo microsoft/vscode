@@ -15,7 +15,6 @@ import Severity from 'vs/base/common/severity';
 export class FileDecorations implements IWorkbenchContribution {
 
 	private readonly _disposables: IDisposable[];
-	// private readonly _type: DecorationType;
 	private readonly _repositoryListeners = new Map<ISCMRepository, IDisposable>();
 
 	constructor(
@@ -50,8 +49,8 @@ export class FileDecorations implements IWorkbenchContribution {
 
 					this._decorationsService.setFileDecoration(type, resource.sourceUri, {
 						severity: Severity.Info,
-						message: resource.decorations.tooltip,
-						color: resource.decorations.color
+						color: resource.decorations.color,
+						icon: { light: resource.decorations.icon, dark: resource.decorations.iconDark }
 					});
 					newDecorations.set(resource.sourceUri.toString(), resource.sourceUri);
 				}
@@ -59,7 +58,7 @@ export class FileDecorations implements IWorkbenchContribution {
 
 			oldDecorations.forEach((value, key) => {
 				if (!newDecorations.has(key)) {
-					this._decorationsService.unsetFileDecoration(type, value);
+					this._decorationsService.setFileDecoration(type, value);
 				}
 			});
 
