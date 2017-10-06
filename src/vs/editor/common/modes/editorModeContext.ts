@@ -10,14 +10,12 @@ import * as modes from 'vs/editor/common/modes';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { Schemas } from 'vs/base/common/network';
-import * as paths from 'vs/base/common/paths';
 
 export class EditorModeContext extends Disposable {
 
 	private _editor: ICommonCodeEditor;
 
 	private _langId: IContextKey<string>;
-	private _editorExtension: IContextKey<string>;
 	private _hasCompletionItemProvider: IContextKey<boolean>;
 	private _hasCodeActionsProvider: IContextKey<boolean>;
 	private _hasCodeLensProvider: IContextKey<boolean>;
@@ -42,7 +40,6 @@ export class EditorModeContext extends Disposable {
 		this._editor = editor;
 
 		this._langId = EditorContextKeys.languageId.bindTo(contextKeyService);
-		this._editorExtension = EditorContextKeys.editorExtension.bindTo(contextKeyService);
 		this._hasCompletionItemProvider = EditorContextKeys.hasCompletionItemProvider.bindTo(contextKeyService);
 		this._hasCodeActionsProvider = EditorContextKeys.hasCodeActionsProvider.bindTo(contextKeyService);
 		this._hasCodeLensProvider = EditorContextKeys.hasCodeLensProvider.bindTo(contextKeyService);
@@ -90,7 +87,6 @@ export class EditorModeContext extends Disposable {
 
 	reset() {
 		this._langId.reset();
-		this._editorExtension.reset();
 		this._hasCompletionItemProvider.reset();
 		this._hasCodeActionsProvider.reset();
 		this._hasCodeLensProvider.reset();
@@ -115,7 +111,6 @@ export class EditorModeContext extends Disposable {
 			return;
 		}
 		this._langId.set(model.getLanguageIdentifier().language);
-		this._editorExtension.set(paths.extname(model.uri.fsPath));
 		this._hasCompletionItemProvider.set(modes.SuggestRegistry.has(model));
 		this._hasCodeActionsProvider.set(modes.CodeActionProviderRegistry.has(model));
 		this._hasCodeLensProvider.set(modes.CodeLensProviderRegistry.has(model));
