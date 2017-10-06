@@ -7,3 +7,57 @@
 	width: 100%;
 	height: 20px;
 }
+
+/* Require wrapper for ContextView access to CSS file */
+/* Use relative for wrapper */
+/* Use fixed for container */
+.monaco-workbench .select-dropdown-container-wrapper  {
+	z-index: 20;
+	position: relative;
+	top: 0px;
+	overflow: hidden !important;
+}
+
+.monaco-workbench .select-dropdown-container  {
+	display: none;
+}
+
+.monaco-workbench .select-dropdown-container.visible  {
+	display: flex;
+	flex-direction: column;
+	position: fixed;
+	text-align: left;
+	width: 1px;
+	overflow: hidden !important;
+
+}
+
+.monaco-workbench .selectbox-dropdown-list-container {
+	flex: 0 1 auto;
+	align-self: flex-start;
+	padding-bottom: 3px !important;
+	padding-top: 3px !important;
+	width: 100%;
+}
+
+.select-dropdown-container-width-control {
+	flex: 1 1 auto;
+	align-self: flex-start;
+	opacity: 0;
+}
+
+.width-control-div {
+	overflow: hidden;
+	max-height: 0;
+}
+
+.option-text-width-control {
+	padding-left: 4px !important;
+	padding-right: 14px;
+}
+
+.monaco-workbench .selectbox-dropdown-list-container .monaco-list .monaco-list-row .option-text {
+	text-overflow: ellipsis;
+	overflow: hidden;
+	padding-left: 4.5px !important;
+}

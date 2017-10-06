@@ -19,6 +19,7 @@ import { IEventEmitter, EventEmitter } from 'vs/base/common/eventEmitter';
 import { Gesture, EventType } from 'vs/base/browser/touch';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 
 export interface IActionItem extends IEventEmitter {
 	actionRunner: IActionRunner;
@@ -717,9 +718,10 @@ export class SelectActionItem extends BaseActionItem {
 	protected selectBox: SelectBox;
 	protected toDispose: lifecycle.IDisposable[];
 
-	constructor(ctx: any, action: IAction, options: string[], selected: number) {
+	constructor(ctx: any, action: IAction, options: string[], selected: number, contextViewProvider: IContextViewProvider
+	) {
 		super(ctx, action);
-		this.selectBox = new SelectBox(options, selected);
+		this.selectBox = new SelectBox(options, selected, contextViewProvider);
 
 		this.toDispose = [];
 		this.toDispose.push(this.selectBox);

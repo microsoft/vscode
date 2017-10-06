@@ -20,6 +20,7 @@ import { IDelegate, IRenderer, IListEvent, IListMouseEvent, IListContextMenuEven
 import { ListView, IListViewOptions } from './listView';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 
 export interface IIdentityProvider<T> {
 	(element: T): string;
@@ -447,6 +448,7 @@ export interface IListOptions<T> extends IListViewOptions, IMouseControllerOptio
 	ariaLabel?: string;
 	mouseSupport?: boolean;
 	keyboardSupport?: boolean;
+	verticalScrollMode?: ScrollbarVisibility;
 }
 
 export interface IListStyles {

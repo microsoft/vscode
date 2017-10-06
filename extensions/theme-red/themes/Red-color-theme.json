@@ -38,6 +38,8 @@
 		"focusBorder": "#ff6666aa",
 		"button.background": "#833",
 		"dropdown.background": "#580000",
+		"dropdown.optionCheckedBackground": "#660000",
+		"dropdown.optionHoverBackground": "#800000",
 		"input.background": "#580000",
 		"inputOption.activeBorder": "#cc0000",
 		"inputValidation.infoBackground": "#550000",
