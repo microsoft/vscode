@@ -308,7 +308,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 	public filterPreferences(filterResult: IFilterResult): void {
 		this.filterResult = filterResult;
 		if (filterResult) {
-			if (filterResult.scores) {
+			if (filterResult.remoteResult) {
 				this.filteredMatchesRenderer.render(null);
 				this.settingsGroupTitleRenderer.render(null);
 			} else {
@@ -582,7 +582,7 @@ export class MostRelevantMatchesRenderer extends Disposable implements HiddenAre
 
 	public render(result: IFilterResult): void {
 		this.hiddenAreas = [];
-		if (result && result.matches.length && result.scores) {
+		if (result && result.matches.length && result.remoteResult) {
 			const settingsTextEndLine = this.renderResults(result);
 
 			this.hiddenAreas = [{
@@ -606,7 +606,7 @@ export class MostRelevantMatchesRenderer extends Disposable implements HiddenAre
 		this.hiddenAreas = [];
 		this.editor.updateOptions({ readOnly: false });
 
-		const relevantRanges = this.getOrderedSettingRanges(result.filteredGroups, result.allGroups, result.scores, this.editor.getModel());
+		const relevantRanges = this.getOrderedSettingRanges(result.filteredGroups, result.allGroups, result.remoteResult.scores, this.editor.getModel());
 		let totalLines = 0;
 		const settingsValue = relevantRanges.map(visibleRange => {
 			const settingLines = (visibleRange.endLineNumber - visibleRange.startLineNumber) + 1;
@@ -702,17 +702,22 @@ export class MostRelevantMatchesRenderer extends Disposable implements HiddenAre
 }
 
 export class FeedbackWidgetRenderer extends Disposable {
+	private static COMMENT_TEXT = '// Reorder and modify the below results to match your expectations. Replace this comment with any text feedback.';
+
 	private _feedbackWidget: FloatingClickWidget;
+	private _currentResult: IFilterResult;
 
 	constructor(private editor: ICodeEditor,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		super();
 	}
 
 	public render(result: IFilterResult): void {
-		if (result && result.scores) {
+		this._currentResult = result;
+		if (result && result.remoteResult) {
 			this.showWidget();
 		} else if (this._feedbackWidget) {
 			this.disposeWidget();
@@ -728,15 +733,54 @@ export class FeedbackWidgetRenderer extends Disposable {
 	}
 
 	private getFeedback(): void {
-		this.editorService.openEditor({ contents: 'test' }, true).then(feedbackEditor => {
+		const result = this._currentResult;
+		const actualResults = Object.keys(result.remoteResult.scores)
+			.sort((a, b) => result.remoteResult.scores[b] - result.remoteResult.scores[a]);
+		const actualResultText = actualResults.join('\n');
+
+		const contents = FeedbackWidgetRenderer.COMMENT_TEXT + '\n' + actualResultText;
+		this.editorService.openEditor({ contents }, /*sideBySide=*/true).then(feedbackEditor => {
 			const sendFeedbackWidget = this._register(this.instantiationService.createInstance(FloatingClickWidget, feedbackEditor.getControl(), 'Send feedback', null));
-			this._register(sendFeedbackWidget.onClick(() => this.sendFeedback()));
 			sendFeedbackWidget.render();
+
+			this._register(sendFeedbackWidget.onClick(() => {
+				this.sendFeedback(feedbackEditor.getControl() as ICodeEditor, result, actualResults);
+				sendFeedbackWidget.dispose();
+			}));
 		});
 	}
 
-	private sendFeedback(): void {
+	private sendFeedback(feedbackEditor: ICodeEditor, result: IFilterResult, actualResults: string[]): void {
+		const model = feedbackEditor.getModel();
+		const expectedResults = model.getLinesContent().slice();
+		const commentLines = [];
+		while (strings.startsWith(expectedResults[0], '//')) {
+			commentLines.push(expectedResults.shift());
+		}
 
+		const commentText = commentLines.join('\n');
+
+		/* __GDPR__
+		"settingsSearchResultFeedback" : {
+			"query" : { "classification": "CustomContent", "purpose": "FeatureInsight" },
+			"userComment" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+			"actualResults" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"expectedResults" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"url" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+			"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"timestamp" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		}
+		 */
+		this.telemetryService.publicLog('settingsSearchResultFeedback', {
+			query: result.query,
+			userComment: commentText === FeedbackWidgetRenderer.COMMENT_TEXT ? undefined : commentText,
+			actualResults,
+			expectedResults,
+			url: result.remoteResult.url,
+			duration: result.remoteResult.duration,
+			timestamp: result.remoteResult.timestamp
+		});
+		console.log('Feedback sent successfully');
 	}
 
 	private disposeWidget(): void {

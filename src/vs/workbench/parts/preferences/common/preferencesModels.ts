@@ -37,7 +37,8 @@ export abstract class AbstractSettingsModel extends EditorModel {
 			return {
 				filteredGroups: allGroups,
 				allGroups,
-				matches: []
+				matches: [],
+				query: filter
 			};
 		}
 
@@ -46,7 +47,8 @@ export abstract class AbstractSettingsModel extends EditorModel {
 			return {
 				filteredGroups: [group],
 				allGroups,
-				matches: []
+				matches: [],
+				query: filter
 			};
 		}
 
@@ -85,7 +87,7 @@ export abstract class AbstractSettingsModel extends EditorModel {
 				});
 			}
 		}
-		return { filteredGroups, matches, allGroups };
+		return { filteredGroups, matches, allGroups, query: filter };
 	}
 
 	private filterByGroupTerm(filter: string): ISettingsGroup {

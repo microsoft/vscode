@@ -50,10 +50,18 @@ export interface ISetting {
 }
 
 export interface IFilterResult {
+	query: string;
 	filteredGroups: ISettingsGroup[];
 	allGroups: ISettingsGroup[];
 	matches: IRange[];
-	scores?: { [key: string]: number };
+	remoteResult?: IRemoteFilterResult;
+}
+
+export interface IRemoteFilterResult {
+	url: string;
+	timestamp: number;
+	duration: number;
+	scores: { [key: string]: number };
 }
 
 export interface IPreferencesEditorModel<T> {

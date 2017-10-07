@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ISettingsEditorModel, IFilterResult, ISetting, ISettingsGroup, IWorkbenchSettingsConfiguration } from 'vs/workbench/parts/preferences/common/preferences';
+import { ISettingsEditorModel, IFilterResult, ISetting, ISettingsGroup, IWorkbenchSettingsConfiguration, IRemoteFilterResult } from 'vs/workbench/parts/preferences/common/preferences';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { distinct } from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
@@ -75,17 +75,17 @@ class LocalSearchProvider {
 
 class RemoteSearchProvider {
 	private _filter: string;
-	private _remoteSearchP: TPromise<{ [key: string]: number }>;
+	private _remoteSearchP: TPromise<IRemoteFilterResult>;
 
 	constructor(filter: string) {
 		this._filter = filter;
-		this._remoteSearchP = filter ? getSettingsFromBing(filter) : TPromise.wrap({});
+		this._remoteSearchP = filter ? getSettingsFromBing(filter) : TPromise.wrap(null);
 	}
 
 	filterPreferences(preferencesModel: ISettingsEditorModel): TPromise<IFilterResult> {
-		return this._remoteSearchP.then(settingsSet => {
+		return this._remoteSearchP.then(remoteResult => {
 			const settingFilter = (setting: ISetting) => {
-				if (!!settingsSet[setting.key]) {
+				if (!!remoteResult.scores[setting.key]) {
 					const settingMatches = new SettingMatches(this._filter, setting, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
 					if (settingMatches.length) {
 						return settingMatches;
@@ -97,14 +97,18 @@ class RemoteSearchProvider {
 				}
 			};
 
-			const result = preferencesModel.filterSettings(this._filter, group => null, settingFilter);
-			result.scores = settingsSet;
-			return result;
+			if (remoteResult) {
+				const result = preferencesModel.filterSettings(this._filter, group => null, settingFilter);
+				result.remoteResult = remoteResult;
+				return result;
+			} else {
+				return null;
+			}
 		});
 	}
 }
 
-function getSettingsFromBing(filter: string): TPromise<{ [key: string]: number }> {
+function getSettingsFromBing(filter: string): TPromise<IRemoteFilterResult> {
 	const url = prepareUrl(filter);
 	console.log('fetching: ' + url);
 	const start = Date.now();
@@ -117,22 +121,29 @@ function getSettingsFromBing(filter: string): TPromise<{ [key: string]: number }
 	})
 		.then(r => r.json())
 		.then(result => {
-			console.log('time: ' + (Date.now() - start) / 1000);
+			const timestamp = Date.now();
+			const duration = timestamp - start;
+			console.log('time: ' + duration / 1000);
 			const suggestions = (result.value || [])
 				.map(r => ({
 					name: r.Setting,
 					score: r['@search.score']
 				}));
 
-			const suggSet = Object.create(null);
+			const scores = Object.create(null);
 			suggestions.forEach(s => {
 				const name = s.name
 					.replace(/^"/, '')
 					.replace(/"$/, '');
-				suggSet[name] = s.score;
+				scores[name] = s.score;
 			});
 
-			return suggSet;
+			return <IRemoteFilterResult>{
+				url,
+				scores,
+				duration,
+				timestamp
+			};
 		});
 
 	return TPromise.as(p as any);
