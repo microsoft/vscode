@@ -206,9 +206,11 @@ export class TrimTrailingWhitespaceAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor, args: any): void {
 
-		var command = new TrimTrailingWhitespaceCommand(editor.getSelection());
+		let preserveCursor: boolean = (args.reason === 'auto-save');
+
+		var command = new TrimTrailingWhitespaceCommand(editor.getSelection(), preserveCursor);
 
 		editor.pushUndoStop();
 		editor.executeCommands(this.id, [command]);
