@@ -14,6 +14,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ReplaceCommand, ReplaceCommandThatPreservesSelection } from 'vs/editor/common/commands/replaceCommand';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
+import { Position } from 'vs/editor/common/core/position';
 import { editorAction, ServicesAccessor, IActionOptions, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { CopyLinesCommand } from './copyLinesCommand';
 import { DeleteLinesCommand } from './deleteLinesCommand';
@@ -208,9 +209,12 @@ export class TrimTrailingWhitespaceAction extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor, args: any): void {
 
-		let preserveCursor: boolean = (args.reason === 'auto-save');
+		var cursors: Position[];
+		if (args.reason === 'auto-save') {
+			cursors = editor.getSelections().map(s => new Position(s.positionLineNumber, s.positionColumn));
+		}
 
-		var command = new TrimTrailingWhitespaceCommand(editor.getSelection(), preserveCursor);
+		var command = new TrimTrailingWhitespaceCommand(editor.getSelection(), cursors);
 
 		editor.pushUndoStop();
 		editor.executeCommands(this.id, [command]);
