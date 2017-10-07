@@ -650,6 +650,11 @@ export class MostRelevantMatchesRenderer extends Disposable implements HiddenAre
 	}
 
 	private getOrderedSettingRanges(filteredGroups: ISettingsGroup[], allSettingsGroups: ISettingsGroup[], scores: any, model: editorCommon.IModel): IRange[] {
+		// Manually exclude mostCommonlyUsed section to avoid dupes
+		if (filteredGroups.length && filteredGroups[0].id === 'mostCommonlyUsed') {
+			filteredGroups.shift();
+		}
+
 		const matchingRanges: { range: IRange, name: string }[] = [];
 		for (const group of allSettingsGroups) {
 			const filteredGroup = filteredGroups.filter(g => g.title === group.title)[0];
