@@ -614,9 +614,34 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	}
 
 	private removeFromStack(arg1: IEditorInput | IResourceInput | FileChangesEvent): void {
-		this.stack = this.stack.filter(e => !this.matches(arg1, e.input));
-		this.index = this.stack.length - 1; // reset index
-		this.lastIndex = -1;
+		// Compute change in history index if history items correspond to resources that were removed
+		let indexDecrement = 0;
+		let lastIndexDecrement = 0;
+		let lastIndexRemoved = false;
+		const newStack = this.stack.filter((e, i) => {
+			const matches = this.matches(arg1, e.input);
+			if (matches) {
+				if (i <= this.index) {
+					indexDecrement++;
+				}
+				if (i < this.lastIndex) {
+					lastIndexDecrement++;
+				} else if (i === this.lastIndex) {
+					lastIndexRemoved = true;
+				}
+			}
+			return !matches;
+		});
+		this.stack = newStack;
+		this.index -= indexDecrement;
+		if (this.index === -1 && this.stack.length > 0) {
+			this.index = 0;
+		}
+		if (lastIndexRemoved) {
+			this.lastIndex = -1;
+		} else {
+			this.lastIndex -= lastIndexDecrement;
+		}
 	}
 
 	private removeFromRecentlyClosedFiles(arg1: IEditorInput | IResourceInput | FileChangesEvent): void {
