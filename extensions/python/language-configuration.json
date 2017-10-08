@@ -24,9 +24,9 @@
 	],
 	"folding": {
 		"offSide": true,
-        "markers": {
-            "start": "^\\s*#region",
-            "end": "^\\s*#endregion"
-        }
-    }
+		"markers": {
+			"start": "^\\s*#region",
+			"end": "^\\s*#endregion"
+		}
+	}
 }
