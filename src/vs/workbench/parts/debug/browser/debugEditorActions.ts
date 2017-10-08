@@ -14,6 +14,9 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IDebugService, CONTEXT_IN_DEBUG_MODE, CONTEXT_NOT_IN_DEBUG_REPL, CONTEXT_DEBUG_STATE, State, REPL_ID, VIEWLET_ID, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINT_WIDGET_VISIBLE } from 'vs/workbench/parts/debug/common/debug';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { Position } from 'vs/editor/common/core/position';
+import { Selection } from 'vs/editor/common/core/selection';
+import { IEditorService } from 'vs/platform/editor/common/editor';
 
 @editorAction
 class ToggleBreakpointAction extends EditorAction {
@@ -251,6 +254,118 @@ class ShowDebugHoverAction extends EditorAction {
 
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, word.endColumn);
 		return editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showHover(range, true);
+	}
+}
+
+@editorAction
+export class GoToNextBreakpointAction extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.debug.action.goToNextBreakpoint',
+			label: nls.localize('goToNextBreakpoint', "Debug: Go To Next Breakpoint"),
+			alias: 'Debug: Go To Next Breakpoint',
+			precondition: null//,
+			// kbOpts: {
+			// 	kbExpr: EditorContextKeys.textFocus,
+			// 	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_I)
+			// }
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): TPromise<any> {
+		debugger;
+		const debugService = accessor.get(IDebugService);
+		const editorService = accessor.get(IEditorService);
+
+		const currentUri = editor.getModel().uri;
+		const currentLine = editor.getPosition().lineNumber;
+		const allEnabledBreakpoints = debugService.getModel().getBreakpoints()
+			.filter(bp => bp.enabled)
+			.sort((a, b) => {
+				if (a.uri.path.localeCompare(b.uri.path) === 0){
+					return a.lineNumber - b.lineNumber;
+				}
+				return a.uri.path.localeCompare(b.uri.path);
+			});
+
+		let nextBreakpoint = allEnabledBreakpoints
+			.filter(bp => bp.uri.toString() === currentUri.toString() && bp.lineNumber > currentLine)[0];
+		if (nextBreakpoint)
+		{
+			editor.revealLine(nextBreakpoint.lineNumber);
+			editor.setPosition(new Position(nextBreakpoint.lineNumber, nextBreakpoint.column || 0));
+
+			return TPromise.as(null);
+		}
+
+		nextBreakpoint = allEnabledBreakpoints.filter(bp => currentUri.toString().localeCompare(bp.uri.toString()) < 0)[0];
+		if (!nextBreakpoint) {
+			nextBreakpoint = allEnabledBreakpoints[0];
+		}
+
+		editorService.openEditor({
+			resource: nextBreakpoint.uri,
+			options: {
+				selection: new Selection(nextBreakpoint.lineNumber, nextBreakpoint.column || 0, nextBreakpoint.lineNumber, nextBreakpoint.column || 0)
+			}
+		});
+		return TPromise.as(null);
+	}
+}
+
+@editorAction
+export class GoToPreviousBreakpointAction extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.debug.action.goToPreviousBreakpoint',
+			label: nls.localize('goToPreviousBreakpoint', "Debug: Go To Previous Breakpoint"),
+			alias: 'Debug: Go To Previous Breakpoint',
+			precondition: null//,
+			// kbOpts: {
+			// 	kbExpr: EditorContextKeys.textFocus,
+			// 	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_I)
+			// }
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): TPromise<any> {
+		debugger;
+		const debugService = accessor.get(IDebugService);
+		const editorService = accessor.get(IEditorService);
+
+		const currentUri = editor.getModel().uri;
+		const currentLine = editor.getPosition().lineNumber;
+		const allEnabledBreakpoints = debugService.getModel().getBreakpoints()
+			.filter(bp => bp.enabled)
+			.sort((a, b) => {
+				if (a.uri.path.localeCompare(b.uri.path) === 0){
+					return b.lineNumber - a.lineNumber;
+				}
+				return b.uri.path.localeCompare(a.uri.path);
+			});
+
+		let nextBreakpoint = allEnabledBreakpoints
+			.filter(bp => bp.uri.toString() === currentUri.toString() && bp.lineNumber < currentLine)[0];
+		if (nextBreakpoint)
+		{
+			editor.revealLine(nextBreakpoint.lineNumber);
+			editor.setPosition(new Position(nextBreakpoint.lineNumber, nextBreakpoint.column || 0));
+
+			return TPromise.as(null);
+		}
+
+		nextBreakpoint = allEnabledBreakpoints.filter(bp => currentUri.toString().localeCompare(bp.uri.toString()) > 0)[0];
+		if (!nextBreakpoint) {
+			nextBreakpoint = allEnabledBreakpoints[0];
+		}
+
+		editorService.openEditor({
+			resource: nextBreakpoint.uri,
+			options: {
+				selection: new Selection(nextBreakpoint.lineNumber, nextBreakpoint.column || 0, nextBreakpoint.lineNumber, nextBreakpoint.column || 0)
+			}
+		});
+		return TPromise.as(null);
 	}
 }
 
