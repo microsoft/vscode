@@ -67,7 +67,6 @@ class SCMDecorationsProvider implements IDecorationsProvider {
 		return {
 			severity: Severity.Info,
 			color: resource.decorations.color,
-			suffix: '\'',
 			tooltip: localize('tooltip', "{0} - {1}", resource.decorations.tooltip, this._provider.label)
 		};
 	}
