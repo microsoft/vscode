@@ -13,6 +13,7 @@ import uri from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import { IWorkspaceFolderProvider, getPathLabel, IUserHomeProvider } from 'vs/base/common/labels';
 import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { Color } from 'vs/base/common/color';
 
 export interface IIconLabelCreationOptions {
 	supportHighlights?: boolean;
@@ -22,6 +23,7 @@ export interface IIconLabelOptions {
 	title?: string;
 	extraClasses?: string[];
 	italic?: boolean;
+	color?: Color;
 	matches?: IMatch[];
 }
 
@@ -127,6 +129,8 @@ export class IconLabel {
 			if (options.italic) {
 				classes.push('italic');
 			}
+
+			this.element.style.color = options.color ? options.color.toString() : '';
 		}
 
 		this.domNode.className = classes.join(' ');

@@ -25,6 +25,7 @@ import { Schemas } from 'vs/base/common/network';
 import { FileKind } from 'vs/platform/files/common/files';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { Color } from 'vs/base/common/color';
 
 export interface IResourceLabel {
 	name: string;
@@ -179,23 +180,30 @@ export class ResourceLabel extends IconLabel {
 			extraClasses.push(...this.options.extraClasses);
 		}
 
-		let deco: IResourceDecoration;
+		const italic = this.options && this.options.italic;
+		const matches = this.options && this.options.matches;
+
+		let color: Color;
 		if (this.options) {
+			let deco: IResourceDecoration;
 			if (this.options.showDecorations) {
 				deco = this.decorationsService.getTopDecoration(resource, false);
 			} else if (this.options.showAllDecorations) {
 				deco = this.decorationsService.getTopDecoration(resource, true);
 			}
+
+			if (deco) {
+				color = this.themeService.getTheme().getColor(deco.color);
+			}
 		}
 
-		// set/unset color from decoration
-		const color = deco && this.themeService.getTheme().getColor(deco.color, true);
-		this.element.style.color = color ? color.toString() : '';
-
-		const italic = this.options && this.options.italic;
-		const matches = this.options && this.options.matches;
-
-		this.setValue(this.label.name, this.label.description, { title, extraClasses, italic, matches });
+		this.setValue(this.label.name, this.label.description, {
+			title,
+			extraClasses,
+			italic,
+			matches,
+			color
+		});
 	}
 
 	public dispose(): void {
