@@ -813,6 +813,15 @@
           "dark": "#cf9425",
           "highContrast": "#cf9425"
         }
+      },
+      {
+        "id": "git.color.untracked",
+        "description": "Color for modified resources",
+        "defaults": {
+          "light": "#49805b",
+          "dark": "#73c990",
+          "highContrast": "#73c990"
+        }
       }
     ]
   },
