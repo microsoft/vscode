@@ -405,11 +405,19 @@ export namespace Suggest {
 	}
 };
 
+
+function convertSignatureDocumentation(documentation: string | types.MarkdownString): undefined | string | htmlContent.IMarkdownString {
+	if (!documentation) {
+		return undefined;
+	}
+	return typeof documentation === 'string' ? documentation : MarkdownString.from(documentation);
+}
+
 export namespace ParameterInformation {
 	export function from(info: types.ParameterInformation): modes.ParameterInformation {
 		return {
 			label: info.label,
-			documentation: info.documentation && MarkdownString.from(info.documentation)
+			documentation: convertSignatureDocumentation(info.documentation)
 		};
 	}
 	export function to(info: modes.ParameterInformation): types.ParameterInformation {
@@ -425,7 +433,7 @@ export namespace SignatureInformation {
 	export function from(info: types.SignatureInformation): modes.SignatureInformation {
 		return {
 			label: info.label,
-			documentation: info.documentation && MarkdownString.from(info.documentation),
+			documentation: convertSignatureDocumentation(info.documentation),
 			parameters: info.parameters && info.parameters.map(ParameterInformation.from)
 		};
 	}
