@@ -26,6 +26,7 @@ import { FileKind } from 'vs/platform/files/common/files';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
+import { localize } from 'vs/nls';
 
 export interface IResourceLabel {
 	name: string;
@@ -163,6 +164,7 @@ export class ResourceLabel extends IconLabel {
 		}
 
 		const resource = this.label.resource;
+		let label = this.label.name;
 
 		let title = '';
 		if (this.options && typeof this.options.title === 'string') {
@@ -194,10 +196,28 @@ export class ResourceLabel extends IconLabel {
 
 			if (deco) {
 				color = this.themeService.getTheme().getColor(deco.color);
+
+				if (deco.tooltip) {
+					title = localize('deco.tooltip', "{0}, {1}", title, deco.tooltip);
+				}
+
+				if (deco.prefix) {
+					label += deco.prefix;
+					if (matches) {
+						matches.forEach(match => {
+							match.start += deco.prefix.length;
+							match.end += deco.prefix.length;
+						});
+					}
+				}
+
+				if (deco.suffix) {
+					label += deco.suffix;
+				}
 			}
 		}
 
-		this.setValue(this.label.name, this.label.description, {
+		this.setValue(label, this.label.description, {
 			title,
 			extraClasses,
 			italic,
