@@ -89,7 +89,7 @@ class DecorationProviderWrapper {
 			const childTree = this._data.findSuperstr(key);
 			if (childTree) {
 				childTree.forEach(([, value]) => {
-					if (value && !isThenable<void>(value)) {
+					if (value && !isThenable<void>(value) && !value.leafOnly) {
 						callback(value);
 					}
 				});

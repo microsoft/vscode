@@ -20,6 +20,7 @@ export interface IResourceDecoration {
 	readonly suffix?: string;
 	readonly color?: ColorIdentifier;
 	readonly icon?: URI | { dark: URI, light: URI };
+	readonly leafOnly?: boolean;
 }
 
 export interface IDecorationsProvider {
