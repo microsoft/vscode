@@ -8,7 +8,7 @@
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IResourceDecorationsService, IDecorationsProvider, IResourceDecoration } from 'vs/workbench/services/decorations/browser/decorations';
 import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
-import { ISCMService, ISCMRepository, ISCMProvider } from 'vs/workbench/services/scm/common/scm';
+import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource } from 'vs/workbench/services/scm/common/scm';
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -19,6 +19,7 @@ class SCMDecorationsProvider implements IDecorationsProvider {
 
 	private readonly _disposable: IDisposable;
 	private readonly _onDidChange = new Emitter<URI[]>();
+	private _data = new Map<string, ISCMResource>();
 
 	readonly label: string;
 	readonly onDidChange: Event<URI[]> = this._onDidChange.event;
@@ -37,29 +38,39 @@ class SCMDecorationsProvider implements IDecorationsProvider {
 
 	private _updateGroups(): void {
 		const uris: URI[] = [];
+		const newData = new Map<string, ISCMResource>();
 		for (const group of this._provider.resources) {
 			for (const resource of group.resourceCollection.resources) {
-				uris.push(resource.sourceUri);
+				newData.set(resource.sourceUri.toString(), resource);
+
+				if (!this._data.has(resource.sourceUri.toString())) {
+					uris.push(resource.sourceUri); // added
+				}
 			}
 		}
+
+		this._data.forEach((value, key) => {
+			if (!newData.has(key)) {
+				uris.push(value.sourceUri); // removed
+			}
+		});
+
+		this._data = newData;
 		this._onDidChange.fire(uris);
 	}
 
 	provideDecorations(uri: URI): IResourceDecoration {
-		for (const group of this._provider.resources) {
-			for (const resource of group.resourceCollection.resources) {
-				if (resource.sourceUri.toString() === uri.toString()) {
-					return {
-						severity: Severity.Info,
-						color: resource.decorations.color,
-						suffix: '*',
-						tooltip: localize('tooltip', "{0} - {1}", resource.decorations.tooltip, this._provider.label),
-						icon: { light: resource.decorations.icon, dark: resource.decorations.iconDark }
-					};
-				}
-			}
+		const resource = this._data.get(uri.toString());
+		if (!resource) {
+			return undefined;
 		}
-		return undefined;
+		return {
+			severity: Severity.Info,
+			color: resource.decorations.color,
+			suffix: '*',
+			tooltip: localize('tooltip', "{0} - {1}", resource.decorations.tooltip, this._provider.label),
+			icon: { light: resource.decorations.icon, dark: resource.decorations.iconDark }
+		};
 	}
 }
 
