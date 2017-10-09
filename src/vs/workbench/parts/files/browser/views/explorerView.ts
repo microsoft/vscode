@@ -161,6 +161,7 @@ export class ExplorerView extends ViewsViewletPanel {
 
 		const onFileIconThemeChange = (fileIconTheme: IFileIconTheme) => {
 			DOM.toggleClass(this.treeContainer, 'align-icons-and-twisties', fileIconTheme.hasFileIcons && !fileIconTheme.hasFolderIcons);
+			DOM.toggleClass(this.treeContainer, 'hide-arrows', fileIconTheme.hidesExplorerArrows);
 		};
 
 		this.disposables.push(this.themeService.onDidFileIconThemeChange(onFileIconThemeChange));

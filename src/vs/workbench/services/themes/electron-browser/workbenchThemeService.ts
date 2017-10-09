@@ -118,6 +118,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			isLoaded: false,
 			hasFileIcons: false,
 			hasFolderIcons: false,
+			hidesExplorerArrows: false,
 			extensionData: null
 		};
 
