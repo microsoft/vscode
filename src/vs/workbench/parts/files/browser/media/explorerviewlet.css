@@ -107,7 +107,7 @@
 }
 
 .explorer-folders-view.hide-arrows .monaco-tree-row .content::before {
-	display: none;
+	background-image: none;
 }
 
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row:hover > .content .monaco-action-bar,
