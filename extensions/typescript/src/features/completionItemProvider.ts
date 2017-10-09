@@ -282,7 +282,10 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 				return item;
 			}
 			const detail = details[0];
-			item.detail = Previewer.plain(detail.displayParts);
+			item.detail = {
+				value: Previewer.plain(detail.displayParts),
+				language: 'typescript'
+			};
 			item.documentation = Previewer.markdownDocumentation(detail.documentation, detail.tags);
 
 			if (detail.codeActions && detail.codeActions.length) {

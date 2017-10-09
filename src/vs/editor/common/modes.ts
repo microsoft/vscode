@@ -225,7 +225,7 @@ export interface ISuggestion {
 	label: string;
 	insertText: string;
 	type: SuggestionType;
-	detail?: string;
+	detail?: string | { language: string, value: string };
 	documentation?: string | IMarkdownString;
 	filterText?: string;
 	sortText?: string;

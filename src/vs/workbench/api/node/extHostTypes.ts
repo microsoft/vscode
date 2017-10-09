@@ -931,7 +931,7 @@ export class CompletionItem {
 
 	label: string;
 	kind: CompletionItemKind;
-	detail: string;
+	detail: string | { language: string, value: string };
 	documentation: string | MarkdownString;
 	sortText: string;
 	filterText: string;

@@ -33,6 +33,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/browser/markdownRenderer';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 
 const sticky = true; // for development purposes
 const expandSuggestionDocsByDefault = false;
@@ -153,7 +154,11 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 		}
 
 		data.highlightedLabel.set(suggestion.label, createMatches(element.matches));
-		data.typeLabel.textContent = (suggestion.detail || '').replace(/\n.*$/m, '');
+
+		const detailText = suggestion.detail
+			? typeof suggestion.detail === 'string' ? suggestion.detail : suggestion.detail.value
+			: '';
+		data.typeLabel.textContent = detailText.replace(/\n.*$/m, '');
 
 		if (canExpandCompletionItem(element)) {
 			show(data.readMore);
@@ -257,12 +262,18 @@ class SuggestionDetails {
 			this.docs.appendChild(this.markdownRenderer.render(item.suggestion.documentation));
 		}
 
-		if (item.suggestion.detail) {
-			this.type.innerText = item.suggestion.detail;
-			show(this.type);
-		} else {
+		if (!item.suggestion.detail) {
 			this.type.innerText = '';
 			hide(this.type);
+		} else if (typeof item.suggestion.detail === 'string') {
+			this.type.innerText = item.suggestion.detail;
+			removeClass(this.type, 'highlighted');
+			show(this.type);
+		} else {
+			const detail = new MarkdownString().appendCodeblock(item.suggestion.detail.language, item.suggestion.detail.value);
+			this.type.innerHTML = this.markdownRenderer.render(detail).innerHTML;
+			addClass(this.type, 'highlighted');
+			show(this.type);
 		}
 
 		this.el.style.height = this.header.offsetHeight + this.docs.offsetHeight + (this.borderWidth * 2) + 'px';
