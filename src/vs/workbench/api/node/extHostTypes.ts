@@ -843,6 +843,15 @@ export class MarkdownString {
 		this.value += value;
 		return this;
 	}
+
+	appendCodeblock(code: string, language: string = ''): MarkdownString {
+		this.value += '\n```';
+		this.value += language;
+		this.value += '\n';
+		this.value += code;
+		this.value += '\n```\n';
+		return this;
+	}
 }
 
 export class ParameterInformation {
