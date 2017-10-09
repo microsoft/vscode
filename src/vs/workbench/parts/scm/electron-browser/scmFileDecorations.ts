@@ -62,6 +62,7 @@ class SCMDecorationsProvider implements IDecorationsProvider {
 		return {
 			severity: Severity.Info,
 			color: resource.decorations.color,
+			tooltip: resource.decorations.tooltip,
 			icon: { light: resource.decorations.icon, dark: resource.decorations.iconDark }
 		};
 	}
