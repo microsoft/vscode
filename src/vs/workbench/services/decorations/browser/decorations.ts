@@ -19,7 +19,6 @@ export interface IResourceDecoration {
 	readonly prefix?: string;
 	readonly suffix?: string;
 	readonly color?: ColorIdentifier;
-	readonly icon?: URI | { dark: URI, light: URI };
 	readonly leafOnly?: boolean;
 }
 
