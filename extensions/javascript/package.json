@@ -132,6 +132,6 @@
     ]
   },
   "devDependencies": {
-    "@types/node": "^7.0.4"
+    "@types/node": "8.0.33"
   }
 }
