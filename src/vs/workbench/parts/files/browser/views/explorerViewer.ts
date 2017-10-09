@@ -329,8 +329,7 @@ export class FileRenderer implements IRenderer {
 				hidePath: true,
 				fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE,
 				extraClasses,
-				showAllDecorations: stat.isDirectory,
-				showDecorations: !stat.isDirectory
+				fileDecorations: stat.isDirectory ? 'all' : 'mine'
 			});
 		}
 

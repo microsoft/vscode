@@ -20,7 +20,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { IResourceDecorationsService, IResourceDecoration, IResourceDecorationChangeEvent } from 'vs/workbench/services/decorations/browser/decorations';
+import { IResourceDecorationsService, IResourceDecorationChangeEvent } from 'vs/workbench/services/decorations/browser/decorations';
 import { Schemas } from 'vs/base/common/network';
 import { FileKind } from 'vs/platform/files/common/files';
 import { IModel } from 'vs/editor/common/editorCommon';
@@ -36,8 +36,7 @@ export interface IResourceLabel {
 
 export interface IResourceLabelOptions extends IIconLabelOptions {
 	fileKind?: FileKind;
-	showDecorations?: boolean;
-	showAllDecorations?: boolean;
+	fileDecorations?: 'mine' | 'all';
 }
 
 export class ResourceLabel extends IconLabel {
@@ -98,10 +97,7 @@ export class ResourceLabel extends IconLabel {
 		if (!this.options || !this.label || !this.label.resource) {
 			return;
 		}
-		if (!this.options.showAllDecorations && !this.options.showDecorations) {
-			return;
-		}
-		if (e.affectsResource(this.label.resource)) {
+		if (this.options.fileDecorations && e.affectsResource(this.label.resource)) {
 			this.render(false);
 		}
 	}
@@ -186,13 +182,11 @@ export class ResourceLabel extends IconLabel {
 		const matches = this.options && this.options.matches;
 
 		let color: Color;
-		if (this.options) {
-			let deco: IResourceDecoration;
-			if (this.options.showDecorations) {
-				deco = this.decorationsService.getTopDecoration(resource, false);
-			} else if (this.options.showAllDecorations) {
-				deco = this.decorationsService.getTopDecoration(resource, true);
-			}
+		if (this.options && this.options.fileDecorations) {
+			let deco = this.decorationsService.getTopDecoration(
+				resource,
+				this.options.fileDecorations === 'all'
+			);
 
 			if (deco) {
 				color = this.themeService.getTheme().getColor(deco.color);
