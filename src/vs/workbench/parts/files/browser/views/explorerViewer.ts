@@ -289,7 +289,8 @@ export class FileRenderer implements IRenderer {
 		state: FileViewletState,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService private themeService: IThemeService
+		@IThemeService private themeService: IThemeService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		this.state = state;
 	}
@@ -326,7 +327,9 @@ export class FileRenderer implements IRenderer {
 				hidePath: true,
 				fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE,
 				extraClasses,
-				fileDecorations: stat.isDirectory ? 'all' : 'mine'
+				fileDecorations: this.configurationService.getConfiguration<IFilesConfiguration>().explorer.enableFileDecorations
+					? stat.isDirectory ? 'all' : 'mine'
+					: undefined
 			});
 		}
 
