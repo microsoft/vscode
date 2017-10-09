@@ -6,7 +6,7 @@
 
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
-import Event, { Emitter, debounceEvent } from 'vs/base/common/event';
+import Event, { Emitter, debounceEvent, any } from 'vs/base/common/event';
 import { IResourceDecorationsService, IResourceDecoration, IResourceDecorationChangeEvent, IDecorationsProvider } from './decorations';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -61,6 +61,10 @@ class DecorationProviderWrapper {
 		this._data.clear();
 	}
 
+	knowsAbout(uri: URI): boolean {
+		return Boolean(this._data.get(uri.toString())) || Boolean(this._data.findSuperstr(uri.toString()));
+	}
+
 	getOrRetrieve(uri: URI, includeChildren: boolean, callback: (data: IResourceDecoration) => void): void {
 		const key = uri.toString();
 		const item = this._data.get(key);
@@ -110,22 +114,28 @@ export class FileDecorationsService implements IResourceDecorationsService {
 	_serviceBrand: any;
 
 	private readonly _data = new LinkedList<DecorationProviderWrapper>();
-	private readonly _onDidChangeFileDecoration = new Emitter<URI | URI[]>();
+	private readonly _onDidChangeDecorationsDelayed = new Emitter<URI | URI[]>();
+	private readonly _onDidChangeDecorations = new Emitter<IResourceDecorationChangeEvent>();
 
-	readonly onDidChangeDecorations: Event<IResourceDecorationChangeEvent> = debounceEvent<URI | URI[], FileDecorationChangeEvent>(
-		this._onDidChangeFileDecoration.event,
-		FileDecorationChangeEvent.debouncer
+	readonly onDidChangeDecorations: Event<IResourceDecorationChangeEvent> = any(
+		this._onDidChangeDecorations.event,
+		debounceEvent<URI | URI[], FileDecorationChangeEvent>(
+			this._onDidChangeDecorationsDelayed.event,
+			FileDecorationChangeEvent.debouncer
+		)
 	);
 
 	registerDecortionsProvider(provider: IDecorationsProvider): IDisposable {
 
-		const wrapper = new DecorationProviderWrapper(provider, this._onDidChangeFileDecoration);
+		const wrapper = new DecorationProviderWrapper(provider, this._onDidChangeDecorationsDelayed);
 		const remove = this._data.push(wrapper);
-		// fire for all
 		return {
 			dispose: () => {
-				wrapper.dispose();
+				// fire event that says 'yes' for any resource
+				// known to this provider. then dispose and remove it.
 				remove();
+				this._onDidChangeDecorations.fire({ affectsResource: uri => wrapper.knowsAbout(uri) });
+				wrapper.dispose();
 			}
 		};
 	}
