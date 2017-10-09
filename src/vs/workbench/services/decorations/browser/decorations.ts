@@ -9,27 +9,20 @@ import URI from 'vs/base/common/uri';
 import Event from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export const IResourceDecorationsService = createDecorator<IResourceDecorationsService>('IFileDecorationsService');
 
-export abstract class DecorationType {
-	readonly label: string;
-	protected constructor(label: string) {
-		this.label = label;
-	}
-	dispose(): void {
-		//
-	}
-}
-
-export interface IResourceDecoration extends IResourceDecorationData {
-	readonly type: DecorationType;
-}
-
-export interface IResourceDecorationData {
+export interface IResourceDecoration {
 	readonly severity: Severity;
 	readonly color?: ColorIdentifier;
 	readonly icon?: URI | { dark: URI, light: URI };
+}
+
+export interface IDecorationsProvider {
+	readonly label: string;
+	readonly onDidChange: Event<URI[]>;
+	provideDecorations(uri: URI): IResourceDecoration | Thenable<IResourceDecoration>;
 }
 
 export interface IResourceDecorationChangeEvent {
@@ -42,11 +35,7 @@ export interface IResourceDecorationsService {
 
 	readonly onDidChangeDecorations: Event<IResourceDecorationChangeEvent>;
 
-	registerDecorationType(label: string): DecorationType;
-
-	setDecoration(type: DecorationType, target: URI, data?: IResourceDecorationData): void;
-
-	getDecorations(uri: URI, includeChildren: boolean): IResourceDecoration[];
+	registerDecortionsProvider(provider: IDecorationsProvider): IDisposable;
 
 	getTopDecoration(uri: URI, includeChildren: boolean): IResourceDecoration;
 }
