@@ -56,8 +56,8 @@ export function registerContributions(): void {
 		'order': 101,
 		'type': 'object',
 		'properties': {
-			'problems.showOnFiles': {
-				'description': localize('markers.showOnFile', "Show Errors & Warnings in the file explorer."),
+			'problems.fileDecorations.enabled': {
+				'description': localize('markers.showOnFile', "Show Errors & Warnings on files and folder."),
 				'type': 'boolean',
 				'default': true
 			}
