@@ -174,11 +174,8 @@ export class Resource implements SourceControlResourceState {
 		switch (this.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.MODIFIED:
-				return new ThemeColor('git.color.modified');
 			case Status.UNTRACKED:
-				return new ThemeColor('git.color.untracked');
-			case Status.IGNORED:
-				return new ThemeColor('git.color.ignored');
+				return new ThemeColor('git.color.modified');
 			default:
 				return undefined;
 		}
