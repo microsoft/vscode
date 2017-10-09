@@ -18,6 +18,7 @@ import { getSelectionSearchString } from 'vs/editor/contrib/find/common/find';
 import { Delayer } from 'vs/base/common/async';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 export const enum FindStartFocusAction {
 	NoFocusChange,
@@ -48,16 +49,18 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	protected _updateHistoryDelayer: Delayer<void>;
 	private _model: FindModelBoundToEditorModel;
 	private _storageService: IStorageService;
+	private _clipboardService: IClipboardService;
 
 	public static get(editor: editorCommon.ICommonCodeEditor): CommonFindController {
 		return editor.getContribution<CommonFindController>(CommonFindController.ID);
 	}
 
-	constructor(editor: editorCommon.ICommonCodeEditor, @IContextKeyService contextKeyService: IContextKeyService, @IStorageService storageService: IStorageService) {
+	constructor(editor: editorCommon.ICommonCodeEditor, @IContextKeyService contextKeyService: IContextKeyService, @IStorageService storageService: IStorageService, @IClipboardService clipBoardService: IClipboardService) {
 		super();
 		this._editor = editor;
 		this._findWidgetVisible = CONTEXT_FIND_WIDGET_VISIBLE.bindTo(contextKeyService);
 		this._storageService = storageService;
+		this._clipboardService = clipBoardService;
 
 		this._updateHistoryDelayer = new Delayer<void>(500);
 		this._currentHistoryNavigator = new HistoryNavigator<string>();
@@ -301,6 +304,14 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 		}
 		return true;
 	}
+
+	public showGlobalBufferTerm(): string {
+		return this._clipboardService.readFindText();
+	}
+
+	public setGlobalBufferTerm(text: string) {
+		this._clipboardService.writeFindText(text);
+	}
 }
 
 @editorAction
@@ -332,6 +343,8 @@ export class StartFindAction extends EditorAction {
 				shouldFocus: FindStartFocusAction.FocusFindInput,
 				shouldAnimate: true
 			});
+
+			controller.setGlobalBufferTerm(getSelectionSearchString(editor));
 		}
 	}
 }
@@ -371,7 +384,21 @@ export class NextMatchFindAction extends MatchFindAction {
 	}
 
 	protected _run(controller: CommonFindController): boolean {
-		return controller.moveToNextMatch();
+		let selectionSearchString = controller.showGlobalBufferTerm();
+		if (controller.getState().searchString === selectionSearchString) {
+			return controller.moveToNextMatch();
+		}
+		if (selectionSearchString) {
+			controller.setSearchString(selectionSearchString);
+			controller.start({
+				forceRevealReplace: false,
+				seedSearchStringFromSelection: false,
+				shouldFocus: FindStartFocusAction.NoFocusChange,
+				shouldAnimate: true
+			});
+			return true;
+		}
+		return false;
 	}
 }
 

@@ -14,6 +14,7 @@ import { FindOptionsWidget } from 'vs/editor/contrib/find/browser/findOptionsWid
 import { CommonFindController, FindStartFocusAction, IFindStartOptions } from 'vs/editor/contrib/find/common/findController';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 @editorContribution
 export class FindController extends CommonFindController implements IFindController {
@@ -27,9 +28,10 @@ export class FindController extends CommonFindController implements IFindControl
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
+		@IClipboardService clipBoardService: IClipboardService
 	) {
-		super(editor, contextKeyService, storageService);
+		super(editor, contextKeyService, storageService, clipBoardService);
 
 		this._widget = this._register(new FindWidget(editor, this, this._state, contextViewService, keybindingService, contextKeyService, themeService));
 		this._findOptionsWidget = this._register(new FindOptionsWidget(editor, this._state, keybindingService, themeService));
