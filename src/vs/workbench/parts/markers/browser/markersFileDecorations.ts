@@ -6,7 +6,7 @@
 'use strict';
 
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
-import { IMarkerService, IMarker } from 'vs/platform/markers/common/markers';
+import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IResourceDecorationsService, IDecorationsProvider, IResourceDecoration } from 'vs/workbench/services/decorations/browser/decorations';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
@@ -34,15 +34,16 @@ class MarkersDecorationsProvider implements IDecorationsProvider {
 		const markers = this._markerService.read({ resource })
 			.sort((a, b) => Severity.compare(a.severity, b.severity));
 
-		return !isFalsyOrEmpty(markers)
-			? MarkersDecorationsProvider._toFileDecorationData(markers[0])
-			: undefined;
-	}
+		if (isFalsyOrEmpty(markers)) {
+			return undefined;
+		}
 
-	private static _toFileDecorationData(marker: IMarker): IResourceDecoration {
-		const { severity } = marker;
-		const color = severity === Severity.Error ? editorErrorForeground : editorWarningForeground;
-		return { severity, color };
+		const [first] = markers;
+		return {
+			severity: first.severity,
+			tooltip: markers.length > 1 ? localize('tooltip', "{0} and {1} more problems", first.message, markers.length) : first.message,
+			color: first.severity === Severity.Error ? editorErrorForeground : editorWarningForeground
+		};
 	}
 }
 
