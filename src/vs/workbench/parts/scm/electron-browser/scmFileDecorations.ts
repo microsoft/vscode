@@ -12,6 +12,7 @@ import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource } from 'vs/work
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import Event, { Emitter } from 'vs/base/common/event';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 class SCMDecorationsProvider implements IDecorationsProvider {
 
@@ -32,6 +33,7 @@ class SCMDecorationsProvider implements IDecorationsProvider {
 
 	dispose(): void {
 		this._disposable.dispose();
+		this._data.clear();
 	}
 
 	private _updateGroups(): void {
@@ -67,18 +69,17 @@ class SCMDecorationsProvider implements IDecorationsProvider {
 
 export class FileDecorations implements IWorkbenchContribution {
 
-	private readonly _disposables: IDisposable[];
-	private readonly _providers = new Map<ISCMRepository, IDisposable>();
+	private _providers = new Map<ISCMRepository, IDisposable>();
+	private _configListener: IDisposable;
+	private _repoListeners: IDisposable[];
 
 	constructor(
 		@IResourceDecorationsService private _decorationsService: IResourceDecorationsService,
+		@IConfigurationService private _configurationService: IConfigurationService,
 		@ISCMService private _scmService: ISCMService,
 	) {
-		this._scmService.repositories.forEach(this._onDidAddRepository, this);
-		this._disposables = [
-			this._scmService.onDidAddRepository(this._onDidAddRepository, this),
-			this._scmService.onDidRemoveRepository(this._onDidRemoveRepository, this),
-		];
+		this._configListener = this._configurationService.onDidUpdateConfiguration(this._update, this);
+		this._update();
 	}
 
 	getId(): string {
@@ -86,7 +87,23 @@ export class FileDecorations implements IWorkbenchContribution {
 	}
 
 	dispose(): void {
-		dispose(this._disposables);
+		this._providers.forEach(value => dispose(value));
+		dispose(this._repoListeners);
+		dispose(this._configListener, this._configListener);
+	}
+
+	private _update(): void {
+		const value = this._configurationService.getConfiguration<{ fileDecorations: { enabled: boolean } }>('scm');
+		if (value.fileDecorations.enabled) {
+			this._scmService.repositories.forEach(this._onDidAddRepository, this);
+			this._repoListeners = [
+				this._scmService.onDidAddRepository(this._onDidAddRepository, this),
+				this._scmService.onDidRemoveRepository(this._onDidRemoveRepository, this)
+			];
+		} else {
+			this._providers.forEach(value => dispose(value));
+			this._repoListeners = dispose(this._repoListeners);
+		}
 	}
 
 	private _onDidAddRepository(repo: ISCMRepository): void {

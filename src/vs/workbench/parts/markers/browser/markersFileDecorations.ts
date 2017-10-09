@@ -74,8 +74,8 @@ class MarkersFileDecorations implements IWorkbenchContribution {
 	}
 
 	private _updateEnablement(): void {
-		let value = this._configurationService.getConfiguration<{ showOnFiles: boolean }>('problems');
-		if (value) {
+		let value = this._configurationService.getConfiguration<{ fileDecorations: { enabled: boolean } }>('problems');
+		if (value.fileDecorations.enabled) {
 			const provider = new MarkersDecorationsProvider(this._markerService);
 			this._provider = this._decorationsService.registerDecortionsProvider(provider);
 		} else if (this._provider) {
