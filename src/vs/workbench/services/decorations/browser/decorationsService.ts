@@ -7,8 +7,11 @@
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import Event, { Emitter, debounceEvent } from 'vs/base/common/event';
-import { IResourceDecorationsService, IResourceDecoration, DecorationType, IResourceDecorationData, IResourceDecorationChangeEvent } from './decorations';
+import { IResourceDecorationsService, IResourceDecoration, IResourceDecorationChangeEvent, IDecorationsProvider } from './decorations';
 import { TernarySearchTree } from 'vs/base/common/map';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { isThenable } from 'vs/base/common/async';
+import { LinkedList } from 'vs/base/common/linkedList';
 
 class FileDecorationChangeEvent implements IResourceDecorationChangeEvent {
 
@@ -18,96 +21,134 @@ class FileDecorationChangeEvent implements IResourceDecorationChangeEvent {
 		return this._data.get(uri.toString()) || this._data.findSuperstr(uri.toString()) !== undefined;
 	}
 
-	static debouncer(last: FileDecorationChangeEvent, current: URI) {
+	static debouncer(last: FileDecorationChangeEvent, current: URI | URI[]) {
 		if (!last) {
 			last = new FileDecorationChangeEvent();
 		}
-		last._data.set(current.toString(), true);
+		if (Array.isArray(current)) {
+			// many
+			for (const uri of current) {
+				last._data.set(uri.toString(), true);
+			}
+		} else {
+			// one
+			last._data.set(current.toString(), true);
+		}
+
 		return last;
+	}
+}
+
+class DecorationProviderWrapper {
+
+	private readonly _data = TernarySearchTree.forPaths<Thenable<void> | IResourceDecoration>();
+	private readonly _dispoable: IDisposable;
+
+	constructor(
+		private readonly _provider: IDecorationsProvider,
+		private readonly _emitter: Emitter<URI | URI[]>
+	) {
+		this._dispoable = this._provider.onDidChange(uris => {
+			for (const uri of uris) {
+				this._data.delete(uri.toString());
+				this._fetchData(uri);
+			}
+		});
+	}
+
+	dispose(): void {
+		this._dispoable.dispose();
+		this._data.clear();
+	}
+
+	getOrRetrieve(uri: URI, includeChildren: boolean, callback: (data: IResourceDecoration) => void): void {
+		const key = uri.toString();
+		const item = this._data.get(key);
+
+		if (isThenable<void>(item)) {
+			// pending -> still waiting
+			return;
+		}
+
+		if (item === undefined && !includeChildren) {
+			// unknown, a leaf node -> trigger request
+			this._fetchData(uri);
+			return;
+		}
+
+		if (item) {
+			// leaf node
+			callback(item);
+		}
+		if (includeChildren) {
+			// (resolved) children
+			const childTree = this._data.findSuperstr(key);
+			if (childTree) {
+				childTree.forEach(([, value]) => {
+					if (value && !isThenable<void>(value)) {
+						callback(value);
+					}
+				});
+			}
+		}
+	}
+
+	private _fetchData(uri: URI) {
+		const request = Promise.resolve(this._provider.provideDecorations(uri))
+			.then(data => {
+				this._data.set(uri.toString(), data || null);
+				this._emitter.fire(uri);
+			})
+			.catch(_ => this._data.delete(uri.toString()));
+
+		this._data.set(uri.toString(), request);
 	}
 }
 
 export class FileDecorationsService implements IResourceDecorationsService {
 
-	readonly _serviceBrand;
+	_serviceBrand: any;
 
-	private readonly _onDidChangeFileDecoration = new Emitter<URI>();
-	private readonly _types = new Map<DecorationType, TernarySearchTree<IResourceDecoration>>();
+	private readonly _data = new LinkedList<DecorationProviderWrapper>();
+	private readonly _onDidChangeFileDecoration = new Emitter<URI | URI[]>();
 
-	readonly onDidChangeDecorations: Event<IResourceDecorationChangeEvent> = debounceEvent<URI, FileDecorationChangeEvent>(
+	readonly onDidChangeDecorations: Event<IResourceDecorationChangeEvent> = debounceEvent<URI | URI[], FileDecorationChangeEvent>(
 		this._onDidChangeFileDecoration.event,
 		FileDecorationChangeEvent.debouncer
 	);
 
-	registerDecorationType(label: string): DecorationType {
-		const outer = this;
-		const type = new class extends DecorationType {
-			constructor() {
-				super(label);
-			}
-			dispose() {
-				let tree = outer._types.get(type);
-				if (tree) {
-					tree.forEach(([key]) => outer._onDidChangeFileDecoration.fire(URI.parse(key)));
-					outer._types.delete(type);
-				}
+	registerDecortionsProvider(provider: IDecorationsProvider): IDisposable {
+
+		const wrapper = new DecorationProviderWrapper(provider, this._onDidChangeFileDecoration);
+		const remove = this._data.push(wrapper);
+		// fire for all
+		return {
+			dispose: () => {
+				wrapper.dispose();
+				remove();
 			}
 		};
-		this._types.set(type, TernarySearchTree.forPaths<IResourceDecoration>());
-		return type;
-	}
-
-	setDecoration(type: DecorationType, target: URI, data?: IResourceDecorationData): void {
-		if (data) {
-			this._types.get(type).set(target.toString(), { type, ...data });
-		} else {
-			this._types.get(type).delete(target.toString());
-		}
-		this._onDidChangeFileDecoration.fire(target);
-	}
-
-	getDecorations(uri: URI, includeChildren: boolean): IResourceDecoration[] {
-		let ret: IResourceDecoration[] = [];
-		this._someFileDecoration(uri, includeChildren, decoration => {
-			ret.push(decoration);
-			return false;
-		});
-		return ret;
 	}
 
 	getTopDecoration(uri: URI, includeChildren: boolean): IResourceDecoration {
 		let top: IResourceDecoration;
-		this._someFileDecoration(uri, includeChildren, decoration => {
-			// top is the most severe one,
-			// stop as soon as an error is found
-			if (!top || FileDecorationsService._compareFileDecorationsBySeverity(top, decoration) > 0) {
-				top = decoration;
-			}
-			return top !== undefined && top.severity === Severity.Error;
-		});
+		for (let iter = this._data.iterator(), next = iter.next(); !next.done; next = iter.next()) {
+			next.value.getOrRetrieve(uri, includeChildren, candidate => {
+				top = FileDecorationsService._pickBest(top, candidate);
+			});
+		}
 		return top;
 	}
 
-	private _someFileDecoration(uri: URI, includeChildren: boolean, callback: (a: IResourceDecoration) => boolean): void {
-		let key = uri.toString();
-		let done = false;
-		this._types.forEach(tree => {
-			if (done) {
-				return;
-			}
-			if (includeChildren) {
-				let newTree = tree.findSuperstr(key);
-				if (newTree) {
-					newTree.forEach(([, deco]) => done = done || callback(deco));
-				}
-			} else {
-				let deco = tree.get(key);
-				done = done || deco && callback(deco);
-			}
-		});
-	}
-
-	private static _compareFileDecorationsBySeverity(a: IResourceDecoration, b: IResourceDecoration): number {
-		return Severity.compare(a.severity, b.severity);
+	private static _pickBest(a: IResourceDecoration, b: IResourceDecoration): IResourceDecoration {
+		if (!a) {
+			return b;
+		} else if (!b) {
+			return a;
+		} else if (Severity.compare(a.severity, b.severity) < 0) {
+			return a;
+		} else {
+			return b;
+		}
 	}
 }
