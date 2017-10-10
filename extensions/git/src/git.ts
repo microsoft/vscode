@@ -118,26 +118,11 @@ function findSystemGitWin32(base: string): Promise<IGit> {
 	return findSpecificGit(path.join(base, 'Git', 'cmd', 'git.exe'));
 }
 
-function findGitHubGitWin32(): Promise<IGit> {
-	const github = path.join(process.env['LOCALAPPDATA'], 'GitHub');
-
-	return readdir(github).then(children => {
-		const git = children.filter(child => /^PortableGit/.test(child))[0];
-
-		if (!git) {
-			return Promise.reject<IGit>('Not found');
-		}
-
-		return findSpecificGit(path.join(github, git, 'cmd', 'git.exe'));
-	});
-}
-
 function findGitWin32(): Promise<IGit> {
 	return findSystemGitWin32(process.env['ProgramW6432'])
 		.then(void 0, () => findSystemGitWin32(process.env['ProgramFiles(x86)']))
 		.then(void 0, () => findSystemGitWin32(process.env['ProgramFiles']))
-		.then(void 0, () => findSpecificGit('git'))
-		.then(void 0, () => findGitHubGitWin32());
+		.then(void 0, () => findSpecificGit('git'));
 }
 
 export function findGit(hint: string | undefined): Promise<IGit> {
