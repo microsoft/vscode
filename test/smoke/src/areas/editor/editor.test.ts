@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-
 import { SpectronApplication } from '../../spectron/application';
 
 describe('Editor', () => {
@@ -31,14 +29,9 @@ describe('Editor', () => {
 
 	it(`renames local 'app' variable`, async function () {
 		await app.workbench.quickopen.openFile('www');
-
-		const selector = await app.workbench.editor.getSelector('app', 7);
-		const rename = await app.workbench.editor.rename('app', 7);
-		await rename.rename('newApp');
-
-		const actual = await app.client.waitForText(selector, 'newApp');
+		await app.workbench.editor.rename('www', 7, 'app', 'newApp');
+		await app.workbench.editor.waitForEditorContents('www', contents => contents.indexOf('newApp') > -1);
 		await app.screenCapturer.capture('Rename result');
-		assert.equal(actual, 'newApp');
 	});
 
 	it('folds/unfolds the code correctly', async function () {

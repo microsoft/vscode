@@ -16,8 +16,7 @@ describe('Multiroot', () => {
 	after(() => app.stop());
 
 	it('shows results from all folders', async function () {
-		await app.workbench.quickopen.openQuickOpen();
-		await app.workbench.quickopen.type('*.*');
+		await app.workbench.quickopen.openQuickOpen('*.*');
 
 		await app.workbench.quickopen.waitForQuickOpenElements(names => names.length >= 6);
 		await app.workbench.quickopen.closeQuickOpen();

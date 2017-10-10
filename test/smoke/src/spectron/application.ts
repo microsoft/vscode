@@ -262,7 +262,7 @@ export class SpectronApplication {
 	 * Retrieves the command from keybindings file and executes it with WebdriverIO client API
 	 * @param command command (e.g. 'workbench.action.files.newUntitledFile')
 	 */
-	command(command: string, capture?: boolean): Promise<any> {
+	runCommand(command: string): Promise<any> {
 		const binding = this.keybindings.find(x => x['command'] === command);
 		if (!binding) {
 			return this.workbench.quickopen.runCommand(command);
@@ -278,7 +278,7 @@ export class SpectronApplication {
 			keysToPress.push('NULL');
 		});
 
-		return this.client.keys(keysToPress, capture);
+		return this.client.keys(keysToPress);
 	}
 
 	/**

@@ -25,7 +25,7 @@ export class SpectronClient {
 		return this.spectron.client.windowByIndex(index);
 	}
 
-	keys(keys: string[] | string, capture: boolean = true): Promise<void> {
+	keys(keys: string[]): Promise<void> {
 		this.spectron.client.keys(keys);
 		return Promise.resolve();
 	}
@@ -78,7 +78,7 @@ export class SpectronClient {
 		return this.spectron.client.moveToObject(selector);
 	}
 
-	async waitAndmoveToObject(selector: string): Promise<any> {
+	async waitAndMoveToObject(selector: string): Promise<any> {
 		return this.waitFor(() => this.spectron.client.moveToObject(selector), void 0, `move to object with selector ${selector}`);
 	}
 
@@ -131,10 +131,6 @@ export class SpectronClient {
 
 	async getAttribute(selector: string, attribute: string, capture: boolean = true): Promise<any> {
 		return Promise.resolve(this.spectron.client.getAttribute(selector, attribute));
-	}
-
-	clearElement(selector: string): any {
-		return this.spectron.client.clearElement(selector);
 	}
 
 	buttonDown(): any {
@@ -191,22 +187,22 @@ export class SpectronClient {
 		}
 	}
 
-	type(text: string): Promise<any> {
-		return new Promise((res) => {
-			let textSplit = text.split(' ');
+	// type(text: string): Promise<any> {
+	// 	return new Promise((res) => {
+	// 		let textSplit = text.split(' ');
 
-			const type = async (i: number) => {
-				if (!textSplit[i] || textSplit[i].length <= 0) {
-					return res();
-				}
+	// 		const type = async (i: number) => {
+	// 			if (!textSplit[i] || textSplit[i].length <= 0) {
+	// 				return res();
+	// 			}
 
-				const toType = textSplit[i + 1] ? `${textSplit[i]} ` : textSplit[i];
-				await this.keys(toType, false);
-				await this.keys(['NULL']);
-				await type(i + 1);
-			};
+	// 			const toType = textSplit[i + 1] ? `${textSplit[i]} ` : textSplit[i];
+	// 			await this.keys(toType);
+	// 			await this.keys(['NULL']);
+	// 			await type(i + 1);
+	// 		};
 
-			return type(0);
-		});
-	}
+	// 		return type(0);
+	// 	});
+	// }
 }

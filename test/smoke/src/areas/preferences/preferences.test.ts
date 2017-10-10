@@ -30,8 +30,7 @@ describe('Preferences', () => {
 	it(`changes 'workbench.action.toggleSidebarPosition' command key binding and verifies it`, async function () {
 		assert.ok(await app.workbench.activitybar.getActivityBar(ActivityBarPosition.LEFT), 'Activity bar should be positioned on the left.');
 
-		await app.workbench.keybindingsEditor.openKeybindings();
-		await app.workbench.keybindingsEditor.updateKeybinding('workbench.action.toggleSidebarPosition', ['Control', 'u', 'NULL'], 'Control+U');
+		await app.workbench.keybindingsEditor.updateKeybinding('workbench.action.toggleSidebarPosition', ['Control', 'u'], 'Control+U');
 
 		await app.client.keys(['Control', 'u', 'NULL']);
 		assert.ok(await app.workbench.activitybar.getActivityBar(ActivityBarPosition.RIGHT), 'Activity bar was not moved to right after toggling its position.');

@@ -21,7 +21,7 @@ describe('CSS', () => {
 
 	it('verifies warnings for the empty rule', async () => {
 		await app.workbench.quickopen.openFile('style.css');
-		await app.client.type('.foo{}');
+		await app.workbench.editor.waitForTypeInEditor('style.css', '.foo{}');
 
 		let warning = await app.client.waitForElement(Problems.getSelectorInEditor(ProblemSeverity.WARNING));
 		await app.screenCapturer.capture('CSS Warning in editor');
@@ -37,7 +37,7 @@ describe('CSS', () => {
 	it('verifies that warning becomes an error once setting changed', async () => {
 		await app.workbench.settingsEditor.addUserSetting('css.lint.emptyRules', '"error"');
 		await app.workbench.quickopen.openFile('style.css');
-		await app.client.type('.foo{}');
+		await app.workbench.editor.waitForTypeInEditor('style.css', '.foo{}');
 
 		let error = await app.client.waitForElement(Problems.getSelectorInEditor(ProblemSeverity.ERROR));
 		await app.screenCapturer.capture('CSS Error in editor');

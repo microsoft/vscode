@@ -68,7 +68,7 @@ describe('Statusbar', () => {
 
 		await app.workbench.quickopen.waitForQuickOpenOpened();
 
-		await app.workbench.quickopen.submit('15');
+		await app.workbench.quickopen.submit(':15');
 		await app.workbench.editor.waitForHighlightingLine(15);
 	});
 

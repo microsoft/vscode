@@ -19,11 +19,11 @@ describe('Git', () => {
 		await app.workbench.scm.openSCMViewlet();
 
 		await app.workbench.quickopen.openFile('app.js');
-		await app.client.type('.foo{}');
+		await app.workbench.editor.waitForTypeInEditor('app.js', '.foo{}');
 		await app.workbench.saveOpenedFile();
 
 		await app.workbench.quickopen.openFile('index.jade');
-		await app.client.type('hello world');
+		await app.workbench.editor.waitForTypeInEditor('index.jade', 'hello world');
 		await app.workbench.saveOpenedFile();
 
 		await app.workbench.scm.refreshSCMViewlet();

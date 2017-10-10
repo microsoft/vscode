@@ -49,10 +49,9 @@ describe('Data Migration', () => {
 		await Util.removeFile(`${fileName}`);
 		await app.start('Data Migration');
 
-		await app.workbench.waitForActiveTab(fileName);
-		await app.client.type(firstTextPart);
+		await app.workbench.editor.waitForTypeInEditor('plainFile', firstTextPart);
 		await app.workbench.saveOpenedFile();
-		await app.client.type(secondTextPart);
+		await app.workbench.editor.waitForTypeInEditor('plainFile', secondTextPart);
 
 		await app.stop();
 		await new Promise(c => setTimeout(c, 1000)); // wait until all resources are released (e.g. locked local storage)
