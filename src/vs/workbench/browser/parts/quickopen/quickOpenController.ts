@@ -55,7 +55,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ITree, IActionProvider } from 'vs/base/parts/tree/browser/tree';
 import { BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { FileKind, IFileService } from 'vs/platform/files/common/files';
-import { scoreItem, ScorerCache, compareItemsByScore } from 'vs/base/parts/quickopen/common/quickOpenScorer';
+import { scoreItem, ScorerCache, compareItemsByScore, massageSearchForScoring } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 
 const HELP_PREFIX = '?';
 
@@ -1177,9 +1177,9 @@ class EditorHistoryHandler {
 	}
 
 	public getResults(searchValue?: string): QuickOpenEntry[] {
-		if (searchValue) {
-			searchValue = strings.stripWildcards(searchValue.replace(/ /g, '')); // get rid of all whitespace and wildcards
-		}
+
+		// Massage search for scoring
+		searchValue = massageSearchForScoring(searchValue);
 
 		// Just return all if we are not searching
 		const history = this.historyService.getHistory();

@@ -237,6 +237,10 @@ export class RipgrepParser extends EventEmitter {
 	}
 
 	private handleMatchLine(outputLine: string, lineNum: number, text: string): void {
+		if (lineNum === 0) {
+			text = strings.stripUTF8BOM(text);
+		}
+
 		const lineMatch = new LineMatch(text, lineNum);
 		this.fileMatch.addMatch(lineMatch);
 

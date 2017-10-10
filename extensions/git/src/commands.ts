@@ -342,21 +342,35 @@ export class CommandCenter {
 
 	@command('git.init')
 	async init(): Promise<void> {
-		const value = workspace.workspaceFolders && workspace.workspaceFolders.length > 0
-			? workspace.workspaceFolders[0].uri.fsPath
-			: os.homedir();
+		const homeUri = Uri.file(os.homedir());
+		const defaultUri = workspace.workspaceFolders && workspace.workspaceFolders.length > 0
+			? Uri.file(workspace.workspaceFolders[0].uri.fsPath)
+			: homeUri;
 
-		const path = await window.showInputBox({
-			placeHolder: localize('path to init', "Folder path"),
-			prompt: localize('provide path', "Please provide a folder path to initialize a Git repository"),
-			value,
-			ignoreFocusOut: true
+		const result = await window.showOpenDialog({
+			canSelectFiles: false,
+			canSelectFolders: true,
+			canSelectMany: false,
+			defaultUri,
+			openLabel: localize('init repo', "Initialize Repository")
 		});
 
-		if (!path) {
+		if (!result || result.length === 0) {
 			return;
 		}
 
+		const uri = result[0];
+
+		if (homeUri.toString().startsWith(uri.toString())) {
+			const yes = localize('create repo', "Initialize Repository");
+			const answer = await window.showWarningMessage(localize('are you sure', "This will create a Git repository in '{0}'. Are you sure you want to continue?", uri.fsPath), yes);
+
+			if (answer !== yes) {
+				return;
+			}
+		}
+
+		const path = uri.fsPath;
 		await this.git.init(path);
 		await this.model.tryOpenRepository(path);
 	}

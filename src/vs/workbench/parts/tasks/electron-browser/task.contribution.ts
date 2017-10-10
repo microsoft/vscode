@@ -1749,7 +1749,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (this._taskSystem instanceof TerminalTaskSystem) {
 			return false;
 		}
-		if (this._taskSystem.canAutoTerminate() || this.messageService.confirm({
+		if (this._taskSystem.canAutoTerminate() || this.messageService.confirmSync({
 			message: nls.localize('TaskSystem.runningTask', 'There is a task running. Do you want to terminate it?'),
 			primaryButton: nls.localize({ key: 'TaskSystem.terminateTask', comment: ['&& denotes a mnemonic'] }, "&&Terminate Task"),
 			type: 'question'
@@ -1771,7 +1771,7 @@ class TaskService extends EventEmitter implements ITaskService {
 					this.disposeTaskSystemListeners();
 					return false; // no veto
 				} else if (code && code === TerminateResponseCode.ProcessNotFound) {
-					return !this.messageService.confirm({
+					return !this.messageService.confirmSync({
 						message: nls.localize('TaskSystem.noProcess', 'The launched task doesn\'t exist anymore. If the task spawned background processes exiting VS Code might result in orphaned processes. To avoid this start the last background process with a wait flag.'),
 						primaryButton: nls.localize({ key: 'TaskSystem.exitAnyways', comment: ['&& denotes a mnemonic'] }, "&&Exit Anyways"),
 						type: 'info'

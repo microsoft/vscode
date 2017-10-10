@@ -7,7 +7,7 @@
         api: [],
         css-less-sass: [],
         debug: [ isidorn ],
-        editor: [ alexandrudima ],
+        editor: [],
         editor-brackets: [],
         editor-clipboard: [ rebornix ],
         editor-colors: [],

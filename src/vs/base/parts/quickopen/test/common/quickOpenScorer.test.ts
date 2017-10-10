@@ -57,10 +57,10 @@ suite('Quick Open Scorer', () => {
 		scores.push(scorer._doScore(target, 'hw', true)); // direct mix-case prefix (multiple)
 		scores.push(scorer._doScore(target, 'H', true)); // direct case prefix
 		scores.push(scorer._doScore(target, 'h', true)); // direct mix-case prefix
+		scores.push(scorer._doScore(target, 'ld', true)); // in-string mix-case match (consecutive, avoids scattered hit)
 		scores.push(scorer._doScore(target, 'W', true)); // direct case word prefix
 		scores.push(scorer._doScore(target, 'w', true)); // direct mix-case word prefix
 		scores.push(scorer._doScore(target, 'Ld', true)); // in-string case match (multiple)
-		scores.push(scorer._doScore(target, 'ld', true)); // in-string mix-case match
 		scores.push(scorer._doScore(target, 'L', true)); // in-string case match
 		scores.push(scorer._doScore(target, 'l', true)); // in-string mix-case match
 		scores.push(scorer._doScore(target, '4', true)); // no match
@@ -91,20 +91,6 @@ suite('Quick Open Scorer', () => {
 		assert.ok(scorer._doScore(target, 'ello', false)[0] > 0);
 		assert.ok(scorer._doScore(target, 'ld', false)[0] > 0);
 		assert.equal(scorer._doScore(target, 'eo', false)[0], 0);
-	});
-
-	test('score (non fuzzy, inverse)', function () {
-		const target = 'HeLlo-World';
-
-		assert.ok(scorer._doScore(target, 'HelLo-World', false, true)[0] > 0);
-		assert.equal(scorer._doScore(target, 'HelLo-World', false, true)[1].length, 'HelLo-World'.length);
-
-		assert.ok(scorer._doScore(target, 'hello-world', false, true)[0] > 0);
-		assert.equal(scorer._doScore(target, 'HW', false, true)[0], 0);
-		assert.ok(scorer._doScore(target, 'h', false, true)[0] > 0);
-		assert.ok(scorer._doScore(target, 'ello', false, true)[0] > 0);
-		assert.ok(scorer._doScore(target, 'ld', false, true)[0] > 0);
-		assert.equal(scorer._doScore(target, 'eo', false, true)[0], 0);
 	});
 
 	test('scoreItem - matches are proper', function () {
@@ -195,6 +181,22 @@ suite('Quick Open Scorer', () => {
 		assert.equal(pathRes.descriptionMatch.length, 1);
 		assert.equal(pathRes.descriptionMatch[0].start, 23);
 		assert.equal(pathRes.descriptionMatch[0].end, 26);
+	});
+
+	test('scoreItem - prefers more compact matches', function () {
+		const resource = URI.file('/1a111d1/11a1d1/something.txt');
+
+		// expect "ad" to be matched towards the end of the file because the
+		// match is more compact
+		const res = scorer.scoreItem(resource, 'ad', true, ResourceAccessor, cache);
+		assert.ok(res.score);
+		assert.ok(res.descriptionMatch);
+		assert.ok(!res.labelMatch.length);
+		assert.equal(res.descriptionMatch.length, 2);
+		assert.equal(res.descriptionMatch[0].start, 11);
+		assert.equal(res.descriptionMatch[0].end, 12);
+		assert.equal(res.descriptionMatch[1].start, 13);
+		assert.equal(res.descriptionMatch[1].end, 14);
 	});
 
 	test('compareItemsByScore - identity', function () {
@@ -421,5 +423,67 @@ suite('Quick Open Scorer', () => {
 		res = [resourceB, resourceA].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache, (r1, r2, query, ResourceAccessor) => -1));
 		assert.equal(res[0], resourceB);
 		assert.equal(res[1], resourceA);
+	});
+
+	test('compareFilesByScore - prefer more compact camel case matches', function () {
+		const resourceA = URI.file('config/test/openthisAnythingHandler.js');
+		const resourceB = URI.file('config/test/openthisisnotsorelevantforthequeryAnyHand.js');
+
+		let query = 'AH';
+
+		let res = [resourceA, resourceB].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+		assert.equal(res[1], resourceA);
+
+		res = [resourceB, resourceA].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+		assert.equal(res[1], resourceA);
+	});
+
+	test('compareFilesByScore - prefer more compact matches (label)', function () {
+		const resourceA = URI.file('config/test/examasdaple.js');
+		const resourceB = URI.file('config/test/exampleasdaasd.ts');
+
+		let query = 'xp';
+
+		let res = [resourceA, resourceB].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+		assert.equal(res[1], resourceA);
+
+		res = [resourceB, resourceA].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+		assert.equal(res[1], resourceA);
+	});
+
+	test('compareFilesByScore - prefer more compact matches (path)', function () {
+		const resourceA = URI.file('config/test/examasdaple/file.js');
+		const resourceB = URI.file('config/test/exampleasdaasd/file.ts');
+
+		let query = 'xp';
+
+		let res = [resourceA, resourceB].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+		assert.equal(res[1], resourceA);
+
+		res = [resourceB, resourceA].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+		assert.equal(res[1], resourceA);
+	});
+
+	test('compareFilesByScore - avoid match scattering (bug #34210)', function () {
+		const resourceA = URI.file('node_modules1/bundle/lib/model/modules/ot1/index.js');
+		const resourceB = URI.file('node_modules1/bundle/lib/model/modules/un1/index.js');
+		const resourceC = URI.file('node_modules1/bundle/lib/model/modules/modu1/index.js');
+		const resourceD = URI.file('node_modules1/bundle/lib/model/modules/oddl1/index.js');
+
+		let query = 'modu1/index.js';
+
+		let res = [resourceA, resourceB, resourceC, resourceD].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceC);
+
+		query = 'un1/index.js';
+
+		res = [resourceA, resourceB, resourceC, resourceD].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
 	});
 });
