@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/cd202a57fd738d6d2c712c2ed63f5f41a11eb558",
+	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/5955a5aed3d8d2862c614f2137d22f2334d490e9",
 	"name": "TypeScript",
 	"scopeName": "source.ts",
 	"fileTypes": [
@@ -3363,7 +3363,7 @@
 							"name": "punctuation.definition.group.regexp"
 						},
 						"1": {
-							"name": "punctuation.definition.group.capture.regexp"
+							"name": "punctuation.definition.group.no-capture.regexp"
 						}
 					},
 					"end": "\\)",
