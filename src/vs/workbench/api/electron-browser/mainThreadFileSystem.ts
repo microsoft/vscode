@@ -5,7 +5,7 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { TPromise, PPromise } from 'vs/base/common/winjs.base';
 import { ExtHostContext, MainContext, IExtHostContext, MainThreadFileSystemShape, ExtHostFileSystemShape } from '../node/extHost.protocol';
 import { IFileService, IFileSystemProvider, IStat, IFileChange } from 'vs/platform/files/common/files';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -13,6 +13,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
+import { ISearchResultProvider, ISearchQuery, ISearchComplete, ISearchProgressItem, QueryType, IFileMatch, ISearchService } from 'vs/platform/search/common/search';
 
 @extHostNamedCustomer(MainContext.MainThreadFileSystem)
 export class MainThreadFileSystem implements MainThreadFileSystemShape {
@@ -24,6 +25,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	constructor(
 		extHostContext: IExtHostContext,
 		@IFileService private readonly _fileService: IFileService,
+		@ISearchService private readonly _searchService: ISearchService,
 		@IWorkspaceEditingService private readonly _workspaceEditService: IWorkspaceEditingService
 	) {
 		this._proxy = extHostContext.get(ExtHostContext.ExtHostFileSystem);
@@ -34,7 +36,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	}
 
 	$registerFileSystemProvider(handle: number, scheme: string): void {
-		this._provider.set(handle, new RemoteFileSystemProvider(this._fileService, scheme, handle, this._proxy));
+		this._provider.set(handle, new RemoteFileSystemProvider(this._fileService, this._searchService, scheme, handle, this._proxy));
 	}
 
 	$unregisterFileSystemProvider(handle: number): void {
@@ -53,28 +55,38 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	$reportFileChunk(handle: number, resource: URI, chunk: number[]): void {
 		this._provider.get(handle).reportFileChunk(resource, chunk);
 	}
+
+	// --- search
+
+	$handleSearchProgress(handle: number, session: number, resource: URI): void {
+		this._provider.get(handle).handleSearchProgress(session, resource);
+	}
 }
 
-class RemoteFileSystemProvider implements IFileSystemProvider {
+class RemoteFileSystemProvider implements IFileSystemProvider, ISearchResultProvider {
 
 	private readonly _onDidChange = new Emitter<IFileChange[]>();
-	private readonly _registration: IDisposable;
 	private readonly _reads = new Map<string, IProgress<Uint8Array>>();
+	private readonly _registrations: IDisposable[];
 
 	readonly onDidChange: Event<IFileChange[]> = this._onDidChange.event;
 
 
 	constructor(
-		service: IFileService,
+		fileService: IFileService,
+		searchService: ISearchService,
 		scheme: string,
 		private readonly _handle: number,
 		private readonly _proxy: ExtHostFileSystemShape
 	) {
-		this._registration = service.registerProvider(scheme, this);
+		this._registrations = [
+			fileService.registerProvider(scheme, this),
+			searchService.registerSearchResultProvider(this),
+		];
 	}
 
 	dispose(): void {
-		this._registration.dispose();
+		dispose(this._registrations);
 		this._onDidChange.dispose();
 	}
 
@@ -114,5 +126,37 @@ class RemoteFileSystemProvider implements IFileSystemProvider {
 	}
 	rmdir(resource: URI): TPromise<void, any> {
 		return this._proxy.$rmdir(this._handle, resource);
+	}
+
+	// --- search
+
+	private _searches = new Map<number, (resource: URI) => void>();
+	private _searchesIdPool = 0;
+
+	search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem> {
+		if (query.type === QueryType.Text) {
+			return PPromise.as<ISearchComplete>({ results: [], stats: undefined });
+		}
+		const id = ++this._searchesIdPool;
+		const matches: IFileMatch[] = [];
+		return new PPromise((resolve, reject, report) => {
+			this._proxy.$fileFiles(this._handle, id, query.filePattern).then(() => {
+				this._searches.delete(id);
+				resolve({
+					results: matches,
+					stats: undefined
+				});
+			}, reject);
+
+			this._searches.set(id, resource => {
+				const match: IFileMatch = { resource };
+				matches.push(match);
+				report(match);
+			});
+		});
+	}
+
+	handleSearchProgress(session: number, resource: URI): void {
+		this._searches.get(session)(resource);
 	}
 }
