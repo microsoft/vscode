@@ -155,6 +155,9 @@ declare module 'vscode' {
 
 		// todo@remote
 		// create(resource: Uri): Thenable<FileStat>;
+
+		// find files by names
+		findFiles?(query: string, progress: Progress<Uri>, token: CancellationToken): Thenable<void>;
 	}
 
 	export namespace workspace {
