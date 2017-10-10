@@ -71,4 +71,32 @@ suite('DecorationsService', function () {
 		assert.deepEqual(service.getTopDecoration(uri, false), { severity: Severity.Info, color: 'someBlue' });
 		assert.equal(callCounter, 1);
 	});
+
+	test('Clear decorations on provider dispose', function () {
+		let uri = URI.parse('foo:bar');
+		let callCounter = 0;
+
+		let reg = service.registerDecortionsProvider(new class implements IDecorationsProvider {
+			readonly label: string = 'Test';
+			readonly onDidChange: Event<URI[]> = Event.None;
+			provideDecorations(uri: URI) {
+				callCounter += 1;
+				return { severity: Severity.Info, color: 'someBlue' };
+			}
+		});
+
+		// trigger -> sync
+		assert.deepEqual(service.getTopDecoration(uri, false), { severity: Severity.Info, color: 'someBlue' });
+		assert.equal(callCounter, 1);
+
+		const p = toPromise(service.onDidChangeDecorations);
+
+		reg.dispose();
+
+		p.then(e => {
+			assert.equal(e.affectsResource(uri), true);
+			assert.deepEqual(service.getTopDecoration(uri, false), undefined);
+			assert.equal(callCounter, 1);
+		});
+	});
 });
