@@ -9,6 +9,7 @@ import * as assert from 'assert';
 import * as scorer from 'vs/base/parts/quickopen/common/quickOpenScorer';
 import URI from 'vs/base/common/uri';
 import { basename, dirname } from 'vs/base/common/paths';
+import { isWindows } from 'vs/base/common/platform';
 
 class ResourceAccessorClass implements scorer.IItemAccessor<URI> {
 
@@ -476,12 +477,12 @@ suite('Quick Open Scorer', () => {
 		const resourceC = URI.file('node_modules1/bundle/lib/model/modules/modu1/index.js');
 		const resourceD = URI.file('node_modules1/bundle/lib/model/modules/oddl1/index.js');
 
-		let query = 'modu1/index.js';
+		let query = isWindows ? 'modu1\\index.js' : 'modu1/index.js';
 
 		let res = [resourceA, resourceB, resourceC, resourceD].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceC);
 
-		query = 'un1/index.js';
+		query = isWindows ? 'un1\\index.js' : 'un1/index.js';
 
 		res = [resourceA, resourceB, resourceC, resourceD].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceB);
