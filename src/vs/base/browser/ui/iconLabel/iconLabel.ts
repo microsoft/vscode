@@ -23,8 +23,9 @@ export interface IIconLabelOptions {
 	title?: string;
 	extraClasses?: string[];
 	italic?: boolean;
-	color?: Color;
 	matches?: IMatch[];
+	color?: Color;
+	extraIcon?: uri;
 }
 
 class FastLabelNode {
@@ -145,6 +146,20 @@ export class IconLabel {
 
 		this.descriptionNode.textContent = description || '';
 		this.descriptionNode.empty = !description;
+
+		if (options && options.extraIcon) {
+			this.element.style.backgroundImage = `url(${options.extraIcon.toString(true)})`;
+			this.element.style.backgroundRepeat = 'no-repeat';
+			this.element.style.backgroundPosition = 'right center';
+			this.element.style.paddingRight = '20px';
+			this.element.style.marginRight = '14px';
+		} else {
+			this.element.style.backgroundImage = '';
+			this.element.style.backgroundRepeat = '';
+			this.element.style.backgroundPosition = '';
+			this.element.style.paddingRight = '';
+			this.element.style.marginRight = '';
+		}
 	}
 
 	public dispose(): void {

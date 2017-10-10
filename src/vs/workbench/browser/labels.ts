@@ -181,7 +181,10 @@ export class ResourceLabel extends IconLabel {
 		const italic = this.options && this.options.italic;
 		const matches = this.options && this.options.matches;
 
+
+
 		let color: Color;
+		let extraIcon: uri;
 		if (this.options && this.options.fileDecorations) {
 			let deco = this.decorationsService.getTopDecoration(
 				resource,
@@ -211,13 +214,7 @@ export class ResourceLabel extends IconLabel {
 
 				if (deco.icon) {
 					const { type } = this.themeService.getTheme();
-					const icon = type === 'light' ? deco.icon.light : deco.icon.dark;
-
-					this.element.style.backgroundImage = `url(${icon.toString(true)})`;
-					this.element.style.backgroundRepeat = 'no-repeat';
-					this.element.style.backgroundPosition = 'right center';
-					this.element.style.paddingRight = '20px';
-					this.element.style.marginRight = '14px';
+					extraIcon = type === 'light' ? deco.icon.light : deco.icon.dark;
 				}
 			}
 		}
@@ -227,7 +224,8 @@ export class ResourceLabel extends IconLabel {
 			extraClasses,
 			italic,
 			matches,
-			color
+			color,
+			extraIcon
 		});
 	}
 
