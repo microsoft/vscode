@@ -208,6 +208,17 @@ export class ResourceLabel extends IconLabel {
 				if (deco.suffix) {
 					label += deco.suffix;
 				}
+
+				if (deco.icon) {
+					const { type } = this.themeService.getTheme();
+					const icon = type === 'light' ? deco.icon.light : deco.icon.dark;
+
+					this.element.style.backgroundImage = `url(${icon.toString(true)})`;
+					this.element.style.backgroundRepeat = 'no-repeat';
+					this.element.style.backgroundPosition = 'right center';
+					this.element.style.paddingRight = '20px';
+					this.element.style.marginRight = '14px';
+				}
 			}
 		}
 
