@@ -58,8 +58,6 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { getPathLabel } from 'vs/base/common/labels';
 import { extractResources } from 'vs/base/browser/dnd';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
-
 
 export class FileDataSource implements IDataSource {
 	constructor(
