@@ -211,9 +211,8 @@ export class ViewsViewlet extends PanelViewlet {
 	private viewHeaderContextMenuListeners: IDisposable[] = [];
 	private viewletSettings: object;
 	private readonly viewsContextKeys: Set<string> = new Set<string>();
-
 	private viewsViewletPanels: ViewsViewletPanel[] = [];
-
+	private didLayout = false;
 	protected viewsStates: Map<string, IViewState> = new Map<string, IViewState>();
 	private areExtensionsReady: boolean = false;
 
@@ -271,6 +270,11 @@ export class ViewsViewlet extends PanelViewlet {
 
 	layout(dimension: Dimension): void {
 		super.layout(dimension);
+
+		if (!this.didLayout) {
+			this.didLayout = true;
+			this._resizePanels();
+		}
 
 		for (const view of this.viewsViewletPanels) {
 			let viewState = this.updateViewStateSize(view);
@@ -416,6 +420,10 @@ export class ViewsViewlet extends PanelViewlet {
 	}
 
 	private _resizePanels(): void {
+		if (!this.didLayout) {
+			return;
+		}
+
 		for (const panel of this.viewsViewletPanels) {
 			const viewState = this.viewsStates.get(panel.id);
 			const size = (viewState && viewState.size) || 200;

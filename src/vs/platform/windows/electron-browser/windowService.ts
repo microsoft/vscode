@@ -7,7 +7,7 @@
 
 import Event, { filterEvent, mapEvent, any } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IWindowService, IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult } from 'vs/platform/windows/common/windows';
 import { remote } from 'electron';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ICommandAction } from 'vs/platform/actions/common/actions';
@@ -71,8 +71,8 @@ export class WindowService implements IWindowService {
 		return this.windowsService.openWorkspace(this.windowId);
 	}
 
-	createAndEnterWorkspace(folders?: string[], path?: string): TPromise<IEnterWorkspaceResult> {
-		return this.windowsService.createAndEnterWorkspace(this.windowId, folders, path);
+	createAndEnterWorkspace(folderPaths?: string[], path?: string): TPromise<IEnterWorkspaceResult> {
+		return this.windowsService.createAndEnterWorkspace(this.windowId, folderPaths, path);
 	}
 
 	saveAndEnterWorkspace(path: string): TPromise<IEnterWorkspaceResult> {
@@ -127,8 +127,16 @@ export class WindowService implements IWindowService {
 		return this.windowsService.showWindow(this.windowId);
 	}
 
-	showMessageBox(options: Electron.MessageBoxOptions): number {
+	showMessageBoxSync(options: Electron.MessageBoxOptions): number {
 		return remote.dialog.showMessageBox(remote.getCurrentWindow(), options);
+	}
+
+	showMessageBox(options: Electron.MessageBoxOptions): TPromise<IMessageBoxResult> {
+		return new TPromise((c, e) => {
+			return remote.dialog.showMessageBox(remote.getCurrentWindow(), options, (response: number, checkboxChecked: boolean) => {
+				c({ button: response, checkboxChecked });
+			});
+		});
 	}
 
 	showSaveDialog(options: Electron.SaveDialogOptions, callback?: (fileName: string) => void): string {

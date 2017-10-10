@@ -15,6 +15,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import Event from 'vs/base/common/event';
 import { tildify, getPathLabel } from 'vs/base/common/labels';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import URI from 'vs/base/common/uri';
 
 export const IWorkspacesMainService = createDecorator<IWorkspacesMainService>('workspacesMainService');
 export const IWorkspacesService = createDecorator<IWorkspacesService>('workspacesService');
@@ -83,7 +84,9 @@ export interface IWorkspacesMainService extends IWorkspacesService {
 	onUntitledWorkspaceDeleted: Event<IWorkspaceIdentifier>;
 
 	saveWorkspace(workspace: IWorkspaceIdentifier, target: string): TPromise<IWorkspaceIdentifier>;
-	createWorkspaceSync(folders?: string[]): IWorkspaceIdentifier;
+
+	createWorkspaceSync(folderPaths?: string[]): IWorkspaceIdentifier;
+	createWorkspaceSync(folderResources?: URI[]): IWorkspaceIdentifier;
 
 	resolveWorkspace(path: string): TPromise<IResolvedWorkspace>;
 	resolveWorkspaceSync(path: string): IResolvedWorkspace;
@@ -100,7 +103,8 @@ export interface IWorkspacesMainService extends IWorkspacesService {
 export interface IWorkspacesService {
 	_serviceBrand: any;
 
-	createWorkspace(folders?: string[]): TPromise<IWorkspaceIdentifier>;
+	createWorkspace(folderPaths?: string[]): TPromise<IWorkspaceIdentifier>;
+	createWorkspace(folderResources?: URI[]): TPromise<IWorkspaceIdentifier>;
 }
 
 export function getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier), environmentService: IEnvironmentService, options?: { verbose: boolean }): string {

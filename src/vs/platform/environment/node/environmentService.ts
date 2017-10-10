@@ -146,7 +146,7 @@ export class EnvironmentService implements IEnvironmentService {
 			try {
 				fs.writeFileSync(machineIdPath, this.machineUUID, 'utf8');
 			} catch (err) {
-				console.warn('Could not store machine ID');
+				// noop
 			}
 		}
 

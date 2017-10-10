@@ -253,7 +253,8 @@ class SuggestionDetails {
 			this.docs.textContent = item.suggestion.documentation;
 		} else {
 			addClass(this.docs, 'markdown-docs');
-			this.docs.innerHTML = this.markdownRenderer.render(item.suggestion.documentation).innerHTML;
+			this.docs.innerHTML = '';
+			this.docs.appendChild(this.markdownRenderer.render(item.suggestion.documentation));
 		}
 
 		if (item.suggestion.detail) {

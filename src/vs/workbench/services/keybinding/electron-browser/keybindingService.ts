@@ -259,13 +259,13 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		windowElement: Window,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService commandService: ICommandService,
-		@ITelemetryService private telemetryService: ITelemetryService,
+		@ITelemetryService telemetryService: ITelemetryService,
 		@IMessageService messageService: IMessageService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IStatusbarService statusBarService: IStatusbarService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(contextKeyService, commandService, messageService, statusBarService);
+		super(contextKeyService, commandService, telemetryService, messageService, statusBarService);
 
 		let dispatchConfig = getDispatchConfig(configurationService);
 		configurationService.onDidUpdateConfiguration((e) => {
@@ -415,7 +415,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 					"keyCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				}
 			*/
-			this.telemetryService.publicLog('customKeybindingsChanged', {
+			this._telemetryService.publicLog('customKeybindingsChanged', {
 				keyCount: cnt
 			});
 		}

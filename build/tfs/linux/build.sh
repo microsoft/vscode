@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
 . ./build/tfs/common/node.sh
 . ./scripts/env.sh

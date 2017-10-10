@@ -150,6 +150,17 @@ suite('WorkspaceConfigurationService - Node', () => {
 			}
 		});
 
+		configurationRegistry.registerConfiguration({
+			'id': '_test',
+			'type': 'object',
+			'properties': {
+				'workspaceLookup.service.testSetting': {
+					'type': 'string',
+					'default': 'isSet'
+				}
+			}
+		});
+
 		createWorkspace((workspaceDir, globalSettingsFile, cleanUp) => {
 			return createService(workspaceDir, globalSettingsFile).then(service => {
 				const config = service.getConfiguration<ITestSetting>();
@@ -212,18 +223,6 @@ suite('WorkspaceConfigurationService - Node', () => {
 				}
 			};
 		}
-
-		const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
-		configurationRegistry.registerConfiguration({
-			'id': '_test_workspace',
-			'type': 'object',
-			'properties': {
-				'workspace.service.testSetting': {
-					'type': 'string',
-					'default': 'isSet'
-				}
-			}
-		});
 
 		createWorkspace((workspaceDir, globalSettingsFile, cleanUp) => {
 			return createService(workspaceDir, globalSettingsFile).then(service => {
@@ -357,18 +356,6 @@ suite('WorkspaceConfigurationService - Node', () => {
 
 
 	test('lookup', (done: () => void) => {
-		const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
-		configurationRegistry.registerConfiguration({
-			'id': '_test',
-			'type': 'object',
-			'properties': {
-				'workspaceLookup.service.testSetting': {
-					'type': 'string',
-					'default': 'isSet'
-				}
-			}
-		});
-
 		createWorkspace((workspaceDir, globalSettingsFile, cleanUp) => {
 			return createService(workspaceDir, globalSettingsFile).then(service => {
 				let res = service.lookup('something.missing');
@@ -414,17 +401,6 @@ suite('WorkspaceConfigurationService - Node', () => {
 	});
 
 	test('keys', (done: () => void) => {
-		const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
-		configurationRegistry.registerConfiguration({
-			'id': '_test',
-			'type': 'object',
-			'properties': {
-				'workspaceLookup.service.testSetting': {
-					'type': 'string',
-					'default': 'isSet'
-				}
-			}
-		});
 
 		function contains(array: string[], key: string): boolean {
 			return array.indexOf(key) >= 0;
@@ -482,18 +458,6 @@ suite('WorkspaceConfigurationService - Node', () => {
 	});
 
 	test('values', (done: () => void) => {
-		const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
-		configurationRegistry.registerConfiguration({
-			'id': '_test',
-			'type': 'object',
-			'properties': {
-				'workspaceLookup.service.testSetting': {
-					'type': 'string',
-					'default': 'isSet'
-				}
-			}
-		});
-
 		createWorkspace((workspaceDir, globalSettingsFile, cleanUp) => {
 			return createService(workspaceDir, globalSettingsFile).then(service => {
 				let values = service.values();
