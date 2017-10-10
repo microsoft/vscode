@@ -166,6 +166,15 @@ suite('Quick Open Scorer', () => {
 		assert.ok(pathRes.score > noRes.score);
 	});
 
+	test('scoreItem - invalid input', function () {
+
+		let res = scorer.scoreItem(null, null, true, ResourceAccessor, cache);
+		assert.equal(res.score, 0);
+
+		res = scorer.scoreItem(null, 'null', true, ResourceAccessor, cache);
+		assert.equal(res.score, 0);
+	});
+
 	test('scoreItem - optimize for file paths', function () {
 		const resource = URI.file('/xyz/others/spath/some/xsp/file123.txt');
 
@@ -379,6 +388,25 @@ suite('Quick Open Scorer', () => {
 		assert.equal(res[2], resourceC);
 	});
 
+	test('compareFilesByScore - prefer shorter basenames (match on basename)', function () {
+		const resourceA = URI.file('/some/path/fileA.txt');
+		const resourceB = URI.file('/some/path/other/fileBLonger.txt');
+		const resourceC = URI.file('/unrelated/the/path/other/fileC.txt');
+
+		// Resource A part of path
+		let query = 'file';
+
+		let res = [resourceA, resourceB, resourceC].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceA);
+		assert.equal(res[1], resourceC);
+		assert.equal(res[2], resourceB);
+
+		res = [resourceC, resourceB, resourceA].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceA);
+		assert.equal(res[1], resourceC);
+		assert.equal(res[2], resourceB);
+	});
+
 	test('compareFilesByScore - prefer shorter paths', function () {
 		const resourceA = URI.file('/some/path/fileA.txt');
 		const resourceB = URI.file('/some/path/other/fileB.txt');
@@ -471,6 +499,21 @@ suite('Quick Open Scorer', () => {
 		assert.equal(res[1], resourceA);
 	});
 
+	test('compareFilesByScore - prefer more compact matches (label and path)', function () {
+		const resourceA = URI.file('config/example/thisfile.ts');
+		const resourceB = URI.file('config/24234243244/example/file.js');
+
+		let query = 'exfile';
+
+		let res = [resourceA, resourceB].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+		assert.equal(res[1], resourceA);
+
+		res = [resourceB, resourceA].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+		assert.equal(res[1], resourceA);
+	});
+
 	test('compareFilesByScore - avoid match scattering (bug #34210)', function () {
 		const resourceA = URI.file('node_modules1/bundle/lib/model/modules/ot1/index.js');
 		const resourceB = URI.file('node_modules1/bundle/lib/model/modules/un1/index.js');
@@ -538,5 +581,10 @@ suite('Quick Open Scorer', () => {
 
 		let res = [resourceA, resourceB].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceB);
+	});
+
+	test('massageSearchForScoring', function () {
+		assert.equal(scorer.massageSearchForScoring(' f*a '), 'fa');
+		assert.equal(scorer.massageSearchForScoring('model tester.ts'), 'modeltester.ts');
 	});
 });

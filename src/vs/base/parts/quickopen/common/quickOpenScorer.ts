@@ -16,17 +16,6 @@ export type ScorerCache = { [key: string]: IItemScore };
 
 const NO_SCORE: Score = [0, []];
 
-/**
- * Compute a score for the given string and the given query.
- *
- * Rules:
- * Character score: 1
- * Same case bonus: 1
- * Upper case bonus: 1
- * Consecutive match bonus: 5
- * Start of word/path bonus: 7
- * Start of string bonus: 8
- */
 export function _doScore(target: string, query: string, fuzzy: boolean): Score {
 	if (!target || !query) {
 		return NO_SCORE; // return early if target or query are undefined
@@ -122,7 +111,7 @@ BEGIN THIRD PARTY
 * Date: Tue Mar 1 2011
 * Updated: Tue Mar 10 2015
 */
-export function _doScoreFromOffset(target: string, query: string, targetLower: string, queryLower: string, queryLen: number, offset: number): Score {
+function _doScoreFromOffset(target: string, query: string, targetLower: string, queryLower: string, queryLen: number, offset: number): Score {
 	const matchingPositions: number[] = [];
 
 	let targetIndex = offset;
@@ -357,14 +346,14 @@ export function compareItemsByScore<T>(itemA: T, itemB: T, query: string, fuzzy:
 	const scoreA = itemScoreA.score;
 	const scoreB = itemScoreB.score;
 
-	// 1.) check for identity matches
+	// 1.) prefer identity matches
 	if (scoreA === PATH_IDENTITY_SCORE || scoreB === PATH_IDENTITY_SCORE) {
 		if (scoreA !== scoreB) {
 			return scoreA === PATH_IDENTITY_SCORE ? -1 : 1;
 		}
 	}
 
-	// 2.) check for label prefix matches
+	// 2.) prefer label prefix matches
 	if (scoreA === LABEL_PREFIX_SCORE || scoreB === LABEL_PREFIX_SCORE) {
 		if (scoreA !== scoreB) {
 			return scoreA === LABEL_PREFIX_SCORE ? -1 : 1;
@@ -379,7 +368,7 @@ export function compareItemsByScore<T>(itemA: T, itemB: T, query: string, fuzzy:
 		}
 	}
 
-	// 3.) check for camelcase matches
+	// 3.) prefer camelcase matches
 	if (scoreA === LABEL_CAMELCASE_SCORE || scoreB === LABEL_CAMELCASE_SCORE) {
 		if (scoreA !== scoreB) {
 			return scoreA === LABEL_CAMELCASE_SCORE ? -1 : 1;
@@ -400,7 +389,7 @@ export function compareItemsByScore<T>(itemA: T, itemB: T, query: string, fuzzy:
 		}
 	}
 
-	// 4.) check for label scores
+	// 4.) prefer label scores
 	if (scoreA > LABEL_SCORE_THRESHOLD || scoreB > LABEL_SCORE_THRESHOLD) {
 		if (scoreB < LABEL_SCORE_THRESHOLD) {
 			return -1;
@@ -411,20 +400,27 @@ export function compareItemsByScore<T>(itemA: T, itemB: T, query: string, fuzzy:
 		}
 	}
 
-	// 5.) check for path scores
+	// 5.) compare by score
 	if (scoreA !== scoreB) {
 		return scoreA > scoreB ? -1 : 1;
 	}
 
 	// 6.) scores are identical, prefer more compact matches (label and description)
-	const labelMatchCompactness = compareByMatchLength(itemScoreA.labelMatch, itemScoreB.labelMatch);
-	if (labelMatchCompactness !== 0) {
-		return labelMatchCompactness;
+	let itemAMatches: IMatch[] = [];
+	if (itemScoreA.descriptionMatch) {
+		itemAMatches.push(...itemScoreA.descriptionMatch);
 	}
+	itemAMatches.push(...itemScoreA.labelMatch);
 
-	const descriptionMatchCompactness = compareByMatchLength(itemScoreA.descriptionMatch, itemScoreB.descriptionMatch);
-	if (descriptionMatchCompactness !== 0) {
-		return descriptionMatchCompactness;
+	let itemBMatches: IMatch[] = [];
+	if (itemScoreB.descriptionMatch) {
+		itemBMatches.push(...itemScoreB.descriptionMatch);
+	}
+	itemBMatches.push(...itemScoreB.labelMatch);
+
+	const matchCompactness = compareByMatchLength(itemAMatches, itemBMatches);
+	if (matchCompactness !== 0) {
+		return matchCompactness;
 	}
 
 	// 7.) at this point, scores are identical and match compactness as well
