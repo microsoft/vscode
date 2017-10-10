@@ -43,7 +43,9 @@ export class DebugStatus extends Themable implements IStatusbarItem {
 
 	protected updateStyles(): void {
 		super.updateStyles();
-		this.icon.style.backgroundColor = this.getColor(STATUS_BAR_FOREGROUND);
+		if (this.icon) {
+			this.icon.style.backgroundColor = this.getColor(STATUS_BAR_FOREGROUND);
+		}
 	}
 
 	public render(container: HTMLElement): IDisposable {
