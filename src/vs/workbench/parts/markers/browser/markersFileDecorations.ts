@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IResourceDecorationsService, IDecorationsProvider, IResourceDecoration } from 'vs/workbench/services/decorations/browser/decorations';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -17,6 +17,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import Severity from 'vs/base/common/severity';
 import { editorErrorForeground, editorWarningForeground } from 'vs/editor/common/view/editorColorRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 
 class MarkersDecorationsProvider implements IDecorationsProvider {
 
@@ -89,4 +90,17 @@ class MarkersFileDecorations implements IWorkbenchContribution {
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(MarkersFileDecorations);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(MarkersFileDecorations);
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	'id': 'problems',
+	'order': 101,
+	'type': 'object',
+	'properties': {
+		'problems.fileDecorations.enabled': {
+			'description': localize('markers.showOnFile', "Show Errors & Warnings on files and folder."),
+			'type': 'boolean',
+			'default': true
+		}
+	}
+});
