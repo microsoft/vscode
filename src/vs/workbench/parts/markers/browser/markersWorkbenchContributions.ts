@@ -17,9 +17,6 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { MarkersPanel } from 'vs/workbench/parts/markers/browser/markersPanel';
 
-import './markersFileDecorations';
-import { localize } from 'vs/nls';
-
 export function registerContributions(): void {
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -50,20 +47,6 @@ export function registerContributions(): void {
 			}
 		}
 	});
-
-	Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
-		'id': 'problems',
-		'order': 101,
-		'type': 'object',
-		'properties': {
-			'problems.fileDecorations.enabled': {
-				'description': localize('markers.showOnFile', "Show Errors & Warnings on files and folder."),
-				'type': 'boolean',
-				'default': true
-			}
-		}
-	});
-
 
 
 	// markers panel
