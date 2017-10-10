@@ -24,13 +24,14 @@ export interface ITerminalProcessFactory {
 }
 
 if (platform.isLinux) {
-	fileExists('/etc/os-release').then(exists => {
+	const file = '/etc/os-release';
+	fileExists(file).then(exists => {
 		if (!exists) {
 			return;
 		}
-		readFile('/etc/os-release').then(b => {
+		readFile(file).then(b => {
 			const contents = b.toString();
-			if (contents.indexOf('NAME=Fedora')) {
+			if (contents.indexOf('NAME=Fedora') >= 0) {
 				isFedora = true;
 			}
 		});
