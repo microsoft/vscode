@@ -15,13 +15,14 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IRawSearch, IFolderSearch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedFileMatch, IRawSearchService, ITelemetryEvent } from './search';
+import { IRawSearch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedFileMatch, IRawSearchService, ITelemetryEvent } from './search';
 import { ISearchChannel, SearchChannelClient } from './searchIpc';
 import { IEnvironmentService, IDebugParams } from 'vs/platform/environment/common/environment';
 import { ResourceMap } from 'vs/base/common/map';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { Schemas } from 'vs/base/common/network';
 
 export class SearchService implements ISearchService {
 	public _serviceBrand: any;
@@ -259,15 +260,8 @@ export class DiskSearch implements ISearchResultProvider {
 		let request: PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem>;
 
 		let rawSearch: IRawSearch = {
-			folderQueries: query.folderQueries ? query.folderQueries.map(q => {
-				return <IFolderSearch>{
-					excludePattern: q.excludePattern,
-					includePattern: q.includePattern,
-					fileEncoding: q.fileEncoding,
-					folder: q.folder.fsPath
-				};
-			}) : [],
-			extraFiles: query.extraFileResources ? query.extraFileResources.map(r => r.fsPath) : [],
+			folderQueries: [],
+			extraFiles: [],
 			filePattern: query.filePattern,
 			excludePattern: query.excludePattern,
 			includePattern: query.includePattern,
@@ -277,6 +271,27 @@ export class DiskSearch implements ISearchResultProvider {
 			useRipgrep: query.useRipgrep,
 			disregardIgnoreFiles: query.disregardIgnoreFiles
 		};
+
+		if (query.folderQueries) {
+			for (const q of query.folderQueries) {
+				if (q.folder.scheme === Schemas.file) {
+					rawSearch.folderQueries.push({
+						excludePattern: q.excludePattern,
+						includePattern: q.includePattern,
+						fileEncoding: q.fileEncoding,
+						folder: q.folder.fsPath
+					});
+				}
+			}
+		}
+
+		if (query.extraFileResources) {
+			for (const r of query.extraFileResources) {
+				if (r.scheme === Schemas.file) {
+					rawSearch.extraFiles.push(r.fsPath);
+				}
+			}
+		}
 
 		if (query.type === QueryType.Text) {
 			rawSearch.contentPattern = query.contentPattern;
