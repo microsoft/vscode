@@ -816,7 +816,7 @@
       },
       {
         "id": "git.color.untracked",
-        "description": "Color for modified resources",
+        "description": "Color for untracked resources",
         "defaults": {
           "light": "#6C6C6C",
           "dark": "#6C6C6C",
