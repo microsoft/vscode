@@ -76,6 +76,16 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			'description': localize('scm.fileDecorations.enabled', "Show source control status on files and folders"),
 			'type': 'boolean',
 			'default': true
+		},
+		'scm.fileDecorations.useIcons': {
+			'description': localize('scm.fileDecorations.useIcons', "Use icons when showing source control status on files and folders"),
+			'type': 'boolean',
+			'default': true
+		},
+		'scm.fileDecorations.useColors': {
+			'description': localize('scm.fileDecorations.useColors', "Use colors when showing source control status on files and folders"),
+			'type': 'boolean',
+			'default': true
 		}
 	}
 });

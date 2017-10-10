@@ -25,7 +25,8 @@ class SCMDecorationsProvider implements IDecorationsProvider {
 	readonly onDidChange: Event<URI[]> = this._onDidChange.event;
 
 	constructor(
-		private readonly _provider: ISCMProvider
+		private readonly _provider: ISCMProvider,
+		private readonly _config: ISCMConfiguration
 	) {
 		this.label = this._provider.label;
 		this._disposable = this._provider.onDidChangeResources(this._updateGroups, this);
@@ -66,11 +67,19 @@ class SCMDecorationsProvider implements IDecorationsProvider {
 		}
 		return {
 			severity: Severity.Info,
-			color: resource.decorations.color,
 			tooltip: localize('tooltip', "{0} - {1}", resource.decorations.tooltip, this._provider.label),
-			icon: { light: resource.decorations.icon, dark: resource.decorations.iconDark }
+			color: this._config.fileDecorations.useColors ? resource.decorations.color : undefined,
+			icon: this._config.fileDecorations.useIcons ? { light: resource.decorations.icon, dark: resource.decorations.iconDark } : undefined
 		};
 	}
+}
+
+interface ISCMConfiguration {
+	fileDecorations: {
+		enabled: boolean;
+		useIcons: boolean;
+		useColors: boolean;
+	};
 }
 
 export class FileDecorations implements IWorkbenchContribution {
@@ -99,7 +108,7 @@ export class FileDecorations implements IWorkbenchContribution {
 	}
 
 	private _update(): void {
-		const value = this._configurationService.getConfiguration<{ fileDecorations: { enabled: boolean } }>('scm');
+		const value = this._configurationService.getConfiguration<ISCMConfiguration>('scm');
 		if (value.fileDecorations.enabled) {
 			this._scmService.repositories.forEach(this._onDidAddRepository, this);
 			this._repoListeners = [
@@ -113,7 +122,7 @@ export class FileDecorations implements IWorkbenchContribution {
 	}
 
 	private _onDidAddRepository(repo: ISCMRepository): void {
-		const provider = new SCMDecorationsProvider(repo.provider);
+		const provider = new SCMDecorationsProvider(repo.provider, this._configurationService.getConfiguration<ISCMConfiguration>('scm'));
 		const registration = this._decorationsService.registerDecortionsProvider(provider);
 		this._providers.set(repo, combinedDisposable([registration, provider]));
 	}
