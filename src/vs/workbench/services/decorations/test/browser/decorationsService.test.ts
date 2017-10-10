@@ -89,14 +89,15 @@ suite('DecorationsService', function () {
 		assert.deepEqual(service.getTopDecoration(uri, false), { severity: Severity.Info, color: 'someBlue' });
 		assert.equal(callCounter, 1);
 
-		const p = toPromise(service.onDidChangeDecorations);
-
-		reg.dispose();
-
-		p.then(e => {
+		// un-register -> ensure good event
+		let didSeeEvent = false;
+		service.onDidChangeDecorations(e => {
 			assert.equal(e.affectsResource(uri), true);
 			assert.deepEqual(service.getTopDecoration(uri, false), undefined);
 			assert.equal(callCounter, 1);
+			didSeeEvent = true;
 		});
+		reg.dispose();
+		assert.equal(didSeeEvent, true);
 	});
 });
