@@ -13,7 +13,6 @@ import { EventEmitter } from 'events';
 import iconv = require('iconv-lite');
 import { assign, uniqBy, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp } from './util';
 
-const readdir = denodeify<string[]>(fs.readdir);
 const readfile = denodeify<string>(fs.readFile);
 
 export interface IGit {
