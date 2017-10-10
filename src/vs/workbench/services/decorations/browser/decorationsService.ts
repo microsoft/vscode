@@ -67,7 +67,7 @@ class DecorationProviderWrapper {
 
 	getOrRetrieve(uri: URI, includeChildren: boolean, callback: (data: IResourceDecoration) => void): void {
 		const key = uri.toString();
-		const item = this._data.get(key);
+		let item = this._data.get(key);
 
 		if (isThenable<void>(item)) {
 			// pending -> still waiting
@@ -76,8 +76,7 @@ class DecorationProviderWrapper {
 
 		if (item === undefined && !includeChildren) {
 			// unknown, a leaf node -> trigger request
-			this._fetchData(uri);
-			return;
+			item = this._fetchData(uri);
 		}
 
 		if (item) {
@@ -97,15 +96,27 @@ class DecorationProviderWrapper {
 		}
 	}
 
-	private _fetchData(uri: URI) {
-		const request = Promise.resolve(this._provider.provideDecorations(uri))
-			.then(data => {
-				this._data.set(uri.toString(), data || null);
-				this._emitter.fire(uri);
-			})
-			.catch(_ => this._data.delete(uri.toString()));
+	private _fetchData(uri: URI): IResourceDecoration {
 
-		this._data.set(uri.toString(), request);
+		const decoOrThenable = this._provider.provideDecorations(uri);
+		if (!isThenable(decoOrThenable)) {
+			// sync -> we have a result now
+			this._data.set(uri.toString(), decoOrThenable || null);
+			this._emitter.fire(uri);
+			return decoOrThenable;
+
+		} else {
+			// async -> we have a result soon
+			const request = Promise.resolve(decoOrThenable)
+				.then(data => {
+					this._data.set(uri.toString(), data || null);
+					this._emitter.fire(uri);
+				})
+				.catch(_ => this._data.delete(uri.toString()));
+
+			this._data.set(uri.toString(), request);
+			return undefined;
+		}
 	}
 }
 
