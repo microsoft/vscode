@@ -54,8 +54,9 @@ export class DebugStatus extends Themable implements IStatusbarItem {
 				this.quickOpenService.show('debug ').done(undefined, errors.onUnexpectedError);
 			}));
 			statusBarItem.title = nls.localize('debug', "Debug");
-			this.icon = dom.append(statusBarItem, $('.icon'));
-			this.label = dom.append(statusBarItem, $('span.label'));
+			const a = dom.append(statusBarItem, $('a'));
+			this.icon = dom.append(a, $('.icon'));
+			this.label = dom.append(a, $('span.label'));
 			this.setLabel();
 			this.updateStyles();
 		}
