@@ -268,7 +268,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 						const promises = installed
 							.filter(e => e.manifest.publisher === extension.manifest.publisher && e.manifest.name === extension.manifest.name)
 							.map(e => this.checkForDependenciesAndUninstall(e, installed, force));
-						return TPromise.join(promises).then(null, errors => TPromise.wrapError(this.joinErrors(errors)));
+						return TPromise.join(promises).then(null, error => TPromise.wrapError(Array.isArray(error) ? this.joinErrors(error) : error));
 					}))
 			.then(() => { /* drop resolved value */ });
 	}
