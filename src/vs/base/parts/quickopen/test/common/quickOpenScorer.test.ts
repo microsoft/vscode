@@ -487,4 +487,56 @@ suite('Quick Open Scorer', () => {
 		res = [resourceA, resourceB, resourceC, resourceD].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceB);
 	});
+
+	test('compareFilesByScore - avoid match scattering (bug #21019)', function () {
+		const resourceA = URI.file('app/containers/Services/NetworkData/ServiceDetails/ServiceLoad/index.js');
+		const resourceB = URI.file('app/containers/Services/NetworkData/ServiceDetails/ServiceDistribution/index.js');
+		const resourceC = URI.file('app/containers/Services/NetworkData/ServiceDetailTabs/ServiceTabs/StatVideo/index.js');
+
+		let query = 'StatVideoindex';
+
+		let res = [resourceA, resourceB, resourceC].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceC);
+	});
+
+	test('compareFilesByScore - avoid match scattering (bug #26649)', function () {
+		const resourceA = URI.file('photobook/src/components/AddPagesButton/index.js');
+		const resourceB = URI.file('photobook/src/components/ApprovalPageHeader/index.js');
+		const resourceC = URI.file('photobook/src/canvasComponents/BookPage/index.js');
+
+		let query = 'bookpageIndex';
+
+		let res = [resourceA, resourceB, resourceC].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceC);
+	});
+
+	test('compareFilesByScore - avoid match scattering (bug #33247)', function () {
+		const resourceA = URI.file('ui/src/utils/constants.js');
+		const resourceB = URI.file('ui/src/ui/Icons/index.js');
+
+		let query = isWindows ? 'ui\\icons' : 'ui/icons';
+
+		let res = [resourceA, resourceB].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+	});
+
+	test('compareFilesByScore - avoid match scattering (bug #33247 comment)', function () {
+		const resourceA = URI.file('ui/src/components/IDInput/index.js');
+		const resourceB = URI.file('ui/src/ui/Input/index.js');
+
+		let query = isWindows ? 'ui\\input\\index' : 'ui/input/index';
+
+		let res = [resourceA, resourceB].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+	});
+
+	test('compareFilesByScore - prefer shorter hit (bug #20546)', function () {
+		const resourceA = URI.file('editor/core/components/tests/list-view-spec.js');
+		const resourceB = URI.file('editor/core/components/list-view.js');
+
+		let query = 'listview';
+
+		let res = [resourceA, resourceB].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+	});
 });
