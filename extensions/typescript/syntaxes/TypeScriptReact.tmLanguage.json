@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/d6ee336bf6047594768a56f955563ba5ce86e7c9",
+	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/5955a5aed3d8d2862c614f2137d22f2334d490e9",
 	"name": "TypeScriptReact",
 	"scopeName": "source.tsx",
 	"fileTypes": [
@@ -3329,7 +3329,7 @@
 							"name": "punctuation.definition.group.regexp"
 						},
 						"1": {
-							"name": "punctuation.definition.group.capture.regexp"
+							"name": "punctuation.definition.group.no-capture.regexp"
 						}
 					},
 					"end": "\\)",
