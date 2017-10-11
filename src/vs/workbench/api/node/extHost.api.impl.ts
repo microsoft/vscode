@@ -344,9 +344,9 @@ export function createApiFactory(
 			get state() {
 				return extHostWindow.state;
 			},
-			onDidChangeWindowState: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
+			onDidChangeWindowState(listener, thisArg?, disposables?) {
 				return extHostWindow.onDidChangeWindowState(listener, thisArg, disposables);
-			}),
+			},
 			showInformationMessage(message, first, ...rest) {
 				return extHostMessageService.showMessage(extension, Severity.Info, message, first, rest);
 			},
