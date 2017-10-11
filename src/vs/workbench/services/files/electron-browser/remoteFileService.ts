@@ -289,7 +289,7 @@ export class RemoteFileService extends FileService {
 						stream.end();
 					} else {
 						// there is more to read
-						provider.read(resource, offset, Number.MAX_VALUE, new Progress<Buffer>(chunk => stream.write(chunk))).then(() => {
+						provider.read(resource, offset, -1, new Progress<Buffer>(chunk => stream.write(chunk))).then(() => {
 							stream.end();
 						}, err => {
 							stream.emit('error', err);
