@@ -523,23 +523,22 @@ export class DirtyDiffController implements IEditorContribution {
 }
 
 export const editorGutterModifiedBackground = registerColor('editorGutter.modifiedBackground', {
-	dark: Color.fromHex('#00bcf2').transparent(0.6),
-	light: Color.fromHex('#007acc').transparent(0.6),
-	hc: Color.fromHex('#007acc').transparent(0.6)
+	dark: new Color(new RGBA(12, 125, 157)),
+	light: new Color(new RGBA(102, 175, 224)),
+	hc: new Color(new RGBA(0, 73, 122))
 }, localize('editorGutterModifiedBackground', "Editor gutter background color for lines that are modified."));
 
 export const editorGutterAddedBackground = registerColor('editorGutter.addedBackground', {
-	dark: Color.fromHex('#7fba00').transparent(0.6),
-	light: Color.fromHex('#2d883e').transparent(0.6),
-	hc: Color.fromHex('#2d883e').transparent(0.6)
+	dark: new Color(new RGBA(88, 124, 12)),
+	light: new Color(new RGBA(129, 184, 139)),
+	hc: new Color(new RGBA(27, 82, 37))
 }, localize('editorGutterAddedBackground', "Editor gutter background color for lines that are added."));
 
 export const editorGutterDeletedBackground = registerColor('editorGutter.deletedBackground', {
-	dark: Color.fromHex('#b9131a').transparent(0.76),
-	light: Color.fromHex('#b9131a').transparent(0.76),
-	hc: Color.fromHex('#b9131a').transparent(0.76)
+	dark: new Color(new RGBA(148, 21, 27)),
+	light: new Color(new RGBA(202, 75, 81)),
+	hc: new Color(new RGBA(141, 14, 20))
 }, localize('editorGutterDeletedBackground', "Editor gutter background color for lines that are deleted."));
-
 
 const overviewRulerDefault = new Color(new RGBA(0, 122, 204, 0.6));
 export const overviewRulerModifiedForeground = registerColor('editorOverviewRuler.modifiedForeground', { dark: overviewRulerDefault, light: overviewRulerDefault, hc: overviewRulerDefault }, nls.localize('overviewRulerModifiedForeground', 'Overview ruler marker color for modified content.'));
@@ -550,6 +549,7 @@ class DirtyDiffDecorator {
 
 	static MODIFIED_DECORATION_OPTIONS = ModelDecorationOptions.register({
 		linesDecorationsClassName: 'dirty-diff-modified-glyph',
+		marginClassName: 'dirty-diff-modified-margin',
 		isWholeLine: true,
 		overviewRuler: {
 			color: themeColorFromId(overviewRulerModifiedForeground),
@@ -560,6 +560,7 @@ class DirtyDiffDecorator {
 
 	static ADDED_DECORATION_OPTIONS = ModelDecorationOptions.register({
 		linesDecorationsClassName: 'dirty-diff-added-glyph',
+		marginClassName: 'dirty-diff-added-margin',
 		isWholeLine: true,
 		overviewRuler: {
 			color: themeColorFromId(overviewRulerAddedForeground),
@@ -570,6 +571,7 @@ class DirtyDiffDecorator {
 
 	static DELETED_DECORATION_OPTIONS = ModelDecorationOptions.register({
 		linesDecorationsClassName: 'dirty-diff-deleted-glyph',
+		marginClassName: 'dirty-diff-deleted-margin',
 		isWholeLine: true,
 		overviewRuler: {
 			color: themeColorFromId(overviewRulerDeletedForeground),
@@ -884,12 +886,26 @@ export class DirtyDiffWorkbenchController implements ext.IWorkbenchContribution,
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const editorGutterModifiedBackgroundColor = theme.getColor(editorGutterModifiedBackground);
 	if (editorGutterModifiedBackgroundColor) {
-		collector.addRule(`.monaco-editor .dirty-diff-modified-glyph { border-left: 3px solid ${editorGutterModifiedBackgroundColor}; }`);
+		collector.addRule(`
+			.monaco-editor .dirty-diff-modified-glyph {
+				border-left: 3px solid ${editorGutterModifiedBackgroundColor};
+			}
+			.monaco-editor .dirty-diff-modified-margin {
+				background: ${editorGutterModifiedBackgroundColor};
+			}
+		`);
 	}
 
 	const editorGutterAddedBackgroundColor = theme.getColor(editorGutterAddedBackground);
 	if (editorGutterAddedBackgroundColor) {
-		collector.addRule(`.monaco-editor .dirty-diff-added-glyph { border-left: 3px solid ${editorGutterAddedBackgroundColor}; }`);
+		collector.addRule(`
+			.monaco-editor .dirty-diff-added-glyph {
+				border-left: 3px solid ${editorGutterAddedBackgroundColor};
+			}
+			.monaco-editor .dirty-diff-added-margin {
+				background: ${editorGutterAddedBackgroundColor};
+			}
+		`);
 	}
 
 	const editorGutteDeletedBackgroundColor = theme.getColor(editorGutterDeletedBackground);
@@ -899,6 +915,9 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 				border-top: 4px solid transparent;
 				border-bottom: 4px solid transparent;
 				border-left: 4px solid ${editorGutteDeletedBackgroundColor};
+			}
+			.monaco-editor .dirty-diff-deleted-margin {
+				background: ${editorGutteDeletedBackgroundColor};
 			}
 		`);
 	}

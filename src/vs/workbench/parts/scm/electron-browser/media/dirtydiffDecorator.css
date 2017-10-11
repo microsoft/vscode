@@ -18,3 +18,24 @@
 	height: 0;
 	z-index: 9;
 }
+
+.monaco-editor .margin-view-overlays > div:hover > .dirty-diff-modified-glyph,
+.monaco-editor .margin-view-overlays > div:hover > .dirty-diff-added-glyph,
+.monaco-editor .margin-view-overlays > div:hover > .dirty-diff-deleted-glyph {
+	opacity: 0;
+}
+
+.monaco-editor .margin-view-overlays .cmdr.dirty-diff-modified-margin,
+.monaco-editor .margin-view-overlays .cmdr.dirty-diff-added-margin,
+.monaco-editor .margin-view-overlays .cmdr.dirty-diff-deleted-margin {
+	left: inherit;
+	right: 0;
+	width: 0;
+	transition: width 80ms linear;
+}
+
+.monaco-editor .margin-view-overlays > div:hover > .cmdr.dirty-diff-modified-margin,
+.monaco-editor .margin-view-overlays > div:hover > .cmdr.dirty-diff-added-margin,
+.monaco-editor .margin-view-overlays > div:hover > .cmdr.dirty-diff-deleted-margin {
+	width: 100%;
+}
