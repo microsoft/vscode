@@ -81,8 +81,6 @@ export function createApiFactory(
 	extensionService: ExtHostExtensionService
 ): IExtensionApiFactory {
 
-	const mainThreadTelemetry = threadService.get(MainContext.MainThreadTelemetry);
-
 	// Addressable instances
 	const extHostHeapService = threadService.set(ExtHostContext.ExtHostHeapService, new ExtHostHeapService());
 	const extHostDocumentsAndEditors = threadService.set(ExtHostContext.ExtHostDocumentsAndEditors, new ExtHostDocumentsAndEditors(threadService));
@@ -139,29 +137,6 @@ export function createApiFactory(
 				console.warn(`Extension '${extension.id}' uses PROPOSED API which is subject to change and removal without notice.`);
 			}
 		}
-
-		const apiUsage = new class {
-			private _seen = new Set<string>();
-			publicLog(apiName: string) {
-				if (this._seen.has(apiName)) {
-					return undefined;
-				}
-				this._seen.add(apiName);
-				/* __GDPR__
-					"apiUsage" : {
-						"name" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"extension": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"${include}": [
-							"${MainThreadData}"
-						]
-					}
-				*/
-				return mainThreadTelemetry.$publicLog('apiUsage', {
-					name: apiName,
-					extension: extension.id
-				});
-			}
-		};
 
 		// namespace: commands
 		const commands: typeof vscode.commands = {
@@ -407,22 +382,18 @@ export function createApiFactory(
 		// namespace: workspace
 		const workspace: typeof vscode.workspace = {
 			get rootPath() {
-				apiUsage.publicLog('workspace#rootPath');
 				return extHostWorkspace.getPath();
 			},
 			set rootPath(value) {
 				throw errors.readonly();
 			},
 			getWorkspaceFolder(resource) {
-				apiUsage.publicLog('workspace#getWorkspaceFolder');
 				return extHostWorkspace.getWorkspaceFolder(resource);
 			},
 			get workspaceFolders() {
-				apiUsage.publicLog('workspace#workspaceFolders');
 				return extHostWorkspace.getWorkspaceFolders();
 			},
 			onDidChangeWorkspaceFolders: function (listener, thisArgs?, disposables?) {
-				apiUsage.publicLog('workspace#onDidChangeWorkspaceFolders');
 				return extHostWorkspace.onDidChangeWorkspace(listener, thisArgs, disposables);
 			},
 			asRelativePath: (pathOrUri, includeWorkspace) => {
@@ -505,22 +476,6 @@ export function createApiFactory(
 				return extHostSCM.getLastInputBox(extension);
 			},
 			createSourceControl(id: string, label: string, rootUri?: vscode.Uri) {
-				/* __GDPR__
-					"registerSCMProvider" : {
-						"extensionId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"providerId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-						"providerLabel": { "classification": "PublicPersonalData", "purpose": "FeatureInsight" },
-						"${include}": [
-							"${MainThreadData}"
-						]
-					}
-				*/
-				mainThreadTelemetry.$publicLog('registerSCMProvider', {
-					extensionId: extension.id,
-					providerId: id,
-					providerLabel: label
-				});
-
 				return extHostSCM.createSourceControl(extension, id, label, rootUri);
 			}
 		};
