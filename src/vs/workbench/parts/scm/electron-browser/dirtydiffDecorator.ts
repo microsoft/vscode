@@ -45,6 +45,7 @@ import { EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeE
 import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Action } from 'vs/base/common/actions';
 import { IActionBarOptions, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export interface IModelRegistry {
 	getModel(editorModel: common.IEditorModel): DirtyDiffModel;
@@ -83,13 +84,25 @@ function getModifiedMiddleLineNumber(change: common.IChange): number {
 
 class UIEditorAction extends Action {
 
+	private editor: common.ICommonCodeEditor;
+	private action: EditorAction;
+	private instantiationService: IInstantiationService;
+
 	constructor(
-		private editor: common.ICommonCodeEditor,
-		private action: EditorAction,
+		editor: common.ICommonCodeEditor,
+		action: EditorAction,
 		cssClass: string,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(action.id, action.label, cssClass);
+		const keybinding = keybindingService.lookupKeybinding(action.id);
+		const label = action.label + (keybinding ? ` (${keybinding.getLabel()})` : '');
+
+		super(action.id, label, cssClass);
+
+		this.instantiationService = instantiationService;
+		this.action = action;
+		this.editor = editor;
 	}
 
 	run(): TPromise<any> {
@@ -144,8 +157,8 @@ class DirtyDiffWidget extends PeekViewWidget {
 	protected _fillHead(container: HTMLElement): void {
 		super._fillHead(container);
 
-		const previous = new UIEditorAction(this.editor, new ShowPreviousChangeAction(), 'show-previous-change octicon octicon-chevron-up', this.instantiationService);
-		const next = new UIEditorAction(this.editor, new ShowNextChangeAction(), 'show-next-change octicon octicon-chevron-down', this.instantiationService);
+		const previous = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowPreviousChangeAction(), 'show-previous-change octicon octicon-chevron-up');
+		const next = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowNextChangeAction(), 'show-next-change octicon octicon-chevron-down');
 
 		this._disposables.push(previous);
 		this._disposables.push(next);
