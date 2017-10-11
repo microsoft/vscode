@@ -918,10 +918,6 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 			// Handle folders by adding to workspace if we are in workspace context
 			const folders = result.filter(result => result.stat.isDirectory).map(result => result.stat.resource);
 			if (folders.length > 0) {
-				if (this.environmentService.appQuality === 'stable') {
-					return void 0; // TODO@Ben multi root
-				}
-
 				if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 					return this.workspaceEditingService.addFolders(folders);
 				}
