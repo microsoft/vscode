@@ -16,7 +16,7 @@ import * as ext from 'vs/workbench/common/contributions';
 import * as common from 'vs/editor/common/editorCommon';
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService } from 'vs/platform/message/common/message';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -43,10 +43,27 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 import { peekViewBorder, peekViewTitleBackground, peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/referenceSearch/browser/referencesWidget';
 import { EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { Action } from 'vs/base/common/actions';
-import { IActionBarOptions, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
+import { Action, IAction } from 'vs/base/common/actions';
+import { IActionBarOptions, ActionsOrientation, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { basename } from 'vs/base/common/paths';
+import { MenuId, IMenuService, IMenu, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { fillInActions, MenuItemActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
+
+// TODO@Joao
+// Need to subclass MenuItemActionItem in order to respect
+// the action context coming from any action bar, without breaking
+// existing users
+class DiffMenuItemActionItem extends MenuItemActionItem {
+
+	onClick(event: MouseEvent): void {
+		event.preventDefault();
+		event.stopPropagation();
+
+		this.actionRunner.run(this._commandAction, this._context)
+			.done(undefined, err => this._messageService.show(Severity.Error, err));
+	}
+}
 
 export interface IModelRegistry {
 	getModel(editorModel: common.IEditorModel): DirtyDiffModel;
@@ -115,22 +132,31 @@ class DirtyDiffWidget extends PeekViewWidget {
 
 	private diffEditor: EmbeddedDiffEditorWidget;
 	private title: string;
+	private menu: IMenu;
 	private change: common.IChange;
 	private didLayout = false;
+	private contextKeyService: IContextKeyService;
 
 	constructor(
 		editor: ICodeEditor,
 		private model: DirtyDiffModel,
-		themeService: IThemeService,
-		private instantiationService: IInstantiationService
+		@IThemeService themeService: IThemeService,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IMenuService private menuService: IMenuService,
+		@IKeybindingService private keybindingService: IKeybindingService,
+		@IMessageService private messageService: IMessageService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(editor, { isResizeable: true });
 
 		themeService.onThemeChange(this._applyTheme, this, this._disposables);
 		this._applyTheme(themeService.getTheme());
 
-		this.create();
+		this.contextKeyService = contextKeyService.createScoped();
+		this.contextKeyService.createKey('originalResourceScheme', this.model.original.uri.scheme);
+		this.menu = menuService.createMenu(MenuId.SCMChangeContext, this.contextKeyService);
 
+		this.create();
 		this.title = basename(editor.getModel().uri.fsPath);
 		this.setTitle(this.title);
 	}
@@ -161,7 +187,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 			: localize('change', "{0} of {1} change", index + 1, this.model.changes.length);
 
 		this.setTitle(this.title, detail);
-
+		this._actionbarWidget.context = change;
 		this.show(position, height);
 	}
 
@@ -174,12 +200,25 @@ class DirtyDiffWidget extends PeekViewWidget {
 		this._disposables.push(previous);
 		this._disposables.push(next);
 		this._actionbarWidget.push([previous, next], { label: false, icon: true });
+
+		const actions: IAction[] = [];
+		fillInActions(this.menu, { shouldForwardArgs: true }, actions);
+		this._actionbarWidget.push(actions, { label: false, icon: true });
 	}
 
 	protected _getActionBarOptions(): IActionBarOptions {
 		return {
+			actionItemProvider: action => this.getActionItem(action),
 			orientation: ActionsOrientation.HORIZONTAL_REVERSE
 		};
+	}
+
+	getActionItem(action: IAction): IActionItem {
+		if (!(action instanceof MenuItemAction)) {
+			return undefined;
+		}
+
+		return new DiffMenuItemActionItem(action, this.keybindingService, this.messageService);
 	}
 
 	protected _fillBody(container: HTMLElement): void {
@@ -395,7 +434,7 @@ export class DirtyDiffController implements common.IEditorContribution {
 
 		this.changeIndex = -1;
 		this.model = model;
-		this.widget = new DirtyDiffWidget(this.editor, model, this.themeService, this.instantiationService);
+		this.widget = this.instantiationService.createInstance(DirtyDiffWidget, this.editor, model);
 		this.isDirtyDiffVisible.set(true);
 
 		// TODO react on model changes

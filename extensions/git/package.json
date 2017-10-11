@@ -102,6 +102,24 @@
         "category": "Git"
       },
       {
+        "command": "git.stageChange",
+        "title": "%command.stageChange%",
+        "category": "Git",
+        "icon": {
+          "light": "resources/icons/light/stage.svg",
+          "dark": "resources/icons/dark/stage.svg"
+        }
+      },
+      {
+        "command": "git.revertChange",
+        "title": "%command.revertChange%",
+        "category": "Git",
+        "icon": {
+          "light": "resources/icons/light/clean.svg",
+          "dark": "resources/icons/dark/clean.svg"
+        }
+      },
+      {
         "command": "git.unstage",
         "title": "%command.unstage%",
         "category": "Git",
@@ -721,6 +739,16 @@
           "command": "git.revertSelectedRanges",
           "group": "2_git@3",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme != merge-conflict.conflict-diff"
+        }
+      ],
+      "scm/change/title": [
+        {
+          "command": "git.stageChange",
+          "when": "config.git.enabled && originalResourceScheme == git"
+        },
+        {
+          "command": "git.revertChange",
+          "when": "config.git.enabled && originalResourceScheme == git"
         }
       ]
     },
