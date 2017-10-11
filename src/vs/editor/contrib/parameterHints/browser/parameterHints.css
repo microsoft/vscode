@@ -56,6 +56,11 @@
 	white-space: pre-wrap;
 }
 
+.monaco-editor .parameter-hints-widget .docs code {
+	border-radius: 3px;
+	padding: 0 0.4em;
+}
+
 .monaco-editor .parameter-hints-widget .buttons {
 	position: absolute;
 	display: none;
