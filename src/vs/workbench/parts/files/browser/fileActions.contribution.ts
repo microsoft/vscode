@@ -91,7 +91,8 @@ class FilesViewerActionContributor extends ActionBarContributor {
 			actions.push(new Separator(null, 100));
 		}
 
-		if (stat.isRoot && this.environmentService.appQuality !== 'stable') {
+		// Workspace Root Folder Actions
+		if (stat.isRoot) {
 			const addRootFolderAction: Action = this.instantiationService.createInstance(AddRootFolderAction, AddRootFolderAction.ID, AddRootFolderAction.LABEL);
 			addRootFolderAction.order = 52;
 			actions.push(addRootFolderAction);

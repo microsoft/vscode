@@ -9,7 +9,6 @@ import * as assert from 'assert';
 import { firstIndex } from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
 import { ParsedArgs } from '../common/environment';
-import product from 'vs/platform/node/product';
 
 const options: minimist.Opts = {
 	string: [
@@ -145,11 +144,6 @@ export const optionsHelp: { [name: string]: string; } = {
 	'-v, --version': localize('version', "Print version."),
 	'-h, --help': localize('help', "Print usage.")
 };
-
-// TODO@Ben multi root
-if (product.quality === 'stable') {
-	delete optionsHelp['-a, --add'];
-}
 
 export function formatOptions(options: { [name: string]: string; }, columns: number): string {
 	let keys = Object.keys(options);
