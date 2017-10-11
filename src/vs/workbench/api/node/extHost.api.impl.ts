@@ -453,7 +453,7 @@ export function createApiFactory(
 				if (typeof uriOrFileNameOrOptions === 'string') {
 					uriPromise = TPromise.as(URI.file(uriOrFileNameOrOptions));
 				} else if (uriOrFileNameOrOptions instanceof URI) {
-					uriPromise = TPromise.as(<URI>uriOrFileNameOrOptions);
+					uriPromise = TPromise.as(uriOrFileNameOrOptions);
 				} else if (!options || typeof options === 'object') {
 					uriPromise = extHostDocuments.createDocumentData(options);
 				} else {
@@ -486,7 +486,7 @@ export function createApiFactory(
 				return extHostConfiguration.onDidChangeConfiguration(listener, thisArgs, disposables);
 			},
 			getConfiguration: (section?: string, resource?: vscode.Uri): vscode.WorkspaceConfiguration => {
-				return extHostConfiguration.getConfiguration(section, <URI>resource);
+				return extHostConfiguration.getConfiguration(section, resource);
 			},
 			registerTextDocumentContentProvider(scheme: string, provider: vscode.TextDocumentContentProvider) {
 				return extHostDocumentContentProviders.registerTextDocumentContentProvider(scheme, provider);
