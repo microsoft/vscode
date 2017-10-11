@@ -10,6 +10,8 @@
 	"command.stageAll": "Stage All Changes",
 	"command.stageSelectedRanges": "Stage Selected Ranges",
 	"command.revertSelectedRanges": "Revert Selected Ranges",
+	"command.stageChange": "Stage Change",
+	"command.revertChange": "Revert Change",
 	"command.unstage": "Unstage Changes",
 	"command.unstageAll": "Unstage All Changes",
 	"command.unstageSelectedRanges": "Unstage Selected Ranges",

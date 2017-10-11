@@ -556,8 +556,13 @@ export class CommandCenter {
 		await repository.add([]);
 	}
 
+	@command('git.stageChange')
+	async stageChange(change: LineChange): Promise<void> {
+		await this.stageChanges([change]);
+	}
+
 	@command('git.stageSelectedRanges', { diff: true })
-	async stageSelectedRanges(diffs: LineChange[]): Promise<void> {
+	async stageChanges(changes: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
 
 		if (!textEditor) {
@@ -574,7 +579,7 @@ export class CommandCenter {
 		const originalUri = toGitUri(modifiedUri, '~');
 		const originalDocument = await workspace.openTextDocument(originalUri);
 		const selectedLines = toLineRanges(textEditor.selections, modifiedDocument);
-		const selectedDiffs = diffs
+		const selectedDiffs = changes
 			.map(diff => selectedLines.reduce<LineChange | null>((result, range) => result || intersectDiffWithRange(modifiedDocument, diff, range), null))
 			.filter(d => !!d) as LineChange[];
 
@@ -587,8 +592,13 @@ export class CommandCenter {
 		await this.runByRepository(modifiedUri, async (repository, resource) => await repository.stage(resource, result));
 	}
 
+	@command('git.revertChange')
+	async revertChange(change: LineChange): Promise<void> {
+		await this.revertChanges([change]);
+	}
+
 	@command('git.revertSelectedRanges', { diff: true })
-	async revertSelectedRanges(diffs: LineChange[]): Promise<void> {
+	async revertChanges(diffs: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
 
 		if (!textEditor) {
