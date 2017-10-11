@@ -701,14 +701,16 @@ export class DebugService implements debug.IDebugService {
 					config.noDebug = true;
 				}
 
-				return this.configurationManager.resolveDebugConfiguration(launch ? launch.workspace.uri : undefined, type, config).then(config => {
-					// a falsy config indicates an aborted launch
-					if (config && config.type) {
-						return this.createProcess(root, config);
-					}
+				return (type ? TPromise.as(null) : this.configurationManager.guessAdapter().then(a => type = a && a.type)).then(() =>
+					this.configurationManager.resolveDebugConfiguration(launch ? launch.workspace.uri : undefined, type, config).then(config => {
+						// a falsy config indicates an aborted launch
+						if (config && config.type) {
+							return this.createProcess(root, config);
+						}
 
-					return <TPromise>undefined; // ignore weird compile error
-				});
+						return <any>launch.openConfigFile(false, type); // cast to ignore weird compile error
+					})
+				);
 			})
 		)));
 	}
