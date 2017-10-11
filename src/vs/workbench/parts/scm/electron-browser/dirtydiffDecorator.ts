@@ -140,6 +140,30 @@ class UIEditorAction extends Action {
 	}
 }
 
+enum ChangeType {
+	Modify,
+	Add,
+	Delete
+}
+
+function getChangeType(change: IChange): ChangeType {
+	if (change.originalEndLineNumber === 0) {
+		return ChangeType.Add;
+	} else if (change.modifiedEndLineNumber === 0) {
+		return ChangeType.Delete;
+	} else {
+		return ChangeType.Modify;
+	}
+}
+
+function getChangeTypeColor(theme: ITheme, changeType: ChangeType): Color {
+	switch (changeType) {
+		case ChangeType.Modify: return theme.getColor(editorGutterModifiedBackground);
+		case ChangeType.Add: return theme.getColor(editorGutterAddedBackground);
+		case ChangeType.Delete: return theme.getColor(editorGutterDeletedBackground);
+	}
+}
+
 class DirtyDiffWidget extends PeekViewWidget {
 
 	private diffEditor: EmbeddedDiffEditorWidget;
@@ -153,7 +177,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 	constructor(
 		editor: ICodeEditor,
 		private model: DirtyDiffModel,
-		@IThemeService themeService: IThemeService,
+		@IThemeService private themeService: IThemeService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IMenuService private menuService: IMenuService,
 		@IKeybindingService private keybindingService: IKeybindingService,
@@ -199,6 +223,11 @@ class DirtyDiffWidget extends PeekViewWidget {
 		const height = getChangeHeight(change) + /* padding */ 8;
 
 		this.renderTitle();
+
+		const changeType = getChangeType(change);
+		const changeTypeColor = getChangeTypeColor(this.themeService.getTheme(), changeType);
+		this.style({ frameColor: changeTypeColor });
+
 		this._actionbarWidget.context = [this.model.modified.uri, this.model.changes, index];
 		this.show(position, height);
 	}
@@ -592,39 +621,36 @@ class DirtyDiffDecorator {
 
 	private onDidChange(): void {
 		const decorations = this.model.changes.map((change) => {
+			const changeType = getChangeType(change);
 			const startLineNumber = change.modifiedStartLineNumber;
 			const endLineNumber = change.modifiedEndLineNumber || startLineNumber;
 
-			// Added
-			if (change.originalEndLineNumber === 0) {
-				return {
-					range: {
-						startLineNumber: startLineNumber, startColumn: 1,
-						endLineNumber: endLineNumber, endColumn: 1
-					},
-					options: DirtyDiffDecorator.ADDED_DECORATION_OPTIONS
-				};
+			switch (changeType) {
+				case ChangeType.Add:
+					return {
+						range: {
+							startLineNumber: startLineNumber, startColumn: 1,
+							endLineNumber: endLineNumber, endColumn: 1
+						},
+						options: DirtyDiffDecorator.ADDED_DECORATION_OPTIONS
+					};
+				case ChangeType.Delete:
+					return {
+						range: {
+							startLineNumber: startLineNumber, startColumn: 1,
+							endLineNumber: startLineNumber, endColumn: 1
+						},
+						options: DirtyDiffDecorator.DELETED_DECORATION_OPTIONS
+					};
+				case ChangeType.Modify:
+					return {
+						range: {
+							startLineNumber: startLineNumber, startColumn: 1,
+							endLineNumber: endLineNumber, endColumn: 1
+						},
+						options: DirtyDiffDecorator.MODIFIED_DECORATION_OPTIONS
+					};
 			}
-
-			// Removed
-			if (change.modifiedEndLineNumber === 0) {
-				return {
-					range: {
-						startLineNumber: startLineNumber, startColumn: 1,
-						endLineNumber: startLineNumber, endColumn: 1
-					},
-					options: DirtyDiffDecorator.DELETED_DECORATION_OPTIONS
-				};
-			}
-
-			// Modified
-			return {
-				range: {
-					startLineNumber: startLineNumber, startColumn: 1,
-					endLineNumber: endLineNumber, endColumn: 1
-				},
-				options: DirtyDiffDecorator.MODIFIED_DECORATION_OPTIONS
-			};
 		});
 
 		this.decorations = this.editorModel.deltaDecorations(this.decorations, decorations);
