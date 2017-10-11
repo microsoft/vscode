@@ -65,7 +65,7 @@ class DecorationProviderWrapper {
 		return Boolean(this._data.get(uri.toString())) || Boolean(this._data.findSuperstr(uri.toString()));
 	}
 
-	getOrRetrieve(uri: URI, includeChildren: boolean, callback: (data: IResourceDecoration) => void): void {
+	getOrRetrieve(uri: URI, includeChildren: boolean, callback: (data: IResourceDecoration, isChild: boolean) => void): void {
 		const key = uri.toString();
 		let item = this._data.get(key);
 
@@ -81,7 +81,7 @@ class DecorationProviderWrapper {
 
 		if (item) {
 			// leaf node
-			callback(item);
+			callback(item, false);
 		}
 		if (includeChildren) {
 			// (resolved) children
@@ -89,7 +89,7 @@ class DecorationProviderWrapper {
 			if (childTree) {
 				childTree.forEach(([, value]) => {
 					if (value && !isThenable<void>(value) && !value.leafOnly) {
-						callback(value);
+						callback(value, true);
 					}
 				});
 			}
@@ -154,8 +154,15 @@ export class FileDecorationsService implements IResourceDecorationsService {
 	getTopDecoration(uri: URI, includeChildren: boolean): IResourceDecoration {
 		let top: IResourceDecoration;
 		for (let iter = this._data.iterator(), next = iter.next(); !next.done; next = iter.next()) {
-			next.value.getOrRetrieve(uri, includeChildren, candidate => {
+			next.value.getOrRetrieve(uri, includeChildren, (candidate, isChild) => {
 				top = FileDecorationsService._pickBest(top, candidate);
+				if (isChild && top === candidate) {
+					// only bubble up color
+					top = {
+						severity: top.severity,
+						color: top.color
+					};
+				}
 			});
 		}
 		return top;
