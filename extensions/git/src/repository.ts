@@ -315,6 +315,9 @@ export class Repository implements Disposable {
 	private _onDidChangeStatus = new EventEmitter<void>();
 	readonly onDidChangeStatus: Event<void> = this._onDidChangeStatus.event;
 
+	private _onDidChangeOriginalResource = new EventEmitter<Uri>();
+	readonly onDidChangeOriginalResource: Event<Uri> = this._onDidChangeOriginalResource.event;
+
 	private _onRunOperation = new EventEmitter<Operation>();
 	readonly onRunOperation: Event<Operation> = this._onRunOperation.event;
 
@@ -460,6 +463,7 @@ export class Repository implements Disposable {
 	async stage(resource: Uri, contents: string): Promise<void> {
 		const relativePath = path.relative(this.repository.root, resource.fsPath).replace(/\\/g, '/');
 		await this.run(Operation.Stage, () => this.repository.stage(relativePath, contents));
+		this._onDidChangeOriginalResource.fire(resource);
 	}
 
 	async revert(resources: Uri[]): Promise<void> {
