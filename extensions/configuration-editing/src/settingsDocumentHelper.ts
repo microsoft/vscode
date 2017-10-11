@@ -43,9 +43,9 @@ export class SettingsDocument {
 	private provideWindowTitleCompletionItems(location: Location, range: vscode.Range): vscode.ProviderResult<vscode.CompletionItem[]> {
 		const completions: vscode.CompletionItem[] = [];
 
-		completions.push(this.newSimpleCompletionItem('${activeEditorShort}', range, localize('activeEditorShort', "e.g. the file name (myFile.txt)")));
-		completions.push(this.newSimpleCompletionItem('${activeEditorMedium}', range, localize('activeEditorMedium', "e.g. the path of the file relative to the workspace folder (myFolder/myFile.txt)")));
-		completions.push(this.newSimpleCompletionItem('${activeEditorLong}', range, localize('activeEditorLong', "e.g. the full path of the file (/Users/Development/myProject/myFolder/myFile.txt)")));
+		completions.push(this.newSimpleCompletionItem('${activeEditorShort}', range, localize('activeEditorShort', "the file name (e.g. myFile.txt)")));
+		completions.push(this.newSimpleCompletionItem('${activeEditorMedium}', range, localize('activeEditorMedium', "the path of the file relative to the workspace folder (e.g. myFolder/myFile.txt)")));
+		completions.push(this.newSimpleCompletionItem('${activeEditorLong}', range, localize('activeEditorLong', "the full path of the file (e.g. /Users/Development/myProject/myFolder/myFile.txt)")));
 		completions.push(this.newSimpleCompletionItem('${rootName}', range, localize('rootName', "name of the workspace (e.g. myFolder or myWorkspace)")));
 		completions.push(this.newSimpleCompletionItem('${rootPath}', range, localize('rootPath', "file path of the workspace (e.g. /Users/Development/myWorkspace)")));
 		completions.push(this.newSimpleCompletionItem('${folderName}', range, localize('folderName', "name of the workspace folder the file is contained in (e.g. myFolder)")));
