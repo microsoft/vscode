@@ -170,14 +170,13 @@ class DirtyDiffWidget extends PeekViewWidget {
 }
 
 @editorAction
-export class ReferenceAction2 extends EditorAction {
+export class ShowPreviousChangeAction extends EditorAction {
 
 	constructor() {
 		super({
-			id: 'editor.action.dirtydiff.trigger2',
-			// TODO@joao come up with better name
-			label: nls.localize('dirtydiff.action.label', "Trigger Dirty Diff"),
-			alias: 'Trigger Dirty Diff',
+			id: 'editor.action.dirtydiff.previous',
+			label: nls.localize('show previous change', "Show Previous Change"),
+			alias: 'Show Previous Change',
 			precondition: ContextKeyExpr.and(EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: { kbExpr: EditorContextKeys.textFocus, primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_S }
 		});
@@ -195,14 +194,13 @@ export class ReferenceAction2 extends EditorAction {
 }
 
 @editorAction
-export class ReferenceAction3 extends EditorAction {
+export class ShowNextChangeAction extends EditorAction {
 
 	constructor() {
 		super({
-			id: 'editor.action.dirtydiff.trigger3',
-			// TODO@joao come up with better name
-			label: nls.localize('dirtydiff.action.label', "Trigger Dirty Diff"),
-			alias: 'Trigger Dirty Diff',
+			id: 'editor.action.dirtydiff.next',
+			label: nls.localize('show next change', "Show Next Change"),
+			alias: 'Show Next Change',
 			precondition: ContextKeyExpr.and(EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: { kbExpr: EditorContextKeys.textFocus, primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_F }
 		});
