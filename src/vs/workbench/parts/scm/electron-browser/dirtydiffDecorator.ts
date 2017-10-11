@@ -43,6 +43,8 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 import { peekViewBorder, peekViewTitleBackground, peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/referenceSearch/browser/referencesWidget';
 import { EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { Action } from 'vs/base/common/actions';
+import { IActionBarOptions, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 
 export interface IModelRegistry {
 	getModel(editorModel: common.IEditorModel): DirtyDiffModel;
@@ -76,6 +78,22 @@ function getModifiedMiddleLineNumber(change: common.IChange): number {
 		return change.modifiedStartLineNumber;
 	} else {
 		return Math.round((change.modifiedEndLineNumber + change.modifiedStartLineNumber) / 2);
+	}
+}
+
+class UIEditorAction extends Action {
+
+	constructor(
+		private editor: common.ICommonCodeEditor,
+		private action: EditorAction,
+		cssClass: string,
+		@IInstantiationService private instantiationService: IInstantiationService
+	) {
+		super(action.id, action.label, cssClass);
+	}
+
+	run(): TPromise<any> {
+		return TPromise.wrap(this.instantiationService.invokeFunction(accessor => this.action.run(accessor, this.editor, null)));
 	}
 }
 
@@ -121,6 +139,23 @@ class DirtyDiffWidget extends PeekViewWidget {
 		const height = getChangeHeight(change) + /* padding */ 8;
 
 		this.show(position, height);
+	}
+
+	protected _fillHead(container: HTMLElement): void {
+		super._fillHead(container);
+
+		const previous = new UIEditorAction(this.editor, new ShowPreviousChangeAction(), 'show-previous-change octicon octicon-chevron-up', this.instantiationService);
+		const next = new UIEditorAction(this.editor, new ShowNextChangeAction(), 'show-next-change octicon octicon-chevron-down', this.instantiationService);
+
+		this._disposables.push(previous);
+		this._disposables.push(next);
+		this._actionbarWidget.push([previous, next], { label: false, icon: true });
+	}
+
+	protected _getActionBarOptions(): IActionBarOptions {
+		return {
+			orientation: ActionsOrientation.HORIZONTAL_REVERSE
+		};
 	}
 
 	protected _fillBody(container: HTMLElement): void {
