@@ -17,7 +17,7 @@ import { EditorLayoutInfo } from 'vs/editor/common/config/editorOptions';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 import { IdGenerator } from 'vs/base/common/idGenerator';
-import { ScrollType } from 'vs/editor/common/editorCommon';
+import { ScrollType, TrackedRangeStickiness } from 'vs/editor/common/editorCommon';
 
 export interface IOptions {
 	showFrame?: boolean;
@@ -147,7 +147,7 @@ class Arrow {
 	show(where: IPosition): void {
 		this._decorations = this._editor.deltaDecorations(
 			this._decorations,
-			[{ range: Range.fromPositions(where), options: { className: this._ruleName } }]
+			[{ range: Range.fromPositions(where), options: { className: this._ruleName, stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges } }]
 		);
 	}
 
