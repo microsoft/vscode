@@ -13,7 +13,6 @@ import { IDisposable, dispose, toDisposable, empty as EmptyDisposable, combinedD
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { Emitter, any as anyEvent, filterEvent, once } from 'vs/base/common/event';
 import * as ext from 'vs/workbench/common/contributions';
-import * as common from 'vs/editor/common/editorCommon';
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
@@ -49,6 +48,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { basename } from 'vs/base/common/paths';
 import { MenuId, IMenuService, IMenu, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { fillInActions, MenuItemActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
+import { IChange, ICommonCodeEditor, IEditorModel, ScrollType, IEditorContribution, OverviewRulerLane, IModel } from 'vs/editor/common/editorCommon';
 
 // TODO@Joao
 // Need to subclass MenuItemActionItem in order to respect
@@ -66,12 +66,12 @@ class DiffMenuItemActionItem extends MenuItemActionItem {
 }
 
 export interface IModelRegistry {
-	getModel(editorModel: common.IEditorModel): DirtyDiffModel;
+	getModel(editorModel: IEditorModel): DirtyDiffModel;
 }
 
 export const isDirtyDiffVisible = new RawContextKey<boolean>('dirtyDiffVisible', false);
 
-function getChangeHeight(change: common.IChange): number {
+function getChangeHeight(change: IChange): number {
 	const modified = change.modifiedEndLineNumber - change.modifiedStartLineNumber + 1;
 	const original = change.originalEndLineNumber - change.originalStartLineNumber + 1;
 
@@ -84,7 +84,7 @@ function getChangeHeight(change: common.IChange): number {
 	}
 }
 
-function getModifiedEndLineNumber(change: common.IChange): number {
+function getModifiedEndLineNumber(change: IChange): number {
 	if (change.modifiedEndLineNumber === 0) {
 		return change.modifiedStartLineNumber;
 	} else {
@@ -92,7 +92,7 @@ function getModifiedEndLineNumber(change: common.IChange): number {
 	}
 }
 
-function getModifiedMiddleLineNumber(change: common.IChange): number {
+function getModifiedMiddleLineNumber(change: IChange): number {
 	if (change.modifiedEndLineNumber === 0) {
 		return change.modifiedStartLineNumber;
 	} else {
@@ -102,12 +102,12 @@ function getModifiedMiddleLineNumber(change: common.IChange): number {
 
 class UIEditorAction extends Action {
 
-	private editor: common.ICommonCodeEditor;
+	private editor: ICommonCodeEditor;
 	private action: EditorAction;
 	private instantiationService: IInstantiationService;
 
 	constructor(
-		editor: common.ICommonCodeEditor,
+		editor: ICommonCodeEditor,
 		action: EditorAction,
 		cssClass: string,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -133,7 +133,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 	private diffEditor: EmbeddedDiffEditorWidget;
 	private title: string;
 	private menu: IMenu;
-	private change: common.IChange;
+	private change: IChange;
 	private didLayout = false;
 	private contextKeyService: IContextKeyService;
 
@@ -159,6 +159,12 @@ class DirtyDiffWidget extends PeekViewWidget {
 		this.create();
 		this.title = basename(editor.getModel().uri.fsPath);
 		this.setTitle(this.title);
+
+		model.onDidChange(this.onDidChange, this, this._disposables);
+	}
+
+	private onDidChange(changes: IChange[]): void {
+		// need to update!
 	}
 
 	showChange(index: number): void {
@@ -250,9 +256,9 @@ class DirtyDiffWidget extends PeekViewWidget {
 		}
 	}
 
-	private revealChange(change: common.IChange): void {
+	private revealChange(change: IChange): void {
 		const position = new Position(getModifiedMiddleLineNumber(this.change), 1);
-		this.diffEditor.revealPositionInCenter(position, common.ScrollType.Immediate);
+		this.diffEditor.revealPositionInCenter(position, ScrollType.Immediate);
 	}
 
 	private _applyTheme(theme: ITheme) {
@@ -280,7 +286,7 @@ export class ShowPreviousChangeAction extends EditorAction {
 		});
 	}
 
-	run(accessor: ServicesAccessor, editor: common.ICommonCodeEditor): void {
+	run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
 		const controller = DirtyDiffController.get(editor);
 
 		if (!controller) {
@@ -304,7 +310,7 @@ export class ShowNextChangeAction extends EditorAction {
 		});
 	}
 
-	run(accessor: ServicesAccessor, editor: common.ICommonCodeEditor): void {
+	run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
 		const controller = DirtyDiffController.get(editor);
 
 		if (!controller) {
@@ -338,11 +344,11 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 @editorContribution
-export class DirtyDiffController implements common.IEditorContribution {
+export class DirtyDiffController implements IEditorContribution {
 
 	private static ID = 'editor.contrib.dirtydiff';
 
-	static get(editor: common.ICommonCodeEditor): DirtyDiffController {
+	static get(editor: ICommonCodeEditor): DirtyDiffController {
 		return editor.getContribution<DirtyDiffController>(DirtyDiffController.ID);
 	}
 
@@ -437,13 +443,9 @@ export class DirtyDiffController implements common.IEditorContribution {
 		this.widget = this.instantiationService.createInstance(DirtyDiffWidget, this.editor, model);
 		this.isDirtyDiffVisible.set(true);
 
-		// TODO react on model changes
-
-		// const range = editor.getSelection();
-		// this.widget.show(range, 18);
-
 		const disposables: IDisposable[] = [];
 		once(this.widget.onDidClose)(this.close, this, disposables);
+		model.onDidChange(this.onDidModelChange, this, disposables);
 
 		disposables.push(
 			this.widget,
@@ -453,6 +455,11 @@ export class DirtyDiffController implements common.IEditorContribution {
 
 		this.session = combinedDisposable(disposables);
 		return true;
+	}
+
+	private onDidModelChange(changes: IChange[]): void {
+		// TODO
+		console.log('model changed!');
 	}
 
 	private findNextClosestChange(lineNumber: number): number {
@@ -516,7 +523,7 @@ class DirtyDiffDecorator {
 		overviewRuler: {
 			color: themeColorFromId(overviewRulerModifiedForeground),
 			darkColor: themeColorFromId(overviewRulerModifiedForeground),
-			position: common.OverviewRulerLane.Left
+			position: OverviewRulerLane.Left
 		}
 	});
 
@@ -526,7 +533,7 @@ class DirtyDiffDecorator {
 		overviewRuler: {
 			color: themeColorFromId(overviewRulerAddedForeground),
 			darkColor: themeColorFromId(overviewRulerAddedForeground),
-			position: common.OverviewRulerLane.Left
+			position: OverviewRulerLane.Left
 		}
 	});
 
@@ -536,7 +543,7 @@ class DirtyDiffDecorator {
 		overviewRuler: {
 			color: themeColorFromId(overviewRulerDeletedForeground),
 			darkColor: themeColorFromId(overviewRulerDeletedForeground),
-			position: common.OverviewRulerLane.Left
+			position: OverviewRulerLane.Left
 		}
 	});
 
@@ -544,13 +551,13 @@ class DirtyDiffDecorator {
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		private editorModel: common.IModel,
+		private editorModel: IModel,
 		private model: DirtyDiffModel
 	) {
 		model.onDidChange(this.onDidChange, this, this.disposables);
 	}
 
-	private onDidChange(diff: common.IChange[]): void {
+	private onDidChange(diff: IChange[]): void {
 		const decorations = diff.map((change) => {
 			const startLineNumber = change.modifiedStartLineNumber;
 			const endLineNumber = change.modifiedEndLineNumber || startLineNumber;
@@ -604,25 +611,25 @@ class DirtyDiffDecorator {
 
 export class DirtyDiffModel {
 
-	private _originalModel: common.IModel;
-	get original(): common.IModel { return this._originalModel; }
-	get modified(): common.IModel { return this._editorModel; }
+	private _originalModel: IModel;
+	get original(): IModel { return this._originalModel; }
+	get modified(): IModel { return this._editorModel; }
 
-	private diffDelayer: ThrottledDelayer<common.IChange[]>;
+	private diffDelayer: ThrottledDelayer<IChange[]>;
 	private _originalURIPromise: TPromise<URI>;
 	private repositoryDisposables = new Set<IDisposable[]>();
 	private disposables: IDisposable[] = [];
 
-	private _onDidChange = new Emitter<common.IChange[]>();
-	readonly onDidChange: Event<common.IChange[]> = this._onDidChange.event;
+	private _onDidChange = new Emitter<IChange[]>();
+	readonly onDidChange: Event<IChange[]> = this._onDidChange.event;
 
-	private _changes: common.IChange[] = [];
-	get changes(): common.IChange[] {
+	private _changes: IChange[] = [];
+	get changes(): IChange[] {
 		return this._changes;
 	}
 
 	constructor(
-		private _editorModel: common.IModel,
+		private _editorModel: IModel,
 		@ISCMService private scmService: ISCMService,
 		@IModelService private modelService: IModelService,
 		@IEditorWorkerService private editorWorkerService: IEditorWorkerService,
@@ -630,7 +637,7 @@ export class DirtyDiffModel {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ITextModelService private textModelResolverService: ITextModelService
 	) {
-		this.diffDelayer = new ThrottledDelayer<common.IChange[]>(200);
+		this.diffDelayer = new ThrottledDelayer<IChange[]>(200);
 
 		this.disposables.push(_editorModel.onDidChangeContent(() => this.triggerDiff()));
 		scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
@@ -661,7 +668,7 @@ export class DirtyDiffModel {
 
 		return this.diffDelayer
 			.trigger(() => this.diff())
-			.then((changes: common.IChange[]) => {
+			.then((changes: IChange[]) => {
 				if (!this._editorModel || this._editorModel.isDisposed() || !this._originalModel || this._originalModel.isDisposed()) {
 					return undefined; // disposed
 				}
@@ -675,7 +682,7 @@ export class DirtyDiffModel {
 			});
 	}
 
-	private diff(): TPromise<common.IChange[]> {
+	private diff(): TPromise<IChange[]> {
 		return this.getOriginalURIPromise().then(originalURI => {
 			if (!this._editorModel || this._editorModel.isDisposed() || !originalURI) {
 				return TPromise.as([]); // disposed
@@ -757,7 +764,7 @@ class DirtyDiffItem {
 
 export class DirtyDiffWorkbenchController implements ext.IWorkbenchContribution, IModelRegistry {
 
-	private models: common.IModel[] = [];
+	private models: IModel[] = [];
 	private items: { [modelId: string]: DirtyDiffItem; } = Object.create(null);
 	private disposables: IDisposable[] = [];
 
@@ -808,19 +815,19 @@ export class DirtyDiffWorkbenchController implements ext.IWorkbenchContribution,
 		this.models = models;
 	}
 
-	private onModelVisible(editorModel: common.IModel): void {
+	private onModelVisible(editorModel: IModel): void {
 		const model = this.instantiationService.createInstance(DirtyDiffModel, editorModel);
 		const decorator = new DirtyDiffDecorator(editorModel, model);
 
 		this.items[editorModel.id] = new DirtyDiffItem(model, decorator);
 	}
 
-	private onModelInvisible(editorModel: common.IModel): void {
+	private onModelInvisible(editorModel: IModel): void {
 		this.items[editorModel.id].dispose();
 		delete this.items[editorModel.id];
 	}
 
-	getModel(editorModel: common.IModel): DirtyDiffModel | null {
+	getModel(editorModel: IModel): DirtyDiffModel | null {
 		const item = this.items[editorModel.id];
 
 		if (!item) {
