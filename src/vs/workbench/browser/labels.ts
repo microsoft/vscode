@@ -198,20 +198,6 @@ export class ResourceLabel extends IconLabel {
 					title = localize('deco.tooltip', "{0}, {1}", title, deco.tooltip);
 				}
 
-				if (deco.prefix) {
-					label += deco.prefix;
-					if (matches) {
-						matches.forEach(match => {
-							match.start += deco.prefix.length;
-							match.end += deco.prefix.length;
-						});
-					}
-				}
-
-				if (deco.suffix) {
-					label += deco.suffix;
-				}
-
 				if (deco.icon) {
 					const { type } = this.themeService.getTheme();
 					extraIcon = type === 'light' ? deco.icon.light : deco.icon.dark;
