@@ -406,26 +406,53 @@ export function compareItemsByScore<T>(itemA: T, itemB: T, query: string, fuzzy:
 	}
 
 	// 6.) scores are identical, prefer more compact matches (label and description)
-	let itemAMatches: IMatch[] = [];
-	if (itemScoreA.descriptionMatch) {
-		itemAMatches.push(...itemScoreA.descriptionMatch);
-	}
-	itemAMatches.push(...itemScoreA.labelMatch);
-
-	let itemBMatches: IMatch[] = [];
-	if (itemScoreB.descriptionMatch) {
-		itemBMatches.push(...itemScoreB.descriptionMatch);
-	}
-	itemBMatches.push(...itemScoreB.labelMatch);
-
-	const matchCompactness = compareByMatchLength(itemAMatches, itemBMatches);
-	if (matchCompactness !== 0) {
-		return matchCompactness;
+	const itemAMatchDistance = computeLabelAndDescriptionMatchDistance(itemA, itemScoreA, accessor);
+	const itemBMatchDistance = computeLabelAndDescriptionMatchDistance(itemB, itemScoreB, accessor);
+	if (itemAMatchDistance && itemBMatchDistance && itemAMatchDistance !== itemBMatchDistance) {
+		return itemBMatchDistance > itemAMatchDistance ? -1 : 1;
 	}
 
 	// 7.) at this point, scores are identical and match compactness as well
 	// for both items so we start to use the fallback compare
 	return fallbackComparer(itemA, itemB, query, accessor);
+}
+
+function computeLabelAndDescriptionMatchDistance<T>(item: T, score: IItemScore, accessor: IItemAccessor<T>): number {
+	const hasLabelMatches = (score.labelMatch && score.labelMatch.length);
+	const hasDescriptionMatches = (score.descriptionMatch && score.descriptionMatch.length);
+
+	let matchStart: number = -1;
+	let matchEnd: number = -1;
+
+	// If we have description matches, the start is first of description match
+	if (hasDescriptionMatches) {
+		matchStart = score.descriptionMatch[0].start;
+	}
+
+	// Otherwise, the start is the first label match
+	else if (hasLabelMatches) {
+		matchStart = score.labelMatch[0].start;
+	}
+
+	// If we have label match, the end is the last label match
+	// If we had a description match, we add the length of the description
+	// as offset to the end to indicate this.
+	if (hasLabelMatches) {
+		matchEnd = score.labelMatch[score.labelMatch.length - 1].end;
+		if (hasDescriptionMatches) {
+			const itemDescription = accessor.getItemDescription(item);
+			if (itemDescription) {
+				matchEnd += itemDescription.length;
+			}
+		}
+	}
+
+	// If we have just a description match, the end is the last description match
+	else if (hasDescriptionMatches) {
+		matchEnd = score.descriptionMatch[score.descriptionMatch.length - 1].end;
+	}
+
+	return matchEnd - matchStart;
 }
 
 function compareByMatchLength(matchesA?: IMatch[], matchesB?: IMatch[]): number {
