@@ -46,6 +46,7 @@ import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Action } from 'vs/base/common/actions';
 import { IActionBarOptions, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { basename } from 'vs/base/common/paths';
 
 export interface IModelRegistry {
 	getModel(editorModel: common.IEditorModel): DirtyDiffModel;
@@ -113,6 +114,7 @@ class UIEditorAction extends Action {
 class DirtyDiffWidget extends PeekViewWidget {
 
 	private diffEditor: EmbeddedDiffEditorWidget;
+	private title: string;
 	private change: common.IChange;
 	private didLayout = false;
 
@@ -128,10 +130,13 @@ class DirtyDiffWidget extends PeekViewWidget {
 		this._applyTheme(themeService.getTheme());
 
 		this.create();
-		this.setTitle('Diff');
+
+		this.title = basename(editor.getModel().uri.fsPath);
+		this.setTitle(this.title);
 	}
 
-	showChange(change: common.IChange): void {
+	showChange(index: number): void {
+		const change = this.model.changes[index];
 		this.change = change;
 
 		const originalModel = this.model.original;
@@ -150,6 +155,9 @@ class DirtyDiffWidget extends PeekViewWidget {
 
 		const position = new Position(getModifiedEndLineNumber(change), 1);
 		const height = getChangeHeight(change) + /* padding */ 8;
+
+		const detail = localize('changes', "Changes ({0} of {1})", index + 1, this.model.changes.length);
+		this.setTitle(this.title, detail);
 
 		this.show(position, height);
 	}
@@ -328,7 +336,7 @@ export class DirtyDiffController implements common.IEditorContribution {
 			this.changeIndex = rot(this.changeIndex + 1, this.model.changes.length);
 		}
 
-		this.widget.showChange(this.model.changes[this.changeIndex]);
+		this.widget.showChange(this.changeIndex);
 	}
 
 	previous(): void {
@@ -342,7 +350,7 @@ export class DirtyDiffController implements common.IEditorContribution {
 			this.changeIndex = rot(this.changeIndex - 1, this.model.changes.length);
 		}
 
-		this.widget.showChange(this.model.changes[this.changeIndex]);
+		this.widget.showChange(this.changeIndex);
 	}
 
 	close(): void {
