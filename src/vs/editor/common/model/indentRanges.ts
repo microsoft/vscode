@@ -61,40 +61,46 @@ export function computeRanges(model: ITextModel, offSide: boolean, markers?: Fol
 			// folding pattern match
 			if (m[1]) { // start pattern match
 				// discard all regions until the folding pattern
-				while (previous.indent >= 0 && !previous.marker) {
-					previousRegions.pop();
-					previous = previousRegions[previousRegions.length - 1];
+				let i = previousRegions.length - 1;
+				while (i > 0 && !previousRegions[i].marker) {
+					i--;
 				}
-				if (previous.marker) {
+				if (i > 0) {
+					previousRegions.length = i + 1;
+					previous = previousRegions[i];
+
 					// new folding range from pattern, includes the end line
 					result.push(new IndentRange(line, previous.line, indent, true));
 					previous.marker = false;
 					previous.indent = indent;
 					previous.line = line;
+					continue;
+				} else {
+					// no end marker found, treat line as a regular line
 				}
 			} else { // end pattern match
 				previousRegions.push({ indent: -2, line, marker: true });
+				continue;
 			}
-		} else {
-			if (previous.indent > indent) {
-				// discard all regions with larger indent
-				do {
-					previousRegions.pop();
-					previous = previousRegions[previousRegions.length - 1];
-				} while (previous.indent > indent);
+		}
+		if (previous.indent > indent) {
+			// discard all regions with larger indent
+			do {
+				previousRegions.pop();
+				previous = previousRegions[previousRegions.length - 1];
+			} while (previous.indent > indent);
 
-				// new folding range
-				let endLineNumber = previous.line - 1;
-				if (endLineNumber - line >= minimumRangeSize) {
-					result.push(new IndentRange(line, endLineNumber, indent));
-				}
+			// new folding range
+			let endLineNumber = previous.line - 1;
+			if (endLineNumber - line >= minimumRangeSize) {
+				result.push(new IndentRange(line, endLineNumber, indent));
 			}
-			if (previous.indent === indent) {
-				previous.line = line;
-			} else { // previous.indent < indent
-				// new region with a bigger indent
-				previousRegions.push({ indent, line, marker: false });
-			}
+		}
+		if (previous.indent === indent) {
+			previous.line = line;
+		} else { // previous.indent < indent
+			// new region with a bigger indent
+			previousRegions.push({ indent, line, marker: false });
 		}
 	}
 
