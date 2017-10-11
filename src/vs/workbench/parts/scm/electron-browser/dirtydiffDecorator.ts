@@ -42,7 +42,7 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 import { peekViewBorder, peekViewTitleBackground, peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/referenceSearch/browser/referencesWidget';
 import { EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { Action, IAction } from 'vs/base/common/actions';
+import { Action, IAction, ActionRunner } from 'vs/base/common/actions';
 import { IActionBarOptions, ActionsOrientation, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { basename } from 'vs/base/common/paths';
@@ -63,6 +63,17 @@ class DiffMenuItemActionItem extends MenuItemActionItem {
 
 		this.actionRunner.run(this._commandAction, this._context)
 			.done(undefined, err => this._messageService.show(Severity.Error, err));
+	}
+}
+
+class DiffActionRunner extends ActionRunner {
+
+	runAction(action: IAction, context: any): TPromise<any> {
+		if (action instanceof MenuItemAction) {
+			return action.run(...context);
+		}
+
+		return super.runAction(action, context);
 	}
 }
 
@@ -188,7 +199,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		const height = getChangeHeight(change) + /* padding */ 8;
 
 		this.renderTitle();
-		this._actionbarWidget.context = change;
+		this._actionbarWidget.context = [this.model.modified.uri, this.model.changes, index];
 		this.show(position, height);
 	}
 
@@ -217,6 +228,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 
 	protected _getActionBarOptions(): IActionBarOptions {
 		return {
+			actionRunner: new DiffActionRunner(),
 			actionItemProvider: action => this.getActionItem(action),
 			orientation: ActionsOrientation.HORIZONTAL_REVERSE
 		};
