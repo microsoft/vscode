@@ -63,6 +63,14 @@ function getChangeHeight(change: common.IChange): number {
 	}
 }
 
+function getModifiedEndLineNumber(change: common.IChange): number {
+	if (change.modifiedEndLineNumber === 0) {
+		return change.modifiedStartLineNumber;
+	} else {
+		return change.modifiedEndLineNumber;
+	}
+}
+
 function getModifiedMiddleLineNumber(change: common.IChange): number {
 	if (change.modifiedEndLineNumber === 0) {
 		return change.modifiedStartLineNumber;
@@ -109,7 +117,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 
 		this.diffEditor.setModel(this.model);
 
-		const position = new Position(change.modifiedEndLineNumber, 1);
+		const position = new Position(getModifiedEndLineNumber(change), 1);
 		const height = getChangeHeight(change) + /* padding */ 8;
 
 		this.show(position, height);
@@ -117,7 +125,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 
 	protected _fillBody(container: HTMLElement): void {
 		const options: IDiffEditorOptions = {
-			scrollBeyondLastLine: false,
+			scrollBeyondLastLine: true,
 			scrollbar: {
 				verticalScrollbarSize: 14,
 				horizontal: 'auto',
@@ -355,7 +363,7 @@ export class DirtyDiffController implements common.IEditorContribution {
 		for (let i = 0; i < this.model.changes.length; i++) {
 			const change = this.model.changes[i];
 
-			if (change.modifiedEndLineNumber >= lineNumber) {
+			if (getModifiedEndLineNumber(change) >= lineNumber) {
 				return i;
 			}
 		}
