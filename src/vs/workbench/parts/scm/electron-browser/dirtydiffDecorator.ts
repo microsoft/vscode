@@ -156,7 +156,10 @@ class DirtyDiffWidget extends PeekViewWidget {
 		const position = new Position(getModifiedEndLineNumber(change), 1);
 		const height = getChangeHeight(change) + /* padding */ 8;
 
-		const detail = localize('changes', "Changes ({0} of {1})", index + 1, this.model.changes.length);
+		const detail = this.model.changes.length > 1
+			? localize('changes', "{0} of {1} changes", index + 1, this.model.changes.length)
+			: localize('change', "{0} of {1} change", index + 1, this.model.changes.length);
+
 		this.setTitle(this.title, detail);
 
 		this.show(position, height);
