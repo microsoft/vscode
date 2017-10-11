@@ -71,7 +71,7 @@ format      ::= '$' int | '${' int '}'
                 | '${' int ':' '/upcase' | '/downcase' | '/capitalize' '}'
                 | '${' int ':+' if '}'
                 | '${' int ':?' if ':' else '}'
-                | '${' int ':-' else '}' '${' int ':' else '}'
+                | '${' int ':-' else '}' | '${' int ':' else '}'
 regex       ::= JavaScript Regular Expression value (ctor-string)
 options     ::= JavaScript Regular Expression option (ctor-options)
 var         ::= [_a-zA-Z] [_a-zA-Z0-9]*
