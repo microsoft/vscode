@@ -32,11 +32,11 @@ export class Explorer extends Viewlet {
 	public getExtensionSelector(fileName: string): string {
 		const extension = fileName.split('.')[1];
 		if (extension === 'js') {
-			return 'js-ext-file-icon javascript-lang-file-icon';
+			return 'js-ext-file-icon ext-file-icon javascript-lang-file-icon';
 		} else if (extension === 'json') {
-			return 'json-ext-file-icon json-lang-file-icon';
+			return 'json-ext-file-icon ext-file-icon json-lang-file-icon';
 		} else if (extension === 'md') {
-			return 'md-ext-file-icon markdown-lang-file-icon';
+			return 'md-ext-file-icon ext-file-icon markdown-lang-file-icon';
 		}
 		throw new Error('No class defined for this file extension');
 	}

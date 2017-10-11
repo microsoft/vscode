@@ -803,7 +803,27 @@
           "default": false
         }
       }
-    }
+    },
+    "colors": [
+      {
+        "id": "git.color.modified",
+        "description": "Color for modified resources",
+        "defaults": {
+          "light": "#007BD0",
+          "dark": "#1B80B2",
+          "highContrast": "#1B80B2"
+        }
+      },
+      {
+        "id": "git.color.untracked",
+        "description": "Color for untracked resources",
+        "defaults": {
+          "light": "#6C6C6C",
+          "dark": "#6C6C6C",
+          "highContrast": "#6C6C6C"
+        }
+      }
+    ]
   },
   "dependencies": {
     "byline": "^5.0.0",

@@ -174,8 +174,8 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('openWorkspace', windowId);
 	}
 
-	createAndEnterWorkspace(windowId: number, folders?: string[], path?: string): TPromise<IEnterWorkspaceResult> {
-		return this.channel.call('createAndEnterWorkspace', [windowId, folders, path]);
+	createAndEnterWorkspace(windowId: number, folderPaths?: string[], path?: string): TPromise<IEnterWorkspaceResult> {
+		return this.channel.call('createAndEnterWorkspace', [windowId, folderPaths, path]);
 	}
 
 	saveAndEnterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult> {

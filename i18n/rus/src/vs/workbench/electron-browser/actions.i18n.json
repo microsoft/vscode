@@ -42,5 +42,10 @@
 	"navigateUp": "Перейти к представлению вверху",
 	"navigateDown": "Перейти к представлению внизу",
 	"increaseViewSize": "Увеличить размер текущего представления",
-	"decreaseViewSize": "Уменьшить размер текущего представления"
+	"decreaseViewSize": "Уменьшить размер текущего представления",
+	"showPreviousTab": "Показать предыдущую вкладку в окне",
+	"showNextWindowTab": "Показать следующую вкладку в окне",
+	"moveWindowTabToNewWindow": "Переместить вкладку окна в новое окно",
+	"mergeAllWindowTabs": "Объединить все окна",
+	"toggleWindowTabsBar": "Переключить панель вкладок окна"
 }

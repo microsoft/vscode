@@ -328,6 +328,16 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('enableDragAndDrop', "Controls if the explorer should allow to move files and folders via drag and drop."),
 			'default': true
 		},
+		'explorer.confirmDragAndDrop': {
+			'type': 'boolean',
+			'description': nls.localize('confirmDragAndDrop', "Controls if the explorer should ask for confirmation when moving files or folders around via drag and drop."),
+			'default': true
+		},
+		'explorer.confirmDelete': {
+			'type': 'boolean',
+			'description': nls.localize('confirmDelete', "Controls if the explorer should ask for confirmation when deleting a file via the trash."),
+			'default': true
+		},
 		'explorer.sortOrder': {
 			'type': 'string',
 			'enum': [SortOrderConfiguration.DEFAULT, SortOrderConfiguration.MIXED, SortOrderConfiguration.FILES_FIRST, SortOrderConfiguration.TYPE, SortOrderConfiguration.MODIFIED],
@@ -340,6 +350,11 @@ configurationRegistry.registerConfiguration({
 				nls.localize('sortOrder.modified', 'Files and folders are sorted by last modified date, in descending order. Folders are displayed before files.')
 			],
 			'description': nls.localize({ key: 'sortOrder', comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'] }, "Controls sorting order of files and folders in the explorer. In addition to the default sorting, you can set the order to 'mixed' (files and folders sorted combined), 'type' (by file type), 'modified' (by last modified date) or 'filesFirst' (sort files before folders).")
+		},
+		'explorer.enableFileDecorations': {
+			type: 'boolean',
+			description: nls.localize('enableFileDecorations', "Controls if the explorer should show file decorations, like SCM status or problems."),
+			default: true
 		}
 	}
 });

@@ -10,7 +10,7 @@ import errors = require('vs/base/common/errors');
 import URI from 'vs/base/common/uri';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { IEditor as IBaseEditor, IEditorInput, ITextEditorOptions, IResourceInput, ITextEditorSelection, Position as GroupPosition } from 'vs/platform/editor/common/editor';
-import { Extensions as EditorExtensions, EditorInput, IEditorCloseEvent, toResource, IEditorGroup, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
+import { Extensions as EditorExtensions, EditorInput, IEditorCloseEvent, IEditorGroup, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { FileChangesEvent, IFileService, FileChangeType } from 'vs/platform/files/common/files';
@@ -245,7 +245,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 
 		// Track closing of pinned editor to support to reopen closed editors
 		if (event.pinned) {
-			const resource = toResource(event.editor);
+			const resource = event.editor ? event.editor.getResource() : void 0;
 			const supportsReopen = resource && this.fileService.canHandleResource(resource); // we only support file'ish things to reopen
 			if (supportsReopen) {
 
@@ -592,7 +592,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	}
 
 	private preferResourceInput(input: IEditorInput): IEditorInput | IResourceInput {
-		const resource = toResource(input);
+		const resource = input ? input.getResource() : void 0;
 		const preferResourceInput = resource && this.fileService.canHandleResource(resource); // file'ish things prefer resources
 		if (preferResourceInput) {
 			return { resource };
@@ -680,7 +680,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 
 		if (arg2 instanceof EditorInput) {
-			const inputResource = toResource(arg2);
+			const inputResource = arg2.getResource();
 
 			return inputResource && this.fileService.canHandleResource(inputResource) && inputResource.toString() === resource.toString();
 		}

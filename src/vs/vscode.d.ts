@@ -1970,6 +1970,13 @@ declare module 'vscode' {
 		 * @param value Markdown string.
 		 */
 		appendMarkdown(value: string): MarkdownString;
+
+		/**
+		 * Appends the given string as codeblock using the provided language.
+		 * @param value A code snippet.
+		 * @param language An optional [language identifier](#languages.getLanguages).
+		 */
+		appendCodeblock(value: string, language?: string): MarkdownString;
 	}
 
 	/**
@@ -5622,6 +5629,12 @@ declare module 'vscode' {
 		 * [source control resource state](#SourceControlResourceState).
 		 */
 		readonly tooltip?: string;
+
+		/**
+		 * A color for a specific
+		 * [source control resource state](#SourceControlResourceState).
+		 */
+		readonly color?: ThemeColor;
 
 		/**
 		 * The light theme decorations.

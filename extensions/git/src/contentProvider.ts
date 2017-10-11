@@ -82,7 +82,7 @@ export class GitContentProvider {
 
 		const cacheKey = uri.toString();
 		const timestamp = new Date().getTime();
-		const cacheValue = { uri, timestamp };
+		const cacheValue: CacheRow = { uri, timestamp };
 
 		this.cache[cacheKey] = cacheValue;
 
@@ -108,7 +108,10 @@ export class GitContentProvider {
 
 		Object.keys(this.cache).forEach(key => {
 			const row = this.cache[key];
-			const isOpen = window.visibleTextEditors.some(e => e.document.toString() === row.uri.toString());
+			const { path } = fromGitUri(row.uri);
+			const isOpen = workspace.textDocuments
+				.filter(d => d.uri.scheme === 'file')
+				.some(d => d.uri.fsPath === path);
 
 			if (isOpen || now - row.timestamp < THREE_MINUTES) {
 				cache[row.uri.toString()] = row;

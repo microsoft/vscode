@@ -42,5 +42,10 @@
 	"navigateUp": "뷰 위로 이동",
 	"navigateDown": "뷰 아래로 이동",
 	"increaseViewSize": "현재 뷰 크기 늘리기",
-	"decreaseViewSize": "현재 뷰 크기 줄이기"
+	"decreaseViewSize": "현재 뷰 크기 줄이기",
+	"showPreviousTab": "이전 창 탭 표시",
+	"showNextWindowTab": "다음 창 탭 표시",
+	"moveWindowTabToNewWindow": "창 탭을 새 창으로 이동",
+	"mergeAllWindowTabs": "모든 창 병합",
+	"toggleWindowTabsBar": "창 탭 모음 설정/해제"
 }

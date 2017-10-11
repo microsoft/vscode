@@ -232,7 +232,8 @@ export class ReplExpressionsRenderer implements IRenderer {
 		templateData.input.textContent = expression.name;
 		renderExpressionValue(expression, templateData.value, {
 			preserveWhitespace: !expression.hasChildren,
-			showHover: false
+			showHover: false,
+			colorize: true
 		});
 		if (expression.hasChildren) {
 			templateData.annotation.className = 'annotation octicon octicon-info';

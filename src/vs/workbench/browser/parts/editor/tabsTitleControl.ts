@@ -364,7 +364,7 @@ export class TabsTitleControl extends TitleControl {
 		// Gather duplicate titles, while filtering out invalid descriptions
 		const mapTitleToDuplicates = new Map<string, AugmentedLabel[]>();
 		for (const label of labels) {
-			if (typeof label.description === 'string' && label.description) {
+			if (typeof label.description === 'string') {
 				getOrSet(mapTitleToDuplicates, label.name, []).push(label);
 			} else {
 				label.description = '';

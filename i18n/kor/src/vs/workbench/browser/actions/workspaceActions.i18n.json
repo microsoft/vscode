@@ -17,5 +17,6 @@
 	"save": "저장(&&S)",
 	"saveWorkspace": "작업 영역 저장",
 	"openWorkspaceAction": "작업 영역 열기...",
-	"openWorkspaceConfigFile": "작업 영역 구성 파일 열기"
+	"openWorkspaceConfigFile": "작업 영역 구성 파일 열기",
+	"workspaceFolderPickerPlaceholder": "작업 영역 폴더 선택"
 }

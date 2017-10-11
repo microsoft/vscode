@@ -20,6 +20,7 @@
 	"menus.editorTabContext": "Das Kontextmenü für die Editor-Registerkarten",
 	"menus.debugCallstackContext": "Das Kontextmenü für den Debug-Callstack",
 	"menus.scmTitle": "Das Titelmenü der Quellcodeverwaltung",
+	"menus.scmSourceControl": "Das Menü \"Quellcodeverwaltung\"",
 	"menus.resourceGroupContext": "Das Ressourcengruppen-Kontextmenü der Quellcodeverwaltung",
 	"menus.resourceStateContext": "Das Ressourcenstatus-Kontextmenü der Quellcodeverwaltung",
 	"view.viewTitle": "Das beigetragene Editor-Titelmenü.",

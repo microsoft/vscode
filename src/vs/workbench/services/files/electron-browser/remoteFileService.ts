@@ -72,8 +72,7 @@ export function toDeepIFileStat(provider: IFileSystemProvider, tuple: [URI, ISta
 	}
 
 	return toIFileStat(provider, tuple, candidate => {
-		const sub = trie.findSuperstr(candidate[0].toString());
-		return !!sub;
+		return Boolean(trie.findSuperstr(candidate[0].toString()) || trie.get(candidate[0].toString()));
 	});
 }
 
@@ -284,12 +283,19 @@ export class RemoteFileService extends FileService {
 						stream.write(chunk);
 						offset += chunk.length;
 					}
-					provider.read(resource, offset, Number.MAX_VALUE, new Progress<Buffer>(chunk => stream.write(chunk))).then(() => {
+					if (offset < count) {
+						// we didn't read enough the first time which means
+						// that we are done
 						stream.end();
-					}, err => {
-						stream.emit('error', err);
-						stream.end();
-					});
+					} else {
+						// there is more to read
+						provider.read(resource, offset, Number.MAX_VALUE, new Progress<Buffer>(chunk => stream.write(chunk))).then(() => {
+							stream.end();
+						}, err => {
+							stream.emit('error', err);
+							stream.end();
+						});
+					}
 
 					return {
 						encoding: preferredEncoding,

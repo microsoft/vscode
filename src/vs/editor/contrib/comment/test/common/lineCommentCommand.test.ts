@@ -518,6 +518,50 @@ suite('Editor Contrib - Line Comment Command', () => {
 		);
 	});
 
+	test('issue #35673: Comment hotkeys throws the cursor before the comment', () => {
+		testLineCommentCommand(
+			[
+				'first',
+				'',
+				'\tsecond line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(2, 1, 2, 1),
+			[
+				'first',
+				'!@# ',
+				'\tsecond line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(2, 5, 2, 5)
+		);
+
+		testLineCommentCommand(
+			[
+				'first',
+				'\t',
+				'\tsecond line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(2, 2, 2, 2),
+			[
+				'first',
+				'\t!@# ',
+				'\tsecond line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(2, 6, 2, 6)
+		);
+	});
+
 	test('issue #2837 "Add Line Comment" fault when blank lines involved', function () {
 		testAddLineCommentCommand(
 			[

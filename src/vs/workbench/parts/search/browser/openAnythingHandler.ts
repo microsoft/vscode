@@ -11,8 +11,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import { ThrottledDelayer } from 'vs/base/common/async';
 import types = require('vs/base/common/types');
-import { isWindows } from 'vs/base/common/platform';
-import strings = require('vs/base/common/strings');
 import { IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenEntry, QuickOpenModel, QuickOpenItemAccessor } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
@@ -25,7 +23,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchSearchConfiguration } from 'vs/workbench/parts/search/common/search';
 import { IRange } from 'vs/editor/common/core/range';
-import { compareItemsByScore, scoreItem, ScorerCache } from 'vs/base/parts/quickopen/common/quickOpenScorer';
+import { compareItemsByScore, scoreItem, ScorerCache, massageSearchForScoring } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 
 export import OpenSymbolHandler = openSymbolHandler.OpenSymbolHandler; // OpenSymbolHandler is used from an extension and must be in the main bundle file so it can load
 
@@ -175,11 +173,8 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		this.cancelPendingSearch();
 		this.isClosed = false; // Treat this call as the handler being in use
 
-		// Massage search value
-		searchValue = searchValue.replace(/ /g, ''); // get rid of all whitespace
-		if (isWindows) {
-			searchValue = searchValue.replace(/\//g, '\\'); // Help Windows users to search for paths when using slash
-		}
+		// Massage search for scoring
+		searchValue = massageSearchForScoring(searchValue);
 
 		const searchWithRange = this.extractRange(searchValue); // Find a suitable range from the pattern looking for ":" and "#"
 		if (searchWithRange) {
@@ -217,8 +212,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 				// Sort
 				const unsortedResultTime = Date.now();
-				const normalizedSearchValue = strings.stripWildcards(searchValue);
-				const compare = (elementA: QuickOpenEntry, elementB: QuickOpenEntry) => compareItemsByScore(elementA, elementB, normalizedSearchValue, true, QuickOpenItemAccessor, this.scorerCache);
+				const compare = (elementA: QuickOpenEntry, elementB: QuickOpenEntry) => compareItemsByScore(elementA, elementB, searchValue, true, QuickOpenItemAccessor, this.scorerCache);
 				const viewResults = arrays.top(mergedResults, compare, OpenAnythingHandler.MAX_DISPLAYED_RESULTS);
 				const sortedResultTime = Date.now();
 
@@ -227,7 +221,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 					if (entry instanceof FileEntry) {
 						entry.setRange(searchWithRange ? searchWithRange.range : null);
 
-						const itemScore = scoreItem(entry, normalizedSearchValue, true, QuickOpenItemAccessor, this.scorerCache);
+						const itemScore = scoreItem(entry, searchValue, true, QuickOpenItemAccessor, this.scorerCache);
 						entry.setHighlights(itemScore.labelMatch, itemScore.descriptionMatch);
 					}
 				});

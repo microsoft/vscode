@@ -31,7 +31,7 @@ import { IResourceInput, IEditorInput } from 'vs/platform/editor/common/editor';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { getIconClasses } from 'vs/workbench/browser/labels';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { EditorInput, toResource, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
+import { EditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { Component } from 'vs/workbench/common/component';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -55,7 +55,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ITree, IActionProvider } from 'vs/base/parts/tree/browser/tree';
 import { BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { FileKind, IFileService } from 'vs/platform/files/common/files';
-import { scoreItem, ScorerCache, compareItemsByScore } from 'vs/base/parts/quickopen/common/quickOpenScorer';
+import { scoreItem, ScorerCache, compareItemsByScore, massageSearchForScoring } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 
 const HELP_PREFIX = '?';
 
@@ -1177,9 +1177,9 @@ class EditorHistoryHandler {
 	}
 
 	public getResults(searchValue?: string): QuickOpenEntry[] {
-		if (searchValue) {
-			searchValue = strings.stripWildcards(searchValue.replace(/ /g, '')); // get rid of all whitespace and wildcards
-		}
+
+		// Massage search for scoring
+		searchValue = massageSearchForScoring(searchValue);
 
 		// Just return all if we are not searching
 		const history = this.historyService.getHistory();
@@ -1332,7 +1332,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 }
 
 function resourceForEditorHistory(input: EditorInput, fileService: IFileService): URI {
-	const resource = toResource(input);
+	const resource = input ? input.getResource() : void 0;
 
 	// For the editor history we only prefer resources that are either untitled or
 	// can be handled by the file service which indicates they are editable resources.

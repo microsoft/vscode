@@ -11,6 +11,7 @@
 	"lineHeight": "控制行高。使用 0 會從 fontSize 計算 lineHeight。",
 	"letterSpacing": "控制字元間距 (以像素為單位)",
 	"lineNumbers": "控制行號顯示。可能的值有 'on'、'off' 及 'relative'。'relative' 會從目前的資料指標位置顯示行數。",
+	"rulers": "在特定的等寬字元數之後轉譯垂直尺規。有多個尺規就使用多個值。若陣列為空，則不繪製任何尺規。",
 	"wordSeparators": "執行文字相關導覽或作業時將作為文字分隔符號的字元",
 	"tabSize": "與 Tab 相等的空格數量。當 `editor.detectIndentation` 已開啟時，會根據檔案內容覆寫此設定。",
 	"tabSize.errorMessage": "必須是 'number'。請注意，值 \"auto\" 已由 `editor.detectIndentation` 設定取代。",

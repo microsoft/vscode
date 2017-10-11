@@ -23,7 +23,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ClosePanelAction, PanelAction, ToggleMaximizedPanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
+import { ClosePanelAction, OpenPanelAction, ToggleMaximizedPanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER } from 'vs/workbench/common/theme';
 import { activeContrastBorder, focusBorder, contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
@@ -37,7 +37,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	private blockOpeningPanel: boolean;
 	private panelSwitcherBar: ActionBar;
 
-	private panelIdToActions: { [panelId: string]: PanelAction; };
+	private panelIdToActions: { [panelId: string]: OpenPanelAction; };
 
 	constructor(
 		id: string,
@@ -183,7 +183,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		const panels = this.getPanels();
 
 		this.panelSwitcherBar.push(panels.map(panel => {
-			const action = this.instantiationService.createInstance(PanelAction, panel);
+			const action = this.instantiationService.createInstance(OpenPanelAction, panel);
 
 			this.panelIdToActions[panel.id] = action;
 			this.toUnbind.push(action);

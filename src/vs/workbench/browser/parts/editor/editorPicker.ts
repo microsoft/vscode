@@ -22,8 +22,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EditorInput, toResource, IEditorGroup, IEditorStacksModel } from 'vs/workbench/common/editor';
-import { stripWildcards } from 'vs/base/common/strings';
-import { compareItemsByScore, scoreItem, ScorerCache } from 'vs/base/parts/quickopen/common/quickOpenScorer';
+import { compareItemsByScore, scoreItem, ScorerCache, massageSearchForScoring } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 
 export class EditorPickerEntry extends QuickOpenEntryGroup {
 	private stacks: IEditorStacksModel;
@@ -107,9 +106,8 @@ export abstract class BaseEditorPicker extends QuickOpenHandler {
 			return TPromise.as(null);
 		}
 
-		const stacks = this.editorGroupService.getStacksModel();
-
-		searchValue = stripWildcards(searchValue.trim());
+		// Massage search for scoring
+		searchValue = massageSearchForScoring(searchValue);
 
 		const entries = editorEntries.filter(e => {
 			if (!searchValue) {
@@ -127,6 +125,7 @@ export abstract class BaseEditorPicker extends QuickOpenHandler {
 		});
 
 		// Sorting
+		const stacks = this.editorGroupService.getStacksModel();
 		if (searchValue) {
 			entries.sort((e1, e2) => {
 				if (e1.group !== e2.group) {

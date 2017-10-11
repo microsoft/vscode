@@ -16,7 +16,7 @@ import { IPanelService, IPanelIdentifier } from 'vs/workbench/services/panel/com
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
-export class PanelAction extends Action {
+export class OpenPanelAction extends Action {
 
 	constructor(
 		private panel: IPanelIdentifier,

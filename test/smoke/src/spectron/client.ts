@@ -5,7 +5,7 @@
 
 import { Application } from 'spectron';
 import { RawResult, Element } from 'webdriverio';
-import { SpectronApplication } from './application';
+import { SpectronApplication, WAIT_TIME } from './application';
 
 /**
  * Abstracts the Spectron's WebdriverIO managed client property on the created Application instances.
@@ -14,10 +14,11 @@ export class SpectronClient {
 
 	// waitFor calls should not take more than 200 * 100 = 20 seconds to complete, excluding
 	// the time it takes for the actual retry call to complete
-	private readonly retryCount = 200;
+	private retryCount: number;
 	private readonly retryDuration = 100; // in milliseconds
 
 	constructor(public spectron: Application, private application: SpectronApplication) {
+		this.retryCount = (WAIT_TIME * 1000) / this.retryDuration;
 	}
 
 	public windowByIndex(index: number): Promise<any> {

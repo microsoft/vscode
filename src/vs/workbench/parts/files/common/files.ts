@@ -69,7 +69,9 @@ export interface IFilesConfiguration extends IFilesConfiguration, IWorkbenchEdit
 		};
 		autoReveal: boolean;
 		enableDragAndDrop: boolean;
+		confirmDelete: boolean;
 		sortOrder: SortOrder;
+		enableFileDecorations: boolean;
 	};
 	editor: IEditorOptions;
 }
