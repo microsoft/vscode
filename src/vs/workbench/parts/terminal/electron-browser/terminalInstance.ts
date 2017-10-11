@@ -780,9 +780,7 @@ export class TerminalInstance implements ITerminalInstance {
 			}
 		}
 		env['PTYCWD'] = cwd;
-		if (locale) {
-			env['LANG'] = TerminalInstance._getLangEnvVariable(locale);
-		}
+		env['LANG'] = TerminalInstance._getLangEnvVariable(locale);
 		if (cols && rows) {
 			env['PTYCOLS'] = cols.toString();
 			env['PTYROWS'] = rows.toString();
