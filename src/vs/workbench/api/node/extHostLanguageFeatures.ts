@@ -437,7 +437,7 @@ class RenameAdapter {
 				let [uri, textEdits] = entry;
 				for (let textEdit of textEdits) {
 					result.edits.push({
-						resource: <URI>uri,
+						resource: uri,
 						newText: textEdit.newText,
 						range: TypeConverters.fromRange(textEdit.range)
 					});

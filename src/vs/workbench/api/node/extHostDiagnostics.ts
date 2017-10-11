@@ -133,7 +133,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 				}
 			}
 
-			entries.push([<URI>uri, marker]);
+			entries.push([uri, marker]);
 		}
 
 		this._proxy.$changeMany(this.name, entries);
@@ -142,7 +142,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 	delete(uri: vscode.Uri): void {
 		this._checkDisposed();
 		this._data.delete(uri.toString());
-		this._proxy.$changeMany(this.name, [[<URI>uri, undefined]]);
+		this._proxy.$changeMany(this.name, [[uri, undefined]]);
 	}
 
 	clear(): void {
