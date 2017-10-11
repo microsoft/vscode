@@ -49,6 +49,7 @@ import { basename } from 'vs/base/common/paths';
 import { MenuId, IMenuService, IMenu, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { fillInActions, MenuItemActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IChange, ICommonCodeEditor, IEditorModel, ScrollType, IEditorContribution, OverviewRulerLane, IModel } from 'vs/editor/common/editorCommon';
+import { sortedDiff, Splice } from 'vs/base/common/arrays';
 
 // TODO@Joao
 // Need to subclass MenuItemActionItem in order to respect
@@ -133,6 +134,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 	private diffEditor: EmbeddedDiffEditorWidget;
 	private title: string;
 	private menu: IMenu;
+	private index: number;
 	private change: IChange;
 	private didLayout = false;
 	private contextKeyService: IContextKeyService;
@@ -160,15 +162,12 @@ class DirtyDiffWidget extends PeekViewWidget {
 		this.title = basename(editor.getModel().uri.fsPath);
 		this.setTitle(this.title);
 
-		model.onDidChange(this.onDidChange, this, this._disposables);
-	}
-
-	private onDidChange(changes: IChange[]): void {
-		// need to update!
+		model.onDidChange(this.renderTitle, this, this._disposables);
 	}
 
 	showChange(index: number): void {
 		const change = this.model.changes[index];
+		this.index = index;
 		this.change = change;
 
 		const originalModel = this.model.original;
@@ -188,13 +187,17 @@ class DirtyDiffWidget extends PeekViewWidget {
 		const position = new Position(getModifiedEndLineNumber(change), 1);
 		const height = getChangeHeight(change) + /* padding */ 8;
 
-		const detail = this.model.changes.length > 1
-			? localize('changes', "{0} of {1} changes", index + 1, this.model.changes.length)
-			: localize('change', "{0} of {1} change", index + 1, this.model.changes.length);
-
-		this.setTitle(this.title, detail);
+		this.renderTitle();
 		this._actionbarWidget.context = change;
 		this.show(position, height);
+	}
+
+	private renderTitle(): void {
+		const detail = this.model.changes.length > 1
+			? localize('changes', "{0} of {1} changes", this.index + 1, this.model.changes.length)
+			: localize('change', "{0} of {1} change", this.index + 1, this.model.changes.length);
+
+		this.setTitle(this.title, detail);
 	}
 
 	protected _fillHead(container: HTMLElement): void {
@@ -356,7 +359,8 @@ export class DirtyDiffController implements IEditorContribution {
 
 	private model: DirtyDiffModel | null = null;
 	private widget: DirtyDiffWidget | null = null;
-	private changeIndex: number = -1;
+	private currentLineNumber: number = -1;
+	private currentIndex: number = -1;
 	private readonly isDirtyDiffVisible: IContextKey<boolean>;
 	private session: IDisposable = EmptyDisposable;
 
@@ -378,13 +382,16 @@ export class DirtyDiffController implements IEditorContribution {
 			return;
 		}
 
-		if (this.changeIndex === -1) {
-			this.changeIndex = this.findNextClosestChange(this.editor.getPosition().lineNumber);
+		if (this.currentIndex === -1) {
+			this.currentIndex = this.findNextClosestChange(this.editor.getPosition().lineNumber);
 		} else {
-			this.changeIndex = rot(this.changeIndex + 1, this.model.changes.length);
+			this.currentIndex = rot(this.currentIndex + 1, this.model.changes.length);
 		}
 
-		this.widget.showChange(this.changeIndex);
+		const change = this.model.changes[this.currentIndex];
+		this.currentLineNumber = change.modifiedStartLineNumber;
+
+		this.widget.showChange(this.currentIndex);
 	}
 
 	previous(): void {
@@ -392,13 +399,16 @@ export class DirtyDiffController implements IEditorContribution {
 			return;
 		}
 
-		if (this.changeIndex === -1) {
-			this.changeIndex = this.findPreviousClosestChange(this.editor.getPosition().lineNumber);
+		if (this.currentIndex === -1) {
+			this.currentIndex = this.findPreviousClosestChange(this.editor.getPosition().lineNumber);
 		} else {
-			this.changeIndex = rot(this.changeIndex - 1, this.model.changes.length);
+			this.currentIndex = rot(this.currentIndex - 1, this.model.changes.length);
 		}
 
-		this.widget.showChange(this.changeIndex);
+		const change = this.model.changes[this.currentIndex];
+		this.currentLineNumber = change.modifiedStartLineNumber;
+
+		this.widget.showChange(this.currentIndex);
 	}
 
 	close(): void {
@@ -438,7 +448,7 @@ export class DirtyDiffController implements IEditorContribution {
 			return false;
 		}
 
-		this.changeIndex = -1;
+		this.currentIndex = -1;
 		this.model = model;
 		this.widget = this.instantiationService.createInstance(DirtyDiffWidget, this.editor, model);
 		this.isDirtyDiffVisible.set(true);
@@ -457,9 +467,18 @@ export class DirtyDiffController implements IEditorContribution {
 		return true;
 	}
 
-	private onDidModelChange(changes: IChange[]): void {
-		// TODO
-		console.log('model changed!');
+	private onDidModelChange(splices: Splice<IChange>[]): void {
+		for (const splice of splices) {
+			if (splice.start <= this.currentIndex) {
+				if (this.currentIndex < splice.start + splice.deleteCount) {
+					this.currentIndex = -1;
+					this.next();
+				} else {
+					this.currentIndex = rot(this.currentIndex + splice.inserted.length - splice.deleteCount - 1, this.model.changes.length);
+					this.next();
+				}
+			}
+		}
 	}
 
 	private findNextClosestChange(lineNumber: number): number {
@@ -557,8 +576,8 @@ class DirtyDiffDecorator {
 		model.onDidChange(this.onDidChange, this, this.disposables);
 	}
 
-	private onDidChange(diff: IChange[]): void {
-		const decorations = diff.map((change) => {
+	private onDidChange(): void {
+		const decorations = this.model.changes.map((change) => {
 			const startLineNumber = change.modifiedStartLineNumber;
 			const endLineNumber = change.modifiedEndLineNumber || startLineNumber;
 
@@ -620,8 +639,8 @@ export class DirtyDiffModel {
 	private repositoryDisposables = new Set<IDisposable[]>();
 	private disposables: IDisposable[] = [];
 
-	private _onDidChange = new Emitter<IChange[]>();
-	readonly onDidChange: Event<IChange[]> = this._onDidChange.event;
+	private _onDidChange = new Emitter<Splice<IChange>[]>();
+	readonly onDidChange: Event<Splice<IChange>[]> = this._onDidChange.event;
 
 	private _changes: IChange[] = [];
 	get changes(): IChange[] {
@@ -677,8 +696,12 @@ export class DirtyDiffModel {
 					changes = [];
 				}
 
+				const diff = sortedDiff(this._changes, changes, (a, b) => b.modifiedStartLineNumber - a.modifiedStartLineNumber);
 				this._changes = changes;
-				this._onDidChange.fire(changes);
+
+				if (diff.length > 0) {
+					this._onDidChange.fire(diff);
+				}
 			});
 	}
 
