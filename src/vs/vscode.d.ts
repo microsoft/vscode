@@ -1685,7 +1685,7 @@ declare module 'vscode' {
 	 * relatively to a base path. The base path can either be an absolute file path
 	 * or a [workspace folder](#WorkspaceFolder).
 	 */
-	class RelativePattern {
+	export class RelativePattern {
 
 		/**
 		 * A base file path to which this pattern will be matched against relatively.
