@@ -60,6 +60,7 @@ export interface ITitleAreaControl {
 	getContainer(): HTMLElement;
 	refresh(instant?: boolean): void;
 	update(instant?: boolean): void;
+	updateEditorActionsToolbar(): void;
 	layout(): void;
 	dispose(): void;
 }
@@ -340,7 +341,7 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 		return { primary, secondary };
 	}
 
-	protected updateEditorActionsToolbar(): void {
+	public updateEditorActionsToolbar(): void {
 		const group = this.context;
 		if (!group) {
 			return;
