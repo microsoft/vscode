@@ -416,7 +416,7 @@ export interface IConfigurationManager {
 
 	registerDebugConfigurationProvider(handle: number, debugConfigurationProvider: IDebugConfigurationProvider): void;
 	unregisterDebugConfigurationProvider(handle: number): void;
-	resolveDebugConfiguration(folderUri: uri | undefined, type: string | undefined, debugConfiguration: any): TPromise<any>;
+	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: any): TPromise<any>;
 }
 
 export interface ILaunch {

@@ -257,7 +257,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		this.providers = this.providers.filter(p => p.handle !== handle);
 	}
 
-	public resolveDebugConfiguration(folderUri: uri | undefined, type: string | undefined, debugConfiguration: IConfig): TPromise<IConfig> {
+	public resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: IConfig): TPromise<IConfig> {
 		// pipe the config through the promises sequentially
 		return this.providers.filter(p => p.type === type && p.resolveDebugConfiguration).reduce((promise, provider) => {
 			return promise.then(config => {
