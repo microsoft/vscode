@@ -25,7 +25,7 @@ export interface IIconLabelOptions {
 	italic?: boolean;
 	matches?: IMatch[];
 	color?: Color;
-	extraIcon?: uri;
+	badge?: { letter: string, title: string };
 }
 
 class FastLabelNode {
@@ -87,6 +87,7 @@ export class IconLabel {
 	private domNode: FastLabelNode;
 	private labelNode: FastLabelNode | HighlightedLabel;
 	private descriptionNode: FastLabelNode;
+	private badgeNode: HTMLSpanElement;
 
 	constructor(container: HTMLElement, options?: IIconLabelCreationOptions) {
 		this.domNode = new FastLabelNode(dom.append(container, dom.$('.monaco-icon-label')));
@@ -147,18 +148,22 @@ export class IconLabel {
 		this.descriptionNode.textContent = description || '';
 		this.descriptionNode.empty = !description;
 
-		if (options && options.extraIcon) {
-			this.element.style.backgroundImage = `url("${options.extraIcon.toString(true)}")`;
-			this.element.style.backgroundRepeat = 'no-repeat';
-			this.element.style.backgroundPosition = 'right center';
-			this.element.style.paddingRight = '20px';
-			this.element.style.marginRight = '14px';
-		} else {
-			this.element.style.backgroundImage = '';
-			this.element.style.backgroundRepeat = '';
-			this.element.style.backgroundPosition = '';
-			this.element.style.paddingRight = '';
-			this.element.style.marginRight = '';
+		if (options && options.badge) {
+			if (!this.badgeNode) {
+				this.badgeNode = document.createElement('span');
+				this.badgeNode.className = 'label-badge';
+				this.badgeNode.style.backgroundColor = options.color.toString();
+				this.badgeNode.style.color = (options.color.isDarker() ? Color.white : Color.black).toString();
+				this.element.style.display = 'flex';
+				this.element.appendChild(this.badgeNode);
+			}
+			const { letter, title } = options.badge;
+			this.badgeNode.innerHTML = letter;
+			this.badgeNode.title = title;
+			dom.show(this.badgeNode);
+
+		} else if (this.badgeNode) {
+			dom.hide(this.badgeNode);
 		}
 	}
 

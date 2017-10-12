@@ -70,7 +70,8 @@ class SCMDecorationsProvider implements IDecorationsProvider {
 			severity: Severity.Info,
 			tooltip: localize('tooltip', "{0} - {1}", resource.decorations.tooltip, this._provider.label),
 			color: this._config.fileDecorations.useColors ? resource.decorations.color : undefined,
-			icon: this._config.fileDecorations.useIcons ? { light: resource.decorations.icon, dark: resource.decorations.iconDark } : undefined
+			icon: this._config.fileDecorations.useIcons ? { light: resource.decorations.icon, dark: resource.decorations.iconDark } : undefined,
+			letter: resource.decorations.tooltip.charAt(0),
 		};
 	}
 }
