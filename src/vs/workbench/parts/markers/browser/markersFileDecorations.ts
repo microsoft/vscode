@@ -24,9 +24,6 @@ class MarkersDecorationsProvider implements IDecorationsProvider {
 	readonly label: string = localize('label', "Problems");
 	readonly onDidChange: Event<URI[]>;
 
-	// private static _warningIcon = { light: URI.parse(require.toUrl('./media/status-warning.svg')), dark: URI.parse(require.toUrl('./media/status-warning-inverse.svg')) };
-	// private static _errorIcon = { light: URI.parse(require.toUrl('./media/status-error.svg')), dark: URI.parse(require.toUrl('./media/status-error-inverse.svg')) };
-
 	constructor(
 		private readonly _markerService: IMarkerService
 	) {
@@ -46,8 +43,8 @@ class MarkersDecorationsProvider implements IDecorationsProvider {
 		return {
 			severity: first.severity,
 			tooltip: localize('tooltip', "{0} problems in this file", markers.length),
+			letter: markers.length.toString(),
 			color: first.severity === Severity.Error ? editorErrorForeground : editorWarningForeground,
-			// icon: first.severity === Severity.Error ? MarkersDecorationsProvider._errorIcon : MarkersDecorationsProvider._warningIcon
 		};
 	}
 }
