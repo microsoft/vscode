@@ -11,13 +11,17 @@ import { IDecorationsProvider, IResourceDecoration } from 'vs/workbench/services
 import URI from 'vs/base/common/uri';
 import Event, { toPromise } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 
 suite('DecorationsService', function () {
 
 	let service: FileDecorationsService;
 
 	setup(function () {
-		service = new FileDecorationsService();
+		if (service) {
+			service.dispose();
+		}
+		service = new FileDecorationsService(new TestThemeService());
 	});
 
 	test('Async provider, async/evented result', function () {

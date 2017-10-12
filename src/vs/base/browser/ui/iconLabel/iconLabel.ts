@@ -131,8 +131,6 @@ export class IconLabel {
 			if (options.italic) {
 				classes.push('italic');
 			}
-
-			this.element.style.color = options.color ? options.color.toString() : '';
 		}
 
 		this.domNode.className = classes.join(' ');

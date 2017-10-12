@@ -188,6 +188,7 @@ export class ResourceLabel extends IconLabel {
 				this.options.fileKind !== FileKind.FILE
 			);
 			if (deco) {
+				iconLabelOptions.extraClasses.push(deco.labelClasses);
 				iconLabelOptions.color = this.options.fileDecorations.useColors ? this.themeService.getTheme().getColor(deco.color) : undefined;
 				iconLabelOptions.badge = this.options.fileDecorations.useBadges ? deco.letter && { letter: deco.letter, title: deco.tooltip } : undefined;
 			}
