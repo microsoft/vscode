@@ -390,6 +390,17 @@
           ],
           "description": "%typescript.tsc.autoDetect%",
           "scope": "resource"
+        },
+        "typescript.tsc.autoDetectType": {
+          "type": "string",
+          "default": "both",
+          "enum": [
+            "both",
+            "build",
+            "watch"
+          ],
+          "description": "%typescript.tsc.autoDetectType%",
+          "scope": "resource"
         }
       }
     },
