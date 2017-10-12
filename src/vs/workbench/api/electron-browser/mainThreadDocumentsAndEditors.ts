@@ -7,7 +7,6 @@
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModel, ICommonCodeEditor, isCommonCodeEditor, isCommonDiffEditor } from 'vs/editor/common/editorCommon';
 import { compare } from 'vs/base/common/strings';
-import { delta } from 'vs/base/common/arrays';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -36,6 +35,35 @@ namespace cmp {
 			ret = compare(a.document.uri.toString(), b.document.uri.toString());
 		}
 		return ret;
+	}
+	export function modelKey(a: IModel): string {
+		return a.uri.toString();
+	}
+	export function editorsKey(a: EditorAndModel): string {
+		return `${a.editor.getId()} ${a.document.uri.toString()}`;
+	}
+	export function delta<T>(before: T[], after: T[], key: (a: T) => string): { removed: T[], added: T[] } {
+		const removedMap: Record<string, T> = {};
+		for (const v of before) {
+			removedMap[key(v)] = v;
+		}
+
+		const added: T[] = [];
+		for (const v of after) {
+			const k = key(v);
+			if (k in removedMap) {
+				delete removedMap[k];
+			} else {
+				added.push(v);
+			}
+		}
+
+		const removed: T[] = [];
+		for (const k in removedMap) {
+			removed.push(removedMap[k]);
+		}
+
+		return { removed, added };
 	}
 }
 
@@ -87,8 +115,8 @@ class DocumentAndEditorState {
 		if (!before) {
 			return new DocumentAndEditorStateDelta([], after.documents, [], after.editors, undefined, after.activeEditor);
 		}
-		const documentDelta = delta(before.documents, after.documents, cmp.compareModels);
-		const editorDelta = delta(before.editors, after.editors, cmp.compareEditors);
+		const documentDelta = cmp.delta(before.documents, after.documents, cmp.modelKey);
+		const editorDelta = cmp.delta(before.editors, after.editors, cmp.editorsKey);
 		const oldActiveEditor = before.activeEditor !== after.activeEditor ? before.activeEditor : undefined;
 		const newActiveEditor = before.activeEditor !== after.activeEditor ? after.activeEditor : undefined;
 
@@ -104,8 +132,6 @@ class DocumentAndEditorState {
 		readonly editors: EditorAndModel[],
 		readonly activeEditor: string,
 	) {
-		this.documents = documents.sort(cmp.compareModels);
-		this.editors = editors.sort(cmp.compareEditors);
 	}
 }
 
