@@ -22,6 +22,7 @@ export interface IResourceDecoration {
 	readonly leafOnly?: boolean;
 
 	labelClasses?: string;
+	badgeClassName?: string;
 }
 
 export interface IDecorationsProvider {

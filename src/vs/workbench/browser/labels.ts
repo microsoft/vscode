@@ -189,8 +189,11 @@ export class ResourceLabel extends IconLabel {
 			);
 			if (deco) {
 				iconLabelOptions.extraClasses.push(deco.labelClasses);
-				iconLabelOptions.color = this.options.fileDecorations.useColors ? this.themeService.getTheme().getColor(deco.color) : undefined;
-				iconLabelOptions.badge = this.options.fileDecorations.useBadges ? deco.letter && { letter: deco.letter, title: deco.tooltip } : undefined;
+				iconLabelOptions.badge = deco.letter ? {
+					letter: deco.letter,
+					title: deco.tooltip,
+					className: deco.badgeClassName,
+				} : undefined;
 			}
 		}
 
