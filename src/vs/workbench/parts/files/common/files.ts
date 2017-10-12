@@ -73,7 +73,8 @@ export interface IFilesConfiguration extends IFilesConfiguration, IWorkbenchEdit
 		sortOrder: SortOrder;
 		fileDecorations: {
 			enabled: boolean;
-
+			useColors: boolean;
+			useBadges: boolean;
 		};
 	};
 	editor: IEditorOptions;

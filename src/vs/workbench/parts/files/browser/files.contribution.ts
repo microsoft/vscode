@@ -355,6 +355,16 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('explorer.fileDecorations.enabled', "Controls if the explorer should show file decorations, like SCM status or problems."),
 			default: true
-		}
+		},
+		'explorer.fileDecorations.useColors': {
+			type: 'boolean',
+			description: nls.localize('explorer.fileDecorations.useColors', "Controls if file decorations should use colors."),
+			default: true
+		},
+		'explorer.fileDecorations.useBadges': {
+			type: 'boolean',
+			description: nls.localize('explorer.fileDecorations.useBadges', "Controls if file decorations should use badges."),
+			default: true
+		},
 	}
 });
