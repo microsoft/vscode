@@ -313,7 +313,7 @@ export class FileRenderer implements IRenderer {
 
 		// File Label
 		if (!editableData) {
-			templateData.label.element.style.display = 'block';
+			templateData.label.element.style.display = 'flex';
 			const extraClasses = ['explorer-item'];
 			if (stat.nonexistentRoot) {
 				extraClasses.push('nonexistent-root');
