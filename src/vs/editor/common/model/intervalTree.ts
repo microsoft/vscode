@@ -73,58 +73,188 @@ SENTINEL.left = SENTINEL;
 SENTINEL.right = SENTINEL;
 SENTINEL.color = NodeColor.Black;
 
-function leftRotate(T: IntervalTree, x: IntervalNode): void {
-	const y = x.right;				// set y.
+export class IntervalTree {
 
-	y.delta += x.delta;				// y's delta is no longer influenced by x's delta
-	y.start += x.delta;
-	y.end += x.delta;
+	public root: IntervalNode;
 
-	x.right = y.left;				// turn y's left subtree into x's right subtree.
-	if (y.left !== SENTINEL) {
-		y.left.parent = x;
-	}
-	y.parent = x.parent;			// link x's parent to y.
-	if (x.parent === SENTINEL) {
-		T.root = y;
-	} else if (x === x.parent.left) {
-		x.parent.left = y;
-	} else {
-		x.parent.right = y;
+	constructor() {
+		this.root = SENTINEL;
 	}
 
-	y.left = x;						// put x on y's left.
-	x.parent = y;
+	public intervalSearch(interval: Interval): IntervalNode[] {
+		if (this.root === SENTINEL) {
+			return [];
+		}
+		let result: IntervalNode[] = [];
+		intervalSearchRecursive(this.root, 0, interval.start, interval.end, result);
+		return result;
+	}
 
-	recomputeMaxEnd(x);
-	recomputeMaxEnd(y);
+	public insert(interval: Interval): IntervalNode {
+		return rbTreeInsert(this, interval);
+	}
+
+	public delete(node: IntervalNode) {
+		rbTreeDelete(this, node);
+	}
+
+	public assertInvariants(): void {
+		assert(SENTINEL.color === NodeColor.Black);
+		assert(SENTINEL.parent === SENTINEL);
+		assert(SENTINEL.left === SENTINEL);
+		assert(SENTINEL.right === SENTINEL);
+		assert(SENTINEL.start === 0);
+		assert(SENTINEL.end === 0);
+		assert(SENTINEL.delta === 0);
+		assertValidTree(this);
+	}
+
+	public getAllInOrder(): Interval[] {
+		let r: Interval[] = [], rLength = 0;
+		this.visitInOrder((n, delta) => {
+			r[rLength++] = new Interval(n.start + delta, n.end + delta);
+		});
+		return r;
+	}
+
+	public visitInOrder(visitor: (n: IntervalNode, delta: number) => void): void {
+		this._visitInOrder(this.root, 0, visitor);
+	}
+
+	private _visitInOrder(n: IntervalNode, delta: number, visitor: (n: IntervalNode, delta: number) => void): void {
+		if (n.left !== SENTINEL) {
+			this._visitInOrder(n.left, delta, visitor);
+		}
+
+		if (n !== SENTINEL) {
+			visitor(n, delta);
+		}
+
+		if (n.right !== SENTINEL) {
+			this._visitInOrder(n.right, delta + n.delta, visitor);
+		}
+	}
+
+	public print(): void {
+		let out: string[] = [];
+		this._print(this.root, '', 0, out);
+		console.log(out.join(''));
+	}
+
+	private _print(n: IntervalNode, indent: string, delta: number, out: string[]): void {
+		out.push(`${indent}[${n.color === NodeColor.Red ? 'R' : 'B'},${n.delta}, ${n.start}->${n.end}, ${n.maxEnd}] : {${delta + n.start}->${delta + n.end}}, maxEnd: ${n.maxEnd + delta}\n`);
+		if (n.left !== SENTINEL) {
+			this._print(n.left, indent + '    ', delta, out);
+		} else {
+			out.push(`${indent}    NIL\n`);
+		}
+		if (n.right !== SENTINEL) {
+			this._print(n.right, indent + '    ', delta + n.delta, out);
+		} else {
+			out.push(`${indent}    NIL\n`);
+		}
+	}
 }
 
-function rightRotate(T: IntervalTree, y: IntervalNode): void {
-	const x = y.left;
+//#region Searching
+function intervalSearchRecursive(node: IntervalNode, delta: number, intervalStart: number, intervalEnd: number, result: IntervalNode[]): void {
+	// https://en.wikipedia.org/wiki/Interval_tree#Augmented_tree
+	// Now, it is known that two intervals A and B overlap only when both
+	// A.low <= B.high and A.high >= B.low. When searching the trees for
+	// nodes overlapping with a given interval, you can immediately skip:
+	//  a) all nodes to the right of nodes whose low value is past the end of the given interval.
+	//  b) all nodes that have their maximum 'high' value below the start of the given interval.
 
-	y.delta -= x.delta;
-	y.start -= x.delta;
-	y.end -= x.delta;
-
-	y.left = x.right;
-	if (x.right !== SENTINEL) {
-		x.right.parent = y;
-	}
-	x.parent = y.parent;
-	if (y.parent === SENTINEL) {
-		T.root = x;
-	} else if (y === y.parent.right) {
-		y.parent.right = x;
-	} else {
-		y.parent.left = x;
+	const nodeMaxEnd = delta + node.maxEnd;
+	if (nodeMaxEnd < intervalStart) {
+		// Cover b) from above
+		return;
 	}
 
-	x.right = y;
-	y.parent = x;
+	if (node.left !== SENTINEL) {
+		intervalSearchRecursive(node.left, delta, intervalStart, intervalEnd, result);
+	}
 
-	recomputeMaxEnd(y);
-	recomputeMaxEnd(x);
+	const nodeStart = delta + node.start;
+
+	if (nodeStart > intervalEnd) {
+		// Cover a) from above
+		return;
+	}
+
+	const nodeEnd = delta + node.end;
+	if (nodeEnd >= intervalStart) {
+		// There is overlap
+		node.resultInterval.start = nodeStart;
+		node.resultInterval.end = nodeEnd;
+		result.push(node);
+	}
+
+	if (node.right !== SENTINEL) {
+		intervalSearchRecursive(node.right, delta + node.delta, intervalStart, intervalEnd, result);
+	}
+}
+//#endregion
+
+//#region Insertion
+function rbTreeInsert(T: IntervalTree, interval: Interval): IntervalNode {
+	if (T.root === SENTINEL) {
+		const newNode = new IntervalNode(interval.start, interval.end);
+		newNode.parent = SENTINEL;
+		newNode.left = SENTINEL;
+		newNode.right = SENTINEL;
+		newNode.color = NodeColor.Black;
+		T.root = newNode;
+		return T.root;
+	}
+
+	const newNode = treeInsert(T, interval);
+
+	recomputeMaxEndWalkToRoot(newNode.parent);
+
+	// repair tree
+	let x = newNode;
+	while (x !== T.root && x.parent.color === NodeColor.Red) {
+		if (x.parent === x.parent.parent.left) {
+			const y = x.parent.parent.right;
+
+			if (y.color === NodeColor.Red) {
+				x.parent.color = NodeColor.Black;
+				y.color = NodeColor.Black;
+				x.parent.parent.color = NodeColor.Red;
+				x = x.parent.parent;
+			} else {
+				if (x === x.parent.right) {
+					x = x.parent;
+					leftRotate(T, x);
+				}
+				x.parent.color = NodeColor.Black;
+				x.parent.parent.color = NodeColor.Red;
+				rightRotate(T, x.parent.parent);
+			}
+		} else {
+			const y = x.parent.parent.left;
+
+			if (y.color === NodeColor.Red) {
+				x.parent.color = NodeColor.Black;
+				y.color = NodeColor.Black;
+				x.parent.parent.color = NodeColor.Red;
+				x = x.parent.parent;
+			} else {
+				if (x === x.parent.left) {
+					x = x.parent;
+					rightRotate(T, x);
+				}
+				x.parent.color = NodeColor.Black;
+				x.parent.parent.color = NodeColor.Red;
+				leftRotate(T, x.parent.parent);
+			}
+		}
+	}
+
+	T.root.color = NodeColor.Black;
+
+	return newNode;
 }
 
 function treeInsert(T: IntervalTree, interval: Interval): IntervalNode {
@@ -163,58 +293,10 @@ function treeInsert(T: IntervalTree, interval: Interval): IntervalNode {
 	z.color = NodeColor.Red;
 	return z;
 }
+//#endregion
 
-function leftest(node: IntervalNode): IntervalNode {
-	while (node.left !== SENTINEL) {
-		node = node.left;
-	}
-	return node;
-}
-
-function resetSentinel(): void {
-	SENTINEL.parent = SENTINEL;
-	SENTINEL.delta = 0; // optional
-	SENTINEL.start = 0; // optional
-	SENTINEL.end = 0; // optional
-}
-
-function computeMaxEnd(node: IntervalNode): number {
-	let maxEnd = node.end;
-	if (node.left !== SENTINEL) {
-		const leftMaxEnd = node.left.maxEnd;
-		if (leftMaxEnd > maxEnd) {
-			maxEnd = leftMaxEnd;
-		}
-	}
-	if (node.right !== SENTINEL) {
-		const rightMaxEnd = node.right.maxEnd + node.delta;
-		if (rightMaxEnd > maxEnd) {
-			maxEnd = rightMaxEnd;
-		}
-	}
-	return maxEnd;
-}
-
-function recomputeMaxEnd(node: IntervalNode): void {
-	node.maxEnd = computeMaxEnd(node);
-}
-
-function recomputeMaxEndToRoot(node: IntervalNode): void {
-	while (node !== SENTINEL) {
-
-		const maxEnd = computeMaxEnd(node);
-
-		if (node.maxEnd === maxEnd) {
-			// no need to go further
-			return;
-		}
-
-		node.maxEnd = maxEnd;
-		node = node.parent;
-	}
-}
-
-function treeDelete(T: IntervalTree, z: IntervalNode): void {
+//#region Deletion
+function rbTreeDelete(T: IntervalTree, z: IntervalNode): void {
 
 	let x: IntervalNode;
 	let y: IntervalNode;
@@ -305,20 +387,20 @@ function treeDelete(T: IntervalTree, z: IntervalNode): void {
 	z.detach();
 
 	if (yWasRed) {
-		recomputeMaxEndToRoot(x.parent);
+		recomputeMaxEndWalkToRoot(x.parent);
 		if (y !== z) {
-			recomputeMaxEndToRoot(y);
-			recomputeMaxEndToRoot(y.parent);
+			recomputeMaxEndWalkToRoot(y);
+			recomputeMaxEndWalkToRoot(y.parent);
 		}
 		resetSentinel();
 		return;
 	}
 
-	recomputeMaxEndToRoot(x);
-	recomputeMaxEndToRoot(x.parent);
+	recomputeMaxEndWalkToRoot(x);
+	recomputeMaxEndWalkToRoot(x.parent);
 	if (y !== z) {
-		recomputeMaxEndToRoot(y);
-		recomputeMaxEndToRoot(y.parent);
+		recomputeMaxEndWalkToRoot(y);
+		recomputeMaxEndWalkToRoot(y.parent);
 	}
 
 	// RB-DELETE-FIXUP
@@ -388,181 +470,118 @@ function treeDelete(T: IntervalTree, z: IntervalNode): void {
 	resetSentinel();
 }
 
-export class IntervalTree {
+function leftest(node: IntervalNode): IntervalNode {
+	while (node.left !== SENTINEL) {
+		node = node.left;
+	}
+	return node;
+}
 
-	public root: IntervalNode;
+function resetSentinel(): void {
+	SENTINEL.parent = SENTINEL;
+	SENTINEL.delta = 0; // optional
+	SENTINEL.start = 0; // optional
+	SENTINEL.end = 0; // optional
+}
+//#endregion
 
-	constructor() {
-		this.root = SENTINEL;
+//#region Rotations
+function leftRotate(T: IntervalTree, x: IntervalNode): void {
+	const y = x.right;				// set y.
+
+	y.delta += x.delta;				// y's delta is no longer influenced by x's delta
+	y.start += x.delta;
+	y.end += x.delta;
+
+	x.right = y.left;				// turn y's left subtree into x's right subtree.
+	if (y.left !== SENTINEL) {
+		y.left.parent = x;
+	}
+	y.parent = x.parent;			// link x's parent to y.
+	if (x.parent === SENTINEL) {
+		T.root = y;
+	} else if (x === x.parent.left) {
+		x.parent.left = y;
+	} else {
+		x.parent.right = y;
 	}
 
-	public intervalSearch(interval: Interval): IntervalNode[] {
-		let result: IntervalNode[] = [];
-		if (this.root !== SENTINEL) {
-			this._intervalSearch(this.root, 0, interval.start, interval.end, result);
+	y.left = x;						// put x on y's left.
+	x.parent = y;
+
+	recomputeMaxEnd(x);
+	recomputeMaxEnd(y);
+}
+
+function rightRotate(T: IntervalTree, y: IntervalNode): void {
+	const x = y.left;
+
+	y.delta -= x.delta;
+	y.start -= x.delta;
+	y.end -= x.delta;
+
+	y.left = x.right;
+	if (x.right !== SENTINEL) {
+		x.right.parent = y;
+	}
+	x.parent = y.parent;
+	if (y.parent === SENTINEL) {
+		T.root = x;
+	} else if (y === y.parent.right) {
+		y.parent.right = x;
+	} else {
+		y.parent.left = x;
+	}
+
+	x.right = y;
+	y.parent = x;
+
+	recomputeMaxEnd(y);
+	recomputeMaxEnd(x);
+}
+//#endregion
+
+//#region max end computation
+
+function computeMaxEnd(node: IntervalNode): number {
+	let maxEnd = node.end;
+	if (node.left !== SENTINEL) {
+		const leftMaxEnd = node.left.maxEnd;
+		if (leftMaxEnd > maxEnd) {
+			maxEnd = leftMaxEnd;
 		}
-		return result;
 	}
+	if (node.right !== SENTINEL) {
+		const rightMaxEnd = node.right.maxEnd + node.delta;
+		if (rightMaxEnd > maxEnd) {
+			maxEnd = rightMaxEnd;
+		}
+	}
+	return maxEnd;
+}
 
-	private _intervalSearch(node: IntervalNode, delta: number, intervalStart: number, intervalEnd: number, result: IntervalNode[]): void {
-		// https://en.wikipedia.org/wiki/Interval_tree#Augmented_tree
-		// Now, it is known that two intervals A and B overlap only when both
-		// A.low <= B.high and A.high >= B.low. When searching the trees for
-		// nodes overlapping with a given interval, you can immediately skip:
-		//  a) all nodes to the right of nodes whose low value is past the end of the given interval.
-		//  b) all nodes that have their maximum 'high' value below the start of the given interval.
+function recomputeMaxEnd(node: IntervalNode): void {
+	node.maxEnd = computeMaxEnd(node);
+}
 
-		const nodeMaxEnd = delta + node.maxEnd;
-		if (nodeMaxEnd < intervalStart) {
-			// Cover b) from above
+function recomputeMaxEndWalkToRoot(node: IntervalNode): void {
+	while (node !== SENTINEL) {
+
+		const maxEnd = computeMaxEnd(node);
+
+		if (node.maxEnd === maxEnd) {
+			// no need to go further
 			return;
 		}
 
-		if (node.left !== SENTINEL) {
-			this._intervalSearch(node.left, delta, intervalStart, intervalEnd, result);
-		}
-
-		const nodeStart = delta + node.start;
-
-		if (nodeStart > intervalEnd) {
-			// Cover a) from above
-			return;
-		}
-
-		const nodeEnd = delta + node.end;
-		if (nodeEnd >= intervalStart) {
-			// There is overlap
-			node.resultInterval.start = nodeStart;
-			node.resultInterval.end = nodeEnd;
-			result.push(node);
-		}
-
-		if (node.right !== SENTINEL) {
-			this._intervalSearch(node.right, delta + node.delta, intervalStart, intervalEnd, result);
-		}
-	}
-
-	public insert(interval: Interval): IntervalNode {
-		if (this.root === SENTINEL) {
-			const newNode = new IntervalNode(interval.start, interval.end);
-			newNode.parent = SENTINEL;
-			newNode.left = SENTINEL;
-			newNode.right = SENTINEL;
-			newNode.color = NodeColor.Black;
-			this.root = newNode;
-			return this.root;
-		}
-
-		const newNode = treeInsert(this, interval);
-
-		recomputeMaxEndToRoot(newNode.parent);
-
-		// repair tree
-		let x = newNode;
-		while (x !== this.root && x.parent.color === NodeColor.Red) {
-			if (x.parent === x.parent.parent.left) {
-				const y = x.parent.parent.right;
-
-				if (y.color === NodeColor.Red) {
-					x.parent.color = NodeColor.Black;
-					y.color = NodeColor.Black;
-					x.parent.parent.color = NodeColor.Red;
-					x = x.parent.parent;
-				} else {
-					if (x === x.parent.right) {
-						x = x.parent;
-						leftRotate(this, x);
-					}
-					x.parent.color = NodeColor.Black;
-					x.parent.parent.color = NodeColor.Red;
-					rightRotate(this, x.parent.parent);
-				}
-			} else {
-				const y = x.parent.parent.left;
-
-				if (y.color === NodeColor.Red) {
-					x.parent.color = NodeColor.Black;
-					y.color = NodeColor.Black;
-					x.parent.parent.color = NodeColor.Red;
-					x = x.parent.parent;
-				} else {
-					if (x === x.parent.left) {
-						x = x.parent;
-						rightRotate(this, x);
-					}
-					x.parent.color = NodeColor.Black;
-					x.parent.parent.color = NodeColor.Red;
-					leftRotate(this, x.parent.parent);
-				}
-			}
-		}
-
-		this.root.color = NodeColor.Black;
-
-		return newNode;
-	}
-
-	public delete(node: IntervalNode) {
-		treeDelete(this, node);
-	}
-
-	public assertInvariants(): void {
-		assert(SENTINEL.color === NodeColor.Black);
-		assert(SENTINEL.parent === SENTINEL);
-		assert(SENTINEL.left === SENTINEL);
-		assert(SENTINEL.right === SENTINEL);
-		assert(SENTINEL.start === 0);
-		assert(SENTINEL.end === 0);
-		assert(SENTINEL.delta === 0);
-		assertValidTree(this);
-	}
-
-	public getAllInOrder(): Interval[] {
-		let r: Interval[] = [], rLength = 0;
-		this.visitInOrder((n, delta) => {
-			r[rLength++] = new Interval(n.start + delta, n.end + delta);
-		});
-		return r;
-	}
-
-	public visitInOrder(visitor: (n: IntervalNode, delta: number) => void): void {
-		this._visitInOrder(this.root, 0, visitor);
-	}
-
-	private _visitInOrder(n: IntervalNode, delta: number, visitor: (n: IntervalNode, delta: number) => void): void {
-		if (n.left !== SENTINEL) {
-			this._visitInOrder(n.left, delta, visitor);
-		}
-
-		if (n !== SENTINEL) {
-			visitor(n, delta);
-		}
-
-		if (n.right !== SENTINEL) {
-			this._visitInOrder(n.right, delta + n.delta, visitor);
-		}
-	}
-
-	public print(): void {
-		let out: string[] = [];
-		this._print(this.root, '', 0, out);
-		console.log(out.join(''));
-	}
-
-	private _print(n: IntervalNode, indent: string, delta: number, out: string[]): void {
-		out.push(`${indent}[${n.color === NodeColor.Red ? 'R' : 'B'},${n.delta}, ${n.start}->${n.end}, ${n.maxEnd}] : {${delta + n.start}->${delta + n.end}}, maxEnd: ${n.maxEnd + delta}\n`);
-		if (n.left !== SENTINEL) {
-			this._print(n.left, indent + '    ', delta, out);
-		} else {
-			out.push(`${indent}    NIL\n`);
-		}
-		if (n.right !== SENTINEL) {
-			this._print(n.right, indent + '    ', delta + n.delta, out);
-		} else {
-			out.push(`${indent}    NIL\n`);
-		}
+		node.maxEnd = maxEnd;
+		node = node.parent;
 	}
 }
+
+//#endregion
+
+//#region Assertion
 
 function depth(n: IntervalNode): number {
 	if (n === SENTINEL) {
@@ -582,12 +601,8 @@ function assertValidNode(n: IntervalNode, delta): void {
 	let r = n.right;
 
 	if (n.color === NodeColor.Red) {
-		if (l.color !== NodeColor.Black) {
-			assert(false);
-		}
-		if (r.color !== NodeColor.Black) {
-			assert(false);
-		}
+		assert(l.color === NodeColor.Black);
+		assert(r.color === NodeColor.Black);
 	}
 
 	let expectedMaxEnd = n.end;
@@ -611,12 +626,8 @@ function assertValidTree(tree: IntervalTree): void {
 	if (tree.root === SENTINEL) {
 		return;
 	}
-	if (tree.root.color !== NodeColor.Black) {
-		assert(false);
-	}
-	if (depth(tree.root.left) !== depth(tree.root.right)) {
-		assert(false);
-	}
+	assert(tree.root.color === NodeColor.Black);
+	assert(depth(tree.root.left) === depth(tree.root.right));
 	assertValidNode(tree.root, 0);
 }
 
@@ -625,3 +636,5 @@ function assert(condition: boolean): void {
 		throw new Error('Assertion violation');
 	}
 }
+
+//#endregion
