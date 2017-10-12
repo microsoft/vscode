@@ -13,10 +13,15 @@ import uri from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import { IWorkspaceFolderProvider, getPathLabel, IUserHomeProvider } from 'vs/base/common/labels';
 import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import { Color } from 'vs/base/common/color';
 
 export interface IIconLabelCreationOptions {
 	supportHighlights?: boolean;
+}
+
+export interface ILabelBadgeOptions {
+	letter: string;
+	title: string;
+	className: string;
 }
 
 export interface IIconLabelOptions {
@@ -24,8 +29,7 @@ export interface IIconLabelOptions {
 	extraClasses?: string[];
 	italic?: boolean;
 	matches?: IMatch[];
-	color?: Color;
-	badge?: { letter: string, title: string };
+	badge?: ILabelBadgeOptions;
 }
 
 class FastLabelNode {
@@ -156,8 +160,7 @@ export class IconLabel {
 			const { letter, title } = options.badge;
 			this.badgeNode.innerHTML = letter;
 			this.badgeNode.title = title;
-			this.badgeNode.style.backgroundColor = options.color.toString();
-			this.badgeNode.style.color = Color.white.toString();
+			dom.addClass(this.badgeNode, options.badge.className);
 			dom.show(this.badgeNode);
 
 		} else if (this.badgeNode) {

@@ -15,7 +15,7 @@ import { LinkedList } from 'vs/base/common/linkedList';
 import { createStyleSheet, createCSSRule } from 'vs/base/browser/dom';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IdGenerator } from 'vs/base/common/idGenerator';
-import { listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
+import { listActiveSelectionForeground, ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 
 class FileDecorationChangeEvent implements IResourceDecorationChangeEvent {
 
@@ -129,7 +129,7 @@ class DecorationColors {
 	private readonly _styleElement = createStyleSheet();
 	private readonly _themeListener: IDisposable;
 	private readonly _classNames = new IdGenerator('monaco-decoration-styles-');
-	private readonly _classNames2ColorIds = new Map<string, string>();
+	private readonly _classNames2ColorIds = new Map<string, [string, string]>();
 
 	constructor(
 		@IThemeService private _themeService: IThemeService,
@@ -146,24 +146,41 @@ class DecorationColors {
 		if (!decoration || !decoration.color) {
 			return;
 		}
-		let className = this._classNames2ColorIds.get(decoration.color);
-		if (!className) {
-			className = this._classNames.nextId();
-			this._classNames2ColorIds.set(decoration.color, className);
 
-			createCSSRule(`.${className}`, `color: ${this._themeService.getTheme().getColor(decoration.color)}`, this._styleElement);
-			createCSSRule(`.selected .${className}`, `color: ${this._themeService.getTheme().getColor(listActiveSelectionForeground)}`, this._styleElement);
+		const tuple = this._classNames2ColorIds.get(decoration.color);
+		if (tuple) {
+			// from cache
+			decoration.labelClasses = tuple[0];
+			decoration.badgeClassName = tuple[1];
+			return;
 		}
 
-		decoration.labelClasses = className;
+		let labelClassName = this._classNames.nextId();
+		let badgeClassName = this._classNames.nextId();
+
+		this._classNames2ColorIds.set(decoration.color, [labelClassName, badgeClassName]);
+		decoration.labelClasses = labelClassName;
+		decoration.badgeClassName = badgeClassName;
+
+		this._createCssRules(labelClassName, badgeClassName, decoration.color);
 	}
 
 	private _onThemeChange(): void {
 		this._styleElement.innerHTML = '';
-		this._classNames2ColorIds.forEach((className, color) => {
-			createCSSRule(`.${className}`, `color: ${this._themeService.getTheme().getColor(color)}`, this._styleElement);
-			createCSSRule(`.selected .${className}`, `color: ${this._themeService.getTheme().getColor(listActiveSelectionForeground)}`, this._styleElement);
+		this._classNames2ColorIds.forEach((tuple, color) => {
+			const [labelClassName, badgeClassName] = tuple;
+			this._createCssRules(labelClassName, badgeClassName, color);
 		});
+	}
+
+	private _createCssRules(labelClassName: string, badgeClassName: string, color: ColorIdentifier): void {
+		const theme = this._themeService.getTheme();
+		// label
+		createCSSRule(`.${labelClassName}`, `color: ${theme.getColor(color)}`, this._styleElement);
+		createCSSRule(`.selected .${labelClassName}`, `color: ${theme.getColor(listActiveSelectionForeground)}`, this._styleElement);
+
+		// badge
+		createCSSRule(`.${badgeClassName}`, `background-color: ${theme.getColor(color)}; color: ${theme.getColor(listActiveSelectionForeground)};`, this._styleElement);
 	}
 }
 
