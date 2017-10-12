@@ -128,7 +128,7 @@ class DecorationColors {
 
 	private readonly _styleElement = createStyleSheet();
 	private readonly _themeListener: IDisposable;
-	private readonly _classNames = new IdGenerator('decoration-');
+	private readonly _classNames = new IdGenerator('monaco-decoration-styles-');
 	private readonly _classNames2ColorIds = new Map<string, string>();
 
 	constructor(
