@@ -7,6 +7,7 @@
 import URI from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/paths';
 import { TPromise } from 'vs/base/common/winjs.base';
+import * as assert from 'vs/base/common/assert';
 import Event, { Emitter } from 'vs/base/common/event';
 import { StrictResourceMap } from 'vs/base/common/map';
 import * as errors from 'vs/base/common/errors';
@@ -149,14 +150,11 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	updateValue(key: string, value: any, target: ConfigurationTarget): TPromise<void>
 	updateValue(key: string, value: any, overrides: IConfigurationOverrides, target: ConfigurationTarget): TPromise<void>
 	updateValue(key: string, value: any, arg3?: any, arg4?: any): TPromise<void> {
-		if (this.configurationEditingService) {
-			const overrides = isConfigurationOverrides(arg3) ? arg3 : void 0;
-			const target = this.deriveConfigurationTarget(key, value, overrides, overrides ? arg4 : arg3);
-			if (target) {
-				return this.writeConfigurationValue(key, value, target, overrides);
-			}
-		}
-		return TPromise.as(null);
+		assert.ok(this.configurationEditingService, 'Workbench is not initialized yet');
+		const overrides = isConfigurationOverrides(arg3) ? arg3 : void 0;
+		const target = this.deriveConfigurationTarget(key, value, overrides, overrides ? arg4 : arg3);
+		return target ? this.writeConfigurationValue(key, value, target, overrides)
+			: TPromise.as(null);
 	}
 
 	reloadConfiguration(folder?: IWorkspaceFolder, key?: string): TPromise<void> {
@@ -215,7 +213,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 			.then(() => this.initializeConfiguration());
 	}
 
-	aquireDelayedServices(instantiationService: IInstantiationService): void {
+	setInstantiationService(instantiationService: IInstantiationService): void {
 		this.configurationEditingService = instantiationService.createInstance(ConfigurationEditingService);
 	}
 
