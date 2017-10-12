@@ -809,18 +809,18 @@
         "id": "git.color.modified",
         "description": "Color for modified resources",
         "defaults": {
-          "light": "#007BD0",
-          "dark": "#1B80B2",
-          "highContrast": "#1B80B2"
+          "light": "#D58809",
+          "dark": "#E2C08D",
+          "highContrast": "#E2C08D"
         }
       },
       {
         "id": "git.color.untracked",
         "description": "Color for untracked resources",
         "defaults": {
-          "light": "#6C6C6C",
-          "dark": "#6C6C6C",
-          "highContrast": "#6C6C6C"
+          "light": "#00B333",
+          "dark": "#73C991",
+          "highContrast": "#73C991"
         }
       }
     ]

@@ -153,7 +153,8 @@ export class IconLabel {
 				this.badgeNode = document.createElement('span');
 				this.badgeNode.className = 'label-badge';
 				this.badgeNode.style.backgroundColor = options.color.toString();
-				this.badgeNode.style.color = (options.color.isDarker() ? Color.white : Color.black).toString();
+				// this.badgeNode.style.color = (options.color.isDarker() ? Color.white : Color.black).toString();
+				this.badgeNode.style.color = Color.white.toString();
 				this.element.style.display = 'flex';
 				this.element.appendChild(this.badgeNode);
 			}
