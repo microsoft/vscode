@@ -28,15 +28,12 @@ class DecorationsTracker {
 
 	public didAddDecorations: boolean;
 	public didRemoveDecorations: boolean;
-
-	public changedDecorations: string[];
-	public changedDecorationsLen: number;
+	public didChangeDecorations: boolean;
 
 	constructor() {
 		this.didAddDecorations = false;
 		this.didRemoveDecorations = false;
-		this.changedDecorations = [];
-		this.changedDecorationsLen = 0;
+		this.didChangeDecorations = false;
 	}
 
 	// --- Build decoration events
@@ -49,12 +46,8 @@ class DecorationsTracker {
 		this.didRemoveDecorations = true;
 	}
 
-	public addMovedDecoration(id: string): void {
-		this.changedDecorations[this.changedDecorationsLen++] = id;
-	}
-
-	public addUpdatedDecoration(id: string): void {
-		this.changedDecorations[this.changedDecorationsLen++] = id;
+	public markDidChangeDecorations(): void {
+		this.didChangeDecorations = true;
 	}
 }
 
@@ -456,7 +449,7 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 	}
 
 	/**
-	 * Handle changed markers (i.e. update decorations ranges and return the changed decorations, unique and sorted by id)
+	 * Handle changed markers (i.e. update decorations ranges)
 	 */
 	private _handleTrackedMarkers(markersTracker: MarkersTracker): void {
 		let changedInternalDecorationIds = markersTracker.getDecorationIds();
@@ -466,8 +459,8 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 
 		changedInternalDecorationIds.sort();
 
-		let uniqueChangedDecorations: string[] = [], uniqueChangedDecorationsLen = 0;
 		let previousInternalDecorationId: number = 0;
+		let somethingChanged = false;
 		for (let i = 0, len = changedInternalDecorationIds.length; i < len; i++) {
 			let internalDecorationId = changedInternalDecorationIds[i];
 			if (internalDecorationId === previousInternalDecorationId) {
@@ -485,15 +478,11 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 			let endMarker = decoration.endMarker.position;
 			let range = TextModelWithDecorations._createRangeFromMarkers(startMarker, endMarker);
 			decoration.setRange(this._multiLineDecorationsMap, range);
-
-			uniqueChangedDecorations[uniqueChangedDecorationsLen++] = decoration.id;
+			somethingChanged = true;
 		}
 
-		if (uniqueChangedDecorations.length > 0) {
-			let e: textModelEvents.IModelDecorationsChangedEvent = {
-				changedDecorations: uniqueChangedDecorations
-			};
-			this.emitModelDecorationsChangedEvent(e);
+		if (somethingChanged) {
+			this.emitModelDecorationsChangedEvent();
 		}
 	}
 
@@ -528,20 +517,18 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 	private _handleTrackedDecorations(decorationsTracker: DecorationsTracker): void {
 		if (
 			!decorationsTracker.didAddDecorations
-			&& decorationsTracker.changedDecorationsLen === 0
+			&& !decorationsTracker.didChangeDecorations
 			&& !decorationsTracker.didRemoveDecorations
 		) {
 			return;
 		}
 
-		let e: textModelEvents.IModelDecorationsChangedEvent = {
-			changedDecorations: decorationsTracker.changedDecorations
-		};
-		this.emitModelDecorationsChangedEvent(e);
+		this.emitModelDecorationsChangedEvent();
 	}
 
-	private emitModelDecorationsChangedEvent(e: textModelEvents.IModelDecorationsChangedEvent): void {
+	private emitModelDecorationsChangedEvent(): void {
 		if (!this._isDisposing) {
+			let e: textModelEvents.IModelDecorationsChangedEvent = {};
 			this._eventEmitter.emit(textModelEvents.TextModelEventType.ModelDecorationsChanged, e);
 		}
 	}
@@ -666,7 +653,7 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 
 		decoration.setRange(this._multiLineDecorationsMap, newRange);
 
-		decorationsTracker.addMovedDecoration(decorationId);
+		decorationsTracker.markDidChangeDecorations();
 	}
 
 	private _changeDecorationOptionsImpl(decorationsTracker: DecorationsTracker, decorationId: string, options: ModelDecorationOptions): void {
@@ -682,7 +669,7 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 
 		decoration.setOptions(options);
 
-		decorationsTracker.addUpdatedDecoration(decorationId);
+		decorationsTracker.markDidChangeDecorations();
 	}
 
 	private _removeDecorationImpl(decorationsTracker: DecorationsTracker, decorationId: string): void {

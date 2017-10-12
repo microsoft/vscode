@@ -13,7 +13,6 @@ import { IModel, TrackedRangeStickiness, IModelDeltaDecoration, IModelDecoration
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IDebugService, IBreakpoint, IRawBreakpoint, State } from 'vs/workbench/parts/debug/common/debug';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModelDecorationsChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 
 interface IDebugEditorModelData {
@@ -84,7 +83,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		const desiredDecorations = this.createBreakpointDecorations(model, breakpoints);
 		const breakPointDecorations = model.deltaDecorations([], desiredDecorations);
 
-		const toDispose: lifecycle.IDisposable[] = [model.onDidChangeDecorations((e) => this.onModelDecorationsChanged(modelUrlStr, e))];
+		const toDispose: lifecycle.IDisposable[] = [model.onDidChangeDecorations((e) => this.onModelDecorationsChanged(modelUrlStr))];
 		const breakpointDecorationsAsMap = new Map<string, Range>();
 		breakPointDecorations.forEach((decorationId, index) => breakpointDecorationsAsMap.set(decorationId, desiredDecorations[index].range));
 
@@ -186,7 +185,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 	}
 
 	// breakpoints management. Represent data coming from the debug service and also send data back.
-	private onModelDecorationsChanged(modelUrlStr: string, e: IModelDecorationsChangedEvent): void {
+	private onModelDecorationsChanged(modelUrlStr: string): void {
 		const modelData = this.modelDataMap.get(modelUrlStr);
 		if (modelData.breakpointDecorationsAsMap.size === 0) {
 			// I have no decorations

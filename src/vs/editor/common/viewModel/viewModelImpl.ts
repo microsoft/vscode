@@ -282,8 +282,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 					break;
 				}
 				case textModelEvents.TextModelEventType.ModelDecorationsChanged: {
-					const e = <textModelEvents.IModelDecorationsChangedEvent>data;
-					this.decorations.onModelDecorationsChanged(e);
+					this.decorations.onModelDecorationsChanged();
 					eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent());
 					break;
 				}

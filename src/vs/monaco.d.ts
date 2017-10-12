@@ -2482,10 +2482,6 @@ declare module monaco.editor {
 	 * An event describing that model decorations have changed.
 	 */
 	export interface IModelDecorationsChangedEvent {
-		/**
-		 * Lists of ids for changed decorations.
-		 */
-		readonly changedDecorations: string[];
 	}
 
 	/**

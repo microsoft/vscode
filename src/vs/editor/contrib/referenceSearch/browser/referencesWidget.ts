@@ -38,7 +38,6 @@ import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/r
 import { registerColor, activeContrastBorder, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant, ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachListStyler, attachBadgeStyler } from 'vs/platform/theme/common/styler';
-import { IModelDecorationsChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
@@ -81,7 +80,7 @@ class DecorationsManager implements IDisposable {
 	}
 
 	private _addDecorations(reference: FileReferences): void {
-		this._callOnModelChange.push(this._editor.getModel().onDidChangeDecorations((event) => this._onDecorationChanged(event)));
+		this._callOnModelChange.push(this._editor.getModel().onDidChangeDecorations((event) => this._onDecorationChanged()));
 
 		this._editor.changeDecorations(accessor => {
 
@@ -107,7 +106,7 @@ class DecorationsManager implements IDisposable {
 		});
 	}
 
-	private _onDecorationChanged(event: IModelDecorationsChangedEvent): void {
+	private _onDecorationChanged(): void {
 		const toRemove: string[] = [];
 
 		this._decorations.forEach((reference, decorationId) => {
