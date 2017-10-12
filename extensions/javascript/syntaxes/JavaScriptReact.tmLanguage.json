@@ -3225,7 +3225,7 @@
 					"include": "#expression"
 				}
 			],
-			"contentName": "meta.embedded.line.tsx"
+			"contentName": "meta.embedded.line.js.jsx"
 		},
 		"regex": {
 			"patterns": [
@@ -3482,7 +3482,7 @@
 						}
 					},
 					"end": "(?=^)",
-					"contentName": "comment.line.double-slash.tsx"
+					"contentName": "comment.line.double-slash.js.jsx"
 				}
 			]
 		},
@@ -4020,7 +4020,7 @@
 					"name": "punctuation.definition.tag.end.js.jsx"
 				}
 			},
-			"contentName": "meta.jsx.children.tsx",
+			"contentName": "meta.jsx.children.js.jsx",
 			"patterns": [
 				{
 					"include": "#jsx-children"
@@ -4124,7 +4124,7 @@
 						}
 					},
 					"end": "(?=</)",
-					"contentName": "meta.jsx.children.tsx",
+					"contentName": "meta.jsx.children.js.jsx",
 					"patterns": [
 						{
 							"include": "#jsx-children"

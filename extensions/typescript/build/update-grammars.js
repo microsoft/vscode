@@ -15,6 +15,9 @@ function adaptToJavaScript(grammar, replacementScope) {
 		if (typeof rule.name === 'string') {
 			rule.name = rule.name.replace(/\.tsx/g, replacementScope);
 		}
+		if (typeof rule.contentName === 'string') {
+			rule.contentName = rule.contentName.replace(/\.tsx/g, replacementScope);
+		}
 		for (var property in rule) {
 			var value = rule[property];
 			if (typeof value === 'object') {
