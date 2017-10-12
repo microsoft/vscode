@@ -9,10 +9,10 @@ import Severity from 'vs/base/common/severity';
 import Event, { Emitter, debounceEvent, any } from 'vs/base/common/event';
 import { IResourceDecorationsService, IResourceDecoration, IResourceDecorationChangeEvent, IDecorationsProvider } from './decorations';
 import { TernarySearchTree } from 'vs/base/common/map';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { isThenable } from 'vs/base/common/async';
 import { LinkedList } from 'vs/base/common/linkedList';
-import { createStyleSheet, createCSSRule } from 'vs/base/browser/dom';
+import { createStyleSheet, createCSSRule, removeCSSRulesContainingSelector } from 'vs/base/browser/dom';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { listActiveSelectionForeground, ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
@@ -126,19 +126,21 @@ class DecorationProviderWrapper {
 
 class DecorationColors {
 
+	private readonly _disposables: IDisposable[];
 	private readonly _styleElement = createStyleSheet();
-	private readonly _themeListener: IDisposable;
 	private readonly _classNames = new IdGenerator('monaco-decoration-styles-');
 	private readonly _classNames2ColorIds = new Map<string, [string, string]>();
 
 	constructor(
-		@IThemeService private _themeService: IThemeService,
+		private _themeService: IThemeService,
 	) {
-		this._themeListener = this._themeService.onThemeChange(this._onThemeChange, this);
+		this._disposables = [
+			this._themeService.onThemeChange(this._onThemeChange, this),
+		];
 	}
 
 	dispose(): void {
-		this._themeListener.dispose();
+		dispose(this._disposables);
 		this._styleElement.innerHTML = '';
 	}
 
@@ -166,9 +168,10 @@ class DecorationColors {
 	}
 
 	private _onThemeChange(): void {
-		this._styleElement.innerHTML = '';
 		this._classNames2ColorIds.forEach((tuple, color) => {
 			const [labelClassName, badgeClassName] = tuple;
+			removeCSSRulesContainingSelector(labelClassName, this._styleElement);
+			removeCSSRulesContainingSelector(badgeClassName, this._styleElement);
 			this._createCssRules(labelClassName, badgeClassName, color);
 		});
 	}
@@ -201,7 +204,9 @@ export class FileDecorationsService implements IResourceDecorationsService {
 		)
 	);
 
-	constructor( @IThemeService themeService: IThemeService) {
+	constructor(
+		@IThemeService themeService: IThemeService,
+	) {
 		this._decorationStyles = new DecorationColors(themeService);
 	}
 
