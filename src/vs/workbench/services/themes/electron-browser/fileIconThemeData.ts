@@ -129,7 +129,7 @@ function _loadIconThemeDocument(fileSetPath: string): TPromise<IconThemeDocument
 
 function _processIconThemeDocument(id: string, iconThemeDocumentPath: string, iconThemeDocument: IconThemeDocument): { content: string; hasFileIcons: boolean; hasFolderIcons: boolean; hidesExplorerArrows: boolean; } {
 
-	let result = { content: '', hasFileIcons: false, hasFolderIcons: false, hidesExplorerArrows: false };
+	let result = { content: '', hasFileIcons: false, hasFolderIcons: false, hidesExplorerArrows: iconThemeDocument.hidesExplorerArrows };
 
 	if (!iconThemeDocument.iconDefinitions) {
 		return result;
@@ -249,10 +249,6 @@ function _processIconThemeDocument(id: string, iconThemeDocumentPath: string, ic
 
 	if (!result.hasFileIcons && !result.hasFolderIcons) {
 		return result;
-	}
-
-	if (iconThemeDocument.hidesExplorerArrows) {
-		result.hidesExplorerArrows = true;
 	}
 
 	let cssRules: string[] = [];
