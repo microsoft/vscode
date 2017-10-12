@@ -188,7 +188,7 @@ export class ResourceLabel extends IconLabel {
 				this.options.fileKind !== FileKind.FILE
 			);
 			if (deco && this.options.fileDecorations.colors) {
-				iconLabelOptions.extraClasses.push(deco.labelClasses);
+				iconLabelOptions.extraClasses.push(deco.labelClassName);
 			}
 			if (deco && deco.letter && this.options.fileDecorations.badges) {
 				iconLabelOptions.badge = {

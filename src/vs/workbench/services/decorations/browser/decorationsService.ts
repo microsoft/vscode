@@ -7,7 +7,7 @@
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import Event, { Emitter, debounceEvent, any } from 'vs/base/common/event';
-import { IResourceDecorationsService, IResourceDecoration, IResourceDecorationChangeEvent, IDecorationsProvider } from './decorations';
+import { IResourceDecorationsService, IResourceDecoration, IResourceDecorationChangeEvent, IDecorationsProvider, IResourceDecorationData } from './decorations';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { isThenable } from 'vs/base/common/async';
@@ -16,6 +16,79 @@ import { createStyleSheet, createCSSRule, removeCSSRulesContainingSelector } fro
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { listActiveSelectionForeground, ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
+
+
+class DecorationColors {
+
+	private readonly _disposables: IDisposable[];
+	private readonly _styleElement = createStyleSheet();
+	private readonly _classNames = new IdGenerator('monaco-decoration-styles-');
+	private readonly _classNames2ColorIds = new Map<string, [string, string]>();
+
+	constructor(
+		private _themeService: IThemeService,
+	) {
+		this._disposables = [
+			this._themeService.onThemeChange(this._onThemeChange, this),
+		];
+	}
+
+	dispose(): void {
+		dispose(this._disposables);
+		this._styleElement.innerHTML = '';
+	}
+
+	makeResourceDecoration(decoration: IResourceDecorationData): IResourceDecoration {
+		if (!decoration) {
+			return undefined;
+		}
+
+		let { severity, letter, tooltip } = decoration;
+		let labelClassName, badgeClassName;
+
+		let tuple = this._classNames2ColorIds.get(decoration.color);
+
+		if (tuple) {
+			// from cache
+			labelClassName = tuple[0];
+			badgeClassName = tuple[1];
+		} else {
+			// new css rules
+			labelClassName = this._classNames.nextId();
+			badgeClassName = this._classNames.nextId();
+			this._classNames2ColorIds.set(decoration.color, [labelClassName, badgeClassName]);
+			this._createCssRules(labelClassName, badgeClassName, decoration.color);
+		}
+
+		return {
+			_decoBrand: undefined,
+			severity,
+			letter,
+			tooltip,
+			labelClassName,
+			badgeClassName
+		};
+	}
+
+	private _onThemeChange(): void {
+		this._classNames2ColorIds.forEach((tuple, color) => {
+			const [labelClassName, badgeClassName] = tuple;
+			removeCSSRulesContainingSelector(labelClassName, this._styleElement);
+			removeCSSRulesContainingSelector(badgeClassName, this._styleElement);
+			this._createCssRules(labelClassName, badgeClassName, color);
+		});
+	}
+
+	private _createCssRules(labelClassName: string, badgeClassName: string, color: ColorIdentifier): void {
+		const theme = this._themeService.getTheme();
+		// label
+		createCSSRule(`.${labelClassName}`, `color: ${theme.getColor(color)}`, this._styleElement);
+		createCSSRule(`.selected .${labelClassName}`, `color: ${theme.getColor(listActiveSelectionForeground)}`, this._styleElement);
+
+		// badge
+		createCSSRule(`.${badgeClassName}`, `background-color: ${theme.getColor(color)}; color: ${theme.getColor(listActiveSelectionForeground)};`, this._styleElement);
+	}
+}
 
 class FileDecorationChangeEvent implements IResourceDecorationChangeEvent {
 
@@ -49,6 +122,7 @@ class DecorationProviderWrapper {
 	private readonly _dispoable: IDisposable;
 
 	constructor(
+		private readonly _decorationStyles: DecorationColors,
 		private readonly _provider: IDecorationsProvider,
 		private readonly _emitter: Emitter<URI | URI[]>
 	) {
@@ -92,7 +166,7 @@ class DecorationProviderWrapper {
 			const childTree = this._data.findSuperstr(key);
 			if (childTree) {
 				childTree.forEach(([, value]) => {
-					if (value && !isThenable<void>(value) && !value.leafOnly) {
+					if (value && !isThenable<void>(value)) {
 						callback(value, true);
 					}
 				});
@@ -102,88 +176,27 @@ class DecorationProviderWrapper {
 
 	private _fetchData(uri: URI): IResourceDecoration {
 
-		const decoOrThenable = this._provider.provideDecorations(uri);
-		if (!isThenable(decoOrThenable)) {
+		const dataOrThenable = this._provider.provideDecorations(uri);
+		if (!isThenable(dataOrThenable)) {
 			// sync -> we have a result now
-			this._data.set(uri.toString(), decoOrThenable || null);
-			this._emitter.fire(uri);
-			return decoOrThenable;
+			return this._keepItem(uri, dataOrThenable);
 
 		} else {
 			// async -> we have a result soon
-			const request = Promise.resolve(decoOrThenable)
-				.then(data => {
-					this._data.set(uri.toString(), data || null);
-					this._emitter.fire(uri);
-				})
+			const request = Promise.resolve(dataOrThenable)
+				.then(data => this._keepItem(uri, data))
 				.catch(_ => this._data.delete(uri.toString()));
 
 			this._data.set(uri.toString(), request);
 			return undefined;
 		}
 	}
-}
 
-class DecorationColors {
-
-	private readonly _disposables: IDisposable[];
-	private readonly _styleElement = createStyleSheet();
-	private readonly _classNames = new IdGenerator('monaco-decoration-styles-');
-	private readonly _classNames2ColorIds = new Map<string, [string, string]>();
-
-	constructor(
-		private _themeService: IThemeService,
-	) {
-		this._disposables = [
-			this._themeService.onThemeChange(this._onThemeChange, this),
-		];
-	}
-
-	dispose(): void {
-		dispose(this._disposables);
-		this._styleElement.innerHTML = '';
-	}
-
-	ensureCssStyles(decoration: IResourceDecoration): void {
-		if (!decoration || !decoration.color) {
-			return;
-		}
-
-		const tuple = this._classNames2ColorIds.get(decoration.color);
-		if (tuple) {
-			// from cache
-			decoration.labelClasses = tuple[0];
-			decoration.badgeClassName = tuple[1];
-			return;
-		}
-
-		let labelClassName = this._classNames.nextId();
-		let badgeClassName = this._classNames.nextId();
-
-		this._classNames2ColorIds.set(decoration.color, [labelClassName, badgeClassName]);
-		decoration.labelClasses = labelClassName;
-		decoration.badgeClassName = badgeClassName;
-
-		this._createCssRules(labelClassName, badgeClassName, decoration.color);
-	}
-
-	private _onThemeChange(): void {
-		this._classNames2ColorIds.forEach((tuple, color) => {
-			const [labelClassName, badgeClassName] = tuple;
-			removeCSSRulesContainingSelector(labelClassName, this._styleElement);
-			removeCSSRulesContainingSelector(badgeClassName, this._styleElement);
-			this._createCssRules(labelClassName, badgeClassName, color);
-		});
-	}
-
-	private _createCssRules(labelClassName: string, badgeClassName: string, color: ColorIdentifier): void {
-		const theme = this._themeService.getTheme();
-		// label
-		createCSSRule(`.${labelClassName}`, `color: ${theme.getColor(color)}`, this._styleElement);
-		createCSSRule(`.selected .${labelClassName}`, `color: ${theme.getColor(listActiveSelectionForeground)}`, this._styleElement);
-
-		// badge
-		createCSSRule(`.${badgeClassName}`, `background-color: ${theme.getColor(color)}; color: ${theme.getColor(listActiveSelectionForeground)};`, this._styleElement);
+	private _keepItem(uri: URI, data: IResourceDecorationData): IResourceDecoration {
+		let deco = data ? this._decorationStyles.makeResourceDecoration(data) : null;
+		this._data.set(uri.toString(), deco);
+		this._emitter.fire(uri);
+		return deco;
 	}
 }
 
@@ -216,7 +229,11 @@ export class FileDecorationsService implements IResourceDecorationsService {
 
 	registerDecortionsProvider(provider: IDecorationsProvider): IDisposable {
 
-		const wrapper = new DecorationProviderWrapper(provider, this._onDidChangeDecorationsDelayed);
+		const wrapper = new DecorationProviderWrapper(
+			this._decorationStyles,
+			provider,
+			this._onDidChangeDecorationsDelayed
+		);
 		const remove = this._data.push(wrapper);
 		return {
 			dispose: () => {
@@ -237,13 +254,13 @@ export class FileDecorationsService implements IResourceDecorationsService {
 				if (isChild && top === candidate) {
 					// only bubble up color
 					top = {
+						_decoBrand: undefined,
 						severity: top.severity,
-						color: top.color
+						labelClassName: top.labelClassName
 					};
 				}
 			});
 		}
-		this._decorationStyles.ensureCssStyles(top);
 		return top;
 	}
 
