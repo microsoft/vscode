@@ -43,3 +43,16 @@
 .monaco-icon-label.italic > .label-description {
 	font-style: italic;
 }
+
+.monaco-icon-label > .label-badge {
+	align-self: center;
+	height: 12px;
+	min-width: 10px;
+	line-height: 12px;
+	font-size: 80%;
+	margin: 1px 15px 1px auto;
+	padding: 2px 4px;
+	border-radius: 14px;
+	font-weight: normal;
+	text-align: center;
+}
