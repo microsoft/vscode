@@ -73,7 +73,7 @@ export class IntervalNode {
 		this.interval = interval;
 		this.maxEnd = this.interval.end;
 
-		this.resultInterval = null;
+		this.resultInterval = new Interval(0, 0);
 	}
 
 	public detach(): void {
@@ -417,28 +417,51 @@ export class IntervalTree {
 		this.root = SENTINEL;
 	}
 
-	// public intervalSearch(interval: Interval): IntervalNode[] {
-	// 	let result: IntervalNode[] = [];
-	// 	if (this.root !== SENTINEL) {
-	// 		this._intervalSearch(this.root, 0, interval, result);
-	// 	}
-	// 	return result;
-	// }
+	public intervalSearch(interval: Interval): IntervalNode[] {
+		let result: IntervalNode[] = [];
+		if (this.root !== SENTINEL) {
+			this._intervalSearch(this.root, 0, interval.start, interval.end, result);
+		}
+		return result;
+	}
 
-	// private _intervalSearch(node: IntervalNode, delta: number, interval: Interval, result: IntervalNode[]): void {
-	// 	// https://en.wikipedia.org/wiki/Interval_tree#Augmented_tree
-	// 	// Now, it is known that two intervals A and B overlap only when both
-	// 	// A.low ≤ B.high and A.high ≥ B.low. When searching the trees for
-	// 	// nodes overlapping with a given interval, you can immediately skip:
-	// 	//  - all nodes to the right of nodes whose low value is past the end of the given interval.
-	// 	//  - all nodes that have their maximum 'high' value below the start of the given interval.
+	private _intervalSearch(node: IntervalNode, delta: number, intervalStart: number, intervalEnd: number, result: IntervalNode[]): void {
+		// https://en.wikipedia.org/wiki/Interval_tree#Augmented_tree
+		// Now, it is known that two intervals A and B overlap only when both
+		// A.low <= B.high and A.high >= B.low. When searching the trees for
+		// nodes overlapping with a given interval, you can immediately skip:
+		//  a) all nodes to the right of nodes whose low value is past the end of the given interval.
+		//  b) all nodes that have their maximum 'high' value below the start of the given interval.
 
-	// 	if (delta + node.maxEnd < interval.start) {
-	// 		return;
-	// 	}
+		const nodeMaxEnd = delta + node.maxEnd;
+		if (nodeMaxEnd < intervalStart) {
+			// Cover b) from above
+			return;
+		}
 
+		if (node.left !== SENTINEL) {
+			this._intervalSearch(node.left, delta, intervalStart, intervalEnd, result);
+		}
 
-	// }
+		const nodeStart = delta + node.interval.start;
+
+		if (nodeStart > intervalEnd) {
+			// Cover a) from above
+			return;
+		}
+
+		const nodeEnd = delta + node.interval.end;
+		if (nodeEnd >= intervalStart) {
+			// There is overlap
+			node.resultInterval.start = nodeStart;
+			node.resultInterval.end = nodeEnd;
+			result.push(node);
+		}
+
+		if (node.right !== SENTINEL) {
+			this._intervalSearch(node.right, delta + node.delta, intervalStart, intervalEnd, result);
+		}
+	}
 
 	public insert(interval: Interval): IntervalNode {
 		if (this.root === SENTINEL) {
