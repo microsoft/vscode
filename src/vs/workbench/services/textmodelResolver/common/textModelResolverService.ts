@@ -49,7 +49,7 @@ class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorMo
 			} else {
 				model.dispose();
 			}
-		});
+		}, () => void 0);
 	}
 
 	public registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable {
