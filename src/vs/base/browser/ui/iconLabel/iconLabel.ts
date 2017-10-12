@@ -152,15 +152,14 @@ export class IconLabel {
 			if (!this.badgeNode) {
 				this.badgeNode = document.createElement('span');
 				this.badgeNode.className = 'label-badge';
-				this.badgeNode.style.backgroundColor = options.color.toString();
-				// this.badgeNode.style.color = (options.color.isDarker() ? Color.white : Color.black).toString();
-				this.badgeNode.style.color = Color.white.toString();
 				this.element.style.display = 'flex';
 				this.element.appendChild(this.badgeNode);
 			}
 			const { letter, title } = options.badge;
 			this.badgeNode.innerHTML = letter;
 			this.badgeNode.title = title;
+			this.badgeNode.style.backgroundColor = options.color.toString();
+			this.badgeNode.style.color = Color.white.toString();
 			dom.show(this.badgeNode);
 
 		} else if (this.badgeNode) {
