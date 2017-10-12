@@ -323,7 +323,7 @@ export class FileRenderer implements IRenderer {
 				title: stat.nonexistentRoot ? nls.localize('canNotResolve', "Can not resolve folder {0}", stat.resource.toString()) : undefined,
 				fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE,
 				extraClasses,
-				fileDecorations: this.configurationService.getConfiguration<IFilesConfiguration>().explorer.fileDecorations.enabled ? this.configurationService.getConfiguration<IFilesConfiguration>().explorer.fileDecorations : undefined
+				fileDecorations: this.configurationService.getConfiguration<IFilesConfiguration>().explorer.decorations
 			});
 		}
 
