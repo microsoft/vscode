@@ -29,7 +29,7 @@ import { registerThemingParticipant, ITheme, ICssStyleCollector, themeColorFromI
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
 import { Color, RGBA } from 'vs/base/common/color';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { editorAction, ServicesAccessor, EditorAction, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { PeekViewWidget, getOuterEditor } from 'vs/editor/contrib/referenceSearch/browser/peekViewWidget';
@@ -184,7 +184,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		@IMessageService private messageService: IMessageService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super(editor, { isResizeable: true });
+		super(editor, { isResizeable: true, frameWidth: 1 });
 
 		themeService.onThemeChange(this._applyTheme, this, this._disposables);
 		this._applyTheme(themeService.getTheme());
@@ -404,6 +404,8 @@ export class DirtyDiffController implements IEditorContribution {
 	private currentIndex: number = -1;
 	private readonly isDirtyDiffVisible: IContextKey<boolean>;
 	private session: IDisposable = EmptyDisposable;
+	private mouseDownInfo: { lineNumber: number } | null = null;
+	private disposables: IDisposable[] = [];
 
 	constructor(
 		private editor: ICodeEditor,
@@ -412,19 +414,21 @@ export class DirtyDiffController implements IEditorContribution {
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		this.isDirtyDiffVisible = isDirtyDiffVisible.bindTo(contextKeyService);
+		this.disposables.push(editor.onMouseDown(e => this.onEditorMouseDown(e)));
+		this.disposables.push(editor.onMouseUp(e => this.onEditorMouseUp(e)));
 	}
 
 	getId(): string {
 		return DirtyDiffController.ID;
 	}
 
-	next(): void {
+	next(lineNumber?: number): void {
 		if (!this.assertWidget()) {
 			return;
 		}
 
-		if (this.currentIndex === -1) {
-			this.currentIndex = this.findNextClosestChange(this.editor.getPosition().lineNumber);
+		if (typeof lineNumber === 'number' || this.currentIndex === -1) {
+			this.currentIndex = this.findNextClosestChange(typeof lineNumber === 'number' ? lineNumber : this.editor.getPosition().lineNumber);
 		} else {
 			this.currentIndex = rot(this.currentIndex + 1, this.model.changes.length);
 		}
@@ -435,13 +439,13 @@ export class DirtyDiffController implements IEditorContribution {
 		this.widget.showChange(this.currentIndex);
 	}
 
-	previous(): void {
+	previous(lineNumber?: number): void {
 		if (!this.assertWidget()) {
 			return;
 		}
 
-		if (this.currentIndex === -1) {
-			this.currentIndex = this.findPreviousClosestChange(this.editor.getPosition().lineNumber);
+		if (typeof lineNumber === 'number' || this.currentIndex === -1) {
+			this.currentIndex = this.findPreviousClosestChange(typeof lineNumber === 'number' ? lineNumber : this.editor.getPosition().lineNumber);
 		} else {
 			this.currentIndex = rot(this.currentIndex - 1, this.model.changes.length);
 		}
@@ -465,8 +469,6 @@ export class DirtyDiffController implements IEditorContribution {
 			}
 
 			return true;
-			// this.widget.dispose();
-			// this.widget = null;
 		}
 
 		if (!this.modelRegistry) {
@@ -520,6 +522,57 @@ export class DirtyDiffController implements IEditorContribution {
 				}
 			}
 		}
+	}
+
+	private onEditorMouseDown(e: IEditorMouseEvent): void {
+		this.mouseDownInfo = null;
+
+		// if (!this.model) {
+		// 	return;
+		// }
+
+		// if (this.model.changes.length === 0) {
+		// 	return;
+		// }
+
+		const range = e.target.range;
+
+		if (!range) {
+			return;
+		}
+
+		if (!e.event.leftButton) {
+			return;
+		}
+
+		if (e.target.type !== MouseTargetType.GUTTER_LINE_DECORATIONS) {
+			return;
+		}
+
+		this.mouseDownInfo = { lineNumber: range.startLineNumber };
+	}
+
+	private onEditorMouseUp(e: IEditorMouseEvent): void {
+		if (!this.mouseDownInfo) {
+			return;
+		}
+
+		const { lineNumber } = this.mouseDownInfo;
+		this.mouseDownInfo = null;
+
+		const range = e.target.range;
+
+		if (!range || range.startLineNumber !== lineNumber) {
+			return;
+		}
+
+		if (e.target.type !== MouseTargetType.GUTTER_LINE_DECORATIONS) {
+			return;
+		}
+
+		// const closestChangeIndex = this.findNextClosestChange(lineNumber);
+		// this.currentIndex = rot(closestChangeIndex - 1, this.model.changes.length);
+		this.next(lineNumber);
 	}
 
 	private findNextClosestChange(lineNumber: number): number {
