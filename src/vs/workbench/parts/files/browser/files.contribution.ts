@@ -351,9 +351,9 @@ configurationRegistry.registerConfiguration({
 			],
 			'description': nls.localize({ key: 'sortOrder', comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'] }, "Controls sorting order of files and folders in the explorer. In addition to the default sorting, you can set the order to 'mixed' (files and folders sorted combined), 'type' (by file type), 'modified' (by last modified date) or 'filesFirst' (sort files before folders).")
 		},
-		'explorer.enableFileDecorations': {
+		'explorer.fileDecorations.enabled': {
 			type: 'boolean',
-			description: nls.localize('enableFileDecorations', "Controls if the explorer should show file decorations, like SCM status or problems."),
+			description: nls.localize('explorer.fileDecorations.enabled', "Controls if the explorer should show file decorations, like SCM status or problems."),
 			default: true
 		}
 	}

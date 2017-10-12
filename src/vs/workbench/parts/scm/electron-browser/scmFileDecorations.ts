@@ -69,9 +69,9 @@ class SCMDecorationsProvider implements IDecorationsProvider {
 		return {
 			severity: Severity.Info,
 			tooltip: localize('tooltip', "{0} - {1}", resource.decorations.tooltip, this._provider.label),
-			color: this._config.fileDecorations.useColors ? resource.decorations.color : undefined,
-			icon: this._config.fileDecorations.useIcons ? { light: resource.decorations.icon, dark: resource.decorations.iconDark } : undefined,
+			color: resource.decorations.color,
 			letter: resource.decorations.tooltip.charAt(0),
+			icon: { light: resource.decorations.icon, dark: resource.decorations.iconDark },
 		};
 	}
 }
@@ -79,8 +79,6 @@ class SCMDecorationsProvider implements IDecorationsProvider {
 interface ISCMConfiguration {
 	fileDecorations: {
 		enabled: boolean;
-		useIcons: boolean;
-		useColors: boolean;
 	};
 }
 
