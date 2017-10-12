@@ -177,7 +177,9 @@ export class CommandCenter {
 
 		const activeTextEditor = window.activeTextEditor;
 
-		if (preserveSelection && activeTextEditor && activeTextEditor.document.uri.toString() === right.toString()) {
+		// Check if active text editor has same path as other editor. we cannot compare via
+		// URI.toString() here because the schemas can be different. Instead we just go by path.
+		if (preserveSelection && activeTextEditor && activeTextEditor.document.uri.path === right.path) {
 			opts.selection = activeTextEditor.selection;
 		}
 
@@ -414,11 +416,13 @@ export class CommandCenter {
 		for (const uri of uris) {
 			const opts: TextDocumentShowOptions = {
 				preserveFocus,
-				preview: preview,
+				preview,
 				viewColumn: ViewColumn.Active
 			};
 
-			if (activeTextEditor && activeTextEditor.document.uri.toString() === uri.toString()) {
+			// Check if active text editor has same path as other editor. we cannot compare via
+			// URI.toString() here because the schemas can be different. Instead we just go by path.
+			if (activeTextEditor && activeTextEditor.document.uri.path === uri.path) {
 				opts.selection = activeTextEditor.selection;
 			}
 
