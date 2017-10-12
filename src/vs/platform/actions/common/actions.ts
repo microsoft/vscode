@@ -53,6 +53,7 @@ export class MenuId {
 	static readonly SCMSourceControl = new MenuId();
 	static readonly SCMResourceGroupContext = new MenuId();
 	static readonly SCMResourceContext = new MenuId();
+	static readonly SCMChangeContext = new MenuId();
 	static readonly CommandPalette = new MenuId();
 	static readonly ViewTitle = new MenuId();
 	static readonly ViewItemContext = new MenuId();
