@@ -17,9 +17,7 @@ import { isImplicitProjectConfigFile } from '../utils/tsconfig';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-type AutoDetect = 'on' | 'off';
-
-type AutoDetectType = 'both' | 'build' | 'watch';
+type AutoDetect = 'on' | 'off' | 'build' | 'watch';
 
 
 const exists = (file: string): Promise<boolean> =>
@@ -39,7 +37,7 @@ interface TypeScriptTaskDefinition extends vscode.TaskDefinition {
  * Provides tasks for building `tsconfig.json` files in a project.
  */
 class TscTaskProvider implements vscode.TaskProvider {
-	private autoDetectType: AutoDetectType = 'both';
+	private autoDetect: AutoDetect = 'on';
 	private readonly tsconfigProvider: TsConfigProvider;
 	private readonly disposables: vscode.Disposable[] = [];
 
@@ -166,7 +164,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 
 		const tasks: vscode.Task[] = [];
 
-		if (this.autoDetectType === 'build' || this.autoDetectType === 'both') {
+		if (this.autoDetect === 'build' || this.autoDetect === 'on') {
 			const buildTaskidentifier: TypeScriptTaskDefinition = { type: 'typescript', tsconfig: label };
 			const buildTask = new vscode.Task(
 				buildTaskidentifier,
@@ -179,7 +177,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 			tasks.push(buildTask);
 		}
 
-		if (this.autoDetectType === 'watch' || this.autoDetectType === 'both') {
+		if (this.autoDetect === 'watch' || this.autoDetect === 'on') {
 			const watchTaskidentifier: TypeScriptTaskDefinition = { type: 'typescript', tsconfig: label, option: 'watch' };
 			const watchTask = new vscode.Task(
 				watchTaskidentifier,
@@ -215,8 +213,8 @@ class TscTaskProvider implements vscode.TaskProvider {
 	}
 
 	private onConfigurationChanged(): void {
-		const type = vscode.workspace.getConfiguration('typescript.tsc').get<AutoDetectType>('autoDetectType');
-		this.autoDetectType = typeof type === 'undefined' ? 'both' : type;
+		const type = vscode.workspace.getConfiguration('typescript.tsc').get<AutoDetect>('autoDetect');
+		this.autoDetect = typeof type === 'undefined' ? 'on' : type;
 	}
 }
 
@@ -247,7 +245,7 @@ export default class TypeScriptTaskProviderManager {
 		if (this.taskProviderSub && autoDetect === 'off') {
 			this.taskProviderSub.dispose();
 			this.taskProviderSub = undefined;
-		} else if (!this.taskProviderSub && autoDetect === 'on') {
+		} else if (!this.taskProviderSub && autoDetect !== 'off') {
 			this.taskProviderSub = vscode.workspace.registerTaskProvider('typescript', new TscTaskProvider(this.lazyClient));
 		}
 	}
