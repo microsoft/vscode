@@ -13,22 +13,26 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 
 export const IResourceDecorationsService = createDecorator<IResourceDecorationsService>('IFileDecorationsService');
 
-export interface IResourceDecoration {
+export interface IResourceDecorationData {
 	readonly severity: Severity;
 	readonly color?: ColorIdentifier;
 	readonly letter?: string;
 	readonly tooltip?: string;
-	readonly icon?: { light: URI, dark: URI };
-	readonly leafOnly?: boolean;
+}
 
-	labelClasses?: string;
-	badgeClassName?: string;
+export interface IResourceDecoration {
+	readonly _decoBrand: undefined;
+	readonly severity: Severity;
+	readonly letter?: string;
+	readonly tooltip?: string;
+	readonly labelClassName?: string;
+	readonly badgeClassName?: string;
 }
 
 export interface IDecorationsProvider {
 	readonly label: string;
 	readonly onDidChange: Event<URI[]>;
-	provideDecorations(uri: URI): IResourceDecoration | Thenable<IResourceDecoration>;
+	provideDecorations(uri: URI): IResourceDecorationData | Thenable<IResourceDecorationData>;
 }
 
 export interface IResourceDecorationChangeEvent {

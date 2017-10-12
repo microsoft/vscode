@@ -6,7 +6,7 @@
 'use strict';
 
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IResourceDecorationsService, IDecorationsProvider, IResourceDecoration } from 'vs/workbench/services/decorations/browser/decorations';
+import { IResourceDecorationsService, IDecorationsProvider, IResourceDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
 import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource } from 'vs/workbench/services/scm/common/scm';
 import URI from 'vs/base/common/uri';
@@ -61,17 +61,16 @@ class SCMDecorationsProvider implements IDecorationsProvider {
 		this._onDidChange.fire(uris);
 	}
 
-	provideDecorations(uri: URI): IResourceDecoration {
+	provideDecorations(uri: URI): IResourceDecorationData {
 		const resource = this._data.get(uri.toString());
 		if (!resource) {
 			return undefined;
 		}
 		return {
 			severity: Severity.Info,
-			tooltip: localize('tooltip', "{0} - {1}", resource.decorations.tooltip, this._provider.label),
+			tooltip: localize('tooltip', "{0}, {1}", resource.decorations.tooltip, this._provider.label),
 			color: resource.decorations.color,
-			letter: resource.decorations.tooltip.charAt(0),
-			icon: { light: resource.decorations.icon, dark: resource.decorations.iconDark },
+			letter: resource.decorations.tooltip.charAt(0)
 		};
 	}
 }

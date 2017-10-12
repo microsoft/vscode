@@ -7,7 +7,7 @@
 
 import * as assert from 'assert';
 import { FileDecorationsService } from 'vs/workbench/services/decorations/browser/decorationsService';
-import { IDecorationsProvider, IResourceDecoration } from 'vs/workbench/services/decorations/browser/decorations';
+import { IDecorationsProvider, IResourceDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
 import URI from 'vs/base/common/uri';
 import Event, { toPromise } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
@@ -34,10 +34,11 @@ suite('DecorationsService', function () {
 			readonly onDidChange: Event<URI[]> = Event.None;
 			provideDecorations(uri: URI) {
 				callCounter += 1;
-				return new Promise<IResourceDecoration>(resolve => {
+				return new Promise<IResourceDecorationData>(resolve => {
 					setTimeout(() => resolve({
 						severity: Severity.Info,
-						color: 'someBlue'
+						color: 'someBlue',
+						letter: 'T'
 					}));
 				});
 			}
@@ -52,7 +53,7 @@ suite('DecorationsService', function () {
 			assert.equal(e.affectsResource(uri), true);
 
 			// sync result
-			assert.deepEqual(service.getTopDecoration(uri, false), { severity: Severity.Info, color: 'someBlue' });
+			assert.deepEqual(service.getTopDecoration(uri, false).letter, 'T');
 			assert.equal(callCounter, 1);
 		});
 	});
@@ -67,12 +68,12 @@ suite('DecorationsService', function () {
 			readonly onDidChange: Event<URI[]> = Event.None;
 			provideDecorations(uri: URI) {
 				callCounter += 1;
-				return { severity: Severity.Info, color: 'someBlue' };
+				return { severity: Severity.Info, color: 'someBlue', letter: 'Z' };
 			}
 		});
 
 		// trigger -> sync
-		assert.deepEqual(service.getTopDecoration(uri, false), { severity: Severity.Info, color: 'someBlue' });
+		assert.deepEqual(service.getTopDecoration(uri, false).letter, 'Z');
 		assert.equal(callCounter, 1);
 	});
 
@@ -85,12 +86,12 @@ suite('DecorationsService', function () {
 			readonly onDidChange: Event<URI[]> = Event.None;
 			provideDecorations(uri: URI) {
 				callCounter += 1;
-				return { severity: Severity.Info, color: 'someBlue' };
+				return { severity: Severity.Info, color: 'someBlue', letter: 'J' };
 			}
 		});
 
 		// trigger -> sync
-		assert.deepEqual(service.getTopDecoration(uri, false), { severity: Severity.Info, color: 'someBlue' });
+		assert.deepEqual(service.getTopDecoration(uri, false).letter, 'J');
 		assert.equal(callCounter, 1);
 
 		// un-register -> ensure good event

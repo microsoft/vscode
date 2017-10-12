@@ -7,7 +7,7 @@
 
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { IResourceDecorationsService, IDecorationsProvider, IResourceDecoration } from 'vs/workbench/services/decorations/browser/decorations';
+import { IResourceDecorationsService, IDecorationsProvider, IResourceDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import Event from 'vs/base/common/event';
@@ -30,7 +30,7 @@ class MarkersDecorationsProvider implements IDecorationsProvider {
 		this.onDidChange = _markerService.onMarkerChanged;
 	}
 
-	provideDecorations(resource: URI): IResourceDecoration {
+	provideDecorations(resource: URI): IResourceDecorationData {
 
 		const markers = this._markerService.read({ resource })
 			.sort((a, b) => Severity.compare(a.severity, b.severity));
