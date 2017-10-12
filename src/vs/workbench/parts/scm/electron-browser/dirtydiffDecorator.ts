@@ -577,8 +577,7 @@ export const overviewRulerDeletedForeground = registerColor('editorOverviewRuler
 class DirtyDiffDecorator {
 
 	static MODIFIED_DECORATION_OPTIONS = ModelDecorationOptions.register({
-		linesDecorationsClassName: 'dirty-diff-modified-glyph',
-		marginClassName: 'dirty-diff-modified-margin',
+		linesDecorationsClassName: 'dirty-diff-glyph dirty-diff-modified',
 		isWholeLine: true,
 		overviewRuler: {
 			color: themeColorFromId(overviewRulerModifiedForeground),
@@ -588,8 +587,7 @@ class DirtyDiffDecorator {
 	});
 
 	static ADDED_DECORATION_OPTIONS = ModelDecorationOptions.register({
-		linesDecorationsClassName: 'dirty-diff-added-glyph',
-		marginClassName: 'dirty-diff-added-margin',
+		linesDecorationsClassName: 'dirty-diff-glyph dirty-diff-added',
 		isWholeLine: true,
 		overviewRuler: {
 			color: themeColorFromId(overviewRulerAddedForeground),
@@ -599,8 +597,7 @@ class DirtyDiffDecorator {
 	});
 
 	static DELETED_DECORATION_OPTIONS = ModelDecorationOptions.register({
-		linesDecorationsClassName: 'dirty-diff-deleted-glyph',
-		marginClassName: 'dirty-diff-deleted-margin',
+		linesDecorationsClassName: 'dirty-diff-glyph dirty-diff-deleted',
 		isWholeLine: true,
 		overviewRuler: {
 			color: themeColorFromId(overviewRulerDeletedForeground),
@@ -913,10 +910,10 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const editorGutterModifiedBackgroundColor = theme.getColor(editorGutterModifiedBackground);
 	if (editorGutterModifiedBackgroundColor) {
 		collector.addRule(`
-			.monaco-editor .dirty-diff-modified-glyph {
+			.monaco-editor .dirty-diff-modified {
 				border-left: 3px solid ${editorGutterModifiedBackgroundColor};
 			}
-			.monaco-editor .dirty-diff-modified-margin {
+			.monaco-editor .dirty-diff-modified:before {
 				background: ${editorGutterModifiedBackgroundColor};
 			}
 		`);
@@ -925,10 +922,10 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const editorGutterAddedBackgroundColor = theme.getColor(editorGutterAddedBackground);
 	if (editorGutterAddedBackgroundColor) {
 		collector.addRule(`
-			.monaco-editor .dirty-diff-added-glyph {
+			.monaco-editor .dirty-diff-added {
 				border-left: 3px solid ${editorGutterAddedBackgroundColor};
 			}
-			.monaco-editor .dirty-diff-added-margin {
+			.monaco-editor .dirty-diff-added:before {
 				background: ${editorGutterAddedBackgroundColor};
 			}
 		`);
@@ -937,12 +934,10 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const editorGutteDeletedBackgroundColor = theme.getColor(editorGutterDeletedBackground);
 	if (editorGutteDeletedBackgroundColor) {
 		collector.addRule(`
-			.monaco-editor .dirty-diff-deleted-glyph:after {
-				border-top: 4px solid transparent;
-				border-bottom: 4px solid transparent;
+			.monaco-editor .dirty-diff-deleted:after {
 				border-left: 4px solid ${editorGutteDeletedBackgroundColor};
 			}
-			.monaco-editor .dirty-diff-deleted-margin {
+			.monaco-editor .dirty-diff-deleted:before {
 				background: ${editorGutteDeletedBackgroundColor};
 			}
 		`);
