@@ -386,20 +386,11 @@
           "default": "on",
           "enum": [
             "on",
-            "off"
-          ],
-          "description": "%typescript.tsc.autoDetect%",
-          "scope": "resource"
-        },
-        "typescript.tsc.autoDetectType": {
-          "type": "string",
-          "default": "both",
-          "enum": [
-            "both",
+            "off",
             "build",
             "watch"
           ],
-          "description": "%typescript.tsc.autoDetectType%",
+          "description": "%typescript.tsc.autoDetect%",
           "scope": "resource"
         }
       }

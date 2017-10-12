@@ -39,8 +39,7 @@
 	"typescript.npm": "Specifies the path to the NPM executable used for Automatic Type Acquisition. Requires TypeScript >= 2.3.4.",
 	"typescript.check.npmIsInstalled": "Check if NPM is installed for Automatic Type Acquisition.",
 	"javascript.nameSuggestions": "Enable/disable including unique names from the file in JavaScript suggestion lists.",
-	"typescript.tsc.autoDetect": "Controls whether auto detection of tsc tasks is on or off.",
-	"typescript.tsc.autoDetectType": "Controls detection of tsc tasks. 'build' only creates single run compile tasks. 'watch' only creates compile and watch tasks. 'both' creates both build and watch tasks. Default is 'both'.",
+	"typescript.tsc.autoDetect": "Controls auto detection of tsc tasks. 'off' disables this feature. 'build' only creates single run compile tasks. 'watch' only creates compile and watch tasks. 'on' creates both build and watch tasks. Default is 'on'.",
 	"typescript.problemMatchers.tsc.label": "TypeScript problems",
 	"typescript.problemMatchers.tscWatch.label": "TypeScript problems (watch mode)"
 }
