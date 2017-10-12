@@ -17,6 +17,10 @@ import { isImplicitProjectConfigFile } from '../utils/tsconfig';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
+type AutoDetect = 'on' | 'off';
+
+type AutoDetectType = 'both' | 'build' | 'watch';
+
 
 const exists = (file: string): Promise<boolean> =>
 	new Promise<boolean>((resolve, _reject) => {
@@ -35,12 +39,21 @@ interface TypeScriptTaskDefinition extends vscode.TaskDefinition {
  * Provides tasks for building `tsconfig.json` files in a project.
  */
 class TscTaskProvider implements vscode.TaskProvider {
+	private autoDetectType: AutoDetectType = 'both';
 	private readonly tsconfigProvider: TsConfigProvider;
+	private readonly disposables: vscode.Disposable[] = [];
 
 	public constructor(
 		private readonly lazyClient: () => TypeScriptServiceClient
 	) {
 		this.tsconfigProvider = new TsConfigProvider();
+
+		vscode.workspace.onDidChangeConfiguration(this.onConfigurationChanged, this, this.disposables);
+		this.onConfigurationChanged();
+	}
+
+	dispose() {
+		this.disposables.forEach(x => x.dispose());
 	}
 
 	public async provideTasks(token: vscode.CancellationToken): Promise<vscode.Task[]> {
@@ -149,8 +162,40 @@ class TscTaskProvider implements vscode.TaskProvider {
 
 	private async getTasksForProject(project: TSConfig): Promise<vscode.Task[]> {
 		const command = await this.getCommand(project);
+		const label = this.getLabelForTasks(project);
 
-		let label: string = project.path;
+		const tasks: vscode.Task[] = [];
+
+		if (this.autoDetectType === 'build' || this.autoDetectType === 'both') {
+			const buildTaskidentifier: TypeScriptTaskDefinition = { type: 'typescript', tsconfig: label };
+			const buildTask = new vscode.Task(
+				buildTaskidentifier,
+				localize('buildTscLabel', 'build - {0}', label),
+				'tsc',
+				new vscode.ShellExecution(`${command} -p "${project.path}"`),
+				'$tsc');
+			buildTask.group = vscode.TaskGroup.Build;
+			buildTask.isBackground = false;
+			tasks.push(buildTask);
+		}
+
+		if (this.autoDetectType === 'watch' || this.autoDetectType === 'both') {
+			const watchTaskidentifier: TypeScriptTaskDefinition = { type: 'typescript', tsconfig: label, option: 'watch' };
+			const watchTask = new vscode.Task(
+				watchTaskidentifier,
+				localize('buildAndWatchTscLabel', 'watch - {0}', label),
+				'tsc',
+				new vscode.ShellExecution(`${command} --watch -p "${project.path}"`),
+				'$tsc-watch');
+			watchTask.group = vscode.TaskGroup.Build;
+			watchTask.isBackground = true;
+			tasks.push(watchTask);
+		}
+
+		return tasks;
+	}
+
+	private getLabelForTasks(project: TSConfig): string {
 		if (project.workspaceFolder) {
 			const projectFolder = project.workspaceFolder;
 			const workspaceFolders = vscode.workspace.workspaceFolders;
@@ -158,40 +203,22 @@ class TscTaskProvider implements vscode.TaskProvider {
 			if (workspaceFolders && workspaceFolders.length > 1) {
 				// Use absolute path when we have multiple folders with the same name
 				if (workspaceFolders.filter(x => x.name === projectFolder.name).length > 1) {
-					label = path.join(project.workspaceFolder.uri.fsPath, relativePath);
+					return path.join(project.workspaceFolder.uri.fsPath, relativePath);
 				} else {
-					label = path.join(project.workspaceFolder.name, relativePath);
+					return path.join(project.workspaceFolder.name, relativePath);
 				}
 			} else {
-				label = relativePath;
+				return relativePath;
 			}
 		}
+		return project.path;
+	}
 
-		const buildTaskidentifier: TypeScriptTaskDefinition = { type: 'typescript', tsconfig: label };
-		const buildTask = new vscode.Task(
-			buildTaskidentifier,
-			localize('buildTscLabel', 'build - {0}', label),
-			'tsc',
-			new vscode.ShellExecution(`${command} -p "${project.path}"`),
-			'$tsc');
-		buildTask.group = vscode.TaskGroup.Build;
-		buildTask.isBackground = false;
-
-		const watchTaskidentifier: TypeScriptTaskDefinition = { type: 'typescript', tsconfig: label, option: 'watch' };
-		const watchTask = new vscode.Task(
-			watchTaskidentifier,
-			localize('buildAndWatchTscLabel', 'watch - {0}', label),
-			'tsc',
-			new vscode.ShellExecution(`${command} --watch -p "${project.path}"`),
-			'$tsc-watch');
-		watchTask.group = vscode.TaskGroup.Build;
-		watchTask.isBackground = true;
-
-		return [buildTask, watchTask];
+	private onConfigurationChanged(): void {
+		const type = vscode.workspace.getConfiguration('typescript.tsc').get<AutoDetectType>('autoDetectType');
+		this.autoDetectType = typeof type === 'undefined' ? 'both' : type;
 	}
 }
-
-type AutoDetect = 'on' | 'off';
 
 /**
  * Manages registrations of TypeScript task provides with VScode.
@@ -216,7 +243,7 @@ export default class TypeScriptTaskProviderManager {
 	}
 
 	private onConfigurationChanged() {
-		let autoDetect = vscode.workspace.getConfiguration('typescript.tsc').get<AutoDetect>('autoDetect');
+		const autoDetect = vscode.workspace.getConfiguration('typescript.tsc').get<AutoDetect>('autoDetect');
 		if (this.taskProviderSub && autoDetect === 'off') {
 			this.taskProviderSub.dispose();
 			this.taskProviderSub = undefined;
