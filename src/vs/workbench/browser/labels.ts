@@ -34,7 +34,7 @@ export interface IResourceLabel {
 
 export interface IResourceLabelOptions extends IIconLabelOptions {
 	fileKind?: FileKind;
-	fileDecorations?: { useColors: boolean, useBadges: boolean };
+	fileDecorations?: { colors: boolean, badges: boolean };
 }
 
 export class ResourceLabel extends IconLabel {
@@ -187,13 +187,15 @@ export class ResourceLabel extends IconLabel {
 				resource,
 				this.options.fileKind !== FileKind.FILE
 			);
-			if (deco) {
+			if (deco && this.options.fileDecorations.colors) {
 				iconLabelOptions.extraClasses.push(deco.labelClasses);
-				iconLabelOptions.badge = deco.letter ? {
+			}
+			if (deco && deco.letter && this.options.fileDecorations.badges) {
+				iconLabelOptions.badge = {
 					letter: deco.letter,
 					title: deco.tooltip,
 					className: deco.badgeClassName,
-				} : undefined;
+				};
 			}
 		}
 
