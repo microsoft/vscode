@@ -8,8 +8,8 @@ import { ConfigWatcher } from 'vs/base/node/config';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { IConfigurationService, IConfigurationChangeEvent, IConfigurationOverrides, ConfigurationTarget, toConfigurationUpdateEvent, compare } from 'vs/platform/configuration/common/configuration';
-import { CustomConfigurationModel, DefaultConfigurationModel, ConfigurationModel, Configuration } from 'vs/platform/configuration/common/configurationModels';
+import { IConfigurationService, IConfigurationChangeEvent, IConfigurationOverrides, ConfigurationTarget, compare } from 'vs/platform/configuration/common/configuration';
+import { CustomConfigurationModel, DefaultConfigurationModel, ConfigurationModel, Configuration, ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -132,7 +132,7 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 	}
 
 	private trigger(keys: string[], source: ConfigurationTarget): void {
-		this._onDidUpdateConfiguration.fire(toConfigurationUpdateEvent(keys, source, this.getTargetConfiguration(source)));
+		this._onDidUpdateConfiguration.fire(new ConfigurationChangeEvent().change(keys).telemetryData(source, this.getTargetConfiguration(source)));
 	}
 
 	private getTargetConfiguration(target: ConfigurationTarget): any {

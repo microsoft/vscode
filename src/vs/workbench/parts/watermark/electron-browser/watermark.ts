@@ -127,7 +127,7 @@ export class WatermarkContribution implements IWorkbenchContribution {
 			}
 		});
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => {
-			if (e.hasKeyChanged(WORKBENCH_TIPS_ENABLED_KEY)) {
+			if (e.affectsConfiugration(WORKBENCH_TIPS_ENABLED_KEY)) {
 				const enabled = this.configurationService.getValue<boolean>(WORKBENCH_TIPS_ENABLED_KEY);
 				if (enabled !== this.enabled) {
 					this.enabled = enabled;

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import * as arrays from 'vs/base/common/arrays';
 import * as objects from 'vs/base/common/objects';
 import * as types from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
@@ -12,7 +11,7 @@ import Event from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 
 export const IConfigurationService = createDecorator<IConfigurationService>('configurationService');
 
@@ -30,12 +29,12 @@ export enum ConfigurationTarget {
 }
 
 export interface IConfigurationChangeEvent {
-	keys: string[];
-	sections: string[];
-	overrideIdentifiers?: string[];
+	affectedKeys: string[];
 
-	hasSectionChanged(section: string): boolean;
-	hasKeyChanged(key: string): boolean;
+	affectsConfiugration(configuration: string): boolean;
+	affectsConfiugration(configuration: string, overrideIdentifier: string): boolean;
+	affectsConfiugration(configuration: string, resource: URI): boolean;
+	affectsConfiugration(configuration: string, overrideIdentifier: string, resource: URI): boolean;
 
 	// Following data is used for telemetry
 	source: ConfigurationTarget;
@@ -112,23 +111,6 @@ export function compare(from: IConfiguraionModel, to: IConfiguraionModel): { add
 	}
 
 	return { added, removed, updated };
-}
-
-export function toConfigurationUpdateEvent(udpated: string[], source: ConfigurationTarget, sourceConfig: any): IConfigurationChangeEvent {
-	const overrideIdentifiers = [];
-	const keys: string[] = [];
-	for (const key of udpated) {
-		if (OVERRIDE_PROPERTY_PATTERN.test(key)) {
-			overrideIdentifiers.push(overrideIdentifierFromKey(key).trim());
-		} else {
-			keys.push(key);
-		}
-	}
-	const sections = arrays.distinct(keys.map(key => key.split('.')[0]));
-	const hasSectionChanged = (section) => sections.indexOf(section) !== -1;
-	const hasKeyChanged = (key) => keys.indexOf(key) !== -1;
-
-	return { keys, sections, overrideIdentifiers, source, sourceConfig, hasSectionChanged, hasKeyChanged };
 }
 
 export function toValuesTree(properties: { [qualifiedKey: string]: any }, conflictReporter: (message: string) => void): any {

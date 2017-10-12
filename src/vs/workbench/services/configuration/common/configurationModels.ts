@@ -5,8 +5,8 @@
 'use strict';
 
 import { clone, equals } from 'vs/base/common/objects';
-import { compare, toValuesTree } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationModel, Configuration as BaseConfiguration, CustomConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
+import { compare, toValuesTree, IConfigurationChangeEvent, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationModel, Configuration as BaseConfiguration, CustomConfigurationModel, ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, IConfigurationPropertySchema, Extensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { WORKSPACE_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
@@ -201,10 +201,9 @@ export class Configuration extends BaseConfiguration {
 		this.merge();
 	}
 
-	updateUserConfiguration(user: ConfigurationModel): string[] {
-		let changedKeys = [];
+	updateUserConfiguration(user: ConfigurationModel): ConfigurationChangeEvent {
 		const { added, updated, removed } = compare(this._user, user);
-		changedKeys = [...added, ...updated, ...removed];
+		let changedKeys = [...added, ...updated, ...removed];
 		if (changedKeys.length) {
 			const oldConfiguartion = new Configuration(this._defaults, this._user, this._workspaceConfiguration, this.folders, this._memoryConfiguration, this._memoryConfigurationByResource, this._workspace);
 
@@ -212,15 +211,13 @@ export class Configuration extends BaseConfiguration {
 			this.merge();
 
 			changedKeys = changedKeys.filter(key => !equals(oldConfiguartion.getValue(key), this.getValue(key)));
-			return changedKeys;
 		}
-		return [];
+		return new ConfigurationChangeEvent().change(changedKeys);
 	}
 
-	updateWorkspaceConfiguration(workspaceConfiguration: ConfigurationModel): string[] {
-		let changedKeys = [];
+	updateWorkspaceConfiguration(workspaceConfiguration: ConfigurationModel): ConfigurationChangeEvent {
 		const { added, updated, removed } = compare(this._workspaceConfiguration, workspaceConfiguration);
-		changedKeys = [...added, ...updated, ...removed];
+		let changedKeys = [...added, ...updated, ...removed];
 		if (changedKeys.length) {
 			const oldConfiguartion = new Configuration(this._defaults, this._user, this._workspaceConfiguration, this.folders, this._memoryConfiguration, this._memoryConfigurationByResource, this._workspace);
 
@@ -228,18 +225,16 @@ export class Configuration extends BaseConfiguration {
 			this.merge();
 
 			changedKeys = changedKeys.filter(key => !equals(oldConfiguartion.getValue(key), this.getValue(key)));
-			return changedKeys;
 		}
-		return [];
+		return new ConfigurationChangeEvent().change(changedKeys);
 	}
 
-	updateFolderConfiguration(resource: URI, configuration: FolderConfigurationModel): string[] {
+	updateFolderConfiguration(resource: URI, configuration: FolderConfigurationModel): ConfigurationChangeEvent {
 		const currentFolderConfiguration = this.folders.get(resource);
 
 		if (currentFolderConfiguration) {
-			let changedKeys = [];
 			const { added, updated, removed } = compare(currentFolderConfiguration, configuration);
-			changedKeys = [...added, ...updated, ...removed];
+			let changedKeys = [...added, ...updated, ...removed];
 			if (changedKeys.length) {
 				const oldConfiguartion = new Configuration(this._defaults, this._user, this._workspaceConfiguration, this.folders, this._memoryConfiguration, this._memoryConfigurationByResource, this._workspace);
 
@@ -247,29 +242,62 @@ export class Configuration extends BaseConfiguration {
 				this.mergeFolder(resource);
 
 				changedKeys = changedKeys.filter(key => !equals(oldConfiguartion.getValue(key, { resource }), this.getValue(key, { resource })));
-				return changedKeys;
 			}
-			return [];
+			return new ConfigurationChangeEvent().change(changedKeys, resource);
 		}
 
 		this.folders.set(resource, configuration);
 		this.mergeFolder(resource);
-		return configuration.keys;
+		return new ConfigurationChangeEvent().change(configuration.keys, resource);
 	}
 
-	deleteFolderConfiguration(folder: URI): string[] {
+	deleteFolderConfiguration(folder: URI): ConfigurationChangeEvent {
 		if (this._workspace && this._workspace.folders.length > 0 && this._workspace.folders[0].uri.toString() === folder.toString()) {
 			// Do not remove workspace configuration
-			return [];
+			return new ConfigurationChangeEvent();
 		}
 
 		const keys = this.folders.get(folder).keys;
 		this.folders.delete(folder);
 		this._foldersConsolidatedConfigurations.delete(folder);
-		return keys;
+		return new ConfigurationChangeEvent().change(keys, folder);
 	}
 
 	getFolderConfigurationModel(folder: URI): FolderConfigurationModel {
 		return <FolderConfigurationModel>this.folders.get(folder);
+	}
+}
+
+export class WorkspaceConfigurationChangeEvent implements IConfigurationChangeEvent {
+
+	constructor(private configurationChangeEvent: ConfigurationChangeEvent, private workspace: Workspace) {
+	}
+
+	get affectedKeys(): string[] {
+		return this.configurationChangeEvent.affectedKeys;
+	}
+
+	get source(): ConfigurationTarget {
+		return this.configurationChangeEvent.source;
+	}
+
+	get sourceConfig(): any {
+		return this.configurationChangeEvent.sourceConfig;
+	}
+
+	affectsConfiugration(config: string, arg1?: any, arg2?: any): boolean {
+		if (this.configurationChangeEvent.affectsConfiugration(config, arg1, arg2)) {
+			return true;
+		}
+
+		let resource = arg1 instanceof URI ? arg1 : arg2 instanceof URI ? arg2 : void 0;
+		if (resource) {
+			let workspaceFolder = this.workspace.getFolder(resource);
+			if (workspaceFolder) {
+				return this.configurationChangeEvent.affectsConfiugration(config, resource && arg1 !== resource ? arg1 : void 0, resource);
+			}
+		}
+
+		return false;
 	}
 }

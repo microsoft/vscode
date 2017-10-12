@@ -11,7 +11,7 @@ import * as objects from 'vs/base/common/objects';
 import URI from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
-import { IOverrides, overrideIdentifierFromKey, addToValueTree, toValuesTree, IConfiguraionModel, merge, getConfigurationValue, IConfigurationOverrides, IConfigurationData, getDefaultValues, getConfigurationKeys } from 'vs/platform/configuration/common/configuration';
+import { IOverrides, overrideIdentifierFromKey, addToValueTree, toValuesTree, IConfiguraionModel, merge, getConfigurationValue, IConfigurationOverrides, IConfigurationData, getDefaultValues, getConfigurationKeys, IConfigurationChangeEvent, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { Workspace } from 'vs/platform/workspace/common/workspace';
 
 export class ConfigurationModel implements IConfiguraionModel {
@@ -40,6 +40,15 @@ export class ConfigurationModel implements IConfiguraionModel {
 		if (this._keys.indexOf(key) === -1) {
 			this._keys.push(key);
 		}
+	}
+
+	public setValueInOverrides(overrideIdentifier: string, key: string, value: any): void {
+		let override = this._overrides.filter(override => override.identifiers.indexOf(overrideIdentifier) !== -1)[0];
+		if (!override) {
+			override = { identifiers: [overrideIdentifier], contents: {} };
+			this._overrides.push(override);
+		}
+		addToValueTree(override.contents, key, value, e => { throw new Error(e); });
 	}
 
 	public removeValue(key: string) {
@@ -272,7 +281,7 @@ export class Configuration {
 	updateValue(key: string, value: any, overrides: IConfigurationOverrides = {}): void {
 		let memoryConfiguration: ConfigurationModel;
 		if (overrides.resource) {
-			let memoryConfiguration = this._memoryConfigurationByResource.get(overrides.resource);
+			memoryConfiguration = this._memoryConfigurationByResource.get(overrides.resource);
 			if (!memoryConfiguration) {
 				memoryConfiguration = new ConfigurationModel();
 				this._memoryConfigurationByResource.set(overrides.resource, memoryConfiguration);
@@ -403,5 +412,101 @@ export class Configuration {
 
 	private static parseConfigurationModel(model: IConfiguraionModel): ConfigurationModel {
 		return new ConfigurationModel(model.contents, model.keys, model.overrides);
+	}
+}
+
+export class ConfigurationChangeEvent implements IConfigurationChangeEvent {
+
+	private changedConfiguration: ConfigurationModel = new ConfigurationModel();
+	private changedConfigurationByResource: StrictResourceMap<ConfigurationModel> = new StrictResourceMap<ConfigurationModel>();
+	private resources: URI[] = [];
+
+	private _source: ConfigurationTarget;
+	private _sourceConfig: any;
+
+	change(event: ConfigurationChangeEvent): ConfigurationChangeEvent
+	change(keys: string[], resource?: URI): ConfigurationChangeEvent
+	change(arg1: any, arg2?: any): ConfigurationChangeEvent {
+		if (arg1 instanceof ConfigurationChangeEvent) {
+			this.changedConfiguration = this.changedConfiguration.merge(arg1.changedConfiguration);
+			for (const resource of arg1.resources) {
+				let changedConfigurationByResource = this.getOrSetChangedConfigurationForResource(resource);
+				changedConfigurationByResource = changedConfigurationByResource.merge(arg1.changedConfigurationByResource.get(resource));
+				this.changedConfigurationByResource.set(resource, changedConfigurationByResource);
+			}
+		}
+		return this.changeWithKeys(arg1, arg2);
+	}
+
+	telemetryData(source: ConfigurationTarget, sourceConfig: any): ConfigurationChangeEvent {
+		this._source = source;
+		this._sourceConfig = sourceConfig;
+		return this;
+	}
+
+	get affectedKeys(): string[] {
+		const keys = [...this.changedConfiguration.keys];
+		this.changedConfigurationByResource.forEach(model => keys.push(...model.keys));
+		return keys;
+	}
+
+	get source(): ConfigurationTarget {
+		return this._source;
+	}
+
+	get sourceConfig(): any {
+		return this._sourceConfig;
+	}
+
+	affectsConfiugration(config: string): boolean
+	affectsConfiugration(config: string, overrideIdentifier: string): boolean
+	affectsConfiugration(config: string, resource: URI): boolean
+	affectsConfiugration(config: string, overrideIdentifier: string, resource: URI): boolean
+	affectsConfiugration(config: string, arg1?: any, arg2?: any): boolean {
+		let resource = arg1 instanceof URI ? arg1 : arg2 instanceof URI ? arg2 : void 0;
+		let overrideIdentifier = resource && arg1 !== resource ? arg1 : void 0;
+		let model = resource ? this.changedConfigurationByResource.get(resource) : this.changedConfiguration;
+		if (model) {
+
+			if (overrideIdentifier) {
+				return model.overrides.some(override => override.identifiers.indexOf(overrideIdentifier) !== -1);
+			}
+
+			let changedKeysTree = model.contents;
+			let requestedTree = toValuesTree({ [config]: true }, () => { });
+
+			let key;
+			while (typeof requestedTree === 'object' && (key = Object.keys(requestedTree)[0])) { // Only one key should present, since we added only one property
+				changedKeysTree = changedKeysTree[key];
+				if (!changedKeysTree) {
+					return false; // Requested tree is not found
+				}
+				requestedTree = requestedTree[key];
+			}
+			return true;
+		}
+		return false;
+	}
+
+	private changeWithKeys(keys: string[], resource?: URI): ConfigurationChangeEvent {
+		let changedConfiguration = resource ? this.getOrSetChangedConfigurationForResource(resource) : this.changedConfiguration;
+		for (const key of keys) {
+			if (OVERRIDE_PROPERTY_PATTERN.test(key)) {
+				changedConfiguration.setValueInOverrides(overrideIdentifierFromKey(key), 'key'/* any key */, true);
+			} else {
+				changedConfiguration.setValue(key, true);
+			}
+		}
+		return this;
+	}
+
+	private getOrSetChangedConfigurationForResource(resource: URI): ConfigurationModel {
+		let changedConfigurationByResource = this.changedConfigurationByResource.get(resource);
+		if (!changedConfigurationByResource) {
+			changedConfigurationByResource = new ConfigurationModel();
+			this.changedConfigurationByResource.set(resource, changedConfigurationByResource);
+			this.resources.push(resource);
+		}
+		return changedConfigurationByResource;
 	}
 }

@@ -23,9 +23,9 @@ import { FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files
 import { isLinux } from 'vs/base/common/platform';
 import { ConfigWatcher } from 'vs/base/node/config';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { CustomConfigurationModel, ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
-import { IConfigurationChangeEvent, ConfigurationTarget, toConfigurationUpdateEvent, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
-import { WorkspaceConfigurationModel, ScopedConfigurationModel, FolderConfigurationModel, FolderSettingsModel, Configuration } from 'vs/workbench/services/configuration/common/configurationModels';
+import { CustomConfigurationModel, ConfigurationModel, ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
+import { IConfigurationChangeEvent, ConfigurationTarget, IConfigurationOverrides, keyFromOverrideIdentifier } from 'vs/platform/configuration/common/configuration';
+import { WorkspaceConfigurationModel, ScopedConfigurationModel, FolderConfigurationModel, FolderSettingsModel, Configuration, WorkspaceConfigurationChangeEvent } from 'vs/workbench/services/configuration/common/configurationModels';
 import { IWorkspaceConfigurationService, WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME, WORKSPACE_STANDALONE_CONFIGURATIONS, WORKSPACE_CONFIG_DEFAULT_PATH, TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { ConfigurationService as GlobalConfigurationService, isConfigurationOverrides } from 'vs/platform/configuration/node/configurationService';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -37,7 +37,6 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
-import { distinct, flatten } from 'vs/base/common/arrays';
 import { IConfigurationEditingService, ConfigurationTarget as EditableConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ConfigurationEditingService } from 'vs/workbench/services/configuration/node/configurationEditingService';
@@ -327,7 +326,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 				// TODO: compare with old values??
 
 				const keys = this._configuration.keys();
-				this.triggerConfigurationChange([...keys.default, ...keys.user, ...keys.workspace, ...keys.workspaceFolder], ConfigurationTarget.WORKSPACE);
+				this.triggerConfigurationChange(new ConfigurationChangeEvent().change([...keys.default, ...keys.user, ...keys.workspace, ...keys.workspaceFolder]), ConfigurationTarget.WORKSPACE);
 			});
 	}
 
@@ -363,7 +362,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 			if (e.source === ConfigurationTarget.DEFAULT) {
 				this.workspace.folders.forEach(folder => this._configuration.getFolderConfigurationModel(folder.uri).update());
 				this._configuration.updateDefaultConfiguration(this.baseConfigurationService.configuration.defaults);
-				this._onDidUpdateConfiguration.fire(e);
+				this.triggerConfigurationChange(new ConfigurationChangeEvent().change(e.affectedKeys), e.source);
 			} else {
 				let keys = this._configuration.updateUserConfiguration(this.baseConfigurationService.configuration.user);
 				this.triggerConfigurationChange(keys, e.source);
@@ -373,18 +372,18 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 
 	private onWorkspaceConfigurationChanged(): TPromise<void> {
 		if (this.workspace && this.workspace.configuration && this._configuration) {
-			const changedWorkspaceKeys = this._configuration.updateWorkspaceConfiguration(this.workspaceConfiguration.workspaceConfigurationModel.workspaceConfiguration);
+			const workspaceConfigurationChangeEvent = this._configuration.updateWorkspaceConfiguration(this.workspaceConfiguration.workspaceConfigurationModel.workspaceConfiguration);
 			let configuredFolders = toWorkspaceFolders(this.workspaceConfiguration.workspaceConfigurationModel.folders, URI.file(paths.dirname(this.workspace.configuration.fsPath)));
 			const changes = this.compareFolders(this.workspace.folders, configuredFolders);
 			if (changes.added.length || changes.removed.length || changes.changed.length) {
 				this.workspace.folders = configuredFolders;
 				return this.onFoldersChanged()
-					.then(changedFolderKeys => {
-						this.triggerConfigurationChange([...changedFolderKeys, ...changedWorkspaceKeys], ConfigurationTarget.WORKSPACE_FOLDER);
+					.then(foldersConfigurationChangeEvent => {
+						this.triggerConfigurationChange(foldersConfigurationChangeEvent.change(workspaceConfigurationChangeEvent), ConfigurationTarget.WORKSPACE_FOLDER);
 						this._onDidChangeWorkspaceFolders.fire(changes);
 					});
 			} else {
-				this.triggerConfigurationChange(changedWorkspaceKeys, ConfigurationTarget.WORKSPACE);
+				this.triggerConfigurationChange(workspaceConfigurationChangeEvent, ConfigurationTarget.WORKSPACE);
 			}
 		}
 		return TPromise.as(null);
@@ -395,8 +394,11 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 			// handle file event for each folder
 			this.cachedFolderConfigs.get(folder.uri).handleWorkspaceFileEvents(event)
 				// Update folder configuration if handled
-				.then(folderConfiguration => folderConfiguration ? this._configuration.updateFolderConfiguration(folder.uri, folderConfiguration) : []))
-		).then(changedKeys => this.triggerConfigurationChange(flatten(changedKeys), ConfigurationTarget.WORKSPACE_FOLDER));
+				.then(folderConfiguration => folderConfiguration ? this._configuration.updateFolderConfiguration(folder.uri, folderConfiguration) : new ConfigurationChangeEvent()))
+		).then(changeEvents => {
+			const consolidateChangeEvent = changeEvents.reduce((consolidated, e) => consolidated.change(e), new ConfigurationChangeEvent());
+			this.triggerConfigurationChange(consolidateChangeEvent, ConfigurationTarget.WORKSPACE_FOLDER);
+		});
 	}
 
 	private onSingleFolderFileChanges(event: FileChangesEvent): TPromise<void> {
@@ -426,14 +428,14 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 			});
 	}
 
-	private onFoldersChanged(): TPromise<string[]> {
-		let changedKeys = [];
+	private onFoldersChanged(): TPromise<ConfigurationChangeEvent> {
+		let changeEvent = new ConfigurationChangeEvent();
 
 		// Remove the configurations of deleted folders
 		for (const key of this.cachedFolderConfigs.keys()) {
 			if (!this.workspace.folders.filter(folder => folder.uri.toString() === key.toString())[0]) {
 				this.cachedFolderConfigs.delete(key);
-				changedKeys.push(...this._configuration.deleteFolderConfiguration(key));
+				changeEvent = changeEvent.change(this._configuration.deleteFolderConfiguration(key));
 			}
 		}
 
@@ -442,12 +444,12 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 			return this.loadFolderConfigurations(toInitialize)
 				.then(folderConfigurations => {
 					folderConfigurations.forEach((folderConfiguration, index) => {
-						changedKeys.push(...this._configuration.updateFolderConfiguration(toInitialize[index].uri, folderConfiguration));
+						changeEvent = changeEvent.change(this._configuration.updateFolderConfiguration(toInitialize[index].uri, folderConfiguration));
 					});
-					return changedKeys;
+					return changeEvent;
 				});
 		}
-		return TPromise.as(changedKeys);
+		return TPromise.as(changeEvent);
 	}
 
 	private loadFolderConfigurations(folders: IWorkspaceFolder[]): TPromise<FolderConfigurationModel[]> {
@@ -470,7 +472,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 
 		if (target === ConfigurationTarget.MEMORY) {
 			this._configuration.updateValue(key, value, overrides);
-			this.triggerConfigurationChange([key], target);
+			this.triggerConfigurationChange(new ConfigurationChangeEvent().change(overrides.overrideIdentifier ? [keyFromOverrideIdentifier(overrides.overrideIdentifier)] : [key], overrides.resource), target);
 			return TPromise.as(null);
 		}
 
@@ -531,9 +533,10 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		}
 	}
 
-	private triggerConfigurationChange(keys: string[], target: ConfigurationTarget): void {
-		if (keys.length) {
-			this._onDidUpdateConfiguration.fire(toConfigurationUpdateEvent(distinct(keys), target, this.getTargetConfiguration(target)));
+	private triggerConfigurationChange(configurationEvent: ConfigurationChangeEvent, target: ConfigurationTarget): void {
+		if (configurationEvent.affectedKeys.length) {
+			configurationEvent.telemetryData(target, this.getTargetConfiguration(target));
+			this._onDidUpdateConfiguration.fire(new WorkspaceConfigurationChangeEvent(configurationEvent, this.workspace));
 		}
 	}
 
