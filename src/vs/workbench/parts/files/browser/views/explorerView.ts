@@ -765,33 +765,33 @@ export class ExplorerView extends ViewsViewletPanel {
 		}
 
 		// Load Root Stat with given target path configured
-		const promise = TPromise.join(targetsToResolve.map((target, index) => this.fileService.resolveFile(target.resource, target.options).then(result => {
-			// Convert to model
-			const modelStat = FileStat.create(result, target.root, target.options.resolveTo);
-			// Subsequent refresh: Merge stat into our local model and refresh tree
-			FileStat.mergeLocalWithDisk(modelStat, this.model.roots[index]);
+		const promise = TPromise.join(targetsToResolve.map((target, index) => this.fileService.resolveFile(target.resource, target.options)
+			.then(result => FileStat.create(result, target.root, target.options.resolveTo), err => FileStat.create({
+				resource: target.resource,
+				name: resources.basenameOrAuthority(target.resource),
+				mtime: 0,
+				etag: undefined,
+				isDirectory: true,
+				hasChildren: false
+			}, target.root))
+			.then(modelStat => {
+				// Subsequent refresh: Merge stat into our local model and refresh tree
+				FileStat.mergeLocalWithDisk(modelStat, this.model.roots[index]);
 
-			const input = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? this.model.roots[0] : this.model;
-			let statsToExpand: FileStat[] = this.explorerViewer.getExpandedElements().concat(targetsToExpand.map(target => this.model.findClosest(target)));
-			if (input === this.explorerViewer.getInput()) {
-				return this.explorerViewer.refresh().then(() => sequence(statsToExpand.map(e => () => this.explorerViewer.expand(e))));
-			}
+				const input = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? this.model.roots[0] : this.model;
+				let statsToExpand: FileStat[] = this.explorerViewer.getExpandedElements().concat(targetsToExpand.map(target => this.model.findClosest(target)));
+				if (input === this.explorerViewer.getInput()) {
+					return this.explorerViewer.refresh().then(() => sequence(statsToExpand.map(e => () => this.explorerViewer.expand(e))));
+				}
 
-			// Display roots only when multi folder workspace
-			// Make sure to expand all folders that where expanded in the previous session
-			if (input === this.model) {
-				// We have transitioned into workspace view -> expand all roots
-				statsToExpand = this.model.roots.concat(statsToExpand);
-			}
-			return this.explorerViewer.setInput(input).then(() => sequence(statsToExpand.map(e => () => this.explorerViewer.expand(e))));
-		}, e => FileStat.create({
-			resource: target.resource,
-			name: resources.basenameOrAuthority(target.resource),
-			mtime: 0,
-			etag: undefined,
-			isDirectory: true,
-			hasChildren: false
-		}, target.root))));
+				// Display roots only when multi folder workspace
+				// Make sure to expand all folders that where expanded in the previous session
+				if (input === this.model) {
+					// We have transitioned into workspace view -> expand all roots
+					statsToExpand = this.model.roots.concat(statsToExpand);
+				}
+				return this.explorerViewer.setInput(input).then(() => sequence(statsToExpand.map(e => () => this.explorerViewer.expand(e))));
+			})));
 
 		this.progressService.showWhile(promise, this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */);
 
