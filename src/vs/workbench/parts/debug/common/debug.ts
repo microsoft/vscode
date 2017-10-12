@@ -387,6 +387,7 @@ export interface IRawAdapter extends IRawEnvAdapter {
 
 export interface IDebugConfigurationProvider {
 	type: string;
+	handle: number;
 	resolveDebugConfiguration?(folderUri: uri | undefined, debugConfiguration: IConfig): TPromise<IConfig>;
 	provideDebugConfigurations?(folderUri: uri | undefined): TPromise<IConfig[]>;
 }
