@@ -47,6 +47,7 @@ export interface IFileIconTheme {
 	readonly isLoaded: boolean;
 	readonly hasFileIcons?: boolean;
 	readonly hasFolderIcons?: boolean;
+	readonly hidesExplorerArrows?: boolean;
 }
 
 export interface IWorkbenchThemeService extends IThemeService {

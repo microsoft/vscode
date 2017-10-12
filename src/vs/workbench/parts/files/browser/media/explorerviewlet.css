@@ -106,6 +106,10 @@
 	background-image: url("collapsed-hc.svg");
 }
 
+.explorer-folders-view.hide-arrows .monaco-tree-row .content::before {
+	background-image: none;
+}
+
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row:hover > .content .monaco-action-bar,
 .explorer-viewlet .explorer-open-editors .monaco-tree.focused .monaco-tree-row.focused > .content .monaco-action-bar,
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content.dirty > .monaco-action-bar {
