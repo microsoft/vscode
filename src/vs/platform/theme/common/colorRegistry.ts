@@ -184,7 +184,6 @@ export const inputValidationErrorBorder = registerColor('inputValidation.errorBo
 export const selectBackground = registerColor('dropdown.background', { dark: '#3C3C3C', light: Color.white, hc: Color.black }, nls.localize('dropdownBackground', "Dropdown background."));
 export const selectForeground = registerColor('dropdown.foreground', { dark: '#F0F0F0', light: null, hc: Color.white }, nls.localize('dropdownForeground', "Dropdown foreground."));
 export const selectBorder = registerColor('dropdown.border', { dark: selectBackground, light: '#CECECE', hc: contrastBorder }, nls.localize('dropdownBorder', "Dropdown border."));
-// cleidigh
 export const selectOptionCheckedBackground = registerColor('dropdown.optionCheckedBackground', { dark: '#094771', light: '#3399FF', hc: null }, nls.localize('dropdownOptionCheckedBackground', "Dropdown option checked background."));
 export const selectOptionHoverBackground = registerColor('dropdown.optionHoverBackground', { dark: '#2A2D2E', light: '#F0F0F0', hc: null }, nls.localize('dropdownOptionHoverBackground', "Dropdown option hover background."));
 export const selectOptionsBorder = registerColor('dropdown.optionsBorder', { dark: focusBorder, light: '#CECECE', hc: '#6FC3DF' }, nls.localize('dropdownOptionsBorder', "Dropdown options border."));

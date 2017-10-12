@@ -11,6 +11,8 @@
 		"list.hoverBackground": "#7c502166",
 		"list.focusBackground": "#7c5021AA",
 		"list.inactiveSelectionBackground": "#645342",
+		"dropdown.optionCheckedBackground": "#7c5021aa",
+		"dropdown.optionHoverBackground": "#7c502166",
 		"pickerGroup.foreground": "#e3b583",
 		"pickerGroup.border": "#e3b583",
 		"inputOption.activeBorder": "#a57a4c",

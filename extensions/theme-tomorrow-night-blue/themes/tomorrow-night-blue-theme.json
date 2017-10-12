@@ -5,6 +5,8 @@
 		"errorForeground": "#a92049",
 		"input.background": "#001733",
 		"dropdown.background": "#001733",
+		"dropdown.optionCheckedBackground": "#ffffff60",
+		"dropdown.optionHoverBackground": "#ffffff30",
 		"list.focusBackground": "#ffffff60",
 		"list.activeSelectionBackground": "#ffffff60",
 		"list.inactiveSelectionBackground": "#ffffff40",

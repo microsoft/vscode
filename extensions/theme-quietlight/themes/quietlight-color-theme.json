@@ -480,6 +480,8 @@
 		"editorCursor.foreground": "#54494B",
 		"inputOption.activeBorder": "#adafb7",
 		"dropdown.background": "#F5F5F5",
+		"dropdown.optionCheckedBackground": "#E4F6D4",
+		"dropdown.optionHoverBackground": "#c4d9b1",
 		"editor.findMatchBackground": "#BF9CAC",
 		"editor.findMatchHighlightBackground": "#edc9d8",
 		"peekViewEditor.matchHighlightBackground": "#C2DFE3",

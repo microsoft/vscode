@@ -281,6 +281,9 @@
 		"progressBar.background": "#0063a5",
 
 		"dropdown.background": "#181f2f",
+		"dropdown.optionCheckedBackground": "#08286b",
+		"dropdown.optionHoverBackground": "#061940",
+
 		// "dropdown.foreground": "",
 		// "dropdown.border": "",
 

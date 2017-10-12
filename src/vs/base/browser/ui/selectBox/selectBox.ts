@@ -34,10 +34,10 @@ export const defaultStyles = {
 	selectForeground: Color.fromHex('#F0F0F0'),
 	selectBorder: Color.fromHex('#3C3C3C'),
 	selectOptionsBorder: Color.fromHex('#3C3Ca0'),
-	selectOptionCheckedBackground: Color.fromHex('#000080'),
+	selectOptionCheckedBackground: Color.fromHex('#073655'),
 	selectOptionHoverBackground: Color.fromHex('#2A2D2E'),
-	selectOptionCheckedOutline: Color.fromHex('#b09800'),
-	selectOptionHoverOutline: Color.fromHex('#b09800')
+	selectOptionCheckedOutline: Color.fromHex('#F38518'),
+	selectOptionHoverOutline: Color.fromHex('#F38518')
 };
 
 export interface ISelectData {
@@ -53,21 +53,12 @@ export class SelectBox extends Widget {
 	private container: HTMLElement;
 	private _onDidSelect: Emitter<ISelectData>;
 	private toDispose: IDisposable[];
-
-	// cleidigh
 	private styles: ISelectBoxStyles;
-
-	// private selectBackground: Color;
-	// private selectForeground: Color;
-	// private selectBorder: Color;
-	// private selectOptionCheckedBackground: Color;
-	// private selectOptionCheckedForeground: Color;
-	// private selectOptionHoverBackground: Color;
 	private selectDropDownContainer: HTMLElement;
 	private selectDropDownElement: HTMLSelectElement;
 	private styleElement: HTMLStyleElement;
 	private selectElementPosition: IDomNodePagePosition;
-	private selectDropDownMouseSelect: boolean;
+	// private selectDropDownMouseSelect: boolean;
 
 	constructor(options: string[], selected: number, styles: ISelectBoxStyles = clone(defaultStyles)) {
 		super();
@@ -81,7 +72,7 @@ export class SelectBox extends Widget {
 		this.selectDropDownContainer = dom.$('.select-box-dropdown-div');
 		this.selectDropDownElement = document.createElement('select');
 		this.selectDropDownElement.className = 'select-box-dropdown';
-		this.selectDropDownMouseSelect = false;
+		// this.selectDropDownMouseSelect = false;
 
 		this.styleElement = dom.createStyleSheet(this.selectDropDownContainer);
 
@@ -89,16 +80,12 @@ export class SelectBox extends Widget {
 		this.toDispose = [];
 		this._onDidSelect = new Emitter<ISelectData>();
 
-		// this.styles = options || Object.create(null);
 		this.styles = styles;
 		mixin(this.styles, defaultStyles, false);
 
-		// this.selectBackground = styles.selectBackground;
-		// this.selectForeground = styles.selectForeground;
-		// this.selectBorder = styles.selectBorder;
-
 		this.toDispose.push(dom.addStandardDisposableListener(this.selectElement, 'change', (e) => {
 			this.selectElement.title = e.target.value;
+			console.debug(this.selectElement.title);
 			this._onDidSelect.fire({
 				index: e.target.selectedIndex,
 				selected: e.target.value
@@ -124,61 +111,29 @@ export class SelectBox extends Widget {
 			event.stopPropagation();
 		}));
 
-		this.toDispose.push(dom.addDisposableListener(this.selectDropDownElement, dom.EventType.MOUSE_OVER, (e: MouseEvent) => {
-			console.debug('mouse over ' + (<HTMLElement>e.target).nodeName);
-
-			// return;
-
-			if ((<HTMLElement>e.target).nodeName === 'OPTION') {
-				// (<HTMLElement>e.target).style.boxShadow = `0 0 10px 100px ${this.styles.selectOptionHoverBackground} inset`;
-
-				if (this.styles.selectOptionHoverBackground) {
-					(<HTMLElement>e.target).style.boxShadow = `0 0 10px 100px ${this.styles.selectOptionHoverBackground} inset`;
-				}
-				if (this.styles.selectOptionHoverOutline) {
-					console.debug('HoweverOutline');
-					(<HTMLElement>e.target).style.boxShadow = `0 0 10px 100px ${this.styles.selectBackground} inset`;
-					// (<HTMLElement>e.target).style.boxShadow = `0 0 10px 100px #008000 inset`;
-					(<HTMLElement>e.target).style.outlineColor = `${this.styles.selectOptionHoverOutline}`;
-					(<HTMLElement>e.target).style.outlineOffset = `-1px`;
-					(<HTMLElement>e.target).style.outlineStyle = `dashed`;
-					(<HTMLElement>e.target).style.outlineWidth = `2px`;
-				}
-			}
-		}));
-
-		this.toDispose.push(dom.addDisposableListener(this.selectDropDownElement, dom.EventType.MOUSE_OUT, (e: MouseEvent) => {
-			console.debug('mouse out');
-			// return;
-			console.debug((<HTMLElement>e.target).nodeName);
-
-			if ((<HTMLElement>e.target).nodeName === 'OPTION') {
-				(<HTMLElement>e.target).style.boxShadow = `0 0 10px 100px ${this.styles.selectBackground} inset`;
-				// (<HTMLElement>e.target).style.boxShadow = null;
-				(<HTMLElement>e.target).style.outlineStyle = null;
-				(<HTMLElement>e.target).style.outlineColor = null;
-				(<HTMLElement>e.target).style.outlineOffset = null;
-			}
-		}));
 
 		this.toDispose.push(dom.addDisposableListener(this.selectDropDownElement, dom.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			if (e.button === 0) {
-				this.selectElement.selectedIndex = this.selectDropDownElement.selectedIndex;
+				// let options = this.selectDropDownElement.querySelectorAll('option');
+				const selectedOption = <HTMLElement>this.selectDropDownElement.querySelector('option.selected');
+				dom.toggleClass(selectedOption, 'selected', false);
+				// console.debug('Mouseclick' +(<HTMLElement>e.target).outerHTML);
+				// console.debug((<HTMLElement>e.target).getAttribute('value'));
+				// const optionIndex = this.options.indexOf((<HTMLElement>e.target).getAttribute('value'));
+				const optionIndex = Number((<HTMLElement>e.target).getAttribute('optionIndex'));
+				// console.debug('OptionIndex '+optionIndex);
+				// this.selectElement.selectedIndex = this.selectDropDownElement.selectedIndex;
+				this.selectElement.selectedIndex = optionIndex;
+				this.selected = optionIndex;
 
-				if (this.options.length === 1) {
-					this.closeDropDown();
-					this._onDidSelect.fire({
-						index: this.selectElement.selectedIndex,
-						selected: this.selectElement.title
-					});
+				this.closeDropDown();
+				this._onDidSelect.fire({
+					index: this.selectElement.selectedIndex,
+					selected: this.selectElement.title
+				});
 
-					// this._onDidSelect.fire(this.selectElement.title);
-					event.preventDefault();
-					event.stopPropagation();
-				} else {
-					this.selectDropDownMouseSelect = true;
-					event.stopPropagation();
-				}
+				event.preventDefault();
+				event.stopPropagation();
 			}
 		}));
 
@@ -237,36 +192,71 @@ export class SelectBox extends Widget {
 			this.selectDropDownElement.title = e.target.value;
 			this.selectElement.selectedIndex = this.selectDropDownElement.selectedIndex;
 
-			if (this.selectDropDownMouseSelect) {
-				this.selectDropDownMouseSelect = false;
-				this.closeDropDown();
+			console.debug('SelectDropDownChange');
 
-				this._onDidSelect.fire({
-					index: this.selectElement.selectedIndex,
-					selected: this.selectElement.title
-				});
+			// if (this.selectDropDownMouseSelect) {
+			// 	this.selectDropDownMouseSelect = false;
+			// 	this.closeDropDown();
 
-				// this._onDidSelect.fire(this.selectElement.title);
-			}
+			// 	this._onDidSelect.fire({
+			// 		index: this.selectElement.selectedIndex,
+			// 		selected: this.selectElement.title
+			// 	});
+
+			// 	// this._onDidSelect.fire(this.selectElement.title);
+			// }
 		}));
 
 		this.toDispose.push(dom.addDisposableListener(this.selectDropDownElement, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
+			event.preventDefault();
+			event.stopPropagation();
+		}));
+
+
+		this.toDispose.push(dom.addDisposableListener(this.selectDropDownElement, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			const event = new StandardKeyboardEvent(e);
+			const options = this.selectDropDownElement.querySelectorAll('option');
 
 			if (event.equals(KeyCode.Tab) || event.equals(KeyCode.Enter) || event.equals(KeyCode.Escape)) {
+				dom.toggleClass(options[this.selected], 'selected', false);
 				this.closeDropDown();
 				this._onDidSelect.fire({
 					index: this.selectElement.selectedIndex,
 					selected: this.selectElement.title
 				});
+			}
 
-				// this._onDidSelect.fire(this.selectElement.title);
-				event.stopPropagation();
-
-				if (event.equals(KeyCode.Escape)) {
-					event.stopPropagation();
+			if (event.equals(KeyCode.DownArrow)) {
+				if (this.selected < this.options.length - 1) {
+					if (options[this.selected + 1].getAttribute('disabled') !== null && this.options.length > this.selected + 2) {
+						dom.toggleClass(options[this.selected], 'selected', false);
+						this.selected += 2;
+					} else {
+						dom.toggleClass(options[this.selected], 'selected', false);
+						this.selected++;
+					}
+					this.selectElement.selectedIndex = this.selected;
+					dom.toggleClass(options[this.selected], 'selected', true);
 				}
 			}
+
+			if (event.equals(KeyCode.UpArrow)) {
+				if (this.selected > 0) {
+					if (options[this.selected - 1].getAttribute('disabled') !== null && this.selected > 1) {
+						dom.toggleClass(options[this.selected], 'selected', false);
+						this.selected -= 2;
+					} else {
+						dom.toggleClass(options[this.selected], 'selected', false);
+						this.selected--;
+					}
+					this.selectElement.selectedIndex = this.selected;
+					dom.toggleClass(options[this.selected], 'selected', true);
+				}
+			}
+
+			event.preventDefault();
+			event.stopPropagation();
 		}));
 
 		this.toDispose.push(dom.addDisposableListener(this.selectDropDownContainer, dom.EventType.ANIMATION_ITERATION, (e) => {
@@ -278,10 +268,9 @@ export class SelectBox extends Widget {
 
 	private closeDropDown() {
 		// clone drop-down to parent and hide
-		this.selectElement.selectedIndex = this.selectDropDownElement.selectedIndex;
-		this.selectElement.title = this.selectDropDownElement.title;
+
+		this.selectElement.selectedIndex = this.selected;
 		dom.toggleClass(this.selectDropDownContainer, 'visible', false);
-		// dom.toggleClass(this.selectElement, 'border', false);
 		dom.toggleClass(this.selectElement, 'synthetic-focus', false);
 		this.selectElement.focus();
 
@@ -290,12 +279,7 @@ export class SelectBox extends Widget {
 	private layoutDropDown(repositionOpaque: boolean, makeVisible: boolean) {
 		const newSlPos = dom.getDomNodePagePosition(this.selectElement);
 
-		// console.debug('layout');
-
-
-		this.selectDropDownElement.selectedIndex = this.selectElement.selectedIndex;
-		this.selectDropDownElement.title = this.selectElement.title;
-
+		// this.selectDropDownElement.title = this.selectElement.title;
 
 		if (this.selectElementPosition === null ||
 			this.selectElementPosition.left !== newSlPos.left ||
@@ -315,26 +299,29 @@ export class SelectBox extends Widget {
 			const selectOptimalWidth = Math.max(selectMinWidth, Math.round(newSlPos.width)).toString() + 'px';
 			this.selectDropDownElement.style.width = selectOptimalWidth;
 
-			// this.selectDropDownContainer.style.width = '250px';
-			// this.selectDropDownElement.style.overflow = 'none';
-
 			if (repositionOpaque) {
 				this.selectDropDownContainer.style.opacity = '1';
 			}
 		};
 
-		// this.selectDropDownContainer.style.width = '200px';
-		// this.selectDropDownContainer.style.height = '250px';
-		// this.selectDropDownContainer.style.backgroundColor = '#909800';
+		// No scrollbar
 		this.selectDropDownElement.style.overflowY = 'hidden';
+		// Hide selected option - we self manage to style
+		this.selectDropDownElement.selectedIndex = this.options.length;
+		const selectSize = (this.options.length * 1.5).toString() + 'em';
+		this.selectDropDownElement.setAttribute('size', (this.options.length + 1).toString());
+		this.selectDropDownElement.style.height = selectSize;
 
-		this.selectDropDownElement.setAttribute('size', (this.options.length).toString());
+		// Use class control for pseudo- selection
+		const options = this.selectDropDownElement.querySelectorAll('option');
+		dom.toggleClass(options[this.selected], 'selected', true);
+
+		// Single option select requires hiding arrow - 'appearance: none'
 		if (this.options.length === 1) {
-			// console.debug('SingleOption');
 			dom.toggleClass(this.selectDropDownElement, 'select-box-dropdown-single-option', true);
-			if (process.platform === 'darwin') {
-				this.selectDropDownElement.setAttribute('size', '2');
-			}
+			// if (process.platform === 'darwin') {
+			// this.selectDropDownElement.setAttribute('size', '2');
+			// }
 			this.selectDropDownElement.setAttribute('size', '2');
 		} else {
 			dom.toggleClass(this.selectDropDownElement, 'select-box-dropdown-single-option', false);
@@ -342,7 +329,7 @@ export class SelectBox extends Widget {
 
 		if (makeVisible) {
 			dom.toggleClass(this.selectDropDownContainer, 'visible', true);
-			// dom.toggleClass(this.selectElement, 'border', true);
+			// Use synthetic focus to highlight parent select
 			dom.toggleClass(this.selectElement, 'synthetic-focus', true);
 		}
 	}
@@ -360,8 +347,8 @@ export class SelectBox extends Widget {
 			this.selectDropDownElement.options.length = 0;
 			let i = 0;
 			this.options.forEach((option) => {
-				this.selectElement.add(this.createOption(option, disabled === i));
-				this.selectDropDownElement.add(this.createOption(option, disabled === i++));
+				this.selectElement.add(this.createOption(option, i, disabled === i));
+				this.selectDropDownElement.add(this.createOption(option, i, disabled === i++));
 			});
 		}
 		this.select(selected);
@@ -376,8 +363,8 @@ export class SelectBox extends Widget {
 
 		this.selectElement.selectedIndex = this.selected;
 		this.selectElement.title = this.options[this.selected];
-		this.selectDropDownElement.selectedIndex = this.selected;
-		this.selectDropDownElement.title = this.options[this.selected];
+
+		// this.selectDropDownElement.title = this.options[this.selected];
 	}
 
 	public focus(): void {
@@ -392,9 +379,7 @@ export class SelectBox extends Widget {
 		}
 	}
 
-
 	public render(container: HTMLElement): void {
-		console.debug('Render');
 		this.container = container;
 		dom.addClass(container, 'select-container');
 		dom.addClass(container, 'select-container-relative');
@@ -411,93 +396,30 @@ export class SelectBox extends Widget {
 
 		this.styles = styles;
 
-		// this.selectBackground = styles.selectBackground;
-		// this.selectForeground = styles.selectForeground;
-		// this.selectForeground = styles.selectForeground;
-		// this.selectBorder = styles.selectBorder;
-
-
-		// this.styles.selectOptionCheckedBackground = defaultStyles.selectOptionCheckedBackground;
-		// if (this.styles.selectOptionCheckedBackground === null) {
-		// 	console.debug('UseDefaultCheckedBackground');
-		// 	this.styles.selectOptionCheckedBackground = Color.fromHex('#000080');
-		// }
-
-		// if (this.styles.selectOptionCheckedBackground === null) {
-		// 	this.styles.selectOptionHoverBackground = Color.fromHex('#513415');
-		// }
-		// this.styles.selectOptionCheckedBackground = new Color(new RGBA(0x7c, 0x50, 0x21, 0.7));
-		// this.styles.selectOptionHoverBackground = new Color(new RGBA(0x7c, 0x50, 0x21, 0.3));
-		// this.styles.selectOptionCheckedForeground = defaultStyles.selectOptionCheckedForeground;
-		// this.styles.selectOptionHoverBackground = defaultStyles.selectOptionHoverBackground;
-		// content.push(`.monaco-workbench .select-box-dropdown { -webkit-appearance: none; !important; `);
-
-		// const focusBorder2 = Color.fromHex('#800000');
-		// const focusBorder2 = this.styles.selectFocusBorder;
-		// const pseudoSelectFocus = `.monaco-workbench .select-box.border { border: 1px solid ${focusBorder2} !important; }`;
-		// console.debug(pseudoSelectFocus);
-
-		// console.debug('optionCheckedBackground ' + styles.selectOptionCheckedBackground.toString());
-		// console.debug('optionHoverBackground ' + styles.selectOptionHoverBackground.toString());
-
+		// Single option select styling
 		contentSingleOption.push(`.monaco-workbench .select-box-dropdown-single-option { -webkit-appearance: none; height: 1.5em !important; `);
-		// contentSingleOption.push(` border-color: ${this.styles.selectBorder} !important; `);
-		// contentSingleOption.push(` border-color: #008000 !important; `);
 		contentSingleOption.push(` padding-left: 1px !important; `);
-		// contentSingleOption.push(` padding-bottom: 1px !important; `);
 
-		// contentSingleOption.push(` outline-style: dotted !important; `);
-		// contentSingleOption.push(` outline-color: ${this.styles.selectOptionCheckedOutline} !important; `);
-		// contentSingleOption.push(` outline-offset: -1x !important; `);
-		// contentSingleOption.push(` outline-width: 2px !important; `);
-		// contentSingleOption.push(` border-style: dotted !important; `);
-
-		// content.push(pseudoSelectFocus);
-		// content.push(`.monaco-workbench .select-box-dropdown select:focus { border: none !important; }`);
-		// content.push(`.monaco-workbench .select-box.border { border: 1px solid ${this.styles.selectFocusBorder} !important; }`);
-		// content.push(`.monaco-workbench .select-box.border { outline: 1px solid ${this.styles.selectFocusBorder} !important; }`);
-		// content.push(`.monaco-workbench .select-box.border { border-color: ${this.styles.selectFocusBorder} !important; border-width: 1px; border-top: solid !important; border-bottom: none !important; border-left: solid !important; border-right: solid !important;}`);
-		// content.push(`.monaco-workbench .select-box.border { border-color: #800000 !important; border-width: 1px; border-style: solid solid none solid !important;}`);
-		// content.push(`.monaco-workbench .select-box.border { border-color: #800000 !important; border-width: 1px; }`);
-
-		// if (this.styles.selectOptionCheckedBackground !== null) {
+		// Style selected background
 		if (this.styles.selectOptionCheckedBackground) {
-			content.push(`.monaco-workbench .select-box-dropdown option:checked { box-shadow: 0 0 10px 100px ${this.styles.selectOptionCheckedBackground} inset !important;}`);
-
-			// content.push(`.monaco-workbench .select-box-dropdown option:checked { outline: 2px dotted #909800; outline-offset: -1px; }`);
-			// content.push(`.monaco-workbench .select-box-dropdown option:checked { box-shadow: 0 0 10px 100px ${this.styles.selectBackground} inset !important;}`);
-
-			// content.push(`.monaco-workbench .select-box-dropdown option:not:(checked) { box-shadow: 0 0 10px 100px ${this.styles.selectBackground} inset !important;}`);
-			console.debug('Background');
+			content.push(`.monaco-workbench .select-box-dropdown option.selected { box-shadow: 0 0 10px 100px ${this.styles.selectOptionCheckedBackground} inset !important;}`);
 			contentSingleOption.push(` background-color: ${this.styles.selectOptionCheckedBackground} !important; `);
 		}
 
 		if (this.styles.selectOptionCheckedOutline) {
-			// content.push(`.monaco-workbench .select-box-dropdown option:checked { box-shadow: 0 0 10px 100px ${this.styles.selectOptionCheckedBackground} inset !important;}`);
-			console.debug('CheckedOutline');
-			content.push(`.monaco-workbench .select-box-dropdown option:checked { outline: 2px dotted ${this.styles.selectOptionCheckedOutline}; outline-offset: -1px; }`);
-			content.push(`.monaco-workbench .select-box-dropdown option:checked { box-shadow: 0 0 10px 100px ${this.styles.selectBackground} inset !important;}`);
-
-			// content.push(`.monaco-workbench .select-box-dropdown option:not:(checked) { box-shadow: 0 0 10px 100px ${this.styles.selectBackground} inset !important;}`);
-			// contentSingleOption.push(`outline: 2px dotted ${this.styles.selectOptionCheckedOutline}; outline-offset: -1px; `);
-			// contentSingleOption.push(` background-color: ${this.styles.selectOptionCheckedBackground} !important; `);
+			content.push(`.monaco-workbench .select-box-dropdown option.selected { outline: 2px dotted ${this.styles.selectOptionCheckedOutline}; outline-offset: -1px; }`);
 		}
 
-		// if (this.styles.selectOptionHoverBackground !== null) {
-		// if (this.styles.selectOptionHoverBackground) {
+		if (this.styles.selectOptionHoverBackground) {
+			content.push(`.monaco-workbench .select-box-dropdown option.enabled:hover { box-shadow: 0 0 10px 100px ${this.styles.selectOptionHoverBackground} inset !important; }`);
+		}
 
-		// console.debug('Hover');
-		// content.push(`.monaco-workbench .select-box-dropdown option:hover { box-shadow: 0 0 10px 100px ${this.styles.selectOptionHoverBackground} inset !important; }`);
-		// content.push(`.monaco-workbench .select-box-dropdown option:not:(hover) { box-shadow: 0 0 10px 100px ${this.styles.selectBackground} inset !important;}`);
-		// content.push(`.monaco-workbench .select-box-dropdown option:hover:checked { box-shadow: 0 0 10px 100px ${this.styles.selectOptionHoverBackground} inset; }`);
-		// content.push(`.monaco-workbench .select-box-dropdown-single-option:hover { box-shadow: 0 0 10px 100px ${this.styles.selectOptionHoverBackground} inset !important; background-color: ${this.styles.selectOptionHoverBackground} !important;}`);
-		// }
+		if (this.styles.selectOptionHoverOutline) {
+			content.push(`.monaco-workbench .select-box-dropdown option.enabled:hover { outline: 2px dashed ${this.styles.selectOptionCheckedOutline}; outline-offset: -1px; }`);
+		}
 
 		contentSingleOption.push(` }`);
-		// contentSingleOption.push(`.monaco-workbench .select-box-dropdown-single-option option:hover { box-shadow: 0 0 10px 100px ${this.styles.selectOptionHoverBackground} inset !important; background-color: ${styles.selectOptionHoverBackground} !important;}`);
 
-		// contentSingleOption.push(`.monaco-workbench .select-box-dropdown-single-option option:checked { outline: 2px dotted ${this.styles.selectOptionCheckedOutline}; outline-offset: -1px; }`);
-		// contentSingleOption.push(`.monaco-workbench .select-box-dropdown-single-option select { outline: 2px dotted ${this.styles.selectOptionCheckedOutline}; outline-offset: -1px; }`);
 		content.push(contentSingleOption.join('\n'));
 		this.styleElement.innerHTML = content.join('\n');
 		this.applyStyles();
@@ -508,13 +430,10 @@ export class SelectBox extends Widget {
 
 			const background = this.styles.selectBackground ? this.styles.selectBackground.toString() : null;
 			const foreground = this.styles.selectForeground ? this.styles.selectForeground.toString() : null;
-			// const foreground = this.styles.selectForeground ? this.foreground.toString() : null;
-			// const foreground = this.styles.foreground ? this.styles.foreground.toString() : null;
 
 			const border = this.styles.selectBorder ? this.styles.selectBorder.toString() : null;
 			const border2 = this.styles.selectOptionsBorder ? this.styles.selectOptionsBorder.toString() : null;
-			// const border2 = '#800000';
-			console.debug(border2);
+
 			this.selectElement.style.backgroundColor = background;
 			this.selectElement.style.color = foreground;
 			this.selectElement.style.borderColor = border;
@@ -525,27 +444,18 @@ export class SelectBox extends Widget {
 			this.selectDropDownElement.style.outlineColor = border2;
 			this.selectDropDownElement.style.outlineStyle = 'solid';
 			this.selectDropDownElement.style.outlineWidth = '1px';
-
-			const options = this.selectDropDownElement.querySelectorAll('option');
-
-			for (var index = 0; index < options.length; index++) {
-				var option = options[index];
-				option.style.boxShadow = null;
-				option.style.outlineStyle = null;
-				option.style.outlineColor = null;
-				option.style.outlineOffset = null;
-			}
-
-
 		}
 	}
 
-	private createOption(value: string, disabled?: boolean): HTMLOptionElement {
+	private createOption(value: string, index: number, disabled?: boolean): HTMLOptionElement {
 		let option = document.createElement('option');
 		option.value = value;
 		option.text = value;
 		option.disabled = disabled;
-
+		option.setAttribute('optionIndex', index.toString());
+		if (!disabled) {
+			dom.toggleClass(option, 'enabled', true);
+		}
 		return option;
 	}
 

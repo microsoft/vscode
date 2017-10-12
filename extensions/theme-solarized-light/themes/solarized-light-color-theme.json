@@ -326,6 +326,8 @@
 		"dropdown.background": "#EEE8D5",
 		// "dropdown.foreground": "",
 		"dropdown.border": "#D3AF86",
+		"dropdown.optionCheckedBackground": "#DFCA8866",
+		"dropdown.optionHoverBackground": "#DFCA8844",
 
 		"button.background": "#AC9D57",
 		// "button.foreground": "",

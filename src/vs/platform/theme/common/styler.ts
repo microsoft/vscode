@@ -114,18 +114,11 @@ export function attachSelectBoxStyler(widget: IThemable, themeService: IThemeSer
 		selectBackground: (style && style.selectBackground) || selectBackground,
 		selectForeground: (style && style.selectForeground) || selectForeground,
 		selectBorder: (style && style.selectBorder) || selectBorder,
-
 		selectOptionsBorder: (style && style.selectOptionsBorder) || selectOptionsBorder,
-		// selectOptionCheckedBackground: (style && style.selectOptionCheckedBackground) || listActiveSelectionBackground,
-		// selectOptionHoverBackground: (style && style.selectOptionHoverBackground) || listHoverBackground,
-
-
 		selectOptionCheckedOutline: (style && style.selectOptionCheckedOutline) || activeContrastBorder,
 		selectOptionHoverOutline: (style && style.selectOptionHoverOutline) || activeContrastBorder,
-
 		selectOptionCheckedBackground: (style && style.selectOptionCheckedBackground) || selectOptionCheckedBackground,
 		selectOptionHoverBackground: (style && style.selectOptionHoverBackground) || selectOptionHoverBackground
-
 	} as ISelectBoxStyleOverrides, widget);
 }
 

@@ -8,6 +8,8 @@
 	"type": "dark",
 	"colors": {
 		"dropdown.background": "#414339",
+		"dropdown.optionCheckedBackground": "#414339",
+		"dropdown.optionHoverBackground": "#272822",
 		"list.activeSelectionBackground": "#75715E",
 		"list.focusBackground": "#414339",
 		"list.inactiveSelectionBackground": "#414339",
