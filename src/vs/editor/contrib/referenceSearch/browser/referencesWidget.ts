@@ -108,20 +108,15 @@ class DecorationsManager implements IDisposable {
 	}
 
 	private _onDecorationChanged(event: IModelDecorationsChangedEvent): void {
-		const changedDecorations = event.changedDecorations,
-			toRemove: string[] = [];
+		const toRemove: string[] = [];
 
-		for (let i = 0, len = changedDecorations.length; i < len; i++) {
-			let reference = this._decorations.get(changedDecorations[i]);
-			if (!reference) {
-				continue;
-			}
+		this._decorations.forEach((reference, decorationId) => {
+			const newRange = this._editor.getModel().getDecorationRange(decorationId);
 
-			const newRange = this._editor.getModel().getDecorationRange(changedDecorations[i]);
 			let ignore = false;
 
 			if (Range.equalsRange(newRange, reference.range)) {
-				continue;
+				return;
 
 			} else if (Range.spansMultipleLines(newRange)) {
 				ignore = true;
@@ -137,11 +132,11 @@ class DecorationsManager implements IDisposable {
 
 			if (ignore) {
 				this._decorationIgnoreSet.add(reference.id);
-				toRemove.push(changedDecorations[i]);
+				toRemove.push(decorationId);
 			} else {
 				reference.range = newRange;
 			}
-		}
+		});
 
 		this._editor.changeDecorations((accessor) => {
 			for (let i = 0, len = toRemove.length; i < len; i++) {
