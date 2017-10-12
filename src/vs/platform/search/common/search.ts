@@ -44,6 +44,12 @@ export interface ICommonQueryOptions {
 	filePattern?: string; // file search only
 	fileEncoding?: string;
 	maxResults?: number;
+	/**
+	 * If true no results will be returned. Instead `limitHit` will indicate if at least one result exists or not.
+	 *
+	 * Currently does not work with queries including a 'siblings clause'.
+	 */
+	exists?: boolean;
 	sortByScore?: boolean;
 	cacheKey?: string;
 	useRipgrep?: boolean;
