@@ -1164,7 +1164,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			const input = editor.input;
 
 			// Resolve editor options
-			const preserveFocus = (activePosition !== position);
+			const preserveFocus = (activePosition !== position && ratio && ratio.length > 0); // during restore, preserve focus to reduce flicker
 			let options: EditorOptions;
 			if (editor.options) {
 				options = editor.options;
