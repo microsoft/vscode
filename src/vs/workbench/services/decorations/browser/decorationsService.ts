@@ -12,6 +12,10 @@ import { TernarySearchTree } from 'vs/base/common/map';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isThenable } from 'vs/base/common/async';
 import { LinkedList } from 'vs/base/common/linkedList';
+import { createStyleSheet, createCSSRule } from 'vs/base/browser/dom';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IdGenerator } from 'vs/base/common/idGenerator';
+import { listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
 
 class FileDecorationChangeEvent implements IResourceDecorationChangeEvent {
 
@@ -120,6 +124,49 @@ class DecorationProviderWrapper {
 	}
 }
 
+class DecorationColors {
+
+	private readonly _styleElement = createStyleSheet();
+	private readonly _themeListener: IDisposable;
+	private readonly _classNames = new IdGenerator('decoration-');
+	private readonly _classNames2ColorIds = new Map<string, string>();
+
+	constructor(
+		@IThemeService private _themeService: IThemeService,
+	) {
+		this._themeListener = this._themeService.onThemeChange(this._onThemeChange, this);
+	}
+
+	dispose(): void {
+		this._themeListener.dispose();
+		this._styleElement.innerHTML = '';
+	}
+
+	ensureCssStyles(decoration: IResourceDecoration): void {
+		if (!decoration || !decoration.color) {
+			return;
+		}
+		let className = this._classNames2ColorIds.get(decoration.color);
+		if (!className) {
+			className = this._classNames.nextId();
+			this._classNames2ColorIds.set(decoration.color, className);
+
+			createCSSRule(`.${className}`, `color: ${this._themeService.getTheme().getColor(decoration.color)}`, this._styleElement);
+			createCSSRule(`.selected .${className}`, `color: ${this._themeService.getTheme().getColor(listActiveSelectionForeground)}`, this._styleElement);
+		}
+
+		decoration.labelClasses = className;
+	}
+
+	private _onThemeChange(): void {
+		this._styleElement.innerHTML = '';
+		this._classNames2ColorIds.forEach((className, color) => {
+			createCSSRule(`.${className}`, `color: ${this._themeService.getTheme().getColor(color)}`, this._styleElement);
+			createCSSRule(`.selected .${className}`, `color: ${this._themeService.getTheme().getColor(listActiveSelectionForeground)}`, this._styleElement);
+		});
+	}
+}
+
 export class FileDecorationsService implements IResourceDecorationsService {
 
 	_serviceBrand: any;
@@ -127,6 +174,7 @@ export class FileDecorationsService implements IResourceDecorationsService {
 	private readonly _data = new LinkedList<DecorationProviderWrapper>();
 	private readonly _onDidChangeDecorationsDelayed = new Emitter<URI | URI[]>();
 	private readonly _onDidChangeDecorations = new Emitter<IResourceDecorationChangeEvent>();
+	private readonly _decorationStyles: DecorationColors;
 
 	readonly onDidChangeDecorations: Event<IResourceDecorationChangeEvent> = any(
 		this._onDidChangeDecorations.event,
@@ -135,6 +183,14 @@ export class FileDecorationsService implements IResourceDecorationsService {
 			FileDecorationChangeEvent.debouncer
 		)
 	);
+
+	constructor( @IThemeService themeService: IThemeService) {
+		this._decorationStyles = new DecorationColors(themeService);
+	}
+
+	dispose(): void {
+		this._decorationStyles.dispose();
+	}
 
 	registerDecortionsProvider(provider: IDecorationsProvider): IDisposable {
 
@@ -165,6 +221,7 @@ export class FileDecorationsService implements IResourceDecorationsService {
 				}
 			});
 		}
+		this._decorationStyles.ensureCssStyles(top);
 		return top;
 	}
 

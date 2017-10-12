@@ -20,6 +20,8 @@ export interface IResourceDecoration {
 	readonly tooltip?: string;
 	readonly icon?: { light: URI, dark: URI };
 	readonly leafOnly?: boolean;
+
+	labelClasses?: string;
 }
 
 export interface IDecorationsProvider {
