@@ -253,13 +253,15 @@ export class ExtensionsListView extends ViewsViewletPanel {
 			});
 
 			if (names.length) {
-				const namesOptions = assign({}, options, { names });
+				const namesOptions = assign({}, options, { names, source: 'extRegex' });
 				pagerPromises.push(this.extensionsWorkbenchService.queryGallery(namesOptions));
 			}
 		}
 
 		if (text) {
 			options = assign(options, { text: text.substr(0, 350) });
+		} else {
+			options.source = 'viewlet';
 		}
 
 		pagerPromises.push(this.extensionsWorkbenchService.queryGallery(options));
