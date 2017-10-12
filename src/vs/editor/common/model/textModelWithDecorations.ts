@@ -26,30 +26,27 @@ export const ClassName = {
 
 class DecorationsTracker {
 
-	public addedDecorations: string[];
-	public addedDecorationsLen: number;
+	public didAddDecorations: boolean;
+	public didRemoveDecorations: boolean;
+
 	public changedDecorations: string[];
 	public changedDecorationsLen: number;
-	public removedDecorations: string[];
-	public removedDecorationsLen: number;
 
 	constructor() {
-		this.addedDecorations = [];
-		this.addedDecorationsLen = 0;
+		this.didAddDecorations = false;
+		this.didRemoveDecorations = false;
 		this.changedDecorations = [];
 		this.changedDecorationsLen = 0;
-		this.removedDecorations = [];
-		this.removedDecorationsLen = 0;
 	}
 
 	// --- Build decoration events
 
-	public addNewDecoration(id: string): void {
-		this.addedDecorations[this.addedDecorationsLen++] = id;
+	public markDidAddDecorations(): void {
+		this.didAddDecorations = true;
 	}
 
-	public addRemovedDecoration(id: string): void {
-		this.removedDecorations[this.removedDecorationsLen++] = id;
+	public markDidRemoveDecorations(): void {
+		this.didRemoveDecorations = true;
 	}
 
 	public addMovedDecoration(id: string): void {
@@ -494,9 +491,7 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 
 		if (uniqueChangedDecorations.length > 0) {
 			let e: textModelEvents.IModelDecorationsChangedEvent = {
-				addedDecorations: [],
-				changedDecorations: uniqueChangedDecorations,
-				removedDecorations: []
+				changedDecorations: uniqueChangedDecorations
 			};
 			this.emitModelDecorationsChangedEvent(e);
 		}
@@ -532,17 +527,15 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 
 	private _handleTrackedDecorations(decorationsTracker: DecorationsTracker): void {
 		if (
-			decorationsTracker.addedDecorationsLen === 0
+			!decorationsTracker.didAddDecorations
 			&& decorationsTracker.changedDecorationsLen === 0
-			&& decorationsTracker.removedDecorationsLen === 0
+			&& !decorationsTracker.didRemoveDecorations
 		) {
 			return;
 		}
 
 		let e: textModelEvents.IModelDecorationsChangedEvent = {
-			addedDecorations: decorationsTracker.addedDecorations,
-			changedDecorations: decorationsTracker.changedDecorations,
-			removedDecorations: decorationsTracker.removedDecorations
+			changedDecorations: decorationsTracker.changedDecorations
 		};
 		this.emitModelDecorationsChangedEvent(e);
 	}
@@ -592,7 +585,7 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 			this._multiLineDecorationsMap[decorationId] = decoration;
 		}
 
-		decorationsTracker.addNewDecoration(decorationId);
+		decorationsTracker.markDidAddDecorations();
 
 		return decorationId;
 	}
@@ -643,7 +636,7 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 				this._multiLineDecorationsMap[decorationId] = decoration;
 			}
 
-			decorationsTracker.addNewDecoration(decorationId);
+			decorationsTracker.markDidAddDecorations();
 		}
 
 		return decorationIds;
@@ -705,7 +698,7 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		delete this._internalDecorations[decoration.internalId];
 
 		if (decorationsTracker) {
-			decorationsTracker.addRemovedDecoration(decorationId);
+			decorationsTracker.markDidRemoveDecorations();
 		}
 	}
 
@@ -720,7 +713,7 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 			}
 
 			if (decorationsTracker) {
-				decorationsTracker.addRemovedDecoration(decorationId);
+				decorationsTracker.markDidRemoveDecorations();
 			}
 
 			removeMarkers[removeMarkersLen++] = decoration.startMarker;

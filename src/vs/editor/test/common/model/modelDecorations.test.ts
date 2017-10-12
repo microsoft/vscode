@@ -207,9 +207,7 @@ suite('Editor Model - Model Decorations', () => {
 		let listenerCalled = 0;
 		thisModel.onDidChangeDecorations((e) => {
 			listenerCalled++;
-			assert.equal(e.addedDecorations.length, 1);
 			assert.equal(e.changedDecorations.length, 0);
-			assert.equal(e.removedDecorations.length, 0);
 		});
 		addDecoration(thisModel, 1, 2, 3, 2, 'myType');
 		assert.equal(listenerCalled, 1, 'listener called');
@@ -220,10 +218,8 @@ suite('Editor Model - Model Decorations', () => {
 		let decId = addDecoration(thisModel, 1, 2, 3, 2, 'myType');
 		thisModel.onDidChangeDecorations((e) => {
 			listenerCalled++;
-			assert.equal(e.addedDecorations.length, 0);
 			assert.equal(e.changedDecorations.length, 1);
 			assert.equal(e.changedDecorations[0], decId);
-			assert.equal(e.removedDecorations.length, 0);
 		});
 		thisModel.changeDecorations((changeAccessor) => {
 			changeAccessor.changeDecoration(decId, new Range(1, 1, 1, 2));
@@ -236,10 +232,7 @@ suite('Editor Model - Model Decorations', () => {
 		let decId = addDecoration(thisModel, 1, 2, 3, 2, 'myType');
 		thisModel.onDidChangeDecorations((e) => {
 			listenerCalled++;
-			assert.equal(e.addedDecorations.length, 0);
 			assert.equal(e.changedDecorations.length, 0);
-			assert.equal(e.removedDecorations.length, 1);
-			assert.equal(e.removedDecorations[0], decId);
 		});
 		thisModel.changeDecorations((changeAccessor) => {
 			changeAccessor.removeDecoration(decId);
@@ -253,10 +246,8 @@ suite('Editor Model - Model Decorations', () => {
 
 		thisModel.onDidChangeDecorations((e) => {
 			listenerCalled++;
-			assert.equal(e.addedDecorations.length, 0);
 			assert.equal(e.changedDecorations.length, 1);
 			assert.equal(e.changedDecorations[0], decId);
-			assert.equal(e.removedDecorations.length, 0);
 		});
 
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 1), 'Hallo ')]);
