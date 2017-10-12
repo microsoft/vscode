@@ -45,6 +45,7 @@
 	"command.stashPopLatest": "Pop Latest Stash",
 	"config.enabled": "Whether git is enabled",
 	"config.path": "Path to the git executable",
+	"config.autoRepositoryDetection": "Whether a repository should be automatically detected for a single file",
 	"config.autorefresh": "Whether auto refreshing is enabled",
 	"config.autofetch": "Whether auto fetching is enabled",
 	"config.enableLongCommitWarning": "Whether long commit messages should be warned about",
