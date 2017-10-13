@@ -63,6 +63,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			storageId: ActivitybarPart.PINNED_VIEWLETS,
 			orientation: ActionsOrientation.VERTICAL,
 			composites: this.viewletService.getViewlets(),
+			getCompositeSize: (compositeId: string) => ActivitybarPart.ACTIVITY_ACTION_HEIGHT,
 			getActivityAction: (compositeId: string) => this.instantiationService.createInstance(ViewletActivityAction, this.viewletService.getViewlet(compositeId)),
 			getCompositePinnedAction: (compositeId: string) => this.instantiationService.createInstance(ToggleViewletPinnedAction, this.viewletService.getViewlet(compositeId)),
 			getOpenCompositeAction: (compositeId: string) => this.instantiationService.createInstance(OpenViewletAction, this.viewletService.getViewlet(compositeId))
