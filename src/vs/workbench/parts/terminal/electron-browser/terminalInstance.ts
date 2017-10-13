@@ -913,24 +913,31 @@ export class TerminalInstance implements ITerminalInstance {
 		if (!terminalWidth) {
 			return;
 		}
+
 		if (this._xterm) {
 			const font = this._configHelper.getFont();
-			if (this._xterm.getOption('lineHeight') !== font.lineHeight) {
-				this._xterm.setOption('lineHeight', font.lineHeight);
-			}
-			if (this._xterm.getOption('fontSize') !== font.fontSize) {
-				this._xterm.setOption('fontSize', font.fontSize);
-			}
-			if (this._xterm.getOption('fontFamily') !== font.fontFamily) {
-				this._xterm.setOption('fontFamily', font.fontFamily);
-			}
-			if (this._xterm.getOption('enableBold') !== this._configHelper.config.enableBold) {
-				this._xterm.setOption('enableBold', this._configHelper.config.enableBold);
+
+			// Only apply these settings when the terminal is visible so that
+			// the characters are measured correctly.
+			if (this._isVisible) {
+				if (this._xterm.getOption('lineHeight') !== font.lineHeight) {
+					this._xterm.setOption('lineHeight', font.lineHeight);
+				}
+				if (this._xterm.getOption('fontSize') !== font.fontSize) {
+					this._xterm.setOption('fontSize', font.fontSize);
+				}
+				if (this._xterm.getOption('fontFamily') !== font.fontFamily) {
+					this._xterm.setOption('fontFamily', font.fontFamily);
+				}
+				if (this._xterm.getOption('enableBold') !== this._configHelper.config.enableBold) {
+					this._xterm.setOption('enableBold', this._configHelper.config.enableBold);
+				}
 			}
 
 			this._xterm.resize(this._cols, this._rows);
 			this._xterm.element.style.width = terminalWidth + 'px';
 		}
+
 		this._processReady.then(() => {
 			if (this._process && this._process.connected) {
 				// The child process could aready be terminated
