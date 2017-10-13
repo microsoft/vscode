@@ -302,8 +302,6 @@ export class TerminalPanel extends Panel {
 		this._font = this._terminalService.configHelper.getFont();
 		// TODO: Can we support ligatures?
 		// dom.toggleClass(this._parentDomElement, 'enable-ligatures', this._terminalService.configHelper.config.fontLigatures);
-		// TODO: How to handle Disable bold?
-		// dom.toggleClass(this._parentDomElement, 'disable-bold', !this._terminalService.configHelper.config.enableBold);
 		this.layout(new Dimension(this._parentDomElement.offsetWidth, this._parentDomElement.offsetHeight));
 	}
 
