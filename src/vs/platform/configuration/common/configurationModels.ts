@@ -60,17 +60,33 @@ export class ConfigurationModel implements IConfiguraionModel {
 	}
 
 	public override<V>(identifier: string): ConfigurationModel {
-		const result = new ConfigurationModel();
-		const contents = objects.clone<any>(this.contents);
-		if (this._overrides) {
-			for (const override of this._overrides) {
-				if (override.identifiers.indexOf(identifier) !== -1) {
-					merge(contents, override.contents, true);
+		const overrideContents = this.getContentsForOverrideIdentifer(identifier);
+
+		if (!overrideContents) {
+			// If there are no overrides, use base contents
+			return new ConfigurationModel(this._contents);
+		}
+
+		let contents = {};
+		for (const key of Object.keys(this._contents)) {
+
+			let contentsForKey = this._contents[key];
+			let overrideContentsForKey = overrideContents[key];
+
+			// If there are override contents for the key clone and merge otherwise use base contents
+			if (overrideContentsForKey) {
+				// Clone and merge only if base contents is of type object otherwise just override
+				if (typeof contentsForKey === 'object') {
+					contentsForKey = objects.clone(contents[key]);
+					merge(contentsForKey, overrideContentsForKey, true);
+				} else {
+					contentsForKey = overrideContentsForKey;
 				}
 			}
+
+			contents[key] = contentsForKey;
 		}
-		result._contents = contents;
-		return result;
+		return new ConfigurationModel(contents);
 	}
 
 	public merge(other: ConfigurationModel, overwrite: boolean = true): ConfigurationModel {
@@ -92,6 +108,15 @@ export class ConfigurationModel implements IConfiguraionModel {
 			}
 		}
 		source._overrides = overrides;
+	}
+
+	private getContentsForOverrideIdentifer(identifier: string): any {
+		for (const override of this._overrides) {
+			if (override.identifiers.indexOf(identifier) !== -1) {
+				return override.contents;
+			}
+		}
+		return null;
 	}
 }
 
