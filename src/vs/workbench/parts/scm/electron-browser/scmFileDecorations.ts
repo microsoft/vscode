@@ -62,7 +62,7 @@ class SCMDecorationsProvider implements IDecorationsProvider {
 
 	provideDecorations(uri: URI): IResourceDecorationData {
 		const resource = this._data.get(uri.toString());
-		if (!resource || !resource.decorations.color) {
+		if (!resource || !resource.decorations.color || !resource.decorations.tooltip) {
 			return undefined;
 		}
 		return {
