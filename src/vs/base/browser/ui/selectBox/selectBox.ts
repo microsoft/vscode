@@ -16,7 +16,6 @@ import { Color } from 'vs/base/common/color';
 import { clone, mixin } from 'vs/base/common/objects';
 import { IDomNodePagePosition } from '../../dom';
 
-
 export interface ISelectBoxStyles {
 	selectBackground?: Color;
 	selectForeground?: Color;
@@ -26,7 +25,6 @@ export interface ISelectBoxStyles {
 	selectOptionHoverBackground?: Color;
 	selectOptionCheckedOutline?: Color;
 	selectOptionHoverOutline?: Color;
-
 }
 
 export const defaultStyles = {
@@ -58,7 +56,6 @@ export class SelectBox extends Widget {
 	private selectDropDownElement: HTMLSelectElement;
 	private styleElement: HTMLStyleElement;
 	private selectElementPosition: IDomNodePagePosition;
-	// private selectDropDownMouseSelect: boolean;
 
 	constructor(options: string[], selected: number, styles: ISelectBoxStyles = clone(defaultStyles)) {
 		super();
@@ -84,7 +81,6 @@ export class SelectBox extends Widget {
 
 		this.toDispose.push(dom.addStandardDisposableListener(this.selectElement, 'change', (e) => {
 			this.selectElement.title = e.target.value;
-			console.debug(this.selectElement.title);
 			this._onDidSelect.fire({
 				index: e.target.selectedIndex,
 				selected: e.target.value
@@ -109,7 +105,6 @@ export class SelectBox extends Widget {
 			event.preventDefault();
 			event.stopPropagation();
 		}));
-
 
 		this.toDispose.push(dom.addDisposableListener(this.selectDropDownElement, dom.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			if (e.button === 0) {
@@ -181,32 +176,11 @@ export class SelectBox extends Widget {
 			this.closeDropDown();
 		}));
 
-		// this.toDispose.push(dom.addStandardDisposableListener(this.selectDropDownElement, 'change', (e) => {
-		// 	this.selectElement.title = e.target.value;
-		// 	this.selectDropDownElement.title = e.target.value;
-		// 	this.selectElement.selectedIndex = this.selectDropDownElement.selectedIndex;
-
-		// 	console.debug('SelectDropDownChange');
-
-		// if (this.selectDropDownMouseSelect) {
-		// 	this.selectDropDownMouseSelect = false;
-		// 	this.closeDropDown();
-
-		// 	this._onDidSelect.fire({
-		// 		index: this.selectElement.selectedIndex,
-		// 		selected: this.selectElement.title
-		// 	});
-
-		// 	// this._onDidSelect.fire(this.selectElement.title);
-		// }
-		// }));
-
 		this.toDispose.push(dom.addDisposableListener(this.selectDropDownElement, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			event.preventDefault();
 			event.stopPropagation();
 		}));
-
 
 		this.toDispose.push(dom.addDisposableListener(this.selectDropDownElement, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
@@ -259,7 +233,6 @@ export class SelectBox extends Widget {
 
 	}
 
-
 	private closeDropDown() {
 		// clone drop-down to parent and hide
 
@@ -301,10 +274,15 @@ export class SelectBox extends Widget {
 
 		// Hide selected option - we self manage to style
 		this.selectDropDownElement.selectedIndex = this.options.length + 1;
-		const selectSize = (this.options.length * 1.43).toString() + 'em';
 
-		this.selectDropDownElement.setAttribute('size', (this.options.length + 1).toString());
-		this.selectDropDownElement.style.height = selectSize;
+		this.selectDropDownElement.setAttribute('size', (this.options.length).toString());
+
+		if (this.options.length === 1) {
+			this.selectDropDownElement.style.height = '1.6em';
+			this.selectDropDownElement.setAttribute('size', (this.options.length + 1).toString());
+		} else {
+			this.selectDropDownElement.style.height = null;
+		}
 
 		// Use class control for pseudo- selection
 		const options = this.selectDropDownElement.querySelectorAll('option');
@@ -373,13 +351,8 @@ export class SelectBox extends Widget {
 
 	public style(styles: ISelectBoxStyles): void {
 		const content: string[] = [];
-		// const contentSingleOption: string[] = [];
 
 		this.styles = styles;
-
-		// Single option select styling
-		// contentSingleOption.push(`.monaco-workbench .select-box-dropdown-single-option { -webkit-appearance: none; height: 1.5em !important; `);
-		// contentSingleOption.push(` padding-left: 5px !important; `);
 
 		// Style selected background
 		if (this.styles.selectOptionCheckedBackground) {
@@ -398,8 +371,6 @@ export class SelectBox extends Widget {
 			content.push(`.monaco-workbench .select-box-dropdown option.enabled:hover { outline: 2px dashed ${this.styles.selectOptionCheckedOutline}; outline-offset: -1px; }`);
 		}
 
-		// contentSingleOption.push(` }`);
-		// content.push(contentSingleOption.join('\n'));
 		this.styleElement.innerHTML = content.join('\n');
 		this.applyStyles();
 	}
