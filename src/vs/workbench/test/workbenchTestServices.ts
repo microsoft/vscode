@@ -15,7 +15,7 @@ import URI from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
-import { IEditorGroup, ConfirmResult } from 'vs/workbench/common/editor';
+import { IEditorGroup, ConfirmResult, IEditorOpeningEvent } from 'vs/workbench/common/editor';
 import Event, { Emitter } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -453,6 +453,7 @@ export class TestEditorGroupService implements IEditorGroupService {
 	private stacksModel: EditorStacksModel;
 
 	private _onEditorsChanged: Emitter<void>;
+	private _onEditorOpening: Emitter<IEditorOpeningEvent>;
 	private _onEditorOpenFail: Emitter<IEditorInput>;
 	private _onEditorsMoved: Emitter<void>;
 	private _onGroupOrientationChanged: Emitter<void>;
@@ -461,6 +462,7 @@ export class TestEditorGroupService implements IEditorGroupService {
 	constructor(callback?: (method: string) => void) {
 		this._onEditorsMoved = new Emitter<void>();
 		this._onEditorsChanged = new Emitter<void>();
+		this._onEditorOpening = new Emitter<IEditorOpeningEvent>();
 		this._onGroupOrientationChanged = new Emitter<void>();
 		this._onEditorOpenFail = new Emitter<IEditorInput>();
 		this._onTabOptionsChanged = new Emitter<IEditorTabOptions>();
@@ -485,6 +487,10 @@ export class TestEditorGroupService implements IEditorGroupService {
 
 	public get onEditorsChanged(): Event<void> {
 		return this._onEditorsChanged.event;
+	}
+
+	public get onEditorOpening(): Event<IEditorOpeningEvent> {
+		return this._onEditorOpening.event;
 	}
 
 	public get onEditorOpenFail(): Event<IEditorInput> {
