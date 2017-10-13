@@ -10,7 +10,6 @@ import { IResourceDecorationsService, IDecorationsProvider, IResourceDecorationD
 import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource } from 'vs/workbench/services/scm/common/scm';
 import URI from 'vs/base/common/uri';
-import Severity from 'vs/base/common/severity';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
@@ -67,7 +66,7 @@ class SCMDecorationsProvider implements IDecorationsProvider {
 			return undefined;
 		}
 		return {
-			severity: Severity.Info,
+			weight: 10,
 			tooltip: localize('tooltip', "{0}, {1}", resource.decorations.tooltip, this._provider.label),
 			color: resource.decorations.color,
 			letter: resource.decorations.tooltip.charAt(0)

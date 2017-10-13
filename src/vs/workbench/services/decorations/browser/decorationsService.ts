@@ -5,7 +5,6 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import Severity from 'vs/base/common/severity';
 import Event, { Emitter, debounceEvent, any } from 'vs/base/common/event';
 import { IResourceDecorationsService, IResourceDecoration, IResourceDecorationChangeEvent, IDecorationsProvider, IResourceDecorationData } from './decorations';
 import { TernarySearchTree } from 'vs/base/common/map';
@@ -57,14 +56,14 @@ class ResourceDecoration implements IResourceDecoration {
 	_decoBrand: undefined;
 	_key: string;
 
-	severity: Severity;
+	weight?: number;
 	tooltip?: string;
 	labelClassName?: string;
 	badgeClassName?: string;
 
 	constructor(key: string, data: IResourceDecorationData) {
 		this._key = key;
-		this.severity = data.severity;
+		this.weight = data.weight;
 		this.tooltip = data.tooltip;
 	}
 }
@@ -317,7 +316,7 @@ export class FileDecorationsService implements IResourceDecorationsService {
 					// only bubble up color
 					top = {
 						_decoBrand: undefined,
-						severity: top.severity,
+						weight: top.weight,
 						labelClassName: top.labelClassName
 					};
 				}
@@ -331,7 +330,7 @@ export class FileDecorationsService implements IResourceDecorationsService {
 			return b;
 		} else if (!b) {
 			return a;
-		} else if (Severity.compare(a.severity, b.severity) < 0) {
+		} else if (a.weight > b.weight) {
 			return a;
 		} else {
 			return b;
