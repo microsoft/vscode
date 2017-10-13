@@ -152,12 +152,11 @@ export class IconLabel {
 		if (options && options.badge) {
 			if (!this.badgeNode) {
 				this.badgeNode = document.createElement('span');
-				this.badgeNode.className = 'label-badge';
 				this.element.style.display = 'flex';
 				this.element.appendChild(this.badgeNode);
 			}
 			this.badgeNode.title = options.badge.title;
-			dom.addClass(this.badgeNode, options.badge.className);
+			this.badgeNode.className = `label-badge ${options.badge.className}`;
 			dom.show(this.badgeNode);
 
 		} else if (this.badgeNode) {
