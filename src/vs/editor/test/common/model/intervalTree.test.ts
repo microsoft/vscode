@@ -83,7 +83,7 @@ suite('IntervalTree', () => {
 				this._treeNodes[op.id] = null;
 				this._oracleNodes[op.id] = null;
 			} else {
-				let actualNodes = this._tree.intervalSearch(new Interval(op.begin, op.end), 0, false, 0);
+				let actualNodes = this._tree.intervalSearch(op.begin, op.end, 0, false, 0);
 				let actual = actualNodes.map(n => new Interval(n.cachedAbsoluteStart, n.cachedAbsoluteEnd));
 				let expected = this._oracle.search(new Interval(op.begin, op.end));
 				assert.deepEqual(actual, expected);
@@ -426,7 +426,7 @@ suite('IntervalTree', () => {
 		const T = createCormenTree();
 
 		function assertIntervalSearch(start: number, end: number, expected: [number, number][]): void {
-			let actualNodes = T.intervalSearch(new Interval(start, end), 0, false, 0);
+			let actualNodes = T.intervalSearch(start, end, 0, false, 0);
 			let actual = actualNodes.map((n) => <[number, number]>[n.cachedAbsoluteStart, n.cachedAbsoluteEnd]);
 			assert.deepEqual(actual, expected);
 		}

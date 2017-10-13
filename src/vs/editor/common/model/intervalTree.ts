@@ -120,12 +120,12 @@ export class IntervalTree {
 		this.root = SENTINEL;
 	}
 
-	public intervalSearch(interval: Interval, filterOwnerId: number, filterOutValidation: boolean, cachedVersionId: number): IntervalNode[] {
+	public intervalSearch(start: number, end: number, filterOwnerId: number, filterOutValidation: boolean, cachedVersionId: number): IntervalNode[] {
 		if (this.root === SENTINEL) {
 			return [];
 		}
 		let result: IntervalNode[] = [];
-		intervalSearchRecursive(this.root, 0, interval.start, interval.end, filterOwnerId, filterOutValidation, cachedVersionId, result);
+		intervalSearchRecursive(this.root, 0, start, end, filterOwnerId, filterOutValidation, cachedVersionId, result);
 		return result;
 	}
 
