@@ -114,6 +114,8 @@ export class Editor {
 			await new Promise(c => setTimeout(c, 50));
 		}
 
+		// this.spectron.client.spectron.client.keys([text, 'NULL']);
+
 		await this.waitForEditorContents(filename, c => c.indexOf(text) > -1, selectorPrefix);
 	}
 
