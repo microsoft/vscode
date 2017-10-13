@@ -22,6 +22,7 @@ import { IEditorGroupService, GroupArrangement } from 'vs/workbench/services/gro
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 
 export class SplitEditorAction extends Action {
 
@@ -638,6 +639,24 @@ export class CloseRightEditorsInGroupAction extends Action {
 		}
 
 		return TPromise.as(false);
+	}
+}
+
+export class CloseAllDiffEditorsInGroupAction extends Action {
+	public static ID = 'workbench.action.closeAllDiffEditors';
+	public static LABEL = nls.localize('closeAllDiffEditors', "Close All Diff Editors");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private groupService: IEditorGroupService
+	) {
+		super(id, label);
+	}
+
+	public run(context?: IEditorContext): TPromise<any> {
+		return this.editorService.closeEditors(0, { ofType: DiffEditorInput.ID });
 	}
 }
 

@@ -30,7 +30,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { EditorStacksModel, EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
 import { SaveFileAction, RevertFileAction, SaveFileAsAction, OpenToSideAction, SelectResourceForCompareAction, CompareResourcesAction, SaveAllInGroupAction, CompareWithSavedAction } from 'vs/workbench/parts/files/browser/fileActions';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { CloseOtherEditorsInGroupAction, CloseEditorAction, CloseEditorsInGroupAction, CloseUnmodifiedEditorsInGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
+import { CloseOtherEditorsInGroupAction, CloseEditorAction, CloseEditorsInGroupAction, CloseUnmodifiedEditorsInGroupAction, CloseAllDiffEditorsInGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
 
 const $ = dom.$;
 
@@ -339,6 +339,7 @@ export class ActionProvider extends ContributableActionProvider {
 		return [
 			saveAllAction,
 			this.instantiationService.createInstance(CloseUnmodifiedEditorsInGroupAction, CloseUnmodifiedEditorsInGroupAction.ID, CloseUnmodifiedEditorsInGroupAction.LABEL),
+			this.instantiationService.createInstance(CloseAllDiffEditorsInGroupAction, CloseAllDiffEditorsInGroupAction.ID, CloseAllDiffEditorsInGroupAction.LABEL),
 			this.instantiationService.createInstance(CloseEditorsInGroupAction, CloseEditorsInGroupAction.ID, CloseEditorsInGroupAction.LABEL)
 		];
 	}
@@ -358,6 +359,7 @@ export class ActionProvider extends ContributableActionProvider {
 				}
 
 				result.push(this.instantiationService.createInstance(CloseUnmodifiedEditorsInGroupAction, CloseUnmodifiedEditorsInGroupAction.ID, nls.localize('closeAllUnmodified', "Close Unmodified")));
+				result.push(this.instantiationService.createInstance(CloseAllDiffEditorsInGroupAction, CloseAllDiffEditorsInGroupAction.ID, nls.localize('closeAllDiffEditors', "Close All Diff Editors")));
 				result.push(this.instantiationService.createInstance(CloseEditorsInGroupAction, CloseEditorsInGroupAction.ID, nls.localize('closeAll', "Close All")));
 			} else {
 				const openEditor = <OpenEditor>element;
@@ -423,6 +425,7 @@ export class ActionProvider extends ContributableActionProvider {
 				closeOtherEditorsInGroupAction.enabled = openEditor.editorGroup.count > 1;
 				result.push(closeOtherEditorsInGroupAction);
 				result.push(this.instantiationService.createInstance(CloseUnmodifiedEditorsInGroupAction, CloseUnmodifiedEditorsInGroupAction.ID, nls.localize('closeAllUnmodified', "Close Unmodified")));
+				result.push(this.instantiationService.createInstance(CloseAllDiffEditorsInGroupAction, CloseAllDiffEditorsInGroupAction.ID, nls.localize('closeAllDiffEditors', "Close All Diff Editors")));
 				result.push(this.instantiationService.createInstance(CloseEditorsInGroupAction, CloseEditorsInGroupAction.ID, nls.localize('closeAll', "Close All")));
 			}
 
