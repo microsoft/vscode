@@ -393,6 +393,12 @@
           ],
           "description": "%typescript.tsc.autoDetect%",
           "scope": "resource"
+        },
+        "typescript.quickSuggestionsForPaths": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.quickSuggestionsForPaths%",
+          "scope": "resource"
         }
       }
     },

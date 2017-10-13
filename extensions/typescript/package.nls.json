@@ -41,5 +41,6 @@
 	"javascript.nameSuggestions": "Enable/disable including unique names from the file in JavaScript suggestion lists.",
 	"typescript.tsc.autoDetect": "Controls auto detection of tsc tasks. 'off' disables this feature. 'build' only creates single run compile tasks. 'watch' only creates compile and watch tasks. 'on' creates both build and watch tasks. Default is 'on'.",
 	"typescript.problemMatchers.tsc.label": "TypeScript problems",
-	"typescript.problemMatchers.tscWatch.label": "TypeScript problems (watch mode)"
+	"typescript.problemMatchers.tscWatch.label": "TypeScript problems (watch mode)",
+	"typescript.quickSuggestionsForPaths": "Enable/disable quick suggestions when typing out an import path."
 }
