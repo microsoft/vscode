@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { IntervalTree, Interval, IntervalNode } from 'vs/editor/common/model/intervalTree';
+import { IntervalTree, IntervalNode } from 'vs/editor/common/model/intervalTree';
 
 const GENERATE_TESTS = false;
 let TEST_COUNT = GENERATE_TESTS ? 10000 : 0;
@@ -16,6 +16,18 @@ const MIN_INSERTS = 1;
 const MAX_INSERTS = 30;
 
 suite('IntervalTree', () => {
+
+	class Interval {
+		_intervalBrand: void;
+
+		public start: number;
+		public end: number;
+
+		constructor(start: number, end: number) {
+			this.start = start;
+			this.end = end;
+		}
+	}
 
 	class Oracle {
 		public intervals: Interval[];
@@ -96,7 +108,7 @@ suite('IntervalTree', () => {
 
 			this._tree.assertInvariants();
 
-			let actual = this._tree.getAllInOrder();
+			let actual = this._tree.getAllInOrder().map(n => new Interval(n.cachedAbsoluteStart, n.cachedAbsoluteEnd));
 			let expected = this._oracle.intervals;
 			assert.deepEqual(actual, expected);
 		}

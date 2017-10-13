@@ -19,18 +19,6 @@ export const ClassName = {
 	EditorErrorDecoration: 'errorsquiggly'
 };
 
-export class Interval {
-	_intervalBrand: void;
-
-	public start: number;
-	public end: number;
-
-	constructor(start: number, end: number) {
-		this.start = start;
-		this.end = end;
-	}
-}
-
 export const enum NodeColor {
 	Red,
 	Black
@@ -139,6 +127,9 @@ export class IntervalTree {
 	}
 
 	public count(): number {
+		if (this.root === SENTINEL) {
+			return 0;
+		}
 		return nodeCount(this);
 	}
 
@@ -183,30 +174,8 @@ export class IntervalTree {
 		assertValidTree(this);
 	}
 
-	public getAllInOrder(): Interval[] {
-		let r: Interval[] = [], rLength = 0;
-		this.visitInOrder((n, delta) => {
-			r[rLength++] = new Interval(n.start + delta, n.end + delta);
-		});
-		return r;
-	}
-
-	public visitInOrder(visitor: (n: IntervalNode, delta: number) => void): void {
-		this._visitInOrder(this.root, 0, visitor);
-	}
-
-	private _visitInOrder(n: IntervalNode, delta: number, visitor: (n: IntervalNode, delta: number) => void): void {
-		if (n.left !== SENTINEL) {
-			this._visitInOrder(n.left, delta, visitor);
-		}
-
-		if (n !== SENTINEL) {
-			visitor(n, delta);
-		}
-
-		if (n.right !== SENTINEL) {
-			this._visitInOrder(n.right, delta + n.delta, visitor);
-		}
+	public getAllInOrder(): IntervalNode[] {
+		return search(this, 0, false, false, 0);
 	}
 
 	public print(): void {
