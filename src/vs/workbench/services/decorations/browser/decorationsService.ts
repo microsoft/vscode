@@ -19,25 +19,37 @@ import { IIterator } from 'vs/base/common/iterator';
 
 class DecorationRule {
 
-	static keyOf(data: IResourceDecorationData): string {
-		const { color, opacity, letter } = data;
-		return `${color}/${opacity}/${letter}`;
+	static keyOf(data: IResourceDecorationData | IResourceDecorationData[]): string {
+		if (Array.isArray(data)) {
+			return data.map(DecorationRule.keyOf).join(',');
+		} else {
+			const { color, opacity, letter } = data;
+			return `${color}/${opacity}/${letter}`;
+		}
 	}
 
 	private static readonly _classNames = new IdGenerator('monaco-decorations-style-');
 
-	readonly data: IResourceDecorationData;
+	readonly data: IResourceDecorationData | IResourceDecorationData[];
 	readonly labelClassName: string;
 	readonly badgeClassName: string;
 
-	constructor(data: IResourceDecorationData) {
+	constructor(data: IResourceDecorationData | IResourceDecorationData[]) {
 		this.data = data;
 		this.labelClassName = DecorationRule._classNames.nextId();
 		this.badgeClassName = DecorationRule._classNames.nextId();
 	}
 
 	appendCSSRules(element: HTMLStyleElement, theme: ITheme): void {
-		const { color, opacity, letter } = this.data;
+		if (!Array.isArray(this.data)) {
+			this._appendForOne(this.data, element, theme);
+		} else {
+			this._appendForMany(this.data, element, theme);
+		}
+	}
+
+	private _appendForOne(data: IResourceDecorationData, element: HTMLStyleElement, theme: ITheme): void {
+		const { color, opacity, letter } = data;
 		// label
 		createCSSRule(`.${this.labelClassName}`, `color: ${theme.getColor(color) || 'inherit'}; opacity: ${opacity || 1};`, element);
 		createCSSRule(`.selected .${this.labelClassName}`, `color: inherit; opacity: inherit;`, element);
@@ -48,6 +60,27 @@ class DecorationRule {
 		}
 	}
 
+	private _appendForMany(data: IResourceDecorationData[], element: HTMLStyleElement, theme: ITheme): void {
+		// label
+		const { color, opacity } = data[0];
+		createCSSRule(`.${this.labelClassName}`, `color: ${theme.getColor(color) || 'inherit'}; opacity: ${opacity || 1};`, element);
+		createCSSRule(`.selected .${this.labelClassName}`, `color: inherit; opacity: inherit;`, element);
+
+		// badge
+		let letters: string[] = [];
+		let colors: string[] = [];
+		for (const deco of data) {
+			letters.push(deco.letter);
+			colors.push(`${theme.getColor(deco.color).toString()} ${100 / data.length}%`);
+		}
+		createCSSRule(`.${this.badgeClassName}::before`, `content: "${letters.join('\u2002')}"`, element);
+		createCSSRule(
+			`.${this.badgeClassName}`,
+			`background: linear-gradient(90deg, ${colors.join()}); color: ${theme.getColor(listActiveSelectionForeground)};`,
+			element
+		);
+	}
+
 	removeCSSRules(element: HTMLStyleElement): void {
 		removeCSSRulesContainingSelector(this.labelClassName, element);
 		removeCSSRulesContainingSelector(this.badgeClassName, element);
@@ -55,18 +88,29 @@ class DecorationRule {
 }
 
 class ResourceDecoration implements IResourceDecoration {
+
+	static from(data: IResourceDecorationData | IResourceDecorationData[]): ResourceDecoration {
+		let result = new ResourceDecoration(data);
+		if (Array.isArray(data)) {
+			result.weight = data[0].weight;
+			result.tooltip = data.map(d => d.tooltip).join(', ');
+		} else {
+			result.weight = data.weight;
+			result.tooltip = data.tooltip;
+		}
+		return result;
+	}
+
 	_decoBrand: undefined;
-	_key: string;
+	_data: IResourceDecorationData | IResourceDecorationData[];
 
 	weight?: number;
 	tooltip?: string;
 	labelClassName?: string;
 	badgeClassName?: string;
 
-	constructor(key: string, data: IResourceDecorationData) {
-		this._key = key;
-		this.weight = data.weight;
-		this.tooltip = data.tooltip;
+	private constructor(data: IResourceDecorationData | IResourceDecorationData[]) {
+		this._data = data;
 	}
 }
 
@@ -89,10 +133,10 @@ class DecorationStyles {
 		this._styleElement.parentElement.removeChild(this._styleElement);
 	}
 
-	asDecoration(data: IResourceDecorationData): ResourceDecoration {
+	asDecoration(data: IResourceDecorationData | IResourceDecorationData[]): ResourceDecoration {
 		let key = DecorationRule.keyOf(data);
 		let rule = this._decorationRules.get(key);
-		let result = new ResourceDecoration(key, data);
+		let result = ResourceDecoration.from(data);
 
 		if (!rule) {
 			// new css rule
@@ -116,16 +160,27 @@ class DecorationStyles {
 	cleanUp(iter: IIterator<DecorationProviderWrapper>): void {
 		// remove every rule for which no more
 		// decoration (data) is kept. this isn't cheap
-		let usedDecorations = new Set<string>();
+		let usedDecorations = new Set<IResourceDecorationData>();
 		for (let e = iter.next(); !e.done; e = iter.next()) {
 			e.value.data.forEach(value => {
 				if (value instanceof ResourceDecoration) {
-					usedDecorations.add(value._key);
+					if (Array.isArray(value._data)) {
+						value._data.forEach(data => usedDecorations.add(data));
+					} else {
+						usedDecorations.add(value._data);
+					}
 				}
 			});
 		}
 		this._decorationRules.forEach((value, index) => {
-			if (!usedDecorations.has(index)) {
+			const { data } = value;
+			let remove: boolean;
+			if (Array.isArray(data)) {
+				remove = data.every(data => !usedDecorations.has(data));
+			} else if (!usedDecorations.has(data)) {
+				remove = true;
+			}
+			if (remove) {
 				value.removeCSSRules(this._styleElement);
 				this._decorationRules.delete(index);
 			}
@@ -304,36 +359,26 @@ export class FileDecorationsService implements IResourceDecorationsService {
 	}
 
 	getTopDecoration(uri: URI, includeChildren: boolean): IResourceDecoration {
-		let top: IResourceDecorationData;
-		let topIsChild: boolean;
+		let data: IResourceDecorationData[] = [];
+		let onlyChildren = true;
 		for (let iter = this._data.iterator(), next = iter.next(); !next.done; next = iter.next()) {
-			next.value.getOrRetrieve(uri, includeChildren, (candidate, isChild) => {
-				top = FileDecorationsService._pickBest(top, candidate);
-				topIsChild = top === candidate && isChild || topIsChild;
+			next.value.getOrRetrieve(uri, includeChildren, (deco, isChild) => {
+				// top = FileDecorationsService._pickBest(top, candidate);
+				data.push(deco);
+				onlyChildren = onlyChildren && isChild;
 			});
 		}
 
-		if (!top) {
+		if (data.length === 0) {
 			return undefined;
-		}
-
-		let deco = this._decorationStyles.asDecoration(top);
-		if (topIsChild) {
-			// don't show badges for child status
-			deco.badgeClassName = '';
-		}
-		return deco;
-	}
-
-	private static _pickBest(a: IResourceDecorationData, b: IResourceDecorationData): IResourceDecorationData {
-		if (!a) {
-			return b;
-		} else if (!b) {
-			return a;
-		} else if (a.weight > b.weight) {
-			return a;
+		} else if (onlyChildren) {
+			let result = this._decorationStyles.asDecoration(data.sort((a, b) => b.weight - a.weight)[0]);
+			result.badgeClassName = '';
+			return result;
+		} else if (data.length === 1) {
+			return this._decorationStyles.asDecoration(data[0]);
 		} else {
-			return b;
+			return this._decorationStyles.asDecoration(data.sort((a, b) => b.weight - a.weight));
 		}
 	}
 }
