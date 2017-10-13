@@ -309,7 +309,7 @@ export class FileDecorationsService implements IResourceDecorationsService {
 		for (let iter = this._data.iterator(), next = iter.next(); !next.done; next = iter.next()) {
 			next.value.getOrRetrieve(uri, includeChildren, (candidate, isChild) => {
 				top = FileDecorationsService._pickBest(top, candidate);
-				topIsChild = top === candidate && isChild;
+				topIsChild = top === candidate && isChild || topIsChild;
 			});
 		}
 

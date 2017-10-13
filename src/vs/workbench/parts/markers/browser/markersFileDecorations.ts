@@ -6,13 +6,12 @@
 'use strict';
 
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IMarkerService } from 'vs/platform/markers/common/markers';
+import { IMarkerService, IMarker } from 'vs/platform/markers/common/markers';
 import { IResourceDecorationsService, IDecorationsProvider, IResourceDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import Event from 'vs/base/common/event';
 import { localize } from 'vs/nls';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { Registry } from 'vs/platform/registry/common/platform';
 import Severity from 'vs/base/common/severity';
 import { editorErrorForeground, editorWarningForeground } from 'vs/editor/common/view/editorColorRegistry';
@@ -31,18 +30,21 @@ class MarkersDecorationsProvider implements IDecorationsProvider {
 	}
 
 	provideDecorations(resource: URI): IResourceDecorationData {
+		let markers = this._markerService.read({ resource });
+		let first: IMarker;
+		for (const marker of markers) {
+			if (!first || marker.severity > first.severity) {
+				first = marker;
+			}
+		}
 
-		const markers = this._markerService.read({ resource })
-			.sort((a, b) => Severity.compare(a.severity, b.severity));
-
-		if (isFalsyOrEmpty(markers)) {
+		if (!first) {
 			return undefined;
 		}
 
-		const [first] = markers;
 		return {
 			weight: 100 * first.severity,
-			tooltip: localize('tooltip', "{0} problems in this file", markers.length),
+			tooltip: markers.length === 1 ? localize('tooltip.1', "1 problem in this file") : localize('tooltip.N', "{0} problems in this file", markers.length),
 			letter: markers.length.toString(),
 			color: first.severity === Severity.Error ? editorErrorForeground : editorWarningForeground,
 		};
@@ -53,6 +55,7 @@ class MarkersFileDecorations implements IWorkbenchContribution {
 
 	private readonly _disposables: IDisposable[];
 	private _provider: IDisposable;
+	private _enabled: boolean;
 
 	constructor(
 		@IMarkerService private _markerService: IMarkerService,
@@ -63,7 +66,6 @@ class MarkersFileDecorations implements IWorkbenchContribution {
 		this._disposables = [
 			this._configurationService.onDidUpdateConfiguration(this._updateEnablement, this),
 		];
-
 		this._updateEnablement();
 	}
 
@@ -77,11 +79,16 @@ class MarkersFileDecorations implements IWorkbenchContribution {
 	}
 
 	private _updateEnablement(): void {
-		let value = this._configurationService.getConfiguration<{ fileDecorations: { enabled: boolean } }>('problems');
-		if (value.fileDecorations.enabled) {
+		let value = this._configurationService.getConfiguration<{ decorations: { enabled: boolean } }>('problems');
+		if (value.decorations.enabled === this._enabled) {
+			return;
+		}
+		this._enabled = value.decorations.enabled;
+		if (this._enabled) {
 			const provider = new MarkersDecorationsProvider(this._markerService);
 			this._provider = this._decorationsService.registerDecortionsProvider(provider);
 		} else if (this._provider) {
+			this._enabled = value.decorations.enabled;
 			this._provider.dispose();
 		}
 	}
@@ -94,10 +101,10 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	'order': 101,
 	'type': 'object',
 	'properties': {
-		'problems.fileDecorations.enabled': {
+		'problems.decorations.enabled': {
 			'description': localize('markers.showOnFile', "Show Errors & Warnings on files and folder."),
 			'type': 'boolean',
-			'default': true
+			'default': false
 		}
 	}
 });
