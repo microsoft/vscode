@@ -23,7 +23,7 @@ import { FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files
 import { isLinux } from 'vs/base/common/platform';
 import { ConfigWatcher } from 'vs/base/node/config';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { CustomConfigurationModel, ConfigurationModel, ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
+import { CustomConfigurationModel, ConfigurationModel, ConfigurationChangeEvent, AllKeysConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
 import { IConfigurationChangeEvent, ConfigurationTarget, IConfigurationOverrides, keyFromOverrideIdentifier } from 'vs/platform/configuration/common/configuration';
 import { WorkspaceConfigurationModel, ScopedConfigurationModel, FolderConfigurationModel, FolderSettingsModel, Configuration, WorkspaceConfigurationChangeEvent } from 'vs/workbench/services/configuration/common/configurationModels';
 import { IWorkspaceConfigurationService, WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME, WORKSPACE_STANDALONE_CONFIGURATIONS, WORKSPACE_CONFIG_DEFAULT_PATH, TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId } from 'vs/workbench/services/configuration/common/configuration';
@@ -326,7 +326,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 				// TODO: compare with old values??
 
 				const keys = this._configuration.keys();
-				this.triggerConfigurationChange(new ConfigurationChangeEvent().change([...keys.default, ...keys.user, ...keys.workspace, ...keys.workspaceFolder]), ConfigurationTarget.WORKSPACE);
+				this._onDidUpdateConfiguration.fire(new AllKeysConfigurationChangeEvent([...keys.default, ...keys.user, ...keys.workspace, ...keys.workspaceFolder], ConfigurationTarget.WORKSPACE, this.getTargetConfiguration(ConfigurationTarget.WORKSPACE)));
 			});
 	}
 

@@ -415,6 +415,14 @@ export class Configuration {
 	}
 }
 
+export class AllKeysConfigurationChangeEvent implements IConfigurationChangeEvent {
+
+	constructor(readonly affectedKeys: string[], readonly source: ConfigurationTarget, readonly sourceConfig: any) { }
+
+	affectsConfiugration: () => true;
+
+}
+
 export class ConfigurationChangeEvent implements IConfigurationChangeEvent {
 
 	private changedConfiguration: ConfigurationModel = new ConfigurationModel();
