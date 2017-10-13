@@ -10,7 +10,6 @@ import { FileDecorationsService } from 'vs/workbench/services/decorations/browse
 import { IDecorationsProvider, IResourceDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
 import URI from 'vs/base/common/uri';
 import Event, { toPromise } from 'vs/base/common/event';
-import Severity from 'vs/base/common/severity';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 
 suite('DecorationsService', function () {
@@ -36,7 +35,6 @@ suite('DecorationsService', function () {
 				callCounter += 1;
 				return new Promise<IResourceDecorationData>(resolve => {
 					setTimeout(() => resolve({
-						severity: Severity.Info,
 						color: 'someBlue',
 						tooltip: 'T'
 					}));
@@ -68,7 +66,7 @@ suite('DecorationsService', function () {
 			readonly onDidChange: Event<URI[]> = Event.None;
 			provideDecorations(uri: URI) {
 				callCounter += 1;
-				return { severity: Severity.Info, color: 'someBlue', tooltip: 'Z' };
+				return { color: 'someBlue', tooltip: 'Z' };
 			}
 		});
 
@@ -86,7 +84,7 @@ suite('DecorationsService', function () {
 			readonly onDidChange: Event<URI[]> = Event.None;
 			provideDecorations(uri: URI) {
 				callCounter += 1;
-				return { severity: Severity.Info, color: 'someBlue', tooltip: 'J' };
+				return { color: 'someBlue', tooltip: 'J' };
 			}
 		});
 

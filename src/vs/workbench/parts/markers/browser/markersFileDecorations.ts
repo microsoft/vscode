@@ -41,7 +41,7 @@ class MarkersDecorationsProvider implements IDecorationsProvider {
 
 		const [first] = markers;
 		return {
-			severity: first.severity,
+			weight: 100 * first.severity,
 			tooltip: localize('tooltip', "{0} problems in this file", markers.length),
 			letter: markers.length.toString(),
 			color: first.severity === Severity.Error ? editorErrorForeground : editorWarningForeground,
