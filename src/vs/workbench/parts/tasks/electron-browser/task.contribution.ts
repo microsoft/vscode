@@ -1421,6 +1421,8 @@ class TaskService extends EventEmitter implements ITaskService {
 						let legacyTaskConfigurations = folderTasks.set ? this.getLegacyTaskConfigurations(folderTasks.set) : undefined;
 						let customTasksToDelete: Task[] = [];
 						if (configurations || legacyTaskConfigurations) {
+							let unUsedConfigurations: Set<string> = new Set<string>();
+							Object.keys(configurations.byIdentifier).forEach(key => unUsedConfigurations.add(key));
 							for (let task of contributed) {
 								if (!ContributedTask.is(task)) {
 									continue;
@@ -1428,6 +1430,7 @@ class TaskService extends EventEmitter implements ITaskService {
 								if (configurations) {
 									let configuringTask = configurations.byIdentifier[task.defines._key];
 									if (configuringTask) {
+										unUsedConfigurations.delete(task.defines._key);
 										result.add(key, TaskConfig.createCustomTask(task, configuringTask));
 									} else {
 										result.add(key, task);
@@ -1458,6 +1461,15 @@ class TaskService extends EventEmitter implements ITaskService {
 							} else {
 								result.add(key, ...folderTasks.set.tasks);
 							}
+							unUsedConfigurations.forEach((value) => {
+								let configuringTask = configurations.byIdentifier[value];
+								this._outputChannel.append(nls.localize(
+									'TaskService.noConfiguration',
+									'Error: No task has been contributed for the following task configuration:\n{0}\nThe task configuration will be ignored.\n',
+									JSON.stringify(configuringTask._source.config.element, undefined, 4)
+								));
+								this.showOutput();
+							});
 						} else {
 							result.add(key, ...folderTasks.set.tasks);
 							result.add(key, ...contributed);
