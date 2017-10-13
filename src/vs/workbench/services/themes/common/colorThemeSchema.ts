@@ -124,6 +124,10 @@ export const tokenColorizationSettingSchema: IJSONSchema = {
 			format: 'color-hex',
 			defaultSnippets: [{ body: '${1:#FF0000}' }]
 		},
+		background: {
+			type: 'string',
+			deprecationMessage: nls.localize('schema.token.background.warning', 'Token background colors are currently not supported.')
+		},
 		fontStyle: {
 			type: 'string',
 			description: nls.localize('schema.token.fontStyle', 'Font style of the rule: One or a combination of \'italic\', \'bold\' and \'underline\''),
