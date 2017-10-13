@@ -72,7 +72,6 @@ export class SelectBox extends Widget {
 		this.selectDropDownContainer = dom.$('.select-box-dropdown-div');
 		this.selectDropDownElement = document.createElement('select');
 		this.selectDropDownElement.className = 'select-box-dropdown';
-		// this.selectDropDownMouseSelect = false;
 
 		this.styleElement = dom.createStyleSheet(this.selectDropDownContainer);
 
@@ -114,15 +113,10 @@ export class SelectBox extends Widget {
 
 		this.toDispose.push(dom.addDisposableListener(this.selectDropDownElement, dom.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			if (e.button === 0) {
-				// let options = this.selectDropDownElement.querySelectorAll('option');
+
 				const selectedOption = <HTMLElement>this.selectDropDownElement.querySelector('option.selected');
 				dom.toggleClass(selectedOption, 'selected', false);
-				// console.debug('Mouseclick' +(<HTMLElement>e.target).outerHTML);
-				// console.debug((<HTMLElement>e.target).getAttribute('value'));
-				// const optionIndex = this.options.indexOf((<HTMLElement>e.target).getAttribute('value'));
 				const optionIndex = Number((<HTMLElement>e.target).getAttribute('optionIndex'));
-				// console.debug('OptionIndex '+optionIndex);
-				// this.selectElement.selectedIndex = this.selectDropDownElement.selectedIndex;
 				this.selectElement.selectedIndex = optionIndex;
 				this.selected = optionIndex;
 
@@ -187,25 +181,25 @@ export class SelectBox extends Widget {
 			this.closeDropDown();
 		}));
 
-		this.toDispose.push(dom.addStandardDisposableListener(this.selectDropDownElement, 'change', (e) => {
-			this.selectElement.title = e.target.value;
-			this.selectDropDownElement.title = e.target.value;
-			this.selectElement.selectedIndex = this.selectDropDownElement.selectedIndex;
+		// this.toDispose.push(dom.addStandardDisposableListener(this.selectDropDownElement, 'change', (e) => {
+		// 	this.selectElement.title = e.target.value;
+		// 	this.selectDropDownElement.title = e.target.value;
+		// 	this.selectElement.selectedIndex = this.selectDropDownElement.selectedIndex;
 
-			console.debug('SelectDropDownChange');
+		// 	console.debug('SelectDropDownChange');
 
-			// if (this.selectDropDownMouseSelect) {
-			// 	this.selectDropDownMouseSelect = false;
-			// 	this.closeDropDown();
+		// if (this.selectDropDownMouseSelect) {
+		// 	this.selectDropDownMouseSelect = false;
+		// 	this.closeDropDown();
 
-			// 	this._onDidSelect.fire({
-			// 		index: this.selectElement.selectedIndex,
-			// 		selected: this.selectElement.title
-			// 	});
+		// 	this._onDidSelect.fire({
+		// 		index: this.selectElement.selectedIndex,
+		// 		selected: this.selectElement.title
+		// 	});
 
-			// 	// this._onDidSelect.fire(this.selectElement.title);
-			// }
-		}));
+		// 	// this._onDidSelect.fire(this.selectElement.title);
+		// }
+		// }));
 
 		this.toDispose.push(dom.addDisposableListener(this.selectDropDownElement, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
@@ -279,8 +273,6 @@ export class SelectBox extends Widget {
 	private layoutDropDown(repositionOpaque: boolean, makeVisible: boolean) {
 		const newSlPos = dom.getDomNodePagePosition(this.selectElement);
 
-		// this.selectDropDownElement.title = this.selectElement.title;
-
 		if (this.selectElementPosition === null ||
 			this.selectElementPosition.left !== newSlPos.left ||
 			this.selectElementPosition.top !== newSlPos.top ||
@@ -306,26 +298,17 @@ export class SelectBox extends Widget {
 
 		// No scrollbar
 		this.selectDropDownElement.style.overflowY = 'hidden';
+
 		// Hide selected option - we self manage to style
-		this.selectDropDownElement.selectedIndex = this.options.length;
-		const selectSize = (this.options.length * 1.5).toString() + 'em';
+		this.selectDropDownElement.selectedIndex = this.options.length + 1;
+		const selectSize = (this.options.length * 1.43).toString() + 'em';
+
 		this.selectDropDownElement.setAttribute('size', (this.options.length + 1).toString());
 		this.selectDropDownElement.style.height = selectSize;
 
 		// Use class control for pseudo- selection
 		const options = this.selectDropDownElement.querySelectorAll('option');
 		dom.toggleClass(options[this.selected], 'selected', true);
-
-		// Single option select requires hiding arrow - 'appearance: none'
-		if (this.options.length === 1) {
-			dom.toggleClass(this.selectDropDownElement, 'select-box-dropdown-single-option', true);
-			// if (process.platform === 'darwin') {
-			// this.selectDropDownElement.setAttribute('size', '2');
-			// }
-			this.selectDropDownElement.setAttribute('size', '2');
-		} else {
-			dom.toggleClass(this.selectDropDownElement, 'select-box-dropdown-single-option', false);
-		}
 
 		if (makeVisible) {
 			dom.toggleClass(this.selectDropDownContainer, 'visible', true);
@@ -363,8 +346,6 @@ export class SelectBox extends Widget {
 
 		this.selectElement.selectedIndex = this.selected;
 		this.selectElement.title = this.options[this.selected];
-
-		// this.selectDropDownElement.title = this.options[this.selected];
 	}
 
 	public focus(): void {
@@ -392,18 +373,17 @@ export class SelectBox extends Widget {
 
 	public style(styles: ISelectBoxStyles): void {
 		const content: string[] = [];
-		const contentSingleOption: string[] = [];
+		// const contentSingleOption: string[] = [];
 
 		this.styles = styles;
 
 		// Single option select styling
-		contentSingleOption.push(`.monaco-workbench .select-box-dropdown-single-option { -webkit-appearance: none; height: 1.5em !important; `);
-		contentSingleOption.push(` padding-left: 1px !important; `);
+		// contentSingleOption.push(`.monaco-workbench .select-box-dropdown-single-option { -webkit-appearance: none; height: 1.5em !important; `);
+		// contentSingleOption.push(` padding-left: 5px !important; `);
 
 		// Style selected background
 		if (this.styles.selectOptionCheckedBackground) {
-			content.push(`.monaco-workbench .select-box-dropdown option.selected { box-shadow: 0 0 10px 100px ${this.styles.selectOptionCheckedBackground} inset !important;}`);
-			contentSingleOption.push(` background-color: ${this.styles.selectOptionCheckedBackground} !important; `);
+			content.push(`.monaco-workbench .select-box-dropdown option.selected { box-shadow: 0 0 10px 100px ${this.styles.selectOptionCheckedBackground} inset !important; }`);
 		}
 
 		if (this.styles.selectOptionCheckedOutline) {
@@ -418,9 +398,8 @@ export class SelectBox extends Widget {
 			content.push(`.monaco-workbench .select-box-dropdown option.enabled:hover { outline: 2px dashed ${this.styles.selectOptionCheckedOutline}; outline-offset: -1px; }`);
 		}
 
-		contentSingleOption.push(` }`);
-
-		content.push(contentSingleOption.join('\n'));
+		// contentSingleOption.push(` }`);
+		// content.push(contentSingleOption.join('\n'));
 		this.styleElement.innerHTML = content.join('\n');
 		this.applyStyles();
 	}
