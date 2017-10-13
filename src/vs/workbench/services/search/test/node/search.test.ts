@@ -220,6 +220,53 @@ suite('FileSearchEngine', () => {
 		});
 	});
 
+	test('Files: multiroot with includePattern and maxResults', function (done: () => void) {
+		let engine = new FileSearchEngine({
+			folderQueries: MULTIROOT_QUERIES,
+			maxResults: 1,
+			includePattern: {
+				'*.txt': true,
+				'*.js': true
+			},
+			useRipgrep: true
+		});
+
+		let count = 0;
+		engine.search((result) => {
+			if (result) {
+				count++;
+			}
+		}, () => { }, (error, complete) => {
+			assert.ok(!error);
+			assert.equal(count, 1);
+			done();
+		});
+	});
+
+	test('Files: multiroot with includePattern and exists', function (done: () => void) {
+		let engine = new FileSearchEngine({
+			folderQueries: MULTIROOT_QUERIES,
+			exists: true,
+			includePattern: {
+				'*.txt': true,
+				'*.js': true
+			},
+			useRipgrep: true
+		});
+
+		let count = 0;
+		engine.search((result) => {
+			if (result) {
+				count++;
+			}
+		}, () => { }, (error, complete) => {
+			assert.ok(!error);
+			assert.equal(count, 0);
+			assert.ok(complete.limitHit);
+			done();
+		});
+	});
+
 	test('Files: NPE (CamelCase)', function (done: () => void) {
 		let engine = new FileSearchEngine({
 			folderQueries: ROOT_FOLDER_QUERY,
