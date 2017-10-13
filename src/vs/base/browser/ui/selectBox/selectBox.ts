@@ -275,12 +275,13 @@ export class SelectBox extends Widget {
 		// Hide selected option - we self manage to style
 		this.selectDropDownElement.selectedIndex = this.options.length + 1;
 
-		this.selectDropDownElement.setAttribute('size', (this.options.length).toString());
+
 
 		if (this.options.length === 1) {
-			this.selectDropDownElement.style.height = '1.6em';
 			this.selectDropDownElement.setAttribute('size', (this.options.length + 1).toString());
+			this.selectDropDownElement.style.height = '1.6em';
 		} else {
+			this.selectDropDownElement.setAttribute('size', (this.options.length).toString());
 			this.selectDropDownElement.style.height = null;
 		}
 
