@@ -151,6 +151,30 @@ export function addToValueTree(settingsTreeRoot: any, key: string, value: any, c
 	}
 }
 
+export function removeFromValueTree(valueTree: any, key: string): void {
+	const segments = key.split('.');
+	doRemoveFromValueTree(valueTree, segments);
+}
+
+function doRemoveFromValueTree(valueTree: any, segments: string[]): void {
+	const first = segments.shift();
+	if (segments.length === 0) {
+		// Reached last segment
+		delete valueTree[first];
+		return;
+	}
+
+	if (Object.keys(valueTree).indexOf(first) !== -1) {
+		const value = valueTree[first];
+		if (typeof value === 'object' && !Array.isArray(value)) {
+			doRemoveFromValueTree(value, segments);
+			if (Object.keys(value).length === 0) {
+				delete valueTree[first];
+			}
+		}
+	}
+}
+
 /**
  * A helper function to get the configuration value with a specific settings path (e.g. config.some.setting)
  */

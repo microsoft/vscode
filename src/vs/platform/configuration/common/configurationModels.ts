@@ -11,7 +11,7 @@ import * as objects from 'vs/base/common/objects';
 import URI from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
-import { IOverrides, overrideIdentifierFromKey, addToValueTree, toValuesTree, IConfiguraionModel, merge, getConfigurationValue, IConfigurationOverrides, IConfigurationData, getDefaultValues, getConfigurationKeys, IConfigurationChangeEvent, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IOverrides, overrideIdentifierFromKey, addToValueTree, toValuesTree, IConfiguraionModel, merge, getConfigurationValue, IConfigurationOverrides, IConfigurationData, getDefaultValues, getConfigurationKeys, IConfigurationChangeEvent, ConfigurationTarget, removeFromValueTree } from 'vs/platform/configuration/common/configuration';
 import { Workspace } from 'vs/platform/workspace/common/workspace';
 
 export class ConfigurationModel implements IConfiguraionModel {
@@ -36,9 +36,13 @@ export class ConfigurationModel implements IConfiguraionModel {
 	}
 
 	public setValue(key: string, value: any) {
+		this.addKey(key);
 		addToValueTree(this._contents, key, value, e => { throw new Error(e); });
-		if (this._keys.indexOf(key) === -1) {
-			this._keys.push(key);
+	}
+
+	public removeValue(key: string): void {
+		if (this.removeKey(key)) {
+			removeFromValueTree(this._contents, key);
 		}
 	}
 
@@ -51,33 +55,25 @@ export class ConfigurationModel implements IConfiguraionModel {
 		addToValueTree(override.contents, key, value, e => { throw new Error(e); });
 	}
 
-	public removeValue(key: string) {
-		// Remove key from the value tree
-		const index = this._keys.indexOf(key);
-		if (index !== -1) {
-			this._keys.splice(index, 1);
-		}
-	}
-
 	public override<V>(identifier: string): ConfigurationModel {
 		const overrideContents = this.getContentsForOverrideIdentifer(identifier);
 
-		if (!overrideContents) {
-			// If there are no overrides, use base contents
+		if (!overrideContents || typeof overrideContents !== 'object' || !Object.keys(overrideContents).length) {
+			// If there are no valid overrides, use base contents
 			return new ConfigurationModel(this._contents);
 		}
 
 		let contents = {};
-		for (const key of Object.keys(this._contents)) {
+		for (const key of arrays.distinct([...Object.keys(this._contents), ...Object.keys(overrideContents)])) {
 
 			let contentsForKey = this._contents[key];
 			let overrideContentsForKey = overrideContents[key];
 
-			// If there are override contents for the key clone and merge otherwise use base contents
+			// If there are override contents for the key, clone and merge otherwise use base contents
 			if (overrideContentsForKey) {
-				// Clone and merge only if base contents is of type object otherwise just override
-				if (typeof contentsForKey === 'object') {
-					contentsForKey = objects.clone(contents[key]);
+				// Clone and merge only if base contents and override contents are of type object otherwise just override
+				if (typeof contentsForKey === 'object' && typeof overrideContentsForKey === 'object') {
+					contentsForKey = objects.clone(contentsForKey);
 					merge(contentsForKey, overrideContentsForKey, true);
 				} else {
 					contentsForKey = overrideContentsForKey;
@@ -117,6 +113,25 @@ export class ConfigurationModel implements IConfiguraionModel {
 			}
 		}
 		return null;
+	}
+
+	private addKey(key: string): void {
+		let index = this._keys.length;
+		for (let i = 0; i < index; i++) {
+			if (key.indexOf(this._keys[i]) === 0) {
+				index = i;
+			}
+		}
+		this._keys.splice(index, 1, key);
+	}
+
+	private removeKey(key: string): boolean {
+		let index = this._keys.indexOf(key);
+		if (index !== -1) {
+			this._keys.splice(index, 1);
+			return true;
+		}
+		return false;
 	}
 }
 
