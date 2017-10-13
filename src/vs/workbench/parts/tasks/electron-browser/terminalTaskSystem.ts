@@ -397,6 +397,9 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 				});
 			});
 		}
+		if (!terminal) {
+			return TPromise.wrapError<ITaskSummary>(new Error(`Failed to create terminal for task ${task._label}`));
+		}
 		this.terminalService.setActiveInstance(terminal);
 		if (task.command.presentation.reveal === RevealKind.Always || (task.command.presentation.reveal === RevealKind.Silent && task.problemMatchers.length === 0)) {
 			this.terminalService.showPanel(task.command.presentation.focus);
