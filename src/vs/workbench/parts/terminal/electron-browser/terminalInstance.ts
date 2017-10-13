@@ -266,7 +266,8 @@ export class TerminalInstance implements ITerminalInstance {
 			theme: this._getXtermTheme(),
 			fontFamily: font.fontFamily,
 			fontSize: font.fontSize,
-			lineHeight: font.lineHeight
+			lineHeight: font.lineHeight,
+			enableBold: this._configHelper.config.enableBold
 		});
 		if (this._shellLaunchConfig.initialText) {
 			this._xterm.writeln(this._shellLaunchConfig.initialText);
@@ -922,6 +923,9 @@ export class TerminalInstance implements ITerminalInstance {
 			}
 			if (this._xterm.getOption('fontFamily') !== font.fontFamily) {
 				this._xterm.setOption('fontFamily', font.fontFamily);
+			}
+			if (this._xterm.getOption('enableBold') !== this._configHelper.config.enableBold) {
+				this._xterm.setOption('enableBold', this._configHelper.config.enableBold);
 			}
 
 			this._xterm.resize(this._cols, this._rows);
