@@ -35,6 +35,7 @@ export interface ICompositeBarOptions {
 	getActivityAction: (compositeId: string) => ActivityAction;
 	getCompositePinnedAction: (compositeId: string) => Action;
 	getOpenCompositeAction: (compositeId: string) => Action;
+	getCompositeSize: (compositeId: string) => number;
 }
 
 export class CompositeBar {
@@ -204,7 +205,7 @@ export class CompositeBar {
 		// Always show the active composite even if it is marked to be hidden
 		if (this.activeCompositeId && !compositesToShow.some(id => id === this.activeCompositeId)) {
 			this.activeUnpinnedCompositeId = this.activeCompositeId;
-			compositesToShow.push(this.activeUnpinnedCompositeId);
+			compositesToShow = compositesToShow.concat(this.activeUnpinnedCompositeId);
 		} else {
 			this.activeUnpinnedCompositeId = void 0;
 		}
@@ -212,8 +213,15 @@ export class CompositeBar {
 		// Ensure we are not showing more composites than we have height for
 		let overflows = false;
 		if (this.dimension) {
-			// TODO@Isidor change this maxVisible computation to be dynamic
-			const maxVisible = Math.floor(this.dimension.height / 50);
+			let maxVisible = compositesToShow.length;
+			let size = 0;
+			const limit = this.options.orientation === ActionsOrientation.VERTICAL ? this.dimension.height : this.dimension.width;
+			for (let i = 0; i < compositesToShow.length && size <= limit; i++) {
+				size += this.options.getCompositeSize(compositesToShow[i]);
+				if (size > limit) {
+					maxVisible = i;
+				}
+			}
 			overflows = compositesToShow.length > maxVisible;
 
 			if (overflows) {
