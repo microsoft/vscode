@@ -584,7 +584,7 @@ function tokenGroupSettings(description: string) {
 		anyOf: [
 			{
 				type: 'string',
-				format: 'color',
+				format: 'color-hex',
 				defaultSnippets: [{ body: '#FF0000' }]
 			},
 			colorThemeSchema.tokenColorizationSettingSchema
