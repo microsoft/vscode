@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/4109ddc9e27186afcf7263a448c86a59e9aa7d9e",
+	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/f3a2069b99f45c34ac5cc7dc5f1dcb4e81486ab9",
 	"name": "TypeScript",
 	"scopeName": "source.ts",
 	"fileTypes": [
@@ -1701,8 +1701,7 @@
 					"include": "#comment"
 				},
 				{
-					"comment": "(default|*|name) as alias",
-					"match": "(?x) (?: \\b(default)\\b | (\\*) | ([_$[:alpha:]][_$[:alnum:]]*)) \\s+\n  (as) \\s+ (?: (\\b default \\b | \\*) | ([_$[:alpha:]][_$[:alnum:]]*))",
+					"match": "(?<!\\.|\\$)(?:(\\bdefault)|(\\*)|(\\b[_$[:alpha:]][_$[:alnum:]]*))\\s+(as)\\s+(\\b[_$[:alpha:]][_$[:alnum:]]*)",
 					"captures": {
 						"1": {
 							"name": "keyword.control.default.ts"
@@ -1717,9 +1716,6 @@
 							"name": "keyword.control.as.ts"
 						},
 						"5": {
-							"name": "invalid.illegal.ts"
-						},
-						"6": {
 							"name": "variable.other.readwrite.alias.ts"
 						}
 					}
