@@ -19,7 +19,6 @@ export interface IIconLabelCreationOptions {
 }
 
 export interface ILabelBadgeOptions {
-	letter: string;
 	title: string;
 	className: string;
 }
@@ -157,9 +156,7 @@ export class IconLabel {
 				this.element.style.display = 'flex';
 				this.element.appendChild(this.badgeNode);
 			}
-			const { letter, title } = options.badge;
-			this.badgeNode.innerHTML = letter;
-			this.badgeNode.title = title;
+			this.badgeNode.title = options.badge.title;
 			dom.addClass(this.badgeNode, options.badge.className);
 			dom.show(this.badgeNode);
 

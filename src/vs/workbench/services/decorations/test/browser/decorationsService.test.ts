@@ -38,7 +38,7 @@ suite('DecorationsService', function () {
 					setTimeout(() => resolve({
 						severity: Severity.Info,
 						color: 'someBlue',
-						letter: 'T'
+						tooltip: 'T'
 					}));
 				});
 			}
@@ -53,7 +53,7 @@ suite('DecorationsService', function () {
 			assert.equal(e.affectsResource(uri), true);
 
 			// sync result
-			assert.deepEqual(service.getTopDecoration(uri, false).letter, 'T');
+			assert.deepEqual(service.getTopDecoration(uri, false).tooltip, 'T');
 			assert.equal(callCounter, 1);
 		});
 	});
@@ -68,12 +68,12 @@ suite('DecorationsService', function () {
 			readonly onDidChange: Event<URI[]> = Event.None;
 			provideDecorations(uri: URI) {
 				callCounter += 1;
-				return { severity: Severity.Info, color: 'someBlue', letter: 'Z' };
+				return { severity: Severity.Info, color: 'someBlue', tooltip: 'Z' };
 			}
 		});
 
 		// trigger -> sync
-		assert.deepEqual(service.getTopDecoration(uri, false).letter, 'Z');
+		assert.deepEqual(service.getTopDecoration(uri, false).tooltip, 'Z');
 		assert.equal(callCounter, 1);
 	});
 
@@ -86,12 +86,12 @@ suite('DecorationsService', function () {
 			readonly onDidChange: Event<URI[]> = Event.None;
 			provideDecorations(uri: URI) {
 				callCounter += 1;
-				return { severity: Severity.Info, color: 'someBlue', letter: 'J' };
+				return { severity: Severity.Info, color: 'someBlue', tooltip: 'J' };
 			}
 		});
 
 		// trigger -> sync
-		assert.deepEqual(service.getTopDecoration(uri, false).letter, 'J');
+		assert.deepEqual(service.getTopDecoration(uri, false).tooltip, 'J');
 		assert.equal(callCounter, 1);
 
 		// un-register -> ensure good event
