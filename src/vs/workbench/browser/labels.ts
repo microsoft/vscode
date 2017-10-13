@@ -20,11 +20,9 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { IResourceDecorationsService, IResourceDecorationChangeEvent } from 'vs/workbench/services/decorations/browser/decorations';
 import { Schemas } from 'vs/base/common/network';
 import { FileKind } from 'vs/platform/files/common/files';
 import { IModel } from 'vs/editor/common/editorCommon';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export interface IResourceLabel {
 	name: string;
@@ -34,7 +32,6 @@ export interface IResourceLabel {
 
 export interface IResourceLabelOptions extends IIconLabelOptions {
 	fileKind?: FileKind;
-	fileDecorations?: { colors: boolean, badges: boolean };
 }
 
 export class ResourceLabel extends IconLabel {
@@ -52,9 +49,7 @@ export class ResourceLabel extends IconLabel {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IModeService private modeService: IModeService,
 		@IModelService private modelService: IModelService,
-		@IEnvironmentService protected environmentService: IEnvironmentService,
-		@IResourceDecorationsService protected decorationsService: IResourceDecorationsService,
-		@IThemeService private themeService: IThemeService
+		@IEnvironmentService protected environmentService: IEnvironmentService
 	) {
 		super(container, options);
 
@@ -67,8 +62,6 @@ export class ResourceLabel extends IconLabel {
 		this.extensionService.onReady().then(() => this.render(true /* clear cache */)); // update when extensions are loaded with potentially new languages
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(() => this.render(true /* clear cache */))); // update when file.associations change
 		this.toDispose.push(this.modelService.onModelModeChanged(e => this.onModelModeChanged(e))); // react to model mode changes
-		this.toDispose.push(this.decorationsService.onDidChangeDecorations(this.onFileDecorationsChanges, this)); // react to file decoration changes
-		this.toDispose.push(this.themeService.onThemeChange(() => this.render(false)));
 	}
 
 	private onModelModeChanged(e: { model: IModel; oldModeId: string; }): void {
@@ -88,15 +81,6 @@ export class ResourceLabel extends IconLabel {
 			if (this.lastKnownConfiguredLangId !== e.model.getLanguageIdentifier().language) {
 				this.render(true); // update if the language id of the model has changed from our last known state
 			}
-		}
-	}
-
-	private onFileDecorationsChanges(e: IResourceDecorationChangeEvent): void {
-		if (!this.options || !this.label || !this.label.resource) {
-			return;
-		}
-		if (this.options.fileDecorations && e.affectsResource(this.label.resource)) {
-			this.render(false);
 		}
 	}
 
@@ -157,49 +141,28 @@ export class ResourceLabel extends IconLabel {
 			return;
 		}
 
-		const iconLabelOptions: IIconLabelOptions = {
-			title: '',
-			italic: this.options && this.options.italic,
-			matches: this.options && this.options.matches,
-		};
-
 		const resource = this.label.resource;
-		let label = this.label.name;
 
-
+		let title = '';
 		if (this.options && typeof this.options.title === 'string') {
-			iconLabelOptions.title = this.options.title;
+			title = this.options.title;
 		} else if (resource) {
-			iconLabelOptions.title = getPathLabel(resource, void 0, this.environmentService);
+			title = getPathLabel(resource, void 0, this.environmentService);
 		}
 
 		if (!this.computedIconClasses) {
 			this.computedIconClasses = getIconClasses(this.modelService, this.modeService, resource, this.options && this.options.fileKind);
 		}
 
-		iconLabelOptions.extraClasses = this.computedIconClasses.slice(0);
+		let extraClasses = this.computedIconClasses.slice(0);
 		if (this.options && this.options.extraClasses) {
-			iconLabelOptions.extraClasses.push(...this.options.extraClasses);
+			extraClasses.push(...this.options.extraClasses);
 		}
 
-		if (this.options && this.options.fileDecorations) {
-			let deco = this.decorationsService.getTopDecoration(
-				resource,
-				this.options.fileKind !== FileKind.FILE
-			);
-			if (deco && this.options.fileDecorations.colors) {
-				iconLabelOptions.extraClasses.push(deco.labelClassName);
-			}
-			if (deco && deco.letter && this.options.fileDecorations.badges) {
-				iconLabelOptions.badge = {
-					letter: deco.letter,
-					title: deco.tooltip,
-					className: deco.badgeClassName,
-				};
-			}
-		}
+		const italic = this.options && this.options.italic;
+		const matches = this.options && this.options.matches;
 
-		this.setValue(label, this.label.description, iconLabelOptions);
+		this.setValue(this.label.name, this.label.description, { title, extraClasses, italic, matches });
 	}
 
 	public dispose(): void {
@@ -241,11 +204,9 @@ export class FileLabel extends ResourceLabel {
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IResourceDecorationsService decorationsService: IResourceDecorationsService,
-		@IThemeService themeService: IThemeService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
+		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
 	) {
-		super(container, options, extensionService, contextService, configurationService, modeService, modelService, environmentService, decorationsService, themeService);
+		super(container, options, extensionService, contextService, configurationService, modeService, modelService, environmentService);
 	}
 
 	public setFile(resource: uri, options?: IFileLabelOptions): void {

@@ -321,7 +321,6 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 	public show(editor: BaseEditor, position: Position, preserveActive: boolean, ratio?: number[]): void {
 		const visibleEditorCount = this.getVisibleEditorCount();
-		const currentActivePosition = this.getActivePosition();
 
 		// Store into editor bucket
 		this.visibleEditors[position] = editor;
@@ -392,7 +391,6 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			this.sashOne.layout();
 
 			this.layoutContainers();
-			this.updateInactiveEditorGroupActions(currentActivePosition); // prevent some ugly flickering when opening a group
 		}
 
 		// Adjust layout: []|[] -> []|[]|[!]
@@ -406,7 +404,6 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			this.sashTwo.layout();
 
 			this.layoutContainers();
-			this.updateInactiveEditorGroupActions(currentActivePosition); // prevent some ugly flickering when opening a group
 		}
 
 		// Show editor container
@@ -2062,18 +2059,6 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			}
 
 			this.visibleEditors[position].layout(new Dimension(editorWidth, editorHeight));
-		}
-	}
-
-	private updateInactiveEditorGroupActions(position: Position): void {
-		const activePosition = this.getActivePosition();
-		if (activePosition === position) {
-			return; // this position is actually active
-		}
-
-		const titleArea = this.getTitleAreaControl(position);
-		if (titleArea) {
-			titleArea.updateEditorActionsToolbar();
 		}
 	}
 

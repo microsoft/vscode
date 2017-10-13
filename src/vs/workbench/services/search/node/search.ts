@@ -25,7 +25,6 @@ export interface IRawSearch {
 	includePattern?: IExpression;
 	contentPattern?: IPatternInfo;
 	maxResults?: number;
-	exists?: boolean;
 	sortByScore?: boolean;
 	cacheKey?: string;
 	maxFilesize?: number;

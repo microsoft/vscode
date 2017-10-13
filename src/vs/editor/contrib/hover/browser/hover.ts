@@ -219,4 +219,5 @@ registerThemingParticipant((theme, collector) => {
 	if (codeBackground) {
 		collector.addRule(`.monaco-editor .monaco-editor-hover code { background-color: ${codeBackground}; }`);
 	}
+
 });

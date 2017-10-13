@@ -139,14 +139,7 @@ export function expandEmmetAbbreviation(args): Thenable<boolean> {
 		return [new vscode.Range(abbreviationRange.start.line, abbreviationRange.start.character, abbreviationRange.end.line, abbreviationRange.end.character), abbreviation, filter];
 	};
 
-	let selectionsInReverseOrder = editor.selections.slice(0);
-	selectionsInReverseOrder.sort((a, b) => {
-		var posA = a.isReversed ? a.anchor : a.active;
-		var posB = b.isReversed ? b.anchor : b.active;
-		return posA.compareTo(posB) * -1;
-	});
-
-	selectionsInReverseOrder.forEach(selection => {
+	editor.selections.forEach(selection => {
 		let position = selection.isReversed ? selection.anchor : selection.active;
 		let [rangeToReplace, abbreviation, filter] = getAbbreviation(editor.document, selection, position, syntax);
 		if (!rangeToReplace) {

@@ -116,7 +116,11 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	}
 
 	private isSupported(): boolean {
-		return this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE; // we need a multi folder workspace to begin with;
+		// TODO@Ben multi root
+		return (
+			this.environmentService.appQuality !== 'stable'  // not yet enabled in stable
+			&& this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE // we need a multi folder workspace to begin with
+		);
 	}
 
 	private contains(resources: URI[], toCheck: URI): boolean {

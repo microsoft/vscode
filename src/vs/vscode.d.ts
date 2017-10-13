@@ -1505,22 +1505,6 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Options to configure the behaviour of the [workspace folder](#WorkspaceFolder) pick UI.
-	 */
-	export interface WorkspaceFolderPickOptions {
-
-		/**
-		 * An optional string to show as place holder in the input box to guide the user what to pick on.
-		 */
-		placeHolder?: string;
-
-		/**
-		 * Set to `true` to keep the picker open when focus moves to another part of the editor or to another window.
-		 */
-		ignoreFocusOut?: boolean;
-	}
-
-	/**
 	 * Options to configure the behaviour of a file open dialog.
 	 *
 	 * * Note 1: A dialog can select files, folders, or both. This is not true for Windows
@@ -1685,7 +1669,7 @@ declare module 'vscode' {
 	 * relatively to a base path. The base path can either be an absolute file path
 	 * or a [workspace folder](#WorkspaceFolder).
 	 */
-	export class RelativePattern {
+	class RelativePattern {
 
 		/**
 		 * A base file path to which this pattern will be matched against relatively.
@@ -1986,13 +1970,6 @@ declare module 'vscode' {
 		 * @param value Markdown string.
 		 */
 		appendMarkdown(value: string): MarkdownString;
-
-		/**
-		 * Appends the given string as codeblock using the provided language.
-		 * @param value A code snippet.
-		 * @param language An optional [language identifier](#languages.getLanguages).
-		 */
-		appendCodeblock(value: string, language?: string): MarkdownString;
 	}
 
 	/**
@@ -4603,15 +4580,6 @@ declare module 'vscode' {
 		export function showQuickPick<T extends QuickPickItem>(items: T[] | Thenable<T[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<T | undefined>;
 
 		/**
-		 * Shows a selection list of [workspace folders](#workspace.workspaceFolders) to pick from.
-		 * Returns `undefined` if no folder is open.
-		 *
-		 * @param options Configures the behavior of the workspace folder list.
-		 * @return A promise that resolves to the workspace folder or `undefined`.
-		 */
-		export function showWorkspaceFolderPick(options?: WorkspaceFolderPickOptions): Thenable<WorkspaceFolder | undefined>;
-
-		/**
 		 * Shows a file open dialog to the user which allows to select a file
 		 * for opening-purposes.
 		 *
@@ -5654,12 +5622,6 @@ declare module 'vscode' {
 		 * [source control resource state](#SourceControlResourceState).
 		 */
 		readonly tooltip?: string;
-
-		/**
-		 * A color for a specific
-		 * [source control resource state](#SourceControlResourceState).
-		 */
-		readonly color?: ThemeColor;
 
 		/**
 		 * The light theme decorations.

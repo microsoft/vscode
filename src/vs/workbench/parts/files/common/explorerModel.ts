@@ -82,6 +82,7 @@ export class FileStat implements IFileStat {
 	public children: FileStat[];
 	public parent: FileStat;
 
+	public exists: boolean;
 	public isDirectoryResolved: boolean;
 
 	constructor(resource: URI, public root: FileStat, isDirectory?: boolean, hasChildren?: boolean, name: string = paths.basename(resource.fsPath), mtime?: number, etag?: string) {
@@ -101,10 +102,7 @@ export class FileStat implements IFileStat {
 		}
 
 		this.isDirectoryResolved = false;
-	}
-
-	public get nonexistentRoot(): boolean {
-		return this.isRoot && !this.isDirectoryResolved;
+		this.exists = true;
 	}
 
 	public getId(): string {

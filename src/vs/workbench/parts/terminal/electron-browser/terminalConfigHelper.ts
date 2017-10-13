@@ -14,7 +14,6 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { ITerminalConfiguration, ITerminalConfigHelper, ITerminalFont, IShellLaunchConfig, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY } from 'vs/workbench/parts/terminal/common/terminal';
 import { TPromise } from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
-import { isFedora } from 'vs/workbench/parts/terminal/electron-browser/terminal';
 
 interface IEditorConfiguration {
 	editor: IEditorOptions;
@@ -90,15 +89,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		const editorConfig = (<IEditorConfiguration>config).editor;
 		const terminalConfig = this.config;
 
-		let fontFamily = terminalConfig.fontFamily || editorConfig.fontFamily;
-
-		// Work around bad font on Fedora
-		if (!terminalConfig.fontFamily) {
-			if (isFedora) {
-				fontFamily = '\'DejaVu Sans Mono\'';
-			}
-		}
-
+		const fontFamily = terminalConfig.fontFamily || editorConfig.fontFamily;
 		let fontSize = this._toInteger(terminalConfig.fontSize, 0);
 		if (fontSize <= 0) {
 			fontSize = EDITOR_FONT_DEFAULTS.fontSize;

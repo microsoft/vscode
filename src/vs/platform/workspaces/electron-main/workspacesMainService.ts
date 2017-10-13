@@ -70,14 +70,7 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 			return null; // does not look like a valid workspace config file
 		}
 
-		let contents: string;
-		try {
-			contents = readFileSync(path, 'utf8');
-		} catch (error) {
-			return null; // invalid workspace
-		}
-
-		return this.doResolveWorkspace(path, contents);
+		return this.doResolveWorkspace(path, readFileSync(path, 'utf8'));
 	}
 
 	private isWorkspacePath(path: string): boolean {

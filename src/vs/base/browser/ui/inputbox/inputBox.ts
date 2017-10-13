@@ -391,9 +391,9 @@ export class InputBox extends Widget {
 					className: 'monaco-inputbox-message'
 				};
 
-				const spanElement = (this.message.formatContent
+				let spanElement: HTMLElement = (this.message.formatContent
 					? renderFormattedText(this.message.content, renderOptions)
-					: renderText(this.message.content, renderOptions));
+					: renderText(this.message.content, renderOptions)) as any;
 				dom.addClass(spanElement, this.classForType(this.message.type));
 
 				const styles = this.stylesForType(this.message.type);

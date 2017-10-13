@@ -244,10 +244,6 @@
 	display: none;
 }
 
-.monaco-editor .suggest-widget .details code {
-	border-radius: 3px;
-	padding: 0 0.4em;
-}
 
 /* High Contrast and Dark Theming */
 

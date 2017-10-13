@@ -284,7 +284,7 @@ export const location = {
 	from(value: vscode.Location): modes.Location {
 		return {
 			range: value.range && fromRange(value.range),
-			uri: value.uri
+			uri: <URI>value.uri
 		};
 	},
 	to(value: modes.Location): types.Location {

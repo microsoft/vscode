@@ -232,13 +232,13 @@ export class ExtensionHostMain {
 		const query: ISearchQuery = {
 			folderQueries,
 			type: QueryType.File,
-			exists: true,
+			maxResults: 1,
 			includePattern: includes,
 			useRipgrep
 		};
 
 		let result = await this._diskSearch.search(query);
-		if (result.limitHit) {
+		if (result.results.length > 0) {
 			// a file was found matching one of the glob patterns
 			return (
 				this._extensionService.activateById(extensionId, true)

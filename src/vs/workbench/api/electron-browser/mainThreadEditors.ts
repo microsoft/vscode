@@ -243,7 +243,7 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 				const edit = edits[j];
 
 				resourceEdits.push({
-					resource: uri,
+					resource: <URI>uri,
 					newText: edit.newText,
 					newEol: edit.newEol,
 					range: edit.range

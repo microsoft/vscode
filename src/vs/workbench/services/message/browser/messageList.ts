@@ -353,7 +353,7 @@ export class MessageList {
 
 				sevLabel.title(title);
 
-				$(messageContentElement).title(title).appendTo(div);
+				$(messageContentElement as HTMLElement).title(title).appendTo(div);
 			});
 		});
 	}

@@ -13,7 +13,7 @@ import * as objects from 'vs/base/common/objects';
 import { $ } from 'vs/base/browser/builder';
 import Event, { Emitter } from 'vs/base/common/event';
 import * as dom from 'vs/base/browser/dom';
-import { ActionBar, IActionBarOptions } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
@@ -132,18 +132,15 @@ export abstract class PeekViewWidget extends ZoneWidget {
 		this._secondaryHeading = $('span.dirname').appendTo(titleElement).getHTMLElement();
 		this._metaHeading = $('span.meta').appendTo(titleElement).getHTMLElement();
 
-		const actionsContainer = $('.peekview-actions').appendTo(this._headElement);
-		const actionBarOptions = this._getActionBarOptions();
-		this._actionbarWidget = new ActionBar(actionsContainer, actionBarOptions);
+		this._actionbarWidget = new ActionBar(
+			$('.peekview-actions').
+				appendTo(this._headElement)
+		);
 
 		this._actionbarWidget.push(new Action('peekview.close', nls.localize('label.close', "Close"), 'close-peekview-action', true, () => {
 			this.dispose();
 			return null;
 		}), { label: false, icon: true });
-	}
-
-	protected _getActionBarOptions(): IActionBarOptions {
-		return {};
 	}
 
 	protected _onTitleClick(event: MouseEvent): void {
@@ -168,7 +165,9 @@ export abstract class PeekViewWidget extends ZoneWidget {
 		}
 	}
 
-	protected abstract _fillBody(container: HTMLElement): void;
+	protected _fillBody(container: HTMLElement): void {
+		// implement me
+	}
 
 	public _doLayout(heightInPixel: number, widthInPixel: number): void {
 

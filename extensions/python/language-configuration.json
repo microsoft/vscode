@@ -23,10 +23,6 @@
 		["'", "'"]
 	],
 	"folding": {
-		"offSide": true,
-		"markers": {
-			"start": "^\\s*#region\\b",
-			"end": "^\\s*#endregion\\b"
-		}
+		"offSide": true
 	}
 }

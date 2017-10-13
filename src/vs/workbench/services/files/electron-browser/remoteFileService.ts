@@ -283,19 +283,12 @@ export class RemoteFileService extends FileService {
 						stream.write(chunk);
 						offset += chunk.length;
 					}
-					if (offset < count) {
-						// we didn't read enough the first time which means
-						// that we are done
+					provider.read(resource, offset, Number.MAX_VALUE, new Progress<Buffer>(chunk => stream.write(chunk))).then(() => {
 						stream.end();
-					} else {
-						// there is more to read
-						provider.read(resource, offset, -1, new Progress<Buffer>(chunk => stream.write(chunk))).then(() => {
-							stream.end();
-						}, err => {
-							stream.emit('error', err);
-							stream.end();
-						});
-					}
+					}, err => {
+						stream.emit('error', err);
+						stream.end();
+					});
 
 					return {
 						encoding: preferredEncoding,

@@ -528,7 +528,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			for (let index = 0; index < result.galleryExtensions.length; index++) {
 				const rawExtension = result.galleryExtensions[index];
 				if (ids.indexOf(rawExtension.extensionId) === -1) {
-					dependencies.push(toExtension(rawExtension, this.extensionsGalleryUrl, index, query, 'dependencies'));
+					dependencies.push(toExtension(rawExtension, this.extensionsGalleryUrl, index, query));
 					ids.push(rawExtension.extensionId);
 				}
 			}

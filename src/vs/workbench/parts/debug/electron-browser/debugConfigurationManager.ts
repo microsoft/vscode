@@ -213,7 +213,7 @@ export class ConfigurationManager implements IConfigurationManager {
 	private _selectedLaunch: ILaunch;
 	private toDispose: IDisposable[];
 	private _onDidSelectConfigurationName = new Emitter<void>();
-	private providers: IDebugConfigurationProvider[];
+	private _providers: Map<number, IDebugConfigurationProvider>;
 
 	constructor(
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
@@ -228,7 +228,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		@IStorageService private storageService: IStorageService,
 		@ILifecycleService lifecycleService: ILifecycleService
 	) {
-		this.providers = [];
+		this._providers = new Map<number, IDebugConfigurationProvider>();
 		this.adapters = [];
 		this.toDispose = [];
 		this.registerListeners(lifecycleService);
@@ -242,10 +242,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		if (!debugConfigurationProvider) {
 			return;
 		}
-
-		debugConfigurationProvider.handle = handle;
-		this.providers = this.providers.filter(p => p.handle !== handle);
-		this.providers.push(debugConfigurationProvider);
+		this._providers.set(handle, debugConfigurationProvider);
 		const adapter = this.getAdapter(debugConfigurationProvider.type);
 		// Check if the provider contributes provideDebugConfigurations method
 		if (adapter && debugConfigurationProvider.provideDebugConfigurations) {
@@ -253,13 +250,22 @@ export class ConfigurationManager implements IConfigurationManager {
 		}
 	}
 
-	public unregisterDebugConfigurationProvider(handle: number): void {
-		this.providers = this.providers.filter(p => p.handle !== handle);
+	public unregisterDebugConfigurationProvider(handle: number): boolean {
+		return this._providers.delete(handle);
 	}
 
-	public resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: IConfig): TPromise<IConfig> {
+	public resolveDebugConfiguration(folderUri: uri | undefined, type: string | undefined, debugConfiguration: IConfig): TPromise<IConfig> {
+
+		// collect all candidates
+		const providers: IDebugConfigurationProvider[] = [];
+		this._providers.forEach(provider => {
+			if (provider.type === type && provider.resolveDebugConfiguration) {
+				providers.push(provider);
+			}
+		});
+
 		// pipe the config through the promises sequentially
-		return this.providers.filter(p => p.type === type && p.resolveDebugConfiguration).reduce((promise, provider) => {
+		return providers.reduce((promise, provider) => {
 			return promise.then(config => {
 				if (config) {
 					return provider.resolveDebugConfiguration(folderUri, config);
@@ -271,8 +277,19 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 
 	public provideDebugConfigurations(folderUri: uri | undefined, type: string): TPromise<any[]> {
-		return TPromise.join(this.providers.filter(p => p.type === type && p.provideDebugConfigurations).map(p => p.provideDebugConfigurations(folderUri)))
-			.then(results => results.reduce((first, second) => first.concat(second), []));
+
+		// collect all candidates
+		const configs: TPromise<any[]>[] = [];
+		this._providers.forEach(provider => {
+			if (provider.type === type && provider.provideDebugConfigurations) {
+				configs.push(provider.provideDebugConfigurations(folderUri));
+			}
+		});
+
+		// combine all configs into one array
+		return TPromise.join(configs).then(results => {
+			return [].concat.apply([], results);
+		});
 	}
 
 	private registerListeners(lifecycleService: ILifecycleService): void {

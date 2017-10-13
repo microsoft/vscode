@@ -701,19 +701,14 @@ export class DebugService implements debug.IDebugService {
 					config.noDebug = true;
 				}
 
-				const sessionId = generateUuid();
-				this.updateStateAndEmit(sessionId, debug.State.Initializing);
-				return (type ? TPromise.as(null) : this.configurationManager.guessAdapter().then(a => type = a && a.type)).then(() =>
-					this.configurationManager.resolveConfigurationByProviders(launch ? launch.workspace.uri : undefined, type, config).then(config => {
-						// a falsy config indicates an aborted launch
-						if (config && config.type) {
-							return this.createProcess(root, config, sessionId);
-						}
+				return this.configurationManager.resolveDebugConfiguration(launch ? launch.workspace.uri : undefined, type, config).then(config => {
+					// a falsy config indicates an aborted launch
+					if (config && config.type) {
+						return this.createProcess(root, config);
+					}
 
-						this.updateStateAndEmit(sessionId, debug.State.Inactive);
-						return <any>launch.openConfigFile(false, type); // cast to ignore weird compile error
-					})
-				);
+					return <TPromise>undefined; // ignore weird compile error
+				});
 			})
 		)));
 	}
@@ -727,7 +722,7 @@ export class DebugService implements debug.IDebugService {
 		return null;
 	}
 
-	public createProcess(root: IWorkspaceFolder, config: debug.IConfig, sessionId?: string): TPromise<debug.IProcess> {
+	public createProcess(root: IWorkspaceFolder, config: debug.IConfig): TPromise<debug.IProcess> {
 		return this.textFileService.saveAll().then(() =>
 			(this.configurationManager.selectedLaunch ? this.configurationManager.selectedLaunch.resolveConfiguration(config) : TPromise.as(config)).then(resolvedConfig => {
 				if (!resolvedConfig) {
@@ -749,10 +744,8 @@ export class DebugService implements debug.IDebugService {
 					return TPromise.wrapError(errors.create(message, { actions: [this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL), CloseAction] }));
 				}
 
-				if (!sessionId) {
-					sessionId = generateUuid();
-					this.updateStateAndEmit(sessionId, debug.State.Initializing);
-				}
+				const sessionId = generateUuid();
+				this.updateStateAndEmit(sessionId, debug.State.Initializing);
 
 				return this.runPreLaunchTask(root, resolvedConfig.preLaunchTask).then((taskSummary: ITaskSummary) => {
 					const errorCount = resolvedConfig.preLaunchTask ? this.markerService.getStatistics().errors : 0;
@@ -788,7 +781,6 @@ export class DebugService implements debug.IDebugService {
 					});
 				});
 			}, err => {
-				this.updateStateAndEmit(sessionId, debug.State.Inactive);
 				if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 					this.messageService.show(severity.Error, nls.localize('noFolderWorkspaceDebugError', "The active file can not be debugged. Make sure it is saved on disk and that you have a debug extension installed for that file type."));
 					return undefined;

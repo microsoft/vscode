@@ -324,8 +324,6 @@ export interface MainThreadFileSystemShape extends IDisposable {
 	$onDidAddFileSystemRoot(root: URI): void;
 	$onFileSystemChange(handle: number, resource: IFileChange[]): void;
 	$reportFileChunk(handle: number, resource: URI, chunk: number[] | null): void;
-
-	$handleSearchProgress(handle: number, session: number, resource: URI): void;
 }
 
 export interface MainThreadTaskShape extends IDisposable {
@@ -357,8 +355,7 @@ export type SCMRawResource = [
 	string[] /*icons: light, dark*/,
 	string /*tooltip*/,
 	boolean /*strike through*/,
-	boolean /*faded*/,
-	{ id: string } /*ThemeColor*/
+	boolean /*faded*/
 ];
 
 export type SCMRawResourceSplice = [
@@ -492,7 +489,6 @@ export interface ExtHostFileSystemShape {
 	$mkdir(handle: number, resource: URI): TPromise<IStat>;
 	$readdir(handle: number, resource: URI): TPromise<[URI, IStat][]>;
 	$rmdir(handle: number, resource: URI): TPromise<void>;
-	$fileFiles(handle: number, session: number, query: string): TPromise<void>;
 }
 
 export interface ExtHostExtensionServiceShape {

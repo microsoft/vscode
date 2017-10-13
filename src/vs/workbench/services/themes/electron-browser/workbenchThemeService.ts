@@ -118,7 +118,6 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			isLoaded: false,
 			hasFileIcons: false,
 			hasFolderIcons: false,
-			hidesExplorerArrows: false,
 			extensionData: null
 		};
 
@@ -154,8 +153,8 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			configurationRegistry.notifyConfigurationSchemaUpdated(colorThemeSettingSchema);
 		});
 		this.iconThemeStore.onDidChange(themes => {
-			iconThemeSettingSchema.enum = [null, ...themes.map(t => t.settingsId)];
-			iconThemeSettingSchema.enumDescriptions = [iconThemeSettingSchema.enumDescriptions[0], ...themes.map(t => themeData.description || '')];
+			iconThemeSettingSchema.enum = themes.map(t => t.settingsId);
+			iconThemeSettingSchema.enumDescriptions = themes.map(t => themeData.description || '');
 			configurationRegistry.notifyConfigurationSchemaUpdated(iconThemeSettingSchema);
 		});
 	}
