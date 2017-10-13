@@ -742,9 +742,18 @@ export class Repository implements Disposable {
 		const index: Resource[] = [];
 		const workingTree: Resource[] = [];
 		const merge: Resource[] = [];
+		const repoDetection = config.get<boolean>('autoRepositoryDetection') === true;
 
 		status.forEach(raw => {
-			const uri = Uri.file(path.join(this.repository.root, raw.path));
+			const fullFilePath = path.join(this.repository.root, raw.path);
+
+			if (!repoDetection && workspace.workspaceFolders === undefined) {
+				if (!this.detectActiveFile(fullFilePath)) {
+					return;
+				}
+			}
+
+			const uri = Uri.file(fullFilePath);
 			const renameUri = raw.rename ? Uri.file(path.join(this.repository.root, raw.rename)) : undefined;
 
 			switch (raw.x + raw.y) {
@@ -800,6 +809,16 @@ export class Repository implements Disposable {
 		}
 
 		this._onDidChangeStatus.fire();
+	}
+
+	private detectActiveFile(fullFilePath: string): boolean {
+		if (window.activeTextEditor !== undefined) {
+			if (window.activeTextEditor.document.fileName === fullFilePath) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	private onFSChange(uri: Uri): void {
