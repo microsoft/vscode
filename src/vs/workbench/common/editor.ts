@@ -262,6 +262,7 @@ export abstract class EditorInput implements IEditorInput {
 
 export interface IEditorOpeningEvent {
 	input: IEditorInput;
+	options?: IEditorOptions;
 	position: Position;
 
 	/**
@@ -277,11 +278,15 @@ export interface IEditorOpeningEvent {
 export class EditorOpeningEvent {
 	private override: () => TPromise<IBaseEditor>;
 
-	constructor(private _editorInput: IEditorInput, private _position: Position) {
+	constructor(private _input: IEditorInput, private _options: IEditorOptions, private _position: Position) {
 	}
 
 	public get input(): IEditorInput {
-		return this._editorInput;
+		return this._input;
+	}
+
+	public get options(): IEditorOptions {
+		return this._options;
 	}
 
 	public get position(): Position {

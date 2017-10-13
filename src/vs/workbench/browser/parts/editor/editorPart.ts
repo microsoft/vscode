@@ -336,7 +336,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 
 		// Editor opening event (can be prevented and overridden)
-		const event = new EditorOpeningEvent(input, position);
+		const event = new EditorOpeningEvent(input, options, position);
 		this._onEditorOpening.fire(event);
 		const prevented = event.isPrevented();
 		if (prevented) {
