@@ -592,11 +592,6 @@ export interface IDebugService {
 	startDebugging(root: IWorkspaceFolder, configOrName?: IConfig | string, noDebug?: boolean): TPromise<any>;
 
 	/**
-	 * Creates a new debug process. Depending on the configuration will either 'launch' or 'attach'.
-	 */
-	createProcess(root: IWorkspaceFolder, config: IConfig): TPromise<IProcess>;
-
-	/**
 	 * Find process by ID.
 	 */
 	findProcessByUUID(uuid: string): IProcess | null;

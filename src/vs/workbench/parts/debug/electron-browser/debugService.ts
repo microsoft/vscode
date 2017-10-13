@@ -727,7 +727,7 @@ export class DebugService implements debug.IDebugService {
 		return null;
 	}
 
-	public createProcess(root: IWorkspaceFolder, config: debug.IConfig, sessionId?: string): TPromise<debug.IProcess> {
+	private createProcess(root: IWorkspaceFolder, config: debug.IConfig, sessionId: string): TPromise<debug.IProcess> {
 		return this.textFileService.saveAll().then(() =>
 			(this.configurationManager.selectedLaunch ? this.configurationManager.selectedLaunch.resolveConfiguration(config) : TPromise.as(config)).then(resolvedConfig => {
 				if (!resolvedConfig) {
@@ -747,11 +747,6 @@ export class DebugService implements debug.IDebugService {
 					}
 
 					return TPromise.wrapError(errors.create(message, { actions: [this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL), CloseAction] }));
-				}
-
-				if (!sessionId) {
-					sessionId = generateUuid();
-					this.updateStateAndEmit(sessionId, debug.State.Initializing);
 				}
 
 				return this.runPreLaunchTask(root, resolvedConfig.preLaunchTask).then((taskSummary: ITaskSummary) => {
@@ -1003,7 +998,7 @@ export class DebugService implements debug.IDebugService {
 						config.noDebug = process.configuration.noDebug;
 					}
 					config.__restart = restartData;
-					this.createProcess(process.session.root, config).then(() => c(null), err => e(err));
+					this.createProcess(process.session.root, config, process.getId()).then(() => c(null), err => e(err));
 				}, 300);
 			});
 		}).then(() => {
