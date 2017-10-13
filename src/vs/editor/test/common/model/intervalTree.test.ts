@@ -65,13 +65,12 @@ suite('IntervalTree', () => {
 
 		public acceptOp(op: IOperation): void {
 
-
 			if (op.type === 'insert') {
 				if (PRINT_TREE) {
 					console.log(`insert: {${JSON.stringify(new Interval(op.begin, op.end))}}`);
 				}
 				let nodeId = (++this._lastNodeId);
-				this._treeNodes[nodeId] = new IntervalNode(op.begin, op.end);
+				this._treeNodes[nodeId] = new IntervalNode(null, op.begin, op.end);
 				this._tree.insert(this._treeNodes[nodeId]);
 				this._oracleNodes[nodeId] = this._oracle.insert(new Interval(op.begin, op.end));
 			} else if (op.type === 'delete') {
@@ -84,8 +83,8 @@ suite('IntervalTree', () => {
 				this._treeNodes[op.id] = null;
 				this._oracleNodes[op.id] = null;
 			} else {
-				let actualNodes = this._tree.intervalSearch(new Interval(op.begin, op.end));
-				let actual = actualNodes.map(n => n.absoluteInterval);
+				let actualNodes = this._tree.intervalSearch(new Interval(op.begin, op.end), 0, false, 0);
+				let actual = actualNodes.map(n => new Interval(n.cachedAbsoluteStart, n.cachedAbsoluteEnd));
 				let expected = this._oracle.search(new Interval(op.begin, op.end));
 				assert.deepEqual(actual, expected);
 				return;
@@ -418,7 +417,7 @@ suite('IntervalTree', () => {
 				[19, 20]
 			];
 			data.forEach((int) => {
-				let node = new IntervalNode(int[0], int[1]);
+				let node = new IntervalNode(null, int[0], int[1]);
 				r.insert(node);
 			});
 			return r;
@@ -427,8 +426,8 @@ suite('IntervalTree', () => {
 		const T = createCormenTree();
 
 		function assertIntervalSearch(start: number, end: number, expected: [number, number][]): void {
-			let actualNodes = T.intervalSearch(new Interval(start, end));
-			let actual = actualNodes.map((n) => <[number, number]>[n.absoluteInterval.start, n.absoluteInterval.end]);
+			let actualNodes = T.intervalSearch(new Interval(start, end), 0, false, 0);
+			let actual = actualNodes.map((n) => <[number, number]>[n.cachedAbsoluteStart, n.cachedAbsoluteEnd]);
 			assert.deepEqual(actual, expected);
 		}
 

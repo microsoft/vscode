@@ -4,9 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { Range } from 'vs/editor/common/core/range';
+import { IModelDecoration } from 'vs/editor/common/editorCommon';
+
 //
 // The red-black tree is based on the "Introduction to Algorithms" by Cormen, Leiserson and Rivest.
 //
+
+// TODO@interval!!!
+export const ClassName = {
+	EditorInfoDecoration: 'infosquiggly',
+	EditorWarningDecoration: 'warningsquiggly',
+	EditorErrorDecoration: 'errorsquiggly'
+};
 
 export class Interval {
 	_intervalBrand: void;
@@ -25,11 +36,11 @@ export const enum NodeColor {
 	Black
 }
 
-export class IntervalNode {
+export class IntervalNode implements IModelDecoration {
 
+	public parent: IntervalNode;
 	public left: IntervalNode;
 	public right: IntervalNode;
-	public parent: IntervalNode;
 	public color: NodeColor;
 
 	public start: number;
@@ -37,9 +48,17 @@ export class IntervalNode {
 	public delta: number;
 	public maxEnd: number;
 
-	public absoluteInterval: Interval;
+	public id: string;
+	public ownerId: number;
+	public options: ModelDecorationOptions;
+	public isForValidation: boolean;
 
-	constructor(start: number, end: number) {
+	public cachedVersionId: number;
+	public cachedAbsoluteStart: number;
+	public cachedAbsoluteEnd: number;
+	public range: Range;
+
+	constructor(id: string, start: number, end: number) {
 		this.parent = null;
 		this.left = null;
 		this.right = null;
@@ -50,7 +69,34 @@ export class IntervalNode {
 		this.delta = start;
 		this.maxEnd = end;
 
-		this.absoluteInterval = new Interval(0, 0);
+		this.id = id;
+		this.ownerId = 0;
+		this.options = null;
+		this.isForValidation = false;
+
+		this.cachedVersionId = 0;
+		this.cachedAbsoluteStart = start;
+		this.cachedAbsoluteEnd = end;
+		this.range = null;
+	}
+
+	public setOptions(options: ModelDecorationOptions) {
+		this.options = options;
+		this.isForValidation = (
+			this.options.className === ClassName.EditorErrorDecoration
+			|| this.options.className === ClassName.EditorWarningDecoration
+		);
+	}
+
+	public setCachedOffsets(absoluteStart: number, absoluteEnd: number, cachedVersionId: number): void {
+		this.cachedVersionId = cachedVersionId;
+		if (this.cachedAbsoluteStart === absoluteStart && this.cachedAbsoluteEnd === absoluteEnd) {
+			// no change
+			return;
+		}
+		this.cachedAbsoluteStart = absoluteStart;
+		this.cachedAbsoluteEnd = absoluteEnd;
+		this.range = null;
 	}
 
 	public detach(): void {
@@ -60,7 +106,7 @@ export class IntervalNode {
 	}
 }
 
-const SENTINEL: IntervalNode = new IntervalNode(0, 0);
+const SENTINEL: IntervalNode = new IntervalNode(null, 0, 0);
 SENTINEL.parent = SENTINEL;
 SENTINEL.left = SENTINEL;
 SENTINEL.right = SENTINEL;
@@ -74,12 +120,12 @@ export class IntervalTree {
 		this.root = SENTINEL;
 	}
 
-	public intervalSearch(interval: Interval): IntervalNode[] {
+	public intervalSearch(interval: Interval, filterOwnerId: number, filterOutValidation: boolean, cachedVersionId: number): IntervalNode[] {
 		if (this.root === SENTINEL) {
 			return [];
 		}
 		let result: IntervalNode[] = [];
-		intervalSearchRecursive(this.root, 0, interval.start, interval.end, result);
+		intervalSearchRecursive(this.root, 0, interval.start, interval.end, filterOwnerId, filterOutValidation, cachedVersionId, result);
 		return result;
 	}
 
@@ -87,8 +133,22 @@ export class IntervalTree {
 		rbTreeInsert(this, node);
 	}
 
-	public delete(node: IntervalNode) {
+	public delete(node: IntervalNode): void {
 		rbTreeDelete(this, node);
+	}
+
+	public resolveNode(node: IntervalNode, cachedVersionId: number): void {
+		let delta = 0;
+		while (node !== this.root) {
+			if (node === node.parent.right) {
+				delta += node.parent.delta;
+			}
+			node = node.parent;
+		}
+
+		const nodeStart = node.start + delta;
+		const nodeEnd = node.end + delta;
+		node.setCachedOffsets(nodeStart, nodeEnd, cachedVersionId);
 	}
 
 	public assertInvariants(): void {
@@ -150,7 +210,7 @@ export class IntervalTree {
 }
 
 //#region Searching
-function intervalSearchRecursive(node: IntervalNode, delta: number, intervalStart: number, intervalEnd: number, result: IntervalNode[]): void {
+function intervalSearchRecursive(node: IntervalNode, delta: number, intervalStart: number, intervalEnd: number, filterOwnerId: number, filterOutValidation: boolean, cachedVersionId: number, result: IntervalNode[]): void {
 	// https://en.wikipedia.org/wiki/Interval_tree#Augmented_tree
 	// Now, it is known that two intervals A and B overlap only when both
 	// A.low <= B.high and A.high >= B.low. When searching the trees for
@@ -165,7 +225,7 @@ function intervalSearchRecursive(node: IntervalNode, delta: number, intervalStar
 	}
 
 	if (node.left !== SENTINEL) {
-		intervalSearchRecursive(node.left, delta, intervalStart, intervalEnd, result);
+		intervalSearchRecursive(node.left, delta, intervalStart, intervalEnd, filterOwnerId, filterOutValidation, cachedVersionId, result);
 	}
 
 	const nodeStart = delta + node.start;
@@ -178,13 +238,23 @@ function intervalSearchRecursive(node: IntervalNode, delta: number, intervalStar
 	const nodeEnd = delta + node.end;
 	if (nodeEnd >= intervalStart) {
 		// There is overlap
-		node.absoluteInterval.start = nodeStart;
-		node.absoluteInterval.end = nodeEnd;
-		result.push(node);
+		node.setCachedOffsets(nodeStart, nodeEnd, cachedVersionId);
+
+		let include = true;
+		if (filterOwnerId && node.ownerId && node.ownerId !== filterOwnerId) {
+			include = false;
+		}
+		if (filterOutValidation && node.isForValidation) {
+			include = false;
+		}
+
+		if (include) {
+			result.push(node);
+		}
 	}
 
 	if (node.right !== SENTINEL) {
-		intervalSearchRecursive(node.right, delta + node.delta, intervalStart, intervalEnd, result);
+		intervalSearchRecursive(node.right, delta + node.delta, intervalStart, intervalEnd, filterOwnerId, filterOutValidation, cachedVersionId, result);
 	}
 }
 //#endregion
