@@ -122,7 +122,7 @@ export const tokenColorizationSettingSchema: IJSONSchema = {
 			type: 'string',
 			description: nls.localize('schema.token.foreground', 'Foreground color for the token.'),
 			format: 'color-hex',
-			defaultSnippets: [{ body: '${1:#FF0000}' }]
+			default: '#ff0000'
 		},
 		background: {
 			type: 'string',
