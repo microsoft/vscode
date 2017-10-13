@@ -380,6 +380,15 @@ suite('IntervalTree', () => {
 				{ type: 'delete', id: 6 }
 			]);
 		});
+
+		test('gen18', () => {
+			testIntervalTree([
+				{ type: 'insert', begin: 25, end: 25 },
+				{ type: 'insert', begin: 67, end: 79 },
+				{ type: 'delete', id: 0 },
+				{ type: 'search', begin: 65, end: 75 }
+			]);
+		});
 	});
 
 	// TEST_COUNT = 0;

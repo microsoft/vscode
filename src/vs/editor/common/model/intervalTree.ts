@@ -58,6 +58,8 @@ export class IntervalNode implements IModelDecoration {
 	public cachedAbsoluteEnd: number;
 	public range: Range;
 
+	public visited: boolean;
+
 	constructor(id: string, start: number, end: number) {
 		this.parent = null;
 		this.left = null;
@@ -78,6 +80,8 @@ export class IntervalNode implements IModelDecoration {
 		this.cachedAbsoluteStart = start;
 		this.cachedAbsoluteEnd = end;
 		this.range = null;
+
+		this.visited = false;
 	}
 
 	public setOptions(options: ModelDecorationOptions) {
@@ -124,9 +128,7 @@ export class IntervalTree {
 		if (this.root === SENTINEL) {
 			return [];
 		}
-		let result: IntervalNode[] = [];
-		intervalSearchRecursive(this.root, 0, start, end, filterOwnerId, filterOutValidation, cachedVersionId, result);
-		return result;
+		return intervalSearch(this, start, end, filterOwnerId, filterOutValidation, cachedVersionId);
 	}
 
 	public insert(node: IntervalNode): void {
@@ -159,6 +161,7 @@ export class IntervalTree {
 		assert(SENTINEL.start === 0);
 		assert(SENTINEL.end === 0);
 		assert(SENTINEL.delta === 0);
+		assert(this.root.parent === SENTINEL);
 		assertValidTree(this);
 	}
 
@@ -210,7 +213,8 @@ export class IntervalTree {
 }
 
 //#region Searching
-function intervalSearchRecursive(node: IntervalNode, delta: number, intervalStart: number, intervalEnd: number, filterOwnerId: number, filterOutValidation: boolean, cachedVersionId: number, result: IntervalNode[]): void {
+
+function intervalSearch(T: IntervalTree, intervalStart: number, intervalEnd: number, filterOwnerId: number, filterOutValidation: boolean, cachedVersionId: number): IntervalNode[] {
 	// https://en.wikipedia.org/wiki/Interval_tree#Augmented_tree
 	// Now, it is known that two intervals A and B overlap only when both
 	// A.low <= B.high and A.high >= B.low. When searching the trees for
@@ -218,45 +222,87 @@ function intervalSearchRecursive(node: IntervalNode, delta: number, intervalStar
 	//  a) all nodes to the right of nodes whose low value is past the end of the given interval.
 	//  b) all nodes that have their maximum 'high' value below the start of the given interval.
 
-	const nodeMaxEnd = delta + node.maxEnd;
-	if (nodeMaxEnd < intervalStart) {
-		// Cover b) from above
-		return;
-	}
-
-	if (node.left !== SENTINEL) {
-		intervalSearchRecursive(node.left, delta, intervalStart, intervalEnd, filterOwnerId, filterOutValidation, cachedVersionId, result);
-	}
-
-	const nodeStart = delta + node.start;
-
-	if (nodeStart > intervalEnd) {
-		// Cover a) from above
-		return;
-	}
-
-	const nodeEnd = delta + node.end;
-	if (nodeEnd >= intervalStart) {
-		// There is overlap
-		node.setCachedOffsets(nodeStart, nodeEnd, cachedVersionId);
-
-		let include = true;
-		if (filterOwnerId && node.ownerId && node.ownerId !== filterOwnerId) {
-			include = false;
-		}
-		if (filterOutValidation && node.isForValidation) {
-			include = false;
+	let node = T.root;
+	let delta = 0;
+	let nodeMaxEnd = 0;
+	let nodeStart = 0;
+	let nodeEnd = 0;
+	let result: IntervalNode[] = [];
+	let resultLen = 0;
+	while (node !== SENTINEL) {
+		if (node.visited) {
+			// going up from this node
+			node.left.visited = false;
+			node.right.visited = false;
+			if (node === node.parent.right) {
+				delta -= node.parent.delta;
+			}
+			node = node.parent;
+			continue;
 		}
 
-		if (include) {
-			result.push(node);
+		if (!node.left.visited) {
+			// first time seeing this node
+			nodeMaxEnd = delta + node.maxEnd;
+			if (nodeMaxEnd < intervalStart) {
+				// cover case b) from above
+				// there is no need to search this node or its children
+				node.visited = true;
+				continue;
+			}
+
+			if (node.left !== SENTINEL) {
+				// go left
+				node = node.left;
+				continue;
+			}
+		}
+
+		// handle current node
+		nodeStart = delta + node.start;
+		if (nodeStart > intervalEnd) {
+			// cover case a) from above
+			// there is no need to search this node or its right subtree
+			node.visited = true;
+			continue;
+		}
+
+		nodeEnd = delta + node.end;
+
+		if (nodeEnd >= intervalStart) {
+			// There is overlap
+			node.setCachedOffsets(nodeStart, nodeEnd, cachedVersionId);
+
+			let include = true;
+			if (filterOwnerId && node.ownerId && node.ownerId !== filterOwnerId) {
+				include = false;
+			}
+			if (filterOutValidation && node.isForValidation) {
+				include = false;
+			}
+
+			if (include) {
+				result[resultLen++] = node;
+			}
+		}
+
+		node.visited = true;
+
+		if (node.right !== SENTINEL && !node.right.visited) {
+			// go right
+			delta += node.delta;
+			node = node.right;
+			continue;
 		}
 	}
 
-	if (node.right !== SENTINEL) {
-		intervalSearchRecursive(node.right, delta + node.delta, intervalStart, intervalEnd, filterOwnerId, filterOutValidation, cachedVersionId, result);
+	if (T.root) {
+		T.root.visited = false;
 	}
+
+	return result;
 }
+
 //#endregion
 
 //#region Insertion
@@ -406,6 +452,7 @@ function rbTreeDelete(T: IntervalTree, z: IntervalNode): void {
 		z.detach();
 		resetSentinel();
 		recomputeMaxEnd(x);
+		T.root.parent = SENTINEL;
 		return;
 	}
 
