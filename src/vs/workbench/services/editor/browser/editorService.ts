@@ -9,7 +9,6 @@ import URI from 'vs/base/common/uri';
 import network = require('vs/base/common/network');
 import { Registry } from 'vs/platform/registry/common/platform';
 import { basename, dirname } from 'vs/base/common/paths';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorInput, EditorOptions, TextEditorOptions, Extensions as EditorExtensions, SideBySideEditorInput, IFileEditorInput, IFileInputFactory, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IUntitledEditorService, UNTITLED_SCHEMA } from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -26,14 +25,14 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IFileService } from 'vs/platform/files/common/files';
 
 export interface IEditorPart {
-	openEditor(input?: IEditorInput, options?: IEditorOptions | ITextEditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
-	openEditor(input?: IEditorInput, options?: IEditorOptions | ITextEditorOptions, position?: Position): TPromise<BaseEditor>;
-	openEditors(editors: { input: IEditorInput, position: Position, options?: IEditorOptions | ITextEditorOptions }[]): TPromise<BaseEditor[]>;
-	replaceEditors(editors: { toReplace: IEditorInput, replaceWith: IEditorInput, options?: IEditorOptions | ITextEditorOptions }[], position?: Position): TPromise<BaseEditor[]>;
+	openEditor(input?: IEditorInput, options?: IEditorOptions | ITextEditorOptions, sideBySide?: boolean): TPromise<IEditor>;
+	openEditor(input?: IEditorInput, options?: IEditorOptions | ITextEditorOptions, position?: Position): TPromise<IEditor>;
+	openEditors(editors: { input: IEditorInput, position: Position, options?: IEditorOptions | ITextEditorOptions }[]): TPromise<IEditor[]>;
+	replaceEditors(editors: { toReplace: IEditorInput, replaceWith: IEditorInput, options?: IEditorOptions | ITextEditorOptions }[], position?: Position): TPromise<IEditor[]>;
 	closeEditor(position: Position, input: IEditorInput): TPromise<void>;
 	closeEditors(position: Position, filter?: { except?: IEditorInput, direction?: Direction, unmodifiedOnly?: boolean }): TPromise<void>;
 	closeAllEditors(except?: Position): TPromise<void>;
-	getActiveEditor(): BaseEditor;
+	getActiveEditor(): IEditor;
 	getVisibleEditors(): IEditor[];
 	getActiveEditorInput(): IEditorInput;
 }
@@ -298,8 +297,8 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 }
 
 export interface IEditorOpenHandler {
-	(input: IEditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
-	(input: IEditorInput, options?: EditorOptions, position?: Position): TPromise<BaseEditor>;
+	(input: IEditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<IEditor>;
+	(input: IEditorInput, options?: EditorOptions, position?: Position): TPromise<IEditor>;
 }
 
 export interface IEditorCloseHandler {
@@ -349,7 +348,7 @@ export class DelegatingWorkbenchEditorService extends WorkbenchEditorService {
 
 		return handleOpen.then(editor => {
 			if (editor) {
-				return TPromise.as<BaseEditor>(editor);
+				return TPromise.as<IEditor>(editor);
 			}
 
 			return super.doOpenEditor(input, options, arg3);
