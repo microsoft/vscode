@@ -13,11 +13,10 @@ import { IWorkbenchThemeService, IColorTheme, ITokenColorCustomizations, IFileIc
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import errors = require('vs/base/common/errors');
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -151,12 +150,12 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		this.colorThemeStore.onDidChange(themes => {
 			colorThemeSettingSchema.enum = themes.map(t => t.settingsId);
 			colorThemeSettingSchema.enumDescriptions = themes.map(t => themeData.description || '');
-			configurationRegistry.notifyConfigurationSchemaUpdated(colorThemeSettingSchema);
+			configurationRegistry.notifyConfigurationSchemaUpdated(themeSettingsConfiguration);
 		});
 		this.iconThemeStore.onDidChange(themes => {
 			iconThemeSettingSchema.enum = [null, ...themes.map(t => t.settingsId)];
 			iconThemeSettingSchema.enumDescriptions = [iconThemeSettingSchema.enumDescriptions[0], ...themes.map(t => themeData.description || '')];
-			configurationRegistry.notifyConfigurationSchemaUpdated(iconThemeSettingSchema);
+			configurationRegistry.notifyConfigurationSchemaUpdated(themeSettingsConfiguration);
 		});
 	}
 
@@ -534,7 +533,7 @@ class ConfigurationWriter {
 // Configuration: Themes
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
-const colorThemeSettingSchema: IJSONSchema = {
+const colorThemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'string',
 	description: nls.localize('colorTheme', "Specifies the color theme used in the workbench."),
 	default: DEFAULT_THEME_SETTING_VALUE,
@@ -543,7 +542,7 @@ const colorThemeSettingSchema: IJSONSchema = {
 	errorMessage: nls.localize('colorThemeError', "Theme is unknown or not installed."),
 };
 
-const iconThemeSettingSchema: IJSONSchema = {
+const iconThemeSettingSchema: IConfigurationPropertySchema = {
 	type: ['string', 'null'],
 	default: DEFAULT_ICON_THEME_SETTING_VALUE,
 	description: nls.localize('iconTheme', "Specifies the icon theme used in the workbench or 'null' to not show any file icons."),
@@ -551,7 +550,7 @@ const iconThemeSettingSchema: IJSONSchema = {
 	enumDescriptions: [nls.localize('noIconThemeDesc', 'No file icons')],
 	errorMessage: nls.localize('iconThemeError', "File icon theme is unknown or not installed.")
 };
-const colorCustomizationsSchema: IJSONSchema = {
+const colorCustomizationsSchema: IConfigurationPropertySchema = {
 	type: ['object'],
 	description: nls.localize('workbenchColors', "Overrides colors from the currently selected color theme."),
 	properties: colorThemeSchema.colorsSchema.properties,
@@ -566,7 +565,7 @@ const colorCustomizationsSchema: IJSONSchema = {
 	}]
 };
 
-configurationRegistry.registerConfiguration({
+const themeSettingsConfiguration: IConfigurationNode = {
 	id: 'workbench',
 	order: 7.1,
 	type: 'object',
@@ -575,7 +574,8 @@ configurationRegistry.registerConfiguration({
 		[ICON_THEME_SETTING]: iconThemeSettingSchema,
 		[CUSTOM_WORKBENCH_COLORS_SETTING]: colorCustomizationsSchema
 	}
-});
+};
+configurationRegistry.registerConfiguration(themeSettingsConfiguration);
 
 function tokenGroupSettings(description: string) {
 	return {
