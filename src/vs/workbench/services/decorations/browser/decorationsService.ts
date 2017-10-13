@@ -42,8 +42,10 @@ class DecorationRule {
 		createCSSRule(`.${this.labelClassName}`, `color: ${theme.getColor(color) || 'inherit'}; opacity: ${opacity || 1};`, element);
 		createCSSRule(`.selected .${this.labelClassName}`, `color: inherit; opacity: inherit;`, element);
 		// badge
-		createCSSRule(`.${this.badgeClassName}`, `background-color: ${theme.getColor(color)}; color: ${theme.getColor(listActiveSelectionForeground)};`, element);
-		createCSSRule(`.${this.badgeClassName}::before`, `content: "${letter}"`, element);
+		if (letter) {
+			createCSSRule(`.${this.badgeClassName}`, `background-color: ${theme.getColor(color)}; color: ${theme.getColor(listActiveSelectionForeground)};`, element);
+			createCSSRule(`.${this.badgeClassName}::before`, `content: "${letter}"`, element);
+		}
 	}
 
 	removeCSSRules(element: HTMLStyleElement): void {
@@ -88,10 +90,6 @@ class DecorationStyles {
 	}
 
 	asDecoration(data: IResourceDecorationData): ResourceDecoration {
-		if (!data) {
-			return undefined;
-		}
-
 		let key = DecorationRule.keyOf(data);
 		let rule = this._decorationRules.get(key);
 		let result = new ResourceDecoration(key, data);
@@ -163,11 +161,10 @@ class FileDecorationChangeEvent implements IResourceDecorationChangeEvent {
 
 class DecorationProviderWrapper {
 
-	readonly data = TernarySearchTree.forPaths<Thenable<void> | ResourceDecoration>();
+	readonly data = TernarySearchTree.forPaths<Thenable<void> | IResourceDecorationData>();
 	private readonly _dispoable: IDisposable;
 
 	constructor(
-		private readonly _decorationStyles: DecorationStyles,
 		private readonly _provider: IDecorationsProvider,
 		private readonly _emitter: Emitter<URI | URI[]>
 	) {
@@ -188,7 +185,7 @@ class DecorationProviderWrapper {
 		return Boolean(this.data.get(uri.toString())) || Boolean(this.data.findSuperstr(uri.toString()));
 	}
 
-	getOrRetrieve(uri: URI, includeChildren: boolean, callback: (data: ResourceDecoration, isChild: boolean) => void): void {
+	getOrRetrieve(uri: URI, includeChildren: boolean, callback: (data: IResourceDecorationData, isChild: boolean) => void): void {
 		const key = uri.toString();
 		let item = this.data.get(key);
 
@@ -219,7 +216,7 @@ class DecorationProviderWrapper {
 		}
 	}
 
-	private _fetchData(uri: URI): ResourceDecoration {
+	private _fetchData(uri: URI): IResourceDecorationData {
 
 		const dataOrThenable = this._provider.provideDecorations(uri);
 		if (!isThenable(dataOrThenable)) {
@@ -237,8 +234,8 @@ class DecorationProviderWrapper {
 		}
 	}
 
-	private _keepItem(uri: URI, data: IResourceDecorationData): ResourceDecoration {
-		let deco = data ? this._decorationStyles.asDecoration(data) : null;
+	private _keepItem(uri: URI, data: IResourceDecorationData): IResourceDecorationData {
+		let deco = data ? data : null;
 		this.data.set(uri.toString(), deco);
 		this._emitter.fire(uri);
 		return deco;
@@ -291,7 +288,6 @@ export class FileDecorationsService implements IResourceDecorationsService {
 	registerDecortionsProvider(provider: IDecorationsProvider): IDisposable {
 
 		const wrapper = new DecorationProviderWrapper(
-			this._decorationStyles,
 			provider,
 			this._onDidChangeDecorationsDelayed
 		);
@@ -308,24 +304,28 @@ export class FileDecorationsService implements IResourceDecorationsService {
 	}
 
 	getTopDecoration(uri: URI, includeChildren: boolean): IResourceDecoration {
-		let top: IResourceDecoration;
+		let top: IResourceDecorationData;
+		let topIsChild: boolean;
 		for (let iter = this._data.iterator(), next = iter.next(); !next.done; next = iter.next()) {
 			next.value.getOrRetrieve(uri, includeChildren, (candidate, isChild) => {
 				top = FileDecorationsService._pickBest(top, candidate);
-				if (isChild && top === candidate) {
-					// only bubble up color
-					top = {
-						_decoBrand: undefined,
-						weight: top.weight,
-						labelClassName: top.labelClassName
-					};
-				}
+				topIsChild = top === candidate && isChild;
 			});
 		}
-		return top;
+
+		if (!top) {
+			return undefined;
+		}
+
+		let deco = this._decorationStyles.asDecoration(top);
+		if (topIsChild) {
+			// don't show badges for child status
+			deco.badgeClassName = '';
+		}
+		return deco;
 	}
 
-	private static _pickBest(a: IResourceDecoration, b: IResourceDecoration): IResourceDecoration {
+	private static _pickBest(a: IResourceDecorationData, b: IResourceDecorationData): IResourceDecorationData {
 		if (!a) {
 			return b;
 		} else if (!b) {
