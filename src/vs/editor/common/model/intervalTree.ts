@@ -131,6 +131,24 @@ export class IntervalTree {
 		return intervalSearch(this, start, end, filterOwnerId, filterOutValidation, cachedVersionId);
 	}
 
+	public search(filterOwnerId: number, filterOutValidation: boolean, overviewRulerOnly: boolean, cachedVersionId: number): IntervalNode[] {
+		if (this.root === SENTINEL) {
+			return [];
+		}
+		return search(this, filterOwnerId, filterOutValidation, overviewRulerOnly, cachedVersionId);
+	}
+
+	public count(): number {
+		return nodeCount(this);
+	}
+
+	/**
+	 * Will not set `cachedAbsoluteStart` nor `cachedAbsoluteEnd` on the returned nodes!
+	 */
+	public collectNodesFromOwner(ownerId: number): IntervalNode[] {
+		return collectNodesFromOwner(this, ownerId);
+	}
+
 	public insert(node: IntervalNode): void {
 		rbTreeInsert(this, node);
 	}
@@ -213,6 +231,144 @@ export class IntervalTree {
 }
 
 //#region Searching
+
+function nodeCount(T: IntervalTree): number {
+	let node = T.root;
+	let count = 0;
+	while (node !== SENTINEL) {
+		if (node.visited) {
+			// going up from this node
+			node.left.visited = false;
+			node.right.visited = false;
+			node = node.parent;
+			continue;
+		}
+
+		if (node.left !== SENTINEL && !node.left.visited) {
+			// go left
+			node = node.left;
+			continue;
+		}
+
+		// handle current node
+		count++;
+		node.visited = true;
+
+		if (node.right !== SENTINEL && !node.right.visited) {
+			// go right
+			node = node.right;
+			continue;
+		}
+	}
+
+	if (T.root) {
+		T.root.visited = false;
+	}
+
+	return count;
+}
+
+function collectNodesFromOwner(T: IntervalTree, ownerId: number): IntervalNode[] {
+	let node = T.root;
+	let result: IntervalNode[] = [];
+	let resultLen = 0;
+	while (node !== SENTINEL) {
+		if (node.visited) {
+			// going up from this node
+			node.left.visited = false;
+			node.right.visited = false;
+			node = node.parent;
+			continue;
+		}
+
+		if (node.left !== SENTINEL && !node.left.visited) {
+			// go left
+			node = node.left;
+			continue;
+		}
+
+		// handle current node
+		if (node.ownerId === ownerId) {
+			result[resultLen++] = node;
+		}
+
+		node.visited = true;
+
+		if (node.right !== SENTINEL && !node.right.visited) {
+			// go right
+			node = node.right;
+			continue;
+		}
+	}
+
+	if (T.root) {
+		T.root.visited = false;
+	}
+
+	return result;
+}
+
+function search(T: IntervalTree, filterOwnerId: number, filterOutValidation: boolean, overviewRulerOnly: boolean, cachedVersionId: number): IntervalNode[] {
+	let node = T.root;
+	let delta = 0;
+	let nodeStart = 0;
+	let nodeEnd = 0;
+	let result: IntervalNode[] = [];
+	let resultLen = 0;
+	while (node !== SENTINEL) {
+		if (node.visited) {
+			// going up from this node
+			node.left.visited = false;
+			node.right.visited = false;
+			if (node === node.parent.right) {
+				delta -= node.parent.delta;
+			}
+			node = node.parent;
+			continue;
+		}
+
+		if (node.left !== SENTINEL && !node.left.visited) {
+			// go left
+			node = node.left;
+			continue;
+		}
+
+		// handle current node
+		nodeStart = delta + node.start;
+		nodeEnd = delta + node.end;
+
+		node.setCachedOffsets(nodeStart, nodeEnd, cachedVersionId);
+
+		let include = true;
+		if (filterOwnerId && node.ownerId && node.ownerId !== filterOwnerId) {
+			include = false;
+		}
+		if (filterOutValidation && node.isForValidation) {
+			include = false;
+		}
+		if (overviewRulerOnly && !node.options.overviewRuler.color) {
+			include = false;
+		}
+		if (include) {
+			result[resultLen++] = node;
+		}
+
+		node.visited = true;
+
+		if (node.right !== SENTINEL && !node.right.visited) {
+			// go right
+			delta += node.delta;
+			node = node.right;
+			continue;
+		}
+	}
+
+	if (T.root) {
+		T.root.visited = false;
+	}
+
+	return result;
+}
 
 function intervalSearch(T: IntervalTree, intervalStart: number, intervalEnd: number, filterOwnerId: number, filterOutValidation: boolean, cachedVersionId: number): IntervalNode[] {
 	// https://en.wikipedia.org/wiki/Interval_tree#Augmented_tree

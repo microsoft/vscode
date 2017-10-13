@@ -261,7 +261,7 @@ export class TextModel implements editorCommon.ITextModel {
 		return this._alternativeVersionId;
 	}
 
-	private _ensureLineStarts(): void {
+	protected _ensureLineStarts(): void {
 		if (!this._lineStarts) {
 			const eolLength = this._EOL.length;
 			const linesLength = this._lines.length;
@@ -605,6 +605,76 @@ export class TextModel implements editorCommon.ITextModel {
 			lineNumber = this._lines.length;
 		}
 		return lineNumber;
+	}
+
+	/**
+	 * Validates `range` is within buffer bounds, but allows it to sit in between surrogate pairs, etc.
+	 * Will try to not allocate if possible.
+	 */
+	protected _validateRangeRelaxedNoAllocations(range: IRange): Range {
+		const linesCount = this._lines.length;
+
+		const initialStartLineNumber = range.startLineNumber;
+		const initialStartColumn = range.startColumn;
+		let startLineNumber: number;
+		let startColumn: number;
+
+		if (initialStartLineNumber < 1) {
+			startLineNumber = 1;
+			startColumn = 1;
+		} else if (initialStartLineNumber > linesCount) {
+			startLineNumber = linesCount;
+			startColumn = this.getLineMaxColumn(startLineNumber);
+		} else {
+			startLineNumber = initialStartLineNumber | 0;
+			if (initialStartColumn <= 1) {
+				startColumn = 1;
+			} else {
+				const maxColumn = this.getLineMaxColumn(startLineNumber);
+				if (initialStartColumn >= maxColumn) {
+					startColumn = maxColumn;
+				} else {
+					startColumn = initialStartColumn | 0;
+				}
+			}
+		}
+
+		const initialEndLineNumber = range.endLineNumber;
+		const initialEndColumn = range.endColumn;
+		let endLineNumber: number;
+		let endColumn: number;
+
+		if (initialEndLineNumber < 1) {
+			endLineNumber = 1;
+			endColumn = 1;
+		} else if (initialEndLineNumber > linesCount) {
+			endLineNumber = linesCount;
+			endColumn = this.getLineMaxColumn(endLineNumber);
+		} else {
+			endLineNumber = initialEndLineNumber | 0;
+			if (initialEndColumn <= 1) {
+				endColumn = 1;
+			} else {
+				const maxColumn = this.getLineMaxColumn(endLineNumber);
+				if (initialEndColumn >= maxColumn) {
+					endColumn = maxColumn;
+				} else {
+					endColumn = initialEndColumn | 0;
+				}
+			}
+		}
+
+		if (
+			initialStartLineNumber === startLineNumber
+			&& initialStartColumn === startColumn
+			&& initialEndLineNumber === endLineNumber
+			&& initialEndColumn === endColumn
+			&& range instanceof Range
+		) {
+			return range;
+		}
+
+		return new Range(startLineNumber, startColumn, endLineNumber, endColumn);
 	}
 
 	/**

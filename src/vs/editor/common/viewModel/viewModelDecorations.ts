@@ -89,16 +89,10 @@ export class ViewModelDecorations implements IDisposable {
 	}
 
 	public getAllOverviewRulerDecorations(): ViewModelDecoration[] {
-		let modelDecorations = this.model.getAllDecorations(this.editorId, this.configuration.editor.readOnly);
+		let modelDecorations = this.model.getOverviewRulerDecorations(this.editorId, this.configuration.editor.readOnly);
 		let result: ViewModelDecoration[] = [], resultLen = 0;
 		for (let i = 0, len = modelDecorations.length; i < len; i++) {
 			let modelDecoration = modelDecorations[i];
-			let decorationOptions = modelDecoration.options;
-
-			if (!decorationOptions.overviewRuler.color) {
-				continue;
-			}
-
 			let viewModelDecoration = this._getOrCreateViewModelDecoration(modelDecoration);
 			result[resultLen++] = viewModelDecoration;
 		}

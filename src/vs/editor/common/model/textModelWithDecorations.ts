@@ -17,6 +17,9 @@ import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { ITextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import { IntervalNode, IntervalTree } from 'vs/editor/common/model/intervalTree';
+
+const USE_NEW_DECORATIONS = false;
 
 export const ClassName = {
 	EditorInfoDecoration: 'infosquiggly',
@@ -134,6 +137,9 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 	private _currentMarkersTracker: MarkersTracker;
 	private _currentMarkersTrackerCnt: number;
 
+	private _tree: IntervalTree;
+	private _treeDecorations: { [decorationId: string]: IntervalNode; };
+
 	private _decorations: { [decorationId: string]: InternalDecoration; };
 	private _internalDecorations: { [internalDecorationId: number]: InternalDecoration; };
 	private _multiLineDecorationsMap: { [key: string]: InternalDecoration; };
@@ -150,6 +156,9 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 
 		this._currentMarkersTracker = null;
 		this._currentMarkersTrackerCnt = 0;
+
+		this._tree = new IntervalTree();
+		this._treeDecorations = Object.create(null);
 
 		this._decorations = Object.create(null);
 		this._internalDecorations = Object.create(null);
@@ -187,6 +196,9 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 	}
 
 	_getTrackedRangesCount(): number {
+		if (USE_NEW_DECORATIONS) {
+			return this._tree.count();
+		}
 		return Object.keys(this._decorations).length;
 	}
 
@@ -208,18 +220,36 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 	private _changeDecorations<T>(decorationsTracker: DecorationsTracker, ownerId: number, callback: (changeAccessor: editorCommon.IModelDecorationsChangeAccessor) => T): T {
 		let changeAccessor: editorCommon.IModelDecorationsChangeAccessor = {
 			addDecoration: (range: IRange, options: editorCommon.IModelDecorationOptions): string => {
+				if (USE_NEW_DECORATIONS) {
+					return this._deltaDecorationsImpl2(decorationsTracker, [], this._normalizeDeltaDecorations2(ownerId, [{ range: range, options: options }]))[0];
+				}
 				return this._addDecorationImpl(decorationsTracker, ownerId, this.validateRange(range), _normalizeOptions(options));
 			},
 			changeDecoration: (id: string, newRange: IRange): void => {
+				if (USE_NEW_DECORATIONS) {
+					this._changeDecorationImpl2(decorationsTracker, id, newRange);
+					return;
+				}
 				this._changeDecorationImpl(decorationsTracker, id, this.validateRange(newRange));
 			},
 			changeDecorationOptions: (id: string, options: editorCommon.IModelDecorationOptions) => {
+				if (USE_NEW_DECORATIONS) {
+					this._changeDecorationOptionsImpl2(decorationsTracker, id, _normalizeOptions(options));
+					return;
+				}
 				this._changeDecorationOptionsImpl(decorationsTracker, id, _normalizeOptions(options));
 			},
 			removeDecoration: (id: string): void => {
+				if (USE_NEW_DECORATIONS) {
+					this._deltaDecorationsImpl2(decorationsTracker, [id], []);
+					return;
+				}
 				this._removeDecorationImpl(decorationsTracker, id);
 			},
 			deltaDecorations: (oldDecorations: string[], newDecorations: editorCommon.IModelDeltaDecoration[]): string[] => {
+				if (USE_NEW_DECORATIONS) {
+					return this._deltaDecorationsImpl2(decorationsTracker, oldDecorations, this._normalizeDeltaDecorations2(ownerId, newDecorations));
+				}
 				return this._deltaDecorationsImpl(decorationsTracker, ownerId, oldDecorations, this._normalizeDeltaDecorations(newDecorations));
 			}
 		};
@@ -248,6 +278,16 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 	}
 
 	public removeAllDecorationsWithOwnerId(ownerId: number): void {
+		if (USE_NEW_DECORATIONS) {
+			const nodes = this._tree.collectNodesFromOwner(ownerId);
+			for (let i = 0, len = nodes.length; i < len; i++) {
+				const node = nodes[i];
+
+				this._tree.delete(node);
+				delete this._treeDecorations[node.id];
+			}
+			return;
+		}
 		let toRemove: string[] = [];
 
 		for (let decorationId in this._decorations) {
@@ -264,6 +304,13 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 	}
 
 	public getDecorationOptions(decorationId: string): editorCommon.IModelDecorationOptions {
+		if (USE_NEW_DECORATIONS) {
+			const node = this._treeDecorations[decorationId];
+			if (!node) {
+				return null;
+			}
+			return node.options;
+		}
 		let decoration = this._decorations[decorationId];
 		if (!decoration) {
 			return null;
@@ -271,7 +318,34 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		return decoration.options;
 	}
 
+	private _getRangeAt(start: number, end: number): Range {
+		const startResult = this._lineStarts.getIndexOf(start);
+		const startLineLength = this._lines[startResult.index].text.length;
+		const startColumn = Math.min(startResult.remainder + 1, startLineLength + 1);
+
+		const endResult = this._lineStarts.getIndexOf(end);
+		const endLineLength = this._lines[endResult.index].text.length;
+		const endColumn = Math.min(endResult.remainder + 1, endLineLength + 1);
+
+		return new Range(startResult.index + 1, startColumn, endResult.index + 1, endColumn);
+	}
+
 	public getDecorationRange(decorationId: string): Range {
+		if (USE_NEW_DECORATIONS) {
+			const node = this._treeDecorations[decorationId];
+			if (!node) {
+				return null;
+			}
+			const versionId = this.getVersionId();
+			if (node.cachedVersionId !== versionId) {
+				this._tree.resolveNode(node, versionId);
+			}
+			if (node.range === null) {
+				this._ensureLineStarts();
+				node.range = this._getRangeAt(node.cachedAbsoluteStart, node.cachedAbsoluteEnd);
+			}
+			return node.range;
+		}
 		let decoration = this._decorations[decorationId];
 		if (!decoration) {
 			return null;
@@ -331,7 +405,31 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		return result;
 	}
 
-	private _getDecorationsInRange(filterRange: Range, filterOwnerId: number, filterOutValidation: boolean): InternalDecoration[] {
+	private _ensureNodesHaveRanges(nodes: IntervalNode[]): IntervalNode[] {
+		this._ensureLineStarts();
+
+		for (let i = 0, len = nodes.length; i < len; i++) {
+			const node = nodes[i];
+			if (node.range === null) {
+				node.range = this._getRangeAt(node.cachedAbsoluteStart, node.cachedAbsoluteEnd);
+			}
+		}
+		return nodes;
+	}
+
+	private _getDecorationsInRange(filterRange: Range, filterOwnerId: number, filterOutValidation: boolean): IntervalNode[] | InternalDecoration[] {
+		if (USE_NEW_DECORATIONS) {
+			this._ensureLineStarts();
+
+			const startOffset = this._lineStarts.getAccumulatedValue(filterRange.startLineNumber - 2) + filterRange.startColumn - 1;
+			const endOffset = this._lineStarts.getAccumulatedValue(filterRange.endLineNumber - 2) + filterRange.endColumn - 1;
+
+			const versionId = this.getVersionId();
+			const result = this._tree.intervalSearch(startOffset, endOffset, filterOwnerId, filterOutValidation, versionId);
+
+			return this._ensureNodesHaveRanges(result);
+		}
+
 		const filterStartLineNumber = filterRange.startLineNumber;
 		const filterStartColumn = filterRange.startColumn;
 		const filterEndLineNumber = filterRange.endLineNumber;
@@ -405,12 +503,47 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		return this._getDecorationsInRange(new Range(startLineNumber, 1, endLineNumber, endColumn), ownerId, filterOutValidation);
 	}
 
-	public getDecorationsInRange(range: IRange, ownerId?: number, filterOutValidation?: boolean): editorCommon.IModelDecoration[] {
+	public getDecorationsInRange(range: IRange, ownerId: number = 0, filterOutValidation: boolean = false): editorCommon.IModelDecoration[] {
 		let validatedRange = this.validateRange(range);
 		return this._getDecorationsInRange(validatedRange, ownerId, filterOutValidation);
 	}
 
+	public getOverviewRulerDecorations(ownerId: number = 0, filterOutValidation: boolean = false): editorCommon.IModelDecoration[] {
+		if (USE_NEW_DECORATIONS) {
+			const versionId = this.getVersionId();
+			const result = this._tree.search(ownerId, filterOutValidation, true, versionId);
+			return this._ensureNodesHaveRanges(result);
+		}
+		let result: InternalDecoration[] = [], resultLen = 0;
+
+		for (let decorationId in this._decorations) {
+			// No `hasOwnProperty` call due to using Object.create(null)
+			let decoration = this._decorations[decorationId];
+
+			if (ownerId && decoration.ownerId && decoration.ownerId !== ownerId) {
+				continue;
+			}
+
+			if (filterOutValidation && decoration.isForValidation) {
+				continue;
+			}
+
+			if (!decoration.options.overviewRuler.color) {
+				continue;
+			}
+
+			result[resultLen++] = decoration;
+		}
+
+		return result;
+	}
+
 	public getAllDecorations(ownerId: number = 0, filterOutValidation: boolean = false): editorCommon.IModelDecoration[] {
+		if (USE_NEW_DECORATIONS) {
+			const versionId = this.getVersionId();
+			const result = this._tree.search(ownerId, filterOutValidation, false, versionId);
+			return this._ensureNodesHaveRanges(result);
+		}
 		let result: InternalDecoration[] = [], resultLen = 0;
 
 		for (let decorationId in this._decorations) {
@@ -542,6 +675,30 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		return result;
 	}
 
+	private _normalizeDeltaDecorations2(ownerId: number, deltaDecorations: editorCommon.IModelDeltaDecoration[]): IntervalNode[] {
+		this._ensureLineStarts();
+
+		const versionId = this.getVersionId();
+		let result = new Array<IntervalNode>(deltaDecorations.length);
+		for (let i = 0, len = deltaDecorations.length; i < len; i++) {
+			const dec = deltaDecorations[i];
+			const range = this._validateRangeRelaxedNoAllocations(dec.range);
+			const options = _normalizeOptions(dec.options);
+
+			const startOffset = this._lineStarts.getAccumulatedValue(range.startLineNumber - 2) + range.startColumn - 1;
+			const endOffset = this._lineStarts.getAccumulatedValue(range.endLineNumber - 2) + range.endColumn - 1;
+
+			const node = new IntervalNode(null, startOffset, endOffset);
+			node.ownerId = ownerId;
+			node.cachedVersionId = versionId;
+			node.range = range;
+			node.setOptions(options);
+
+			result[i] = node;
+		}
+		return result;
+	}
+
 	private _externalDecorationId(internalId: number): string {
 		return `${this._instanceId};${internalId}`;
 	}
@@ -629,6 +786,25 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		return decorationIds;
 	}
 
+	private _addDecorationsImpl2(decorationsTracker: DecorationsTracker, newDecorations: IntervalNode[]): string[] {
+
+		let decorationIds: string[] = new Array<string>(newDecorations.length);
+		for (let i = 0, len = newDecorations.length; i < len; i++) {
+			const node = newDecorations[i];
+			const internalDecorationId = (++this._lastDecorationId);
+			const decorationId = this._externalDecorationId(internalDecorationId);
+			node.id = decorationId;
+
+			this._tree.insert(node);
+			this._treeDecorations[decorationId] = node;
+			decorationIds[i] = decorationId;
+		}
+
+		decorationsTracker.markDidAddDecorations();
+
+		return decorationIds;
+	}
+
 	private _changeDecorationImpl(decorationsTracker: DecorationsTracker, decorationId: string, newRange: Range): void {
 		let decoration = this._decorations[decorationId];
 		if (!decoration) {
@@ -656,6 +832,24 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		decorationsTracker.markDidChangeDecorations();
 	}
 
+	private _changeDecorationImpl2(decorationsTracker: DecorationsTracker, decorationId: string, _range: IRange): void {
+		const node = this._treeDecorations[decorationId];
+		if (!node) {
+			return;
+		}
+		const range = this._validateRangeRelaxedNoAllocations(_range);
+		const startOffset = this._lineStarts.getAccumulatedValue(range.startLineNumber - 2) + range.startColumn - 1;
+		const endOffset = this._lineStarts.getAccumulatedValue(range.endLineNumber - 2) + range.endColumn - 1;
+
+		this._tree.delete(node);
+
+		node.setCachedOffsets(startOffset, endOffset, this.getVersionId());
+		node.range = range;
+		this._tree.insert(node);
+
+		decorationsTracker.markDidChangeDecorations();
+	}
+
 	private _changeDecorationOptionsImpl(decorationsTracker: DecorationsTracker, decorationId: string, options: ModelDecorationOptions): void {
 		let decoration = this._decorations[decorationId];
 		if (!decoration) {
@@ -668,6 +862,17 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		}
 
 		decoration.setOptions(options);
+
+		decorationsTracker.markDidChangeDecorations();
+	}
+
+	private _changeDecorationOptionsImpl2(decorationsTracker: DecorationsTracker, decorationId: string, options: ModelDecorationOptions): void {
+		const node = this._treeDecorations[decorationId];
+		if (!node) {
+			return;
+		}
+
+		node.setOptions(options);
 
 		decorationsTracker.markDidChangeDecorations();
 	}
@@ -712,6 +917,23 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 
 		if (removeMarkers.length > 0) {
 			this._removeMarkers(removeMarkers);
+		}
+	}
+
+	private _removeDecorationsImpl2(decorationsTracker: DecorationsTracker, decorationIds: string[]): void {
+		for (let i = 0, len = decorationIds.length; i < len; i++) {
+			const decorationId = decorationIds[i];
+			const node = this._treeDecorations[decorationId];
+			if (!node) {
+				continue;
+			}
+
+			this._tree.delete(node);
+			delete this._treeDecorations[decorationId];
+		}
+
+		if (decorationsTracker) {
+			decorationsTracker.markDidRemoveDecorations();
 		}
 	}
 
@@ -815,6 +1037,18 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		}
 
 		return result;
+	}
+
+	private _deltaDecorationsImpl2(decorationsTracker: DecorationsTracker, oldDecorationsIds: string[], newDecorations: IntervalNode[]): string[] {
+		// TODO@interval: is it worth it to compare?
+		if (oldDecorationsIds.length > 0) {
+			this._removeDecorationsImpl2(decorationsTracker, oldDecorationsIds);
+		}
+
+		if (newDecorations.length > 0) {
+			return this._addDecorationsImpl2(decorationsTracker, newDecorations);
+		}
+		return [];
 	}
 }
 
@@ -930,6 +1164,8 @@ export class ModelDecorationOptions implements editorCommon.IModelDecorationOpti
 ModelDecorationOptions.EMPTY = ModelDecorationOptions.register({});
 
 class ModelDeltaDecoration implements editorCommon.IModelDeltaDecoration {
+
+	_modelDeltaDecorationBrand: void;
 
 	index: number;
 	range: Range;

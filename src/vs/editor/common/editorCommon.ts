@@ -1034,6 +1034,13 @@ export interface ITextModelWithDecorations {
 	 * @param filterOutValidation If set, it will ignore decorations specific to validation (i.e. warnings, errors).
 	 */
 	getAllDecorations(ownerId?: number, filterOutValidation?: boolean): IModelDecoration[];
+
+	/**
+	 * Gets all the decorations that should be rendered in the overview ruler as an array.
+	 * @param ownerId If set, it will ignore decorations belonging to other owners.
+	 * @param filterOutValidation If set, it will ignore decorations specific to validation (i.e. warnings, errors).
+	 */
+	getOverviewRulerDecorations(ownerId?: number, filterOutValidation?: boolean): IModelDecoration[];
 }
 
 /**
