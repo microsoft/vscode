@@ -703,6 +703,12 @@ export class DebugService implements debug.IDebugService {
 
 				const sessionId = generateUuid();
 				this.updateStateAndEmit(sessionId, debug.State.Initializing);
+				const wrapUpState = () => {
+					if (this.sessionStates.get(sessionId) === debug.State.Initializing) {
+						this.updateStateAndEmit(sessionId, debug.State.Inactive);
+					}
+				};
+
 				return (type ? TPromise.as(null) : this.configurationManager.guessAdapter().then(a => type = a && a.type)).then(() =>
 					this.configurationManager.resolveConfigurationByProviders(launch ? launch.workspace.uri : undefined, type, config).then(config => {
 						// a falsy config indicates an aborted launch
@@ -710,10 +716,12 @@ export class DebugService implements debug.IDebugService {
 							return this.createProcess(root, config, sessionId);
 						}
 
-						this.updateStateAndEmit(sessionId, debug.State.Inactive);
 						return <any>launch.openConfigFile(false, type); // cast to ignore weird compile error
 					})
-				);
+				).then(() => wrapUpState(), (err) => {
+					wrapUpState();
+					return err;
+				});
 			})
 		)));
 	}
@@ -772,7 +780,6 @@ export class DebugService implements debug.IDebugService {
 					});
 					return undefined;
 				}, (err: TaskError) => {
-					this.updateStateAndEmit(sessionId, debug.State.Inactive);
 					this.messageService.show(err.severity, {
 						message: err.message,
 						actions: [
@@ -783,7 +790,6 @@ export class DebugService implements debug.IDebugService {
 					});
 				});
 			}, err => {
-				this.updateStateAndEmit(sessionId, debug.State.Inactive);
 				if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 					this.messageService.show(severity.Error, nls.localize('noFolderWorkspaceDebugError', "The active file can not be debugged. Make sure it is saved on disk and that you have a debug extension installed for that file type."));
 					return undefined;
