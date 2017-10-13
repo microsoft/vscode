@@ -4855,7 +4855,7 @@ declare module 'vscode' {
 		/**
 		 * Object with environment variables that will be added to the VS Code process.
 		 */
-		env?: { [key: string]: string };
+		env?: { [key: string]: string | null };
 	}
 
 	/**

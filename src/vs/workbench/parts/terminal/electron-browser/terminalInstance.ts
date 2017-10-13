@@ -778,7 +778,12 @@ export class TerminalInstance implements ITerminalInstance {
 		const env = TerminalInstance._cloneEnv(parentEnv);
 		if (shell.env) {
 			Object.keys(shell.env).forEach((key) => {
-				env[key] = shell.env[key];
+				const value = shell.env[key];
+				if (typeof value === 'string') {
+					env[key] = value;
+				} else {
+					delete env[key];
+				}
 			});
 		}
 
