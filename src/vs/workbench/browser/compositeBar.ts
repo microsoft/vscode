@@ -23,10 +23,6 @@ import { ActionBar, IActionItem, ActionsOrientation } from 'vs/base/browser/ui/a
 import Event, { Emitter } from 'vs/base/common/event';
 import { CompositeActionItem, CompositeOverflowActivityAction, ICompositeActivity, CompositeOverflowActivityActionItem } from 'vs/workbench/browser/compositeBarActions';
 
-// first goal make the activity bar depend on the composite bar and everything works as before
-// after that think about how to plug this into the panel part and the overflow nicely wokring (composite bar in panel will need overflow: hidden)
-// on the action bar offsetWidth = gets the width of every child (on the first layout need to check if it is still in the constraints)
-
 export interface ICompositeBarOptions {
 	label: 'icon' | 'name';
 	storageId: string;
