@@ -602,6 +602,10 @@ export class Repository implements Disposable {
 		});
 	}
 
+	async getSubmodules(): Promise<string[]> {
+		return await this.repository.getSubmodules();
+	}
+
 	async getStashes(): Promise<Stash[]> {
 		return await this.repository.getStashes();
 	}

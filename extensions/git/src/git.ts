@@ -997,6 +997,18 @@ export class Repository {
 		return uniqBy(rawRemotes, remote => remote.name);
 	}
 
+	async getSubmodules(): Promise<string[]> {
+		const result = await this.run(['submodule', 'status']);
+		const regex = /^([ \+\-U])\w* (\w*)( \(.*\))?/;
+		const submodules = result.stdout.split('\n')
+			.filter(b => !!b)
+			.map(line => regex.exec(line))
+			.filter(g => !!g)
+			.map((groups: RegExpExecArray) => path.join(this.repositoryRoot, groups[2]));
+		//this._git.onOutput.emit('log', submodules);
+		return submodules;
+	}
+
 	async getBranch(name: string): Promise<Branch> {
 		if (name === 'HEAD') {
 			return this.getHEAD();
