@@ -299,7 +299,7 @@ export class Model {
 		if (hint instanceof Uri) {
 			const resourcePath = hint.fsPath;
 
-			for (const liveRepository of this.openRepositories) {
+			for (const liveRepository of this.openRepositories.sort((a, b) => b.repository.root.length - a.repository.root.length)) {
 				const relativePath = path.relative(liveRepository.repository.root, resourcePath);
 
 				if (!/^\.\./.test(relativePath)) {
