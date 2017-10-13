@@ -18,13 +18,6 @@ export class Interval {
 		this.start = start;
 		this.end = end;
 	}
-
-	public compareToRelative(otherStart: number, otherEnd: number): number {
-		if (this.start === otherStart) {
-			return this.end - otherEnd;
-		}
-		return this.start - otherStart;
-	}
 }
 
 export const enum NodeColor {
@@ -44,7 +37,7 @@ export class IntervalNode {
 	public delta: number;
 	public maxEnd: number;
 
-	public resultInterval: Interval;
+	public absoluteInterval: Interval;
 
 	constructor(start: number, end: number) {
 		this.parent = null;
@@ -57,7 +50,7 @@ export class IntervalNode {
 		this.delta = start;
 		this.maxEnd = end;
 
-		this.resultInterval = new Interval(0, 0);
+		this.absoluteInterval = new Interval(0, 0);
 	}
 
 	public detach(): void {
@@ -90,8 +83,8 @@ export class IntervalTree {
 		return result;
 	}
 
-	public insert(interval: Interval): IntervalNode {
-		return rbTreeInsert(this, interval);
+	public insert(node: IntervalNode): void {
+		rbTreeInsert(this, node);
 	}
 
 	public delete(node: IntervalNode) {
@@ -185,8 +178,8 @@ function intervalSearchRecursive(node: IntervalNode, delta: number, intervalStar
 	const nodeEnd = delta + node.end;
 	if (nodeEnd >= intervalStart) {
 		// There is overlap
-		node.resultInterval.start = nodeStart;
-		node.resultInterval.end = nodeEnd;
+		node.absoluteInterval.start = nodeStart;
+		node.absoluteInterval.end = nodeEnd;
 		result.push(node);
 	}
 
@@ -197,9 +190,8 @@ function intervalSearchRecursive(node: IntervalNode, delta: number, intervalStar
 //#endregion
 
 //#region Insertion
-function rbTreeInsert(T: IntervalTree, interval: Interval): IntervalNode {
+function rbTreeInsert(T: IntervalTree, newNode: IntervalNode): IntervalNode {
 	if (T.root === SENTINEL) {
-		const newNode = new IntervalNode(interval.start, interval.end);
 		newNode.parent = SENTINEL;
 		newNode.left = SENTINEL;
 		newNode.right = SENTINEL;
@@ -208,7 +200,7 @@ function rbTreeInsert(T: IntervalTree, interval: Interval): IntervalNode {
 		return T.root;
 	}
 
-	const newNode = treeInsert(T, interval);
+	treeInsert(T, newNode);
 
 	recomputeMaxEndWalkToRoot(newNode.parent);
 
@@ -257,17 +249,20 @@ function rbTreeInsert(T: IntervalTree, interval: Interval): IntervalNode {
 	return newNode;
 }
 
-function treeInsert(T: IntervalTree, interval: Interval): IntervalNode {
+function treeInsert(T: IntervalTree, z: IntervalNode): void {
 	let delta: number = 0;
-	let z = SENTINEL;
 	let x = T.root;
+	const zAbsoluteStart = z.start;
+	const zAbsoluteEnd = z.end;
 	while (true) {
-		let cmp = interval.compareToRelative(x.start + delta, x.end + delta);
+		const cmp = intervalCompare(zAbsoluteStart, zAbsoluteEnd, x.start + delta, x.end + delta);
 		if (cmp < 0) {
 			// this node should be inserted to the left
 			// => it is not affected by the node's delta
 			if (x.left === SENTINEL) {
-				z = new IntervalNode(interval.start - delta, interval.end - delta);
+				z.start -= delta;
+				z.end -= delta;
+				z.maxEnd -= delta;
 				x.left = z;
 				break;
 			} else {
@@ -277,7 +272,9 @@ function treeInsert(T: IntervalTree, interval: Interval): IntervalNode {
 			// this node should be inserted to the right
 			// => it is not affected by the node's delta
 			if (x.right === SENTINEL) {
-				z = new IntervalNode(interval.start - delta - x.delta, interval.end - delta - x.delta);
+				z.start -= (delta + x.delta);
+				z.end -= (delta + x.delta);
+				z.maxEnd -= (delta + x.delta);
 				x.right = z;
 				break;
 			} else {
@@ -291,7 +288,6 @@ function treeInsert(T: IntervalTree, interval: Interval): IntervalNode {
 	z.left = SENTINEL;
 	z.right = SENTINEL;
 	z.color = NodeColor.Red;
-	return z;
 }
 //#endregion
 
@@ -581,6 +577,15 @@ function recomputeMaxEndWalkToRoot(node: IntervalNode): void {
 
 //#endregion
 
+//#region utils
+function intervalCompare(aStart: number, aEnd: number, bStart: number, bEnd: number): number {
+	if (aStart === bStart) {
+		return aEnd - bEnd;
+	}
+	return aStart - bStart;
+}
+//#endregion
+
 //#region Assertion
 
 function depth(n: IntervalNode): number {
@@ -607,13 +612,11 @@ function assertValidNode(n: IntervalNode, delta): void {
 
 	let expectedMaxEnd = n.end;
 	if (l !== SENTINEL) {
-		const lValue = new Interval(l.start + delta, l.end + delta);
-		assert(lValue.compareToRelative(n.start + delta, n.end + delta) <= 0);
+		assert(intervalCompare(l.start + delta, l.end + delta, n.start + delta, n.end + delta) <= 0);
 		expectedMaxEnd = Math.max(expectedMaxEnd, l.maxEnd);
 	}
 	if (r !== SENTINEL) {
-		const nValue = new Interval(n.start + delta, n.end + delta);
-		assert(nValue.compareToRelative(r.start + delta + n.delta, r.end + delta + n.delta) <= 0);
+		assert(intervalCompare(n.start + delta, n.end + delta, r.start + delta + n.delta, r.end + delta + n.delta) <= 0);
 		expectedMaxEnd = Math.max(expectedMaxEnd, r.maxEnd + n.delta);
 	}
 	assert(n.maxEnd === expectedMaxEnd);
