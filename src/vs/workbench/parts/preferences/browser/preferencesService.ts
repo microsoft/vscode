@@ -17,7 +17,7 @@ import { EditorInput } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { Position as EditorPosition, IEditor } from 'vs/platform/editor/common/editor';
+import { Position as EditorPosition, IEditor, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -176,20 +176,20 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return TPromise.wrap<IPreferencesEditorModel<any>>(null);
 	}
 
-	openGlobalSettings(position?: EditorPosition): TPromise<IEditor> {
-		return this.doOpenSettings(ConfigurationTarget.USER, this.userSettingsResource, position);
+	openGlobalSettings(options?: IEditorOptions, position?: EditorPosition): TPromise<IEditor> {
+		return this.doOpenSettings(ConfigurationTarget.USER, this.userSettingsResource, options, position);
 	}
 
-	openWorkspaceSettings(position?: EditorPosition): TPromise<IEditor> {
+	openWorkspaceSettings(options?: IEditorOptions, position?: EditorPosition): TPromise<IEditor> {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this.messageService.show(Severity.Info, nls.localize('openFolderFirst', "Open a folder first to create workspace settings"));
 			return TPromise.as(null);
 		}
-		return this.doOpenSettings(ConfigurationTarget.WORKSPACE, this.workspaceSettingsResource, position);
+		return this.doOpenSettings(ConfigurationTarget.WORKSPACE, this.workspaceSettingsResource, options, position);
 	}
 
-	openFolderSettings(folder: URI, position?: EditorPosition): TPromise<IEditor> {
-		return this.doOpenSettings(ConfigurationTarget.FOLDER, this.getEditableSettingsURI(ConfigurationTarget.FOLDER, folder), position);
+	openFolderSettings(folder: URI, options?: IEditorOptions, position?: EditorPosition): TPromise<IEditor> {
+		return this.doOpenSettings(ConfigurationTarget.FOLDER, this.getEditableSettingsURI(ConfigurationTarget.FOLDER, folder), options, position);
 	}
 
 	switchSettings(target: ConfigurationTarget, resource: URI): TPromise<void> {
@@ -249,17 +249,23 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			});
 	}
 
-	private doOpenSettings(configurationTarget: ConfigurationTarget, resource: URI, position?: EditorPosition): TPromise<IEditor> {
+	private doOpenSettings(configurationTarget: ConfigurationTarget, resource: URI, options?: IEditorOptions, position?: EditorPosition): TPromise<IEditor> {
 		const openDefaultSettings = !!this.configurationService.lookup(DEFAULT_SETTINGS_EDITOR_SETTING).value;
 		return this.getOrCreateEditableSettingsEditorInput(configurationTarget, resource)
 			.then(editableSettingsEditorInput => {
+				if (!options) {
+					options = { pinned: true };
+				} else {
+					options.pinned = true;
+				}
+
 				if (openDefaultSettings) {
 					const defaultPreferencesEditorInput = this.instantiationService.createInstance(DefaultPreferencesEditorInput, this.getDefaultSettingsResource(configurationTarget));
 					const preferencesEditorInput = new PreferencesEditorInput(this.getPreferencesEditorInputName(configurationTarget, resource), editableSettingsEditorInput.getDescription(), defaultPreferencesEditorInput, <EditorInput>editableSettingsEditorInput);
 					this.lastOpenedSettingsInput = preferencesEditorInput;
-					return this.editorService.openEditor(preferencesEditorInput, { pinned: true }, position);
+					return this.editorService.openEditor(preferencesEditorInput, options, position);
 				}
-				return this.editorService.openEditor(editableSettingsEditorInput, { pinned: true }, position);
+				return this.editorService.openEditor(editableSettingsEditorInput, options, position);
 			});
 	}
 

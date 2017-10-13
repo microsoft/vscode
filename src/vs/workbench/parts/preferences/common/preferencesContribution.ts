@@ -67,7 +67,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 
 		// Global User Settings File
 		if (resource.fsPath === this.environmentService.appSettingsPath) {
-			return event.prevent(() => this.preferencesService.openGlobalSettings(event.position));
+			return event.prevent(() => this.preferencesService.openGlobalSettings(event.options, event.position));
 		}
 
 		// Single Folder Workspace Settings File
@@ -75,7 +75,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		if (state === WorkbenchState.FOLDER) {
 			const folders = this.workspaceService.getWorkspace().folders;
 			if (resource.fsPath === folders[0].toResource(FOLDER_SETTINGS_PATH).fsPath) {
-				return event.prevent(() => this.preferencesService.openWorkspaceSettings(event.position));
+				return event.prevent(() => this.preferencesService.openWorkspaceSettings(event.options, event.position));
 			}
 		}
 
@@ -84,7 +84,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 			const folders = this.workspaceService.getWorkspace().folders;
 			for (let i = 0; i < folders.length; i++) {
 				if (resource.fsPath === folders[i].toResource(FOLDER_SETTINGS_PATH).fsPath) {
-					return event.prevent(() => this.preferencesService.openFolderSettings(folders[i].uri, event.position));
+					return event.prevent(() => this.preferencesService.openFolderSettings(folders[i].uri, event.options, event.position));
 				}
 			}
 		}

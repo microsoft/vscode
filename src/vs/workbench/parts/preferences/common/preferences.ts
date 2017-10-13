@@ -8,7 +8,7 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IEditor, Position } from 'vs/platform/editor/common/editor';
+import { IEditor, Position, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IKeybindingItemEntry } from 'vs/workbench/parts/preferences/common/keybindingsEditorModel';
 import { IRange } from 'vs/editor/common/core/range';
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
@@ -77,9 +77,9 @@ export interface IPreferencesService {
 	resolveContent(uri: URI): TPromise<string>;
 	createPreferencesEditorModel<T>(uri: URI): TPromise<IPreferencesEditorModel<T>>;
 
-	openGlobalSettings(position?: Position): TPromise<IEditor>;
-	openWorkspaceSettings(position?: Position): TPromise<IEditor>;
-	openFolderSettings(folder: URI, position?: Position): TPromise<IEditor>;
+	openGlobalSettings(options?: IEditorOptions, position?: Position): TPromise<IEditor>;
+	openWorkspaceSettings(options?: IEditorOptions, position?: Position): TPromise<IEditor>;
+	openFolderSettings(folder: URI, options?: IEditorOptions, position?: Position): TPromise<IEditor>;
 	switchSettings(target: ConfigurationTarget, resource: URI): TPromise<void>;
 	openGlobalKeybindingSettings(textual: boolean): TPromise<void>;
 
