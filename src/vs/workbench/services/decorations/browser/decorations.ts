@@ -16,6 +16,7 @@ export const IResourceDecorationsService = createDecorator<IResourceDecorationsS
 export interface IResourceDecorationData {
 	readonly severity: Severity;
 	readonly color?: ColorIdentifier;
+	readonly opacity?: number;
 	readonly letter?: string;
 	readonly tooltip?: string;
 }
