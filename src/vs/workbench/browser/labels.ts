@@ -190,9 +190,8 @@ export class ResourceLabel extends IconLabel {
 			if (deco && this.options.fileDecorations.colors) {
 				iconLabelOptions.extraClasses.push(deco.labelClassName);
 			}
-			if (deco && deco.letter && this.options.fileDecorations.badges) {
+			if (deco && deco.badgeClassName && this.options.fileDecorations.badges) {
 				iconLabelOptions.badge = {
-					letter: deco.letter,
 					title: deco.tooltip,
 					className: deco.badgeClassName,
 				};

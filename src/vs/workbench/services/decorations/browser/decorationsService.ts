@@ -20,8 +20,8 @@ import { listActiveSelectionForeground } from 'vs/platform/theme/common/colorReg
 class DecorationRule {
 
 	static keyOf(data: IResourceDecorationData): string {
-		const { color, opacity } = data;
-		return `${color}/${opacity}`;
+		const { color, opacity, letter } = data;
+		return `${color}/${opacity}/${letter}`;
 	}
 
 	private static readonly _classNames = new IdGenerator('monaco-decorations-style-');
@@ -37,12 +37,13 @@ class DecorationRule {
 	}
 
 	appendCSSRules(element: HTMLStyleElement, theme: ITheme): void {
-		const { color, opacity } = this.data;
+		const { color, opacity, letter } = this.data;
 		// label
 		createCSSRule(`.${this.labelClassName}`, `color: ${theme.getColor(color) || 'inherit'}; opacity: ${opacity || 1};`, element);
 		createCSSRule(`.selected .${this.labelClassName}`, `color: inherit; opacity: inherit;`, element);
 		// badge
 		createCSSRule(`.${this.badgeClassName}`, `background-color: ${theme.getColor(color)}; color: ${theme.getColor(listActiveSelectionForeground)};`, element);
+		createCSSRule(`.${this.badgeClassName}::before`, `content: "${letter}"`, element);
 	}
 
 	removeCSSRules(element: HTMLStyleElement): void {
@@ -55,14 +56,12 @@ class ResourceDecoration implements IResourceDecoration {
 	_decoBrand: undefined;
 
 	severity: Severity;
-	letter?: string;
 	tooltip?: string;
 	labelClassName?: string;
 	badgeClassName?: string;
 
 	constructor(data: IResourceDecorationData) {
 		this.severity = data.severity;
-		this.letter = data.letter;
 		this.tooltip = data.tooltip;
 	}
 }

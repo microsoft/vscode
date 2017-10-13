@@ -24,7 +24,6 @@ export interface IResourceDecorationData {
 export interface IResourceDecoration {
 	readonly _decoBrand: undefined;
 	readonly severity: Severity;
-	readonly letter?: string;
 	readonly tooltip?: string;
 	readonly labelClassName?: string;
 	readonly badgeClassName?: string;
