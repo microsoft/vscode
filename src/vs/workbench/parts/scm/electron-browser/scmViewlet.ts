@@ -600,7 +600,7 @@ export class RepositoryPanel extends ViewletPanel {
 
 		this.list = new List(this.listContainer, delegate, renderers, {
 			identityProvider: scmResourceIdentityProvider,
-			keyboardSupport: false
+			keyboardSupport: true
 		});
 
 		this.disposables.push(attachListStyler(this.list, this.themeService));
