@@ -44,7 +44,7 @@ class TwitterFeedbackService implements IFeedbackService {
 			length += ` via @${TwitterFeedbackService.VIA_NAME}`.length;
 		}
 
-		return 140 - length;
+		return 280 - length;
 	}
 }
 
