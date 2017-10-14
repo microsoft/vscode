@@ -152,6 +152,7 @@ export interface IGalleryExtension {
 	assets: IGalleryExtensionAssets;
 	properties: IGalleryExtensionProperties;
 	telemetryData: any;
+	preview: boolean;
 }
 
 export interface IGalleryMetadata {

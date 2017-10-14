@@ -172,6 +172,10 @@ class Extension implements IExtension {
 		}
 	}
 
+	get preview(): boolean {
+		return this.gallery ? this.gallery.preview : false;
+	}
+
 	getManifest(): TPromise<IExtensionManifest> {
 		if (this.gallery) {
 			return this.galleryService.getManifest(this.gallery);

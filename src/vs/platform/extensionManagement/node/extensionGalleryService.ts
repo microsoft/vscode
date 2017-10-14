@@ -55,6 +55,7 @@ interface IRawGalleryExtension {
 	publisher: { displayName: string, publisherId: string, publisherName: string; };
 	versions: IRawGalleryExtensionVersion[];
 	statistics: IRawGalleryExtensionStatistics[];
+	flags: string;
 }
 
 interface IRawGalleryQueryResult {
@@ -233,6 +234,10 @@ function getEngine(version: IRawGalleryExtensionVersion): string {
 	return (values.length > 0 && values[0].value) || '';
 }
 
+function getIsPreview(flags: string): boolean {
+	return flags.indexOf('preview') !== -1;
+}
+
 function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUrl: string, index: number, query: Query, querySource?: string): IGalleryExtension {
 	const [version] = galleryExtension.versions;
 	const assets = {
@@ -274,7 +279,8 @@ function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUr
 			index: ((query.pageNumber - 1) * query.pageSize) + index,
 			searchText: query.searchText,
 			querySource
-		}
+		},
+		preview: getIsPreview(galleryExtension.flags)
 	};
 }
 
