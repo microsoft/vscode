@@ -2039,29 +2039,37 @@ class TaskService implements ITaskService {
 		if (!this.canRunCommand()) {
 			return;
 		}
-		if (this.inTerminal()) {
-			this.showQuickPick(this.getActiveTasks(),
-				nls.localize('TaskService.tastToRestart', 'Select the task to restart'),
-				{
-					label: nls.localize('TaskService.noTaskToRestart', 'No task to restart'),
-					task: null
-				},
-				false, true
-			).then(task => {
-				if (task === void 0 || task === null) {
-					return;
+		this.getActiveTasks().then((activeTasks) => {
+			if (Types.isString(arg)) {
+				for (const task of activeTasks) {
+					if (Task.matches(task, arg)) {
+						this.restart(task);
+						return;
+					}
 				}
-				this.restart(task);
-			});
-		} else {
-			this.getActiveTasks().then((activeTasks) => {
-				if (activeTasks.length === 0) {
-					return;
-				}
-				let task = activeTasks[0];
-				this.restart(task);
-			});
+			}
+			this.doRunRestartTaskCommand(activeTasks);
+		});
+	}
+
+	private doRunRestartTaskCommand(activeTasks: Task[]): void {
+		if (activeTasks.length === 1) {
+			this.restart(activeTasks[0]);
+			return;
 		}
+		this.showQuickPick(activeTasks,
+			nls.localize('TaskService.tastToRestart', 'Select the task to restart'),
+			{
+				label: nls.localize('TaskService.noTaskToRestart', 'No task to restart'),
+				task: null
+			},
+			false, true
+		).then((task) => {
+			if (task === void 0 || task === null) {
+				return;
+			}
+			this.restart(task);
+		});
 	}
 
 	private runConfigureTasks(): void {
