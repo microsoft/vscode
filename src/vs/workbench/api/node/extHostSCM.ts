@@ -204,7 +204,7 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 			return;
 		}
 
-		this._commands.executeCommand(command.command, ...command.arguments);
+		await this._commands.executeCommand(command.command, ...command.arguments);
 	}
 
 	_takeResourceStateSnapshot(): SCMRawResourceSplice[] {
@@ -532,6 +532,6 @@ export class ExtHostSCM {
 			return;
 		}
 
-		group.$executeResourceCommand(handle);
+		await group.$executeResourceCommand(handle);
 	}
 }
