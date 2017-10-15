@@ -2048,27 +2048,23 @@ class TaskService implements ITaskService {
 					}
 				}
 			}
-			this.doRunRestartTaskCommand(activeTasks);
-		});
-	}
-
-	private doRunRestartTaskCommand(activeTasks: Task[]): void {
-		if (activeTasks.length === 1) {
-			this.restart(activeTasks[0]);
-			return;
-		}
-		this.showQuickPick(activeTasks,
-			nls.localize('TaskService.taskToRestart', 'Select the task to restart'),
-			{
-				label: nls.localize('TaskService.noTaskToRestart', 'No task to restart'),
-				task: null
-			},
-			false, true
-		).then((task) => {
-			if (task === void 0 || task === null) {
+			if (activeTasks.length === 1) {
+				this.restart(activeTasks[0]);
 				return;
 			}
-			this.restart(task);
+			this.showQuickPick(activeTasks,
+				nls.localize('TaskService.taskToRestart', 'Select the task to restart'),
+				{
+					label: nls.localize('TaskService.noTaskToRestart', 'No task to restart'),
+					task: null
+				},
+				false, true
+			).then((task) => {
+				if (task === void 0 || task === null) {
+					return;
+				}
+				this.restart(task);
+			});
 		});
 	}
 
