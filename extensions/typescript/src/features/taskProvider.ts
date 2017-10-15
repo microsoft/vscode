@@ -168,6 +168,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 			const buildTaskidentifier: TypeScriptTaskDefinition = { type: 'typescript', tsconfig: label };
 			const buildTask = new vscode.Task(
 				buildTaskidentifier,
+				project.workspaceFolder || vscode.TaskScope.Workspace,
 				localize('buildTscLabel', 'build - {0}', label),
 				'tsc',
 				new vscode.ShellExecution(`${command} -p "${project.path}"`),
@@ -181,6 +182,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 			const watchTaskidentifier: TypeScriptTaskDefinition = { type: 'typescript', tsconfig: label, option: 'watch' };
 			const watchTask = new vscode.Task(
 				watchTaskidentifier,
+				project.workspaceFolder || vscode.TaskScope.Workspace,
 				localize('buildAndWatchTscLabel', 'watch - {0}', label),
 				'tsc',
 				new vscode.ShellExecution(`${command} --watch -p "${project.path}"`),
