@@ -526,7 +526,7 @@ class TaskService implements ITaskService {
 		});
 
 		CommandsRegistry.registerCommand('workbench.action.tasks.terminate', (accessor, arg) => {
-			this.runTerminateCommand();
+			this.runTerminateCommand(arg);
 		});
 
 		CommandsRegistry.registerCommand('workbench.action.tasks.showLog', () => {
@@ -1997,42 +1997,48 @@ class TaskService implements ITaskService {
 		this.progressService.withProgress(options, () => promise);
 	}
 
-	private runTerminateCommand(): void {
+	private runTerminateCommand(arg?: any): void {
 		if (!this.canRunCommand()) {
 			return;
 		}
-		if (this.inTerminal()) {
-			this.showQuickPick(this.getActiveTasks(),
+
+		function handleTerminateResponse(response: TaskTerminateResponse) {
+			if (response.success) {
+				this.emit(TaskServiceEvents.Terminated, {});
+			} else if (response.code && response.code === TerminateResponseCode.ProcessNotFound) {
+				this.messageService.show(Severity.Error, nls.localize('TerminateAction.noProcess', 'The launched process doesn\'t exist anymore. If the task spawned background tasks exiting VS Code might result in orphaned processes.'));
+			} else {
+				this.messageService.show(Severity.Error, nls.localize('TerminateAction.failed', 'Failed to terminate running task'));
+			}
+		}
+
+		this.getActiveTasks().then((activeTasks) => {
+			if (Types.isString(arg)) {
+				for (const task of activeTasks) {
+					if (Task.matches(task, arg)) {
+						this.terminate(task).then(handleTerminateResponse);
+						return;
+					}
+				}
+			}
+			if (activeTasks.length === 1) {
+				this.terminate(activeTasks[0]).then(handleTerminateResponse);
+				return;
+			}
+			this.showQuickPick(activeTasks,
 				nls.localize('TaskService.taskToTerminate', 'Select task to terminate'),
 				{
 					label: nls.localize('TaskService.noTaskRunning', 'No task is currently running'),
 					task: null
 				},
 				false, true
-			).then(task => {
+			).then((task) => {
 				if (task === void 0 || task === null) {
 					return;
 				}
-				this.terminate(task);
+				this.terminate(task).then(handleTerminateResponse);
 			});
-		} else {
-			this.isActive().then((active) => {
-				if (active) {
-					this.terminateAll().then((responses) => {
-						// the output runner has only one task
-						let response = responses[0];
-						if (response.success) {
-							return;
-						}
-						if (response.code && response.code === TerminateResponseCode.ProcessNotFound) {
-							this.notificationService.error(nls.localize('TerminateAction.noProcess', 'The launched process doesn\'t exist anymore. If the task spawned background tasks exiting VS Code might result in orphaned processes.'));
-						} else {
-							this.notificationService.error(nls.localize('TerminateAction.failed', 'Failed to terminate running task'));
-						}
-					});
-				}
-			});
-		}
+		});
 	}
 
 	private runRestartTaskCommand(accessor: ServicesAccessor, arg: any): void {

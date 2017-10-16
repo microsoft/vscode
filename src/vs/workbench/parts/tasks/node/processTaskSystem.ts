@@ -122,13 +122,13 @@ export class ProcessTaskSystem implements ITaskSystem {
 		if (!this.activeTask || Task.getMapKey(this.activeTask) !== Task.getMapKey(task)) {
 			return TPromise.as<TaskTerminateResponse>({ success: false, task: undefined });
 		}
-		return this.terminateAll().then(tasks => tasks[0]);
+		return this.terminateAll().then(responses => responses[0]);
 	}
 
 	public terminateAll(): TPromise<TaskTerminateResponse[]> {
 		if (this.childProcess) {
 			let task = this.activeTask;
-			return this.childProcess.terminate().then((response) => {
+			return TPromise.join([this.childProcess.terminate(), this.activeTaskPromise]).then(([response, taskSummary]) => {
 				let result: TaskTerminateResponse = Objects.assign({ task: task }, response);
 				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Terminated, task));
 				return [result];
