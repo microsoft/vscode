@@ -6,7 +6,7 @@
 
 import URI from 'vs/base/common/uri';
 import Event, { Emitter, debounceEvent, any } from 'vs/base/common/event';
-import { IResourceDecorationsService, IResourceDecoration, IResourceDecorationChangeEvent, IDecorationsProvider, IResourceDecorationData } from './decorations';
+import { IDecorationsService, IDecoration, IResourceDecorationChangeEvent, IDecorationsProvider, IDecorationData } from './decorations';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { isThenable } from 'vs/base/common/async';
@@ -19,7 +19,7 @@ import { IIterator } from 'vs/base/common/iterator';
 
 class DecorationRule {
 
-	static keyOf(data: IResourceDecorationData | IResourceDecorationData[]): string {
+	static keyOf(data: IDecorationData | IDecorationData[]): string {
 		if (Array.isArray(data)) {
 			return data.map(DecorationRule.keyOf).join(',');
 		} else {
@@ -30,11 +30,11 @@ class DecorationRule {
 
 	private static readonly _classNames = new IdGenerator('monaco-decorations-style-');
 
-	readonly data: IResourceDecorationData | IResourceDecorationData[];
+	readonly data: IDecorationData | IDecorationData[];
 	readonly labelClassName: string;
 	readonly badgeClassName: string;
 
-	constructor(data: IResourceDecorationData | IResourceDecorationData[]) {
+	constructor(data: IDecorationData | IDecorationData[]) {
 		this.data = data;
 		this.labelClassName = DecorationRule._classNames.nextId();
 		this.badgeClassName = DecorationRule._classNames.nextId();
@@ -48,7 +48,7 @@ class DecorationRule {
 		}
 	}
 
-	private _appendForOne(data: IResourceDecorationData, element: HTMLStyleElement, theme: ITheme): void {
+	private _appendForOne(data: IDecorationData, element: HTMLStyleElement, theme: ITheme): void {
 		const { color, opacity, letter } = data;
 		// label
 		createCSSRule(`.${this.labelClassName}`, `color: ${theme.getColor(color) || 'inherit'}; opacity: ${opacity || 1};`, element);
@@ -60,7 +60,7 @@ class DecorationRule {
 		}
 	}
 
-	private _appendForMany(data: IResourceDecorationData[], element: HTMLStyleElement, theme: ITheme): void {
+	private _appendForMany(data: IDecorationData[], element: HTMLStyleElement, theme: ITheme): void {
 		// label
 		const { color, opacity } = data[0];
 		createCSSRule(`.${this.labelClassName}`, `color: ${theme.getColor(color) || 'inherit'}; opacity: ${opacity || 1};`, element);
@@ -87,9 +87,9 @@ class DecorationRule {
 	}
 }
 
-class ResourceDecoration implements IResourceDecoration {
+class ResourceDecoration implements IDecoration {
 
-	static from(data: IResourceDecorationData | IResourceDecorationData[]): ResourceDecoration {
+	static from(data: IDecorationData | IDecorationData[]): ResourceDecoration {
 		let result = new ResourceDecoration(data);
 		if (Array.isArray(data)) {
 			result.weight = data[0].weight;
@@ -102,14 +102,14 @@ class ResourceDecoration implements IResourceDecoration {
 	}
 
 	_decoBrand: undefined;
-	_data: IResourceDecorationData | IResourceDecorationData[];
+	_data: IDecorationData | IDecorationData[];
 
 	weight?: number;
 	tooltip?: string;
 	labelClassName?: string;
 	badgeClassName?: string;
 
-	private constructor(data: IResourceDecorationData | IResourceDecorationData[]) {
+	private constructor(data: IDecorationData | IDecorationData[]) {
 		this._data = data;
 	}
 }
@@ -133,7 +133,7 @@ class DecorationStyles {
 		this._styleElement.parentElement.removeChild(this._styleElement);
 	}
 
-	asDecoration(data: IResourceDecorationData | IResourceDecorationData[]): ResourceDecoration {
+	asDecoration(data: IDecorationData | IDecorationData[]): ResourceDecoration {
 		let key = DecorationRule.keyOf(data);
 		let rule = this._decorationRules.get(key);
 		let result = ResourceDecoration.from(data);
@@ -160,7 +160,7 @@ class DecorationStyles {
 	cleanUp(iter: IIterator<DecorationProviderWrapper>): void {
 		// remove every rule for which no more
 		// decoration (data) is kept. this isn't cheap
-		let usedDecorations = new Set<IResourceDecorationData>();
+		let usedDecorations = new Set<IDecorationData>();
 		for (let e = iter.next(); !e.done; e = iter.next()) {
 			e.value.data.forEach(value => {
 				if (value instanceof ResourceDecoration) {
@@ -216,7 +216,7 @@ class FileDecorationChangeEvent implements IResourceDecorationChangeEvent {
 
 class DecorationProviderWrapper {
 
-	readonly data = TernarySearchTree.forPaths<Thenable<void> | IResourceDecorationData>();
+	readonly data = TernarySearchTree.forPaths<Thenable<void> | IDecorationData>();
 	private readonly _dispoable: IDisposable;
 
 	constructor(
@@ -240,7 +240,7 @@ class DecorationProviderWrapper {
 		return Boolean(this.data.get(uri.toString())) || Boolean(this.data.findSuperstr(uri.toString()));
 	}
 
-	getOrRetrieve(uri: URI, includeChildren: boolean, callback: (data: IResourceDecorationData, isChild: boolean) => void): void {
+	getOrRetrieve(uri: URI, includeChildren: boolean, callback: (data: IDecorationData, isChild: boolean) => void): void {
 		const key = uri.toString();
 		let item = this.data.get(key);
 
@@ -271,7 +271,7 @@ class DecorationProviderWrapper {
 		}
 	}
 
-	private _fetchData(uri: URI): IResourceDecorationData {
+	private _fetchData(uri: URI): IDecorationData {
 
 		const dataOrThenable = this._provider.provideDecorations(uri);
 		if (!isThenable(dataOrThenable)) {
@@ -289,7 +289,7 @@ class DecorationProviderWrapper {
 		}
 	}
 
-	private _keepItem(uri: URI, data: IResourceDecorationData): IResourceDecorationData {
+	private _keepItem(uri: URI, data: IDecorationData): IDecorationData {
 		let deco = data ? data : null;
 		this.data.set(uri.toString(), deco);
 		this._emitter.fire(uri);
@@ -297,7 +297,7 @@ class DecorationProviderWrapper {
 	}
 }
 
-export class FileDecorationsService implements IResourceDecorationsService {
+export class FileDecorationsService implements IDecorationsService {
 
 	_serviceBrand: any;
 
@@ -340,7 +340,7 @@ export class FileDecorationsService implements IResourceDecorationsService {
 		dispose(this._disposables);
 	}
 
-	registerDecortionsProvider(provider: IDecorationsProvider): IDisposable {
+	registerDecorationsProvider(provider: IDecorationsProvider): IDisposable {
 
 		const wrapper = new DecorationProviderWrapper(
 			provider,
@@ -358,8 +358,8 @@ export class FileDecorationsService implements IResourceDecorationsService {
 		};
 	}
 
-	getTopDecoration(uri: URI, includeChildren: boolean): IResourceDecoration {
-		let data: IResourceDecorationData[] = [];
+	getDecoration(uri: URI, includeChildren: boolean): IDecoration {
+		let data: IDecorationData[] = [];
 		let onlyChildren = true;
 		for (let iter = this._data.iterator(), next = iter.next(); !next.done; next = iter.next()) {
 			next.value.getOrRetrieve(uri, includeChildren, (deco, isChild) => {
