@@ -7,7 +7,7 @@
 
 import * as assert from 'assert';
 import { FileDecorationsService } from 'vs/workbench/services/decorations/browser/decorationsService';
-import { IDecorationsProvider, IResourceDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
+import { IDecorationsProvider, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
 import URI from 'vs/base/common/uri';
 import Event, { toPromise } from 'vs/base/common/event';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
@@ -28,12 +28,12 @@ suite('DecorationsService', function () {
 		let uri = URI.parse('foo:bar');
 		let callCounter = 0;
 
-		service.registerDecortionsProvider(new class implements IDecorationsProvider {
+		service.registerDecorationsProvider(new class implements IDecorationsProvider {
 			readonly label: string = 'Test';
 			readonly onDidChange: Event<URI[]> = Event.None;
 			provideDecorations(uri: URI) {
 				callCounter += 1;
-				return new Promise<IResourceDecorationData>(resolve => {
+				return new Promise<IDecorationData>(resolve => {
 					setTimeout(() => resolve({
 						color: 'someBlue',
 						tooltip: 'T'
@@ -43,7 +43,7 @@ suite('DecorationsService', function () {
 		});
 
 		// trigger -> async
-		assert.equal(service.getTopDecoration(uri, false), undefined);
+		assert.equal(service.getDecoration(uri, false), undefined);
 		assert.equal(callCounter, 1);
 
 		// event when result is computed
@@ -51,7 +51,7 @@ suite('DecorationsService', function () {
 			assert.equal(e.affectsResource(uri), true);
 
 			// sync result
-			assert.deepEqual(service.getTopDecoration(uri, false).tooltip, 'T');
+			assert.deepEqual(service.getDecoration(uri, false).tooltip, 'T');
 			assert.equal(callCounter, 1);
 		});
 	});
@@ -61,7 +61,7 @@ suite('DecorationsService', function () {
 		let uri = URI.parse('foo:bar');
 		let callCounter = 0;
 
-		service.registerDecortionsProvider(new class implements IDecorationsProvider {
+		service.registerDecorationsProvider(new class implements IDecorationsProvider {
 			readonly label: string = 'Test';
 			readonly onDidChange: Event<URI[]> = Event.None;
 			provideDecorations(uri: URI) {
@@ -71,7 +71,7 @@ suite('DecorationsService', function () {
 		});
 
 		// trigger -> sync
-		assert.deepEqual(service.getTopDecoration(uri, false).tooltip, 'Z');
+		assert.deepEqual(service.getDecoration(uri, false).tooltip, 'Z');
 		assert.equal(callCounter, 1);
 	});
 
@@ -79,7 +79,7 @@ suite('DecorationsService', function () {
 		let uri = URI.parse('foo:bar');
 		let callCounter = 0;
 
-		let reg = service.registerDecortionsProvider(new class implements IDecorationsProvider {
+		let reg = service.registerDecorationsProvider(new class implements IDecorationsProvider {
 			readonly label: string = 'Test';
 			readonly onDidChange: Event<URI[]> = Event.None;
 			provideDecorations(uri: URI) {
@@ -89,14 +89,14 @@ suite('DecorationsService', function () {
 		});
 
 		// trigger -> sync
-		assert.deepEqual(service.getTopDecoration(uri, false).tooltip, 'J');
+		assert.deepEqual(service.getDecoration(uri, false).tooltip, 'J');
 		assert.equal(callCounter, 1);
 
 		// un-register -> ensure good event
 		let didSeeEvent = false;
 		service.onDidChangeDecorations(e => {
 			assert.equal(e.affectsResource(uri), true);
-			assert.deepEqual(service.getTopDecoration(uri, false), undefined);
+			assert.deepEqual(service.getDecoration(uri, false), undefined);
 			assert.equal(callCounter, 1);
 			didSeeEvent = true;
 		});
