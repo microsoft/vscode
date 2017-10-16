@@ -118,7 +118,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	private onConfigurationChanged(update?: boolean): void {
 		const currentTitleTemplate = this.titleTemplate;
-		this.titleTemplate = this.configurationService.lookup<string>('window.title').value;
+		this.titleTemplate = this.configurationService.getValue<string>('window.title');
 
 		if (update && currentTitleTemplate !== this.titleTemplate) {
 			this.setTitle(this.getWindowTitle());

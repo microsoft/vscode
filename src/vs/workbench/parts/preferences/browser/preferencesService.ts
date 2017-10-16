@@ -250,7 +250,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	private doOpenSettings(configurationTarget: ConfigurationTarget, resource: URI, options?: IEditorOptions, position?: EditorPosition): TPromise<IEditor> {
-		const openDefaultSettings = !!this.configurationService.lookup(DEFAULT_SETTINGS_EDITOR_SETTING).value;
+		const openDefaultSettings = !!this.configurationService.getValue(DEFAULT_SETTINGS_EDITOR_SETTING);
 		return this.getOrCreateEditableSettingsEditorInput(configurationTarget, resource)
 			.then(editableSettingsEditorInput => {
 				if (!options) {

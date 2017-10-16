@@ -60,7 +60,7 @@ export class SelectColorThemeAction extends Action {
 				}
 				let target = null;
 				if (applyTheme) {
-					let confValue = this.configurationService.lookup(COLOR_THEME_SETTING);
+					let confValue = this.configurationService.inspect(COLOR_THEME_SETTING);
 					target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
 				}
 
@@ -126,7 +126,7 @@ class SelectIconThemeAction extends Action {
 				}
 				let target = null;
 				if (applyTheme) {
-					let confValue = this.configurationService.lookup(ICON_THEME_SETTING);
+					let confValue = this.configurationService.inspect(ICON_THEME_SETTING);
 					target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
 				}
 				this.themeService.setFileIconTheme(theme && theme.id, target).done(null,

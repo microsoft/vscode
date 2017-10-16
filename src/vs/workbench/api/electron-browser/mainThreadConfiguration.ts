@@ -29,7 +29,7 @@ export class MainThreadConfiguration implements MainThreadConfigurationShape {
 		const proxy = extHostContext.get(ExtHostContext.ExtHostConfiguration);
 
 		this._configurationListener = configurationService.onDidUpdateConfiguration(() => {
-			proxy.$acceptConfigurationChanged(configurationService.getConfigurationData());
+			proxy.$acceptConfigurationChanged(configurationService.getConfiguration());
 		});
 	}
 

@@ -120,7 +120,7 @@ export class ExplorerView extends ViewsViewletPanel {
 
 	private getFileEventsExcludes(root?: URI): glob.IExpression {
 		const scope = root ? { resource: root } : void 0;
-		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>(undefined, scope);
+		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>(scope);
 
 		return (configuration && configuration.files && configuration.files.exclude) || Object.create(null);
 	}

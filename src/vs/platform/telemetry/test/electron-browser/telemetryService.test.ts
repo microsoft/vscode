@@ -681,24 +681,24 @@ suite('TelemetryService', () => {
 						enableTelemetry: enableTelemetry
 					} as any;
 				},
-				getConfigurationData(): any {
+				getValue(key) {
+					return getConfigurationValue(this.getConfiguration(), key);
+				},
+				updateValue() {
 					return null;
 				},
-				reloadConfiguration() {
-					return TPromise.as(this.getConfiguration());
-				},
-				lookup(key: string) {
+				inspect(key: string) {
 					return {
 						value: getConfigurationValue(this.getConfiguration(), key),
 						default: getConfigurationValue(this.getConfiguration(), key),
 						user: getConfigurationValue(this.getConfiguration(), key),
 						workspace: null,
-						folder: null
+						workspaceFolder: null
 					};
 				},
-				keys() { return { default: [], user: [], workspace: [], folder: [] }; },
-				values() { return {}; },
-				onDidUpdateConfiguration: emitter.event
+				keys() { return { default: [], user: [], workspace: [], workspaceFolder: [] }; },
+				onDidUpdateConfiguration: emitter.event,
+				reloadConfiguration() { return null; }
 			});
 
 		assert.equal(service.isOptedIn, false);

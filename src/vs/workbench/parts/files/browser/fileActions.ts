@@ -714,7 +714,7 @@ export class BaseDeleteFileAction extends BaseFileAction {
 			let confirmPromise: TPromise<IConfirmationResult>;
 
 			// Check if we need to ask for confirmation at all
-			if (this.skipConfirm || (this.useTrash && this.configurationService.lookup<boolean>(BaseDeleteFileAction.CONFIRM_DELETE_SETTING_KEY).value === false)) {
+			if (this.skipConfirm || (this.useTrash && this.configurationService.getValue<boolean>(BaseDeleteFileAction.CONFIRM_DELETE_SETTING_KEY) === false)) {
 				confirmPromise = TPromise.as({ confirmed: true } as IConfirmationResult);
 			}
 

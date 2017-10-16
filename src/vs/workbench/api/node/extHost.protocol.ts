@@ -74,7 +74,7 @@ export interface IInitData {
 	environment: IEnvironment;
 	workspace: IWorkspaceData;
 	extensions: IExtensionDescription[];
-	configuration: IConfigurationData<any>;
+	configuration: IConfigurationData;
 	telemetryInfo: ITelemetryInfo;
 }
 
@@ -414,7 +414,7 @@ export interface ExtHostCommandsShape {
 }
 
 export interface ExtHostConfigurationShape {
-	$acceptConfigurationChanged(data: IConfigurationData<any>): void;
+	$acceptConfigurationChanged(data: IConfigurationData): void;
 }
 
 export interface ExtHostDiagnosticsShape {
