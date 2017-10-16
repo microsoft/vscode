@@ -5,8 +5,11 @@
 'use strict';
 
 import * as assert from 'assert';
-import { FolderConfigurationModel, ScopedConfigurationModel, FolderSettingsModel } from 'vs/workbench/services/configuration/common/configurationModels';
+import { join } from 'vs/base/common/paths';
+import { FolderConfigurationModel, ScopedConfigurationModel, FolderSettingsModel, WorkspaceConfigurationChangeEvent } from 'vs/workbench/services/configuration/common/configurationModels';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import URI from 'vs/base/common/uri';
 
 suite('ConfigurationService - Model', () => {
 
@@ -94,4 +97,96 @@ suite('ConfigurationService - Model', () => {
 		assert.deepEqual(new FolderConfigurationModel(settingsConfig, [launchConfig, tasksConfig], ConfigurationScope.WINDOW).contents, expected);
 		assert.deepEqual(new FolderConfigurationModel(settingsConfig, [tasksConfig, launchConfig], ConfigurationScope.WINDOW).contents, expected);
 	});
+});
+
+suite('WorkspaceConfigurationChangeEvent', () => {
+
+	test('changeEvent affecting workspace folders', () => {
+		let testObject = new WorkspaceConfigurationChangeEvent(new Workspace('id', 'name',
+			[new WorkspaceFolder({ index: 0, name: '1', uri: URI.file('folder1') }),
+			new WorkspaceFolder({ index: 1, name: '2', uri: URI.file('folder2') }),
+			new WorkspaceFolder({ index: 2, name: '3', uri: URI.file('folder3') })]));
+
+		testObject.change(['window.title']);
+		testObject.change(['window.zoomLevel'], URI.file('folder1'));
+		testObject.change(['workbench.editor.enablePreview'], URI.file('folder2'));
+		testObject.change(['window.restoreFullscreen'], URI.file('folder1'));
+		testObject.change(['window.restoreWindows'], URI.file('folder2'));
+
+		assert.deepEqual(testObject.affectedKeys, ['window.title', 'window.zoomLevel', 'window.restoreFullscreen', 'workbench.editor.enablePreview', 'window.restoreWindows']);
+
+		assert.ok(testObject.affectsConfiugration('window.zoomLevel'));
+		assert.ok(testObject.affectsConfiugration('window.zoomLevel', URI.file('folder1')));
+		assert.ok(testObject.affectsConfiugration('window.zoomLevel', URI.file(join('folder1', 'file1'))));
+		assert.ok(!testObject.affectsConfiugration('window.zoomLevel', URI.file('file1')));
+		assert.ok(!testObject.affectsConfiugration('window.zoomLevel', URI.file('file2')));
+		assert.ok(!testObject.affectsConfiugration('window.zoomLevel', URI.file(join('folder2', 'file2'))));
+		assert.ok(!testObject.affectsConfiugration('window.zoomLevel', URI.file(join('folder3', 'file3'))));
+
+		assert.ok(testObject.affectsConfiugration('window.restoreFullscreen'));
+		assert.ok(testObject.affectsConfiugration('window.restoreFullscreen', URI.file(join('folder1', 'file1'))));
+		assert.ok(testObject.affectsConfiugration('window.restoreFullscreen', URI.file('folder1')));
+		assert.ok(!testObject.affectsConfiugration('window.restoreFullscreen', URI.file('file1')));
+		assert.ok(!testObject.affectsConfiugration('window.restoreFullscreen', URI.file('file2')));
+		assert.ok(!testObject.affectsConfiugration('window.restoreFullscreen', URI.file(join('folder2', 'file2'))));
+		assert.ok(!testObject.affectsConfiugration('window.restoreFullscreen', URI.file(join('folder3', 'file3'))));
+
+		assert.ok(testObject.affectsConfiugration('window.restoreWindows'));
+		assert.ok(testObject.affectsConfiugration('window.restoreWindows', URI.file('folder2')));
+		assert.ok(testObject.affectsConfiugration('window.restoreWindows', URI.file(join('folder2', 'file2'))));
+		assert.ok(!testObject.affectsConfiugration('window.restoreWindows', URI.file('file2')));
+		assert.ok(!testObject.affectsConfiugration('window.restoreWindows', URI.file(join('folder1', 'file1'))));
+		assert.ok(!testObject.affectsConfiugration('window.restoreWindows', URI.file(join('folder3', 'file3'))));
+
+		assert.ok(testObject.affectsConfiugration('window.title'));
+		assert.ok(testObject.affectsConfiugration('window.title', URI.file('folder1')));
+		assert.ok(testObject.affectsConfiugration('window.title', URI.file(join('folder1', 'file1'))));
+		assert.ok(testObject.affectsConfiugration('window.title', URI.file('folder2')));
+		assert.ok(testObject.affectsConfiugration('window.title', URI.file(join('folder2', 'file2'))));
+		assert.ok(testObject.affectsConfiugration('window.title', URI.file('folder3')));
+		assert.ok(testObject.affectsConfiugration('window.title', URI.file(join('folder3', 'file3'))));
+		assert.ok(testObject.affectsConfiugration('window.title', URI.file('file1')));
+		assert.ok(testObject.affectsConfiugration('window.title', URI.file('file2')));
+		assert.ok(testObject.affectsConfiugration('window.title', URI.file('file3')));
+
+		assert.ok(testObject.affectsConfiugration('window'));
+		assert.ok(testObject.affectsConfiugration('window', URI.file('folder1')));
+		assert.ok(testObject.affectsConfiugration('window', URI.file(join('folder1', 'file1'))));
+		assert.ok(testObject.affectsConfiugration('window', URI.file('folder2')));
+		assert.ok(testObject.affectsConfiugration('window', URI.file(join('folder2', 'file2'))));
+		assert.ok(testObject.affectsConfiugration('window', URI.file('folder3')));
+		assert.ok(testObject.affectsConfiugration('window', URI.file(join('folder3', 'file3'))));
+		assert.ok(testObject.affectsConfiugration('window', URI.file('file1')));
+		assert.ok(testObject.affectsConfiugration('window', URI.file('file2')));
+		assert.ok(testObject.affectsConfiugration('window', URI.file('file3')));
+
+		assert.ok(testObject.affectsConfiugration('workbench.editor.enablePreview'));
+		assert.ok(testObject.affectsConfiugration('workbench.editor.enablePreview', URI.file('folder2')));
+		assert.ok(testObject.affectsConfiugration('workbench.editor.enablePreview', URI.file(join('folder2', 'file2'))));
+		assert.ok(!testObject.affectsConfiugration('workbench.editor.enablePreview', URI.file('folder1')));
+		assert.ok(!testObject.affectsConfiugration('workbench.editor.enablePreview', URI.file(join('folder1', 'file1'))));
+		assert.ok(!testObject.affectsConfiugration('workbench.editor.enablePreview', URI.file('folder3')));
+
+		assert.ok(testObject.affectsConfiugration('workbench.editor'));
+		assert.ok(testObject.affectsConfiugration('workbench.editor', URI.file('folder2')));
+		assert.ok(testObject.affectsConfiugration('workbench.editor', URI.file(join('folder2', 'file2'))));
+		assert.ok(!testObject.affectsConfiugration('workbench.editor', URI.file('folder1')));
+		assert.ok(!testObject.affectsConfiugration('workbench.editor', URI.file(join('folder1', 'file1'))));
+		assert.ok(!testObject.affectsConfiugration('workbench.editor', URI.file('folder3')));
+
+		assert.ok(testObject.affectsConfiugration('workbench'));
+		assert.ok(testObject.affectsConfiugration('workbench', URI.file('folder2')));
+		assert.ok(testObject.affectsConfiugration('workbench', URI.file(join('folder2', 'file2'))));
+		assert.ok(!testObject.affectsConfiugration('workbench', URI.file('folder1')));
+		assert.ok(!testObject.affectsConfiugration('workbench', URI.file('folder3')));
+
+		assert.ok(!testObject.affectsConfiugration('files'));
+		assert.ok(!testObject.affectsConfiugration('files', URI.file('folder1')));
+		assert.ok(!testObject.affectsConfiugration('files', URI.file(join('folder1', 'file1'))));
+		assert.ok(!testObject.affectsConfiugration('files', URI.file('folder2')));
+		assert.ok(!testObject.affectsConfiugration('files', URI.file(join('folder2', 'file2'))));
+		assert.ok(!testObject.affectsConfiugration('files', URI.file('folder3')));
+		assert.ok(!testObject.affectsConfiugration('files', URI.file(join('folder3', 'file3'))));
+	});
+
 });

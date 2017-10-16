@@ -282,7 +282,7 @@ export class WorkspaceConfigurationChangeEvent extends ConfigurationChangeEvent 
 		if (resource) {
 			let workspaceFolder = this.workspace.getFolder(resource);
 			if (workspaceFolder) {
-				return super.affectsConfiugration(config, resource);
+				return super.affectsConfiugration(config, workspaceFolder.uri);
 			}
 		}
 
