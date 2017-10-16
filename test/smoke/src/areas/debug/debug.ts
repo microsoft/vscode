@@ -114,7 +114,11 @@ export class Debug extends Viewlet {
 	async waitForReplCommand(text: string, accept: (result: string) => boolean): Promise<void> {
 		await this.spectron.workbench.quickopen.runCommand('Debug: Focus Debug Console');
 		await this.spectron.client.waitForActiveElement(REPL_FOCUSED);
-		await this.spectron.client.type(text);
+
+		await this.spectron.client.keys(text);
+		// Wait for the keys to be picked up by the editor model such that repl evalutes what just got typed
+		await this.spectron.workbench.editor.waitForEditorContents('debug:input', s => s.indexOf(text) >= 0);
+		await this.spectron.client.keys(['Enter', 'NULL']);
 		await this.spectron.client.waitForElement(CONSOLE_INPUT_OUTPUT);
 		await this.spectron.client.waitFor(async () => {
 			const result = await this.getConsoleOutput();

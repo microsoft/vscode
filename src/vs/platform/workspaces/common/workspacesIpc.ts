@@ -8,9 +8,10 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IWorkspacesService, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import URI from 'vs/base/common/uri';
 
 export interface IWorkspacesChannel extends IChannel {
-	call(command: 'createWorkspace', arg: [string[]]): TPromise<string>;
+	call(command: 'createWorkspace', arg: [(string | URI)[]]): TPromise<string>;
 	call(command: string, arg?: any): TPromise<any>;
 }
 
@@ -18,9 +19,22 @@ export class WorkspacesChannel implements IWorkspacesChannel {
 
 	constructor(private service: IWorkspacesService) { }
 
-	call(command: string, arg?: any): TPromise<any> {
+	public call(command: string, arg?: any): TPromise<any> {
 		switch (command) {
-			case 'createWorkspace': return this.service.createWorkspace(arg);
+			case 'createWorkspace': {
+				let folders: any[];
+				if (Array.isArray(arg)) {
+					folders = arg.map(folder => {
+						if (typeof folder === 'string') {
+							return folder;
+						}
+
+						return URI.revive(folder);
+					});
+				}
+
+				return this.service.createWorkspace(folders);
+			};
 		}
 
 		return void 0;
@@ -33,7 +47,9 @@ export class WorkspacesChannelClient implements IWorkspacesService {
 
 	constructor(private channel: IWorkspacesChannel) { }
 
-	createWorkspace(folders?: string[]): TPromise<IWorkspaceIdentifier> {
-		return this.channel.call('createWorkspace', folders);
+	public createWorkspace(folderPaths?: string[]): TPromise<IWorkspaceIdentifier>;
+	public createWorkspace(folderResources?: URI[]): TPromise<IWorkspaceIdentifier>;
+	public createWorkspace(arg1?: any[]): TPromise<IWorkspaceIdentifier> {
+		return this.channel.call('createWorkspace', arg1);
 	}
 }

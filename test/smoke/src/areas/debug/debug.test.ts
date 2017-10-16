@@ -128,7 +128,7 @@ describe('Debug', () => {
 	});
 
 	it('debug console', async function () {
-		await app.workbench.debug.waitForReplCommand('2 + 2 \n', r => r === '4');
+		await app.workbench.debug.waitForReplCommand('2 + 2', r => r === '4');
 	});
 
 	it('stop debugging', async function () {

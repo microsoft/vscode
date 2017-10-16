@@ -20,10 +20,7 @@ describe('Preferences', () => {
 		await app.screenCapturer.capture('line numbers');
 		assert.ok(!!lineNumbers.length, 'Line numbers are not present in the editor before disabling them.');
 
-		await app.workbench.settingsEditor.openUserSettings();
-		await app.workbench.settingsEditor.focusEditableSettings();
-		await app.client.keys(`"editor.lineNumbers": "off"`);
-		await app.workbench.saveOpenedFile();
+		await app.workbench.settingsEditor.addUserSetting('editor.lineNumbers', '"off"');
 
 		await app.workbench.selectTab('app.js');
 		lineNumbers = await app.client.waitForElements('.line-numbers', result => !result || result.length === 0);

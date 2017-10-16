@@ -204,6 +204,9 @@ interface IEditorLineDecoration {
 }
 
 export class GotoLineHandler extends QuickOpenHandler {
+
+	public static readonly ID = 'workbench.picker.line';
+
 	private rangeHighlightDecorationId: IEditorLineDecoration;
 	private lastKnownEditorViewState: IEditorViewState;
 

@@ -53,8 +53,8 @@
 }
 
 /* TODO: actions should be part of the panel, but they aren't yet */
-.monaco-panel-view .panel:hover > .panel-header > .actions,
-.monaco-panel-view .panel > .panel-header.focused > .actions {
+.monaco-panel-view .panel:hover > .panel-header.expanded > .actions,
+.monaco-panel-view .panel > .panel-header.focused.expanded > .actions {
 	display: initial;
 }
 

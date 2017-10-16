@@ -118,6 +118,6 @@
 		"update-grammar": "node ./build/update-grammar.js"
 	},
 	"devDependencies": {
-		"@types/node": "^7.0.4"
+		"@types/node": "7.0.43"
 	}
 }

@@ -8,7 +8,7 @@ import URI from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { StringTrieMap } from 'vs/base/common/map';
+import { TernarySearchTree } from 'vs/base/common/map';
 import Event from 'vs/base/common/event';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, IStoredWorkspaceFolder, isRawFileWorkspaceFolder, isRawUriWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { coalesce, distinct } from 'vs/base/common/arrays';
@@ -129,7 +129,7 @@ export interface IWorkspaceFolder extends IWorkspaceFolderData {
 
 export class Workspace implements IWorkspace {
 
-	private _foldersMap: StringTrieMap<WorkspaceFolder> = new StringTrieMap<WorkspaceFolder>();
+	private _foldersMap: TernarySearchTree<WorkspaceFolder> = TernarySearchTree.forPaths<WorkspaceFolder>();
 	private _folders: WorkspaceFolder[];
 
 	constructor(
@@ -192,9 +192,9 @@ export class Workspace implements IWorkspace {
 	}
 
 	private updateFoldersMap(): void {
-		this._foldersMap = new StringTrieMap<WorkspaceFolder>();
+		this._foldersMap = TernarySearchTree.forPaths<WorkspaceFolder>();
 		for (const folder of this.folders) {
-			this._foldersMap.insert(folder.uri.toString(), folder);
+			this._foldersMap.set(folder.uri.toString(), folder);
 		}
 	}
 

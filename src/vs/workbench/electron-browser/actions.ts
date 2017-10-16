@@ -164,7 +164,7 @@ export class ToggleMenuBarAction extends Action {
 	}
 
 	public run(): TPromise<void> {
-		let currentVisibilityValue = this.configurationService.lookup<MenuBarVisibility>(ToggleMenuBarAction.menuBarVisibilityKey).value;
+		let currentVisibilityValue = this.configurationService.getValue<MenuBarVisibility>(ToggleMenuBarAction.menuBarVisibilityKey);
 		if (typeof currentVisibilityValue !== 'string') {
 			currentVisibilityValue = 'default';
 		}
@@ -210,7 +210,7 @@ export abstract class BaseZoomAction extends Action {
 
 	protected setConfiguredZoomLevel(level: number): void {
 		let target = ConfigurationTarget.USER;
-		if (typeof this.configurationService.lookup(BaseZoomAction.SETTING_KEY).workspace === 'number') {
+		if (typeof this.configurationService.inspect(BaseZoomAction.SETTING_KEY).workspace === 'number') {
 			target = ConfigurationTarget.WORKSPACE;
 		}
 

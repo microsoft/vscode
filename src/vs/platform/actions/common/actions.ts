@@ -53,6 +53,7 @@ export class MenuId {
 	static readonly SCMSourceControl = new MenuId();
 	static readonly SCMResourceGroupContext = new MenuId();
 	static readonly SCMResourceContext = new MenuId();
+	static readonly SCMChangeContext = new MenuId();
 	static readonly CommandPalette = new MenuId();
 	static readonly ViewTitle = new MenuId();
 	static readonly ViewItemContext = new MenuId();
@@ -87,7 +88,7 @@ export interface IMenuRegistry {
 	getMenuItems(loc: MenuId): IMenuItem[];
 }
 
-export const MenuRegistry: IMenuRegistry = new class {
+export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 
 	private _commands: { [id: string]: ICommandAction } = Object.create(null);
 

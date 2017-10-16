@@ -17,7 +17,7 @@ import { dirname } from 'path';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { massageFolderPathForWorkspace } from 'vs/platform/workspaces/node/workspaces';
 import { isLinux } from 'vs/base/common/platform';
-import { WorkspaceService } from 'vs/workbench/services/configuration/node/configuration';
+import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
 import { migrateStorageToMultiRootWorkspace } from 'vs/platform/storage/common/migration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { StorageService } from 'vs/platform/storage/common/storageService';
@@ -64,11 +64,15 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 				return; // already existing
 			}
 
+			// File resource: use "path" property
 			if (folderToAdd.scheme === Schemas.file) {
 				storedFoldersToAdd.push({
 					path: massageFolderPathForWorkspace(folderToAdd.fsPath, workspaceConfigFolder, currentStoredFolders)
 				});
-			} else {
+			}
+
+			// Any other resource: use "uri" property
+			else {
 				storedFoldersToAdd.push({
 					uri: folderToAdd.toString(true)
 				});
@@ -112,11 +116,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	}
 
 	private isSupported(): boolean {
-		// TODO@Ben multi root
-		return (
-			this.environmentService.appQuality !== 'stable'  // not yet enabled in stable
-			&& this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE // we need a multi folder workspace to begin with
-		);
+		return this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE; // we need a multi folder workspace to begin with;
 	}
 
 	private contains(resources: URI[], toCheck: URI): boolean {
@@ -129,8 +129,8 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		});
 	}
 
-	public createAndEnterWorkspace(folders?: string[], path?: string): TPromise<void> {
-		return this.doEnterWorkspace(() => this.windowService.createAndEnterWorkspace(folders, path));
+	public createAndEnterWorkspace(folderPaths?: string[], path?: string): TPromise<void> {
+		return this.doEnterWorkspace(() => this.windowService.createAndEnterWorkspace(folderPaths, path));
 	}
 
 	public saveAndEnterWorkspace(path: string): TPromise<void> {
@@ -165,9 +165,16 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	}
 
 	private migrate(toWorkspace: IWorkspaceIdentifier): TPromise<void> {
+
+		// Storage (UI State) migration
 		this.migrateStorage(toWorkspace);
 
-		return this.migrateConfiguration(toWorkspace);
+		// Settings migration (only if we come from a folder workspace)
+		if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
+			return this.copyWorkspaceSettings(toWorkspace);
+		}
+
+		return TPromise.as(void 0);
 	}
 
 	private migrateStorage(toWorkspace: IWorkspaceIdentifier): void {
@@ -178,16 +185,12 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		storageImpl.setWorkspaceId(newWorkspaceId);
 	}
 
-	private migrateConfiguration(toWorkspace: IWorkspaceIdentifier): TPromise<void> {
-		if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER) {
-			return TPromise.as(void 0); // return early if not a folder workspace is opened
-		}
-
+	public copyWorkspaceSettings(toWorkspace: IWorkspaceIdentifier): TPromise<void> {
 		const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 		const targetWorkspaceConfiguration = {};
 		for (const key of this.workspaceConfigurationService.keys().workspace) {
 			if (configurationProperties[key] && !configurationProperties[key].isFromExtensions && configurationProperties[key].scope === ConfigurationScope.WINDOW) {
-				targetWorkspaceConfiguration[key] = this.workspaceConfigurationService.lookup(key).workspace;
+				targetWorkspaceConfiguration[key] = this.workspaceConfigurationService.inspect(key).workspace;
 			}
 		}
 

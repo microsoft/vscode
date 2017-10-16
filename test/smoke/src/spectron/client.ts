@@ -5,7 +5,7 @@
 
 import { Application } from 'spectron';
 import { RawResult, Element } from 'webdriverio';
-import { SpectronApplication } from './application';
+import { SpectronApplication, WAIT_TIME } from './application';
 
 /**
  * Abstracts the Spectron's WebdriverIO managed client property on the created Application instances.
@@ -14,10 +14,11 @@ export class SpectronClient {
 
 	// waitFor calls should not take more than 200 * 100 = 20 seconds to complete, excluding
 	// the time it takes for the actual retry call to complete
-	private readonly retryCount = 200;
+	private retryCount: number;
 	private readonly retryDuration = 100; // in milliseconds
 
 	constructor(public spectron: Application, private application: SpectronApplication) {
+		this.retryCount = (WAIT_TIME * 1000) / this.retryDuration;
 	}
 
 	public windowByIndex(index: number): Promise<any> {
@@ -25,7 +26,7 @@ export class SpectronClient {
 	}
 
 	public async keys(keys: string[] | string, capture: boolean = true): Promise<any> {
-		return this.spectron.client.keys(keys);
+		return Promise.resolve(this.spectron.client.keys(keys));
 	}
 
 	public async getText(selector: string, capture: boolean = true): Promise<any> {
@@ -38,9 +39,9 @@ export class SpectronClient {
 	}
 
 	public async waitForTextContent(selector: string, textContent?: string, accept?: (result: string) => boolean): Promise<string> {
-		accept = accept ? accept : result => textContent !== void 0 ? textContent === result : !!result;
+		accept = accept ? accept : (result => textContent !== void 0 ? textContent === result : !!result);
 		const fn = async () => await this.spectron.client.selectorExecute(selector, div => Array.isArray(div) ? div[0].textContent : div.textContent);
-		return this.waitFor(fn, accept, `getTextContent with selector ${selector}`);
+		return this.waitFor(fn, s => accept!(typeof s === 'string' ? s : ''), `getTextContent with selector ${selector}`);
 	}
 
 	public async waitForValue(selector: string, value?: string, accept?: (result: string) => boolean): Promise<any> {

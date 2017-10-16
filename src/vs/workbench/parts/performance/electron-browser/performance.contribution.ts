@@ -57,7 +57,7 @@ class StartupProfiler implements IWorkbenchContribution {
 			}).then(files => {
 				const profileFiles = files.reduce((prev, cur) => `${prev}${join(profileStartup.dir, cur)}\n`, '\n');
 
-				const primaryButton = this._messageService.confirm({
+				const primaryButton = this._messageService.confirmSync({
 					type: 'info',
 					message: localize('prof.message', "Successfully created profiles."),
 					detail: localize('prof.detail', "Please create an issue and manually attach the following files:\n{0}", profileFiles),
@@ -72,7 +72,7 @@ class StartupProfiler implements IWorkbenchContribution {
 						action.run(`:warning: Make sure to **attach** these files from your *home*-directory: :warning:\n${files.map(file => `-\`${file}\``).join('\n')}`)
 					]).then(() => {
 						// keep window stable until restart is selected
-						this._messageService.confirm({
+						this._messageService.confirmSync({
 							type: 'info',
 							message: localize('prof.thanks', "Thanks for helping us."),
 							detail: localize('prof.detail.restart', "A final restart is required to continue to use '{0}'. Again, thank you for your contribution.", this._environmentService.appNameLong),

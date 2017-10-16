@@ -76,7 +76,7 @@ export class CodeApplication {
 		@ILogService private logService: ILogService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IConfigurationService private configurationService: ConfigurationService<any>,
+		@IConfigurationService private configurationService: ConfigurationService,
 		@IStorageService private storageService: IStorageService,
 		@IHistoryMainService private historyService: IHistoryMainService
 	) {
@@ -291,7 +291,7 @@ export class CodeApplication {
 		services.set(ICredentialsService, new SyncDescriptor(CredentialsService));
 
 		// Telemtry
-		if (this.environmentService.isBuilt && !this.environmentService.isExtensionDevelopment && !!product.enableTelemetry) {
+		if (this.environmentService.isBuilt && !this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
 			const channel = getDelayedChannel<ITelemetryAppenderChannel>(this.sharedProcessClient.then(c => c.getChannel('telemetryAppender')));
 			const appender = new TelemetryAppenderClient(channel);
 			const commonProperties = resolveCommonProperties(product.commit, pkg.version, this.environmentService.installSource)

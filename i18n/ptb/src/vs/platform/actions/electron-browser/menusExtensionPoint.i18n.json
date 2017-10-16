@@ -20,6 +20,7 @@
 	"menus.editorTabContext": "Mostrar o menu de contexto do editor",
 	"menus.debugCallstackContext": "O menu de contexto de pilha de chamadas de depuração",
 	"menus.scmTitle": "O menu de título do controle de fonte",
+	"menus.scmSourceControl": "O menu do Controle de Código Fonte",
 	"menus.resourceGroupContext": "O menu de contexto do grupo de recursos de controle de fonte",
 	"menus.resourceStateContext": "O menu de contexto de estado de recursos do controle de fonte",
 	"view.viewTitle": "O menu de título da visualização contribuída",

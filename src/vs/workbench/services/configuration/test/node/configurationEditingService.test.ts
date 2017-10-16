@@ -21,7 +21,7 @@ import extfs = require('vs/base/node/extfs');
 import { TestTextFileService, TestEditorGroupService, TestLifecycleService, TestBackupFileService, TestTextResourceConfigurationService } from 'vs/workbench/test/workbenchTestServices';
 import uuid = require('vs/base/common/uuid');
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { WorkspaceService } from 'vs/workbench/services/configuration/node/configuration';
+import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
 import { ConfigurationEditingService } from 'vs/workbench/services/configuration/node/configurationEditingService';
 import { ConfigurationTarget, ConfigurationEditingError, ConfigurationEditingErrorCode } from 'vs/workbench/services/configuration/common/configurationEditing';
@@ -228,7 +228,7 @@ suite('ConfigurationEditingService', () => {
 				const contents = fs.readFileSync(globalSettingsFile).toString('utf8');
 				const parsed = json.parse(contents);
 				assert.equal(parsed['configurationEditing.service.testSetting'], 'value');
-				assert.equal(instantiationService.get(IConfigurationService).lookup('configurationEditing.service.testSetting').value, 'value');
+				assert.equal(instantiationService.get(IConfigurationService).getValue('configurationEditing.service.testSetting'), 'value');
 			});
 	});
 
@@ -242,8 +242,8 @@ suite('ConfigurationEditingService', () => {
 				assert.equal(parsed['my.super.setting'], 'my.super.value');
 
 				const configurationService = instantiationService.get(IConfigurationService);
-				assert.equal(configurationService.lookup('configurationEditing.service.testSetting').value, 'value');
-				assert.equal(configurationService.lookup('my.super.setting').value, 'my.super.value');
+				assert.equal(configurationService.getValue('configurationEditing.service.testSetting'), 'value');
+				assert.equal(configurationService.getValue('my.super.setting'), 'my.super.value');
 			});
 	});
 
@@ -255,7 +255,7 @@ suite('ConfigurationEditingService', () => {
 				const parsed = json.parse(contents);
 				assert.equal(parsed['service.testSetting'], 'value');
 				const configurationService = instantiationService.get(IConfigurationService);
-				assert.equal(configurationService.lookup('tasks.service.testSetting').value, 'value');
+				assert.equal(configurationService.getValue('tasks.service.testSetting'), 'value');
 			});
 	});
 
@@ -270,8 +270,8 @@ suite('ConfigurationEditingService', () => {
 				assert.equal(parsed['my.super.setting'], 'my.super.value');
 
 				const configurationService = instantiationService.get(IConfigurationService);
-				assert.equal(configurationService.lookup('launch.service.testSetting').value, 'value');
-				assert.equal(configurationService.lookup('launch.my.super.setting').value, 'my.super.value');
+				assert.equal(configurationService.getValue('launch.service.testSetting'), 'value');
+				assert.equal(configurationService.getValue('launch.my.super.setting'), 'my.super.value');
 			});
 	});
 

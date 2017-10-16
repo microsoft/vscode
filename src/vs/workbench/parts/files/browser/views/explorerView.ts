@@ -8,7 +8,7 @@ import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Builder, $ } from 'vs/base/browser/builder';
 import URI from 'vs/base/common/uri';
-import { ThrottledDelayer } from 'vs/base/common/async';
+import { ThrottledDelayer, sequence } from 'vs/base/common/async';
 import errors = require('vs/base/common/errors');
 import paths = require('vs/base/common/paths');
 import resources = require('vs/base/common/resources');
@@ -33,7 +33,7 @@ import { IListService } from 'vs/platform/list/browser/listService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressService } from 'vs/platform/progress/common/progress';
@@ -120,7 +120,7 @@ export class ExplorerView extends ViewsViewletPanel {
 
 	private getFileEventsExcludes(root?: URI): glob.IExpression {
 		const scope = root ? { resource: root } : void 0;
-		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>(undefined, scope);
+		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>(scope);
 
 		return (configuration && configuration.files && configuration.files.exclude) || Object.create(null);
 	}
@@ -161,10 +161,12 @@ export class ExplorerView extends ViewsViewletPanel {
 
 		const onFileIconThemeChange = (fileIconTheme: IFileIconTheme) => {
 			DOM.toggleClass(this.treeContainer, 'align-icons-and-twisties', fileIconTheme.hasFileIcons && !fileIconTheme.hasFolderIcons);
+			DOM.toggleClass(this.treeContainer, 'hide-arrows', fileIconTheme.hidesExplorerArrows === true);
 		};
 
 		this.disposables.push(this.themeService.onDidFileIconThemeChange(onFileIconThemeChange));
 		this.disposables.push(this.contextService.onDidChangeWorkspaceFolders(e => this.refreshFromEvent(e.added)));
+		this.disposables.push(this.contextService.onDidChangeWorkbenchState(e => this.refreshFromEvent()));
 		onFileIconThemeChange(this.themeService.getFileIconTheme());
 	}
 
@@ -202,7 +204,7 @@ export class ExplorerView extends ViewsViewletPanel {
 			this.disposables.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
 
 			// Also handle configuration updates
-			this.disposables.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IFilesConfiguration>(), true)));
+			this.disposables.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IFilesConfiguration>(), e)));
 		});
 	}
 
@@ -249,7 +251,7 @@ export class ExplorerView extends ViewsViewletPanel {
 		}
 	}
 
-	private onConfigurationUpdated(configuration: IFilesConfiguration, refresh?: boolean): void {
+	private onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): void {
 		if (this.isDisposed) {
 			return; // guard against possible race condition when config change causes recreate of views
 		}
@@ -268,8 +270,13 @@ export class ExplorerView extends ViewsViewletPanel {
 			needsRefresh = true;
 		}
 
+		if (event && !needsRefresh) {
+			needsRefresh = event.affectsConfiguration('explorer.decorations.colors')
+				|| event.affectsConfiguration('explorer.decorations.badges');
+		}
+
 		// Refresh viewer as needed
-		if (refresh && needsRefresh) {
+		if (needsRefresh) {
 			this.doRefresh().done(null, errors.onUnexpectedError);
 		}
 	}
@@ -684,7 +691,13 @@ export class ExplorerView extends ViewsViewletPanel {
 		if (this.isVisible()) {
 			this.explorerRefreshDelayer.trigger(() => {
 				if (!this.explorerViewer.getHighlight()) {
-					return this.doRefresh(newRoots.map(r => r.uri));
+					return this.doRefresh(newRoots.map(r => r.uri)).then(() => {
+						if (newRoots.length === 1) {
+							return this.reveal(this.model.findClosest(newRoots[0].uri), 0.5);
+						}
+
+						return undefined;
+					});
 				}
 
 				return TPromise.as(null);
@@ -726,12 +739,8 @@ export class ExplorerView extends ViewsViewletPanel {
 		});
 	}
 
-	private doRefresh(targetsToExpand: URI[] = []): TPromise<void> {
-		const targetsToResolve: { root: FileStat, resource: URI, options: { resolveTo: URI[] } }[] = [];
-		this.model.roots.forEach(root => {
-			const rootAndTargets = { root, resource: root.resource, options: { resolveTo: [] } };
-			targetsToResolve.push(rootAndTargets);
-		});
+	private doRefresh(targetsToExpand: URI[] = []): TPromise<any> {
+		const targetsToResolve = this.model.roots.map(root => ({ root, resource: root.resource, options: { resolveTo: [] } }));
 
 		// First time refresh: Receive target through active editor input or selection and also include settings from previous session
 		if (!this.isCreated) {
@@ -761,35 +770,33 @@ export class ExplorerView extends ViewsViewletPanel {
 		}
 
 		// Load Root Stat with given target path configured
-		const promise = this.fileService.resolveFiles(targetsToResolve).then(results => {
-			// Convert to model
-			const modelStats = results.map((result, index) => {
-				if (result.success) {
-					return FileStat.create(result.stat, targetsToResolve[index].root, targetsToResolve[index].options.resolveTo);
+		const promise = TPromise.join(targetsToResolve.map((target, index) => this.fileService.resolveFile(target.resource, target.options)
+			.then(result => FileStat.create(result, target.root, target.options.resolveTo), err => FileStat.create({
+				resource: target.resource,
+				name: resources.basenameOrAuthority(target.resource),
+				mtime: 0,
+				etag: undefined,
+				isDirectory: true,
+				hasChildren: false
+			}, target.root))
+			.then(modelStat => {
+				// Subsequent refresh: Merge stat into our local model and refresh tree
+				FileStat.mergeLocalWithDisk(modelStat, this.model.roots[index]);
+
+				const input = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? this.model.roots[0] : this.model;
+				let statsToExpand: FileStat[] = this.explorerViewer.getExpandedElements().concat(targetsToExpand.map(target => this.model.findClosest(target)));
+				if (input === this.explorerViewer.getInput()) {
+					return this.explorerViewer.refresh().then(() => sequence(statsToExpand.map(e => () => this.explorerViewer.expand(e))));
 				}
 
-				return FileStat.create({
-					resource: targetsToResolve[index].resource,
-					name: resources.basenameOrAuthority(targetsToResolve[index].resource),
-					mtime: 0,
-					etag: undefined,
-					isDirectory: true,
-					hasChildren: false
-				}, targetsToResolve[index].root);
-			});
-			// Subsequent refresh: Merge stat into our local model and refresh tree
-			modelStats.forEach((modelStat, index) => FileStat.mergeLocalWithDisk(modelStat, this.model.roots[index]));
-
-			const input = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? this.model.roots[0] : this.model;
-			const statsToExpand = this.explorerViewer.getExpandedElements().concat(targetsToExpand.map(target => this.model.findClosest(target)));
-			if (input === this.explorerViewer.getInput()) {
-				return this.explorerViewer.refresh().then(() => this.explorerViewer.expandAll(statsToExpand));
-			}
-
-			// Display roots only when multi folder workspace
-			// Make sure to expand all folders that where expanded in the previous session
-			return this.explorerViewer.setInput(input).then(() => this.explorerViewer.expandAll(statsToExpand));
-		}, e => TPromise.wrapError(e));
+				// Display roots only when multi folder workspace
+				// Make sure to expand all folders that where expanded in the previous session
+				if (input === this.model) {
+					// We have transitioned into workspace view -> expand all roots
+					statsToExpand = this.model.roots.concat(statsToExpand);
+				}
+				return this.explorerViewer.setInput(input).then(() => sequence(statsToExpand.map(e => () => this.explorerViewer.expand(e))));
+			})));
 
 		this.progressService.showWhile(promise, this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */);
 

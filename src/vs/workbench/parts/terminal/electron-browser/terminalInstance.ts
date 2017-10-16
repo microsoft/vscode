@@ -266,7 +266,8 @@ export class TerminalInstance implements ITerminalInstance {
 			theme: this._getXtermTheme(),
 			fontFamily: font.fontFamily,
 			fontSize: font.fontSize,
-			lineHeight: font.lineHeight
+			lineHeight: font.lineHeight,
+			enableBold: this._configHelper.config.enableBold
 		});
 		if (this._shellLaunchConfig.initialText) {
 			this._xterm.writeln(this._shellLaunchConfig.initialText);
@@ -300,6 +301,9 @@ export class TerminalInstance implements ITerminalInstance {
 		this._wrapperElement = document.createElement('div');
 		dom.addClass(this._wrapperElement, 'terminal-wrapper');
 		this._xtermElement = document.createElement('div');
+
+		// Attach the xterm object to the DOM, exposing it to the smoke tests
+		(<any>this._wrapperElement).xterm = this._xterm;
 
 		this._xterm.open(this._xtermElement);
 		this._xterm.attachCustomKeyEventHandler((event: KeyboardEvent) => {
@@ -508,6 +512,16 @@ export class TerminalInstance implements ITerminalInstance {
 			// background since scrollTop changes take no effect but the terminal's position does
 			// change since the number of visible rows decreases.
 			this._xterm.emit('scroll', this._xterm.buffer.ydisp);
+			if (this._container) {
+				// Force a layout when the instance becomes invisible. This is particularly important
+				// for ensuring that terminals that are created in the background by an extension will
+				// correctly get correct character measurements in order to render to the screen (see
+				// #34554).
+				const computedStyle = window.getComputedStyle(this._container);
+				const width = parseInt(computedStyle.getPropertyValue('width').replace('px', ''), 10);
+				const height = parseInt(computedStyle.getPropertyValue('height').replace('px', ''), 10);
+				this.layout(new Dimension(width, height));
+			}
 		}
 	}
 
@@ -899,21 +913,31 @@ export class TerminalInstance implements ITerminalInstance {
 		if (!terminalWidth) {
 			return;
 		}
+
 		if (this._xterm) {
 			const font = this._configHelper.getFont();
-			if (this._xterm.getOption('lineHeight') !== font.lineHeight) {
-				this._xterm.setOption('lineHeight', font.lineHeight);
-			}
-			if (this._xterm.getOption('fontSize') !== font.fontSize) {
-				this._xterm.setOption('fontSize', font.fontSize);
-			}
-			if (this._xterm.getOption('fontFamily') !== font.fontFamily) {
-				this._xterm.setOption('fontFamily', font.fontFamily);
+
+			// Only apply these settings when the terminal is visible so that
+			// the characters are measured correctly.
+			if (this._isVisible) {
+				if (this._xterm.getOption('lineHeight') !== font.lineHeight) {
+					this._xterm.setOption('lineHeight', font.lineHeight);
+				}
+				if (this._xterm.getOption('fontSize') !== font.fontSize) {
+					this._xterm.setOption('fontSize', font.fontSize);
+				}
+				if (this._xterm.getOption('fontFamily') !== font.fontFamily) {
+					this._xterm.setOption('fontFamily', font.fontFamily);
+				}
+				if (this._xterm.getOption('enableBold') !== this._configHelper.config.enableBold) {
+					this._xterm.setOption('enableBold', this._configHelper.config.enableBold);
+				}
 			}
 
 			this._xterm.resize(this._cols, this._rows);
 			this._xterm.element.style.width = terminalWidth + 'px';
 		}
+
 		this._processReady.then(() => {
 			if (this._process && this._process.connected) {
 				// The child process could aready be terminated

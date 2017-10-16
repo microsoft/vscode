@@ -175,6 +175,8 @@
 	"miRunningTask": "Aktive Auf&&gaben anzeigen...",
 	"miRestartTask": "Aktuell&&e Aufgabe neu starten...",
 	"miTerminateTask": "&&Aufgabe beenden...",
+	"miConfigureTask": "Aufgaben &&konfigurieren...",
+	"miConfigureBuildTask": "Standardbuildaufgabe kon&&figurieren...",
 	"accessibilityOptionsWindowTitle": "Optionen für erleichterte Bedienung",
 	"miRestartToUpdate": "Zum Aktualisieren neu starten...",
 	"miCheckingForUpdates": "Überprüfen auf Updates...",

@@ -31,6 +31,9 @@ class TaskEntry extends base.TaskEntry {
 }
 
 export class QuickOpenHandler extends base.QuickOpenHandler {
+
+	public static readonly ID = 'workbench.picker.tasks';
+
 	private activationPromise: TPromise<void>;
 
 	constructor(

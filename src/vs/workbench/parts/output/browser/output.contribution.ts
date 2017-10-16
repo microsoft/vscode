@@ -17,6 +17,7 @@ import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_PANEL_ID, IOutputService, CONTEXT_I
 import { PanelRegistry, Extensions, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { OutputPanel } from 'vs/workbench/parts/output/browser/outputPanel';
 
 // Register Service
 registerSingleton(IOutputService, OutputService);
@@ -31,8 +32,7 @@ ModesRegistry.registerLanguage({
 
 // Register Output Panel
 Registry.as<PanelRegistry>(Extensions.Panels).registerPanel(new PanelDescriptor(
-	'vs/workbench/parts/output/browser/outputPanel',
-	'OutputPanel',
+	OutputPanel,
 	OUTPUT_PANEL_ID,
 	nls.localize('output', "Output"),
 	'output',

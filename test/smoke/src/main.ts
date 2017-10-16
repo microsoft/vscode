@@ -17,7 +17,7 @@ const testDataPath = tmpDir.name;
 process.once('exit', () => rimraf.sync(testDataPath));
 
 const [, , ...args] = process.argv;
-const opts = minimist(args, { string: ['build', 'stable-build', 'screenshots'] });
+const opts = minimist(args, { string: ['build', 'stable-build', 'screenshots', 'wait-time'] });
 
 opts.screenshots = opts.screenshots === '' ? path.join(testDataPath, 'screenshots') : opts.screenshots;
 
@@ -55,14 +55,31 @@ function getDevElectronPath(): string {
 	}
 }
 
+function getBuildElectronPath(root: string): string {
+	switch (process.platform) {
+		case 'darwin':
+			return path.join(root, 'Contents', 'MacOS', 'Electron');
+		case 'linux': {
+			const product = require(path.join(root, 'resources', 'app', 'product.json'));
+			return path.join(root, product.applicationName);
+		}
+		case 'win32': {
+			const product = require(path.join(root, 'resources', 'app', 'product.json'));
+			return path.join(root, `${product.nameShort}.exe`);
+		}
+		default:
+			throw new Error('Unsupported platform.');
+	}
+}
+
 let testCodePath = opts.build;
 let stableCodePath = opts['stable-build'];
 
 if (testCodePath) {
-	process.env.VSCODE_PATH = testCodePath;
+	process.env.VSCODE_PATH = getBuildElectronPath(testCodePath);
 
 	if (stableCodePath) {
-		process.env.VSCODE_STABLE_PATH = stableCodePath;
+		process.env.VSCODE_STABLE_PATH = getBuildElectronPath(stableCodePath);
 	}
 } else {
 	testCodePath = getDevElectronPath();
@@ -72,8 +89,8 @@ if (testCodePath) {
 	process.env.VSCODE_CLI = '1';
 }
 
-if (!fs.existsSync(testCodePath)) {
-	fail(`Can't find Code at ${testCodePath}.`);
+if (!fs.existsSync(process.env.VSCODE_PATH || '')) {
+	fail(`Can't find Code at ${process.env.VSCODE_PATH}.`);
 }
 
 process.env.VSCODE_USER_DIR = path.join(testDataPath, 'd');
@@ -82,6 +99,7 @@ process.env.SMOKETEST_REPO = testRepoLocalDir;
 process.env.VSCODE_WORKSPACE_PATH = workspacePath;
 process.env.VSCODE_KEYBINDINGS_PATH = keybindingsPath;
 process.env.SCREENSHOTS_DIR = opts.screenshots || '';
+process.env.WAIT_TIME = opts['wait-time'] || '20';
 
 if (process.env.VSCODE_DEV === '1') {
 	process.env.VSCODE_EDITION = 'dev';

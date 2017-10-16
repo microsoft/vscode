@@ -16,7 +16,6 @@ import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { toResource } from 'vs/workbench/common/editor';
 import { Panel } from 'vs/workbench/browser/panel';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import Constants from 'vs/workbench/parts/markers/common/constants';
@@ -285,7 +284,8 @@ export class MarkersPanel extends Panel {
 	}
 
 	private onEditorsChanged(): void {
-		this.currentActiveResource = toResource(this.editorService.getActiveEditorInput());
+		const activeInput = this.editorService.getActiveEditorInput();
+		this.currentActiveResource = activeInput ? activeInput.getResource() : void 0;
 		this.autoReveal();
 	}
 

@@ -5,7 +5,7 @@
 'use strict';
 
 import { Emitter } from 'vs/base/common/event';
-import { StringTrieMap } from 'vs/base/common/map';
+import { TernarySearchTree } from 'vs/base/common/map';
 import { score } from 'vs/editor/common/modes/languageSelector';
 import * as Platform from 'vs/base/common/platform';
 import * as errors from 'vs/base/common/errors';
@@ -76,23 +76,23 @@ function proposedApiFunction<T>(extension: IExtensionDescription, fn: T): T {
 export function createApiFactory(
 	initData: IInitData,
 	threadService: ExtHostThreadService,
+	extHostWorkspace: ExtHostWorkspace,
+	extHostConfiguration: ExtHostConfiguration,
 	extensionService: ExtHostExtensionService
 ): IExtensionApiFactory {
 
-	const mainThreadTelemetry = threadService.get(MainContext.MainThreadTelemetry);
-
 	// Addressable instances
 	const extHostHeapService = threadService.set(ExtHostContext.ExtHostHeapService, new ExtHostHeapService());
-	const extHostDocumentsAndEditors = threadService.set(ExtHostContext.ExtHostDocumentsAndEditors, new ExtHostDocumentsAndEditors(threadService, extensionService));
+	const extHostDocumentsAndEditors = threadService.set(ExtHostContext.ExtHostDocumentsAndEditors, new ExtHostDocumentsAndEditors(threadService));
 	const extHostDocuments = threadService.set(ExtHostContext.ExtHostDocuments, new ExtHostDocuments(threadService, extHostDocumentsAndEditors));
 	const extHostDocumentContentProviders = threadService.set(ExtHostContext.ExtHostDocumentContentProviders, new ExtHostDocumentContentProvider(threadService, extHostDocumentsAndEditors));
 	const extHostDocumentSaveParticipant = threadService.set(ExtHostContext.ExtHostDocumentSaveParticipant, new ExtHostDocumentSaveParticipant(extHostDocuments, threadService.get(MainContext.MainThreadEditors)));
 	const extHostEditors = threadService.set(ExtHostContext.ExtHostEditors, new ExtHostEditors(threadService, extHostDocumentsAndEditors));
 	const extHostCommands = threadService.set(ExtHostContext.ExtHostCommands, new ExtHostCommands(threadService, extHostHeapService));
 	const extHostTreeViews = threadService.set(ExtHostContext.ExtHostTreeViews, new ExtHostTreeViews(threadService.get(MainContext.MainThreadTreeViews), extHostCommands));
-	const extHostWorkspace = threadService.set(ExtHostContext.ExtHostWorkspace, new ExtHostWorkspace(threadService, initData.workspace));
+	threadService.set(ExtHostContext.ExtHostWorkspace, extHostWorkspace);
 	const extHostDebugService = threadService.set(ExtHostContext.ExtHostDebugService, new ExtHostDebugService(threadService, extHostWorkspace));
-	const extHostConfiguration = threadService.set(ExtHostContext.ExtHostConfiguration, new ExtHostConfiguration(threadService.get(MainContext.MainThreadConfiguration), extHostWorkspace, initData.configuration));
+	threadService.set(ExtHostContext.ExtHostConfiguration, extHostConfiguration);
 	const extHostDiagnostics = threadService.set(ExtHostContext.ExtHostDiagnostics, new ExtHostDiagnostics(threadService));
 	const languageFeatures = threadService.set(ExtHostContext.ExtHostLanguageFeatures, new ExtHostLanguageFeatures(threadService, extHostDocuments, extHostCommands, extHostHeapService, extHostDiagnostics));
 	const extHostFileSystem = threadService.set(ExtHostContext.ExtHostFileSystem, new ExtHostFileSystem(threadService));
@@ -137,29 +137,6 @@ export function createApiFactory(
 				console.warn(`Extension '${extension.id}' uses PROPOSED API which is subject to change and removal without notice.`);
 			}
 		}
-
-		const apiUsage = new class {
-			private _seen = new Set<string>();
-			publicLog(apiName: string) {
-				if (this._seen.has(apiName)) {
-					return undefined;
-				}
-				this._seen.add(apiName);
-				/* __GDPR__
-					"apiUsage" : {
-						"name" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"extension": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"${include}": [
-							"${MainThreadData}"
-						]
-					}
-				*/
-				return mainThreadTelemetry.$publicLog('apiUsage', {
-					name: apiName,
-					extension: extension.id
-				});
-			}
-		};
 
 		// namespace: commands
 		const commands: typeof vscode.commands = {
@@ -292,13 +269,12 @@ export function createApiFactory(
 			registerDocumentLinkProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentLinkProvider): vscode.Disposable {
 				return languageFeatures.registerDocumentLinkProvider(selector, provider);
 			},
+			registerColorProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentColorProvider): vscode.Disposable {
+				return languageFeatures.registerColorProvider(selector, provider);
+			},
 			setLanguageConfiguration: (language: string, configuration: vscode.LanguageConfiguration): vscode.Disposable => {
 				return languageFeatures.setLanguageConfiguration(language, configuration);
-			},
-			// proposed API
-			registerColorProvider: proposedApiFunction(extension, (selector: vscode.DocumentSelector, provider: vscode.DocumentColorProvider) => {
-				return languageFeatures.registerColorProvider(selector, provider);
-			})
+			}
 		};
 
 		// namespace: window
@@ -344,9 +320,9 @@ export function createApiFactory(
 			get state() {
 				return extHostWindow.state;
 			},
-			onDidChangeWindowState: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
+			onDidChangeWindowState(listener, thisArg?, disposables?) {
 				return extHostWindow.onDidChangeWindowState(listener, thisArg, disposables);
-			}),
+			},
 			showInformationMessage(message, first, ...rest) {
 				return extHostMessageService.showMessage(extension, Severity.Info, message, first, rest);
 			},
@@ -359,9 +335,9 @@ export function createApiFactory(
 			showQuickPick(items: any, options: vscode.QuickPickOptions, token?: vscode.CancellationToken) {
 				return extHostQuickOpen.showQuickPick(items, options, token);
 			},
-			showWorkspaceFolderPick: proposedApiFunction(extension, (options: vscode.WorkspaceFolderPickOptions) => {
+			showWorkspaceFolderPick(options: vscode.WorkspaceFolderPickOptions) {
 				return extHostQuickOpen.showWorkspaceFolderPick(options);
-			}),
+			},
 			showInputBox(options?: vscode.InputBoxOptions, token?: vscode.CancellationToken) {
 				return extHostQuickOpen.showInput(options, token);
 			},
@@ -405,22 +381,18 @@ export function createApiFactory(
 		// namespace: workspace
 		const workspace: typeof vscode.workspace = {
 			get rootPath() {
-				apiUsage.publicLog('workspace#rootPath');
 				return extHostWorkspace.getPath();
 			},
 			set rootPath(value) {
 				throw errors.readonly();
 			},
 			getWorkspaceFolder(resource) {
-				apiUsage.publicLog('workspace#getWorkspaceFolder');
 				return extHostWorkspace.getWorkspaceFolder(resource);
 			},
 			get workspaceFolders() {
-				apiUsage.publicLog('workspace#workspaceFolders');
 				return extHostWorkspace.getWorkspaceFolders();
 			},
 			onDidChangeWorkspaceFolders: function (listener, thisArgs?, disposables?) {
-				apiUsage.publicLog('workspace#onDidChangeWorkspaceFolders');
 				return extHostWorkspace.onDidChangeWorkspace(listener, thisArgs, disposables);
 			},
 			asRelativePath: (pathOrUri, includeWorkspace) => {
@@ -451,7 +423,7 @@ export function createApiFactory(
 				if (typeof uriOrFileNameOrOptions === 'string') {
 					uriPromise = TPromise.as(URI.file(uriOrFileNameOrOptions));
 				} else if (uriOrFileNameOrOptions instanceof URI) {
-					uriPromise = TPromise.as(<URI>uriOrFileNameOrOptions);
+					uriPromise = TPromise.as(uriOrFileNameOrOptions);
 				} else if (!options || typeof options === 'object') {
 					uriPromise = extHostDocuments.createDocumentData(options);
 				} else {
@@ -484,7 +456,7 @@ export function createApiFactory(
 				return extHostConfiguration.onDidChangeConfiguration(listener, thisArgs, disposables);
 			},
 			getConfiguration: (section?: string, resource?: vscode.Uri): vscode.WorkspaceConfiguration => {
-				return extHostConfiguration.getConfiguration(section, <URI>resource);
+				return extHostConfiguration.getConfiguration(section, resource);
 			},
 			registerTextDocumentContentProvider(scheme: string, provider: vscode.TextDocumentContentProvider) {
 				return extHostDocumentContentProviders.registerTextDocumentContentProvider(scheme, provider);
@@ -503,22 +475,6 @@ export function createApiFactory(
 				return extHostSCM.getLastInputBox(extension);
 			},
 			createSourceControl(id: string, label: string, rootUri?: vscode.Uri) {
-				/* __GDPR__
-					"registerSCMProvider" : {
-						"extensionId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"providerId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-						"providerLabel": { "classification": "PublicPersonalData", "purpose": "FeatureInsight" },
-						"${include}": [
-							"${MainThreadData}"
-						]
-					}
-				*/
-				mainThreadTelemetry.$publicLog('registerSCMProvider', {
-					extensionId: extension.id,
-					providerId: id,
-					providerLabel: label
-				});
-
 				return extHostSCM.createSourceControl(extension, id, label, rootUri);
 			}
 		};
@@ -674,7 +630,7 @@ export function initializeExtensionApi(extensionService: ExtHostExtensionService
 	return extensionService.getExtensionPathIndex().then(trie => defineAPI(apiFactory, trie));
 }
 
-function defineAPI(factory: IExtensionApiFactory, extensionPaths: StringTrieMap<IExtensionDescription>): void {
+function defineAPI(factory: IExtensionApiFactory, extensionPaths: TernarySearchTree<IExtensionDescription>): void {
 
 	// each extension is meant to get its own api implementation
 	const extApiImpl = new Map<string, typeof vscode>();

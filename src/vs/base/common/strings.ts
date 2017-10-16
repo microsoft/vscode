@@ -715,6 +715,10 @@ export function startsWithUTF8BOM(str: string): boolean {
 	return (str && str.length > 0 && str.charCodeAt(0) === CharCode.UTF8_BOM);
 }
 
+export function stripUTF8BOM(str: string): string {
+	return startsWithUTF8BOM(str) ? str.substr(1) : str;
+}
+
 /**
  * Appends two strings. If the appended result is longer than maxLength,
  * trims the start of the result and replaces it with '...'.
@@ -744,4 +748,36 @@ export function repeat(s: string, count: number): string {
 		result += s;
 	}
 	return result;
+}
+
+/**
+ * Checks if the characters of the provided query string are included in the
+ * target string. The characters do not have to be contiguous within the string.
+ */
+export function fuzzyContains(target: string, query: string): boolean {
+	if (!target || !query) {
+		return false; // return early if target or query are undefined
+	}
+
+	if (target.length < query.length) {
+		return false; // impossible for query to be contained in target
+	}
+
+	const queryLen = query.length;
+	const targetLower = target.toLowerCase();
+
+	let index = 0;
+	let lastIndexOf = -1;
+	while (index < queryLen) {
+		let indexOf = targetLower.indexOf(query[index], lastIndexOf + 1);
+		if (indexOf < 0) {
+			return false;
+		}
+
+		lastIndexOf = indexOf;
+
+		index++;
+	}
+
+	return true;
 }

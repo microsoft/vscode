@@ -12,7 +12,7 @@ import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration
 import { MainThreadConfigurationShape } from 'vs/workbench/api/node/extHost.protocol';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ConfigurationTarget, ConfigurationEditingErrorCode, ConfigurationEditingError } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { ConfigurationModel } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { TestThreadService } from './testThreadService';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { IWorkspaceFolder, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';

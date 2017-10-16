@@ -126,7 +126,7 @@ suite('Debug - Adapter', () => {
 			'	]',
 			'}'].join('\n');
 
-		return adapter.getInitialConfigurationContent(null).then(content => {
+		return adapter.getInitialConfigurationContent().then(content => {
 			assert.equal(content, expected);
 		}, err => assert.fail());
 	});

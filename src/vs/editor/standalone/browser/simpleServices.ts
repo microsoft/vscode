@@ -8,7 +8,7 @@ import { Schemas } from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, IConfigurationKeys, IConfigurationValues, Configuration, IConfigurationData, ConfigurationModel, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationChangeEvent, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, Position } from 'vs/platform/editor/common/editor';
 import { ICommandService, ICommand, ICommandEvent, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -17,13 +17,13 @@ import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayo
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IKeybindingEvent, KeybindingSource, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IConfirmation, IMessageService } from 'vs/platform/message/common/message';
+import { IConfirmation, IMessageService, IConfirmationResult } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService, IWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { Selection } from 'vs/editor/common/core/selection';
 import Event, { Emitter } from 'vs/base/common/event';
-import { DefaultConfigurationModel } from 'vs/platform/configuration/common/model';
+import { Configuration, ConfigurationModel, DefaultConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
@@ -236,6 +236,7 @@ export class SimpleProgressService implements IProgressService {
 }
 
 export class SimpleMessageService implements IMessageService {
+
 	public _serviceBrand: any;
 
 	private static Empty = function () { /* nothing */ };
@@ -261,13 +262,17 @@ export class SimpleMessageService implements IMessageService {
 		// No-op
 	}
 
-	public confirm(confirmation: IConfirmation): boolean {
+	public confirmSync(confirmation: IConfirmation): boolean {
 		let messageText = confirmation.message;
 		if (confirmation.detail) {
 			messageText = messageText + '\n\n' + confirmation.detail;
 		}
 
 		return window.confirm(messageText);
+	}
+
+	public confirm(confirmation: IConfirmation): TPromise<IConfirmationResult> {
+		return TPromise.as({ confirmed: this.confirmSync(confirmation) } as IConfirmationResult);
 	}
 }
 
@@ -285,7 +290,8 @@ export class StandaloneCommandService implements ICommandService {
 		this._dynamicCommands = Object.create(null);
 	}
 
-	public addCommand(id: string, command: ICommand): IDisposable {
+	public addCommand(command: ICommand): IDisposable {
+		const { id } = command;
 		this._dynamicCommands[id] = command;
 		return {
 			dispose: () => {
@@ -317,10 +323,11 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 	constructor(
 		contextKeyService: IContextKeyService,
 		commandService: ICommandService,
+		telemetryService: ITelemetryService,
 		messageService: IMessageService,
 		domNode: HTMLElement
 	) {
-		super(contextKeyService, commandService, messageService);
+		super(contextKeyService, commandService, telemetryService, messageService);
 
 		this._cachedResolver = null;
 		this._dynamicKeybindings = [];
@@ -360,7 +367,8 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 
 		let commandService = this._commandService;
 		if (commandService instanceof StandaloneCommandService) {
-			toDispose.push(commandService.addCommand(commandId, {
+			toDispose.push(commandService.addCommand({
+				id: commandId,
 				handler: handler
 			}));
 		} else {
@@ -426,45 +434,68 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 	}
 }
 
+function isConfigurationOverrides(thing: any): thing is IConfigurationOverrides {
+	return thing
+		&& typeof thing === 'object'
+		&& (!thing.overrideIdentifier || typeof thing.overrideIdentifier === 'string')
+		&& (!thing.resource || thing.resource instanceof URI);
+}
+
 export class SimpleConfigurationService implements IConfigurationService {
 
 	_serviceBrand: any;
 
-	private _onDidUpdateConfiguration = new Emitter<IConfigurationServiceEvent>();
-	public onDidUpdateConfiguration: Event<IConfigurationServiceEvent> = this._onDidUpdateConfiguration.event;
+	private _onDidUpdateConfiguration = new Emitter<IConfigurationChangeEvent>();
+	public onDidUpdateConfiguration: Event<IConfigurationChangeEvent> = this._onDidUpdateConfiguration.event;
 
-	private _configuration: Configuration<any>;
+	private _configuration: Configuration;
 
 	constructor() {
 		this._configuration = new Configuration(new DefaultConfigurationModel(), new ConfigurationModel());
 	}
 
-	private configuration(): Configuration<any> {
+	private configuration(): Configuration {
 		return this._configuration;
 	}
 
-	public reloadConfiguration<T>(section?: string): TPromise<T> {
-		return TPromise.as<T>(this.getConfiguration<T>(section));
+	getConfiguration<T>(): T
+	getConfiguration<T>(section: string): T
+	getConfiguration<T>(overrides: IConfigurationOverrides): T
+	getConfiguration<T>(section: string, overrides: IConfigurationOverrides): T
+	getConfiguration(arg1?: any, arg2?: any): any {
+		const section = typeof arg1 === 'string' ? arg1 : void 0;
+		const overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : void 0;
+		return this.configuration().getSection(section, overrides);
 	}
 
-	public getConfiguration<C>(section?: string, options?: IConfigurationOverrides): C {
-		return this.configuration().getValue<C>(section, options);
+	public getValue<C>(key: string, options?: IConfigurationOverrides): C {
+		return this.configuration().getValue(key, options);
 	}
 
-	public lookup<C>(key: string, options?: IConfigurationOverrides): IConfigurationValue<C> {
+	public updateValue(key: string, value: any, arg3?: any, arg4?: any): TPromise<void> {
+		return TPromise.as(null);
+	}
+
+	public inspect<C>(key: string, options?: IConfigurationOverrides): {
+		default: C,
+		user: C,
+		workspace: C,
+		workspaceFolder: C
+		value: C,
+	} {
 		return this.configuration().lookup<C>(key, options);
 	}
 
-	public keys(): IConfigurationKeys {
+	public keys() {
 		return this.configuration().keys();
 	}
 
-	public values<V>(): IConfigurationValues {
-		return this._configuration.values();
+	public reloadConfiguration(): TPromise<void> {
+		return TPromise.as(null);
 	}
 
-	public getConfigurationData(): IConfigurationData<any> {
-		return this.configuration().toData();
+	public getConfigurationData() {
+		return null;
 	}
 }
 

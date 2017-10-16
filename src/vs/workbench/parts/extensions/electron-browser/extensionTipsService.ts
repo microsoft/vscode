@@ -259,7 +259,12 @@ export class ExtensionTipsService implements IExtensionTipsService {
 							return;
 						}
 
-						const message = localize('reallyRecommended2', "The '{0}' extension is recommended for this file type.", name);
+						let message = localize('reallyRecommended2', "The '{0}' extension is recommended for this file type.", name);
+						// Temporary fix for the only extension pack we recommend. See https://github.com/Microsoft/vscode/issues/35364
+						if (id === 'vscjava.vscode-java-pack') {
+							message = localize('reallyRecommendedExtensionPack', "The '{0}' extension pack is recommended for this file type.", name);
+						}
+
 						const recommendationsAction = this.instantiationService.createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, localize('showRecommendations', "Show Recommendations"));
 						const options = [
 							recommendationsAction.label,
@@ -431,7 +436,10 @@ export class ExtensionTipsService implements IExtensionTipsService {
 				if (!windowsPath || typeof windowsPath !== 'string') {
 					return;
 				}
-				windowsPath = windowsPath.replace('%USERPROFILE%', process.env['USERPROFILE']);
+				windowsPath = windowsPath.replace('%USERPROFILE%', process.env['USERPROFILE'])
+					.replace('%ProgramFiles(x86)%', process.env['ProgramFiles(x86)'])
+					.replace('%ProgramFiles%', process.env['ProgramFiles'])
+					.replace('%APPDATA%', process.env['APPDATA']);
 				findExecutable(exeName, windowsPath);
 			} else {
 				findExecutable(exeName, paths.join('/usr/local/bin', exeName));

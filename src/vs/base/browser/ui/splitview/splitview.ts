@@ -54,6 +54,11 @@ interface ISashDragState {
 	maxDelta: number;
 }
 
+enum State {
+	Idle,
+	Busy
+}
+
 export class SplitView implements IDisposable {
 
 	private orientation: Orientation;
@@ -63,6 +68,7 @@ export class SplitView implements IDisposable {
 	private viewItems: IViewItem[] = [];
 	private sashItems: ISashItem[] = [];
 	private sashDragState: ISashDragState;
+	private state: State = State.Idle;
 
 	get length(): number {
 		return this.viewItems.length;
@@ -78,6 +84,12 @@ export class SplitView implements IDisposable {
 	}
 
 	addView(view: IView, size: number, index = this.viewItems.length): void {
+		if (this.state !== State.Idle) {
+			throw new Error('Cant modify splitview');
+		}
+
+		this.state = State.Busy;
+
 		// Add view
 		const container = dom.$('.split-view-view');
 
@@ -125,9 +137,16 @@ export class SplitView implements IDisposable {
 
 		view.render(container, this.orientation);
 		this.relayout();
+		this.state = State.Idle;
 	}
 
 	removeView(index: number): void {
+		if (this.state !== State.Idle) {
+			throw new Error('Cant modify splitview');
+		}
+
+		this.state = State.Busy;
+
 		if (index < 0 || index >= this.viewItems.length) {
 			return;
 		}
@@ -144,9 +163,16 @@ export class SplitView implements IDisposable {
 		}
 
 		this.relayout();
+		this.state = State.Idle;
 	}
 
 	moveView(from: number, to: number): void {
+		if (this.state !== State.Idle) {
+			throw new Error('Cant modify splitview');
+		}
+
+		this.state = State.Busy;
+
 		if (from < 0 || from >= this.viewItems.length) {
 			return;
 		}
@@ -169,6 +195,7 @@ export class SplitView implements IDisposable {
 		}
 
 		this.layoutViews();
+		this.state = State.Idle;
 	}
 
 	private relayout(): void {
@@ -221,6 +248,12 @@ export class SplitView implements IDisposable {
 	}
 
 	resizeView(index: number, size: number): void {
+		if (this.state !== State.Idle) {
+			throw new Error('Cant modify splitview');
+		}
+
+		this.state = State.Busy;
+
 		if (index < 0 || index >= this.viewItems.length) {
 			return;
 		}
@@ -248,6 +281,8 @@ export class SplitView implements IDisposable {
 
 			this.resize(index - 1, deltaUp);
 		}
+
+		this.state = State.Idle;
 	}
 
 	getViewSize(index: number): number {

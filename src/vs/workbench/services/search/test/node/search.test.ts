@@ -84,6 +84,88 @@ suite('FileSearchEngine', () => {
 		});
 	});
 
+	test('Files: exists', function (done: () => void) {
+		let engine = new FileSearchEngine({
+			folderQueries: ROOT_FOLDER_QUERY,
+			includePattern: { '**/file.txt': true },
+			exists: true
+		});
+
+		let count = 0;
+		engine.search((result) => {
+			if (result) {
+				count++;
+			}
+		}, () => { }, (error, complete) => {
+			assert.ok(!error);
+			assert.equal(count, 0);
+			assert.ok(complete.limitHit);
+			done();
+		});
+	});
+
+	test('Files: not exists', function (done: () => void) {
+		let engine = new FileSearchEngine({
+			folderQueries: ROOT_FOLDER_QUERY,
+			includePattern: { '**/nofile.txt': true },
+			exists: true
+		});
+
+		let count = 0;
+		engine.search((result) => {
+			if (result) {
+				count++;
+			}
+		}, () => { }, (error, complete) => {
+			assert.ok(!error);
+			assert.equal(count, 0);
+			assert.ok(!complete.limitHit);
+			done();
+		});
+	});
+
+	test('Files: exists without Ripgrep', function (done: () => void) {
+		let engine = new FileSearchEngine({
+			folderQueries: ROOT_FOLDER_QUERY,
+			includePattern: { '**/file.txt': true },
+			exists: true,
+			useRipgrep: false
+		});
+
+		let count = 0;
+		engine.search((result) => {
+			if (result) {
+				count++;
+			}
+		}, () => { }, (error, complete) => {
+			assert.ok(!error);
+			assert.equal(count, 0);
+			assert.ok(complete.limitHit);
+			done();
+		});
+	});
+
+	test('Files: not exists without Ripgrep', function (done: () => void) {
+		let engine = new FileSearchEngine({
+			folderQueries: ROOT_FOLDER_QUERY,
+			includePattern: { '**/nofile.txt': true },
+			exists: true,
+			useRipgrep: false
+		});
+
+		let count = 0;
+		engine.search((result) => {
+			if (result) {
+				count++;
+			}
+		}, () => { }, (error, complete) => {
+			assert.ok(!error);
+			assert.equal(count, 0);
+			assert.ok(!complete.limitHit);
+			done();
+		});
+	});
+
 	test('Files: examples/com*', function (done: () => void) {
 		let engine = new FileSearchEngine({
 			folderQueries: ROOT_FOLDER_QUERY,
@@ -134,6 +216,53 @@ suite('FileSearchEngine', () => {
 		}, () => { }, (error) => {
 			assert.ok(!error);
 			assert.equal(count, 3);
+			done();
+		});
+	});
+
+	test('Files: multiroot with includePattern and maxResults', function (done: () => void) {
+		let engine = new FileSearchEngine({
+			folderQueries: MULTIROOT_QUERIES,
+			maxResults: 1,
+			includePattern: {
+				'*.txt': true,
+				'*.js': true
+			},
+			useRipgrep: true
+		});
+
+		let count = 0;
+		engine.search((result) => {
+			if (result) {
+				count++;
+			}
+		}, () => { }, (error, complete) => {
+			assert.ok(!error);
+			assert.equal(count, 1);
+			done();
+		});
+	});
+
+	test('Files: multiroot with includePattern and exists', function (done: () => void) {
+		let engine = new FileSearchEngine({
+			folderQueries: MULTIROOT_QUERIES,
+			exists: true,
+			includePattern: {
+				'*.txt': true,
+				'*.js': true
+			},
+			useRipgrep: true
+		});
+
+		let count = 0;
+		engine.search((result) => {
+			if (result) {
+				count++;
+			}
+		}, () => { }, (error, complete) => {
+			assert.ok(!error);
+			assert.equal(count, 0);
+			assert.ok(complete.limitHit);
 			done();
 		});
 	});

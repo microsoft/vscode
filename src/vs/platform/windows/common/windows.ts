@@ -48,7 +48,7 @@ export interface IWindowsService {
 	toggleDevTools(windowId: number): TPromise<void>;
 	closeWorkspace(windowId: number): TPromise<void>;
 	openWorkspace(windowId: number): TPromise<void>;
-	createAndEnterWorkspace(windowId: number, folders?: string[], path?: string): TPromise<IEnterWorkspaceResult>;
+	createAndEnterWorkspace(windowId: number, folderPaths?: string[], path?: string): TPromise<IEnterWorkspaceResult>;
 	saveAndEnterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult>;
 	toggleFullScreen(windowId: number): TPromise<void>;
 	setRepresentedFilename(windowId: number, fileName: string): TPromise<void>;
@@ -100,6 +100,11 @@ export interface IWindowsService {
 
 export const IWindowService = createDecorator<IWindowService>('windowService');
 
+export interface IMessageBoxResult {
+	button: number;
+	checkboxChecked?: boolean;
+}
+
 export interface IWindowService {
 
 	_serviceBrand: any;
@@ -116,7 +121,7 @@ export interface IWindowService {
 	closeWorkspace(): TPromise<void>;
 	openWorkspace(): TPromise<void>;
 	updateTouchBar(items: ICommandAction[][]): TPromise<void>;
-	createAndEnterWorkspace(folders?: string[], path?: string): TPromise<IEnterWorkspaceResult>;
+	createAndEnterWorkspace(folderPaths?: string[], path?: string): TPromise<IEnterWorkspaceResult>;
 	saveAndEnterWorkspace(path: string): TPromise<IEnterWorkspaceResult>;
 	toggleFullScreen(): TPromise<void>;
 	setRepresentedFilename(fileName: string): TPromise<void>;
@@ -130,7 +135,8 @@ export interface IWindowService {
 	unmaximizeWindow(): TPromise<void>;
 	onWindowTitleDoubleClick(): TPromise<void>;
 	show(): TPromise<void>;
-	showMessageBox(options: Electron.MessageBoxOptions): number;
+	showMessageBoxSync(options: Electron.MessageBoxOptions): number;
+	showMessageBox(options: Electron.MessageBoxOptions): TPromise<IMessageBoxResult>;
 	showSaveDialog(options: Electron.SaveDialogOptions, callback?: (fileName: string) => void): string;
 	showOpenDialog(options: Electron.OpenDialogOptions, callback?: (fileNames: string[]) => void): string[];
 }

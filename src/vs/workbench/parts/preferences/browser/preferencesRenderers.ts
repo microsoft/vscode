@@ -24,7 +24,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
 import { IConfigurationEditingService, ConfigurationEditingError, ConfigurationEditingErrorCode, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { overrideIdentifierFromKey } from 'vs/platform/configuration/common/model';
 import { IMarkerService, IMarkerData } from 'vs/platform/markers/common/markers';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
@@ -33,6 +32,7 @@ import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorE
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { MarkdownString } from 'vs/base/common/htmlContent';
+import { overrideIdentifierFromKey } from 'vs/platform/configuration/common/configuration';
 
 export interface IPreferencesRenderer<T> extends IDisposable {
 	preferencesModel: IPreferencesEditorModel<T>;
@@ -413,7 +413,7 @@ class DefaultSettingsHeaderRenderer extends Disposable {
 
 	public render(settingsGroups: ISettingsGroup[]) {
 		if (settingsGroups.length) {
-			this.settingsHeaderWidget.setMessage('');
+			this.settingsHeaderWidget.setMessage(nls.localize('defaultSettings', "Place your settings in the right hand side editor to override."));
 		} else {
 			this.settingsHeaderWidget.setMessage(nls.localize('noSettingsFound', "No Settings Found."));
 		}
@@ -563,6 +563,7 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 				stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 				className: 'findMatch'
 			}
+
 		};
 	}
 

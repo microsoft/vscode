@@ -74,7 +74,7 @@ export interface IInitData {
 	environment: IEnvironment;
 	workspace: IWorkspaceData;
 	extensions: IExtensionDescription[];
-	configuration: IConfigurationData<any>;
+	configuration: IConfigurationData;
 	telemetryInfo: ITelemetryInfo;
 }
 
@@ -324,6 +324,8 @@ export interface MainThreadFileSystemShape extends IDisposable {
 	$onDidAddFileSystemRoot(root: URI): void;
 	$onFileSystemChange(handle: number, resource: IFileChange[]): void;
 	$reportFileChunk(handle: number, resource: URI, chunk: number[] | null): void;
+
+	$handleSearchProgress(handle: number, session: number, resource: URI): void;
 }
 
 export interface MainThreadTaskShape extends IDisposable {
@@ -355,7 +357,8 @@ export type SCMRawResource = [
 	string[] /*icons: light, dark*/,
 	string /*tooltip*/,
 	boolean /*strike through*/,
-	boolean /*faded*/
+	boolean /*faded*/,
+	{ id: string } /*ThemeColor*/
 ];
 
 export type SCMRawResourceSplice = [
@@ -390,7 +393,6 @@ export interface MainThreadDebugServiceShape extends IDisposable {
 	$registerDebugConfigurationProvider(type: string, hasProvideMethod: boolean, hasResolveMethod: boolean, handle: number): TPromise<any>;
 	$unregisterDebugConfigurationProvider(handle: number): TPromise<any>;
 	$startDebugging(folder: URI | undefined, nameOrConfig: string | vscode.DebugConfiguration): TPromise<boolean>;
-	$startDebugSession(folder: URI | undefined, config: vscode.DebugConfiguration): TPromise<DebugSessionUUID>;
 	$customDebugAdapterRequest(id: DebugSessionUUID, command: string, args: any): TPromise<any>;
 }
 
@@ -412,7 +414,7 @@ export interface ExtHostCommandsShape {
 }
 
 export interface ExtHostConfigurationShape {
-	$acceptConfigurationChanged(data: IConfigurationData<any>): void;
+	$acceptConfigurationChanged(data: IConfigurationData): void;
 }
 
 export interface ExtHostDiagnosticsShape {
@@ -489,6 +491,7 @@ export interface ExtHostFileSystemShape {
 	$mkdir(handle: number, resource: URI): TPromise<IStat>;
 	$readdir(handle: number, resource: URI): TPromise<[URI, IStat][]>;
 	$rmdir(handle: number, resource: URI): TPromise<void>;
+	$fileFiles(handle: number, session: number, query: string): TPromise<void>;
 }
 
 export interface ExtHostExtensionServiceShape {

@@ -83,10 +83,6 @@ export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerE
 				description: nls.localize('vscode.extension.contributes.debuggers.adapterExecutableCommand', "If specified VS Code will call this command to determine the executable path of the debug adapter and the arguments to pass."),
 				type: 'string'
 			},
-			startSessionCommand: {
-				description: nls.localize('vscode.extension.contributes.debuggers.startSessionCommand', "If specified VS Code will call this command for the \"debug\" or \"run\" actions targeted for this extension."),
-				type: 'string'
-			},
 			configurationSnippets: {
 				description: nls.localize('vscode.extension.contributes.debuggers.configurationSnippets', "Snippets for adding new configurations in \'launch.json\'."),
 				type: 'array'
@@ -217,7 +213,7 @@ export class ConfigurationManager implements IConfigurationManager {
 	private _selectedLaunch: ILaunch;
 	private toDispose: IDisposable[];
 	private _onDidSelectConfigurationName = new Emitter<void>();
-	private _providers: Map<number, IDebugConfigurationProvider>;
+	private providers: IDebugConfigurationProvider[];
 
 	constructor(
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
@@ -232,7 +228,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		@IStorageService private storageService: IStorageService,
 		@ILifecycleService lifecycleService: ILifecycleService
 	) {
-		this._providers = new Map<number, IDebugConfigurationProvider>();
+		this.providers = [];
 		this.adapters = [];
 		this.toDispose = [];
 		this.registerListeners(lifecycleService);
@@ -246,7 +242,10 @@ export class ConfigurationManager implements IConfigurationManager {
 		if (!debugConfigurationProvider) {
 			return;
 		}
-		this._providers.set(handle, debugConfigurationProvider);
+
+		debugConfigurationProvider.handle = handle;
+		this.providers = this.providers.filter(p => p.handle !== handle);
+		this.providers.push(debugConfigurationProvider);
 		const adapter = this.getAdapter(debugConfigurationProvider.type);
 		// Check if the provider contributes provideDebugConfigurations method
 		if (adapter && debugConfigurationProvider.provideDebugConfigurations) {
@@ -254,22 +253,13 @@ export class ConfigurationManager implements IConfigurationManager {
 		}
 	}
 
-	public unregisterDebugConfigurationProvider(handle: number): boolean {
-		return this._providers.delete(handle);
+	public unregisterDebugConfigurationProvider(handle: number): void {
+		this.providers = this.providers.filter(p => p.handle !== handle);
 	}
 
-	public resolveDebugConfiguration(folderUri: uri | undefined, type: string | undefined, debugConfiguration: IConfig): TPromise<IConfig> {
-
-		// collect all candidates
-		const providers: IDebugConfigurationProvider[] = [];
-		this._providers.forEach(provider => {
-			if (provider.type === type && provider.resolveDebugConfiguration) {
-				providers.push(provider);
-			}
-		});
-
+	public resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: IConfig): TPromise<IConfig> {
 		// pipe the config through the promises sequentially
-		return providers.reduce((promise, provider) => {
+		return this.providers.filter(p => p.type === type && p.resolveDebugConfiguration).reduce((promise, provider) => {
 			return promise.then(config => {
 				if (config) {
 					return provider.resolveDebugConfiguration(folderUri, config);
@@ -281,19 +271,8 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 
 	public provideDebugConfigurations(folderUri: uri | undefined, type: string): TPromise<any[]> {
-
-		// collect all candidates
-		const configs: TPromise<any[]>[] = [];
-		this._providers.forEach(provider => {
-			if (provider.type === type && provider.provideDebugConfigurations) {
-				configs.push(provider.provideDebugConfigurations(folderUri));
-			}
-		});
-
-		// combine all configs into one array
-		return TPromise.join(configs).then(results => {
-			return [].concat.apply([], results);
-		});
+		return TPromise.join(this.providers.filter(p => p.type === type && p.provideDebugConfigurations).map(p => p.provideDebugConfigurations(folderUri)))
+			.then(results => results.reduce((first, second) => first.concat(second), []));
 	}
 
 	private registerListeners(lifecycleService: ILifecycleService): void {
@@ -444,18 +423,6 @@ export class ConfigurationManager implements IConfigurationManager {
 			});
 	}
 
-	public getStartSessionCommand(type?: string): TPromise<{ command: string, type: string }> {
-		return this.guessAdapter(type).then(adapter => {
-			if (adapter) {
-				return {
-					command: adapter.startSessionCommand,
-					type: adapter.type
-				};
-			}
-			return undefined;
-		});
-	}
-
 	private store(): void {
 		this.storageService.store(DEBUG_SELECTED_CONFIG_NAME_KEY, this.selectedName, StorageScope.WORKSPACE);
 		if (this._selectedLaunch) {
@@ -518,7 +485,7 @@ class Launch implements ILaunch {
 	}
 
 	public resolveConfiguration(config: IConfig): TPromise<IConfig> {
-		const result = objects.deepClone(config) as IConfig;
+		const result = objects.clone(config) as IConfig;
 		// Set operating system specific properties #1873
 		const setOSProperties = (flag: boolean, osConfig: IEnvConfig) => {
 			if (flag && osConfig) {
@@ -556,7 +523,7 @@ class Launch implements ILaunch {
 				return this.configurationManager.guessAdapter(type).then(adapter => {
 					if (adapter) {
 						return this.configurationManager.provideDebugConfigurations(this.workspace.uri, adapter.type).then(initialConfigs => {
-							return adapter.getInitialConfigurationContent(this.workspace.uri, initialConfigs);
+							return adapter.getInitialConfigurationContent(initialConfigs);
 						});
 					} else {
 						return undefined;

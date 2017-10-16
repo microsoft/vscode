@@ -35,6 +35,7 @@
 	"openPreviousEditorInGroup": "그룹에서 이전 편집기 열기",
 	"navigateNext": "앞으로 이동",
 	"navigatePrevious": "뒤로 이동",
+	"navigateLast": "마지막으로 이동",
 	"reopenClosedEditor": "닫힌 편집기 다시 열기",
 	"clearRecentFiles": "최근 사용 항목 지우기",
 	"showEditorsInFirstGroup": "첫 번째 그룹에 편집기 표시",

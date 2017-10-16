@@ -20,6 +20,7 @@ export const USER_DIR = process.env.VSCODE_USER_DIR as string;
 export const EXTENSIONS_DIR = process.env.VSCODE_EXTENSIONS_DIR as string;
 export const VSCODE_EDITION = process.env.VSCODE_EDITION as string;
 export const SCREENSHOTS_DIR = process.env.SCREENSHOTS_DIR as string;
+export const WAIT_TIME = parseInt(process.env.WAIT_TIME as string);
 
 export enum VSCODE_BUILD {
 	DEV,
@@ -98,7 +99,7 @@ export class SpectronApplication {
 	public async reload(): Promise<any> {
 		await this.workbench.quickopen.runCommand('Reload Window');
 		// TODO @sandy: Find a proper condition to wait for reload
-		await this.wait(.5);
+		await new Promise(c => setTimeout(c, 500));
 		await this.checkWindowReady();
 	}
 
@@ -107,10 +108,6 @@ export class SpectronApplication {
 			await this.screenCapturer.capture('Stopping application');
 			return await this.spectron.stop();
 		}
-	}
-
-	public wait(seconds: number = 1): Promise<any> {
-		return new Promise(resolve => setTimeout(resolve, seconds * 1000));
 	}
 
 	private async startApplication(testSuiteName: string, codeArgs: string[] = [], env = process.env): Promise<any> {
@@ -129,6 +126,9 @@ export class SpectronApplication {
 
 		// Prevent Quick Open from closing when focus is stolen, this allows concurrent smoketest suite running
 		args.push('--sticky-quickopen');
+
+		// Disable telemetry for smoke tests
+		args.push('--disable-telemetry');
 
 		// Ensure that running over custom extensions directory, rather than picking up the one that was used by a tester previously
 		args.push(`--extensions-dir=${EXTENSIONS_DIR}`);

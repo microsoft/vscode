@@ -12,11 +12,11 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { GotoSymbolAction, GOTO_SYMBOL_PREFIX, SCOPE_PREFIX } from 'vs/workbench/parts/quickopen/browser/gotoSymbolHandler';
-import { ShowAllCommandsAction, ALL_COMMANDS_PREFIX, ClearCommandHistoryAction } from 'vs/workbench/parts/quickopen/browser/commandsHandler';
-import { GotoLineAction, GOTO_LINE_PREFIX } from 'vs/workbench/parts/quickopen/browser/gotoLineHandler';
-import { HELP_PREFIX } from 'vs/workbench/parts/quickopen/browser/helpHandler';
-import { VIEW_PICKER_PREFIX, OpenViewPickerAction, QuickOpenViewPickerAction } from 'vs/workbench/parts/quickopen/browser/viewPickerHandler';
+import { GotoSymbolAction, GOTO_SYMBOL_PREFIX, SCOPE_PREFIX, GotoSymbolHandler } from 'vs/workbench/parts/quickopen/browser/gotoSymbolHandler';
+import { ShowAllCommandsAction, ALL_COMMANDS_PREFIX, ClearCommandHistoryAction, CommandsHandler } from 'vs/workbench/parts/quickopen/browser/commandsHandler';
+import { GotoLineAction, GOTO_LINE_PREFIX, GotoLineHandler } from 'vs/workbench/parts/quickopen/browser/gotoLineHandler';
+import { HELP_PREFIX, HelpHandler } from 'vs/workbench/parts/quickopen/browser/helpHandler';
+import { VIEW_PICKER_PREFIX, OpenViewPickerAction, QuickOpenViewPickerAction, ViewPickerHandler } from 'vs/workbench/parts/quickopen/browser/viewPickerHandler';
 import { inQuickOpenContext, getQuickNavigateHandler } from 'vs/workbench/browser/parts/quickopen/quickopen';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -74,8 +74,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpenHandler(
 	new QuickOpenHandlerDescriptor(
-		'vs/workbench/parts/quickopen/browser/commandsHandler',
-		'CommandsHandler',
+		CommandsHandler,
+		CommandsHandler.ID,
 		ALL_COMMANDS_PREFIX,
 		'inCommandsPicker',
 		nls.localize('commandsHandlerDescriptionDefault', "Show and Run Commands")
@@ -84,8 +84,8 @@ Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpen
 
 Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpenHandler(
 	new QuickOpenHandlerDescriptor(
-		'vs/workbench/parts/quickopen/browser/gotoLineHandler',
-		'GotoLineHandler',
+		GotoLineHandler,
+		GotoLineHandler.ID,
 		GOTO_LINE_PREFIX,
 		null,
 		[
@@ -100,8 +100,8 @@ Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpen
 
 Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpenHandler(
 	new QuickOpenHandlerDescriptor(
-		'vs/workbench/parts/quickopen/browser/gotoSymbolHandler',
-		'GotoSymbolHandler',
+		GotoSymbolHandler,
+		GotoSymbolHandler.ID,
 		GOTO_SYMBOL_PREFIX,
 		'inFileSymbolsPicker',
 		[
@@ -121,8 +121,8 @@ Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpen
 
 Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpenHandler(
 	new QuickOpenHandlerDescriptor(
-		'vs/workbench/parts/quickopen/browser/helpHandler',
-		'HelpHandler',
+		HelpHandler,
+		HelpHandler.ID,
 		HELP_PREFIX,
 		null,
 		nls.localize('helpDescription', "Show Help")
@@ -131,8 +131,8 @@ Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpen
 
 Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpenHandler(
 	new QuickOpenHandlerDescriptor(
-		'vs/workbench/parts/quickopen/browser/viewPickerHandler',
-		'ViewPickerHandler',
+		ViewPickerHandler,
+		ViewPickerHandler.ID,
 		VIEW_PICKER_PREFIX,
 		inViewsPickerContextKey,
 		[

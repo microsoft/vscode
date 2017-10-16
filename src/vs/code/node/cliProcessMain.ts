@@ -181,7 +181,7 @@ export function main(argv: ParsedArgs): TPromise<void> {
 			services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
 			services.set(IChoiceService, new SyncDescriptor(ChoiceCliService));
 
-			if (isBuilt && !extensionDevelopmentPath && product.enableTelemetry) {
+			if (isBuilt && !extensionDevelopmentPath && !envService.args['disable-telemetry'] && product.enableTelemetry) {
 				const appenders: AppInsightsAppender[] = [];
 
 				if (product.aiConfig && product.aiConfig.asimovKey) {

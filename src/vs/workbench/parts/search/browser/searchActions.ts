@@ -23,7 +23,6 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ResolvedKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { toResource } from 'vs/workbench/common/editor';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { explorerItemToFileResource } from 'vs/workbench/parts/files/common/files';
@@ -639,7 +638,8 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 	}
 
 	private hasToOpenFile(): boolean {
-		const file = toResource(this.editorService.getActiveEditorInput());
+		const activeInput = this.editorService.getActiveEditorInput();
+		const file = activeInput ? activeInput.getResource() : void 0;
 		if (file) {
 			return file.toString() === this.element.parent().resource().toString();
 		}

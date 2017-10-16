@@ -99,9 +99,10 @@ function main(server: Server, initData: ISharedProcessInitData): void {
 		server.registerChannel('telemetryAppender', new TelemetryAppenderChannel(appender));
 
 		const services = new ServiceCollection();
-		const { appRoot, extensionsPath, extensionDevelopmentPath, isBuilt, extensionTestsPath, installSource } = accessor.get(IEnvironmentService);
+		const environmentService = accessor.get(IEnvironmentService);
+		const { appRoot, extensionsPath, extensionDevelopmentPath, isBuilt, extensionTestsPath, installSource } = environmentService;
 
-		if (isBuilt && !extensionDevelopmentPath && product.enableTelemetry) {
+		if (isBuilt && !extensionDevelopmentPath && !environmentService.args['disable-telemetry'] && product.enableTelemetry) {
 			const disableStorage = !!extensionTestsPath; // never keep any state when running extension tests!
 			const storage = disableStorage ? inMemoryLocalStorageInstance : window.localStorage;
 			const storageService = new StorageService(storage, storage);

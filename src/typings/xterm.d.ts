@@ -42,6 +42,11 @@ interface ITerminalOptions {
 	disableStdin?: boolean;
 
 	/**
+	 * Whether to enable the rendering of bold text.
+	 */
+	enableBold?: boolean;
+
+	/**
 	 * The font size used to render text.
 	 */
 	fontSize?: number;
@@ -397,7 +402,7 @@ declare module 'xterm' {
 		 * Retrieves an option's value from the terminal.
 		 * @param key The option key.
 		 */
-		getOption(key: 'cancelEvents' | 'convertEol' | 'cursorBlink' | 'debug' | 'disableStdin' | 'popOnBell' | 'screenKeys' | 'useFlowControl' | 'visualBell'): boolean;
+		getOption(key: 'cancelEvents' | 'convertEol' | 'cursorBlink' | 'debug' | 'disableStdin' | 'enableBold' | 'popOnBell' | 'screenKeys' | 'useFlowControl' | 'visualBell'): boolean;
 		/**
 		 * Retrieves an option's value from the terminal.
 		 * @param key The option key.
@@ -447,7 +452,7 @@ declare module 'xterm' {
 		 * @param key The option key.
 		 * @param value The option value.
 		 */
-		setOption(key: 'cancelEvents' | 'convertEol' | 'cursorBlink' | 'debug' | 'disableStdin' | 'popOnBell' | 'screenKeys' | 'useFlowControl' | 'visualBell', value: boolean): void;
+		setOption(key: 'cancelEvents' | 'convertEol' | 'cursorBlink' | 'debug' | 'disableStdin' | 'enableBold' | 'popOnBell' | 'screenKeys' | 'useFlowControl' | 'visualBell', value: boolean): void;
 		/**
 		 * Sets an option on the terminal.
 		 * @param key The option key.

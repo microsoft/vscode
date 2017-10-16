@@ -5,11 +5,12 @@
 
 'use strict';
 
-import { Uri, commands, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn, ProgressLocation } from 'vscode';
+import { Uri, commands, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn, ProgressLocation, TextEditor } from 'vscode';
 import { Ref, RefType, Git, GitErrorCodes, Branch } from './git';
 import { Repository, Resource, Status, CommitOptions, ResourceGroupType } from './repository';
 import { Model } from './model';
 import { toGitUri, fromGitUri } from './uri';
+import { grep } from './util';
 import { applyLineChanges, intersectDiffWithRange, toLineRanges, invertLineChange } from './staging';
 import * as path from 'path';
 import * as os from 'os';
@@ -176,7 +177,9 @@ export class CommandCenter {
 
 		const activeTextEditor = window.activeTextEditor;
 
-		if (preserveSelection && activeTextEditor && activeTextEditor.document.uri.toString() === right.toString()) {
+		// Check if active text editor has same path as other editor. we cannot compare via
+		// URI.toString() here because the schemas can be different. Instead we just go by path.
+		if (preserveSelection && activeTextEditor && activeTextEditor.document.uri.path === right.path) {
 			opts.selection = activeTextEditor.selection;
 		}
 
@@ -259,11 +262,13 @@ export class CommandCenter {
 	}
 
 	@command('git.clone')
-	async clone(): Promise<void> {
-		const url = await window.showInputBox({
-			prompt: localize('repourl', "Repository URL"),
-			ignoreFocusOut: true
-		});
+	async clone(url?: string): Promise<void> {
+		if (!url) {
+			url = await window.showInputBox({
+				prompt: localize('repourl', "Repository URL"),
+				ignoreFocusOut: true
+			});
+		}
 
 		if (!url) {
 			/* __GDPR__
@@ -339,21 +344,35 @@ export class CommandCenter {
 
 	@command('git.init')
 	async init(): Promise<void> {
-		const value = workspace.workspaceFolders && workspace.workspaceFolders.length > 0
-			? workspace.workspaceFolders[0].uri.fsPath
-			: os.homedir();
+		const homeUri = Uri.file(os.homedir());
+		const defaultUri = workspace.workspaceFolders && workspace.workspaceFolders.length > 0
+			? Uri.file(workspace.workspaceFolders[0].uri.fsPath)
+			: homeUri;
 
-		const path = await window.showInputBox({
-			placeHolder: localize('path to init', "Folder path"),
-			prompt: localize('provide path', "Please provide a folder path to initialize a Git repository"),
-			value,
-			ignoreFocusOut: true
+		const result = await window.showOpenDialog({
+			canSelectFiles: false,
+			canSelectFolders: true,
+			canSelectMany: false,
+			defaultUri,
+			openLabel: localize('init repo', "Initialize Repository")
 		});
 
-		if (!path) {
+		if (!result || result.length === 0) {
 			return;
 		}
 
+		const uri = result[0];
+
+		if (homeUri.toString().startsWith(uri.toString())) {
+			const yes = localize('create repo', "Initialize Repository");
+			const answer = await window.showWarningMessage(localize('are you sure', "This will create a Git repository in '{0}'. Are you sure you want to continue?", uri.fsPath), yes);
+
+			if (answer !== yes) {
+				return;
+			}
+		}
+
+		const path = uri.fsPath;
 		await this.git.init(path);
 		await this.model.tryOpenRepository(path);
 	}
@@ -397,11 +416,13 @@ export class CommandCenter {
 		for (const uri of uris) {
 			const opts: TextDocumentShowOptions = {
 				preserveFocus,
-				preview: preview,
+				preview,
 				viewColumn: ViewColumn.Active
 			};
 
-			if (activeTextEditor && activeTextEditor.document.uri.toString() === uri.toString()) {
+			// Check if active text editor has same path as other editor. we cannot compare via
+			// URI.toString() here because the schemas can be different. Instead we just go by path.
+			if (activeTextEditor && activeTextEditor.document.uri.path === uri.path) {
 				opts.selection = activeTextEditor.selection;
 			}
 
@@ -484,12 +505,20 @@ export class CommandCenter {
 		}
 
 		const selection = resourceStates.filter(s => s instanceof Resource) as Resource[];
-		const mergeConflicts = selection.filter(s => s.resourceGroupType === ResourceGroupType.Merge);
+		const merge = selection.filter(s => s.resourceGroupType === ResourceGroupType.Merge);
+		const bothModified = merge.filter(s => s.type === Status.BOTH_MODIFIED);
+		const promises = bothModified.map(s => grep(s.resourceUri.fsPath, /^<{7}|^={7}|^>{7}/));
+		const unresolvedBothModified = await Promise.all<boolean>(promises);
+		const resolvedConflicts = bothModified.filter((s, i) => !unresolvedBothModified[i]);
+		const unresolvedConflicts = [
+			...merge.filter(s => s.type !== Status.BOTH_MODIFIED),
+			...bothModified.filter((s, i) => unresolvedBothModified[i])
+		];
 
-		if (mergeConflicts.length > 0) {
-			const message = mergeConflicts.length > 1
-				? localize('confirm stage files with merge conflicts', "Are you sure you want to stage {0} files with merge conflicts?", mergeConflicts.length)
-				: localize('confirm stage file with merge conflicts', "Are you sure you want to stage {0} with merge conflicts?", path.basename(mergeConflicts[0].resourceUri.fsPath));
+		if (unresolvedConflicts.length > 0) {
+			const message = unresolvedConflicts.length > 1
+				? localize('confirm stage files with merge conflicts', "Are you sure you want to stage {0} files with merge conflicts?", unresolvedConflicts.length)
+				: localize('confirm stage file with merge conflicts', "Are you sure you want to stage {0} with merge conflicts?", path.basename(unresolvedConflicts[0].resourceUri.fsPath));
 
 			const yes = localize('yes', "Yes");
 			const pick = await window.showWarningMessage(message, { modal: true }, yes);
@@ -499,10 +528,8 @@ export class CommandCenter {
 			}
 		}
 
-		const workingTree = selection
-			.filter(s => s.resourceGroupType === ResourceGroupType.WorkingTree);
-
-		const scmResources = [...workingTree, ...mergeConflicts];
+		const workingTree = selection.filter(s => s.resourceGroupType === ResourceGroupType.WorkingTree);
+		const scmResources = [...workingTree, ...resolvedConflicts, ...unresolvedConflicts];
 
 		if (!scmResources.length) {
 			return;
@@ -533,14 +560,39 @@ export class CommandCenter {
 		await repository.add([]);
 	}
 
+	@command('git.stageChange')
+	async stageChange(uri: Uri, changes: LineChange[], index: number): Promise<void> {
+		const textEditor = window.visibleTextEditors.filter(e => e.document.uri.toString() === uri.toString())[0];
+
+		if (!textEditor) {
+			return;
+		}
+
+		await this._stageChanges(textEditor, [changes[index]]);
+	}
+
 	@command('git.stageSelectedRanges', { diff: true })
-	async stageSelectedRanges(diffs: LineChange[]): Promise<void> {
+	async stageSelectedChanges(changes: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
 
 		if (!textEditor) {
 			return;
 		}
 
+		const modifiedDocument = textEditor.document;
+		const selectedLines = toLineRanges(textEditor.selections, modifiedDocument);
+		const selectedChanges = changes
+			.map(diff => selectedLines.reduce<LineChange | null>((result, range) => result || intersectDiffWithRange(modifiedDocument, diff, range), null))
+			.filter(d => !!d) as LineChange[];
+
+		if (!selectedChanges.length) {
+			return;
+		}
+
+		await this._stageChanges(textEditor, selectedChanges);
+	}
+
+	private async _stageChanges(textEditor: TextEditor, changes: LineChange[]): Promise<void> {
 		const modifiedDocument = textEditor.document;
 		const modifiedUri = modifiedDocument.uri;
 
@@ -550,28 +602,48 @@ export class CommandCenter {
 
 		const originalUri = toGitUri(modifiedUri, '~');
 		const originalDocument = await workspace.openTextDocument(originalUri);
-		const selectedLines = toLineRanges(textEditor.selections, modifiedDocument);
-		const selectedDiffs = diffs
-			.map(diff => selectedLines.reduce<LineChange | null>((result, range) => result || intersectDiffWithRange(modifiedDocument, diff, range), null))
-			.filter(d => !!d) as LineChange[];
-
-		if (!selectedDiffs.length) {
-			return;
-		}
-
-		const result = applyLineChanges(originalDocument, modifiedDocument, selectedDiffs);
+		const result = applyLineChanges(originalDocument, modifiedDocument, changes);
 
 		await this.runByRepository(modifiedUri, async (repository, resource) => await repository.stage(resource, result));
 	}
 
+	@command('git.revertChange')
+	async revertChange(uri: Uri, changes: LineChange[], index: number): Promise<void> {
+		const textEditor = window.visibleTextEditors.filter(e => e.document.uri.toString() === uri.toString())[0];
+
+		if (!textEditor) {
+			return;
+		}
+
+		await this._revertChanges(textEditor, [...changes.slice(0, index), ...changes.slice(index + 1)]);
+	}
+
 	@command('git.revertSelectedRanges', { diff: true })
-	async revertSelectedRanges(diffs: LineChange[]): Promise<void> {
+	async revertSelectedRanges(changes: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
 
 		if (!textEditor) {
 			return;
 		}
 
+		const modifiedDocument = textEditor.document;
+		const selections = textEditor.selections;
+		const selectedChanges = changes.filter(change => {
+			const modifiedRange = change.modifiedEndLineNumber === 0
+				? new Range(modifiedDocument.lineAt(change.modifiedStartLineNumber - 1).range.end, modifiedDocument.lineAt(change.modifiedStartLineNumber).range.start)
+				: new Range(modifiedDocument.lineAt(change.modifiedStartLineNumber - 1).range.start, modifiedDocument.lineAt(change.modifiedEndLineNumber - 1).range.end);
+
+			return selections.every(selection => !selection.intersection(modifiedRange));
+		});
+
+		if (selectedChanges.length === changes.length) {
+			return;
+		}
+
+		await this._revertChanges(textEditor, selectedChanges);
+	}
+
+	private async _revertChanges(textEditor: TextEditor, changes: LineChange[]): Promise<void> {
 		const modifiedDocument = textEditor.document;
 		const modifiedUri = modifiedDocument.uri;
 
@@ -581,19 +653,6 @@ export class CommandCenter {
 
 		const originalUri = toGitUri(modifiedUri, '~');
 		const originalDocument = await workspace.openTextDocument(originalUri);
-		const selections = textEditor.selections;
-		const selectedDiffs = diffs.filter(diff => {
-			const modifiedRange = diff.modifiedEndLineNumber === 0
-				? new Range(modifiedDocument.lineAt(diff.modifiedStartLineNumber - 1).range.end, modifiedDocument.lineAt(diff.modifiedStartLineNumber).range.start)
-				: new Range(modifiedDocument.lineAt(diff.modifiedStartLineNumber - 1).range.start, modifiedDocument.lineAt(diff.modifiedEndLineNumber - 1).range.end);
-
-			return selections.every(selection => !selection.intersection(modifiedRange));
-		});
-
-		if (selectedDiffs.length === diffs.length) {
-			return;
-		}
-
 		const basename = path.basename(modifiedUri.fsPath);
 		const message = localize('confirm revert', "Are you sure you want to revert the selected changes in {0}?", basename);
 		const yes = localize('revert', "Revert Changes");
@@ -603,10 +662,11 @@ export class CommandCenter {
 			return;
 		}
 
-		const result = applyLineChanges(originalDocument, modifiedDocument, selectedDiffs);
+		const result = applyLineChanges(originalDocument, modifiedDocument, changes);
 		const edit = new WorkspaceEdit();
 		edit.replace(modifiedUri, new Range(new Position(0, 0), modifiedDocument.lineAt(modifiedDocument.lineCount - 1).range.end), result);
 		workspace.applyEdit(edit);
+		await modifiedDocument.save();
 	}
 
 	@command('git.unstage')
@@ -1230,9 +1290,12 @@ export class CommandCenter {
 		}
 
 		const branchName = repository.HEAD && repository.HEAD.name || '';
-		const picks = repository.remotes.map(r => r.name);
-		const placeHolder = localize('pick remote', "Pick a remote to publish the branch '{0}' to:", branchName);
-		const choice = await window.showQuickPick(picks, { placeHolder });
+		const selectRemote = async () => {
+			const picks = repository.remotes.map(r => r.name);
+			const placeHolder = localize('pick remote', "Pick a remote to publish the branch '{0}' to:", branchName);
+			return await window.showQuickPick(picks, { placeHolder });
+		};
+		const choice = remotes.length === 1 ? remotes[0].name : await selectRemote();
 
 		if (!choice) {
 			return;

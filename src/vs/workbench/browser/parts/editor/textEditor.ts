@@ -14,7 +14,7 @@ import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
 import DOM = require('vs/base/browser/dom');
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
-import { EditorInput, EditorOptions, toResource } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorViewState, IEditor, isCommonCodeEditor, isCommonDiffEditor } from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/platform/editor/common/editor';
@@ -318,7 +318,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 		}
 
 		if (this.input) {
-			return toResource(this.input);
+			return this.input.getResource();
 		}
 
 		return null;

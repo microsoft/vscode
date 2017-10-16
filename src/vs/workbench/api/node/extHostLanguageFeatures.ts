@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { mixin } from 'vs/base/common/objects';
 import * as vscode from 'vscode';
 import * as TypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
-import { Range, Disposable, CompletionList, SnippetString } from 'vs/workbench/api/node/extHostTypes';
+import { Range, Disposable, CompletionList, SnippetString, Color } from 'vs/workbench/api/node/extHostTypes';
 import { ISingleEditOperation } from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
@@ -18,13 +18,11 @@ import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHos
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import { IWorkspaceSymbolProvider } from 'vs/workbench/parts/search/common/search';
 import { asWinJsPromise } from 'vs/base/common/async';
-import { MainContext, MainThreadTelemetryShape, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IExtHostSuggestResult, IExtHostSuggestion } from './extHost.protocol';
+import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IExtHostSuggestResult, IExtHostSuggestion } from './extHost.protocol';
 import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
-import { containsCommandLink } from 'vs/base/common/htmlContent';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { once } from 'vs/base/common/functional';
 
 // --- adapter
 
@@ -179,7 +177,6 @@ class HoverAdapter {
 	constructor(
 		private readonly _documents: ExtHostDocuments,
 		private readonly _provider: vscode.HoverProvider,
-		private readonly _telemetryLog: (name: string, data: object) => void,
 	) {
 		//
 	}
@@ -200,14 +197,7 @@ class HoverAdapter {
 				value.range = new Range(pos, pos);
 			}
 
-			const result = TypeConverters.fromHover(value);
-
-			// we wanna know which extension uses command links
-			// because that is a potential trick-attack on users
-			if (result.contents.some(h => containsCommandLink(h.value))) {
-				this._telemetryLog('usesCommandLink', { from: 'hover' });
-			}
-			return result;
+			return TypeConverters.fromHover(value);
 		});
 	}
 }
@@ -447,7 +437,7 @@ class RenameAdapter {
 				let [uri, textEdits] = entry;
 				for (let textEdit of textEdits) {
 					result.edits.push({
-						resource: <URI>uri,
+						resource: uri,
 						newText: textEdit.newText,
 						range: TypeConverters.fromRange(textEdit.range)
 					});
@@ -731,19 +721,12 @@ class ColorProviderAdapter {
 		});
 	}
 
-	provideColorPresentations(resource: URI, rawColorInfo: IRawColorInfo): TPromise<modes.IColorPresentation[]> {
-		let colorInfo: vscode.ColorInformation = {
-			range: TypeConverters.toRange(rawColorInfo.range),
-			color: {
-				red: rawColorInfo.color[0],
-				green: rawColorInfo.color[1],
-				blue: rawColorInfo.color[2],
-				alpha: rawColorInfo.color[3]
-			}
-		};
-		const doc = this._documents.getDocumentData(resource).document;
-		return asWinJsPromise(token => this._provider.provideColorPresentations(doc, colorInfo, token)).then(value => {
-			return value.map(v => TypeConverters.ColorPresentation.from(v));
+	provideColorPresentations(resource: URI, raw: IRawColorInfo): TPromise<modes.IColorPresentation[]> {
+		const document = this._documents.getDocumentData(resource).document;
+		const range = TypeConverters.toRange(raw.range);
+		const color = new Color(raw.color[0], raw.color[1], raw.color[2], raw.color[3]);
+		return asWinJsPromise(token => this._provider.provideColorPresentations(color, { document, range }, token)).then(value => {
+			return value.map(TypeConverters.ColorPresentation.from);
 		});
 	}
 }
@@ -758,7 +741,6 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 	private static _handlePool: number = 0;
 
 	private _proxy: MainThreadLanguageFeaturesShape;
-	private _telemetry: MainThreadTelemetryShape;
 	private _documents: ExtHostDocuments;
 	private _commands: ExtHostCommands;
 	private _heapService: ExtHostHeapService;
@@ -774,7 +756,6 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		diagnostics: ExtHostDiagnostics
 	) {
 		this._proxy = mainContext.get(MainContext.MainThreadLanguageFeatures);
-		this._telemetry = mainContext.get(MainContext.MainThreadTelemetry);
 		this._documents = documents;
 		this._commands = commands;
 		this._heapService = heapMonitor;
@@ -878,11 +859,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	registerHoverProvider(selector: vscode.DocumentSelector, provider: vscode.HoverProvider, extensionId?: string): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter.set(handle, new HoverAdapter(this._documents, provider, once((name: string, data: any) => {
-			data['extension'] = extensionId;
-			// __GDPR__TODO__ Dynamic event names and dynamic properties. Can not be registered statically.
-			this._telemetry.$publicLog(name, data);
-		})));
+		this._adapter.set(handle, new HoverAdapter(this._documents, provider));
 		this._proxy.$registerHoverProvider(handle, selector);
 		return this._createDisposable(handle);
 	}

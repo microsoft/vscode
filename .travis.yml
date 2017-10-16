@@ -5,8 +5,14 @@ os:
   - linux
   - osx
 
+cache:
+  directories:
+    - $HOME/.npm
+
 notifications:
   email: false
+  webhooks:
+    - http://vscode-test-probot.westus.cloudapp.azure.com:3450/travis/notifications
 
 addons:
   apt:
@@ -30,7 +36,6 @@ before_install:
   - nvm install 7.9.0
   - nvm use 7.9.0
   - npm config set python `which python`
-  - npm install -g gulp
   - if [ $TRAVIS_OS_NAME == "linux" ]; then
       export CXX="g++-4.9" CC="gcc-4.9" DISPLAY=:99.0;
       sh -e /etc/init.d/xvfb start;
@@ -41,10 +46,10 @@ install:
   - ./scripts/npm.sh install
 
 script:
-  - gulp hygiene --silent
-  - gulp electron --silent
-  - gulp compile --silent --max_old_space_size=4096
-  - gulp optimize-vscode --silent --max_old_space_size=4096
+  - node_modules/.bin/gulp hygiene --silent
+  - node_modules/.bin/gulp electron --silent
+  - node_modules/.bin/gulp compile --silent --max_old_space_size=4096
+  - node_modules/.bin/gulp optimize-vscode --silent --max_old_space_size=4096
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then ./scripts/test.sh --coverage --reporter dot; else ./scripts/test.sh --reporter dot; fi
   - ./scripts/test-integration.sh
 

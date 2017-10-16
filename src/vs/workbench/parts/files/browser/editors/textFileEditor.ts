@@ -24,7 +24,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CancelAction } from 'vs/platform/message/common/message';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -47,7 +46,6 @@ export class TextFileEditor extends BaseTextEditor {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService,
-		@IHistoryService private historyService: IHistoryService,
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IThemeService themeService: IThemeService,
@@ -86,16 +84,6 @@ export class TextFileEditor extends BaseTextEditor {
 	}
 
 	public setInput(input: FileEditorInput, options?: EditorOptions): TPromise<void> {
-
-		// We have a current input in this editor and are about to either open a new editor or jump to a different
-		// selection inside the editor. Thus we store the current selection into the navigation history so that
-		// a user can navigate back to the exact position he left off.
-		if (this.input) {
-			const selection = this.getControl().getSelection();
-			if (selection) {
-				this.historyService.add(this.input, { startLineNumber: selection.startLineNumber, startColumn: selection.startColumn });
-			}
-		}
 
 		// Return early for same input unless we force to open
 		const forceOpen = options && options.forceOpen;

@@ -12,8 +12,8 @@ import { Dimension, Builder } from 'vs/base/browser/builder';
 import { ArrayNavigator, INavigator } from 'vs/base/common/iterator';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { toResource, SideBySideEditorInput, EditorOptions, EditorInput, IEditorRegistry } from 'vs/workbench/common/editor';
-import { BaseEditor, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { SideBySideEditorInput, EditorOptions, EditorInput } from 'vs/workbench/common/editor';
+import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 import { IEditorControl, Position, Verbosity } from 'vs/platform/editor/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
@@ -47,8 +47,7 @@ import { IPreferencesRenderer, DefaultSettingsRenderer, UserSettingsRenderer, Wo
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
-
-// Ignore following contributions
+import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
 import { FindController } from 'vs/editor/contrib/find/browser/find';
 import { SelectionHighlighter } from 'vs/editor/contrib/find/common/findController';
@@ -59,6 +58,7 @@ import { scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import Event, { Emitter } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { MessageController } from 'vs/editor/contrib/message/messageController';
 
 export class PreferencesEditorInput extends SideBySideEditorInput {
 	public static ID: string = 'workbench.editorinputs.preferencesEditorInput';
@@ -227,7 +227,7 @@ export class PreferencesEditor extends BaseEditor {
 	}
 
 	private updateInput(oldInput: PreferencesEditorInput, newInput: PreferencesEditorInput, options?: EditorOptions): TPromise<void> {
-		const resource = toResource(newInput.master);
+		const resource = newInput.master.getResource();
 		this.settingsTargetsWidget.updateTargets(this.getSettingsConfigurationTargetUri(resource), this.getSettingsConfigurationTarget(resource));
 
 		return this.sideBySidePreferencesWidget.setInput(<DefaultPreferencesEditorInput>newInput.details, <EditorInput>newInput.master, options).then(({ defaultPreferencesRenderer, editablePreferencesRenderer }) => {
@@ -268,7 +268,7 @@ export class PreferencesEditor extends BaseEditor {
 
 	private onWorkspaceFoldersChanged(): void {
 		if (this.input) {
-			const settingsResource = toResource((<PreferencesEditorInput>this.input).master);
+			const settingsResource = (<PreferencesEditorInput>this.input).master.getResource();
 			const targetResource = this.getSettingsConfigurationTargetUri(settingsResource);
 			if (!targetResource) {
 				this.switchSettings(this.preferencesService.userSettingsResource);
@@ -278,7 +278,7 @@ export class PreferencesEditor extends BaseEditor {
 
 	private onWorkbenchStateChanged(): void {
 		if (this.input) {
-			const editableSettingsResource = toResource((<PreferencesEditorInput>this.input).master);
+			const editableSettingsResource = (<PreferencesEditorInput>this.input).master.getResource();
 			const newConfigurationTarget = this.getSettingsConfigurationTarget(editableSettingsResource);
 			if (newConfigurationTarget) {
 				if (newConfigurationTarget !== this.settingsTargetsWidget.configurationTarget) {
@@ -527,13 +527,11 @@ class SideBySidePreferencesWidget extends Widget {
 	}
 
 	public setInput(defaultPreferencesEditorInput: DefaultPreferencesEditorInput, editablePreferencesEditorInput: EditorInput, options?: EditorOptions): TPromise<{ defaultPreferencesRenderer: IPreferencesRenderer<ISetting>, editablePreferencesRenderer: IPreferencesRenderer<ISetting> }> {
-		return this.getOrCreateEditablePreferencesEditor(editablePreferencesEditorInput)
-			.then(() => {
-				this.dolayout(this.sash.getVerticalSashLeft());
-				return TPromise.join([this.updateInput(this.defaultPreferencesEditor, defaultPreferencesEditorInput, DefaultSettingsEditorContribution.ID, toResource(editablePreferencesEditorInput), options),
-				this.updateInput(this.editablePreferencesEditor, editablePreferencesEditorInput, SettingsEditorContribution.ID, defaultPreferencesEditorInput.getResource(), options)])
-					.then(([defaultPreferencesRenderer, editablePreferencesRenderer]) => ({ defaultPreferencesRenderer, editablePreferencesRenderer }));
-			});
+		this.getOrCreateEditablePreferencesEditor(editablePreferencesEditorInput);
+		this.dolayout(this.sash.getVerticalSashLeft());
+		return TPromise.join([this.updateInput(this.defaultPreferencesEditor, defaultPreferencesEditorInput, DefaultSettingsEditorContribution.ID, editablePreferencesEditorInput.getResource(), options),
+		this.updateInput(this.editablePreferencesEditor, editablePreferencesEditorInput, SettingsEditorContribution.ID, defaultPreferencesEditorInput.getResource(), options)])
+			.then(([defaultPreferencesRenderer, editablePreferencesRenderer]) => ({ defaultPreferencesRenderer, editablePreferencesRenderer }));
 	}
 
 	public layout(dimension: Dimension): void {
@@ -569,20 +567,19 @@ class SideBySidePreferencesWidget extends Widget {
 		}
 	}
 
-	private getOrCreateEditablePreferencesEditor(editorInput: EditorInput): TPromise<BaseEditor> {
+	private getOrCreateEditablePreferencesEditor(editorInput: EditorInput): BaseEditor {
 		if (this.editablePreferencesEditor) {
-			return TPromise.as(this.editablePreferencesEditor);
+			return this.editablePreferencesEditor;
 		}
 		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editorInput);
-		return this.instantiationService.createInstance(<EditorDescriptor>descriptor)
-			.then((editor: BaseEditor) => {
-				this.editablePreferencesEditor = editor;
-				this.editablePreferencesEditor.create(new Builder(this.editablePreferencesEditorContainer));
-				this.editablePreferencesEditor.setVisible(true);
-				(<CodeEditor>this.editablePreferencesEditor.getControl()).onDidFocusEditor(() => this.lastFocusedEditor = this.editablePreferencesEditor);
-				this.lastFocusedEditor = this.editablePreferencesEditor;
-				return editor;
-			});
+		const editor = descriptor.instantiate(this.instantiationService);
+		this.editablePreferencesEditor = editor;
+		this.editablePreferencesEditor.create(new Builder(this.editablePreferencesEditorContainer));
+		this.editablePreferencesEditor.setVisible(true);
+		(<CodeEditor>this.editablePreferencesEditor.getControl()).onDidFocusEditor(() => this.lastFocusedEditor = this.editablePreferencesEditor);
+		this.lastFocusedEditor = this.editablePreferencesEditor;
+
+		return editor;
 	}
 
 	private updateInput(editor: BaseEditor, input: EditorInput, editorContributionId: string, associatedPreferencesModelUri: URI, options: EditorOptions): TPromise<IPreferencesRenderer<ISetting>> {
@@ -726,7 +723,19 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 	}
 
 	public createEditorControl(parent: Builder, configuration: IEditorOptions): editorCommon.IEditor {
-		return this.instantiationService.createInstance(DefaultPreferencesCodeEditor, parent.getHTMLElement(), configuration);
+		const editor = this.instantiationService.createInstance(DefaultPreferencesCodeEditor, parent.getHTMLElement(), configuration);
+
+		// Inform user about editor being readonly if user starts type
+		this.toUnbind.push(editor.onDidType(() => this.onDidType(editor)));
+
+		return editor;
+	}
+
+	private onDidType(editor: editorCommon.ICommonCodeEditor): void {
+		const messageController = MessageController.get(editor);
+		if (!messageController.isVisible()) {
+			messageController.showMessage(nls.localize('defaultEditorReadonly', "Edit in the right hand side editor to override defaults."), editor.getSelection().getPosition());
+		}
 	}
 
 	protected getConfigurationOverrides(): IEditorOptions {

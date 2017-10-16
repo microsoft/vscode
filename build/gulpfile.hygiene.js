@@ -54,6 +54,7 @@ const indentationFilter = [
 	'!**/*.md',
 	'!**/*.ps1',
 	'!**/*.template',
+	'!**/*.yaml',
 	'!**/*.yml',
 	'!**/lib/**',
 	'!extensions/**/*.d.ts',
@@ -93,6 +94,8 @@ const copyrightFilter = [
 	'!**/*.opts',
 	'!**/*.disabled',
 	'!build/**/*.init',
+	'!resources/linux/snap/electron-launch',
+	'!resources/linux/snap/snapcraft.yaml',
 	'!resources/win32/bin/code.js',
 	'!extensions/markdown/media/tomorrow.css',
 	'!extensions/html/server/src/modes/typescript/*'

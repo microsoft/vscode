@@ -48,10 +48,10 @@ export function registerContributions(): void {
 		}
 	});
 
+
 	// markers panel
 	Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescriptor(
-		'vs/workbench/parts/markers/browser/markersPanel',
-		'MarkersPanel',
+		MarkersPanel,
 		Constants.MARKERS_PANEL_ID,
 		Messages.MARKERS_PANEL_TITLE_PROBLEMS,
 		'markersPanel',

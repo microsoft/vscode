@@ -27,12 +27,11 @@ import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IQueryOptions, ISearchService, ISearchStats, ISearchQuery } from 'vs/platform/search/common/search';
+import { IQueryOptions, ISearchService, ISearchStats, ISearchQuery, ISearchConfiguration } from 'vs/platform/search/common/search';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IRange } from 'vs/editor/common/core/range';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/parts/search/common/search';
-import { IExperimentService } from 'vs/platform/telemetry/common/experiments';
 
 export class FileQuickOpenModel extends QuickOpenModel {
 
@@ -123,7 +122,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ISearchService private searchService: ISearchService,
-		@IExperimentService private experimentService: IExperimentService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super();
@@ -151,7 +150,8 @@ export class OpenFileHandler extends QuickOpenHandler {
 		const query: IQueryOptions = {
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorGroupService, this.contextService),
 			filePattern: searchValue,
-			cacheKey: cacheKey
+			cacheKey: cacheKey,
+			disregardIgnoreFiles: !this.configurationService.getConfiguration<ISearchConfiguration>().search.useIgnoreFilesByDefault,
 		};
 
 		if (typeof maxSortedResults === 'number') {
@@ -194,9 +194,9 @@ export class OpenFileHandler extends QuickOpenHandler {
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorGroupService, this.contextService),
 			filePattern: '',
 			cacheKey: cacheKey,
+			disregardIgnoreFiles: !this.configurationService.getConfiguration<ISearchConfiguration>().search.useIgnoreFilesByDefault,
 			maxResults: 0,
 			sortByScore: true,
-			useRipgrep: this.experimentService.getExperiments().ripgrepQuickSearch
 		};
 
 		const folderResources = this.contextService.getWorkspace().folders.map(folder => folder.uri);

@@ -10,12 +10,11 @@ import { IContent, IStreamContent, IFileStat, IResolveContentOptions, IUpdateCon
 import { TPromise } from 'vs/base/common/winjs.base';
 import { basename, join } from 'path';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { groupBy, isFalsyOrEmpty, distinct } from 'vs/base/common/arrays';
-import { compare } from 'vs/base/common/strings';
+import { isFalsyOrEmpty, distinct } from 'vs/base/common/arrays';
 import { Schemas } from 'vs/base/common/network';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { decodeStream, encode, UTF8, UTF8_with_bom } from 'vs/base/node/encoding';
-import { StringTrieMap } from 'vs/base/common/map';
+import { TernarySearchTree } from 'vs/base/common/map';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -65,16 +64,15 @@ function toIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], recurse
 
 export function toDeepIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], to: URI[]): TPromise<IFileStat> {
 
-	const trie = new StringTrieMap<true>();
-	trie.insert(tuple[0].toString(), true);
+	const trie = TernarySearchTree.forPaths<true>();
+	trie.set(tuple[0].toString(), true);
 
 	if (!isFalsyOrEmpty(to)) {
-		to.forEach(uri => trie.insert(uri.toString(), true));
+		to.forEach(uri => trie.set(uri.toString(), true));
 	}
 
 	return toIFileStat(provider, tuple, candidate => {
-		const sub = trie.findSuperstr(candidate[0].toString());
-		return !!sub;
+		return Boolean(trie.findSuperstr(candidate[0].toString()) || trie.get(candidate[0].toString()));
 	});
 }
 
@@ -172,7 +170,18 @@ export class RemoteFileService extends FileService {
 	}
 
 	resolveFiles(toResolve: { resource: URI; options?: IResolveFileOptions; }[]): TPromise<IResolveFileResult[], any> {
-		const groups = groupBy(toResolve, (a, b) => compare(a.resource.scheme, b.resource.scheme));
+
+		// soft-groupBy, keep order, don't rearrange/merge groups
+		let groups: (typeof toResolve)[] = [];
+		let group: typeof toResolve;
+		for (const request of toResolve) {
+			if (!group || group[0].resource.scheme !== request.resource.scheme) {
+				group = [];
+				groups.push(group);
+			}
+			group.push(request);
+		}
+
 		const promises: TPromise<IResolveFileResult[], any>[] = [];
 		for (const group of groups) {
 			if (group[0].resource.scheme === Schemas.file) {
@@ -274,12 +283,19 @@ export class RemoteFileService extends FileService {
 						stream.write(chunk);
 						offset += chunk.length;
 					}
-					provider.read(resource, offset, Number.MAX_VALUE, new Progress<Buffer>(chunk => stream.write(chunk))).then(() => {
+					if (offset < count) {
+						// we didn't read enough the first time which means
+						// that we are done
 						stream.end();
-					}, err => {
-						stream.emit('error', err);
-						stream.end();
-					});
+					} else {
+						// there is more to read
+						provider.read(resource, offset, -1, new Progress<Buffer>(chunk => stream.write(chunk))).then(() => {
+							stream.end();
+						}, err => {
+							stream.emit('error', err);
+							stream.end();
+						});
+					}
 
 					return {
 						encoding: preferredEncoding,

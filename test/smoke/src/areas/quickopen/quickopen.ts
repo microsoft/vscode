@@ -13,8 +13,7 @@ export class QuickOpen {
 	static QUICK_OPEN_FOCUSED_ELEMENT = `${QuickOpen.QUICK_OPEN} .quick-open-tree .monaco-tree-row.focused .monaco-highlighted-label`;
 	static QUICK_OPEN_ENTRY_SELECTOR = 'div[aria-label="Quick Picker"] .monaco-tree-rows.show-twisties .monaco-tree-row .quick-open-entry';
 
-	constructor(readonly spectron: SpectronApplication) {
-	}
+	constructor(readonly spectron: SpectronApplication) { }
 
 	async openQuickOpen(): Promise<void> {
 		await this.spectron.command('workbench.action.quickOpen');
@@ -79,7 +78,6 @@ export class QuickOpen {
 		await this.waitForQuickOpenOpened();
 		for (let from = 0; from < index; from++) {
 			await this.spectron.client.keys(['ArrowDown', 'NULL']);
-			this.spectron.wait(3);
 		}
 		await this.spectron.client.keys(['Enter', 'NULL']);
 		await this.waitForQuickOpenClosed();
@@ -90,12 +88,13 @@ export class QuickOpen {
 	}
 
 	private async getQuickOpenElements(): Promise<string[]> {
-		return await this.spectron.webclient.selectorExecute(QuickOpen.QUICK_OPEN_ENTRY_SELECTOR,
+		const result = await this.spectron.webclient.selectorExecute(QuickOpen.QUICK_OPEN_ENTRY_SELECTOR,
 			div => (Array.isArray(div) ? div : [div]).map(element => {
 				const name = element.querySelector('.label-name') as HTMLElement;
-
 				return name.textContent;
 			})
 		);
+
+		return Array.isArray(result) ? result : [];
 	}
 }

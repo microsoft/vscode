@@ -301,9 +301,9 @@
       "resolved": "https://registry.npmjs.org/native-watchdog/-/native-watchdog-0.3.0.tgz"
     },
     "node-pty": {
-      "version": "0.7.0",
-      "from": "node-pty@0.7.0",
-      "resolved": "https://registry.npmjs.org/node-pty/-/node-pty-0.7.0.tgz",
+      "version": "0.7.1",
+      "from": "node-pty@0.7.1",
+      "resolved": "https://registry.npmjs.org/node-pty/-/node-pty-0.7.1.tgz",
       "dependencies": {
         "nan": {
           "version": "2.5.0",
@@ -552,9 +552,9 @@
       "resolved": "https://registry.npmjs.org/vscode-debugprotocol/-/vscode-debugprotocol-1.24.0.tgz"
     },
     "vscode-ripgrep": {
-      "version": "0.0.27",
-      "from": "vscode-ripgrep@0.0.27",
-      "resolved": "https://registry.npmjs.org/vscode-ripgrep/-/vscode-ripgrep-0.0.27.tgz"
+      "version": "0.6.0-patch.0",
+      "from": "vscode-ripgrep@0.6.0-patch.0",
+      "resolved": "https://registry.npmjs.org/vscode-ripgrep/-/vscode-ripgrep-0.6.0-patch.0.tgz"
     },
     "vscode-textmate": {
       "version": "3.1.5",
@@ -566,6 +566,16 @@
       "from": "winreg@1.2.0",
       "resolved": "https://registry.npmjs.org/winreg/-/winreg-1.2.0.tgz"
     },
+    "windows-foreground-love": {
+      "version": "0.1.0",
+      "from": "windows-foreground-love@0.1.0",
+      "resolved": "https://registry.npmjs.org/windows-foreground-love/-/windows-foreground-love-0.1.0.tgz"
+    },
+    "windows-mutex": {
+      "version": "0.2.0",
+      "from": "windows-mutex@>=0.2.0 <0.3.0",
+      "resolved": "https://registry.npmjs.org/windows-mutex/-/windows-mutex-0.2.0.tgz"
+    },
     "windows-process-tree": {
       "version": "0.1.6",
       "from": "windows-process-tree@0.1.6",
@@ -573,8 +583,8 @@
     },
     "xterm": {
       "version": "2.9.1",
-      "from": "Tyriar/xterm.js#vscode-release/1.17",
-      "resolved": "git+https://github.com/Tyriar/xterm.js.git#ad19a39c85792a70c1c8ceb2291a921c15fe0d0c"
+      "from": "Tyriar/xterm.js#vscode-release/1.18",
+      "resolved": "git+https://github.com/Tyriar/xterm.js.git#d57ac8df05ddf04b509505eadc0d408a0b3bfa38"
     },
     "yauzl": {
       "version": "2.8.0",

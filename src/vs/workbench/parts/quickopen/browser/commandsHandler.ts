@@ -16,8 +16,6 @@ import { Mode, IEntryRunContext, IAutoFocus, IModel, IQuickNavigateConfiguration
 import { QuickOpenEntryGroup, IHighlight, QuickOpenModel, QuickOpenEntry } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { SyncActionDescriptor, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { QuickOpenHandler, IWorkbenchQuickOpenConfiguration } from 'vs/workbench/browser/quickopen';
 import { IEditorAction, IEditor, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { matchesWords, matchesPrefix, matchesContiguousSubString, or } from 'vs/base/common/filters';
@@ -386,6 +384,9 @@ class ActionCommandEntry extends BaseCommandEntry {
 const wordFilter = or(matchesPrefix, matchesWords, matchesContiguousSubString);
 
 export class CommandsHandler extends QuickOpenHandler {
+
+	public static readonly ID = 'workbench.picker.commands';
+
 	private lastSearchValue: string;
 	private commandHistoryEnabled: boolean;
 	private commandsHistory: CommandsHistory;
@@ -415,11 +416,6 @@ export class CommandsHandler extends QuickOpenHandler {
 		searchValue = searchValue.trim();
 		this.lastSearchValue = searchValue;
 
-		// Workbench Actions
-		let workbenchEntries: CommandEntry[] = [];
-		const workbenchActions = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions).getWorkbenchActions();
-		workbenchEntries = this.actionDescriptorsToEntries(workbenchActions, searchValue);
-
 		// Editor Actions
 		const activeEditor = this.editorService.getActiveEditor();
 		const activeEditorControl = activeEditor ? activeEditor.getControl() : null;
@@ -440,7 +436,7 @@ export class CommandsHandler extends QuickOpenHandler {
 		const commandEntries = this.menuItemActionsToEntries(menuActions, searchValue);
 
 		// Concat
-		let entries = [...workbenchEntries, ...editorEntries, ...commandEntries];
+		let entries = [...editorEntries, ...commandEntries];
 
 		// Remove duplicates
 		entries = arrays.distinct(entries, entry => `${entry.getLabel()}${entry.getGroupLabel()}${entry.getCommandId()}`);
@@ -493,35 +489,6 @@ export class CommandsHandler extends QuickOpenHandler {
 		}
 
 		return TPromise.as(new QuickOpenModel(entries));
-	}
-
-	private actionDescriptorsToEntries(actionDescriptors: SyncActionDescriptor[], searchValue: string): CommandEntry[] {
-		const entries: CommandEntry[] = [];
-		const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-
-		for (let i = 0; i < actionDescriptors.length; i++) {
-			const actionDescriptor = actionDescriptors[i];
-			if (actionDescriptor.label) {
-
-				// Label (with optional category)
-				let label = actionDescriptor.label;
-				const category = registry.getCategory(actionDescriptor.id);
-				if (category) {
-					label = nls.localize('commandLabel', "{0}: {1}", category, label);
-				}
-
-				// Alias for non default languages
-				const alias = (language !== LANGUAGE_DEFAULT) ? registry.getAlias(actionDescriptor.id) : null;
-				const labelHighlights = wordFilter(searchValue, label);
-				const aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
-
-				if (labelHighlights || aliasHighlights) {
-					entries.push(this.instantiationService.createInstance(CommandEntry, actionDescriptor.id, this.keybindingService.lookupKeybinding(actionDescriptor.id), label, alias, { label: labelHighlights, alias: aliasHighlights }, actionDescriptor, (id: string) => this.onBeforeRunCommand(id)));
-				}
-			}
-		}
-
-		return entries;
 	}
 
 	private editorActionsToEntries(actions: IEditorAction[], searchValue: string): EditorActionCommandEntry[] {

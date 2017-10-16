@@ -12,6 +12,7 @@
 	"ConfigurationParser.invalidVaraibleReference": "Fehler: Ungültiger ProblemMatcher-Verweis: {0}\n",
 	"ConfigurationParser.noTaskType": "Fehler: Die Aufgabenkonfiguration muss eine type-Eigenschaft enthalten. Die Konfiguration wird ignoriert.\n{0}\n",
 	"ConfigurationParser.noTypeDefinition": "Fehler: Der registrierte Aufgabentyp \"{0}\" ist nicht vorhanden. Wurde möglicherweise eine Erweiterung nicht installiert, die den entsprechenden Aufgabenanbieter bereitstellt?",
+	"ConfigurationParser.missingRequiredProperty": "Fehler: Die Aufgabenkonfiguration \"{0}\" enthält die erforderlich Eigenschaft \"{1}\" nicht. Die Aufgabenkonfiguration wird ignoriert.",
 	"ConfigurationParser.notCustom": "Fehler: Die Aufgabe ist nicht als benutzerdefinierte Aufgabe deklariert. Die Konfiguration wird ignoriert.\n{0}\n",
 	"ConfigurationParser.noTaskName": "Fehler: Tasks müssen eine Eigenschaft \"TaskName\" angeben. Der Task wird ignoriert.\n{0}\n",
 	"taskConfiguration.shellArgs": "Warnung: Die Aufgabe \"{0}\" ist ein Shellbefehl, und der Befehlsname oder eines seiner Argumente enthält Leerzeichen ohne Escapezeichen. Führen Sie Argumente im Befehl zusammen, um eine korrekte Angabe der Befehlszeile sicherzustellen.",

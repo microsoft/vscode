@@ -132,7 +132,7 @@ export class TextFileService extends AbstractTextFileService {
 			opts.defaultId = 2;
 		}
 
-		const choice = this.windowService.showMessageBox(opts);
+		const choice = this.windowService.showMessageBoxSync(opts);
 
 		return buttons[choice].result;
 	}

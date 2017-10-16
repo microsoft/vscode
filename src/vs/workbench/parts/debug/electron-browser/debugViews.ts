@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as resources from 'vs/base/common/resources';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { RunOnceScheduler, sequence } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
 import * as builder from 'vs/base/browser/builder';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -67,17 +67,21 @@ export class VariablesView extends ViewsViewletPanel {
 		this.onFocusStackFrameScheduler = new RunOnceScheduler(() => {
 			// Always clear tree highlight to avoid ending up in a broken state #12203
 			this.tree.clearHighlight();
+			const expanded = this.tree.getExpandedElements();
 			this.tree.refresh().then(() => {
 				const stackFrame = this.debugService.getViewModel().focusedStackFrame;
-				if (stackFrame) {
-					return stackFrame.getScopes().then(scopes => {
-						if (scopes.length > 0 && !scopes[0].expensive) {
-							return this.tree.expand(scopes[0]);
-						}
-						return undefined;
-					});
-				}
-				return undefined;
+				return sequence(expanded.map(e => () => this.tree.expand(e))).then(() => {
+					// If there is no preserved expansion state simply expand the first scope
+					if (stackFrame && this.tree.getExpandedElements().length === 0) {
+						return stackFrame.getScopes().then(scopes => {
+							if (scopes.length > 0 && !scopes[0].expensive) {
+								return this.tree.expand(scopes[0]);
+							}
+							return undefined;
+						});
+					}
+					return undefined;
+				});
 			}).done(null, errors.onUnexpectedError);
 		}, 400);
 	}
@@ -393,7 +397,7 @@ export class BreakpointsView extends ViewsViewletPanel {
 			ariaHeaderLabel: nls.localize('breakpointsSection', "Breakpoints Section")
 		}, keybindingService, contextMenuService);
 
-		this.minimumBodySize = this.maximumBodySize = 0;
+		this.minimumBodySize = this.maximumBodySize = this.getExpandedBodySize();
 		this.settings = options.viewletSettings;
 		this.breakpointsFocusedContext = CONTEXT_BREAKPOINTS_FOCUSED.bindTo(contextKeyService);
 		this.disposables.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.onBreakpointsChange()));
@@ -484,17 +488,15 @@ export class BreakpointsView extends ViewsViewletPanel {
 	}
 
 	private onBreakpointsChange(): void {
-		const model = this.debugService.getModel();
-
-		const bodySize = BreakpointsView.getExpandedBodySize(model.getBreakpoints().length + model.getExceptionBreakpoints().length + model.getFunctionBreakpoints().length);
-		this.minimumBodySize = this.maximumBodySize = bodySize;
-
+		this.minimumBodySize = this.maximumBodySize = this.getExpandedBodySize();
 		if (this.tree) {
 			this.tree.refresh();
 		}
 	}
 
-	private static getExpandedBodySize(length: number): number {
+	private getExpandedBodySize(): number {
+		const model = this.debugService.getModel();
+		const length = model.getBreakpoints().length + model.getExceptionBreakpoints().length + model.getFunctionBreakpoints().length;
 		return Math.min(BreakpointsView.MAX_VISIBLE_FILES, length) * 22;
 	}
 

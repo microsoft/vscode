@@ -19,7 +19,7 @@ import { ITerminalService, ITerminalFont, TERMINAL_PANEL_ID } from 'vs/workbench
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { TerminalFindWidget } from './terminalFindWidget';
 import { editorHoverBackground, editorHoverBorder, editorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { KillTerminalAction, CreateNewTerminalAction, SwitchTerminalInstanceAction, SwitchTerminalInstanceActionItem, CopyTerminalSelectionAction, TerminalPasteAction, ClearTerminalAction, SelectAllTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
+import { KillTerminalAction, CreateNewSelectWorkspaceTerminalAction, SwitchTerminalInstanceAction, SwitchTerminalInstanceActionItem, CopyTerminalSelectionAction, TerminalPasteAction, ClearTerminalAction, SelectAllTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { Panel } from 'vs/workbench/browser/panel';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -115,7 +115,7 @@ export class TerminalPanel extends Panel {
 		if (!this._actions) {
 			this._actions = [
 				this._instantiationService.createInstance(SwitchTerminalInstanceAction, SwitchTerminalInstanceAction.ID, SwitchTerminalInstanceAction.LABEL),
-				this._instantiationService.createInstance(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.PANEL_LABEL),
+				this._instantiationService.createInstance(CreateNewSelectWorkspaceTerminalAction, CreateNewSelectWorkspaceTerminalAction.ID, CreateNewSelectWorkspaceTerminalAction.PANEL_LABEL),
 				this._instantiationService.createInstance(KillTerminalAction, KillTerminalAction.ID, KillTerminalAction.PANEL_LABEL)
 			];
 			this._actions.forEach(a => {
@@ -129,7 +129,7 @@ export class TerminalPanel extends Panel {
 		if (!this._contextMenuActions) {
 			this._copyContextMenuAction = this._instantiationService.createInstance(CopyTerminalSelectionAction, CopyTerminalSelectionAction.ID, nls.localize('copy', "Copy"));
 			this._contextMenuActions = [
-				this._instantiationService.createInstance(CreateNewTerminalAction, CreateNewTerminalAction.ID, nls.localize('createNewTerminal', "New Terminal")),
+				this._instantiationService.createInstance(CreateNewSelectWorkspaceTerminalAction, CreateNewSelectWorkspaceTerminalAction.ID, CreateNewSelectWorkspaceTerminalAction.PANEL_LABEL),
 				new Separator(),
 				this._copyContextMenuAction,
 				this._instantiationService.createInstance(TerminalPasteAction, TerminalPasteAction.ID, nls.localize('paste', "Paste")),
@@ -302,8 +302,6 @@ export class TerminalPanel extends Panel {
 		this._font = this._terminalService.configHelper.getFont();
 		// TODO: Can we support ligatures?
 		// dom.toggleClass(this._parentDomElement, 'enable-ligatures', this._terminalService.configHelper.config.fontLigatures);
-		// TODO: How to handle Disable bold?
-		// dom.toggleClass(this._parentDomElement, 'disable-bold', !this._terminalService.configHelper.config.enableBold);
 		this.layout(new Dimension(this._parentDomElement.offsetWidth, this._parentDomElement.offsetHeight));
 	}
 

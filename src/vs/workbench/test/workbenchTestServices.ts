@@ -15,7 +15,7 @@ import URI from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
-import { IEditorGroup, ConfirmResult } from 'vs/workbench/common/editor';
+import { IEditorGroup, ConfirmResult, IEditorOpeningEvent } from 'vs/workbench/common/editor';
 import Event, { Emitter } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -24,9 +24,9 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IEditorInput, IEditorOptions, Position, Direction, IEditor, IResourceInput, ITextEditorSelection } from 'vs/platform/editor/common/editor';
+import { IEditorInput, IEditorOptions, Position, Direction, IEditor, IResourceInput } from 'vs/platform/editor/common/editor';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { IMessageService, IConfirmation } from 'vs/platform/message/common/message';
+import { IMessageService, IConfirmation, IConfirmationResult } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService, IWorkspace as IWorkbenchWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { ILifecycleService, ShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { EditorStacksModel } from 'vs/workbench/common/editor/editorStacksModel';
@@ -46,7 +46,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IWindowsService, IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult } from 'vs/platform/windows/common/windows';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { RawTextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -271,9 +271,6 @@ export class TestHistoryService implements IHistoryService {
 	public reopenLastClosedEditor(): void {
 	}
 
-	public add(input: IEditorInput, selection?: ITextEditorSelection): void {
-	}
-
 	public forward(acrossEditors?: boolean): void {
 	}
 
@@ -299,6 +296,7 @@ export class TestHistoryService implements IHistoryService {
 }
 
 export class TestMessageService implements IMessageService {
+
 	public _serviceBrand: any;
 
 	private counter: number;
@@ -321,8 +319,12 @@ export class TestMessageService implements IMessageService {
 		// No-op
 	}
 
-	public confirm(confirmation: IConfirmation): boolean {
+	public confirmSync(confirmation: IConfirmation): boolean {
 		return false;
+	}
+
+	public confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
+		return TPromise.as({ confirmed: false });
 	}
 }
 
@@ -451,6 +453,7 @@ export class TestEditorGroupService implements IEditorGroupService {
 	private stacksModel: EditorStacksModel;
 
 	private _onEditorsChanged: Emitter<void>;
+	private _onEditorOpening: Emitter<IEditorOpeningEvent>;
 	private _onEditorOpenFail: Emitter<IEditorInput>;
 	private _onEditorsMoved: Emitter<void>;
 	private _onGroupOrientationChanged: Emitter<void>;
@@ -459,6 +462,7 @@ export class TestEditorGroupService implements IEditorGroupService {
 	constructor(callback?: (method: string) => void) {
 		this._onEditorsMoved = new Emitter<void>();
 		this._onEditorsChanged = new Emitter<void>();
+		this._onEditorOpening = new Emitter<IEditorOpeningEvent>();
 		this._onGroupOrientationChanged = new Emitter<void>();
 		this._onEditorOpenFail = new Emitter<IEditorInput>();
 		this._onTabOptionsChanged = new Emitter<IEditorTabOptions>();
@@ -483,6 +487,10 @@ export class TestEditorGroupService implements IEditorGroupService {
 
 	public get onEditorsChanged(): Event<void> {
 		return this._onEditorsChanged.event;
+	}
+
+	public get onEditorOpening(): Event<IEditorOpeningEvent> {
+		return this._onEditorOpening.event;
 	}
 
 	public get onEditorOpenFail(): Event<IEditorInput> {
@@ -903,7 +911,7 @@ export class TestWindowService implements IWindowService {
 		return TPromise.as(void 0);
 	}
 
-	createAndEnterWorkspace(folders?: string[], path?: string): TPromise<IEnterWorkspaceResult> {
+	createAndEnterWorkspace(folderPaths?: string[], path?: string): TPromise<IEnterWorkspaceResult> {
 		return TPromise.as(void 0);
 	}
 
@@ -955,8 +963,12 @@ export class TestWindowService implements IWindowService {
 		return TPromise.as(void 0);
 	}
 
-	showMessageBox(options: Electron.MessageBoxOptions): number {
+	showMessageBoxSync(options: Electron.MessageBoxOptions): number {
 		return 0;
+	}
+
+	showMessageBox(options: Electron.MessageBoxOptions): Promise<IMessageBoxResult> {
+		return TPromise.as(void 0);
 	}
 
 	showSaveDialog(options: Electron.SaveDialogOptions, callback?: (fileName: string) => void): string {
@@ -1051,7 +1063,7 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(void 0);
 	}
 
-	createAndEnterWorkspace(windowId: number, folders?: string[], path?: string): TPromise<IEnterWorkspaceResult> {
+	createAndEnterWorkspace(windowId: number, folderPaths?: string[], path?: string): TPromise<IEnterWorkspaceResult> {
 		return TPromise.as(void 0);
 	}
 

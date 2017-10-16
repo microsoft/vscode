@@ -130,6 +130,31 @@
                             "type": "string",
                             "default": " ",
                             "description": "%emmetPreferencesStylusBetween%"
+                        },
+                        "bem.elementSeparator": {
+                            "type": "string",
+                            "default": "__",
+                            "description": "%emmetPreferencesBemElementSeparator%"
+                        },
+                        "bem.modifierSeparator": {
+                            "type": "string",
+                            "default": "_",
+                            "description": "%emmetPreferencesBemModifierSeparator%"
+                        },
+                        "filter.commentBefore": {
+                            "type": "string",
+                            "default": "",
+                            "description": "%emmetPreferencesFilterCommentBefore%"
+                        },
+                        "filter.commentAfter": {
+                            "type": "string",
+                            "default": "\n<!-- /[#ID][.CLASS] -->",
+                            "description": "%emmetPreferencesFilterCommentAfter%"
+                        },
+                        "filter.commentTrigger": {
+                            "type": "array",
+                            "default": ["id", "class"],
+                            "description": "%emmetPreferencesFilterCommentTrigger%"
                         }
                     }
                 },
@@ -262,14 +287,14 @@
         "compile": "gulp compile-extension:emmet"
     },
     "devDependencies": {
-        "@types/node": "^7.0.4",
+        "@types/node": "7.0.43",
         "vscode": "1.0.1"
     },
     "dependencies": {
         "@emmetio/html-matcher": "^0.3.1",
         "@emmetio/css-parser": "ramya-rao-a/css-parser#vscode",
         "@emmetio/math-expression": "^0.1.1",
-        "vscode-emmet-helper": "^1.1.13",
+        "vscode-emmet-helper": "^1.1.14",
         "vscode-languageserver-types": "^3.0.3",
         "image-size": "^0.5.2",
         "vscode-nls": "2.0.2"

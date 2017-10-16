@@ -42,5 +42,10 @@
 	"navigateUp": "Passa alla visualizzazione in alto",
 	"navigateDown": "Passa alla visualizzazione in basso",
 	"increaseViewSize": "Aumenta la dimensione della visualizzazione corrente",
-	"decreaseViewSize": "Diminuisce la dimensione della visualizzazione corrente"
+	"decreaseViewSize": "Diminuisce la dimensione della visualizzazione corrente",
+	"showPreviousTab": "Visualizza scheda della finestra precedente",
+	"showNextWindowTab": "Visualizza scheda della finestra successiva",
+	"moveWindowTabToNewWindow": "Sposta scheda della finestra in una nuova finestra",
+	"mergeAllWindowTabs": "Unisci tutte le finestre",
+	"toggleWindowTabsBar": "Attiva/Disattiva barra delle schede delle finestre"
 }

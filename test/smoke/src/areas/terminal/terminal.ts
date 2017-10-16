@@ -5,25 +5,23 @@
 
 import { SpectronApplication } from '../../spectron/application';
 
+const PANEL_SELECTOR = 'div[id="workbench.panel.terminal"]';
+const XTERM_SELECTOR = `${PANEL_SELECTOR} .terminal-wrapper`;
+
 export class Terminal {
-
-	static TERMINAL_SELECTOR = '.panel.integrated-terminal';
-	static TERMINAL_ROWS_SELECTOR = `${Terminal.TERMINAL_SELECTOR} .xterm-rows > div`;
-	static TERMINAL_CURSOR = `${Terminal.TERMINAL_SELECTOR} .terminal-cursor`;
-
 	constructor(private spectron: SpectronApplication) {
 	}
 
 	public async showTerminal(): Promise<void> {
 		if (!await this.isVisible()) {
 			await this.spectron.workbench.quickopen.runCommand('View: Toggle Integrated Terminal');
-			await this.spectron.client.waitForElement(Terminal.TERMINAL_CURSOR);
+			await this.spectron.client.waitForElement(XTERM_SELECTOR);
 			await this.waitForTerminalText(text => text.length > 0, 'Waiting for Terminal to be ready');
 		}
 	}
 
 	public async isVisible(): Promise<boolean> {
-		const element = await this.spectron.client.element(Terminal.TERMINAL_SELECTOR);
+		const element = await this.spectron.client.element(PANEL_SELECTOR);
 		return !!element;
 	}
 
@@ -47,30 +45,16 @@ export class Terminal {
 	}
 
 	private async getTerminalText(): Promise<string[]> {
-		const linesText: string[] = await this.spectron.webclient.selectorExecute<string[]>(Terminal.TERMINAL_ROWS_SELECTOR,
-			div => (Array.isArray(div) ? div : [div])
-				.map(element => {
-					function getTextFromAll(spanElements: NodeList): string {
-						let text = '';
-						for (let i = 0; i < spanElements.length; i++) {
-							text += getText(spanElements.item(i) as HTMLElement);
-						}
-						return text;
-					}
-					function getText(spanElement: HTMLElement): string {
-						if (spanElement.hasChildNodes()) {
-							return getTextFromAll(spanElement.childNodes);
-						}
-						return spanElement.textContent || '';
-					}
-					return getTextFromAll(element.querySelectorAll('span'));
-				}));
-		let lastLineIndex = 0;
-		for (let index = 0; index < linesText.length; index++) {
-			if (linesText[index].trim()) {
-				lastLineIndex = index;
+		return await this.spectron.webclient.selectorExecute(XTERM_SELECTOR,
+			div => {
+				const xterm = (<any>(Array.isArray(div) ? div[0] : div)).xterm;
+				const buffer = xterm.buffer;
+				const lines: string[] = [];
+				for (let i = 0; i < buffer.lines.length; i++) {
+					lines.push(buffer.translateBufferLineToString(i, true));
+				}
+				return lines;
 			}
-		}
-		return linesText.slice(0, lastLineIndex + 1);
+		);
 	}
 }

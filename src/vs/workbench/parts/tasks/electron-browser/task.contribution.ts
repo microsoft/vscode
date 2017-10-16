@@ -5,10 +5,10 @@
 'use strict';
 
 import 'vs/css!./media/task.contribution';
-import 'vs/workbench/parts/tasks/browser/taskQuickOpen';
 
 import * as nls from 'vs/nls';
 
+import { QuickOpenHandler } from 'vs/workbench/parts/tasks/browser/taskQuickOpen';
 import { TPromise } from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
 import * as Objects from 'vs/base/common/objects';
@@ -797,6 +797,10 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	public getTask(folder: IWorkspaceFolder | string, alias: string): TPromise<Task> {
+		let name = Types.isString(folder) ? folder : folder.name;
+		if (this.ignoredWorkspaceFolders.some(ignored => ignored.name === name)) {
+			return TPromise.wrapError(new Error(nls.localize('TaskServer.folderIgnored', 'The folder {0} is ignored since it uses task version 0.1.0', name)));
+		}
 		return this.getGroupedTasks().then((map) => {
 			let values = map.get(folder);
 			if (!values) {
@@ -1417,6 +1421,8 @@ class TaskService extends EventEmitter implements ITaskService {
 						let legacyTaskConfigurations = folderTasks.set ? this.getLegacyTaskConfigurations(folderTasks.set) : undefined;
 						let customTasksToDelete: Task[] = [];
 						if (configurations || legacyTaskConfigurations) {
+							let unUsedConfigurations: Set<string> = new Set<string>();
+							Object.keys(configurations.byIdentifier).forEach(key => unUsedConfigurations.add(key));
 							for (let task of contributed) {
 								if (!ContributedTask.is(task)) {
 									continue;
@@ -1424,6 +1430,7 @@ class TaskService extends EventEmitter implements ITaskService {
 								if (configurations) {
 									let configuringTask = configurations.byIdentifier[task.defines._key];
 									if (configuringTask) {
+										unUsedConfigurations.delete(task.defines._key);
 										result.add(key, TaskConfig.createCustomTask(task, configuringTask));
 									} else {
 										result.add(key, task);
@@ -1454,6 +1461,16 @@ class TaskService extends EventEmitter implements ITaskService {
 							} else {
 								result.add(key, ...folderTasks.set.tasks);
 							}
+							unUsedConfigurations.forEach((value) => {
+								let configuringTask = configurations.byIdentifier[value];
+								this._outputChannel.append(nls.localize(
+									'TaskService.noConfiguration',
+									'Error: The {0} task detection didn\'t contribute a task for the following configuration:\n{1}\nThe task will be ignored.\n',
+									configuringTask.configures.type,
+									JSON.stringify(configuringTask._source.config.element, undefined, 4)
+								));
+								this.showOutput();
+							});
 						} else {
 							result.add(key, ...folderTasks.set.tasks);
 							result.add(key, ...contributed);
@@ -1745,7 +1762,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (this._taskSystem instanceof TerminalTaskSystem) {
 			return false;
 		}
-		if (this._taskSystem.canAutoTerminate() || this.messageService.confirm({
+		if (this._taskSystem.canAutoTerminate() || this.messageService.confirmSync({
 			message: nls.localize('TaskSystem.runningTask', 'There is a task running. Do you want to terminate it?'),
 			primaryButton: nls.localize({ key: 'TaskSystem.terminateTask', comment: ['&& denotes a mnemonic'] }, "&&Terminate Task"),
 			type: 'question'
@@ -1767,7 +1784,7 @@ class TaskService extends EventEmitter implements ITaskService {
 					this.disposeTaskSystemListeners();
 					return false; // no veto
 				} else if (code && code === TerminateResponseCode.ProcessNotFound) {
-					return !this.messageService.confirm({
+					return !this.messageService.confirmSync({
 						message: nls.localize('TaskSystem.noProcess', 'The launched task doesn\'t exist anymore. If the task spawned background processes exiting VS Code might result in orphaned processes. To avoid this start the last background process with a wait flag.'),
 						primaryButton: nls.localize({ key: 'TaskSystem.exitAnyways', comment: ['&& denotes a mnemonic'] }, "&&Exit Anyways"),
 						type: 'info'
@@ -2428,8 +2445,8 @@ const tasksPickerContextKey = 'inTasksPicker';
 
 quickOpenRegistry.registerQuickOpenHandler(
 	new QuickOpenHandlerDescriptor(
-		'vs/workbench/parts/tasks/browser/taskQuickOpen',
-		'QuickOpenHandler',
+		QuickOpenHandler,
+		QuickOpenHandler.ID,
 		'task ',
 		tasksPickerContextKey,
 		nls.localize('quickOpen.task', "Run Task")

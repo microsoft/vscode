@@ -19,6 +19,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { OS } from 'vs/base/common/platform';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 
 function createContext(ctx: any) {
 	return {
@@ -40,7 +41,7 @@ suite('AbstractKeybindingService', () => {
 			messageService: IMessageService,
 			statusService?: IStatusbarService
 		) {
-			super(contextKeyService, commandService, messageService, statusService);
+			super(contextKeyService, commandService, NullTelemetryService, messageService, statusService);
 			this._resolver = resolver;
 		}
 
@@ -123,6 +124,7 @@ suite('AbstractKeybindingService', () => {
 			let messageService: IMessageService = {
 				_serviceBrand: undefined,
 				hideAll: undefined,
+				confirmSync: undefined,
 				confirm: undefined,
 				show: (sev: Severity, message: any): () => void => {
 					showMessageCalls.push({
