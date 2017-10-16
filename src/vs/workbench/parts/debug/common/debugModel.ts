@@ -916,7 +916,6 @@ export class Model implements IModel {
 				bp.verified = false;
 			}
 		});
-		this.exceptionBreakpoints.forEach(ebp => ebp.enabled = enable);
 		this.functionBreakpoints.forEach(fbp => fbp.enabled = enable);
 
 		this._onDidChangeBreakpoints.fire();
