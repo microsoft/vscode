@@ -566,6 +566,16 @@
       "from": "winreg@1.2.0",
       "resolved": "https://registry.npmjs.org/winreg/-/winreg-1.2.0.tgz"
     },
+    "windows-foreground-love": {
+      "version": "0.1.0",
+      "from": "windows-foreground-love@0.1.0",
+      "resolved": "https://registry.npmjs.org/windows-foreground-love/-/windows-foreground-love-0.1.0.tgz"
+    },
+    "windows-mutex": {
+      "version": "0.2.0",
+      "from": "windows-mutex@>=0.2.0 <0.3.0",
+      "resolved": "https://registry.npmjs.org/windows-mutex/-/windows-mutex-0.2.0.tgz"
+    },
     "windows-process-tree": {
       "version": "0.1.6",
       "from": "windows-process-tree@0.1.6",
