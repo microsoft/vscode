@@ -1987,6 +1987,11 @@ export interface ICommonCodeEditor extends IEditor {
 	/**
 	 * @internal
 	 */
+	setDecorationsFast(decorationTypeKey: string, ranges: IRange[]): void;
+
+	/**
+	 * @internal
+	 */
 	removeDecorations(decorationTypeKey: string): void;
 
 	/**
