@@ -194,6 +194,14 @@ declare module 'vscode' {
 		 */
 		readonly alpha: number;
 
+		/**
+		 * Creates a new color instance.
+		 *
+		 * @param red The red component.
+		 * @param green The green component.
+		 * @param blue The bluew component.
+		 * @param alpha The alpha component.
+		 */
 		constructor(red: number, green: number, blue: number, alpha: number);
 	}
 
@@ -222,19 +230,30 @@ declare module 'vscode' {
 		constructor(range: Range, color: Color);
 	}
 
+	/**
+	 * A color presentation object describes how a [`color`](#Color) should be represented as text and what
+	 * edits are required to refer to it from source code.
+	 *
+	 * For some languages one color can have multiple presentations, e.g. css can represent the color red with
+	 * the constant `Red`, the hex-value `#ff0000`, or in rgba and hsla forms. In csharp other representations
+	 * apply, e.g `System.Drawing.Color.Red`.
+	 */
 	export class ColorPresentation {
+
 		/**
 		 * The label of this color presentation. It will be shown on the color
 		 * picker header. By default this is also the text that is inserted when selecting
 		 * this color presentation.
 		 */
 		label: string;
+
 		/**
 		 * An [edit](#TextEdit) which is applied to a document when selecting
 		 * this presentation for the color.  When `falsy` the [label](#ColorPresentation.label)
 		 * is used.
 		 */
 		textEdit?: TextEdit;
+
 		/**
 		 * An optional array of additional [text edits](#TextEdit) that are applied when
 		 * selecting this color presentation. Edits must not overlap with the main [edit](#ColorPresentation.textEdit) nor with themselves.
@@ -254,6 +273,7 @@ declare module 'vscode' {
 	 * picking and modifying colors in the editor.
 	 */
 	export interface DocumentColorProvider {
+
 		/**
 		 * Provide colors for the given document.
 		 *
@@ -263,13 +283,32 @@ declare module 'vscode' {
 		 * can be signaled by returning `undefined`, `null`, or an empty array.
 		 */
 		provideDocumentColors(document: TextDocument, token: CancellationToken): ProviderResult<ColorInformation[]>;
+
 		/**
-		 * Provide representations for a color.
+		 * Provide [representations](#ColorPresentation) for a color.
+		 *
+		 * @param color The color to show and insert.
+		 * @param context A context object with additional information
+		 * @param token A cancellation token.
+		 * @return An array of color presentations or a thenable that resolves to such. The lack of a result
+		 * can be signaled by returning `undefined`, `null`, or an empty array.
 		 */
-		provideColorPresentations(document: TextDocument, colorInfo: ColorInformation, token: CancellationToken): ProviderResult<ColorPresentation[]>;
+		provideColorPresentations(color: Color, context: { document: TextDocument, range: Range }, token: CancellationToken): ProviderResult<ColorPresentation[]>;
 	}
 
 	export namespace languages {
+
+		/**
+		 * Register a color provider.
+		 *
+		 * Multiple providers can be registered for a language. In that case providers are asked in
+		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
+		 * not cause a failure of the whole operation.
+		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider A color provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
 		export function registerColorProvider(selector: DocumentSelector, provider: DocumentColorProvider): Disposable;
 	}
 }

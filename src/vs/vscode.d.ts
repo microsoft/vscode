@@ -2996,6 +2996,8 @@ declare module 'vscode' {
 		resolveDocumentLink?(link: DocumentLink, token: CancellationToken): ProviderResult<DocumentLink>;
 	}
 
+
+
 	/**
 	 * A tuple of two characters, like a pair of
 	 * opening and closing brackets.
