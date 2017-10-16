@@ -372,7 +372,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		// This can however cause a race condition where the stacks model indicates the opened editor is there
 		// while the UI is not yet ready. Clients have to deal with this fact and we have to make sure that the
 		// stacks model gets updated if any of the UI updating fails with an error.
-		const group = this.ensureGroup(position, !options || !options.preserveFocus);
+		const [group, newGroupOpened] = this.ensureGroup(position, !options || !options.preserveFocus);
 		const pinned = !this.tabOptions.previewEditors || (options && (options.pinned || typeof options.index === 'number')) || input.isDirty();
 
 		const active = (group.count === 0) || !options || !options.inactive;
@@ -401,7 +401,19 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 
 		// Set input to editor
-		return this.doSetInput(group, editor, input, options, monitor);
+		const inputPromise = this.doSetInput(group, editor, input, options, monitor);
+
+		// A new active group got opened. Since this involves updating the title area controls to show
+		// the new editor and actions we trigger a direct update of title controls from here to avoid
+		// some UI flickering if we rely on the event handlers that all use schedulers.
+		// The reason we can trigger this now is that after the input is set to the editor group, the
+		// resource context is updated and the correct number of actions will be resolved from the title
+		// area.
+		if (newGroupOpened && this.stacks.isActive(group)) {
+			this.editorGroupsControl.updateTitleAreaControls();
+		}
+
+		return inputPromise;
 	}
 
 	private doShowEditor(group: EditorGroup, descriptor: IEditorDescriptor, input: EditorInput, options: EditorOptions, ratio: number[], monitor: ProgressMonitor): BaseEditor {
@@ -1523,9 +1535,11 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		array[from] = empty;
 	}
 
-	private ensureGroup(position: Position, activate = true): EditorGroup {
+	private ensureGroup(position: Position, activate = true): [EditorGroup, boolean /* new group opened */] {
+		let newGroupOpened = false;
 		let group = this.stacks.groupAt(position);
 		if (!group) {
+			newGroupOpened = true;
 
 			// Race condition: it could be that someone quickly opens editors one after
 			// the other and we are asked to open an editor in position 2 before position
@@ -1548,7 +1562,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			this.stacks.setActive(group);
 		}
 
-		return group;
+		return [group, newGroupOpened];
 	}
 
 	private modifyGroups(modification: () => void) {
