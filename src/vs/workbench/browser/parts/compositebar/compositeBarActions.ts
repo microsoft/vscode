@@ -9,22 +9,229 @@ import nls = require('vs/nls');
 import { Action } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
+import { Builder, $ } from 'vs/base/browser/builder';
+import { BaseActionItem, IBaseActionItemOptions, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { dispose } from 'vs/base/common/lifecycle';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IActivityBarService, TextBadge, NumberBadge, IBadge } from 'vs/workbench/services/activity/common/activityBarService';
+import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
+import { IActivityBarService, TextBadge, NumberBadge, IBadge, IconBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activityBarService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ActivityAction, ActivityActionItem } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
-import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
+import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_FOREGROUND } from 'vs/workbench/common/theme';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { IActivity } from 'vs/workbench/common/activity';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import Event, { Emitter } from 'vs/base/common/event';
 
 export interface ICompositeActivity {
 	badge: IBadge;
 	clazz: string;
+}
+
+export class ActivityAction extends Action {
+	private badge: IBadge;
+	private _onDidChangeBadge = new Emitter<this>();
+
+	constructor(private _activity: IActivity) {
+		super(_activity.id, _activity.name, _activity.cssClass);
+
+		this.badge = null;
+	}
+
+	public get activity(): IActivity {
+		return this._activity;
+	}
+
+	public get onDidChangeBadge(): Event<this> {
+		return this._onDidChangeBadge.event;
+	}
+
+	public activate(): void {
+		if (!this.checked) {
+			this._setChecked(true);
+		}
+	}
+
+	public deactivate(): void {
+		if (this.checked) {
+			this._setChecked(false);
+		}
+	}
+
+	public getBadge(): IBadge {
+		return this.badge;
+	}
+
+	public setBadge(badge: IBadge): void {
+		this.badge = badge;
+		this._onDidChangeBadge.fire(this);
+	}
+}
+
+export class ActivityActionItem extends BaseActionItem {
+	protected $container: Builder;
+	protected $label: Builder;
+	protected $badge: Builder;
+
+	private $badgeContent: Builder;
+	private mouseUpTimeout: number;
+
+	constructor(
+		action: ActivityAction,
+		options: IBaseActionItemOptions,
+		@IThemeService protected themeService: IThemeService
+	) {
+		super(null, action, options);
+
+		this.themeService.onThemeChange(this.onThemeChange, this, this._callOnDispose);
+		action.onDidChangeBadge(this.handleBadgeChangeEvenet, this, this._callOnDispose);
+	}
+
+	protected get activity(): IActivity {
+		return (this._action as ActivityAction).activity;
+	}
+
+	protected updateStyles(): void {
+		const theme = this.themeService.getTheme();
+
+		// Label
+		if (this.$label) {
+			const background = theme.getColor(ACTIVITY_BAR_FOREGROUND);
+
+			this.$label.style('background-color', background ? background.toString() : null);
+		}
+
+		// Badge
+		if (this.$badgeContent) {
+			const badgeForeground = theme.getColor(ACTIVITY_BAR_BADGE_FOREGROUND);
+			const badgeBackground = theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND);
+			const contrastBorderColor = theme.getColor(contrastBorder);
+
+			this.$badgeContent.style('color', badgeForeground ? badgeForeground.toString() : null);
+			this.$badgeContent.style('background-color', badgeBackground ? badgeBackground.toString() : null);
+
+			this.$badgeContent.style('border-style', contrastBorderColor ? 'solid' : null);
+			this.$badgeContent.style('border-width', contrastBorderColor ? '1px' : null);
+			this.$badgeContent.style('border-color', contrastBorderColor ? contrastBorderColor.toString() : null);
+		}
+	}
+
+	public render(container: HTMLElement): void {
+		super.render(container);
+
+		// Make the container tab-able for keyboard navigation
+		this.$container = $(container).attr({
+			tabIndex: '0',
+			role: 'button',
+			title: this.activity.name
+		});
+
+		// Try hard to prevent keyboard only focus feedback when using mouse
+		this.$container.on(dom.EventType.MOUSE_DOWN, () => {
+			this.$container.addClass('clicked');
+		});
+
+		this.$container.on(dom.EventType.MOUSE_UP, () => {
+			if (this.mouseUpTimeout) {
+				clearTimeout(this.mouseUpTimeout);
+			}
+
+			this.mouseUpTimeout = setTimeout(() => {
+				this.$container.removeClass('clicked');
+			}, 800); // delayed to prevent focus feedback from showing on mouse up
+		});
+
+		// Label
+		this.$label = $('a.action-label').appendTo(this.builder);
+		if (this.activity.cssClass) {
+			this.$label.addClass(this.activity.cssClass);
+		}
+
+		this.$badge = this.builder.clone().div({ 'class': 'badge' }, (badge: Builder) => {
+			this.$badgeContent = badge.div({ 'class': 'badge-content' });
+		});
+
+		this.$badge.hide();
+
+		this.updateStyles();
+	}
+
+	private onThemeChange(theme: ITheme): void {
+		this.updateStyles();
+	}
+
+	public setBadge(badge: IBadge): void {
+		this.updateBadge(badge);
+	}
+
+	protected updateBadge(badge: IBadge): void {
+		this.$badgeContent.empty();
+		this.$badge.hide();
+
+		if (badge) {
+
+			// Number
+			if (badge instanceof NumberBadge) {
+				if (badge.number) {
+					this.$badgeContent.text(badge.number > 99 ? '99+' : badge.number.toString());
+					this.$badge.show();
+				}
+			}
+
+			// Text
+			else if (badge instanceof TextBadge) {
+				this.$badgeContent.text(badge.text);
+				this.$badge.show();
+			}
+
+			// Text
+			else if (badge instanceof IconBadge) {
+				this.$badge.show();
+			}
+
+			// Progress
+			else if (badge instanceof ProgressBadge) {
+				this.$badge.show();
+			}
+		}
+
+		// Title
+		let title: string;
+		if (badge && badge.getDescription()) {
+			if (this.activity.name) {
+				title = nls.localize('badgeTitle', "{0} - {1}", this.activity.name, badge.getDescription());
+			} else {
+				title = badge.getDescription();
+			}
+		} else {
+			title = this.activity.name;
+		}
+
+		[this.$label, this.$badge, this.$container].forEach(b => {
+			if (b) {
+				b.attr('aria-label', title);
+				b.title(title);
+			}
+		});
+	}
+
+	private handleBadgeChangeEvenet(): void {
+		const action = this.getAction();
+		if (action instanceof ActivityAction) {
+			this.updateBadge(action.getBadge());
+		}
+	}
+
+	public dispose(): void {
+		super.dispose();
+
+		if (this.mouseUpTimeout) {
+			clearTimeout(this.mouseUpTimeout);
+		}
+
+		this.$badge.destroy();
+	}
 }
 
 export class CompositeOverflowActivityAction extends ActivityAction {
