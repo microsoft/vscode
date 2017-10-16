@@ -413,7 +413,7 @@ class DefaultSettingsHeaderRenderer extends Disposable {
 
 	public render(settingsGroups: ISettingsGroup[]) {
 		if (settingsGroups.length) {
-			this.settingsHeaderWidget.setMessage('');
+			this.settingsHeaderWidget.setMessage(nls.localize('defaultSettings', "Place your settings in the right hand side editor to override."));
 		} else {
 			this.settingsHeaderWidget.setMessage(nls.localize('noSettingsFound', "No Settings Found."));
 		}

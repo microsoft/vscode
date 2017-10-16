@@ -58,6 +58,7 @@ import { scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import Event, { Emitter } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { MessageController } from 'vs/editor/contrib/message/messageController';
 
 export class PreferencesEditorInput extends SideBySideEditorInput {
 	public static ID: string = 'workbench.editorinputs.preferencesEditorInput';
@@ -722,7 +723,19 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 	}
 
 	public createEditorControl(parent: Builder, configuration: IEditorOptions): editorCommon.IEditor {
-		return this.instantiationService.createInstance(DefaultPreferencesCodeEditor, parent.getHTMLElement(), configuration);
+		const editor = this.instantiationService.createInstance(DefaultPreferencesCodeEditor, parent.getHTMLElement(), configuration);
+
+		// Inform user about editor being readonly if user starts type
+		this.toUnbind.push(editor.onDidType(() => this.onDidType(editor)));
+
+		return editor;
+	}
+
+	private onDidType(editor: editorCommon.ICommonCodeEditor): void {
+		const messageController = MessageController.get(editor);
+		if (!messageController.isVisible()) {
+			messageController.showMessage(nls.localize('defaultEditorReadonly', "Edit in the right hand side editor to override defaults."), editor.getSelection().getPosition());
+		}
 	}
 
 	protected getConfigurationOverrides(): IEditorOptions {

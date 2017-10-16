@@ -47,8 +47,12 @@ export class MessageController {
 		this._visible = MessageController.CONTEXT_SNIPPET_MODE.bindTo(contextKeyService);
 	}
 
-	dispose() {
+	dispose(): void {
 		this._visible.reset();
+	}
+
+	isVisible() {
+		return this._visible.get();
 	}
 
 	showMessage(message: string, position: IPosition): void {
