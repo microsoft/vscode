@@ -275,6 +275,13 @@ export interface ISuggestSupport {
 	resolveCompletionItem?(model: editorCommon.IModel, position: Position, item: ISuggestion, token: CancellationToken): ISuggestion | Thenable<ISuggestion>;
 }
 
+export interface CodeAction {
+	title: string;
+	command?: Command;
+	edits?: TextEdit[] | WorkspaceEdit;
+	diagnostics?: editorCommon.IModelDecoration[];
+}
+
 /**
  * The code action interface defines the contract between extensions and
  * the [light bulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action) feature.
@@ -284,7 +291,7 @@ export interface CodeActionProvider {
 	/**
 	 * Provide commands for the given document and range.
 	 */
-	provideCodeActions(model: editorCommon.IReadOnlyModel, range: Range, token: CancellationToken): Command[] | Thenable<Command[]>;
+	provideCodeActions(model: editorCommon.IReadOnlyModel, range: Range, token: CancellationToken): (Command | CodeAction)[] | Thenable<(Command | CodeAction)[]>;
 }
 
 /**

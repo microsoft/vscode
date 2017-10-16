@@ -7,16 +7,16 @@
 import URI from 'vs/base/common/uri';
 import { IReadOnlyModel } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
-import { Command, CodeActionProviderRegistry } from 'vs/editor/common/modes';
+import { Command, CodeActionProviderRegistry, CodeAction } from 'vs/editor/common/modes';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedExternalError, illegalArgument } from 'vs/base/common/errors';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 
-export function getCodeActions(model: IReadOnlyModel, range: Range): TPromise<Command[]> {
+export function getCodeActions(model: IReadOnlyModel, range: Range): TPromise<(Command | CodeAction)[]> {
 
-	const allResults: Command[] = [];
+	const allResults: (Command | CodeAction)[] = [];
 	const promises = CodeActionProviderRegistry.all(model).map(support => {
 		return asWinJsPromise(token => support.provideCodeActions(model, range, token)).then(result => {
 			if (Array.isArray(result)) {

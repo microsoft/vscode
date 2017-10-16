@@ -1799,7 +1799,6 @@ declare module 'vscode' {
 	 * a [code action](#CodeActionProvider.provideCodeActions) is run.
 	 */
 	export interface CodeActionContext {
-
 		/**
 		 * An array of diagnostics.
 		 */

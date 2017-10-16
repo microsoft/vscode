@@ -41,12 +41,22 @@ export default class TypeScriptCodeActionProvider implements vscode.CodeActionPr
 		commandManager.register(new ApplyCodeActionCommand(this.client));
 	}
 
-	public async provideCodeActions(
+	public provideCodeActions(
+		_document: vscode.TextDocument,
+		_range: vscode.Range,
+		_context: vscode.CodeActionContext,
+		_token: vscode.CancellationToken
+	) {
+		// Uses provideCodeActions2 instead
+		return [];
+	}
+
+	public async provideCodeActions2(
 		document: vscode.TextDocument,
 		range: vscode.Range,
 		context: vscode.CodeActionContext,
 		token: vscode.CancellationToken
-	): Promise<vscode.Command[]> {
+	): Promise<vscode.CodeAction[]> {
 		if (!this.client.apiVersion.has213Features()) {
 			return [];
 		}
@@ -92,11 +102,14 @@ export default class TypeScriptCodeActionProvider implements vscode.CodeActionPr
 			.filter(code => supportedActions[code]));
 	}
 
-	private getCommandForAction(action: Proto.CodeAction, file: string): vscode.Command {
+	private getCommandForAction(action: Proto.CodeAction, file: string): vscode.CodeAction {
 		return {
 			title: action.description,
-			command: ApplyCodeActionCommand.ID,
-			arguments: [action, file]
+			command: {
+				title: action.description,
+				command: this.commandId,
+				arguments: [action, file]
+			}
 		};
 	}
 }

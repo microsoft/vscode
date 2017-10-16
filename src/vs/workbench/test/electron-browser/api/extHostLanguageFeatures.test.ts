@@ -655,7 +655,7 @@ suite('ExtHostLanguageFeatures', function () {
 			return getCodeActions(model, model.getFullModelRange()).then(value => {
 				assert.equal(value.length, 2);
 
-				let [first, second] = value;
+				let [first, second] = <Command[]>value;
 				assert.equal(first.title, 'Testing1');
 				assert.equal(first.id, 'test1');
 				assert.equal(second.title, 'Testing2');
