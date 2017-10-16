@@ -274,15 +274,15 @@ export class WorkspaceConfigurationChangeEvent extends ConfigurationChangeEvent 
 		super();
 	}
 
-	affectsConfiugration(config: string, resource?: URI): boolean {
-		if (super.affectsConfiugration(config, resource)) {
+	affectsConfiguration(config: string, resource?: URI): boolean {
+		if (super.affectsConfiguration(config, resource)) {
 			return true;
 		}
 
 		if (resource) {
 			let workspaceFolder = this.workspace.getFolder(resource);
 			if (workspaceFolder) {
-				return super.affectsConfiugration(config, workspaceFolder.uri);
+				return super.affectsConfiguration(config, workspaceFolder.uri);
 			}
 		}
 

@@ -485,7 +485,7 @@ export class AllKeysConfigurationChangeEvent extends AbstractConfigurationChange
 
 	constructor(readonly affectedKeys: string[], readonly source: ConfigurationTarget, readonly sourceConfig: any) { super(); }
 
-	affectsConfiugration(config: string, resource?: URI): boolean {
+	affectsConfiguration(config: string, resource?: URI): boolean {
 		if (!this.changedConfiguration) {
 			this.changedConfiguration = new ConfigurationModel();
 			this.updateKeys(this.changedConfiguration, this.affectedKeys);
@@ -539,7 +539,7 @@ export class ConfigurationChangeEvent extends AbstractConfigurationChangeEvent i
 		return this._sourceConfig;
 	}
 
-	affectsConfiugration(config: string, resource?: URI): boolean {
+	affectsConfiguration(config: string, resource?: URI): boolean {
 		let configurationModelsToSearch: ConfigurationModel[] = [this.changedConfiguration];
 
 		if (resource) {

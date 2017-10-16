@@ -31,7 +31,7 @@ export enum ConfigurationTarget {
 export interface IConfigurationChangeEvent {
 	affectedKeys: string[];
 
-	affectsConfiugration(configuration: string, resource?: URI): boolean;
+	affectsConfiguration(configuration: string, resource?: URI): boolean;
 
 	// Following data is used for telemetry
 	source: ConfigurationTarget;
