@@ -9,9 +9,10 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import types = require('vs/base/common/types');
 import { MessageList, Severity as BaseSeverity } from 'vs/workbench/services/message/browser/messageList';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IMessageService, IMessageWithAction, IConfirmation, Severity } from 'vs/platform/message/common/message';
+import { IMessageService, IMessageWithAction, IConfirmation, Severity, IConfirmationResult } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import Event from 'vs/base/common/event';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 interface IBufferedMessage {
 	severity: Severity;
@@ -135,13 +136,17 @@ export class WorkbenchMessageService implements IMessageService {
 		}
 	}
 
-	public confirm(confirmation: IConfirmation): boolean {
+	public confirmSync(confirmation: IConfirmation): boolean {
 		let messageText = confirmation.message;
 		if (confirmation.detail) {
 			messageText = messageText + '\n\n' + confirmation.detail;
 		}
 
 		return window.confirm(messageText);
+	}
+
+	public confirm(confirmation: IConfirmation): TPromise<IConfirmationResult> {
+		return TPromise.as({ confirmed: this.confirmSync(confirmation) } as IConfirmationResult);
 	}
 
 	public dispose(): void {

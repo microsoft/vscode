@@ -518,6 +518,7 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	private updateStateAndEmit(sessionId?: string, newState?: debug.State): void {
+		const previousState = this.state;
 		if (sessionId) {
 			if (newState === debug.State.Inactive) {
 				this.sessionStates.delete(sessionId);
@@ -527,11 +528,13 @@ export class DebugService implements debug.IDebugService {
 		}
 
 		const state = this.state;
-		const stateLabel = debug.State[state];
-		if (stateLabel) {
-			this.debugState.set(stateLabel.toLowerCase());
+		if (previousState !== state) {
+			const stateLabel = debug.State[state];
+			if (stateLabel) {
+				this.debugState.set(stateLabel.toLowerCase());
+			}
+			this._onDidChangeState.fire(state);
 		}
-		this._onDidChangeState.fire(state);
 	}
 
 	public focusStackFrameAndEvaluate(stackFrame: debug.IStackFrame, process?: debug.IProcess, explicit?: boolean): TPromise<void> {
@@ -648,7 +651,7 @@ export class DebugService implements debug.IDebugService {
 	public startDebugging(root: IWorkspaceFolder, configOrName?: debug.IConfig | string, noDebug = false, topCompoundName?: string): TPromise<any> {
 
 		// make sure to save all files and that the configuration is up to date
-		return this.extensionService.activateByEvent('onDebug').then(() => this.textFileService.saveAll().then(() => this.configurationService.reloadConfiguration().then(() =>
+		return this.extensionService.activateByEvent('onDebug').then(() => this.textFileService.saveAll().then(() => this.configurationService.reloadConfiguration(root).then(() =>
 			this.extensionService.onReady().then(() => {
 				if (this.model.getProcesses().length === 0) {
 					this.removeReplExpressions();
@@ -698,13 +701,26 @@ export class DebugService implements debug.IDebugService {
 					config.noDebug = true;
 				}
 
-				return this.configurationManager.resolveDebugConfiguration(launch ? launch.workspace.uri : undefined, type, config).then(config => {
-					// a falsy config indicates an aborted launch
-					if (config && config.type) {
-						return this.createProcess(root, config);
+				const sessionId = generateUuid();
+				this.updateStateAndEmit(sessionId, debug.State.Initializing);
+				const wrapUpState = () => {
+					if (this.sessionStates.get(sessionId) === debug.State.Initializing) {
+						this.updateStateAndEmit(sessionId, debug.State.Inactive);
 					}
+				};
 
-					return <TPromise>undefined; // ignore weird compile error
+				return (type ? TPromise.as(null) : this.configurationManager.guessAdapter().then(a => type = a && a.type)).then(() =>
+					this.configurationManager.resolveConfigurationByProviders(launch ? launch.workspace.uri : undefined, type, config).then(config => {
+						// a falsy config indicates an aborted launch
+						if (config && config.type) {
+							return this.createProcess(root, config, sessionId);
+						}
+
+						return <any>launch.openConfigFile(false, type); // cast to ignore weird compile error
+					})
+				).then(() => wrapUpState(), (err) => {
+					wrapUpState();
+					return err;
 				});
 			})
 		)));
@@ -719,7 +735,7 @@ export class DebugService implements debug.IDebugService {
 		return null;
 	}
 
-	public createProcess(root: IWorkspaceFolder, config: debug.IConfig): TPromise<debug.IProcess> {
+	private createProcess(root: IWorkspaceFolder, config: debug.IConfig, sessionId: string): TPromise<debug.IProcess> {
 		return this.textFileService.saveAll().then(() =>
 			(this.configurationManager.selectedLaunch ? this.configurationManager.selectedLaunch.resolveConfiguration(config) : TPromise.as(config)).then(resolvedConfig => {
 				if (!resolvedConfig) {
@@ -746,7 +762,7 @@ export class DebugService implements debug.IDebugService {
 					const successExitCode = taskSummary && taskSummary.exitCode === 0;
 					const failureExitCode = taskSummary && taskSummary.exitCode !== undefined && taskSummary.exitCode !== 0;
 					if (successExitCode || (errorCount === 0 && !failureExitCode)) {
-						return this.doCreateProcess(root, resolvedConfig);
+						return this.doCreateProcess(root, resolvedConfig, sessionId);
 					}
 
 					this.messageService.show(severity.Error, {
@@ -756,7 +772,7 @@ export class DebugService implements debug.IDebugService {
 						actions: [
 							new Action('debug.continue', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
 								this.messageService.hideAll();
-								return this.doCreateProcess(root, resolvedConfig);
+								return this.doCreateProcess(root, resolvedConfig, sessionId);
 							}),
 							this.instantiationService.createInstance(ToggleMarkersPanelAction, ToggleMarkersPanelAction.ID, ToggleMarkersPanelAction.LABEL),
 							CloseAction
@@ -789,9 +805,8 @@ export class DebugService implements debug.IDebugService {
 		);
 	}
 
-	private doCreateProcess(root: IWorkspaceFolder, configuration: debug.IConfig, sessionId = generateUuid()): TPromise<debug.IProcess> {
+	private doCreateProcess(root: IWorkspaceFolder, configuration: debug.IConfig, sessionId: string): TPromise<debug.IProcess> {
 		configuration.__sessionId = sessionId;
-		this.updateStateAndEmit(sessionId, debug.State.Initializing);
 		this.inDebugMode.set(true);
 
 		return this.telemetryService.getTelemetryInfo().then(info => {
@@ -989,7 +1004,7 @@ export class DebugService implements debug.IDebugService {
 						config.noDebug = process.configuration.noDebug;
 					}
 					config.__restart = restartData;
-					this.createProcess(process.session.root, config).then(() => c(null), err => e(err));
+					this.createProcess(process.session.root, config, process.getId()).then(() => c(null), err => e(err));
 				}, 300);
 			});
 		}).then(() => {

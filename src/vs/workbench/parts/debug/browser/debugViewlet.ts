@@ -110,7 +110,7 @@ export class DebugViewlet extends PersistentViewsViewlet {
 export class FocusVariablesViewAction extends Action {
 
 	static ID = 'workbench.debug.action.focusVariablesView';
-	static LABEL = nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugFocusVariablesView' }, 'Focus Variables');
+	static LABEL = nls.localize('debugFocusVariablesView', 'Focus Variables');
 
 	constructor(id: string, label: string,
 		@IViewletService private viewletService: IViewletService

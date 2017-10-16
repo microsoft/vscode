@@ -11,8 +11,8 @@ import { WorkspaceConfiguration } from 'vscode';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostConfigurationShape, MainThreadConfigurationShape } from './extHost.protocol';
 import { ConfigurationTarget as ExtHostConfigurationTarget } from './extHostTypes';
-import { IConfigurationData, Configuration } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { IConfigurationData, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { Configuration } from 'vs/platform/configuration/common/configurationModels';
 
 function lookUp(tree: any, key: string) {
 	if (key) {
@@ -38,9 +38,9 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 	private readonly _onDidChangeConfiguration = new Emitter<void>();
 	private readonly _proxy: MainThreadConfigurationShape;
 	private readonly _extHostWorkspace: ExtHostWorkspace;
-	private _configuration: Configuration<any>;
+	private _configuration: Configuration;
 
-	constructor(proxy: MainThreadConfigurationShape, extHostWorkspace: ExtHostWorkspace, data: IConfigurationData<any>) {
+	constructor(proxy: MainThreadConfigurationShape, extHostWorkspace: ExtHostWorkspace, data: IConfigurationData) {
 		this._proxy = proxy;
 		this._extHostWorkspace = extHostWorkspace;
 		this._configuration = Configuration.parse(data, extHostWorkspace.workspace);
@@ -50,15 +50,15 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 		return this._onDidChangeConfiguration && this._onDidChangeConfiguration.event;
 	}
 
-	$acceptConfigurationChanged(data: IConfigurationData<any>) {
+	$acceptConfigurationChanged(data: IConfigurationData) {
 		this._configuration = Configuration.parse(data, this._extHostWorkspace.workspace);
 		this._onDidChangeConfiguration.fire(undefined);
 	}
 
 	getConfiguration(section?: string, resource?: URI): WorkspaceConfiguration {
 		const config = section
-			? lookUp(this._configuration.getValue(null, { resource }), section)
-			: this._configuration.getValue(null, { resource });
+			? lookUp(this._configuration.getSection(null, { resource }), section)
+			: this._configuration.getSection(null, { resource });
 
 		function parseConfigurationTarget(arg: boolean | ExtHostConfigurationTarget): ConfigurationTarget {
 			if (arg === void 0 || arg === null) {
@@ -71,7 +71,7 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 			switch (arg) {
 				case ExtHostConfigurationTarget.Global: return ConfigurationTarget.USER;
 				case ExtHostConfigurationTarget.Workspace: return ConfigurationTarget.WORKSPACE;
-				case ExtHostConfigurationTarget.WorkspaceFolder: return ConfigurationTarget.FOLDER;
+				case ExtHostConfigurationTarget.WorkspaceFolder: return ConfigurationTarget.WORKSPACE_FOLDER;
 			}
 		}
 
@@ -104,7 +104,7 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 						defaultValue: config.default,
 						globalValue: config.user,
 						workspaceValue: config.workspace,
-						workspaceFolderValue: config.folder
+						workspaceFolderValue: config.workspaceFolder
 					};
 				}
 				return undefined;

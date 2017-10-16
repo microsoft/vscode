@@ -37,11 +37,11 @@ import { DragMouseEvent, IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService, IConfirmation, Severity } from 'vs/platform/message/common/message';
+import { IMessageService, IConfirmation, Severity, IConfirmationResult } from 'vs/platform/message/common/message';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -107,14 +107,8 @@ export class FileDataSource implements IDataSource {
 
 				return stat.children;
 			}, (e: any) => {
-				stat.exists = false;
 				stat.hasChildren = false;
-				if (!stat.isRoot) {
-					this.messageService.show(Severity.Error, e);
-				} else {
-					// We render the roots that do not exist differently, nned to do a refresh
-					tree.refresh(stat, false);
-				}
+				this.messageService.show(Severity.Error, e);
 
 				return []; // we could not resolve any children because of an error
 			});
@@ -289,7 +283,8 @@ export class FileRenderer implements IRenderer {
 		state: FileViewletState,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService private themeService: IThemeService
+		@IThemeService private themeService: IThemeService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		this.state = state;
 	}
@@ -317,12 +312,18 @@ export class FileRenderer implements IRenderer {
 
 		// File Label
 		if (!editableData) {
-			templateData.label.element.style.display = 'block';
+			templateData.label.element.style.display = 'flex';
 			const extraClasses = ['explorer-item'];
-			if (!stat.exists && stat.isRoot) {
+			if (stat.nonexistentRoot) {
 				extraClasses.push('nonexistent-root');
 			}
-			templateData.label.setFile(stat.resource, { hidePath: true, fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE, extraClasses });
+			templateData.label.setFile(stat.resource, {
+				hidePath: true,
+				title: stat.nonexistentRoot ? nls.localize('canNotResolve', "Can not resolve folder {0}", stat.resource.toString()) : undefined,
+				fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE,
+				extraClasses,
+				fileDecorations: this.configurationService.getConfiguration<IFilesConfiguration>().explorer.decorations
+			});
 		}
 
 		// Input Box
@@ -687,7 +688,7 @@ export class FileFilter implements IFilter {
 	public updateConfiguration(): boolean {
 		let needsRefresh = false;
 		this.contextService.getWorkspace().folders.forEach(folder => {
-			const configuration = this.configurationService.getConfiguration<IFilesConfiguration>(undefined, { resource: folder.uri });
+			const configuration = this.configurationService.getConfiguration<IFilesConfiguration>({ resource: folder.uri });
 			const excludesConfig = (configuration && configuration.files && configuration.files.exclude) || Object.create(null);
 			needsRefresh = needsRefresh || !objects.equals(this.hiddenExpressionPerRoot.get(folder.uri.toString()), excludesConfig);
 			this.hiddenExpressionPerRoot.set(folder.uri.toString(), objects.clone(excludesConfig)); // do not keep the config, as it gets mutated under our hoods
@@ -728,13 +729,15 @@ export class FileFilter implements IFilter {
 
 // Explorer Drag And Drop Controller
 export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
+
+	private static CONFIRM_DND_SETTING_KEY = 'explorer.confirmDragAndDrop';
+
 	private toDispose: IDisposable[];
 	private dropEnabled: boolean;
 
 	constructor(
 		@IMessageService private messageService: IMessageService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IProgressService private progressService: IProgressService,
 		@IFileService private fileService: IFileService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -891,8 +894,6 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 			}
 		}
 
-		this.progressService.showWhile(promise, 800);
-
 		promise.done(null, errors.onUnexpectedError);
 	}
 
@@ -908,16 +909,12 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 			// Handle folders by adding to workspace if we are in workspace context
 			const folders = result.filter(result => result.stat.isDirectory).map(result => result.stat.resource);
 			if (folders.length > 0) {
-				if (this.environmentService.appQuality === 'stable') {
-					return void 0; // TODO@Ben multi root
-				}
-
 				if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 					return this.workspaceEditingService.addFolders(folders);
 				}
 
 				// If we are in single-folder context, ask for confirmation to create a workspace
-				const result = this.messageService.confirm({
+				const result = this.messageService.confirmSync({
 					message: folders.length > 1 ? nls.localize('dropFolders', "Do you want to add the folders to the workspace?") : nls.localize('dropFolder', "Do you want to add the folder to the workspace?"),
 					type: 'question',
 					primaryButton: folders.length > 1 ? nls.localize('addFolders', "&&Add Folders") : nls.localize('addFolder', "&&Add Folder")
@@ -947,6 +944,41 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		const source: FileStat = data.getData()[0];
 		const isCopy = (originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh);
 
+		let confirmPromise: TPromise<IConfirmationResult>;
+
+		// Handle confirm setting
+		const confirmDragAndDrop = !isCopy && this.configurationService.getValue<boolean>(FileDragAndDrop.CONFIRM_DND_SETTING_KEY);
+		if (confirmDragAndDrop) {
+			confirmPromise = this.messageService.confirm({
+				message: nls.localize('confirmMove', "Are you sure you want to move '{0}'?", source.name),
+				checkbox: {
+					label: nls.localize('doNotAskAgain', "Do not ask me again")
+				},
+				type: 'question'
+			});
+		} else {
+			confirmPromise = TPromise.as({ confirmed: true } as IConfirmationResult);
+		}
+
+		return confirmPromise.then(confirmation => {
+
+			// Check for confirmation checkbox
+			let updateConfirmSettingsPromise: TPromise<void> = TPromise.as(void 0);
+			if (confirmation.checkboxChecked === true) {
+				updateConfirmSettingsPromise = this.configurationService.updateValue(FileDragAndDrop.CONFIRM_DND_SETTING_KEY, false, ConfigurationTarget.USER);
+			}
+
+			return updateConfirmSettingsPromise.then(() => {
+				if (confirmation.confirmed) {
+					return this.doHandleExplorerDrop(tree, data, source, target, isCopy);
+				}
+
+				return TPromise.as(void 0);
+			});
+		});
+	}
+
+	private doHandleExplorerDrop(tree: ITree, data: IDragAndDropData, source: FileStat, target: FileStat, isCopy: boolean): TPromise<void> {
 		return tree.expand(target).then(() => {
 
 			// Reuse duplicate action if user copies
@@ -1011,7 +1043,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 							};
 
 							// Move with overwrite if the user confirms
-							if (this.messageService.confirm(confirm)) {
+							if (this.messageService.confirmSync(confirm)) {
 								const targetDirty = this.textFileService.getDirty().filter(d => resources.isEqualOrParent(d, targetResource, !isLinux /* ignorecase */));
 
 								// Make sure to revert all dirty in target first to be able to overwrite properly

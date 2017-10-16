@@ -6,21 +6,19 @@
 import * as nls from 'vs/nls';
 import * as pfs from 'vs/base/node/pfs';
 import * as platform from 'vs/base/common/platform';
-import product from 'vs/platform/node/product';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IQuickOpenService, IPickOpenEntry, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { ITerminalInstance, ITerminalService, IShellLaunchConfig, ITerminalConfigHelper, NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
 import { TerminalService as AbstractTerminalService } from 'vs/workbench/parts/terminal/common/terminalService';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IChoiceService } from 'vs/platform/message/common/message';
+import { IChoiceService, IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { TERMINAL_DEFAULT_SHELL_WINDOWS } from 'vs/workbench/parts/terminal/electron-browser/terminal';
@@ -40,9 +38,9 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IWindowService private _windowService: IWindowService,
 		@IQuickOpenService private _quickOpenService: IQuickOpenService,
-		@IConfigurationEditingService private _configurationEditingService: IConfigurationEditingService,
 		@IChoiceService private _choiceService: IChoiceService,
-		@IStorageService private _storageService: IStorageService
+		@IStorageService private _storageService: IStorageService,
+		@IMessageService private _messageService: IMessageService
 	) {
 		super(_contextKeyService, _configurationService, _panelService, _partService, _lifecycleService);
 
@@ -163,8 +161,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 					return null;
 				}
 				const shell = value.description;
-				const configChange = { key: 'terminal.integrated.shell.windows', value: shell };
-				return this._configurationEditingService.writeConfiguration(ConfigurationTarget.USER, configChange).then(() => shell);
+				return this._configurationService.updateValue('terminal.integrated.shell.windows', shell, ConfigurationTarget.USER).then(() => shell);
 			});
 		});
 	}
@@ -218,22 +215,17 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 	}
 
 	protected _showTerminalCloseConfirmation(): boolean {
-		const cancelId = 1;
 		let message;
 		if (this.terminalInstances.length === 1) {
 			message = nls.localize('terminalService.terminalCloseConfirmationSingular', "There is an active terminal session, do you want to kill it?");
 		} else {
 			message = nls.localize('terminalService.terminalCloseConfirmationPlural', "There are {0} active terminal sessions, do you want to kill them?", this.terminalInstances.length);
 		}
-		const opts: Electron.MessageBoxOptions = {
-			title: product.nameLong,
+
+		return !this._messageService.confirmSync({
 			message,
 			type: 'warning',
-			buttons: [nls.localize('yes', "Yes"), nls.localize('cancel', "Cancel")],
-			noLink: true,
-			cancelId
-		};
-		return this._windowService.showMessageBox(opts) === cancelId;
+		});
 	}
 
 	public setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void {

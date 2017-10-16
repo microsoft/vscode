@@ -16,13 +16,13 @@ import { EditorModel } from 'vs/workbench/common/editor';
 import { IConfigurationNode, IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN, IConfigurationPropertySchema, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { ISettingsEditorModel, IKeybindingsEditorModel, ISettingsGroup, ISetting, IFilterResult, ISettingsSection, IGroupFilter, ISettingFilter } from 'vs/workbench/parts/preferences/common/preferences';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IRange } from 'vs/editor/common/core/range';
 import { ITextFileService, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Queue } from 'vs/base/common/async';
 import { IFileService } from 'vs/platform/files/common/files';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
 export abstract class AbstractSettingsModel extends EditorModel {
 

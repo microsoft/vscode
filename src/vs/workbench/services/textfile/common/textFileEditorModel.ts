@@ -765,7 +765,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.contextService.getWorkspace().folders.some(folder => {
 			return paths.isEqualOrParent(this.resource.fsPath, path.join(folder.uri.fsPath, '.vscode'));
 		});
-
 	}
 
 	private doTouch(): TPromise<void> {

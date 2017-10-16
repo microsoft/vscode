@@ -9,7 +9,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { guessMimeTypes } from 'vs/base/common/mime';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
-import { ConfigurationSource, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
 import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { ITelemetryService, ITelemetryInfo, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
@@ -186,7 +186,7 @@ const configurationValueWhitelist = [
 
 export function configurationTelemetry(telemetryService: ITelemetryService, configurationService: IConfigurationService): IDisposable {
 	return configurationService.onDidUpdateConfiguration(event => {
-		if (event.source !== ConfigurationSource.Default) {
+		if (event.source !== ConfigurationTarget.DEFAULT) {
 			/* __GDPR__
 				"updateConfiguration" : {
 					"configurationSource" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -194,7 +194,7 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
 				}
 			*/
 			telemetryService.publicLog('updateConfiguration', {
-				configurationSource: ConfigurationSource[event.source],
+				configurationSource: ConfigurationTarget[event.source],
 				configurationKeys: flattenKeys(event.sourceConfig)
 			});
 			/* __GDPR__
@@ -204,7 +204,7 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
 				}
 			*/
 			telemetryService.publicLog('updateConfigurationValues', {
-				configurationSource: ConfigurationSource[event.source],
+				configurationSource: ConfigurationTarget[event.source],
 				configurationValues: flattenValues(event.sourceConfig, configurationValueWhitelist)
 			});
 		}

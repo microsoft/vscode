@@ -24,9 +24,8 @@ import {
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionIdFromLocal, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IWindowService } from 'vs/platform/windows/common/windows';
-import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IChoiceService, IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
@@ -323,7 +322,6 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		@IExtensionManagementService private extensionService: IExtensionManagementService,
 		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IMessageService private messageService: IMessageService,
 		@IChoiceService private choiceService: IChoiceService,
@@ -464,7 +462,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		if (this.isAutoUpdateEnabled === autoUpdate) {
 			return TPromise.as(null);
 		}
-		return this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: 'extensions.autoUpdate', value: autoUpdate });
+		return this.configurationService.updateValue('extensions.autoUpdate', autoUpdate, ConfigurationTarget.USER);
 	}
 
 	private eventuallySyncWithGallery(immediate = false): void {

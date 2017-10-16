@@ -13,11 +13,9 @@ import { IWorkbenchThemeService, IColorTheme, ITokenColorCustomizations, IFileIc
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import errors = require('vs/base/common/errors');
-import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -118,6 +116,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			isLoaded: false,
 			hasFileIcons: false,
 			hasFolderIcons: false,
+			hidesExplorerArrows: false,
 			extensionData: null
 		};
 
@@ -150,12 +149,12 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		this.colorThemeStore.onDidChange(themes => {
 			colorThemeSettingSchema.enum = themes.map(t => t.settingsId);
 			colorThemeSettingSchema.enumDescriptions = themes.map(t => themeData.description || '');
-			configurationRegistry.notifyConfigurationSchemaUpdated(colorThemeSettingSchema);
+			configurationRegistry.notifyConfigurationSchemaUpdated(themeSettingsConfiguration);
 		});
 		this.iconThemeStore.onDidChange(themes => {
-			iconThemeSettingSchema.enum = themes.map(t => t.settingsId);
-			iconThemeSettingSchema.enumDescriptions = themes.map(t => themeData.description || '');
-			configurationRegistry.notifyConfigurationSchemaUpdated(iconThemeSettingSchema);
+			iconThemeSettingSchema.enum = [null, ...themes.map(t => t.settingsId)];
+			iconThemeSettingSchema.enumDescriptions = [iconThemeSettingSchema.enumDescriptions[0], ...themes.map(t => themeData.description || '')];
+			configurationRegistry.notifyConfigurationSchemaUpdated(themeSettingsConfiguration);
 		});
 	}
 
@@ -222,8 +221,8 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 		this.updateColorCustomizations(false);
 
-		let colorThemeSetting = this.configurationService.lookup<string>(COLOR_THEME_SETTING).value;
-		let iconThemeSetting = this.configurationService.lookup<string>(ICON_THEME_SETTING).value || '';
+		let colorThemeSetting = this.configurationService.getValue<string>(COLOR_THEME_SETTING);
+		let iconThemeSetting = this.configurationService.getValue<string>(ICON_THEME_SETTING) || '';
 
 		return Promise.join([
 			this.colorThemeStore.findThemeDataBySettingsId(colorThemeSetting, DEFAULT_THEME_ID).then(theme => {
@@ -237,7 +236,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 	private installConfigurationListener() {
 		this.configurationService.onDidUpdateConfiguration(e => {
-			let colorThemeSetting = this.configurationService.lookup<string>(COLOR_THEME_SETTING).value;
+			let colorThemeSetting = this.configurationService.getValue<string>(COLOR_THEME_SETTING);
 			if (colorThemeSetting !== this.currentColorTheme.settingsId) {
 				this.colorThemeStore.findThemeDataBySettingsId(colorThemeSetting, null).then(theme => {
 					if (theme) {
@@ -246,7 +245,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 				});
 			}
 
-			let iconThemeSetting = this.configurationService.lookup<string>(ICON_THEME_SETTING).value || '';
+			let iconThemeSetting = this.configurationService.getValue<string>(ICON_THEME_SETTING) || '';
 			if (iconThemeSetting !== this.currentIconTheme.settingsId) {
 				this.iconThemeStore.findThemeBySettingsId(iconThemeSetting).then(theme => {
 					this.setFileIconTheme(theme && theme.id, null);
@@ -375,10 +374,10 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	}
 
 	private updateColorCustomizations(notify = true): void {
-		let newColorCustomizations = this.configurationService.lookup<IColorCustomizations>(CUSTOM_WORKBENCH_COLORS_SETTING).value || {};
+		let newColorCustomizations = this.configurationService.getValue<IColorCustomizations>(CUSTOM_WORKBENCH_COLORS_SETTING) || {};
 		let newColorIds = Object.keys(newColorCustomizations);
 
-		let newTokenColorCustomizations = this.configurationService.lookup<ITokenColorCustomizations>(CUSTOM_EDITOR_COLORS_SETTING).value || {};
+		let newTokenColorCustomizations = this.configurationService.getValue<ITokenColorCustomizations>(CUSTOM_EDITOR_COLORS_SETTING) || {};
 
 		if (this.hasCustomizationChanged(newColorCustomizations, newColorIds, newTokenColorCustomizations)) {
 			this.colorCustomizations = newColorCustomizations;
@@ -507,11 +506,11 @@ colorThemeSchema.register();
 fileIconThemeSchema.register();
 
 class ConfigurationWriter {
-	constructor( @IConfigurationService private configurationService: IConfigurationService, @IConfigurationEditingService private configurationEditingService: IConfigurationEditingService) {
+	constructor( @IConfigurationService private configurationService: IConfigurationService) {
 	}
 
 	public writeConfiguration(key: string, value: any, settingsTarget: ConfigurationTarget): TPromise<void> {
-		let settings = this.configurationService.lookup(key);
+		let settings = this.configurationService.inspect(key);
 		if (settingsTarget === ConfigurationTarget.USER) {
 			if (value === settings.user) {
 				return TPromise.as(null); // nothing to do
@@ -526,14 +525,14 @@ class ConfigurationWriter {
 				return TPromise.as(null); // nothing to do
 			}
 		}
-		return this.configurationEditingService.writeConfiguration(settingsTarget, { key, value });
+		return this.configurationService.updateValue(key, value, settingsTarget);
 	}
 }
 
 // Configuration: Themes
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
-const colorThemeSettingSchema: IJSONSchema = {
+const colorThemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'string',
 	description: nls.localize('colorTheme', "Specifies the color theme used in the workbench."),
 	default: DEFAULT_THEME_SETTING_VALUE,
@@ -542,7 +541,7 @@ const colorThemeSettingSchema: IJSONSchema = {
 	errorMessage: nls.localize('colorThemeError', "Theme is unknown or not installed."),
 };
 
-const iconThemeSettingSchema: IJSONSchema = {
+const iconThemeSettingSchema: IConfigurationPropertySchema = {
 	type: ['string', 'null'],
 	default: DEFAULT_ICON_THEME_SETTING_VALUE,
 	description: nls.localize('iconTheme', "Specifies the icon theme used in the workbench or 'null' to not show any file icons."),
@@ -550,7 +549,7 @@ const iconThemeSettingSchema: IJSONSchema = {
 	enumDescriptions: [nls.localize('noIconThemeDesc', 'No file icons')],
 	errorMessage: nls.localize('iconThemeError', "File icon theme is unknown or not installed.")
 };
-const colorCustomizationsSchema: IJSONSchema = {
+const colorCustomizationsSchema: IConfigurationPropertySchema = {
 	type: ['object'],
 	description: nls.localize('workbenchColors', "Overrides colors from the currently selected color theme."),
 	properties: colorThemeSchema.colorsSchema.properties,
@@ -565,7 +564,7 @@ const colorCustomizationsSchema: IJSONSchema = {
 	}]
 };
 
-configurationRegistry.registerConfiguration({
+const themeSettingsConfiguration: IConfigurationNode = {
 	id: 'workbench',
 	order: 7.1,
 	type: 'object',
@@ -574,7 +573,8 @@ configurationRegistry.registerConfiguration({
 		[ICON_THEME_SETTING]: iconThemeSettingSchema,
 		[CUSTOM_WORKBENCH_COLORS_SETTING]: colorCustomizationsSchema
 	}
-});
+};
+configurationRegistry.registerConfiguration(themeSettingsConfiguration);
 
 function tokenGroupSettings(description: string) {
 	return {
@@ -583,8 +583,7 @@ function tokenGroupSettings(description: string) {
 		anyOf: [
 			{
 				type: 'string',
-				format: 'color',
-				defaultSnippets: [{ body: '#FF0000' }]
+				format: 'color-hex'
 			},
 			colorThemeSchema.tokenColorizationSettingSchema
 		]

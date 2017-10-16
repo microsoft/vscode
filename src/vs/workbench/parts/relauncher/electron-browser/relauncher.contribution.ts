@@ -130,7 +130,7 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 	private doConfirm(message: string, detail: string, primaryButton: string, confirmed: () => void): void {
 		this.windowService.isFocused().then(focused => {
 			if (focused) {
-				const confirm = this.messageService.confirm({
+				const confirm = this.messageService.confirmSync({
 					type: 'info',
 					message,
 					detail,

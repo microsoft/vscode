@@ -130,6 +130,31 @@
                             "type": "string",
                             "default": " ",
                             "description": "%emmetPreferencesStylusBetween%"
+                        },
+                        "bem.elementSeparator": {
+                            "type": "string",
+                            "default": "__",
+                            "description": "%emmetPreferencesBemElementSeparator%"
+                        },
+                        "bem.modifierSeparator": {
+                            "type": "string",
+                            "default": "_",
+                            "description": "%emmetPreferencesBemModifierSeparator%"
+                        },
+                        "filter.commentBefore": {
+                            "type": "string",
+                            "default": "",
+                            "description": "%emmetPreferencesFilterCommentBefore%"
+                        },
+                        "filter.commentAfter": {
+                            "type": "string",
+                            "default": "\n<!-- /[#ID][.CLASS] -->",
+                            "description": "%emmetPreferencesFilterCommentAfter%"
+                        },
+                        "filter.commentTrigger": {
+                            "type": "array",
+                            "default": ["id", "class"],
+                            "description": "%emmetPreferencesFilterCommentTrigger%"
                         }
                     }
                 },

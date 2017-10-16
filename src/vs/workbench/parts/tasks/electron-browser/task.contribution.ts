@@ -35,7 +35,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IMessageService, IChoiceService } from 'vs/platform/message/common/message';
 import { IMarkerService, MarkerStatistics } from 'vs/platform/markers/common/markers';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -63,7 +63,6 @@ import Constants from 'vs/workbench/parts/markers/common/constants';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IConfigurationEditingService, ConfigurationTarget, IConfigurationValue } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -551,7 +550,6 @@ class TaskService extends EventEmitter implements ITaskService {
 
 	private modeService: IModeService;
 	private configurationService: IConfigurationService;
-	private configurationEditingService: IConfigurationEditingService;
 	private markerService: IMarkerService;
 	private outputService: IOutputService;
 	private messageService: IMessageService;
@@ -582,7 +580,6 @@ class TaskService extends EventEmitter implements ITaskService {
 	private _outputChannel: IOutputChannel;
 
 	constructor( @IModeService modeService: IModeService, @IConfigurationService configurationService: IConfigurationService,
-		@IConfigurationEditingService configurationEditingService: IConfigurationEditingService,
 		@IMarkerService markerService: IMarkerService, @IOutputService outputService: IOutputService,
 		@IMessageService messageService: IMessageService, @IChoiceService choiceService: IChoiceService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
@@ -604,7 +601,6 @@ class TaskService extends EventEmitter implements ITaskService {
 		super();
 		this.modeService = modeService;
 		this.configurationService = configurationService;
-		this.configurationEditingService = configurationEditingService;
 		this.markerService = markerService;
 		this.outputService = outputService;
 		this.messageService = messageService;
@@ -1108,32 +1104,25 @@ class TaskService extends EventEmitter implements ITaskService {
 			}
 			promise = this.fileService.createFile(workspaceFolder.toResource('.vscode/tasks.json'), content).then(() => { });
 		} else {
-			let value: IConfigurationValue = { key: undefined, value: undefined };
 			// We have a global task configuration
 			if (index === -1) {
 				if (properties.problemMatcher !== void 0) {
 					fileConfig.problemMatcher = properties.problemMatcher;
-					value.key = 'tasks.problemMatchers';
-					value.value = fileConfig.problemMatcher;
-					promise = this.writeConfiguration(workspaceFolder, value);
+					promise = this.writeConfiguration(workspaceFolder, 'tasks.problemMatchers', fileConfig.problemMatcher);
 				} else if (properties.group !== void 0) {
 					fileConfig.group = properties.group;
-					value.key = 'tasks.group';
-					value.value = fileConfig.group;
-					promise = this.writeConfiguration(workspaceFolder, value);
+					promise = this.writeConfiguration(workspaceFolder, 'tasks.group', fileConfig.group);
 				}
 			} else {
 				if (!Array.isArray(fileConfig.tasks)) {
 					fileConfig.tasks = [];
 				}
-				value.key = 'tasks.tasks';
-				value.value = fileConfig.tasks;
 				if (index === void 0) {
 					fileConfig.tasks.push(toCustomize);
 				} else {
 					fileConfig.tasks[index] = toCustomize;
 				}
-				promise = this.writeConfiguration(workspaceFolder, value);
+				promise = this.writeConfiguration(workspaceFolder, 'tasks.tasks', fileConfig.tasks);
 			}
 		};
 		if (!promise) {
@@ -1162,11 +1151,11 @@ class TaskService extends EventEmitter implements ITaskService {
 		});
 	}
 
-	private writeConfiguration(workspaceFolder: IWorkspaceFolder, value: IConfigurationValue): TPromise<void, any> {
+	private writeConfiguration(workspaceFolder: IWorkspaceFolder, key: string, value: any): TPromise<void, any> {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
-			return this.configurationEditingService.writeConfiguration(ConfigurationTarget.WORKSPACE, value);
+			return this.configurationService.updateValue(key, value, { resource: workspaceFolder.uri }, ConfigurationTarget.WORKSPACE);
 		} else if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
-			return this.configurationEditingService.writeConfiguration(ConfigurationTarget.FOLDER, value, { scopes: { resource: workspaceFolder.uri } });
+			return this.configurationService.updateValue(key, value, { resource: workspaceFolder.uri }, ConfigurationTarget.WORKSPACE_FOLDER);
 		} else {
 			return undefined;
 		}
@@ -1421,6 +1410,8 @@ class TaskService extends EventEmitter implements ITaskService {
 						let legacyTaskConfigurations = folderTasks.set ? this.getLegacyTaskConfigurations(folderTasks.set) : undefined;
 						let customTasksToDelete: Task[] = [];
 						if (configurations || legacyTaskConfigurations) {
+							let unUsedConfigurations: Set<string> = new Set<string>();
+							Object.keys(configurations.byIdentifier).forEach(key => unUsedConfigurations.add(key));
 							for (let task of contributed) {
 								if (!ContributedTask.is(task)) {
 									continue;
@@ -1428,6 +1419,7 @@ class TaskService extends EventEmitter implements ITaskService {
 								if (configurations) {
 									let configuringTask = configurations.byIdentifier[task.defines._key];
 									if (configuringTask) {
+										unUsedConfigurations.delete(task.defines._key);
 										result.add(key, TaskConfig.createCustomTask(task, configuringTask));
 									} else {
 										result.add(key, task);
@@ -1458,6 +1450,16 @@ class TaskService extends EventEmitter implements ITaskService {
 							} else {
 								result.add(key, ...folderTasks.set.tasks);
 							}
+							unUsedConfigurations.forEach((value) => {
+								let configuringTask = configurations.byIdentifier[value];
+								this._outputChannel.append(nls.localize(
+									'TaskService.noConfiguration',
+									'Error: The {0} task detection didn\'t contribute a task for the following configuration:\n{1}\nThe task will be ignored.\n',
+									configuringTask.configures.type,
+									JSON.stringify(configuringTask._source.config.element, undefined, 4)
+								));
+								this.showOutput();
+							});
 						} else {
 							result.add(key, ...folderTasks.set.tasks);
 							result.add(key, ...contributed);
@@ -1749,7 +1751,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (this._taskSystem instanceof TerminalTaskSystem) {
 			return false;
 		}
-		if (this._taskSystem.canAutoTerminate() || this.messageService.confirm({
+		if (this._taskSystem.canAutoTerminate() || this.messageService.confirmSync({
 			message: nls.localize('TaskSystem.runningTask', 'There is a task running. Do you want to terminate it?'),
 			primaryButton: nls.localize({ key: 'TaskSystem.terminateTask', comment: ['&& denotes a mnemonic'] }, "&&Terminate Task"),
 			type: 'question'
@@ -1771,7 +1773,7 @@ class TaskService extends EventEmitter implements ITaskService {
 					this.disposeTaskSystemListeners();
 					return false; // no veto
 				} else if (code && code === TerminateResponseCode.ProcessNotFound) {
-					return !this.messageService.confirm({
+					return !this.messageService.confirmSync({
 						message: nls.localize('TaskSystem.noProcess', 'The launched task doesn\'t exist anymore. If the task spawned background processes exiting VS Code might result in orphaned processes. To avoid this start the last background process with a wait flag.'),
 						primaryButton: nls.localize({ key: 'TaskSystem.exitAnyways', comment: ['&& denotes a mnemonic'] }, "&&Exit Anyways"),
 						type: 'info'

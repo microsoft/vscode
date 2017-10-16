@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
 import Event, { Emitter } from 'vs/base/common/event';
 import { toThenable } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -77,7 +76,7 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 			};
 		}
 
-		return this._proxy.$tryShowTextDocument(<URI>document.uri, options).then(id => {
+		return this._proxy.$tryShowTextDocument(document.uri, options).then(id => {
 			let editor = this._extHostDocumentsAndEditors.getEditor(id);
 			if (editor) {
 				return editor;
@@ -106,7 +105,7 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 			}
 
 			let workspaceResourceEdit: IWorkspaceResourceEdit = {
-				resource: <URI>uri,
+				resource: uri,
 				modelVersionId: docVersion,
 				edits: []
 			};

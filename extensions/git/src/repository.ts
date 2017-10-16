@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace, WorkspaceEdit } from 'vscode';
+import { Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, ThemeColor } from 'vscode';
 import { Repository as BaseRepository, Ref, Branch, Remote, Commit, GitErrorCodes, Stash, RefType } from './git';
 import { anyEvent, filterEvent, eventToPromise, dispose, find } from './util';
 import { memoize, throttle, debounce } from './decorators';
@@ -170,14 +170,27 @@ export class Resource implements SourceControlResourceState {
 		// return this.resourceUri.fsPath.substr(0, workspaceRootPath.length) !== workspaceRootPath;
 	}
 
+	private get color(): ThemeColor | undefined {
+		switch (this.type) {
+			case Status.INDEX_MODIFIED:
+			case Status.MODIFIED:
+				return new ThemeColor('git.color.modified');
+			case Status.UNTRACKED:
+				return new ThemeColor('git.color.untracked');
+			default:
+				return undefined;
+		}
+	}
+
 	get decorations(): SourceControlResourceDecorations {
 		const light = { iconPath: this.getIconPath('light') };
 		const dark = { iconPath: this.getIconPath('dark') };
 		const tooltip = this.tooltip;
 		const strikeThrough = this.strikeThrough;
 		const faded = this.faded;
+		const color = this.color;
 
-		return { strikeThrough, faded, tooltip, light, dark };
+		return { strikeThrough, faded, tooltip, light, dark, color };
 	}
 
 	constructor(
@@ -301,6 +314,9 @@ export class Repository implements Disposable {
 
 	private _onDidChangeStatus = new EventEmitter<void>();
 	readonly onDidChangeStatus: Event<void> = this._onDidChangeStatus.event;
+
+	private _onDidChangeOriginalResource = new EventEmitter<Uri>();
+	readonly onDidChangeOriginalResource: Event<Uri> = this._onDidChangeOriginalResource.event;
 
 	private _onRunOperation = new EventEmitter<Operation>();
 	readonly onRunOperation: Event<Operation> = this._onRunOperation.event;
@@ -447,6 +463,7 @@ export class Repository implements Disposable {
 	async stage(resource: Uri, contents: string): Promise<void> {
 		const relativePath = path.relative(this.repository.root, resource.fsPath).replace(/\\/g, '/');
 		await this.run(Operation.Stage, () => this.repository.stage(relativePath, contents));
+		this._onDidChangeOriginalResource.fire(resource);
 	}
 
 	async revert(resources: Uri[]): Promise<void> {

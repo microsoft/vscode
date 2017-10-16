@@ -124,6 +124,7 @@ suite('AbstractKeybindingService', () => {
 			let messageService: IMessageService = {
 				_serviceBrand: undefined,
 				hideAll: undefined,
+				confirmSync: undefined,
 				confirm: undefined,
 				show: (sev: Severity, message: any): () => void => {
 					showMessageCalls.push({

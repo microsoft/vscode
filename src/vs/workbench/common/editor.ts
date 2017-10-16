@@ -11,7 +11,7 @@ import types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IEditor, IEditorViewState, IModel, ScrollType } from 'vs/editor/common/editorCommon';
-import { IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, Position, Verbosity } from 'vs/platform/editor/common/editor';
+import { IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, Position, Verbosity, IEditor as IBaseEditor } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -257,6 +257,48 @@ export abstract class EditorInput implements IEditorInput {
 	 */
 	public isDisposed(): boolean {
 		return this.disposed;
+	}
+}
+
+export interface IEditorOpeningEvent {
+	input: IEditorInput;
+	options?: IEditorOptions;
+	position: Position;
+
+	/**
+	 * Allows to prevent the opening of an editor by providing a callback
+	 * that will be executed instead. By returning another editor promise
+	 * it is possible to override the opening with another editor. It is ok
+	 * to return a promise that resolves to NULL to prevent the opening
+	 * altogether.
+	 */
+	prevent(callback: () => TPromise<IBaseEditor>): void;
+}
+
+export class EditorOpeningEvent {
+	private override: () => TPromise<IBaseEditor>;
+
+	constructor(private _input: IEditorInput, private _options: IEditorOptions, private _position: Position) {
+	}
+
+	public get input(): IEditorInput {
+		return this._input;
+	}
+
+	public get options(): IEditorOptions {
+		return this._options;
+	}
+
+	public get position(): Position {
+		return this._position;
+	}
+
+	public prevent(callback: () => TPromise<IBaseEditor>): void {
+		this.override = callback;
+	}
+
+	public isPrevented(): () => TPromise<IBaseEditor> {
+		return this.override;
 	}
 }
 

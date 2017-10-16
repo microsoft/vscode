@@ -23,8 +23,7 @@ import { IWorkspaceContextService, IWorkspaceFolder, IWorkspace } from 'vs/platf
 import { Schemas } from 'vs/base/common/network';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IExtensionsConfiguration, ConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import * as pfs from 'vs/base/node/pfs';
 import * as os from 'os';
@@ -59,7 +58,6 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		@IFileService private fileService: IFileService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
 		@IMessageService private messageService: IMessageService,
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
@@ -449,9 +447,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 	}
 
 	private setIgnoreRecommendationsConfig(configVal: boolean) {
-		let target = ConfigurationTarget.USER;
-		const configKey = 'extensions.ignoreRecommendations';
-		this.configurationEditingService.writeConfiguration(target, { key: configKey, value: configVal });
+		this.configurationService.updateValue('extensions.ignoreRecommendations', configVal, ConfigurationTarget.USER);
 		if (configVal) {
 			const ignoreWorkspaceRecommendationsStorageKey = 'extensionsAssistant/workspaceRecommendationsIgnore';
 			this.storageService.store(ignoreWorkspaceRecommendationsStorageKey, true, StorageScope.WORKSPACE);

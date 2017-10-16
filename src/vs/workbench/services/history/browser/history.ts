@@ -224,7 +224,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	private getExcludes(root?: URI): IExpression {
 		const scope = root ? { resource: root } : void 0;
 
-		return getExcludes(this.configurationService.getConfiguration<ISearchConfiguration>(void 0, scope));
+		return getExcludes(this.configurationService.getConfiguration<ISearchConfiguration>(scope));
 	}
 
 	private registerListeners(): void {

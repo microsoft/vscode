@@ -43,7 +43,7 @@ export abstract class TerminalService implements ITerminalService {
 
 	constructor(
 		@IContextKeyService private _contextKeyService: IContextKeyService,
-		@IConfigurationService private _configurationService: IConfigurationService,
+		@IConfigurationService protected _configurationService: IConfigurationService,
 		@IPanelService protected _panelService: IPanelService,
 		@IPartService private _partService: IPartService,
 		@ILifecycleService lifecycleService: ILifecycleService

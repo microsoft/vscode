@@ -55,7 +55,7 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 
 	private registerListeners(): void {
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => {
-			if (e.sourceConfig.launch) {
+			if (e.affectsConfiguration('launch')) {
 				this.updateOptions();
 			}
 		}));

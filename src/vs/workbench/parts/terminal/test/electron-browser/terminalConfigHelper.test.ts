@@ -6,24 +6,25 @@
 'use strict';
 
 import * as assert from 'assert';
-import { IConfigurationService, getConfigurationValue, IConfigurationValue, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, getConfigurationValue, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 import { Platform } from 'vs/base/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
-
+import { isFedora } from 'vs/workbench/parts/terminal/electron-browser/terminal';
 
 class MockConfigurationService implements IConfigurationService {
 	public _serviceBrand: any;
 	public serviceId = IConfigurationService;
 	public constructor(private configuration: any = {}) { }
-	public reloadConfiguration<T>(section?: string): TPromise<T> { return TPromise.as(this.getConfiguration()); }
-	public lookup<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> { return { value: getConfigurationValue<T>(this.getConfiguration(), key), default: getConfigurationValue<T>(this.getConfiguration(), key), user: getConfigurationValue<T>(this.getConfiguration(), key), workspace: void 0, folder: void 0 }; }
-	public keys() { return { default: [], user: [], workspace: [], folder: [] }; }
-	public values() { return {}; }
+	public inspect<T>(key: string, overrides?: IConfigurationOverrides): any { return { value: getConfigurationValue<T>(this.getConfiguration(), key), default: getConfigurationValue<T>(this.getConfiguration(), key), user: getConfigurationValue<T>(this.getConfiguration(), key), workspace: void 0, workspaceFolder: void 0 }; }
+	public keys() { return { default: [], user: [], workspace: [], workspaceFolder: [] }; }
 	public getConfiguration(): any { return this.configuration; }
+	public getValue<T>(key: string, overrides?: IConfigurationOverrides): T { return getConfigurationValue<T>(this.getConfiguration(), key); }
+	public updateValue<T>(): TPromise<void> { return null; }
 	public getConfigurationData(): any { return null; }
 	public onDidUpdateConfiguration() { return { dispose() { } }; }
+	public reloadConfiguration() { return null; }
 }
 
 suite('Workbench - TerminalConfigHelper', () => {
@@ -63,7 +64,11 @@ suite('Workbench - TerminalConfigHelper', () => {
 		});
 		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, null, null, null);
 		configHelper.panelContainer = fixture;
-		assert.equal(configHelper.getFont().fontFamily, 'foo', 'editor.fontFamily should be the fallback when terminal.integrated.fontFamily not set');
+		if (isFedora) {
+			assert.equal(configHelper.getFont().fontFamily, '\'DejaVu Sans Mono\'', 'Fedora should have its font overridden when terminal.integrated.fontFamily not set');
+		} else {
+			assert.equal(configHelper.getFont().fontFamily, 'foo', 'editor.fontFamily should be the fallback when terminal.integrated.fontFamily not set');
+		}
 	});
 
 	test('TerminalConfigHelper - getFont fontSize', function () {
