@@ -16,7 +16,7 @@ export type ScorerCache = { [key: string]: IItemScore };
 
 const NO_SCORE: Score = [0, []];
 
-export function _doScore(target: string, query: string, fuzzy: boolean): Score {
+export function _doScore(target: string, query: string, queryLower: string, fuzzy: boolean): Score {
 	if (!target || !query) {
 		return NO_SCORE; // return early if target or query are undefined
 	}
@@ -29,7 +29,6 @@ export function _doScore(target: string, query: string, fuzzy: boolean): Score {
 
 	const queryLen = query.length;
 	const targetLower = target.toLowerCase();
-	const queryLower = query.toLowerCase();
 
 	let res = NO_SCORE;
 
@@ -236,8 +235,34 @@ const LABEL_PREFIX_SCORE = 1 << 17;
 const LABEL_CAMELCASE_SCORE = 1 << 16;
 const LABEL_SCORE_THRESHOLD = 1 << 15;
 
-export function scoreItem<T>(item: T, query: string, fuzzy: boolean, accessor: IItemAccessor<T>, cache: ScorerCache): IItemScore {
-	if (!item || !query) {
+export interface IPreparedQuery {
+	value: string;
+	lowercase: string;
+	containsPathSeparator: boolean;
+}
+
+/**
+ * Helper function to prepare a search value for scoring in quick open by removing unwanted characters.
+ */
+export function prepareQuery(value: string): IPreparedQuery {
+	let lowercase: string;
+	let containsPathSeparator: boolean;
+
+	if (value) {
+		value = stripWildcards(value).replace(/\s/g, ''); // get rid of all wildcards and whitespace
+		if (isWindows) {
+			value = value.replace(/\//g, '\\'); // Help Windows users to search for paths when using slash
+		}
+
+		lowercase = value.toLowerCase();
+		containsPathSeparator = value.indexOf(nativeSep) >= 0;
+	}
+
+	return { value, lowercase, containsPathSeparator };
+}
+
+export function scoreItem<T>(item: T, query: IPreparedQuery, fuzzy: boolean, accessor: IItemAccessor<T>, cache: ScorerCache): IItemScore {
+	if (!item || !query.value) {
 		return NO_ITEM_SCORE; // we need an item and query to score on at least
 	}
 
@@ -250,9 +275,9 @@ export function scoreItem<T>(item: T, query: string, fuzzy: boolean, accessor: I
 
 	let cacheHash: string;
 	if (description) {
-		cacheHash = `${label}${description}${query}${fuzzy}`;
+		cacheHash = `${label}${description}${query.value}${fuzzy}`;
 	} else {
-		cacheHash = `${label}${query}${fuzzy}`;
+		cacheHash = `${label}${query.value}${fuzzy}`;
 	}
 
 	const cached = cache[cacheHash];
@@ -266,31 +291,31 @@ export function scoreItem<T>(item: T, query: string, fuzzy: boolean, accessor: I
 	return itemScore;
 }
 
-function doScoreItem<T>(label: string, description: string, path: string, query: string, fuzzy: boolean): IItemScore {
+function doScoreItem<T>(label: string, description: string, path: string, query: IPreparedQuery, fuzzy: boolean): IItemScore {
 
 	// 1.) treat identity matches on full path highest
-	if (path && isEqual(query, path, true)) {
+	if (path && isEqual(query.value, path, true)) {
 		return { score: PATH_IDENTITY_SCORE, labelMatch: [{ start: 0, end: label.length }], descriptionMatch: description ? [{ start: 0, end: description.length }] : void 0 };
 	}
 
 	// We only consider label matches if the query is not including file path separators
-	const preferLabelMatches = !path || query.indexOf(nativeSep) === -1;
+	const preferLabelMatches = !path || !query.containsPathSeparator;
 	if (preferLabelMatches) {
 
 		// 2.) treat prefix matches on the label second highest
-		const prefixLabelMatch = matchesPrefix(query, label);
+		const prefixLabelMatch = matchesPrefix(query.value, label);
 		if (prefixLabelMatch) {
 			return { score: LABEL_PREFIX_SCORE, labelMatch: prefixLabelMatch };
 		}
 
 		// 3.) treat camelcase matches on the label third highest
-		const camelcaseLabelMatch = matchesCamelCase(query, label);
+		const camelcaseLabelMatch = matchesCamelCase(query.value, label);
 		if (camelcaseLabelMatch) {
 			return { score: LABEL_CAMELCASE_SCORE, labelMatch: camelcaseLabelMatch };
 		}
 
 		// 4.) prefer scores on the label if any
-		const [labelScore, labelPositions] = _doScore(label, query, fuzzy);
+		const [labelScore, labelPositions] = _doScore(label, query.value, query.lowercase, fuzzy);
 		if (labelScore) {
 			return { score: labelScore + LABEL_SCORE_THRESHOLD, labelMatch: createMatches(labelPositions) };
 		}
@@ -306,7 +331,7 @@ function doScoreItem<T>(label: string, description: string, path: string, query:
 		const descriptionPrefixLength = descriptionPrefix.length;
 		const descriptionAndLabel = `${descriptionPrefix}${label}`;
 
-		const [labelDescriptionScore, labelDescriptionPositions] = _doScore(descriptionAndLabel, query, fuzzy);
+		const [labelDescriptionScore, labelDescriptionPositions] = _doScore(descriptionAndLabel, query.value, query.lowercase, fuzzy);
 		if (labelDescriptionScore) {
 			const labelDescriptionMatches = createMatches(labelDescriptionPositions);
 			const labelMatch: IMatch[] = [];
@@ -339,7 +364,7 @@ function doScoreItem<T>(label: string, description: string, path: string, query:
 	return NO_ITEM_SCORE;
 }
 
-export function compareItemsByScore<T>(itemA: T, itemB: T, query: string, fuzzy: boolean, accessor: IItemAccessor<T>, cache: ScorerCache, fallbackComparer = fallbackCompare): number {
+export function compareItemsByScore<T>(itemA: T, itemB: T, query: IPreparedQuery, fuzzy: boolean, accessor: IItemAccessor<T>, cache: ScorerCache, fallbackComparer = fallbackCompare): number {
 	const itemScoreA = scoreItem(itemA, query, fuzzy, accessor, cache);
 	const itemScoreB = scoreItem(itemB, query, fuzzy, accessor, cache);
 
@@ -482,7 +507,7 @@ function compareByMatchLength(matchesA?: IMatch[], matchesB?: IMatch[]): number 
 	return matchLengthA === matchLengthB ? 0 : matchLengthB < matchLengthA ? 1 : -1;
 }
 
-export function fallbackCompare<T>(itemA: T, itemB: T, query: string, accessor: IItemAccessor<T>): number {
+export function fallbackCompare<T>(itemA: T, itemB: T, query: IPreparedQuery, accessor: IItemAccessor<T>): number {
 
 	// check for label + description length and prefer shorter
 	const labelA = accessor.getItemLabel(itemA);
@@ -510,33 +535,19 @@ export function fallbackCompare<T>(itemA: T, itemB: T, query: string, accessor: 
 
 	// compare by label
 	if (labelA !== labelB) {
-		return compareAnything(labelA, labelB, query);
+		return compareAnything(labelA, labelB, query.value);
 	}
 
 	// compare by description
 	if (descriptionA && descriptionB && descriptionA !== descriptionB) {
-		return compareAnything(descriptionA, descriptionB, query);
+		return compareAnything(descriptionA, descriptionB, query.value);
 	}
 
 	// compare by path
 	if (pathA && pathB && pathA !== pathB) {
-		return compareAnything(pathA, pathB, query);
+		return compareAnything(pathA, pathB, query.value);
 	}
 
 	// equal
 	return 0;
-}
-
-/**
- * Helper function to prepare a search value for scoring in quick open by removing unwanted characters.
- */
-export function massageSearchForScoring(searchValue: string): string {
-	if (searchValue) {
-		searchValue = stripWildcards(searchValue).replace(/\s/g, ''); // get rid of all wildcards and whitespace
-		if (isWindows) {
-			searchValue = searchValue.replace(/\//g, '\\'); // Help Windows users to search for paths when using slash
-		}
-	}
-
-	return searchValue;
 }

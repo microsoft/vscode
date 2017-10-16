@@ -23,7 +23,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchSearchConfiguration } from 'vs/workbench/parts/search/common/search';
 import { IRange } from 'vs/editor/common/core/range';
-import { compareItemsByScore, scoreItem, ScorerCache, massageSearchForScoring } from 'vs/base/parts/quickopen/common/quickOpenScorer';
+import { compareItemsByScore, scoreItem, ScorerCache, prepareQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 
 export import OpenSymbolHandler = openSymbolHandler.OpenSymbolHandler; // OpenSymbolHandler is used from an extension and must be in the main bundle file so it can load
 
@@ -173,15 +173,16 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		this.cancelPendingSearch();
 		this.isClosed = false; // Treat this call as the handler being in use
 
-		// Massage search for scoring
-		searchValue = massageSearchForScoring(searchValue);
+		// Prepare search for scoring
+		const query = prepareQuery(searchValue);
 
-		const searchWithRange = this.extractRange(searchValue); // Find a suitable range from the pattern looking for ":" and "#"
+		const searchWithRange = this.extractRange(query.value); // Find a suitable range from the pattern looking for ":" and "#"
 		if (searchWithRange) {
-			searchValue = searchWithRange.search; // ignore range portion in query
+			query.value = searchWithRange.search; // ignore range portion in query
+			query.lowercase = query.value.toLowerCase();
 		}
 
-		if (!searchValue) {
+		if (!query.value) {
 			return TPromise.as(new QuickOpenModel()); // Respond directly to empty search
 		}
 
@@ -190,12 +191,12 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			const resultPromises: TPromise<QuickOpenModel | FileQuickOpenModel>[] = [];
 
 			// File Results
-			const filePromise = this.openFileHandler.getResults(searchValue, OpenAnythingHandler.MAX_DISPLAYED_RESULTS);
+			const filePromise = this.openFileHandler.getResults(query.value, OpenAnythingHandler.MAX_DISPLAYED_RESULTS);
 			resultPromises.push(filePromise);
 
 			// Symbol Results (unless disabled or a range or absolute path is specified)
 			if (this.includeSymbols && !searchWithRange) {
-				resultPromises.push(this.openSymbolHandler.getResults(searchValue));
+				resultPromises.push(this.openSymbolHandler.getResults(query.value));
 			}
 
 			// Join and sort unified
@@ -212,7 +213,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 				// Sort
 				const unsortedResultTime = Date.now();
-				const compare = (elementA: QuickOpenEntry, elementB: QuickOpenEntry) => compareItemsByScore(elementA, elementB, searchValue, true, QuickOpenItemAccessor, this.scorerCache);
+				const compare = (elementA: QuickOpenEntry, elementB: QuickOpenEntry) => compareItemsByScore(elementA, elementB, query, true, QuickOpenItemAccessor, this.scorerCache);
 				const viewResults = arrays.top(mergedResults, compare, OpenAnythingHandler.MAX_DISPLAYED_RESULTS);
 				const sortedResultTime = Date.now();
 
@@ -221,7 +222,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 					if (entry instanceof FileEntry) {
 						entry.setRange(searchWithRange ? searchWithRange.range : null);
 
-						const itemScore = scoreItem(entry, searchValue, true, QuickOpenItemAccessor, this.scorerCache);
+						const itemScore = scoreItem(entry, query, true, QuickOpenItemAccessor, this.scorerCache);
 						entry.setHighlights(itemScore.labelMatch, itemScore.descriptionMatch);
 					}
 				});
@@ -229,7 +230,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 				const duration = new Date().getTime() - startTime;
 				filePromise.then(fileModel => {
 					const data = this.createTimerEventData(startTime, {
-						searchLength: searchValue.length,
+						searchLength: query.value.length,
 						unsortedResultTime,
 						sortedResultTime,
 						resultCount: mergedResults.length,

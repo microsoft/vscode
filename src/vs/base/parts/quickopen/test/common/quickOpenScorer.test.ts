@@ -8,7 +8,7 @@
 import * as assert from 'assert';
 import * as scorer from 'vs/base/parts/quickopen/common/quickOpenScorer';
 import URI from 'vs/base/common/uri';
-import { basename, dirname } from 'vs/base/common/paths';
+import { basename, dirname, nativeSep } from 'vs/base/common/paths';
 import { isWindows } from 'vs/base/common/platform';
 
 class ResourceAccessorClass implements scorer.IItemAccessor<URI> {
@@ -43,28 +43,44 @@ class NullAccessorClass implements scorer.IItemAccessor<URI> {
 	}
 }
 
+function _doScore(target: string, query: string, fuzzy: boolean): scorer.Score {
+	return scorer._doScore(target, query, query.toLowerCase(), fuzzy);
+}
+
+function scoreItem<T>(item: T, query: string, fuzzy: boolean, accessor: scorer.IItemAccessor<T>, cache: scorer.ScorerCache): scorer.IItemScore {
+	return scorer.scoreItem(item, scorer.prepareQuery(query), fuzzy, accessor, cache);
+}
+
+function compareItemsByScore<T>(itemA: T, itemB: T, query: string, fuzzy: boolean, accessor: scorer.IItemAccessor<T>, cache: scorer.ScorerCache, fallbackComparer = scorer.fallbackCompare): number {
+	return scorer.compareItemsByScore(itemA, itemB, scorer.prepareQuery(query), fuzzy, accessor, cache, fallbackComparer);
+}
+
 const NullAccessor = new NullAccessorClass();
-const cache: scorer.ScorerCache = Object.create(null);
+let cache: scorer.ScorerCache = Object.create(null);
 
 suite('Quick Open Scorer', () => {
+
+	setup(() => {
+		cache = Object.create(null);
+	});
 
 	test('score (fuzzy)', function () {
 		const target = 'HeLlo-World';
 
 		const scores: scorer.Score[] = [];
-		scores.push(scorer._doScore(target, 'HelLo-World', true)); // direct case match
-		scores.push(scorer._doScore(target, 'hello-world', true)); // direct mix-case match
-		scores.push(scorer._doScore(target, 'HW', true)); // direct case prefix (multiple)
-		scores.push(scorer._doScore(target, 'hw', true)); // direct mix-case prefix (multiple)
-		scores.push(scorer._doScore(target, 'H', true)); // direct case prefix
-		scores.push(scorer._doScore(target, 'h', true)); // direct mix-case prefix
-		scores.push(scorer._doScore(target, 'ld', true)); // in-string mix-case match (consecutive, avoids scattered hit)
-		scores.push(scorer._doScore(target, 'W', true)); // direct case word prefix
-		scores.push(scorer._doScore(target, 'w', true)); // direct mix-case word prefix
-		scores.push(scorer._doScore(target, 'Ld', true)); // in-string case match (multiple)
-		scores.push(scorer._doScore(target, 'L', true)); // in-string case match
-		scores.push(scorer._doScore(target, 'l', true)); // in-string mix-case match
-		scores.push(scorer._doScore(target, '4', true)); // no match
+		scores.push(_doScore(target, 'HelLo-World', true)); // direct case match
+		scores.push(_doScore(target, 'hello-world', true)); // direct mix-case match
+		scores.push(_doScore(target, 'HW', true)); // direct case prefix (multiple)
+		scores.push(_doScore(target, 'hw', true)); // direct mix-case prefix (multiple)
+		scores.push(_doScore(target, 'H', true)); // direct case prefix
+		scores.push(_doScore(target, 'h', true)); // direct mix-case prefix
+		scores.push(_doScore(target, 'ld', true)); // in-string mix-case match (consecutive, avoids scattered hit)
+		scores.push(_doScore(target, 'W', true)); // direct case word prefix
+		scores.push(_doScore(target, 'w', true)); // direct mix-case word prefix
+		scores.push(_doScore(target, 'Ld', true)); // in-string case match (multiple)
+		scores.push(_doScore(target, 'L', true)); // in-string case match
+		scores.push(_doScore(target, 'l', true)); // in-string mix-case match
+		scores.push(_doScore(target, '4', true)); // no match
 
 		// Assert scoring order
 		let sortedScores = scores.concat().sort((a, b) => b[0] - a[0]);
@@ -83,28 +99,28 @@ suite('Quick Open Scorer', () => {
 	test('score (non fuzzy)', function () {
 		const target = 'HeLlo-World';
 
-		assert.ok(scorer._doScore(target, 'HelLo-World', false)[0] > 0);
-		assert.equal(scorer._doScore(target, 'HelLo-World', false)[1].length, 'HelLo-World'.length);
+		assert.ok(_doScore(target, 'HelLo-World', false)[0] > 0);
+		assert.equal(_doScore(target, 'HelLo-World', false)[1].length, 'HelLo-World'.length);
 
-		assert.ok(scorer._doScore(target, 'hello-world', false)[0] > 0);
-		assert.equal(scorer._doScore(target, 'HW', false)[0], 0);
-		assert.ok(scorer._doScore(target, 'h', false)[0] > 0);
-		assert.ok(scorer._doScore(target, 'ello', false)[0] > 0);
-		assert.ok(scorer._doScore(target, 'ld', false)[0] > 0);
-		assert.equal(scorer._doScore(target, 'eo', false)[0], 0);
+		assert.ok(_doScore(target, 'hello-world', false)[0] > 0);
+		assert.equal(_doScore(target, 'HW', false)[0], 0);
+		assert.ok(_doScore(target, 'h', false)[0] > 0);
+		assert.ok(_doScore(target, 'ello', false)[0] > 0);
+		assert.ok(_doScore(target, 'ld', false)[0] > 0);
+		assert.equal(_doScore(target, 'eo', false)[0], 0);
 	});
 
 	test('scoreItem - matches are proper', function () {
-		let res = scorer.scoreItem(null, 'something', true, ResourceAccessor, cache);
+		let res = scoreItem(null, 'something', true, ResourceAccessor, cache);
 		assert.ok(!res.score);
 
 		const resource = URI.file('/xyz/some/path/someFile123.txt');
 
-		res = scorer.scoreItem(resource, 'something', true, NullAccessor, cache);
+		res = scoreItem(resource, 'something', true, NullAccessor, cache);
 		assert.ok(!res.score);
 
 		// Path Identity
-		const identityRes = scorer.scoreItem(resource, ResourceAccessor.getItemPath(resource), true, ResourceAccessor, cache);
+		const identityRes = scoreItem(resource, ResourceAccessor.getItemPath(resource), true, ResourceAccessor, cache);
 		assert.ok(identityRes.score);
 		assert.equal(identityRes.descriptionMatch.length, 1);
 		assert.equal(identityRes.labelMatch.length, 1);
@@ -114,7 +130,7 @@ suite('Quick Open Scorer', () => {
 		assert.equal(identityRes.labelMatch[0].end, ResourceAccessor.getItemLabel(resource).length);
 
 		// Basename Prefix
-		const basenamePrefixRes = scorer.scoreItem(resource, 'som', true, ResourceAccessor, cache);
+		const basenamePrefixRes = scoreItem(resource, 'som', true, ResourceAccessor, cache);
 		assert.ok(basenamePrefixRes.score);
 		assert.ok(!basenamePrefixRes.descriptionMatch);
 		assert.equal(basenamePrefixRes.labelMatch.length, 1);
@@ -122,7 +138,7 @@ suite('Quick Open Scorer', () => {
 		assert.equal(basenamePrefixRes.labelMatch[0].end, 'som'.length);
 
 		// Basename Camelcase
-		const basenameCamelcaseRes = scorer.scoreItem(resource, 'sF', true, ResourceAccessor, cache);
+		const basenameCamelcaseRes = scoreItem(resource, 'sF', true, ResourceAccessor, cache);
 		assert.ok(basenameCamelcaseRes.score);
 		assert.ok(!basenameCamelcaseRes.descriptionMatch);
 		assert.equal(basenameCamelcaseRes.labelMatch.length, 2);
@@ -132,7 +148,7 @@ suite('Quick Open Scorer', () => {
 		assert.equal(basenameCamelcaseRes.labelMatch[1].end, 5);
 
 		// Basename Match
-		const basenameRes = scorer.scoreItem(resource, 'of', true, ResourceAccessor, cache);
+		const basenameRes = scoreItem(resource, 'of', true, ResourceAccessor, cache);
 		assert.ok(basenameRes.score);
 		assert.ok(!basenameRes.descriptionMatch);
 		assert.equal(basenameRes.labelMatch.length, 2);
@@ -142,7 +158,7 @@ suite('Quick Open Scorer', () => {
 		assert.equal(basenameRes.labelMatch[1].end, 5);
 
 		// Path Match
-		const pathRes = scorer.scoreItem(resource, 'xyz123', true, ResourceAccessor, cache);
+		const pathRes = scoreItem(resource, 'xyz123', true, ResourceAccessor, cache);
 		assert.ok(pathRes.score);
 		assert.ok(pathRes.descriptionMatch);
 		assert.ok(pathRes.labelMatch);
@@ -154,7 +170,7 @@ suite('Quick Open Scorer', () => {
 		assert.equal(pathRes.descriptionMatch[0].end, 4);
 
 		// No Match
-		const noRes = scorer.scoreItem(resource, '987', true, ResourceAccessor, cache);
+		const noRes = scoreItem(resource, '987', true, ResourceAccessor, cache);
 		assert.ok(!noRes.score);
 		assert.ok(!noRes.labelMatch);
 		assert.ok(!noRes.descriptionMatch);
@@ -168,10 +184,10 @@ suite('Quick Open Scorer', () => {
 
 	test('scoreItem - invalid input', function () {
 
-		let res = scorer.scoreItem(null, null, true, ResourceAccessor, cache);
+		let res = scoreItem(null, null, true, ResourceAccessor, cache);
 		assert.equal(res.score, 0);
 
-		res = scorer.scoreItem(null, 'null', true, ResourceAccessor, cache);
+		res = scoreItem(null, 'null', true, ResourceAccessor, cache);
 		assert.equal(res.score, 0);
 	});
 
@@ -181,7 +197,7 @@ suite('Quick Open Scorer', () => {
 		// xsp is more relevant to the end of the file path even though it matches
 		// fuzzy also in the beginning. we verify the more relevant match at the
 		// end gets returned.
-		const pathRes = scorer.scoreItem(resource, 'xspfile123', true, ResourceAccessor, cache);
+		const pathRes = scoreItem(resource, 'xspfile123', true, ResourceAccessor, cache);
 		assert.ok(pathRes.score);
 		assert.ok(pathRes.descriptionMatch);
 		assert.ok(pathRes.labelMatch);
@@ -198,7 +214,7 @@ suite('Quick Open Scorer', () => {
 
 		// expect "ad" to be matched towards the end of the file because the
 		// match is more compact
-		const res = scorer.scoreItem(resource, 'ad', true, ResourceAccessor, cache);
+		const res = scoreItem(resource, 'ad', true, ResourceAccessor, cache);
 		assert.ok(res.score);
 		assert.ok(res.descriptionMatch);
 		assert.ok(!res.labelMatch.length);
@@ -217,12 +233,12 @@ suite('Quick Open Scorer', () => {
 		// Full resource A path
 		let query = ResourceAccessor.getItemPath(resourceA);
 
-		let res = [resourceA, resourceB, resourceC].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		let res = [resourceA, resourceB, resourceC].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceA);
 		assert.equal(res[1], resourceB);
 		assert.equal(res[2], resourceC);
 
-		res = [resourceC, resourceB, resourceA].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		res = [resourceC, resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceA);
 		assert.equal(res[1], resourceB);
 		assert.equal(res[2], resourceC);
@@ -230,12 +246,12 @@ suite('Quick Open Scorer', () => {
 		// Full resource B path
 		query = ResourceAccessor.getItemPath(resourceB);
 
-		res = [resourceA, resourceB, resourceC].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		res = [resourceA, resourceB, resourceC].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceB);
 		assert.equal(res[1], resourceA);
 		assert.equal(res[2], resourceC);
 
-		res = [resourceC, resourceB, resourceA].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		res = [resourceC, resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceB);
 		assert.equal(res[1], resourceA);
 		assert.equal(res[2], resourceC);
@@ -249,12 +265,12 @@ suite('Quick Open Scorer', () => {
 		// Full resource A basename
 		let query = ResourceAccessor.getItemLabel(resourceA);
 
-		let res = [resourceA, resourceB, resourceC].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		let res = [resourceA, resourceB, resourceC].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceA);
 		assert.equal(res[1], resourceB);
 		assert.equal(res[2], resourceC);
 
-		res = [resourceC, resourceB, resourceA].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		res = [resourceC, resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceA);
 		assert.equal(res[1], resourceB);
 		assert.equal(res[2], resourceC);
@@ -262,12 +278,12 @@ suite('Quick Open Scorer', () => {
 		// Full resource B basename
 		query = ResourceAccessor.getItemLabel(resourceB);
 
-		res = [resourceA, resourceB, resourceC].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		res = [resourceA, resourceB, resourceC].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceB);
 		assert.equal(res[1], resourceA);
 		assert.equal(res[2], resourceC);
 
-		res = [resourceC, resourceB, resourceA].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		res = [resourceC, resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceB);
 		assert.equal(res[1], resourceA);
 		assert.equal(res[2], resourceC);
@@ -281,12 +297,12 @@ suite('Quick Open Scorer', () => {
 		// resource A camelcase
 		let query = 'fA';
 
-		let res = [resourceA, resourceB, resourceC].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		let res = [resourceA, resourceB, resourceC].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceA);
 		assert.equal(res[1], resourceB);
 		assert.equal(res[2], resourceC);
 
-		res = [resourceC, resourceB, resourceA].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		res = [resourceC, resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceA);
 		assert.equal(res[1], resourceB);
 		assert.equal(res[2], resourceC);
@@ -294,12 +310,12 @@ suite('Quick Open Scorer', () => {
 		// resource B camelcase
 		query = 'fB';
 
-		res = [resourceA, resourceB, resourceC].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		res = [resourceA, resourceB, resourceC].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceB);
 		assert.equal(res[1], resourceA);
 		assert.equal(res[2], resourceC);
 
-		res = [resourceC, resourceB, resourceA].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		res = [resourceC, resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceB);
 		assert.equal(res[1], resourceA);
 		assert.equal(res[2], resourceC);
@@ -313,12 +329,12 @@ suite('Quick Open Scorer', () => {
 		// Resource A part of basename
 		let query = 'fileA';
 
-		let res = [resourceA, resourceB, resourceC].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		let res = [resourceA, resourceB, resourceC].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceA);
 		assert.equal(res[1], resourceB);
 		assert.equal(res[2], resourceC);
 
-		res = [resourceC, resourceB, resourceA].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		res = [resourceC, resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceA);
 		assert.equal(res[1], resourceB);
 		assert.equal(res[2], resourceC);
@@ -326,12 +342,12 @@ suite('Quick Open Scorer', () => {
 		// Resource B part of basename
 		query = 'fileB';
 
-		res = [resourceA, resourceB, resourceC].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		res = [resourceA, resourceB, resourceC].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceB);
 		assert.equal(res[1], resourceA);
 		assert.equal(res[2], resourceC);
 
-		res = [resourceC, resourceB, resourceA].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		res = [resourceC, resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceB);
 		assert.equal(res[1], resourceA);
 		assert.equal(res[2], resourceC);
@@ -345,12 +361,12 @@ suite('Quick Open Scorer', () => {
 		// Resource A part of path
 		let query = 'pathfileA';
 
-		let res = [resourceA, resourceB, resourceC].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		let res = [resourceA, resourceB, resourceC].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceA);
 		assert.equal(res[1], resourceB);
 		assert.equal(res[2], resourceC);
 
-		res = [resourceC, resourceB, resourceA].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		res = [resourceC, resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceA);
 		assert.equal(res[1], resourceB);
 		assert.equal(res[2], resourceC);
@@ -358,12 +374,12 @@ suite('Quick Open Scorer', () => {
 		// Resource B part of path
 		query = 'pathfileB';
 
-		res = [resourceA, resourceB, resourceC].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		res = [resourceA, resourceB, resourceC].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceB);
 		assert.equal(res[1], resourceA);
 		assert.equal(res[2], resourceC);
 
-		res = [resourceC, resourceB, resourceA].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		res = [resourceC, resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceB);
 		assert.equal(res[1], resourceA);
 		assert.equal(res[2], resourceC);
@@ -377,12 +393,12 @@ suite('Quick Open Scorer', () => {
 		// Resource A part of path
 		let query = 'somepath';
 
-		let res = [resourceA, resourceB, resourceC].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		let res = [resourceA, resourceB, resourceC].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceA);
 		assert.equal(res[1], resourceB);
 		assert.equal(res[2], resourceC);
 
-		res = [resourceC, resourceB, resourceA].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		res = [resourceC, resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceA);
 		assert.equal(res[1], resourceB);
 		assert.equal(res[2], resourceC);
@@ -396,12 +412,12 @@ suite('Quick Open Scorer', () => {
 		// Resource A part of path
 		let query = 'file';
 
-		let res = [resourceA, resourceB, resourceC].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		let res = [resourceA, resourceB, resourceC].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceA);
 		assert.equal(res[1], resourceC);
 		assert.equal(res[2], resourceB);
 
-		res = [resourceC, resourceB, resourceA].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		res = [resourceC, resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceA);
 		assert.equal(res[1], resourceC);
 		assert.equal(res[2], resourceB);
@@ -415,12 +431,12 @@ suite('Quick Open Scorer', () => {
 		// Resource A part of path
 		let query = 'somepath';
 
-		let res = [resourceA, resourceB, resourceC].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		let res = [resourceA, resourceB, resourceC].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceA);
 		assert.equal(res[1], resourceB);
 		assert.equal(res[2], resourceC);
 
-		res = [resourceC, resourceB, resourceA].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		res = [resourceC, resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceA);
 		assert.equal(res[1], resourceB);
 		assert.equal(res[2], resourceC);
@@ -433,7 +449,7 @@ suite('Quick Open Scorer', () => {
 
 		let query = 'co/te';
 
-		let res = [resourceA, resourceB, resourceC].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		let res = [resourceA, resourceB, resourceC].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceB);
 		assert.equal(res[1], resourceA);
 		assert.equal(res[2], resourceC);
@@ -445,11 +461,11 @@ suite('Quick Open Scorer', () => {
 
 		let query = 'vscode';
 
-		let res = [resourceA, resourceB].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache, (r1, r2, query, ResourceAccessor) => -1));
+		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache, (r1, r2, query, ResourceAccessor) => -1));
 		assert.equal(res[0], resourceA);
 		assert.equal(res[1], resourceB);
 
-		res = [resourceB, resourceA].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache, (r1, r2, query, ResourceAccessor) => -1));
+		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache, (r1, r2, query, ResourceAccessor) => -1));
 		assert.equal(res[0], resourceB);
 		assert.equal(res[1], resourceA);
 	});
@@ -460,11 +476,11 @@ suite('Quick Open Scorer', () => {
 
 		let query = 'AH';
 
-		let res = [resourceA, resourceB].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceB);
 		assert.equal(res[1], resourceA);
 
-		res = [resourceB, resourceA].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceB);
 		assert.equal(res[1], resourceA);
 	});
@@ -475,11 +491,11 @@ suite('Quick Open Scorer', () => {
 
 		let query = 'xp';
 
-		let res = [resourceA, resourceB].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceB);
 		assert.equal(res[1], resourceA);
 
-		res = [resourceB, resourceA].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceB);
 		assert.equal(res[1], resourceA);
 	});
@@ -490,11 +506,11 @@ suite('Quick Open Scorer', () => {
 
 		let query = 'xp';
 
-		let res = [resourceA, resourceB].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceB);
 		assert.equal(res[1], resourceA);
 
-		res = [resourceB, resourceA].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceB);
 		assert.equal(res[1], resourceA);
 	});
@@ -505,11 +521,11 @@ suite('Quick Open Scorer', () => {
 
 		let query = 'exfile';
 
-		let res = [resourceA, resourceB].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceB);
 		assert.equal(res[1], resourceA);
 
-		res = [resourceB, resourceA].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceB);
 		assert.equal(res[1], resourceA);
 	});
@@ -522,12 +538,12 @@ suite('Quick Open Scorer', () => {
 
 		let query = isWindows ? 'modu1\\index.js' : 'modu1/index.js';
 
-		let res = [resourceA, resourceB, resourceC, resourceD].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		let res = [resourceA, resourceB, resourceC, resourceD].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceC);
 
 		query = isWindows ? 'un1\\index.js' : 'un1/index.js';
 
-		res = [resourceA, resourceB, resourceC, resourceD].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		res = [resourceA, resourceB, resourceC, resourceD].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceB);
 	});
 
@@ -538,7 +554,7 @@ suite('Quick Open Scorer', () => {
 
 		let query = 'StatVideoindex';
 
-		let res = [resourceA, resourceB, resourceC].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		let res = [resourceA, resourceB, resourceC].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceC);
 	});
 
@@ -549,7 +565,7 @@ suite('Quick Open Scorer', () => {
 
 		let query = 'bookpageIndex';
 
-		let res = [resourceA, resourceB, resourceC].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		let res = [resourceA, resourceB, resourceC].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceC);
 	});
 
@@ -559,7 +575,7 @@ suite('Quick Open Scorer', () => {
 
 		let query = isWindows ? 'ui\\icons' : 'ui/icons';
 
-		let res = [resourceA, resourceB].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceB);
 	});
 
@@ -569,7 +585,7 @@ suite('Quick Open Scorer', () => {
 
 		let query = isWindows ? 'ui\\input\\index' : 'ui/input/index';
 
-		let res = [resourceA, resourceB].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceB);
 	});
 
@@ -579,12 +595,15 @@ suite('Quick Open Scorer', () => {
 
 		let query = 'listview';
 
-		let res = [resourceA, resourceB].sort((r1, r2) => scorer.compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceB);
 	});
 
-	test('massageSearchForScoring', function () {
-		assert.equal(scorer.massageSearchForScoring(' f*a '), 'fa');
-		assert.equal(scorer.massageSearchForScoring('model tester.ts'), 'modeltester.ts');
+	test('prepareSearchForScoring', function () {
+		assert.equal(scorer.prepareQuery(' f*a ').value, 'fa');
+		assert.equal(scorer.prepareQuery('model Tester.ts').value, 'modelTester.ts');
+		assert.equal(scorer.prepareQuery('Model Tester.ts').lowercase, 'modeltester.ts');
+		assert.equal(scorer.prepareQuery('ModelTester.ts').containsPathSeparator, false);
+		assert.equal(scorer.prepareQuery('Model' + nativeSep + 'Tester.ts').containsPathSeparator, true);
 	});
 });
