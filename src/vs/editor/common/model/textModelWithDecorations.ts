@@ -137,7 +137,7 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 	private _currentMarkersTracker: MarkersTracker;
 	private _currentMarkersTrackerCnt: number;
 
-	private _tree: IntervalTree;
+	protected _tree: IntervalTree;
 	private _treeDecorations: { [decorationId: string]: IntervalNode; };
 
 	private _decorations: { [decorationId: string]: InternalDecoration; };
@@ -587,13 +587,13 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 	private _handleTrackedMarkers(markersTracker: MarkersTracker): void {
 		let changedInternalDecorationIds = markersTracker.getDecorationIds();
 		if (changedInternalDecorationIds.length === 0) {
+			this.emitModelDecorationsChangedEvent();
 			return;
 		}
 
 		changedInternalDecorationIds.sort();
 
 		let previousInternalDecorationId: number = 0;
-		let somethingChanged = false;
 		for (let i = 0, len = changedInternalDecorationIds.length; i < len; i++) {
 			let internalDecorationId = changedInternalDecorationIds[i];
 			if (internalDecorationId === previousInternalDecorationId) {
@@ -611,12 +611,9 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 			let endMarker = decoration.endMarker.position;
 			let range = TextModelWithDecorations._createRangeFromMarkers(startMarker, endMarker);
 			decoration.setRange(this._multiLineDecorationsMap, range);
-			somethingChanged = true;
 		}
 
-		if (somethingChanged) {
-			this.emitModelDecorationsChangedEvent();
-		}
+		this.emitModelDecorationsChangedEvent();
 	}
 
 	private static _createRangeFromMarkers(startPosition: Position, endPosition: Position): Range {
