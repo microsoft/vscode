@@ -8,22 +8,14 @@ import { ConfigWatcher } from 'vs/base/node/config';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { IConfigurationService, IConfigurationChangeEvent, IConfigurationOverrides, ConfigurationTarget, compare } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationChangeEvent, IConfigurationOverrides, ConfigurationTarget, compare, isConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 import { CustomConfigurationModel, DefaultConfigurationModel, ConfigurationModel, Configuration, ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { equals } from 'vs/base/common/objects';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-
-export function isConfigurationOverrides(thing: any): thing is IConfigurationOverrides {
-	return thing
-		&& typeof thing === 'object'
-		&& (!thing.overrideIdentifier || typeof thing.overrideIdentifier === 'string')
-		&& (!thing.resource || thing.resource instanceof URI);
-}
 
 export class ConfigurationService extends Disposable implements IConfigurationService, IDisposable {
 

@@ -178,7 +178,7 @@ suite('WorkspaceConfigurationService - Node', () => {
 			return createService(workspaceDir, globalSettingsFile).then(service => {
 				fs.writeFileSync(globalSettingsFile, '{ "testworkbench.editor.tabs": true }');
 
-				service.reloadConfiguration(service.getWorkspace().folders[0]).then(() => {
+				service.reloadConfiguration().then(() => {
 					const config = service.getConfiguration<{ testworkbench: { editor: { tabs: boolean } } }>();
 					assert.equal(config.testworkbench.editor.tabs, true);
 
@@ -263,7 +263,7 @@ suite('WorkspaceConfigurationService - Node', () => {
 				fs.writeFileSync(globalSettingsFile, '{ "testworkbench.editor.icons": false, "testworkbench.other.setting": true }');
 				fs.writeFileSync(path.join(workspaceDir, '.vscode', 'settings.json'), '{ "testworkbench.editor.icons": true }');
 
-				service.reloadWorkspaceConfiguration().then(() => {
+				service.reloadConfiguration().then(() => {
 					const config = service.getConfiguration<{ testworkbench: { editor: { icons: boolean }, other: { setting: string } } }>();
 					assert.equal(config.testworkbench.editor.icons, true);
 					assert.equal(config.testworkbench.other.setting, true);

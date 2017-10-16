@@ -15,6 +15,13 @@ import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/co
 
 export const IConfigurationService = createDecorator<IConfigurationService>('configurationService');
 
+export function isConfigurationOverrides(thing: any): thing is IConfigurationOverrides {
+	return thing
+		&& typeof thing === 'object'
+		&& (!thing.overrideIdentifier || typeof thing.overrideIdentifier === 'string')
+		&& (!thing.resource || thing.resource instanceof URI);
+}
+
 export interface IConfigurationOverrides {
 	overrideIdentifier?: string;
 	resource?: URI;

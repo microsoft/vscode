@@ -24,10 +24,10 @@ import { isLinux } from 'vs/base/common/platform';
 import { ConfigWatcher } from 'vs/base/node/config';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { CustomConfigurationModel, ConfigurationModel, ConfigurationChangeEvent, AllKeysConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
-import { IConfigurationChangeEvent, ConfigurationTarget, IConfigurationOverrides, keyFromOverrideIdentifier } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationChangeEvent, ConfigurationTarget, IConfigurationOverrides, keyFromOverrideIdentifier, isConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 import { WorkspaceConfigurationModel, ScopedConfigurationModel, FolderConfigurationModel, FolderSettingsModel, Configuration, WorkspaceConfigurationChangeEvent } from 'vs/workbench/services/configuration/common/configurationModels';
 import { IWorkspaceConfigurationService, WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME, WORKSPACE_STANDALONE_CONFIGURATIONS, WORKSPACE_CONFIG_DEFAULT_PATH, TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId } from 'vs/workbench/services/configuration/common/configuration';
-import { ConfigurationService as GlobalConfigurationService, isConfigurationOverrides } from 'vs/platform/configuration/node/configurationService';
+import { ConfigurationService as GlobalConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationNode, IConfigurationRegistry, Extensions, ConfigurationScope, settingsSchema, resourceSettingsSchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { createHash } from 'crypto';
@@ -160,7 +160,8 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		if (folder) {
 			return this.reloadWorkspaceFolderConfiguration(folder, key);
 		}
-		return this.loadConfiguration();
+		return this.reloadUserConfiguration()
+			.then(() => this.loadConfiguration());
 	}
 
 	inspect<T>(key: string, overrides?: IConfigurationOverrides): {
