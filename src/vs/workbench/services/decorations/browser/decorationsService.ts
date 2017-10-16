@@ -52,7 +52,7 @@ class DecorationRule {
 		const { color, opacity, letter } = data;
 		// label
 		createCSSRule(`.${this.labelClassName}`, `color: ${theme.getColor(color) || 'inherit'}; opacity: ${opacity || 1};`, element);
-		createCSSRule(`.selected .${this.labelClassName}`, `color: inherit; opacity: inherit;`, element);
+		createCSSRule(`.focused .selected .${this.labelClassName}`, `color: inherit; opacity: inherit;`, element);
 		// badge
 		if (letter) {
 			createCSSRule(`.${this.badgeClassName}`, `background-color: ${theme.getColor(color)}; color: ${theme.getColor(listActiveSelectionForeground)};`, element);
@@ -64,7 +64,7 @@ class DecorationRule {
 		// label
 		const { color, opacity } = data[0];
 		createCSSRule(`.${this.labelClassName}`, `color: ${theme.getColor(color) || 'inherit'}; opacity: ${opacity || 1};`, element);
-		createCSSRule(`.selected .${this.labelClassName}`, `color: inherit; opacity: inherit;`, element);
+		createCSSRule(`.focused .selected .${this.labelClassName}`, `color: inherit; opacity: inherit;`, element);
 
 		// badge
 		let letters: string[] = [];
