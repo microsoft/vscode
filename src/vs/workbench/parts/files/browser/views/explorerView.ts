@@ -33,7 +33,7 @@ import { IListService } from 'vs/platform/list/browser/listService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressService } from 'vs/platform/progress/common/progress';
@@ -204,7 +204,7 @@ export class ExplorerView extends ViewsViewletPanel {
 			this.disposables.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
 
 			// Also handle configuration updates
-			this.disposables.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IFilesConfiguration>(), true)));
+			this.disposables.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IFilesConfiguration>(), e)));
 		});
 	}
 
@@ -251,7 +251,7 @@ export class ExplorerView extends ViewsViewletPanel {
 		}
 	}
 
-	private onConfigurationUpdated(configuration: IFilesConfiguration, refresh?: boolean): void {
+	private onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): void {
 		if (this.isDisposed) {
 			return; // guard against possible race condition when config change causes recreate of views
 		}
@@ -270,8 +270,13 @@ export class ExplorerView extends ViewsViewletPanel {
 			needsRefresh = true;
 		}
 
+		if (event && !needsRefresh) {
+			needsRefresh = event.affectsConfiguration('explorer.decorations.colors')
+				|| event.affectsConfiguration('explorer.decorations.badges');
+		}
+
 		// Refresh viewer as needed
-		if (refresh && needsRefresh) {
+		if (needsRefresh) {
 			this.doRefresh().done(null, errors.onUnexpectedError);
 		}
 	}
