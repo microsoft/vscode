@@ -19,6 +19,17 @@ export const ClassName = {
 	EditorErrorDecoration: 'errorsquiggly'
 };
 
+/**
+ * Describes the behavior of decorations when typing/editing near their edges.
+ * Note: Please do not edit the values, as they very carefully match `DecorationRangeBehavior`
+ */
+export const enum TrackedRangeStickiness {
+	AlwaysGrowsWhenTypingAtEdges = 0,
+	NeverGrowsWhenTypingAtEdges = 1,
+	GrowsOnlyWhenTypingBefore = 2,
+	GrowsOnlyWhenTypingAfter = 3,
+}
+
 export const enum NodeColor {
 	Red,
 	Black
@@ -40,6 +51,7 @@ export class IntervalNode implements IModelDecoration {
 	public ownerId: number;
 	public options: ModelDecorationOptions;
 	public isForValidation: boolean;
+	public stickiness: TrackedRangeStickiness;
 
 	public cachedVersionId: number;
 	public cachedAbsoluteStart: number;
@@ -63,6 +75,7 @@ export class IntervalNode implements IModelDecoration {
 		this.ownerId = 0;
 		this.options = null;
 		this.isForValidation = false;
+		this.stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
 
 		this.cachedVersionId = 0;
 		this.cachedAbsoluteStart = start;
@@ -78,6 +91,7 @@ export class IntervalNode implements IModelDecoration {
 			this.options.className === ClassName.EditorErrorDecoration
 			|| this.options.className === ClassName.EditorWarningDecoration
 		);
+		this.stickiness = <number>this.options.stickiness;
 	}
 
 	public setCachedOffsets(absoluteStart: number, absoluteEnd: number, cachedVersionId: number): void {
@@ -163,6 +177,32 @@ export class IntervalTree {
 		initialNode.setCachedOffsets(nodeStart, nodeEnd, cachedVersionId);
 	}
 
+	public acceptReplace(offset: number, length: number, textLength: number, forceMoveMarkers: boolean): void {
+		// Our strategy is to remove all directly impacted nodes, and then add them back to the tree.
+
+		// (1) collect all nodes that are intersecting this edit as nodes of interest
+		const nodesOfInterest = searchForEditing(this, offset, offset + length);
+
+		// (2) remove all nodes that are intersecting this edit
+		for (let i = 0, len = nodesOfInterest.length; i < len; i++) {
+			const node = nodesOfInterest[i];
+			rbTreeDelete(this, node);
+		}
+
+		// (3) edit all tree nodes except the nodes of interest
+		noOverlapReplace(this, offset, offset + length, textLength);
+
+		// (4) edit the nodes of interest and insert them back in the tree
+		for (let i = 0, len = nodesOfInterest.length; i < len; i++) {
+			const node = nodesOfInterest[i];
+			node.start = node.cachedAbsoluteStart;
+			node.end = node.cachedAbsoluteEnd;
+			nodeAcceptEdit(0, node, node.start, node.end, offset, (offset + length), textLength, forceMoveMarkers);
+			node.maxEnd = node.end;
+			rbTreeInsert(this, node);
+		}
+	}
+
 	public assertInvariants(): void {
 		assert(SENTINEL.color === NodeColor.Black);
 		assert(SENTINEL.parent === SENTINEL);
@@ -180,6 +220,10 @@ export class IntervalTree {
 	}
 
 	public print(): void {
+		if (this.root === SENTINEL) {
+			console.log(`~~ empty`);
+			return;
+		}
 		let out: string[] = [];
 		this._print(this.root, '', 0, out);
 		console.log(out.join(''));
@@ -199,6 +243,244 @@ export class IntervalTree {
 		}
 	}
 }
+
+
+//#region Editing
+
+const enum MarkerMoveSemantics {
+	MarkerDefined = 0,
+	ForceMove = 1,
+	ForceStay = 2
+}
+
+function adjustMarkerBeforeColumn(markerOffset: number, markerStickToPreviousCharacter: boolean, checkOffset: number, moveSemantics: MarkerMoveSemantics): boolean {
+	if (markerOffset < checkOffset) {
+		return true;
+	}
+	if (markerOffset > checkOffset) {
+		return false;
+	}
+	if (moveSemantics === MarkerMoveSemantics.ForceMove) {
+		return false;
+	}
+	if (moveSemantics === MarkerMoveSemantics.ForceStay) {
+		return true;
+	}
+	return markerStickToPreviousCharacter;
+};
+
+function nodeAcceptEdit(delta: number, node: IntervalNode, nodeStart: number, nodeEnd: number, start: number, end: number, textLength: number, forceMoveMarkers: boolean): void {
+	const startStickToPreviousCharacter = (
+		node.stickiness === TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
+		|| node.stickiness === TrackedRangeStickiness.GrowsOnlyWhenTypingBefore
+	);
+	const endStickToPreviousCharacter = (
+		node.stickiness === TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+		|| node.stickiness === TrackedRangeStickiness.GrowsOnlyWhenTypingBefore
+	);
+
+	const deletingCnt = (end - start);
+	const insertingCnt = textLength;
+	const commonLength = Math.min(deletingCnt, insertingCnt);
+
+	let startDone = false;
+	let endDone = false;
+
+	{
+		const moveSemantics = forceMoveMarkers ? MarkerMoveSemantics.ForceMove : (deletingCnt > 0 ? MarkerMoveSemantics.ForceStay : MarkerMoveSemantics.MarkerDefined);
+		if (!startDone && adjustMarkerBeforeColumn(nodeStart, startStickToPreviousCharacter, start, moveSemantics)) {
+			startDone = true;
+		}
+		if (!endDone && adjustMarkerBeforeColumn(nodeEnd, endStickToPreviousCharacter, start, moveSemantics)) {
+			endDone = true;
+		}
+	}
+
+	if (commonLength > 0 && !forceMoveMarkers) {
+		const moveSemantics = (deletingCnt > insertingCnt ? MarkerMoveSemantics.ForceStay : MarkerMoveSemantics.MarkerDefined);
+		if (!startDone && adjustMarkerBeforeColumn(nodeStart, startStickToPreviousCharacter, start + commonLength, moveSemantics)) {
+			startDone = true;
+		}
+		if (!endDone && adjustMarkerBeforeColumn(nodeEnd, endStickToPreviousCharacter, start + commonLength, moveSemantics)) {
+			endDone = true;
+		}
+	}
+
+	{
+		const moveSemantics = forceMoveMarkers ? MarkerMoveSemantics.ForceMove : MarkerMoveSemantics.MarkerDefined;
+		if (!startDone && adjustMarkerBeforeColumn(nodeStart, startStickToPreviousCharacter, end, moveSemantics)) {
+			const desiredStart = start + insertingCnt;
+			node.start = desiredStart - delta;
+			startDone = true;
+		}
+		if (!endDone && adjustMarkerBeforeColumn(nodeEnd, endStickToPreviousCharacter, end, moveSemantics)) {
+			const desiredEnd = start + insertingCnt;
+			node.end = desiredEnd - delta;
+			endDone = true;
+		}
+	}
+
+	// Finish
+	const deltaColumn = (insertingCnt - deletingCnt);
+	if (!startDone) {
+		const desiredStart = Math.max(0, nodeStart + deltaColumn);
+		node.start = desiredStart - delta;
+		startDone = true;
+	}
+	if (!endDone) {
+		const desiredEnd = Math.max(0, nodeEnd + deltaColumn);
+		node.end = desiredEnd - delta;
+		endDone = true;
+	}
+
+	if (node.start > node.end) {
+		node.end = node.start;
+	}
+}
+
+function searchForEditing(T: IntervalTree, start: number, end: number): IntervalNode[] {
+	// https://en.wikipedia.org/wiki/Interval_tree#Augmented_tree
+	// Now, it is known that two intervals A and B overlap only when both
+	// A.low <= B.high and A.high >= B.low. When searching the trees for
+	// nodes overlapping with a given interval, you can immediately skip:
+	//  a) all nodes to the right of nodes whose low value is past the end of the given interval.
+	//  b) all nodes that have their maximum 'high' value below the start of the given interval.
+	let node = T.root;
+	let delta = 0;
+	let nodeMaxEnd = 0;
+	let nodeStart = 0;
+	let nodeEnd = 0;
+	let result: IntervalNode[] = [];
+	let resultLen = 0;
+	while (node !== SENTINEL) {
+		if (node.visited) {
+			// going up from this node
+			node.left.visited = false;
+			node.right.visited = false;
+			if (node === node.parent.right) {
+				delta -= node.parent.delta;
+			}
+			node = node.parent;
+			continue;
+		}
+
+		if (!node.left.visited) {
+			// first time seeing this node
+			nodeMaxEnd = delta + node.maxEnd;
+			if (nodeMaxEnd < start) {
+				// cover case b) from above
+				// there is no need to search this node or its children
+				node.visited = true;
+				continue;
+			}
+
+			if (node.left !== SENTINEL) {
+				// go left
+				node = node.left;
+				continue;
+			}
+		}
+
+		// handle current node
+		nodeStart = delta + node.start;
+		if (nodeStart > end) {
+			// cover case a) from above
+			// there is no need to search this node or its right subtree
+			node.visited = true;
+			continue;
+		}
+
+		nodeEnd = delta + node.end;
+		if (nodeEnd >= start) {
+			node.setCachedOffsets(nodeStart, nodeEnd, 0);
+			result[resultLen++] = node;
+		}
+		node.visited = true;
+
+		if (node.right !== SENTINEL && !node.right.visited) {
+			// go right
+			delta += node.delta;
+			node = node.right;
+			continue;
+		}
+	}
+
+	if (T.root) {
+		T.root.visited = false;
+	}
+
+	return result;
+}
+
+function noOverlapReplace(T: IntervalTree, start: number, end: number, textLength: number): void {
+	// https://en.wikipedia.org/wiki/Interval_tree#Augmented_tree
+	// Now, it is known that two intervals A and B overlap only when both
+	// A.low <= B.high and A.high >= B.low. When searching the trees for
+	// nodes overlapping with a given interval, you can immediately skip:
+	//  a) all nodes to the right of nodes whose low value is past the end of the given interval.
+	//  b) all nodes that have their maximum 'high' value below the start of the given interval.
+	let node = T.root;
+	let delta = 0;
+	let nodeMaxEnd = 0;
+	let nodeStart = 0;
+	while (node !== SENTINEL) {
+		if (node.visited) {
+			// going up from this node
+			node.left.visited = false;
+			node.right.visited = false;
+			if (node === node.parent.right) {
+				delta -= node.parent.delta;
+			}
+			recomputeMaxEnd(node);
+			node = node.parent;
+			continue;
+		}
+
+		if (!node.left.visited) {
+			// first time seeing this node
+			nodeMaxEnd = delta + node.maxEnd;
+			if (nodeMaxEnd < start) {
+				// cover case b) from above
+				// there is no need to search this node or its children
+				node.visited = true;
+				continue;
+			}
+
+			if (node.left !== SENTINEL) {
+				// go left
+				node = node.left;
+				continue;
+			}
+		}
+
+		// handle current node
+		nodeStart = delta + node.start;
+		if (nodeStart > end) {
+			node.start += (textLength - (end - start));
+			node.end += (textLength - (end - start));
+			node.delta += (textLength - (end - start));
+			// cover case a) from above
+			// there is no need to search this node or its right subtree
+			node.visited = true;
+			continue;
+		}
+
+		node.visited = true;
+
+		if (node.right !== SENTINEL && !node.right.visited) {
+			// go right
+			delta += node.delta;
+			node = node.right;
+			continue;
+		}
+	}
+
+	if (T.root) {
+		T.root.visited = false;
+	}
+}
+
+//#endregion
 
 //#region Searching
 
