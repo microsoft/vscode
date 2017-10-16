@@ -5,9 +5,11 @@
 'use strict';
 
 import * as assert from 'assert';
-import { ConfigurationModel, CustomConfigurationModel, DefaultConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
+import { ConfigurationModel, CustomConfigurationModel, DefaultConfigurationModel, ConfigurationChangeEvent, AllKeysConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
+import URI from 'vs/base/common/uri';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
 suite('ConfigurationModel', () => {
 
@@ -396,4 +398,116 @@ suite('CustomConfigurationModel', () => {
 		assert.equal(undefined, new DefaultConfigurationModel().getSectionContents('[a]'));
 	});
 
+});
+
+suite('ConfigurationChangeEvent', () => {
+
+	test('changeEvent affecting keys for all resources', () => {
+		let testObject = new ConfigurationChangeEvent();
+
+		testObject.change(['window.zoomLevel', 'workbench.editor.enablePreview', 'files', '[markdown]']);
+
+		assert.deepEqual(testObject.affectedKeys, ['window.zoomLevel', 'workbench.editor.enablePreview', 'files', '[markdown]']);
+		assert.ok(testObject.affectsConfiugration('window.zoomLevel'));
+		assert.ok(testObject.affectsConfiugration('window'));
+		assert.ok(testObject.affectsConfiugration('workbench.editor.enablePreview'));
+		assert.ok(testObject.affectsConfiugration('workbench.editor'));
+		assert.ok(testObject.affectsConfiugration('workbench'));
+		assert.ok(testObject.affectsConfiugration('files'));
+		assert.ok(!testObject.affectsConfiugration('files.exclude'));
+		assert.ok(testObject.affectsConfiugration('[markdown]'));
+	});
+
+	test('changeEvent affecting keys for resources', () => {
+		let testObject = new ConfigurationChangeEvent();
+
+		testObject.change(['window.title']);
+		testObject.change(['window.zoomLevel'], URI.file('file1'));
+		testObject.change(['workbench.editor.enablePreview'], URI.file('file2'));
+		testObject.change(['window.restoreFullscreen'], URI.file('file1'));
+		testObject.change(['window.restoreWindows'], URI.file('file2'));
+
+		assert.deepEqual(testObject.affectedKeys, ['window.title', 'window.zoomLevel', 'window.restoreFullscreen', 'workbench.editor.enablePreview', 'window.restoreWindows']);
+
+		assert.ok(testObject.affectsConfiugration('window.zoomLevel'));
+		assert.ok(testObject.affectsConfiugration('window.zoomLevel', URI.file('file1')));
+		assert.ok(!testObject.affectsConfiugration('window.zoomLevel', URI.file('file2')));
+
+		assert.ok(testObject.affectsConfiugration('window.restoreFullscreen'));
+		assert.ok(testObject.affectsConfiugration('window.restoreFullscreen', URI.file('file1')));
+		assert.ok(!testObject.affectsConfiugration('window.restoreFullscreen', URI.file('file2')));
+
+		assert.ok(testObject.affectsConfiugration('window.restoreWindows'));
+		assert.ok(testObject.affectsConfiugration('window.restoreWindows', URI.file('file2')));
+		assert.ok(!testObject.affectsConfiugration('window.restoreWindows', URI.file('file1')));
+
+		assert.ok(testObject.affectsConfiugration('window.title'));
+		assert.ok(testObject.affectsConfiugration('window.title', URI.file('file1')));
+		assert.ok(testObject.affectsConfiugration('window.title', URI.file('file2')));
+
+		assert.ok(testObject.affectsConfiugration('window'));
+		assert.ok(testObject.affectsConfiugration('window', URI.file('file1')));
+		assert.ok(testObject.affectsConfiugration('window', URI.file('file2')));
+
+		assert.ok(testObject.affectsConfiugration('workbench.editor.enablePreview'));
+		assert.ok(testObject.affectsConfiugration('workbench.editor.enablePreview', URI.file('file2')));
+		assert.ok(!testObject.affectsConfiugration('workbench.editor.enablePreview', URI.file('file1')));
+
+		assert.ok(testObject.affectsConfiugration('workbench.editor'));
+		assert.ok(testObject.affectsConfiugration('workbench.editor', URI.file('file2')));
+		assert.ok(!testObject.affectsConfiugration('workbench.editor', URI.file('file1')));
+
+		assert.ok(testObject.affectsConfiugration('workbench'));
+		assert.ok(testObject.affectsConfiugration('workbench', URI.file('file2')));
+		assert.ok(!testObject.affectsConfiugration('workbench', URI.file('file1')));
+
+		assert.ok(!testObject.affectsConfiugration('files'));
+		assert.ok(!testObject.affectsConfiugration('files', URI.file('file1')));
+		assert.ok(!testObject.affectsConfiugration('files', URI.file('file2')));
+	});
+
+});
+
+suite('AllKeysConfigurationChangeEvent', () => {
+
+	test('changeEvent affects keys for any resource', () => {
+		let testObject = new AllKeysConfigurationChangeEvent(['window.title', 'window.zoomLevel', 'window.restoreFullscreen', 'workbench.editor.enablePreview', 'window.restoreWindows'], ConfigurationTarget.USER, null);
+
+		assert.deepEqual(testObject.affectedKeys, ['window.title', 'window.zoomLevel', 'window.restoreFullscreen', 'workbench.editor.enablePreview', 'window.restoreWindows']);
+
+		assert.ok(testObject.affectsConfiugration('window.zoomLevel'));
+		assert.ok(testObject.affectsConfiugration('window.zoomLevel', URI.file('file1')));
+		assert.ok(testObject.affectsConfiugration('window.zoomLevel', URI.file('file2')));
+
+		assert.ok(testObject.affectsConfiugration('window.restoreFullscreen'));
+		assert.ok(testObject.affectsConfiugration('window.restoreFullscreen', URI.file('file1')));
+		assert.ok(testObject.affectsConfiugration('window.restoreFullscreen', URI.file('file2')));
+
+		assert.ok(testObject.affectsConfiugration('window.restoreWindows'));
+		assert.ok(testObject.affectsConfiugration('window.restoreWindows', URI.file('file2')));
+		assert.ok(testObject.affectsConfiugration('window.restoreWindows', URI.file('file1')));
+
+		assert.ok(testObject.affectsConfiugration('window.title'));
+		assert.ok(testObject.affectsConfiugration('window.title', URI.file('file1')));
+		assert.ok(testObject.affectsConfiugration('window.title', URI.file('file2')));
+
+		assert.ok(testObject.affectsConfiugration('window'));
+		assert.ok(testObject.affectsConfiugration('window', URI.file('file1')));
+		assert.ok(testObject.affectsConfiugration('window', URI.file('file2')));
+
+		assert.ok(testObject.affectsConfiugration('workbench.editor.enablePreview'));
+		assert.ok(testObject.affectsConfiugration('workbench.editor.enablePreview', URI.file('file2')));
+		assert.ok(testObject.affectsConfiugration('workbench.editor.enablePreview', URI.file('file1')));
+
+		assert.ok(testObject.affectsConfiugration('workbench.editor'));
+		assert.ok(testObject.affectsConfiugration('workbench.editor', URI.file('file2')));
+		assert.ok(testObject.affectsConfiugration('workbench.editor', URI.file('file1')));
+
+		assert.ok(testObject.affectsConfiugration('workbench'));
+		assert.ok(testObject.affectsConfiugration('workbench', URI.file('file2')));
+		assert.ok(testObject.affectsConfiugration('workbench', URI.file('file1')));
+
+		assert.ok(!testObject.affectsConfiugration('files'));
+		assert.ok(!testObject.affectsConfiugration('files', URI.file('file1')));
+	});
 });

@@ -455,15 +455,47 @@ export class Configuration {
 	}
 }
 
-export class AllKeysConfigurationChangeEvent implements IConfigurationChangeEvent {
+export class AbstractConfigurationChangeEvent {
 
-	constructor(readonly affectedKeys: string[], readonly source: ConfigurationTarget, readonly sourceConfig: any) { }
+	protected doesConfigurationContains(configuration: ConfigurationModel, config: string): boolean {
+		let changedKeysTree = configuration.contents;
+		let requestedTree = toValuesTree({ [config]: true }, () => { });
 
-	affectsConfiugration: () => true;
+		let key;
+		while (typeof requestedTree === 'object' && (key = Object.keys(requestedTree)[0])) { // Only one key should present, since we added only one property
+			changedKeysTree = changedKeysTree[key];
+			if (!changedKeysTree) {
+				return false; // Requested tree is not found
+			}
+			requestedTree = requestedTree[key];
+		}
+		return true;
+	}
+
+	protected updateKeys(configuration: ConfigurationModel, keys: string[], resource?: URI): void {
+		for (const key of keys) {
+			configuration.setValue(key, true);
+		}
+	}
+}
+
+export class AllKeysConfigurationChangeEvent extends AbstractConfigurationChangeEvent implements IConfigurationChangeEvent {
+
+	private changedConfiguration: ConfigurationModel = null;
+
+	constructor(readonly affectedKeys: string[], readonly source: ConfigurationTarget, readonly sourceConfig: any) { super(); }
+
+	affectsConfiugration(config: string, resource?: URI): boolean {
+		if (!this.changedConfiguration) {
+			this.changedConfiguration = new ConfigurationModel();
+			this.updateKeys(this.changedConfiguration, this.affectedKeys);
+		}
+		return this.doesConfigurationContains(this.changedConfiguration, config);
+	}
 
 }
 
-export class ConfigurationChangeEvent implements IConfigurationChangeEvent {
+export class ConfigurationChangeEvent extends AbstractConfigurationChangeEvent implements IConfigurationChangeEvent {
 
 	private changedConfiguration: ConfigurationModel = new ConfigurationModel();
 	private changedConfigurationByResource: StrictResourceMap<ConfigurationModel> = new StrictResourceMap<ConfigurationModel>();
@@ -483,7 +515,8 @@ export class ConfigurationChangeEvent implements IConfigurationChangeEvent {
 				this.changedConfigurationByResource.set(resource, changedConfigurationByResource);
 			}
 		}
-		return this.changeWithKeys(arg1, arg2);
+		this.changeWithKeys(arg1, arg2);
+		return this;
 	}
 
 	telemetryData(source: ConfigurationTarget, sourceConfig: any): ConfigurationChangeEvent {
@@ -506,46 +539,30 @@ export class ConfigurationChangeEvent implements IConfigurationChangeEvent {
 		return this._sourceConfig;
 	}
 
-	affectsConfiugration(config: string): boolean
-	affectsConfiugration(config: string, overrideIdentifier: string): boolean
-	affectsConfiugration(config: string, resource: URI): boolean
-	affectsConfiugration(config: string, overrideIdentifier: string, resource: URI): boolean
-	affectsConfiugration(config: string, arg1?: any, arg2?: any): boolean {
-		let resource = arg1 instanceof URI ? arg1 : arg2 instanceof URI ? arg2 : void 0;
-		let overrideIdentifier = resource && arg1 !== resource ? arg1 : void 0;
-		let model = resource ? this.changedConfigurationByResource.get(resource) : this.changedConfiguration;
-		if (model) {
+	affectsConfiugration(config: string, resource?: URI): boolean {
+		let configurationModelsToSearch: ConfigurationModel[] = [this.changedConfiguration];
 
-			if (overrideIdentifier) {
-				return model.overrides.some(override => override.identifiers.indexOf(overrideIdentifier) !== -1);
+		if (resource) {
+			let model = this.changedConfigurationByResource.get(resource);
+			if (model) {
+				configurationModelsToSearch.push(model);
 			}
-
-			let changedKeysTree = model.contents;
-			let requestedTree = toValuesTree({ [config]: true }, () => { });
-
-			let key;
-			while (typeof requestedTree === 'object' && (key = Object.keys(requestedTree)[0])) { // Only one key should present, since we added only one property
-				changedKeysTree = changedKeysTree[key];
-				if (!changedKeysTree) {
-					return false; // Requested tree is not found
-				}
-				requestedTree = requestedTree[key];
-			}
-			return true;
+		} else {
+			configurationModelsToSearch.push(...this.changedConfigurationByResource.values());
 		}
+
+		for (const configuration of configurationModelsToSearch) {
+			if (this.doesConfigurationContains(configuration, config)) {
+				return true;
+			}
+		}
+
 		return false;
 	}
 
-	private changeWithKeys(keys: string[], resource?: URI): ConfigurationChangeEvent {
+	private changeWithKeys(keys: string[], resource?: URI): void {
 		let changedConfiguration = resource ? this.getOrSetChangedConfigurationForResource(resource) : this.changedConfiguration;
-		for (const key of keys) {
-			if (OVERRIDE_PROPERTY_PATTERN.test(key)) {
-				changedConfiguration.setValueInOverrides(overrideIdentifierFromKey(key), 'key'/* any key */, true);
-			} else {
-				changedConfiguration.setValue(key, true);
-			}
-		}
-		return this;
+		this.updateKeys(changedConfiguration, keys);
 	}
 
 	private getOrSetChangedConfigurationForResource(resource: URI): ConfigurationModel {

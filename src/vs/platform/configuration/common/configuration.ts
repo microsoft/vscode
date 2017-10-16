@@ -31,10 +31,7 @@ export enum ConfigurationTarget {
 export interface IConfigurationChangeEvent {
 	affectedKeys: string[];
 
-	affectsConfiugration(configuration: string): boolean;
-	affectsConfiugration(configuration: string, overrideIdentifier: string): boolean;
-	affectsConfiugration(configuration: string, resource: URI): boolean;
-	affectsConfiugration(configuration: string, overrideIdentifier: string, resource: URI): boolean;
+	affectsConfiugration(configuration: string, resource?: URI): boolean;
 
 	// Following data is used for telemetry
 	source: ConfigurationTarget;
