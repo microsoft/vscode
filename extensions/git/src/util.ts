@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Event } from 'vscode';
+import { Event, workspace } from 'vscode';
 import { dirname } from 'path';
 import { Readable } from 'stream';
 import * as fs from 'fs';
@@ -273,4 +273,10 @@ export function detectUnicodeEncoding(buffer: Buffer): Encoding | null {
 	}
 
 	return null;
+}
+
+export function hasUnSavedFiles(): boolean {
+	return workspace.textDocuments
+		.filter(textDocument => !textDocument.isUntitled && textDocument.isDirty)
+		.length > 0;
 }
