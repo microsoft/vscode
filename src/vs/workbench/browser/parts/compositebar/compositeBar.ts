@@ -153,6 +153,7 @@ export class CompositeBar {
 	}
 
 	public create(container: HTMLElement): void {
+		dom.addClass(container, 'composite-bar');
 		this.compositeSwitcherBar = new ActionBar(container, {
 			actionItemProvider: (action: Action) => action instanceof CompositeOverflowActivityAction ? this.compositeOverflowActionItem : this.compositeIdToActionItems[action.id],
 			orientation: this.options.orientation,

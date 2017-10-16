@@ -112,10 +112,10 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		const $result = $('.content').appendTo($el);
 
 		// Top Actionbar with action items for each viewlet action
-		this.compositeBar.create($result.clone().getHTMLElement());
+		this.compositeBar.create($('.viewlets').appendTo($result).getHTMLElement());
 
 		// Top Actionbar with action items for each viewlet action
-		this.createGlobalActivityActionBar($result.getHTMLElement());
+		this.createGlobalActivityActionBar($('.global-activity').appendTo($result).getHTMLElement());
 
 		return $result;
 	}
