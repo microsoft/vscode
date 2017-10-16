@@ -18,10 +18,9 @@ import { IBadge } from 'vs/workbench/services/activity/common/activityBarService
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ActivityAction } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
 import { ActionBar, IActionItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import Event, { Emitter } from 'vs/base/common/event';
-import { CompositeActionItem, CompositeOverflowActivityAction, ICompositeActivity, CompositeOverflowActivityActionItem } from 'vs/workbench/browser/parts/compositebar/compositeBarActions';
+import { CompositeActionItem, CompositeOverflowActivityAction, ICompositeActivity, CompositeOverflowActivityActionItem, ActivityAction } from 'vs/workbench/browser/parts/compositebar/compositeBarActions';
 
 export interface ICompositeBarOptions {
 	label: 'icon' | 'name';
