@@ -27,6 +27,7 @@ function modelHasDecorations(model: Model, decorations: ILightWeightDecoration2[
 			className: actualDecorations[i].options.className
 		});
 	}
+	modelDecorations.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
 	assert.deepEqual(modelDecorations, decorations, 'Model decorations');
 }
 
@@ -169,12 +170,12 @@ suite('Editor Model - Model Decorations', () => {
 		var decId2 = addDecoration(thisModel, 1, 2, 3, 1, 'myType2');
 		modelHasDecorations(thisModel, [
 			{
-				range: new Range(1, 2, 3, 2),
-				className: 'myType1'
-			},
-			{
 				range: new Range(1, 2, 3, 1),
 				className: 'myType2'
+			},
+			{
+				range: new Range(1, 2, 3, 2),
+				className: 'myType1'
 			}
 		]);
 		thisModel.changeDecorations((changeAccessor) => {
@@ -349,6 +350,694 @@ suite('Editor Model - Model Decorations', () => {
 		modelHasDecoration(thisModel, 1, 2, 4, 1, 'myType');
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 3, 1))]);
 		modelHasDecoration(thisModel, 1, 1, 2, 1, 'myType');
+	});
+});
+
+suite('Decorations and editing', () => {
+
+	function _runTest(decRange: Range, stickiness: TrackedRangeStickiness, editRange: Range, editText: string, editForceMoveMarkers: boolean, expectedDecRange: Range, msg: string): void {
+		let model = Model.createFromString([
+			'My First Line',
+			'My Second Line',
+			'Third Line'
+		].join('\n'));
+
+		const id = model.deltaDecorations([], [{ range: decRange, options: { stickiness: stickiness } }])[0];
+		model.applyEdits([{ range: editRange, text: editText, forceMoveMarkers: editForceMoveMarkers, identifier: null }]);
+		const actual = model.getDecorationRange(id);
+		assert.deepEqual(actual, expectedDecRange, msg);
+
+		model.dispose();
+	}
+
+	function runTest(decRange: Range, editRange: Range, editText: string, expectedDecRange: Range[][]): void {
+		_runTest(decRange, 0, editRange, editText, false, expectedDecRange[0][0], 'no-0-AlwaysGrowsWhenTypingAtEdges');
+		_runTest(decRange, 1, editRange, editText, false, expectedDecRange[0][1], 'no-1-NeverGrowsWhenTypingAtEdges');
+		_runTest(decRange, 2, editRange, editText, false, expectedDecRange[0][2], 'no-2-GrowsOnlyWhenTypingBefore');
+		_runTest(decRange, 3, editRange, editText, false, expectedDecRange[0][3], 'no-3-GrowsOnlyWhenTypingAfter');
+
+		_runTest(decRange, 0, editRange, editText, true, expectedDecRange[1][0], 'force-0-AlwaysGrowsWhenTypingAtEdges');
+		_runTest(decRange, 1, editRange, editText, true, expectedDecRange[1][1], 'force-1-NeverGrowsWhenTypingAtEdges');
+		_runTest(decRange, 2, editRange, editText, true, expectedDecRange[1][2], 'force-2-GrowsOnlyWhenTypingBefore');
+		_runTest(decRange, 3, editRange, editText, true, expectedDecRange[1][3], 'force-3-GrowsOnlyWhenTypingAfter');
+	}
+
+	suite('insert', () => {
+		suite('collapsed dec', () => {
+			test('before', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 3, 1, 3), 'xx',
+					[
+						[new Range(1, 6, 1, 6), new Range(1, 6, 1, 6), new Range(1, 6, 1, 6), new Range(1, 6, 1, 6)],
+						[new Range(1, 6, 1, 6), new Range(1, 6, 1, 6), new Range(1, 6, 1, 6), new Range(1, 6, 1, 6)],
+					]
+				);
+			});
+			test('equal', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 4, 1, 4), 'xx',
+					[
+						[new Range(1, 4, 1, 6), new Range(1, 6, 1, 6), new Range(1, 4, 1, 4), new Range(1, 6, 1, 6)],
+						[new Range(1, 6, 1, 6), new Range(1, 6, 1, 6), new Range(1, 6, 1, 6), new Range(1, 6, 1, 6)],
+					]
+				);
+			});
+			test('after', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 5, 1, 5), 'xx',
+					[
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+					]
+				);
+			});
+		});
+		suite('non-collapsed dec', () => {
+			test('before', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 3, 1, 3), 'xx',
+					[
+						[new Range(1, 6, 1, 11), new Range(1, 6, 1, 11), new Range(1, 6, 1, 11), new Range(1, 6, 1, 11)],
+						[new Range(1, 6, 1, 11), new Range(1, 6, 1, 11), new Range(1, 6, 1, 11), new Range(1, 6, 1, 11)],
+					]
+				);
+			});
+			test('start', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 4, 1, 4), 'xx',
+					[
+						[new Range(1, 4, 1, 11), new Range(1, 6, 1, 11), new Range(1, 4, 1, 11), new Range(1, 6, 1, 11)],
+						[new Range(1, 6, 1, 11), new Range(1, 6, 1, 11), new Range(1, 6, 1, 11), new Range(1, 6, 1, 11)],
+					]
+				);
+			});
+			test('inside', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 5, 1, 5), 'xx',
+					[
+						[new Range(1, 4, 1, 11), new Range(1, 4, 1, 11), new Range(1, 4, 1, 11), new Range(1, 4, 1, 11)],
+						[new Range(1, 4, 1, 11), new Range(1, 4, 1, 11), new Range(1, 4, 1, 11), new Range(1, 4, 1, 11)],
+					]
+				);
+			});
+			test('end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 9, 1, 9), 'xx',
+					[
+						[new Range(1, 4, 1, 11), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 11)],
+						[new Range(1, 4, 1, 11), new Range(1, 4, 1, 11), new Range(1, 4, 1, 11), new Range(1, 4, 1, 11)],
+					]
+				);
+			});
+			test('after', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 10, 1, 10), 'xx',
+					[
+						[new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9)],
+						[new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9)],
+					]
+				);
+			});
+		});
+	});
+
+	suite('delete', () => {
+		suite('collapsed dec', () => {
+			test('edit.end < range.start', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 1, 1, 3), '',
+					[
+						[new Range(1, 2, 1, 2), new Range(1, 2, 1, 2), new Range(1, 2, 1, 2), new Range(1, 2, 1, 2)],
+						[new Range(1, 2, 1, 2), new Range(1, 2, 1, 2), new Range(1, 2, 1, 2), new Range(1, 2, 1, 2)],
+					]
+				);
+			});
+			test('edit.end <= range.start', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 2, 1, 4), '',
+					[
+						[new Range(1, 2, 1, 2), new Range(1, 2, 1, 2), new Range(1, 2, 1, 2), new Range(1, 2, 1, 2)],
+						[new Range(1, 2, 1, 2), new Range(1, 2, 1, 2), new Range(1, 2, 1, 2), new Range(1, 2, 1, 2)],
+					]
+				);
+			});
+			test('edit.start < range.start && edit.end > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 3, 1, 5), '',
+					[
+						[new Range(1, 3, 1, 3), new Range(1, 3, 1, 3), new Range(1, 3, 1, 3), new Range(1, 3, 1, 3)],
+						[new Range(1, 3, 1, 3), new Range(1, 3, 1, 3), new Range(1, 3, 1, 3), new Range(1, 3, 1, 3)],
+					]
+				);
+			});
+			test('edit.start >= range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 4, 1, 6), '',
+					[
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+					]
+				);
+			});
+			test('edit.start > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 5, 1, 7), '',
+					[
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+					]
+				);
+			});
+		});
+		suite('non-collapsed dec', () => {
+			test('edit.end < range.start', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 1, 1, 3), '',
+					[
+						[new Range(1, 2, 1, 7), new Range(1, 2, 1, 7), new Range(1, 2, 1, 7), new Range(1, 2, 1, 7)],
+						[new Range(1, 2, 1, 7), new Range(1, 2, 1, 7), new Range(1, 2, 1, 7), new Range(1, 2, 1, 7)],
+					]
+				);
+			});
+			test('edit.end <= range.start', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 2, 1, 4), '',
+					[
+						[new Range(1, 2, 1, 7), new Range(1, 2, 1, 7), new Range(1, 2, 1, 7), new Range(1, 2, 1, 7)],
+						[new Range(1, 2, 1, 7), new Range(1, 2, 1, 7), new Range(1, 2, 1, 7), new Range(1, 2, 1, 7)],
+					]
+				);
+			});
+			test('edit.start < range.start && edit.end < range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 3, 1, 5), '',
+					[
+						[new Range(1, 3, 1, 7), new Range(1, 3, 1, 7), new Range(1, 3, 1, 7), new Range(1, 3, 1, 7)],
+						[new Range(1, 3, 1, 7), new Range(1, 3, 1, 7), new Range(1, 3, 1, 7), new Range(1, 3, 1, 7)],
+					]
+				);
+			});
+
+			test('edit.start < range.start && edit.end == range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 3, 1, 9), '',
+					[
+						[new Range(1, 3, 1, 3), new Range(1, 3, 1, 3), new Range(1, 3, 1, 3), new Range(1, 3, 1, 3)],
+						[new Range(1, 3, 1, 3), new Range(1, 3, 1, 3), new Range(1, 3, 1, 3), new Range(1, 3, 1, 3)],
+					]
+				);
+			});
+
+			test('edit.start < range.start && edit.end > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 3, 1, 10), '',
+					[
+						[new Range(1, 3, 1, 3), new Range(1, 3, 1, 3), new Range(1, 3, 1, 3), new Range(1, 3, 1, 3)],
+						[new Range(1, 3, 1, 3), new Range(1, 3, 1, 3), new Range(1, 3, 1, 3), new Range(1, 3, 1, 3)],
+					]
+				);
+			});
+
+			test('edit.start == range.start && edit.end < range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 4, 1, 6), '',
+					[
+						[new Range(1, 4, 1, 7), new Range(1, 4, 1, 7), new Range(1, 4, 1, 7), new Range(1, 4, 1, 7)],
+						[new Range(1, 4, 1, 7), new Range(1, 4, 1, 7), new Range(1, 4, 1, 7), new Range(1, 4, 1, 7)],
+					]
+				);
+			});
+
+			test('edit.start == range.start && edit.end == range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 4, 1, 9), '',
+					[
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+					]
+				);
+			});
+
+			test('edit.start == range.start && edit.end > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 4, 1, 10), '',
+					[
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+					]
+				);
+			});
+
+			test('edit.start > range.start && edit.start < range.end && edit.end < range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 5, 1, 7), '',
+					[
+						[new Range(1, 4, 1, 7), new Range(1, 4, 1, 7), new Range(1, 4, 1, 7), new Range(1, 4, 1, 7)],
+						[new Range(1, 4, 1, 7), new Range(1, 4, 1, 7), new Range(1, 4, 1, 7), new Range(1, 4, 1, 7)],
+					]
+				);
+			});
+
+			test('edit.start > range.start && edit.start < range.end && edit.end == range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 5, 1, 9), '',
+					[
+						[new Range(1, 4, 1, 5), new Range(1, 4, 1, 5), new Range(1, 4, 1, 5), new Range(1, 4, 1, 5)],
+						[new Range(1, 4, 1, 5), new Range(1, 4, 1, 5), new Range(1, 4, 1, 5), new Range(1, 4, 1, 5)],
+					]
+				);
+			});
+
+			test('edit.start > range.start && edit.start < range.end && edit.end > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 5, 1, 10), '',
+					[
+						[new Range(1, 4, 1, 5), new Range(1, 4, 1, 5), new Range(1, 4, 1, 5), new Range(1, 4, 1, 5)],
+						[new Range(1, 4, 1, 5), new Range(1, 4, 1, 5), new Range(1, 4, 1, 5), new Range(1, 4, 1, 5)],
+					]
+				);
+			});
+
+			test('edit.start == range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 9, 1, 11), '',
+					[
+						[new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9)],
+						[new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9)],
+					]
+				);
+			});
+
+			test('edit.start > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 10, 1, 11), '',
+					[
+						[new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9)],
+						[new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9)],
+					]
+				);
+			});
+		});
+	});
+
+	suite('replace short', () => {
+		suite('collapsed dec', () => {
+			test('edit.end < range.start', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 1, 1, 3), 'c',
+					[
+						[new Range(1, 3, 1, 3), new Range(1, 3, 1, 3), new Range(1, 3, 1, 3), new Range(1, 3, 1, 3)],
+						[new Range(1, 3, 1, 3), new Range(1, 3, 1, 3), new Range(1, 3, 1, 3), new Range(1, 3, 1, 3)],
+					]
+				);
+			});
+			test('edit.end <= range.start', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 2, 1, 4), 'c',
+					[
+						[new Range(1, 3, 1, 3), new Range(1, 3, 1, 3), new Range(1, 3, 1, 3), new Range(1, 3, 1, 3)],
+						[new Range(1, 3, 1, 3), new Range(1, 3, 1, 3), new Range(1, 3, 1, 3), new Range(1, 3, 1, 3)],
+					]
+				);
+			});
+			test('edit.start < range.start && edit.end > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 3, 1, 5), 'c',
+					[
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+					]
+				);
+			});
+			test('edit.start >= range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 4, 1, 6), 'c',
+					[
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+						[new Range(1, 5, 1, 5), new Range(1, 5, 1, 5), new Range(1, 5, 1, 5), new Range(1, 5, 1, 5)],
+					]
+				);
+			});
+			test('edit.start > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 5, 1, 7), 'c',
+					[
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+					]
+				);
+			});
+		});
+		suite('non-collapsed dec', () => {
+			test('edit.end < range.start', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 1, 1, 3), 'c',
+					[
+						[new Range(1, 3, 1, 8), new Range(1, 3, 1, 8), new Range(1, 3, 1, 8), new Range(1, 3, 1, 8)],
+						[new Range(1, 3, 1, 8), new Range(1, 3, 1, 8), new Range(1, 3, 1, 8), new Range(1, 3, 1, 8)],
+					]
+				);
+			});
+			test('edit.end <= range.start', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 2, 1, 4), 'c',
+					[
+						[new Range(1, 3, 1, 8), new Range(1, 3, 1, 8), new Range(1, 3, 1, 8), new Range(1, 3, 1, 8)],
+						[new Range(1, 3, 1, 8), new Range(1, 3, 1, 8), new Range(1, 3, 1, 8), new Range(1, 3, 1, 8)],
+					]
+				);
+			});
+			test('edit.start < range.start && edit.end < range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 3, 1, 5), 'c',
+					[
+						[new Range(1, 4, 1, 8), new Range(1, 4, 1, 8), new Range(1, 4, 1, 8), new Range(1, 4, 1, 8)],
+						[new Range(1, 4, 1, 8), new Range(1, 4, 1, 8), new Range(1, 4, 1, 8), new Range(1, 4, 1, 8)],
+					]
+				);
+			});
+			test('edit.start < range.start && edit.end == range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 3, 1, 9), 'c',
+					[
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+					]
+				);
+			});
+			test('edit.start < range.start && edit.end > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 3, 1, 10), 'c',
+					[
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+					]
+				);
+			});
+			test('edit.start == range.start && edit.end < range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 4, 1, 6), 'c',
+					[
+						[new Range(1, 4, 1, 8), new Range(1, 4, 1, 8), new Range(1, 4, 1, 8), new Range(1, 4, 1, 8)],
+						[new Range(1, 5, 1, 8), new Range(1, 5, 1, 8), new Range(1, 5, 1, 8), new Range(1, 5, 1, 8)],
+					]
+				);
+			});
+			test('edit.start == range.start && edit.end == range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 4, 1, 9), 'c',
+					[
+						[new Range(1, 4, 1, 5), new Range(1, 4, 1, 5), new Range(1, 4, 1, 5), new Range(1, 4, 1, 5)],
+						[new Range(1, 5, 1, 5), new Range(1, 5, 1, 5), new Range(1, 5, 1, 5), new Range(1, 5, 1, 5)],
+					]
+				);
+			});
+			test('edit.start == range.start && edit.end > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 4, 1, 10), 'c',
+					[
+						[new Range(1, 4, 1, 5), new Range(1, 4, 1, 5), new Range(1, 4, 1, 5), new Range(1, 4, 1, 5)],
+						[new Range(1, 5, 1, 5), new Range(1, 5, 1, 5), new Range(1, 5, 1, 5), new Range(1, 5, 1, 5)],
+					]
+				);
+			});
+			test('edit.start > range.start && edit.start < range.end && edit.end < range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 5, 1, 7), 'c',
+					[
+						[new Range(1, 4, 1, 8), new Range(1, 4, 1, 8), new Range(1, 4, 1, 8), new Range(1, 4, 1, 8)],
+						[new Range(1, 4, 1, 8), new Range(1, 4, 1, 8), new Range(1, 4, 1, 8), new Range(1, 4, 1, 8)],
+					]
+				);
+			});
+			test('edit.start > range.start && edit.start < range.end && edit.end == range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 5, 1, 9), 'c',
+					[
+						[new Range(1, 4, 1, 6), new Range(1, 4, 1, 6), new Range(1, 4, 1, 6), new Range(1, 4, 1, 6)],
+						[new Range(1, 4, 1, 6), new Range(1, 4, 1, 6), new Range(1, 4, 1, 6), new Range(1, 4, 1, 6)],
+					]
+				);
+			});
+			test('edit.start > range.start && edit.start < range.end && edit.end > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 5, 1, 10), 'c',
+					[
+						[new Range(1, 4, 1, 6), new Range(1, 4, 1, 6), new Range(1, 4, 1, 6), new Range(1, 4, 1, 6)],
+						[new Range(1, 4, 1, 6), new Range(1, 4, 1, 6), new Range(1, 4, 1, 6), new Range(1, 4, 1, 6)],
+					]
+				);
+			});
+			test('edit.start == range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 9, 1, 11), 'c',
+					[
+						[new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9)],
+						[new Range(1, 4, 1, 10), new Range(1, 4, 1, 10), new Range(1, 4, 1, 10), new Range(1, 4, 1, 10)],
+					]
+				);
+			});
+			test('edit.start > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 10, 1, 11), 'c',
+					[
+						[new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9)],
+						[new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9)],
+					]
+				);
+			});
+		});
+	});
+
+	suite('replace long', () => {
+		suite('collapsed dec', () => {
+			test('edit.end < range.start', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 1, 1, 3), 'cccc',
+					[
+						[new Range(1, 6, 1, 6), new Range(1, 6, 1, 6), new Range(1, 6, 1, 6), new Range(1, 6, 1, 6)],
+						[new Range(1, 6, 1, 6), new Range(1, 6, 1, 6), new Range(1, 6, 1, 6), new Range(1, 6, 1, 6)],
+					]
+				);
+			});
+			test('edit.end <= range.start', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 2, 1, 4), 'cccc',
+					[
+						[new Range(1, 4, 1, 6), new Range(1, 6, 1, 6), new Range(1, 4, 1, 4), new Range(1, 6, 1, 6)],
+						[new Range(1, 6, 1, 6), new Range(1, 6, 1, 6), new Range(1, 6, 1, 6), new Range(1, 6, 1, 6)],
+					]
+				);
+			});
+			test('edit.start < range.start && edit.end > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 3, 1, 5), 'cccc',
+					[
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+						[new Range(1, 7, 1, 7), new Range(1, 7, 1, 7), new Range(1, 7, 1, 7), new Range(1, 7, 1, 7)],
+					]
+				);
+			});
+			test('edit.start >= range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 4, 1, 6), 'cccc',
+					[
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+						[new Range(1, 8, 1, 8), new Range(1, 8, 1, 8), new Range(1, 8, 1, 8), new Range(1, 8, 1, 8)],
+					]
+				);
+			});
+			test('edit.start > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 5, 1, 7), 'cccc',
+					[
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+						[new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4), new Range(1, 4, 1, 4)],
+					]
+				);
+			});
+		});
+		suite('non-collapsed dec', () => {
+			test('edit.end < range.start', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 1, 1, 3), 'cccc',
+					[
+						[new Range(1, 6, 1, 11), new Range(1, 6, 1, 11), new Range(1, 6, 1, 11), new Range(1, 6, 1, 11)],
+						[new Range(1, 6, 1, 11), new Range(1, 6, 1, 11), new Range(1, 6, 1, 11), new Range(1, 6, 1, 11)],
+					]
+				);
+			});
+			test('edit.end <= range.start', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 2, 1, 4), 'cccc',
+					[
+						[new Range(1, 4, 1, 11), new Range(1, 6, 1, 11), new Range(1, 4, 1, 11), new Range(1, 6, 1, 11)],
+						[new Range(1, 6, 1, 11), new Range(1, 6, 1, 11), new Range(1, 6, 1, 11), new Range(1, 6, 1, 11)],
+					]
+				);
+			});
+			test('edit.start < range.start && edit.end < range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 3, 1, 5), 'cccc',
+					[
+						[new Range(1, 4, 1, 11), new Range(1, 4, 1, 11), new Range(1, 4, 1, 11), new Range(1, 4, 1, 11)],
+						[new Range(1, 7, 1, 11), new Range(1, 7, 1, 11), new Range(1, 7, 1, 11), new Range(1, 7, 1, 11)],
+					]
+				);
+			});
+			test('edit.start < range.start && edit.end == range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 3, 1, 9), 'cccc',
+					[
+						[new Range(1, 4, 1, 7), new Range(1, 4, 1, 7), new Range(1, 4, 1, 7), new Range(1, 4, 1, 7)],
+						[new Range(1, 7, 1, 7), new Range(1, 7, 1, 7), new Range(1, 7, 1, 7), new Range(1, 7, 1, 7)],
+					]
+				);
+			});
+			test('edit.start < range.start && edit.end > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 3, 1, 10), 'cccc',
+					[
+						[new Range(1, 4, 1, 7), new Range(1, 4, 1, 7), new Range(1, 4, 1, 7), new Range(1, 4, 1, 7)],
+						[new Range(1, 7, 1, 7), new Range(1, 7, 1, 7), new Range(1, 7, 1, 7), new Range(1, 7, 1, 7)],
+					]
+				);
+			});
+			test('edit.start == range.start && edit.end < range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 4, 1, 6), 'cccc',
+					[
+						[new Range(1, 4, 1, 11), new Range(1, 4, 1, 11), new Range(1, 4, 1, 11), new Range(1, 4, 1, 11)],
+						[new Range(1, 8, 1, 11), new Range(1, 8, 1, 11), new Range(1, 8, 1, 11), new Range(1, 8, 1, 11)],
+					]
+				);
+			});
+			test('edit.start == range.start && edit.end == range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 4, 1, 9), 'cccc',
+					[
+						[new Range(1, 4, 1, 8), new Range(1, 4, 1, 8), new Range(1, 4, 1, 8), new Range(1, 4, 1, 8)],
+						[new Range(1, 8, 1, 8), new Range(1, 8, 1, 8), new Range(1, 8, 1, 8), new Range(1, 8, 1, 8)],
+					]
+				);
+			});
+			test('edit.start == range.start && edit.end > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 4, 1, 10), 'cccc',
+					[
+						[new Range(1, 4, 1, 8), new Range(1, 4, 1, 8), new Range(1, 4, 1, 8), new Range(1, 4, 1, 8)],
+						[new Range(1, 8, 1, 8), new Range(1, 8, 1, 8), new Range(1, 8, 1, 8), new Range(1, 8, 1, 8)],
+					]
+				);
+			});
+			test('edit.start > range.start && edit.start < range.end && edit.end < range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 5, 1, 7), 'cccc',
+					[
+						[new Range(1, 4, 1, 11), new Range(1, 4, 1, 11), new Range(1, 4, 1, 11), new Range(1, 4, 1, 11)],
+						[new Range(1, 4, 1, 11), new Range(1, 4, 1, 11), new Range(1, 4, 1, 11), new Range(1, 4, 1, 11)],
+					]
+				);
+			});
+			test('edit.start > range.start && edit.start < range.end && edit.end == range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 5, 1, 9), 'cccc',
+					[
+						[new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9)],
+						[new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9)],
+					]
+				);
+			});
+			test('edit.start > range.start && edit.start < range.end && edit.end > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 5, 1, 10), 'cccc',
+					[
+						[new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9)],
+						[new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9)],
+					]
+				);
+			});
+			test('edit.start == range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 9, 1, 11), 'cccc',
+					[
+						[new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9)],
+						[new Range(1, 4, 1, 13), new Range(1, 4, 1, 13), new Range(1, 4, 1, 13), new Range(1, 4, 1, 13)],
+					]
+				);
+			});
+			test('edit.start > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 10, 1, 11), 'cccc',
+					[
+						[new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9)],
+						[new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9), new Range(1, 4, 1, 9)],
+					]
+				);
+			});
+		});
 	});
 });
 
