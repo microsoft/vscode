@@ -5,7 +5,7 @@
 'use strict';
 
 import { clone, equals } from 'vs/base/common/objects';
-import { compare, toValuesTree, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
+import { compare, toValuesTree, IConfigurationChangeEvent, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationModel, Configuration as BaseConfiguration, CustomConfigurationModel, ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, IConfigurationPropertySchema, Extensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
@@ -268,21 +268,32 @@ export class Configuration extends BaseConfiguration {
 	}
 }
 
-export class WorkspaceConfigurationChangeEvent extends ConfigurationChangeEvent implements IConfigurationChangeEvent {
+export class WorkspaceConfigurationChangeEvent implements IConfigurationChangeEvent {
 
-	constructor(private workspace: Workspace) {
-		super();
+	constructor(private configurationChangeEvent: ConfigurationChangeEvent, private workspace: Workspace) {
+	}
+
+	get affectedKeys(): string[] {
+		return this.configurationChangeEvent.affectedKeys;
+	}
+
+	get source(): ConfigurationTarget {
+		return this.configurationChangeEvent.source;
+	}
+
+	get sourceConfig(): any {
+		return this.configurationChangeEvent.sourceConfig;
 	}
 
 	affectsConfiguration(config: string, resource?: URI): boolean {
-		if (super.affectsConfiguration(config, resource)) {
+		if (this.configurationChangeEvent.affectsConfiguration(config, resource)) {
 			return true;
 		}
 
 		if (resource) {
 			let workspaceFolder = this.workspace.getFolder(resource);
 			if (workspaceFolder) {
-				return super.affectsConfiguration(config, workspaceFolder.uri);
+				return this.configurationChangeEvent.affectsConfiguration(config, workspaceFolder.uri);
 			}
 		}
 

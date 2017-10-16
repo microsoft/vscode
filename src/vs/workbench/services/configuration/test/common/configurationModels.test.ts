@@ -10,6 +10,8 @@ import { FolderConfigurationModel, ScopedConfigurationModel, FolderSettingsModel
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import URI from 'vs/base/common/uri';
+import { ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
 suite('ConfigurationService - Model', () => {
 
@@ -102,18 +104,21 @@ suite('ConfigurationService - Model', () => {
 suite('WorkspaceConfigurationChangeEvent', () => {
 
 	test('changeEvent affecting workspace folders', () => {
-		let testObject = new WorkspaceConfigurationChangeEvent(new Workspace('id', 'name',
+		let configurationChangeEvent = new ConfigurationChangeEvent();
+		configurationChangeEvent.change(['window.title']);
+		configurationChangeEvent.change(['window.zoomLevel'], URI.file('folder1'));
+		configurationChangeEvent.change(['workbench.editor.enablePreview'], URI.file('folder2'));
+		configurationChangeEvent.change(['window.restoreFullscreen'], URI.file('folder1'));
+		configurationChangeEvent.change(['window.restoreWindows'], URI.file('folder2'));
+		configurationChangeEvent.telemetryData(ConfigurationTarget.WORKSPACE, {});
+
+		let testObject = new WorkspaceConfigurationChangeEvent(configurationChangeEvent, new Workspace('id', 'name',
 			[new WorkspaceFolder({ index: 0, name: '1', uri: URI.file('folder1') }),
 			new WorkspaceFolder({ index: 1, name: '2', uri: URI.file('folder2') }),
 			new WorkspaceFolder({ index: 2, name: '3', uri: URI.file('folder3') })]));
 
-		testObject.change(['window.title']);
-		testObject.change(['window.zoomLevel'], URI.file('folder1'));
-		testObject.change(['workbench.editor.enablePreview'], URI.file('folder2'));
-		testObject.change(['window.restoreFullscreen'], URI.file('folder1'));
-		testObject.change(['window.restoreWindows'], URI.file('folder2'));
-
 		assert.deepEqual(testObject.affectedKeys, ['window.title', 'window.zoomLevel', 'window.restoreFullscreen', 'workbench.editor.enablePreview', 'window.restoreWindows']);
+		assert.equal(testObject.source, ConfigurationTarget.WORKSPACE);
 
 		assert.ok(testObject.affectsConfiguration('window.zoomLevel'));
 		assert.ok(testObject.affectsConfiguration('window.zoomLevel', URI.file('folder1')));
