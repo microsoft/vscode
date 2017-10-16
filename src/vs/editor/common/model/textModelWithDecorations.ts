@@ -842,7 +842,9 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		const endOffset = this._lineStarts.getAccumulatedValue(range.endLineNumber - 2) + range.endColumn - 1;
 
 		this._tree.delete(node);
-
+		node.start = startOffset;
+		node.end = endOffset;
+		node.maxEnd = endOffset;
 		node.setCachedOffsets(startOffset, endOffset, this.getVersionId());
 		node.range = range;
 		this._tree.insert(node);
