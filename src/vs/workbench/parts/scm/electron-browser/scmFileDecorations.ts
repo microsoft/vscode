@@ -13,7 +13,6 @@ import URI from 'vs/base/common/uri';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
-import { equals } from 'vs/base/common/objects';
 
 class SCMDecorationsProvider implements IDecorationsProvider {
 
@@ -85,14 +84,13 @@ export class FileDecorations implements IWorkbenchContribution {
 	private _providers = new Map<ISCMRepository, IDisposable>();
 	private _configListener: IDisposable;
 	private _repoListeners: IDisposable[];
-	private _currentConfig: ISCMConfiguration;
 
 	constructor(
 		@IDecorationsService private _decorationsService: IDecorationsService,
 		@IConfigurationService private _configurationService: IConfigurationService,
 		@ISCMService private _scmService: ISCMService,
 	) {
-		this._configListener = this._configurationService.onDidUpdateConfiguration(this._update, this);
+		this._configListener = this._configurationService.onDidUpdateConfiguration(e => e.affectsConfiguration('scm.fileDecorations.enabled') && this._update());
 		this._update();
 	}
 
@@ -108,20 +106,16 @@ export class FileDecorations implements IWorkbenchContribution {
 
 	private _update(): void {
 		const config = this._configurationService.getConfiguration<ISCMConfiguration>('scm');
-		if (!equals(config, this._currentConfig)) {
-			this._currentConfig = config;
-
-			if (this._currentConfig.fileDecorations.enabled) {
-				this._scmService.repositories.forEach(this._onDidAddRepository, this);
-				this._repoListeners = [
-					this._scmService.onDidAddRepository(this._onDidAddRepository, this),
-					this._scmService.onDidRemoveRepository(this._onDidRemoveRepository, this)
-				];
-			} else {
-				this._repoListeners = dispose(this._repoListeners);
-				this._providers.forEach(value => dispose(value));
-				this._providers.clear();
-			}
+		if (config.fileDecorations.enabled) {
+			this._scmService.repositories.forEach(this._onDidAddRepository, this);
+			this._repoListeners = [
+				this._scmService.onDidAddRepository(this._onDidAddRepository, this),
+				this._scmService.onDidRemoveRepository(this._onDidRemoveRepository, this)
+			];
+		} else {
+			this._repoListeners = dispose(this._repoListeners);
+			this._providers.forEach(value => dispose(value));
+			this._providers.clear();
 		}
 	}
 
