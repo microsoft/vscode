@@ -327,10 +327,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Some conditions under which we prevent the request
 		if (
-			!input ||																		// no input
-			position === null ||															// invalid position
-			!this.editorGroupsControl ||													// too early
-			this.editorGroupsControl.isDragging()											// pending editor DND
+			!input ||								// no input
+			position === null ||					// invalid position
+			!this.editorGroupsControl ||			// too early
+			this.editorGroupsControl.isDragging()	// pending editor DND
 		) {
 			return TPromise.as<BaseEditor>(null);
 		}
@@ -410,7 +410,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		// resource context is updated and the correct number of actions will be resolved from the title
 		// area.
 		if (newGroupOpened && this.stacks.isActive(group)) {
-			this.editorGroupsControl.updateTitleAreaControls();
+			this.editorGroupsControl.updateTitleAreas(true /* refresh new active group */);
 		}
 
 		return inputPromise;
@@ -655,6 +655,9 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			// Explicitly trigger the focus changed handler because the side by side control will not trigger it unless
 			// the user is actively changing focus with the mouse from left/top to right/bottom.
 			this.onGroupFocusChanged();
+
+			// Update title area sync to avoid some flickering with actions
+			this.editorGroupsControl.updateTitleAreas();
 		}
 	}
 
