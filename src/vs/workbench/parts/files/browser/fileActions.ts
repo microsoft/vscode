@@ -49,8 +49,7 @@ import { withFocusedFilesExplorer, revealInOSCommand, revealInExplorerCommand, c
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { once } from 'vs/base/common/event';
 
 export interface IEditableData {
@@ -641,8 +640,7 @@ export class BaseDeleteFileAction extends BaseFileAction {
 		@IFileService fileService: IFileService,
 		@IMessageService messageService: IMessageService,
 		@ITextFileService textFileService: ITextFileService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(id, label, fileService, messageService, textFileService);
 
@@ -746,7 +744,7 @@ export class BaseDeleteFileAction extends BaseFileAction {
 				// Check for confirmation checkbox
 				let updateConfirmSettingsPromise: TPromise<void> = TPromise.as(void 0);
 				if (confirmation.checkboxChecked === true) {
-					updateConfirmSettingsPromise = this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: BaseDeleteFileAction.CONFIRM_DELETE_SETTING_KEY, value: false });
+					updateConfirmSettingsPromise = this.configurationService.updateValue(BaseDeleteFileAction.CONFIRM_DELETE_SETTING_KEY, false, ConfigurationTarget.USER);
 				}
 
 				return updateConfirmSettingsPromise.then(() => {
@@ -792,10 +790,9 @@ export class MoveFileToTrashAction extends BaseDeleteFileAction {
 		@IFileService fileService: IFileService,
 		@IMessageService messageService: IMessageService,
 		@ITextFileService textFileService: ITextFileService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IConfigurationEditingService configurationEditingService: IConfigurationEditingService
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(MoveFileToTrashAction.ID, nls.localize('delete', "Delete"), tree, element, true, fileService, messageService, textFileService, configurationService, configurationEditingService);
+		super(MoveFileToTrashAction.ID, nls.localize('delete', "Delete"), tree, element, true, fileService, messageService, textFileService, configurationService);
 	}
 }
 

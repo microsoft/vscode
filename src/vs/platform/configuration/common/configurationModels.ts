@@ -310,12 +310,12 @@ export class Configuration {
 
 	getSection<C>(section: string = '', overrides: IConfigurationOverrides = {}): C {
 		const configModel = this.getConsolidateConfigurationModel(overrides);
-		return Object.freeze(section ? configModel.getSectionContents<C>(section) : configModel.contents);
+		return objects.clone(section ? configModel.getSectionContents<C>(section) : configModel.contents);
 	}
 
 	getValue(key: string, overrides: IConfigurationOverrides = {}): any {
 		const consolidateConfigurationModel = this.getConsolidateConfigurationModel(overrides);
-		return Object.freeze(getConfigurationValue<any>(consolidateConfigurationModel.contents, key));
+		return objects.clone(getConfigurationValue<any>(consolidateConfigurationModel.contents, key));
 	}
 
 	updateValue(key: string, value: any, overrides: IConfigurationOverrides = {}): void {
@@ -352,7 +352,7 @@ export class Configuration {
 		const consolidateConfigurationModel = this.getConsolidateConfigurationModel(overrides);
 		const folderConfigurationModel = this.getFolderConfigurationModelForResource(overrides.resource);
 		const memoryConfigurationModel = overrides.resource ? this._memoryConfigurationByResource.get(overrides.resource) || this._memoryConfiguration : this._memoryConfiguration;
-		return Object.freeze({
+		return objects.clone({
 			default: getConfigurationValue<C>(overrides.overrideIdentifier ? this._defaults.override(overrides.overrideIdentifier).contents : this._defaults.contents, key),
 			user: getConfigurationValue<C>(overrides.overrideIdentifier ? this._user.override(overrides.overrideIdentifier).contents : this._user.contents, key),
 			workspace: this._workspace ? getConfigurationValue<C>(overrides.overrideIdentifier ? this._workspaceConfiguration.override(overrides.overrideIdentifier).contents : this._workspaceConfiguration.contents, key) : void 0, //Check on workspace exists or not because _workspaceConfiguration is never null
@@ -369,12 +369,12 @@ export class Configuration {
 		workspaceFolder: string[];
 	} {
 		const folderConfigurationModel = this.getFolderConfigurationModelForResource();
-		return {
+		return objects.clone({
 			default: this._defaults.keys,
 			user: this._user.keys,
 			workspace: this._workspaceConfiguration.keys,
 			workspaceFolder: folderConfigurationModel ? folderConfigurationModel.keys : []
-		};
+		});
 	}
 
 	private getConsolidateConfigurationModel<C>(overrides: IConfigurationOverrides): ConfigurationModel {

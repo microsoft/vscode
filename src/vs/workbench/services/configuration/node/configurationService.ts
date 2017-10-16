@@ -150,11 +150,11 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	updateValue(key: string, value: any, overrides: IConfigurationOverrides): TPromise<void>
 	updateValue(key: string, value: any, target: ConfigurationTarget): TPromise<void>
 	updateValue(key: string, value: any, overrides: IConfigurationOverrides, target: ConfigurationTarget): TPromise<void>
-	updateValue(key: string, value: any, arg3?: any, arg4?: any): TPromise<void> {
+	updateValue(key: string, value: any, arg3?: any, arg4?: any, donotNotifyError?: any): TPromise<void> {
 		assert.ok(this.configurationEditingService, 'Workbench is not initialized yet');
 		const overrides = isConfigurationOverrides(arg3) ? arg3 : void 0;
 		const target = this.deriveConfigurationTarget(key, value, overrides, overrides ? arg4 : arg3);
-		return target ? this.writeConfigurationValue(key, value, target, overrides)
+		return target ? this.writeConfigurationValue(key, value, target, overrides, donotNotifyError)
 			: TPromise.as(null);
 	}
 
@@ -463,14 +463,9 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		})]);
 	}
 
-	private writeConfigurationValue(key: string, value: any, target: ConfigurationTarget, overrides: IConfigurationOverrides): TPromise<void> {
+	private writeConfigurationValue(key: string, value: any, target: ConfigurationTarget, overrides: IConfigurationOverrides, donotNotifyError: boolean): TPromise<void> {
 		if (target === ConfigurationTarget.DEFAULT) {
 			return TPromise.wrapError(new Error('Invalid configuration target'));
-		}
-
-		let currentTargetValue = this.getTargetValue(key, target, overrides);
-		if (equals(currentTargetValue, value)) {
-			return TPromise.as(null);
 		}
 
 		if (target === ConfigurationTarget.MEMORY) {
@@ -479,7 +474,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 			return TPromise.as(null);
 		}
 
-		return this.configurationEditingService.writeConfiguration(this.toEditableConfigurationTarget(target), { key, value }, { scopes: overrides })
+		return this.configurationEditingService.writeConfiguration(this.toEditableConfigurationTarget(target), { key, value }, { scopes: overrides, donotNotifyError })
 			.then(() => {
 				switch (target) {
 					case ConfigurationTarget.USER:
@@ -541,23 +536,6 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 			configurationEvent.telemetryData(target, this.getTargetConfiguration(target));
 			this._onDidUpdateConfiguration.fire(new WorkspaceConfigurationChangeEvent(configurationEvent, this.workspace));
 		}
-	}
-
-	private getTargetValue(key: string, target: ConfigurationTarget, overrides?: IConfigurationOverrides): any {
-		const inspect = this.inspect(key, overrides);
-		switch (target) {
-			case ConfigurationTarget.DEFAULT:
-				return inspect.default;
-			case ConfigurationTarget.USER:
-				return inspect.user;
-			case ConfigurationTarget.WORKSPACE:
-				return inspect.workspace;
-			case ConfigurationTarget.WORKSPACE_FOLDER:
-				return inspect.workspaceFolder;
-			case ConfigurationTarget.MEMORY:
-				return inspect.memory;
-		}
-		return void 0;
 	}
 
 	private getTargetConfiguration(target: ConfigurationTarget): any {

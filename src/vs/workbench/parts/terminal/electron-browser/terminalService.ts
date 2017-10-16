@@ -11,8 +11,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IQuickOpenService, IPickOpenEntry, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { ITerminalInstance, ITerminalService, IShellLaunchConfig, ITerminalConfigHelper, NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
 import { TerminalService as AbstractTerminalService } from 'vs/workbench/parts/terminal/common/terminalService';
@@ -39,7 +38,6 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IWindowService private _windowService: IWindowService,
 		@IQuickOpenService private _quickOpenService: IQuickOpenService,
-		@IConfigurationEditingService private _configurationEditingService: IConfigurationEditingService,
 		@IChoiceService private _choiceService: IChoiceService,
 		@IStorageService private _storageService: IStorageService,
 		@IMessageService private _messageService: IMessageService
@@ -163,8 +161,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 					return null;
 				}
 				const shell = value.description;
-				const configChange = { key: 'terminal.integrated.shell.windows', value: shell };
-				return this._configurationEditingService.writeConfiguration(ConfigurationTarget.USER, configChange).then(() => shell);
+				return this._configurationService.updateValue('terminal.integrated.shell.windows', shell, ConfigurationTarget.USER).then(() => shell);
 			});
 		});
 	}

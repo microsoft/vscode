@@ -11,9 +11,8 @@ import { WorkspaceConfiguration } from 'vscode';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostConfigurationShape, MainThreadConfigurationShape } from './extHost.protocol';
 import { ConfigurationTarget as ExtHostConfigurationTarget } from './extHostTypes';
-import { IConfigurationData } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationData, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { Configuration } from 'vs/platform/configuration/common/configurationModels';
-import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 
 function lookUp(tree: any, key: string) {
 	if (key) {
@@ -72,7 +71,7 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 			switch (arg) {
 				case ExtHostConfigurationTarget.Global: return ConfigurationTarget.USER;
 				case ExtHostConfigurationTarget.Workspace: return ConfigurationTarget.WORKSPACE;
-				case ExtHostConfigurationTarget.WorkspaceFolder: return ConfigurationTarget.FOLDER;
+				case ExtHostConfigurationTarget.WorkspaceFolder: return ConfigurationTarget.WORKSPACE_FOLDER;
 			}
 		}
 

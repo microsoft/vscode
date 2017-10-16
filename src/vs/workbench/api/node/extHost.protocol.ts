@@ -28,8 +28,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 import { ITextSource } from 'vs/editor/common/model/textSource';
 
-import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IConfigurationData } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationData, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
 import { IPickOpenEntry, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';

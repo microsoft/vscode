@@ -14,7 +14,6 @@ import { Builder } from 'vs/base/browser/builder';
 import { VIEWLET_ID, ExplorerViewletVisibleContext, IFilesConfiguration, OpenEditorsVisibleContext, OpenEditorsVisibleCondition } from 'vs/workbench/parts/files/common/files';
 import { PersistentViewsViewlet, ViewsViewletPanel, IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IConfigurationEditingService } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { ActionRunner, FileViewletState } from 'vs/workbench/parts/files/browser/views/explorerViewer';
 import { ExplorerView, IExplorerViewOptions } from 'vs/workbench/parts/files/browser/views/explorerView';
 import { EmptyView } from 'vs/workbench/parts/files/browser/views/emptyView';
@@ -51,7 +50,6 @@ export class ExplorerViewlet extends PersistentViewsViewlet {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService

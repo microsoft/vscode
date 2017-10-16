@@ -28,10 +28,10 @@ export interface IConfigurationOverrides {
 }
 
 export enum ConfigurationTarget {
-	DEFAULT = 1,
-	USER,
+	USER = 1,
 	WORKSPACE,
 	WORKSPACE_FOLDER,
+	DEFAULT,
 	MEMORY
 }
 
@@ -62,7 +62,7 @@ export interface IConfigurationService {
 	updateValue(key: string, value: any): TPromise<void>;
 	updateValue(key: string, value: any, overrides: IConfigurationOverrides): TPromise<void>;
 	updateValue(key: string, value: any, target: ConfigurationTarget): TPromise<void>;
-	updateValue(key: string, value: any, overrides: IConfigurationOverrides, target: ConfigurationTarget): TPromise<void>;
+	updateValue(key: string, value: any, overrides: IConfigurationOverrides, target: ConfigurationTarget, donotNotifyError?: boolean): TPromise<void>;
 
 	reloadConfiguration(): TPromise<void>;
 	reloadConfiguration(folder: IWorkspaceFolder): TPromise<void>;

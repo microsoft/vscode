@@ -11,9 +11,9 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditor, Position, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IKeybindingItemEntry } from 'vs/workbench/parts/preferences/common/keybindingsEditorModel';
 import { IRange } from 'vs/editor/common/core/range';
-import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { join } from 'vs/base/common/paths';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
 export interface ISettingsGroup {
 	id: string;
@@ -107,10 +107,11 @@ export function getSettingsTargetName(target: ConfigurationTarget, resource: URI
 			return localize('userSettingsTarget', "User Settings");
 		case ConfigurationTarget.WORKSPACE:
 			return localize('workspaceSettingsTarget', "Workspace Settings");
-		case ConfigurationTarget.FOLDER:
+		case ConfigurationTarget.WORKSPACE_FOLDER:
 			const folder = workspaceContextService.getWorkspaceFolder(resource);
 			return folder ? folder.name : '';
 	}
+	return '';
 }
 
 export const CONTEXT_SETTINGS_EDITOR = new RawContextKey<boolean>('inSettingsEditor', false);

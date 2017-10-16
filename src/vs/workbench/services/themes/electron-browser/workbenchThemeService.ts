@@ -14,8 +14,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import errors = require('vs/base/common/errors');
-import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -507,7 +506,7 @@ colorThemeSchema.register();
 fileIconThemeSchema.register();
 
 class ConfigurationWriter {
-	constructor( @IConfigurationService private configurationService: IConfigurationService, @IConfigurationEditingService private configurationEditingService: IConfigurationEditingService) {
+	constructor( @IConfigurationService private configurationService: IConfigurationService) {
 	}
 
 	public writeConfiguration(key: string, value: any, settingsTarget: ConfigurationTarget): TPromise<void> {
@@ -526,7 +525,7 @@ class ConfigurationWriter {
 				return TPromise.as(null); // nothing to do
 			}
 		}
-		return this.configurationEditingService.writeConfiguration(settingsTarget, { key, value });
+		return this.configurationService.updateValue(key, value, settingsTarget);
 	}
 }
 
