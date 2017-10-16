@@ -46,6 +46,7 @@
 					"meta.embedded.block.html": "html",
 					"source.js": "javascript",
 					"source.css": "css",
+					"meta.embedded.block.frontmatter": "yaml",
 
 					"meta.embedded.block.css": "css",
 					"meta.embedded.block.ini": "ini",
