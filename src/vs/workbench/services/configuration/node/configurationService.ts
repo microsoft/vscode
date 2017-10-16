@@ -37,7 +37,6 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
-import { IConfigurationEditingService, ConfigurationTarget as EditableConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ConfigurationEditingService } from 'vs/workbench/services/configuration/node/configurationEditingService';
 
@@ -74,7 +73,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	protected readonly _onDidChangeWorkbenchState: Emitter<WorkbenchState> = this._register(new Emitter<WorkbenchState>());
 	public readonly onDidChangeWorkbenchState: Event<WorkbenchState> = this._onDidChangeWorkbenchState.event;
 
-	private configurationEditingService: IConfigurationEditingService;
+	private configurationEditingService: ConfigurationEditingService;
 
 	constructor(private environmentService: IEnvironmentService, private workspacesService: IWorkspacesService, private workspaceSettingsRootFolder: string = WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME) {
 		super();
@@ -474,7 +473,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 			return TPromise.as(null);
 		}
 
-		return this.configurationEditingService.writeConfiguration(this.toEditableConfigurationTarget(target), { key, value }, { scopes: overrides, donotNotifyError })
+		return this.configurationEditingService.writeConfiguration(target, { key, value }, { scopes: overrides, donotNotifyError })
 			.then(() => {
 				switch (target) {
 					case ConfigurationTarget.USER:
@@ -516,19 +515,6 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		}
 
 		return ConfigurationTarget.USER;
-	}
-
-	private toEditableConfigurationTarget(target: ConfigurationTarget): EditableConfigurationTarget {
-		switch (target) {
-			case ConfigurationTarget.USER:
-				return EditableConfigurationTarget.USER;
-			case ConfigurationTarget.WORKSPACE:
-				return EditableConfigurationTarget.WORKSPACE;
-			case ConfigurationTarget.WORKSPACE_FOLDER:
-				return EditableConfigurationTarget.FOLDER;
-			default:
-				return EditableConfigurationTarget.WORKSPACE;
-		}
 	}
 
 	private triggerConfigurationChange(configurationEvent: ConfigurationChangeEvent, target: ConfigurationTarget): void {
