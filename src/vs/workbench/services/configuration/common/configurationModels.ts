@@ -5,7 +5,7 @@
 'use strict';
 
 import { clone, equals } from 'vs/base/common/objects';
-import { compare, toValuesTree, IConfigurationChangeEvent, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { compare, toValuesTree, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationModel, Configuration as BaseConfiguration, CustomConfigurationModel, ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, IConfigurationPropertySchema, Extensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
@@ -268,33 +268,21 @@ export class Configuration extends BaseConfiguration {
 	}
 }
 
-export class WorkspaceConfigurationChangeEvent implements IConfigurationChangeEvent {
+export class WorkspaceConfigurationChangeEvent extends ConfigurationChangeEvent implements IConfigurationChangeEvent {
 
-	constructor(private configurationChangeEvent: ConfigurationChangeEvent, private workspace: Workspace) {
+	constructor(private workspace: Workspace) {
+		super();
 	}
 
-	get affectedKeys(): string[] {
-		return this.configurationChangeEvent.affectedKeys;
-	}
-
-	get source(): ConfigurationTarget {
-		return this.configurationChangeEvent.source;
-	}
-
-	get sourceConfig(): any {
-		return this.configurationChangeEvent.sourceConfig;
-	}
-
-	affectsConfiugration(config: string, arg1?: any, arg2?: any): boolean {
-		if (this.configurationChangeEvent.affectsConfiugration(config, arg1, arg2)) {
+	affectsConfiugration(config: string, resource?: URI): boolean {
+		if (super.affectsConfiugration(config, resource)) {
 			return true;
 		}
 
-		let resource = arg1 instanceof URI ? arg1 : arg2 instanceof URI ? arg2 : void 0;
 		if (resource) {
 			let workspaceFolder = this.workspace.getFolder(resource);
 			if (workspaceFolder) {
-				return this.configurationChangeEvent.affectsConfiugration(config, resource && arg1 !== resource ? arg1 : void 0, resource);
+				return super.affectsConfiugration(config, resource);
 			}
 		}
 
