@@ -62,7 +62,7 @@ export class ViewletActivityAction extends ActivityAction {
 	}
 }
 
-export class OpenViewletAction extends Action {
+export class ToggleViewletAction extends Action {
 
 	constructor(
 		private _viewlet: ViewletDescriptor,

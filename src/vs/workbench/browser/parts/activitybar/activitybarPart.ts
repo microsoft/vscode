@@ -15,7 +15,7 @@ import { ActionsOrientation, ActionBar, Separator } from 'vs/base/browser/ui/act
 import { GlobalActivityExtensions, IGlobalActivityRegistry } from 'vs/workbench/common/activity';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Part } from 'vs/workbench/browser/part';
-import { ToggleViewletPinnedAction, GlobalActivityActionItem, GlobalActivityAction, ViewletActivityAction, OpenViewletAction } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
+import { ToggleViewletPinnedAction, GlobalActivityActionItem, GlobalActivityAction, ViewletActivityAction, ToggleViewletAction } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IActivityBarService, IBadge } from 'vs/workbench/services/activity/common/activityBarService';
 import { IPartService, Position as SideBarPosition } from 'vs/workbench/services/part/common/partService';
@@ -64,9 +64,12 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			orientation: ActionsOrientation.VERTICAL,
 			composites: this.viewletService.getViewlets(),
 			getCompositeSize: (compositeId: string) => ActivitybarPart.ACTIVITY_ACTION_HEIGHT,
+			openComposite: (compositeId: string) => this.viewletService.openViewlet(compositeId, true),
 			getActivityAction: (compositeId: string) => this.instantiationService.createInstance(ViewletActivityAction, this.viewletService.getViewlet(compositeId)),
 			getCompositePinnedAction: (compositeId: string) => this.instantiationService.createInstance(ToggleViewletPinnedAction, this.viewletService.getViewlet(compositeId)),
-			getOpenCompositeAction: (compositeId: string) => this.instantiationService.createInstance(OpenViewletAction, this.viewletService.getViewlet(compositeId))
+			getOnCompositeClickAction: (compositeId: string) => this.instantiationService.createInstance(ToggleViewletAction, this.viewletService.getViewlet(compositeId)),
+			getDefaultCompositeId: () => this.viewletService.getDefaultViewletId(),
+			hidePart: () => this.partService.setSideBarHidden(true)
 		});
 		this.registerListeners();
 	}
@@ -78,7 +81,6 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		// Deactivate viewlet action on close
 		this.toUnbind.push(this.viewletService.onDidViewletClose(viewlet => this.compositeBar.deactivateComposite(viewlet.getId())));
-		this.toUnbind.push(this.compositeBar.onDidDropComposite(data => this.move(data.compositeId, data.toCompositeId)));
 		this.toUnbind.push(this.compositeBar.onDidContextMenu(e => this.showContextMenu(e)));
 	}
 
@@ -176,44 +178,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	public unpin(viewletId: string): void {
-		if (!this.compositeBar.isPinned(viewletId)) {
-			return;
-		}
-
-		const activeViewlet = this.viewletService.getActiveViewlet();
-		const defaultViewletId = this.viewletService.getDefaultViewletId();
-		const visibleViewlets = this.compositeBar.getVisibleComposites();
-
-		let unpinPromise: TPromise<any>;
-
-		// Case: viewlet is not the active one or the active one is a different one
-		// Solv: we do nothing
-		if (!activeViewlet || activeViewlet.getId() !== viewletId) {
-			unpinPromise = TPromise.as(null);
-		}
-
-		// Case: viewlet is not the default viewlet and default viewlet is still showing
-		// Solv: we open the default viewlet
-		else if (defaultViewletId !== viewletId && this.compositeBar.isPinned(defaultViewletId)) {
-			unpinPromise = this.viewletService.openViewlet(defaultViewletId, true);
-		}
-
-		// Case: we closed the last visible viewlet
-		// Solv: we hide the sidebar
-		else if (visibleViewlets.length === 1) {
-			unpinPromise = this.partService.setSideBarHidden(true);
-		}
-
-		// Case: we closed the default viewlet
-		// Solv: we open the next visible viewlet from top
-		else {
-			unpinPromise = this.viewletService.openViewlet(visibleViewlets.filter(viewletId => viewletId !== viewletId)[0], true);
-		}
-
-		unpinPromise.then(() => {
-			// then remove from pinned and update switcher
-			this.compositeBar.unpin(viewletId);
-		});
+		this.compositeBar.unpin(viewletId);
 	}
 
 	public isPinned(viewletId: string): boolean {
@@ -221,21 +186,10 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	public pin(viewletId: string, update = true): void {
-		if (this.isPinned(viewletId)) {
-			return;
-		}
-
-		// first open that viewlet
-		this.viewletService.openViewlet(viewletId, true)
-			.then(() => this.compositeBar.pin(viewletId, update));
+		this.compositeBar.pin(viewletId, update);
 	}
 
 	public move(viewletId: string, toViewletId: string): void {
-		// Make sure a moved viewlet gets pinned
-		if (!this.isPinned(viewletId)) {
-			this.pin(viewletId, false /* defer update, we take care of it */);
-		}
-
 		this.compositeBar.move(viewletId, toViewletId);
 	}
 
