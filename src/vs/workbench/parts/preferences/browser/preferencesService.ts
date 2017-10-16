@@ -18,7 +18,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { Position as EditorPosition, IEditor, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, IModel } from 'vs/editor/common/editorCommon';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IFileService, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
@@ -40,6 +40,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 const emptyEditableSettingsContent = '{\n}';
 
@@ -73,7 +74,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		@IExtensionService private extensionService: IExtensionService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService private modelService: IModelService,
-		@IJSONEditingService private jsonEditingService: IJSONEditingService
+		@IJSONEditingService private jsonEditingService: IJSONEditingService,
+		@IModeService private modeService: IModeService
 	) {
 		super();
 		this.defaultPreferencesEditorModels = new ResourceMap<TPromise<IPreferencesEditorModel<any>>>();
@@ -114,13 +116,31 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE_FOLDER, resource);
 	}
 
-	resolveContent(uri: URI): TPromise<string> {
+	resolveModel(uri: URI): TPromise<IModel> {
 		const workspaceSettingsUri = this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE);
 		if (workspaceSettingsUri && workspaceSettingsUri.toString() === uri.toString()) {
-			return this.resolveSettingsContentFromWorkspaceConfiguration();
+			return this.resolveSettingsContentFromWorkspaceConfiguration().then(content => {
+				return this.getJsonModel(content, uri);
+			});
 		}
+
 		return this.createPreferencesEditorModel(uri)
-			.then(preferencesEditorModel => preferencesEditorModel ? preferencesEditorModel.content : null);
+			.then(preferencesEditorModel => {
+				if (preferencesEditorModel instanceof DefaultSettingsEditorModel) {
+					return preferencesEditorModel.model;
+				} else {
+					return this.getJsonModel(preferencesEditorModel && preferencesEditorModel.content, uri);
+				}
+			});
+	}
+
+	private getJsonModel(content: string, uri: URI): IModel {
+		if (content !== null && content !== undefined) {
+			const mode = this.modeService.getOrCreateMode('json');
+			return this.modelService.createModel(content, mode, uri);
+		}
+
+		return null;
 	}
 
 	disownPreferencesEditorModel(editorModel: IPreferencesEditorModel<any>): void {

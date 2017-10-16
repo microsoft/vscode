@@ -23,6 +23,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Queue } from 'vs/base/common/async';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 export abstract class AbstractSettingsModel extends EditorModel {
 
@@ -480,9 +482,22 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	private _allSettingsGroups: ISettingsGroup[];
 	private _content: string;
 	private _contentByLines: string[];
+	private _model: IModel;
 
-	constructor(private _uri: URI, private _mostCommonlyUsedSettingsKeys: string[], readonly configurationScope: ConfigurationScope) {
+	constructor(
+		private _uri: URI,
+		private _mostCommonlyUsedSettingsKeys: string[],
+		readonly configurationScope: ConfigurationScope,
+		@IModeService private modeService: IModeService,
+		@IModelService private modelService: IModelService) {
 		super();
+
+		const mode = this.modeService.getOrCreateMode('json');
+		this._model = this._register(this.modelService.createModel(this.content, mode, this._uri));
+	}
+
+	public get model(): IModel {
+		return this._model;
 	}
 
 	public get uri(): URI {
