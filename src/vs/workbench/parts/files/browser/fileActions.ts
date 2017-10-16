@@ -27,7 +27,7 @@ import { VIEWLET_ID, FileOnDiskContentProvider } from 'vs/workbench/parts/files/
 import labels = require('vs/base/common/labels');
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService, IFileStat } from 'vs/platform/files/common/files';
-import { toResource, IEditorIdentifier, EditorInput } from 'vs/workbench/common/editor';
+import { toResource, IEditorIdentifier } from 'vs/workbench/common/editor';
 import { FileStat, Model, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerModel';
 import { ExplorerView } from 'vs/workbench/parts/files/browser/views/explorerView';
 import { ExplorerViewlet } from 'vs/workbench/parts/files/browser/explorerViewlet';
@@ -35,10 +35,9 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { IQuickOpenService, IFilePickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { Position, IResourceInput, IEditorInput, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
+import { Position, IResourceInput, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature2, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction, IConfirmationResult } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -52,6 +51,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { once } from 'vs/base/common/event';
 
 export interface IEditableData {
 	action: IAction;
@@ -1197,12 +1197,9 @@ export class GlobalCompareResourcesAction extends Action {
 		id: string,
 		label: string,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IHistoryService private historyService: IHistoryService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IMessageService private messageService: IMessageService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEditorGroupService private editorGroupService: IEditorGroupService
 	) {
 		super(id, label);
 	}
@@ -1212,50 +1209,22 @@ export class GlobalCompareResourcesAction extends Action {
 		const activeResource = activeInput ? activeInput.getResource() : void 0;
 		if (activeResource) {
 
-			// Keep as resource to compare
-			globalResourceToCompare = activeResource;
-
-			// Pick another entry from history
-			interface IHistoryPickEntry extends IFilePickOpenEntry {
-				input: IEditorInput | IResourceInput;
-			}
-
-			const history = this.historyService.getHistory();
-			const picks: IHistoryPickEntry[] = history.map(input => {
-				let resource: URI;
-				let label: string;
-				let description: string;
-
-				if (input instanceof EditorInput) {
-					resource = input.getResource();
-				} else {
-					resource = (input as IResourceInput).resource;
+			// Compare with next editor that opens
+			const unbind = once(this.editorGroupService.onEditorOpening)(e => {
+				const resource = e.input.getResource();
+				if (resource) {
+					e.prevent(() => {
+						return this.editorService.openEditor({
+							leftResource: activeResource,
+							rightResource: resource
+						});
+					});
 				}
+			});
 
-				// Cannot compare file with self - exclude active file
-				if (!!resource && resource.toString() === globalResourceToCompare.toString()) {
-					return void 0;
-				}
-
-				if (!resource) {
-					return void 0; // only support to compare with files and untitled
-				}
-
-				label = paths.basename(resource.fsPath);
-				description = labels.getPathLabel(resources.dirname(resource), this.contextService, this.environmentService);
-
-				return <IHistoryPickEntry>{ input, resource, label, description };
-			}).filter(p => !!p);
-
-			return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickHistory', "Select a previously opened file to compare with"), autoFocus: { autoFocusFirstEntry: true }, matchOnDescription: true }).then(pick => {
-				if (pick) {
-					const compareAction = this.instantiationService.createInstance(CompareResourcesAction, pick.resource, null);
-					if (compareAction._isEnabled()) {
-						compareAction.run().done(() => compareAction.dispose());
-					} else {
-						this.messageService.show(Severity.Info, nls.localize('unableToFileToCompare', "The selected file can not be compared with '{0}'.", paths.basename(globalResourceToCompare.fsPath)));
-					}
-				}
+			// Bring up quick open
+			this.quickOpenService.show('', { autoFocus: { autoFocusSecondEntry: true } }).then(() => {
+				unbind.dispose(); // make sure to unbind if quick open is closing
 			});
 		} else {
 			this.messageService.show(Severity.Info, nls.localize('openFileToCompare', "Open a file first to compare it with another file."));
@@ -1305,7 +1274,7 @@ export class CompareResourcesAction extends Action {
 		return nls.localize('compareFiles', "Compare Files");
 	}
 
-	_isEnabled(): boolean {
+	public _isEnabled(): boolean {
 
 		// Need at least a resource to compare
 		if (!globalResourceToCompare) {
