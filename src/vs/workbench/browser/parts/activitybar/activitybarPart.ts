@@ -29,7 +29,7 @@ import { ToggleActivityBarVisibilityAction } from 'vs/workbench/browser/actions/
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER } from 'vs/workbench/common/theme';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { CompositeBar } from 'vs/workbench/browser/compositeBar';
+import { CompositeBar } from 'vs/workbench/browser/parts/compositebar/compositeBar';
 
 export class ActivitybarPart extends Part implements IActivityBarService {
 

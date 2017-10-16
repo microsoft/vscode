@@ -21,7 +21,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ActivityAction } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
 import { ActionBar, IActionItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import Event, { Emitter } from 'vs/base/common/event';
-import { CompositeActionItem, CompositeOverflowActivityAction, ICompositeActivity, CompositeOverflowActivityActionItem } from 'vs/workbench/browser/compositeBarActions';
+import { CompositeActionItem, CompositeOverflowActivityAction, ICompositeActivity, CompositeOverflowActivityActionItem } from 'vs/workbench/browser/parts/compositebar/compositeBarActions';
 
 export interface ICompositeBarOptions {
 	label: 'icon' | 'name';
