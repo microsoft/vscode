@@ -50,6 +50,8 @@ export interface IConfigurationService {
 
 	onDidUpdateConfiguration: Event<IConfigurationChangeEvent>;
 
+	getConfigurationData(): IConfigurationData;
+
 	getConfiguration<T>(): T;
 	getConfiguration<T>(section: string): T;
 	getConfiguration<T>(overrides: IConfigurationOverrides): T;

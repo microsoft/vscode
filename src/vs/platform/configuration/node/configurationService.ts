@@ -8,7 +8,7 @@ import { ConfigWatcher } from 'vs/base/node/config';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { IConfigurationService, IConfigurationChangeEvent, IConfigurationOverrides, ConfigurationTarget, compare, isConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationChangeEvent, IConfigurationOverrides, ConfigurationTarget, compare, isConfigurationOverrides, IConfigurationData } from 'vs/platform/configuration/common/configuration';
 import { CustomConfigurationModel, DefaultConfigurationModel, ConfigurationModel, Configuration, ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -50,6 +50,10 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 
 	get configuration(): Configuration {
 		return this._configuration;
+	}
+
+	getConfigurationData(): IConfigurationData {
+		return this.configuration.toData();
 	}
 
 	getConfiguration<T>(): T
