@@ -17,13 +17,13 @@ export interface IDecorationData {
 	readonly color?: ColorIdentifier;
 	readonly opacity?: number;
 	readonly letter?: string;
-	readonly tooltip?: string;
+	readonly title?: string;
 }
 
 export interface IDecoration {
 	readonly _decoBrand: undefined;
 	readonly weight?: number;
-	readonly tooltip?: string;
+	readonly title?: string;
 	readonly labelClassName?: string;
 	readonly badgeClassName?: string;
 }

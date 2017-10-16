@@ -93,10 +93,10 @@ class ResourceDecoration implements IDecoration {
 		let result = new ResourceDecoration(data);
 		if (Array.isArray(data)) {
 			result.weight = data[0].weight;
-			result.tooltip = data.map(d => d.tooltip).join(', ');
+			result.title = data.map(d => d.title).join(', ');
 		} else {
 			result.weight = data.weight;
-			result.tooltip = data.tooltip;
+			result.title = data.title;
 		}
 		return result;
 	}
@@ -105,7 +105,7 @@ class ResourceDecoration implements IDecoration {
 	_data: IDecorationData | IDecorationData[];
 
 	weight?: number;
-	tooltip?: string;
+	title?: string;
 	labelClassName?: string;
 	badgeClassName?: string;
 

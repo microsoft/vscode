@@ -67,7 +67,7 @@ class SCMDecorationsProvider implements IDecorationsProvider {
 		}
 		return {
 			weight: 100 - resource.decorations.tooltip.charAt(0).toLowerCase().charCodeAt(0),
-			tooltip: localize('tooltip', "{0}, {1}", resource.decorations.tooltip, this._provider.label),
+			title: localize('tooltip', "{0}, {1}", resource.decorations.tooltip, this._provider.label),
 			color: resource.decorations.color,
 			letter: resource.decorations.tooltip.charAt(0)
 		};

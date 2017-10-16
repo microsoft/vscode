@@ -192,7 +192,7 @@ export class ResourceLabel extends IconLabel {
 			}
 			if (deco && deco.badgeClassName && this.options.fileDecorations.badges) {
 				iconLabelOptions.badge = {
-					title: deco.tooltip,
+					title: deco.title,
 					className: deco.badgeClassName,
 				};
 			}

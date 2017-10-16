@@ -36,7 +36,7 @@ suite('DecorationsService', function () {
 				return new Promise<IDecorationData>(resolve => {
 					setTimeout(() => resolve({
 						color: 'someBlue',
-						tooltip: 'T'
+						title: 'T'
 					}));
 				});
 			}
@@ -51,7 +51,7 @@ suite('DecorationsService', function () {
 			assert.equal(e.affectsResource(uri), true);
 
 			// sync result
-			assert.deepEqual(service.getDecoration(uri, false).tooltip, 'T');
+			assert.deepEqual(service.getDecoration(uri, false).title, 'T');
 			assert.equal(callCounter, 1);
 		});
 	});
@@ -71,7 +71,7 @@ suite('DecorationsService', function () {
 		});
 
 		// trigger -> sync
-		assert.deepEqual(service.getDecoration(uri, false).tooltip, 'Z');
+		assert.deepEqual(service.getDecoration(uri, false).title, 'Z');
 		assert.equal(callCounter, 1);
 	});
 
@@ -89,7 +89,7 @@ suite('DecorationsService', function () {
 		});
 
 		// trigger -> sync
-		assert.deepEqual(service.getDecoration(uri, false).tooltip, 'J');
+		assert.deepEqual(service.getDecoration(uri, false).title, 'J');
 		assert.equal(callCounter, 1);
 
 		// un-register -> ensure good event
