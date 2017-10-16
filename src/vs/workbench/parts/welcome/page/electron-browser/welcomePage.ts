@@ -83,9 +83,9 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 }
 
 function isWelcomePageEnabled(configurationService: IConfigurationService) {
-	const startupEditor = configurationService.lookup(configurationKey);
+	const startupEditor = configurationService.inspect(configurationKey);
 	if (!startupEditor.user && !startupEditor.workspace) {
-		const welcomeEnabled = configurationService.lookup(oldConfigurationKey);
+		const welcomeEnabled = configurationService.inspect(oldConfigurationKey);
 		if (welcomeEnabled.value !== undefined && welcomeEnabled.value !== null) {
 			return welcomeEnabled.value;
 		}

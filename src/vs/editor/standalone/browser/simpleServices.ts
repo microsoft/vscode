@@ -8,7 +8,7 @@ import { Schemas } from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, IConfigurationKeys, IConfigurationValues, Configuration, IConfigurationData, ConfigurationModel, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationChangeEvent, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, Position } from 'vs/platform/editor/common/editor';
 import { ICommandService, ICommand, ICommandEvent, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -23,7 +23,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { Selection } from 'vs/editor/common/core/selection';
 import Event, { Emitter } from 'vs/base/common/event';
-import { DefaultConfigurationModel } from 'vs/platform/configuration/common/model';
+import { Configuration, ConfigurationModel, DefaultConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
@@ -434,45 +434,64 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 	}
 }
 
+function isConfigurationOverrides(thing: any): thing is IConfigurationOverrides {
+	return thing
+		&& typeof thing === 'object'
+		&& (!thing.overrideIdentifier || typeof thing.overrideIdentifier === 'string')
+		&& (!thing.resource || thing.resource instanceof URI);
+}
+
 export class SimpleConfigurationService implements IConfigurationService {
 
 	_serviceBrand: any;
 
-	private _onDidUpdateConfiguration = new Emitter<IConfigurationServiceEvent>();
-	public onDidUpdateConfiguration: Event<IConfigurationServiceEvent> = this._onDidUpdateConfiguration.event;
+	private _onDidUpdateConfiguration = new Emitter<IConfigurationChangeEvent>();
+	public onDidUpdateConfiguration: Event<IConfigurationChangeEvent> = this._onDidUpdateConfiguration.event;
 
-	private _configuration: Configuration<any>;
+	private _configuration: Configuration;
 
 	constructor() {
 		this._configuration = new Configuration(new DefaultConfigurationModel(), new ConfigurationModel());
 	}
 
-	private configuration(): Configuration<any> {
+	private configuration(): Configuration {
 		return this._configuration;
 	}
 
-	public reloadConfiguration<T>(section?: string): TPromise<T> {
-		return TPromise.as<T>(this.getConfiguration<T>(section));
+	getConfiguration<T>(): T
+	getConfiguration<T>(section: string): T
+	getConfiguration<T>(overrides: IConfigurationOverrides): T
+	getConfiguration<T>(section: string, overrides: IConfigurationOverrides): T
+	getConfiguration(arg1?: any, arg2?: any): any {
+		const section = typeof arg1 === 'string' ? arg1 : void 0;
+		const overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : void 0;
+		return this.configuration().getSection(section, overrides);
 	}
 
-	public getConfiguration<C>(section?: string, options?: IConfigurationOverrides): C {
-		return this.configuration().getValue<C>(section, options);
+	public getValue<C>(key: string, options?: IConfigurationOverrides): C {
+		return this.configuration().getValue(key, options);
 	}
 
-	public lookup<C>(key: string, options?: IConfigurationOverrides): IConfigurationValue<C> {
+	public updateValue(key: string, value: any, arg3?: any, arg4?: any): TPromise<void> {
+		return TPromise.as(null);
+	}
+
+	public inspect<C>(key: string, options?: IConfigurationOverrides): {
+		default: C,
+		user: C,
+		workspace: C,
+		workspaceFolder: C
+		value: C,
+	} {
 		return this.configuration().lookup<C>(key, options);
 	}
 
-	public keys(): IConfigurationKeys {
+	public keys() {
 		return this.configuration().keys();
 	}
 
-	public values<V>(): IConfigurationValues {
-		return this._configuration.values();
-	}
-
-	public getConfigurationData(): IConfigurationData<any> {
-		return this.configuration().toData();
+	public reloadConfiguration(): TPromise<void> {
+		return TPromise.as(null);
 	}
 }
 

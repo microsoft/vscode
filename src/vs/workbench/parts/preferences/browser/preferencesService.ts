@@ -119,6 +119,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			.then(preferencesEditorModel => preferencesEditorModel ? preferencesEditorModel.content : null);
 	}
 
+	// vsode://DefaultSettings/1
 	createPreferencesEditorModel(uri: URI): TPromise<IPreferencesEditorModel<any>> {
 		let promise = this.defaultPreferencesEditorModels.get(uri);
 		if (promise) {
@@ -260,6 +261,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 				}
 
 				if (openDefaultSettings) {
+					// get a new URI for default settings here
 					const defaultPreferencesEditorInput = this.instantiationService.createInstance(DefaultPreferencesEditorInput, this.getDefaultSettingsResource(configurationTarget));
 					const preferencesEditorInput = new PreferencesEditorInput(this.getPreferencesEditorInputName(configurationTarget, resource), editableSettingsEditorInput.getDescription(), defaultPreferencesEditorInput, <EditorInput>editableSettingsEditorInput);
 					this.lastOpenedSettingsInput = preferencesEditorInput;

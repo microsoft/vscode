@@ -17,7 +17,7 @@ import { dirname } from 'path';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { massageFolderPathForWorkspace } from 'vs/platform/workspaces/node/workspaces';
 import { isLinux } from 'vs/base/common/platform';
-import { WorkspaceService } from 'vs/workbench/services/configuration/node/configuration';
+import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
 import { migrateStorageToMultiRootWorkspace } from 'vs/platform/storage/common/migration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { StorageService } from 'vs/platform/storage/common/storageService';
@@ -190,7 +190,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		const targetWorkspaceConfiguration = {};
 		for (const key of this.workspaceConfigurationService.keys().workspace) {
 			if (configurationProperties[key] && !configurationProperties[key].isFromExtensions && configurationProperties[key].scope === ConfigurationScope.WINDOW) {
-				targetWorkspaceConfiguration[key] = this.workspaceConfigurationService.lookup(key).workspace;
+				targetWorkspaceConfiguration[key] = this.workspaceConfigurationService.inspect(key).workspace;
 			}
 		}
 
