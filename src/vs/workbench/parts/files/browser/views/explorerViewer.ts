@@ -949,7 +949,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		let confirmPromise: TPromise<IConfirmationResult>;
 
 		// Handle confirm setting
-		const confirmDragAndDrop = !isCopy && this.configurationService.lookup<boolean>(FileDragAndDrop.CONFIRM_DND_SETTING_KEY).value;
+		const confirmDragAndDrop = !isCopy && this.configurationService.getValue<boolean>(FileDragAndDrop.CONFIRM_DND_SETTING_KEY);
 		if (confirmDragAndDrop) {
 			confirmPromise = this.messageService.confirm({
 				message: nls.localize('confirmMove', "Are you sure you want to move '{0}'?", source.name),
