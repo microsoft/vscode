@@ -192,6 +192,11 @@ let workbenchProperties: { [path: string]: IJSONSchema; } = {
 		'description': nls.localize('closeOnFocusLost', "Controls if Quick Open should close automatically once it loses focus."),
 		'default': true
 	},
+	'workbench.quickOpen.ignoreCurrentOpen': {
+		'type': 'boolean',
+		'description': nls.localize('ignoreCurrentOpen', "Controls if Quick Open should not focus the currently open file."),
+		'default': false
+	},
 	'workbench.settings.openDefaultSettings': {
 		'type': 'boolean',
 		'description': nls.localize('openDefaultSettings', "Controls if opening settings also opens an editor showing all default settings."),

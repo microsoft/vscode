@@ -26,6 +26,7 @@ export interface IWorkbenchQuickOpenConfiguration {
 	workbench: {
 		quickOpen: {
 			closeOnFocusLost: boolean;
+			ignoreCurrentOpen: boolean;
 		},
 		commandPalette: {
 			history: number;

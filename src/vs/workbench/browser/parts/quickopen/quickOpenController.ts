@@ -100,6 +100,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	private previousValue = '';
 	private visibilityChangeTimeoutHandle: number;
 	private closeOnFocusLost: boolean;
+	private ignoreCurrentOpen: boolean;
 	private editorHistoryHandler: EditorHistoryHandler;
 
 	constructor(
@@ -148,6 +149,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		} else {
 			this.closeOnFocusLost = settings.workbench && settings.workbench.quickOpen && settings.workbench.quickOpen.closeOnFocusLost;
 		}
+		this.ignoreCurrentOpen = settings.workbench && settings.workbench.quickOpen && settings.workbench.quickOpen.ignoreCurrentOpen;
 	}
 
 	public get onShow(): Event<void> {
@@ -609,7 +611,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 				}
 
 				let autoFocus: IAutoFocus;
-				if (!quickNavigateConfiguration) {
+				if (!quickNavigateConfiguration && !this.ignoreCurrentOpen) {
 					autoFocus = { autoFocusFirstEntry: true };
 				} else {
 					const visibleEditorCount = this.editorService.getVisibleEditors().length;
