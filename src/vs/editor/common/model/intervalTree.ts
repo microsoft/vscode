@@ -85,6 +85,16 @@ export class IntervalNode implements IModelDecoration {
 		this.visited = false;
 	}
 
+	public reset(versionId: number, start: number, end: number, range: Range): void {
+		this.start = start;
+		this.end = end;
+		this.maxEnd = end;
+		this.cachedVersionId = versionId;
+		this.cachedAbsoluteStart = start;
+		this.cachedAbsoluteEnd = end;
+		this.range = range;
+	}
+
 	public setOptions(options: ModelDecorationOptions) {
 		this.options = options;
 		this.isForValidation = (
