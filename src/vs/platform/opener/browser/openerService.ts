@@ -5,6 +5,7 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
+import * as dom from 'vs/base/browser/dom';
 import { parse } from 'vs/base/common/marshalling';
 import { Schemas } from 'vs/base/common/network';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -41,7 +42,7 @@ export class OpenerService implements IOpenerService {
 		let promise: TPromise<any>;
 		if (scheme === Schemas.http || scheme === Schemas.https) {
 			// open http
-			window.open(resource.toString(true));
+			dom.windowOpenNoOpener(resource.toString(true));
 
 		} else if (scheme === 'command' && CommandsRegistry.getCommand(path)) {
 			// execute as command

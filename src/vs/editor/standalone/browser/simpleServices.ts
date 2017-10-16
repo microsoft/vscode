@@ -139,7 +139,7 @@ export class SimpleEditorService implements IEditorService {
 					let schema = data.resource.scheme;
 					if (schema === Schemas.http || schema === Schemas.https) {
 						// This is a fully qualified http or https URL
-						window.open(data.resource.toString());
+						dom.windowOpenNoOpener(data.resource.toString());
 						return this.editor;
 					}
 				}
