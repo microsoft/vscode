@@ -187,11 +187,11 @@ export class Model {
 
 	private scanForSubmodules(repository: Repository) {
 		const submodules = repository.getSubmodules();
-		submodules.then((elements) => elements.forEach(submoduleRoot => {
+		submodules.then((elements) => elements.forEach(submodule => {
 			//console.log(`Opening ${submoduleRoot} as git repository`);
 			try {
 				// We can't call tryOpenRepository, because a submodule is going to be under an open repository, so will fail.
-				const subRepository = new Repository(this.git.open((submoduleRoot)));
+				const subRepository = new Repository(this.git.open((submodule.Root)));
 				this.open(subRepository);
 			} catch (err) {
 				if (err.gitErrorCode === GitErrorCodes.NotAGitRepository) {

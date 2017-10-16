@@ -6,7 +6,7 @@
 'use strict';
 
 import { Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, ThemeColor } from 'vscode';
-import { Repository as BaseRepository, Ref, Branch, Remote, Commit, GitErrorCodes, Stash, RefType } from './git';
+import { Repository as BaseRepository, Ref, Branch, Remote, Commit, GitErrorCodes, Stash, RefType, ISubmodule } from './git';
 import { anyEvent, filterEvent, eventToPromise, dispose, find } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import { toGitUri } from './uri';
@@ -304,6 +304,17 @@ export interface GitResourceGroup extends SourceControlResourceGroup {
 	resourceStates: Resource[];
 }
 
+export enum SubmoduleStatus {
+	Uninitialized,
+	Current,
+	Conflict,
+	Modified
+}
+
+export interface Submodule {
+	Root: string;
+	Status: SubmoduleStatus;
+}
 export class Repository implements Disposable {
 
 	private _onDidChangeRepository = new EventEmitter<Uri>();
@@ -602,8 +613,17 @@ export class Repository implements Disposable {
 		});
 	}
 
-	async getSubmodules(): Promise<string[]> {
-		return await this.repository.getSubmodules();
+	async getSubmodules(): Promise<Submodule[]> {
+		const submodules: ISubmodule[] = await this.repository.getSubmodules();
+		return submodules.map(isub => {
+			var status = SubmoduleStatus.Current;
+			switch (isub.Status) {
+				case '-': { status = SubmoduleStatus.Uninitialized; break; }
+				case '+': { status = SubmoduleStatus.Modified; break; }
+				case 'U': { status = SubmoduleStatus.Conflict; break; }
+			}
+			return { Root: isub.Root, Status: status };
+		});
 	}
 
 	async getStashes(): Promise<Stash[]> {
