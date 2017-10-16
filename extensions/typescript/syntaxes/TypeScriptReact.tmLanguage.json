@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/4109ddc9e27186afcf7263a448c86a59e9aa7d9e",
+	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/824f47ea6e98590ac2e75db5bebdf6eff71421ad",
 	"name": "TypeScriptReact",
 	"scopeName": "source.tsx",
 	"fileTypes": [
@@ -1704,8 +1704,7 @@
 					"include": "#comment"
 				},
 				{
-					"comment": "(default|*|name) as alias",
-					"match": "(?x) (?: \\b(default)\\b | (\\*) | ([_$[:alpha:]][_$[:alnum:]]*)) \\s+\n  (as) \\s+ (?: (\\b default \\b | \\*) | ([_$[:alpha:]][_$[:alnum:]]*))",
+					"match": "(?<!\\.|\\$)(?:(\\bdefault)|(\\*)|(\\b[_$[:alpha:]][_$[:alnum:]]*))\\s+(as)\\s+(\\b[_$[:alpha:]][_$[:alnum:]]*)",
 					"captures": {
 						"1": {
 							"name": "keyword.control.default.tsx"
@@ -1720,9 +1719,6 @@
 							"name": "keyword.control.as.tsx"
 						},
 						"5": {
-							"name": "invalid.illegal.tsx"
-						},
-						"6": {
 							"name": "variable.other.readwrite.alias.tsx"
 						}
 					}
@@ -4101,6 +4097,7 @@
 						}
 					},
 					"end": "(?=[/]?>)",
+					"contentName": "meta.tag.attributes.tsx",
 					"patterns": [
 						{
 							"include": "#comment"

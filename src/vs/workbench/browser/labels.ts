@@ -20,7 +20,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { IResourceDecorationsService, IResourceDecorationChangeEvent } from 'vs/workbench/services/decorations/browser/decorations';
+import { IDecorationsService, IResourceDecorationChangeEvent } from 'vs/workbench/services/decorations/browser/decorations';
 import { Schemas } from 'vs/base/common/network';
 import { FileKind } from 'vs/platform/files/common/files';
 import { IModel } from 'vs/editor/common/editorCommon';
@@ -53,7 +53,7 @@ export class ResourceLabel extends IconLabel {
 		@IModeService private modeService: IModeService,
 		@IModelService private modelService: IModelService,
 		@IEnvironmentService protected environmentService: IEnvironmentService,
-		@IResourceDecorationsService protected decorationsService: IResourceDecorationsService,
+		@IDecorationsService protected decorationsService: IDecorationsService,
 		@IThemeService private themeService: IThemeService
 	) {
 		super(container, options);
@@ -183,7 +183,7 @@ export class ResourceLabel extends IconLabel {
 		}
 
 		if (this.options && this.options.fileDecorations) {
-			let deco = this.decorationsService.getTopDecoration(
+			let deco = this.decorationsService.getDecoration(
 				resource,
 				this.options.fileKind !== FileKind.FILE
 			);
@@ -240,7 +240,7 @@ export class FileLabel extends ResourceLabel {
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IResourceDecorationsService decorationsService: IResourceDecorationsService,
+		@IDecorationsService decorationsService: IDecorationsService,
 		@IThemeService themeService: IThemeService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 	) {

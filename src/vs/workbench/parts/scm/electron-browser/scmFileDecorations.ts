@@ -6,7 +6,7 @@
 'use strict';
 
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IResourceDecorationsService, IDecorationsProvider, IResourceDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
+import { IDecorationsService, IDecorationsProvider, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
 import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource } from 'vs/workbench/services/scm/common/scm';
 import URI from 'vs/base/common/uri';
@@ -60,13 +60,13 @@ class SCMDecorationsProvider implements IDecorationsProvider {
 		this._onDidChange.fire(uris);
 	}
 
-	provideDecorations(uri: URI): IResourceDecorationData {
+	provideDecorations(uri: URI): IDecorationData {
 		const resource = this._data.get(uri.toString());
-		if (!resource) {
+		if (!resource || !resource.decorations.color || !resource.decorations.tooltip) {
 			return undefined;
 		}
 		return {
-			weight: 10,
+			weight: 100 - resource.decorations.tooltip.charAt(0).toLowerCase().charCodeAt(0),
 			tooltip: localize('tooltip', "{0}, {1}", resource.decorations.tooltip, this._provider.label),
 			color: resource.decorations.color,
 			letter: resource.decorations.tooltip.charAt(0)
@@ -88,7 +88,7 @@ export class FileDecorations implements IWorkbenchContribution {
 	private _currentConfig: ISCMConfiguration;
 
 	constructor(
-		@IResourceDecorationsService private _decorationsService: IResourceDecorationsService,
+		@IDecorationsService private _decorationsService: IDecorationsService,
 		@IConfigurationService private _configurationService: IConfigurationService,
 		@ISCMService private _scmService: ISCMService,
 	) {
@@ -127,7 +127,7 @@ export class FileDecorations implements IWorkbenchContribution {
 
 	private _onDidAddRepository(repo: ISCMRepository): void {
 		const provider = new SCMDecorationsProvider(repo.provider, this._configurationService.getConfiguration<ISCMConfiguration>('scm'));
-		const registration = this._decorationsService.registerDecortionsProvider(provider);
+		const registration = this._decorationsService.registerDecorationsProvider(provider);
 		this._providers.set(repo, combinedDisposable([registration, provider]));
 	}
 

@@ -21,14 +21,14 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Scope as MementoScope } from 'vs/workbench/common/memento';
 import { Part } from 'vs/workbench/browser/part';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { EditorInput, EditorOptions, ConfirmResult, IWorkbenchEditorConfiguration, TextEditorOptions, SideBySideEditorInput, TextCompareEditorVisible, TEXT_DIFF_EDITOR_ID } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, ConfirmResult, IWorkbenchEditorConfiguration, TextEditorOptions, SideBySideEditorInput, TextCompareEditorVisible, TEXT_DIFF_EDITOR_ID, EditorOpeningEvent, IEditorOpeningEvent } from 'vs/workbench/common/editor';
 import { EditorGroupsControl, Rochade, IEditorGroupsControl, ProgressState } from 'vs/workbench/browser/parts/editor/editorGroupsControl';
 import { WorkbenchProgressService } from 'vs/workbench/services/progress/browser/progressService';
 import { IEditorGroupService, GroupOrientation, GroupArrangement, IEditorTabOptions, IMoveOptions } from 'vs/workbench/services/group/common/groupService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEditorPart } from 'vs/workbench/services/editor/browser/editorService';
+import { IEditorPart } from 'vs/workbench/services/editor/common/editorService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { Position, POSITIONS, Direction } from 'vs/platform/editor/common/editor';
+import { Position, POSITIONS, Direction, IEditor } from 'vs/platform/editor/common/editor';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -99,6 +99,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	private revealIfOpen: boolean;
 
 	private _onEditorsChanged: Emitter<void>;
+	private _onEditorOpening: Emitter<IEditorOpeningEvent>;
 	private _onEditorsMoved: Emitter<void>;
 	private _onEditorOpenFail: Emitter<EditorInput>;
 	private _onGroupOrientationChanged: Emitter<void>;
@@ -132,6 +133,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		super(id, { hasTitle: false }, themeService);
 
 		this._onEditorsChanged = new Emitter<void>();
+		this._onEditorOpening = new Emitter<IEditorOpeningEvent>();
 		this._onEditorsMoved = new Emitter<void>();
 		this._onEditorOpenFail = new Emitter<EditorInput>();
 		this._onGroupOrientationChanged = new Emitter<void>();
@@ -289,6 +291,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		return this._onEditorsChanged.event;
 	}
 
+	public get onEditorOpening(): Event<IEditorOpeningEvent> {
+		return this._onEditorOpening.event;
+	}
+
 	public get onEditorsMoved(): Event<void> {
 		return this._onEditorsMoved.event;
 	}
@@ -309,12 +315,12 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		return this.tabOptions;
 	}
 
-	public openEditor(input: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
-	public openEditor(input: EditorInput, options?: EditorOptions, position?: Position, ratio?: number[]): TPromise<BaseEditor>;
-	public openEditor(input: EditorInput, options?: EditorOptions, arg3?: any, ratio?: number[]): TPromise<BaseEditor> {
-
-		// Normalize some values
-		if (!options) { options = null; }
+	public openEditor(input: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<IEditor>;
+	public openEditor(input: EditorInput, options?: EditorOptions, position?: Position, ratio?: number[]): TPromise<IEditor>;
+	public openEditor(input: EditorInput, options?: EditorOptions, arg3?: any, ratio?: number[]): TPromise<IEditor> {
+		if (!options) {
+			options = null;
+		}
 
 		// Determine position to open editor in (one, two, three)
 		const position = this.findPosition(input, options, arg3, ratio);
@@ -328,6 +334,20 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		) {
 			return TPromise.as<BaseEditor>(null);
 		}
+
+		// Editor opening event (can be prevented and overridden)
+		const event = new EditorOpeningEvent(input, options, position);
+		this._onEditorOpening.fire(event);
+		const prevented = event.isPrevented();
+		if (prevented) {
+			return prevented();
+		}
+
+		// Open through UI
+		return this.doOpenEditor(position, input, options, ratio);
+	}
+
+	private doOpenEditor(position: Position, input: EditorInput, options: EditorOptions, ratio: number[]): TPromise<BaseEditor> {
 
 		// We need an editor descriptor for the input
 		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(input);
@@ -344,12 +364,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			*/
 			this.telemetryService.publicLog('workbenchSideEditorOpened', { position: position });
 		}
-
-		// Open through UI
-		return this.doOpenEditor(position, descriptor, input, options, ratio);
-	}
-
-	private doOpenEditor(position: Position, descriptor: IEditorDescriptor, input: EditorInput, options: EditorOptions, ratio: number[]): TPromise<BaseEditor> {
 
 		// Update stacks: We do this early on before the UI is there because we want our stacks model to have
 		// a consistent view of the editor world and updating it later async after the UI is there will cause
@@ -1007,7 +1021,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 	}
 
-	public replaceEditors(editors: { toReplace: EditorInput, replaceWith: EditorInput, options?: EditorOptions }[], position?: Position): TPromise<BaseEditor[]> {
+	public replaceEditors(editors: { toReplace: EditorInput, replaceWith: EditorInput, options?: EditorOptions }[], position?: Position): TPromise<IEditor[]> {
 		const activeReplacements: IEditorReplacement[] = [];
 		const hiddenReplacements: IEditorReplacement[] = [];
 
@@ -1066,9 +1080,9 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		return res;
 	}
 
-	public openEditors(editors: { input: EditorInput, position: Position, options?: EditorOptions }[]): TPromise<BaseEditor[]> {
+	public openEditors(editors: { input: EditorInput, position: Position, options?: EditorOptions }[]): TPromise<IEditor[]> {
 		if (!editors.length) {
-			return TPromise.as<BaseEditor[]>([]);
+			return TPromise.as<IEditor[]>([]);
 		}
 
 		let activePosition: Position;
@@ -1085,7 +1099,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		return this.stacks.groups.some(g => g.count > 0);
 	}
 
-	public restoreEditors(): TPromise<BaseEditor[]> {
+	public restoreEditors(): TPromise<IEditor[]> {
 		const editors = this.stacks.groups.map((group, index) => {
 			return {
 				input: group.activeEditor,
@@ -1095,7 +1109,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		});
 
 		if (!editors.length) {
-			return TPromise.as<BaseEditor[]>([]);
+			return TPromise.as<IEditor[]>([]);
 		}
 
 		let activePosition: Position;
@@ -1108,7 +1122,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		return this.doOpenEditors(editors, activePosition, editorState && editorState.ratio);
 	}
 
-	private doOpenEditors(editors: { input: EditorInput, position: Position, options?: EditorOptions }[], activePosition?: number, ratio?: number[]): TPromise<BaseEditor[]> {
+	private doOpenEditors(editors: { input: EditorInput, position: Position, options?: EditorOptions }[], activePosition?: number, ratio?: number[]): TPromise<IEditor[]> {
 		const positionOneEditors = editors.filter(e => e.position === Position.ONE);
 		const positionTwoEditors = editors.filter(e => e.position === Position.TWO);
 		const positionThreeEditors = editors.filter(e => e.position === Position.THREE);
@@ -1155,7 +1169,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Open each input respecting the options. Since there can only be one active editor in each
 		// position, we have to pick the first input from each position and add the others as inactive
-		const promises: TPromise<BaseEditor>[] = [];
+		const promises: TPromise<IEditor>[] = [];
 		[positionOneEditors.shift(), positionTwoEditors.shift(), positionThreeEditors.shift()].forEach((editor, position) => {
 			if (!editor) {
 				return; // unused position
@@ -1343,6 +1357,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Emitters
 		this._onEditorsChanged.dispose();
+		this._onEditorOpening.dispose();
 		this._onEditorsMoved.dispose();
 		this._onEditorOpenFail.dispose();
 

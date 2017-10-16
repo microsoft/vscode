@@ -8,11 +8,12 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IEditor } from 'vs/platform/editor/common/editor';
+import { IEditor, Position, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IKeybindingItemEntry } from 'vs/workbench/parts/preferences/common/keybindingsEditorModel';
 import { IRange } from 'vs/editor/common/core/range';
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { join } from 'vs/base/common/paths';
 
 export interface ISettingsGroup {
 	id: string;
@@ -76,9 +77,9 @@ export interface IPreferencesService {
 	resolveContent(uri: URI): TPromise<string>;
 	createPreferencesEditorModel<T>(uri: URI): TPromise<IPreferencesEditorModel<T>>;
 
-	openGlobalSettings(): TPromise<IEditor>;
-	openWorkspaceSettings(): TPromise<IEditor>;
-	openFolderSettings(folder: URI): TPromise<IEditor>;
+	openGlobalSettings(options?: IEditorOptions, position?: Position): TPromise<IEditor>;
+	openWorkspaceSettings(options?: IEditorOptions, position?: Position): TPromise<IEditor>;
+	openFolderSettings(folder: URI, options?: IEditorOptions, position?: Position): TPromise<IEditor>;
 	switchSettings(target: ConfigurationTarget, resource: URI): TPromise<void>;
 	openGlobalKeybindingSettings(textual: boolean): TPromise<void>;
 
@@ -131,3 +132,6 @@ export const KEYBINDINGS_EDITOR_COMMAND_RESET = 'keybindings.editor.resetKeybind
 export const KEYBINDINGS_EDITOR_COMMAND_COPY = 'keybindings.editor.copyKeybindingEntry';
 export const KEYBINDINGS_EDITOR_COMMAND_SHOW_CONFLICTS = 'keybindings.editor.showConflicts';
 export const KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS = 'keybindings.editor.focusKeybindings';
+
+export const FOLDER_SETTINGS_PATH = join('.vscode', 'settings.json');
+export const DEFAULT_SETTINGS_EDITOR_SETTING = 'workbench.settings.openDefaultSettings';

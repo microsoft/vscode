@@ -1465,7 +1465,8 @@ class TaskService extends EventEmitter implements ITaskService {
 								let configuringTask = configurations.byIdentifier[value];
 								this._outputChannel.append(nls.localize(
 									'TaskService.noConfiguration',
-									'Error: No task has been contributed for the following task configuration:\n{0}\nThe task configuration will be ignored.\n',
+									'Error: The {0} task detection didn\'t contribute a task for the following configuration:\n{1}\nThe task will be ignored.\n',
+									configuringTask.configures.type,
 									JSON.stringify(configuringTask._source.config.element, undefined, 4)
 								));
 								this.showOutput();
