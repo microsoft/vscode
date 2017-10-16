@@ -123,6 +123,7 @@ export interface IInputOptions {
 export interface IShowOptions {
 	quickNavigateConfiguration?: IQuickNavigateConfiguration;
 	inputSelection?: { start: number; end: number; };
+	autoFocus?: IAutoFocus;
 }
 
 export const IQuickOpenService = createDecorator<IQuickOpenService>('quickOpenService');
