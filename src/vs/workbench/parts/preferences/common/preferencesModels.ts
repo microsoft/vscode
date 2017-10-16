@@ -244,9 +244,7 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 	constructor(reference: IReference<ITextEditorModel>, private _configurationTarget: ConfigurationTarget, @ITextFileService protected textFileService: ITextFileService) {
 		super();
 		this.settingsModel = reference.object.textEditorModel;
-		this._register(this.onDispose(() => {
-			reference.dispose();
-		}));
+		this._register(this.onDispose(() => reference.dispose()));
 		this._register(this.settingsModel.onDidChangeContent(() => {
 			this._settingsGroups = null;
 		}));

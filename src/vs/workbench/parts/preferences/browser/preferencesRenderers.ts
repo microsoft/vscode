@@ -561,9 +561,8 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 			range,
 			options: {
 				stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-				className: 'findMatch',
-
-			},
+				className: 'findMatch'
+			}
 
 		};
 	}
