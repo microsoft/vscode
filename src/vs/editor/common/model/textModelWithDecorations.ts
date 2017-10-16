@@ -19,7 +19,7 @@ import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { IntervalNode, IntervalTree } from 'vs/editor/common/model/intervalTree';
 
-const USE_NEW_DECORATIONS = false;
+export const USE_NEW_DECORATIONS = false;
 
 export const ClassName = {
 	EditorInfoDecoration: 'infosquiggly',
