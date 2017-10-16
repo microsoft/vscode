@@ -149,6 +149,7 @@ export class IntervalTree {
 	}
 
 	public resolveNode(node: IntervalNode, cachedVersionId: number): void {
+		const initialNode = node;
 		let delta = 0;
 		while (node !== this.root) {
 			if (node === node.parent.right) {
@@ -157,9 +158,9 @@ export class IntervalTree {
 			node = node.parent;
 		}
 
-		const nodeStart = node.start + delta;
-		const nodeEnd = node.end + delta;
-		node.setCachedOffsets(nodeStart, nodeEnd, cachedVersionId);
+		const nodeStart = initialNode.start + delta;
+		const nodeEnd = initialNode.end + delta;
+		initialNode.setCachedOffsets(nodeStart, nodeEnd, cachedVersionId);
 	}
 
 	public assertInvariants(): void {
