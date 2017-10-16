@@ -493,6 +493,10 @@ export class SimpleConfigurationService implements IConfigurationService {
 	public reloadConfiguration(): TPromise<void> {
 		return TPromise.as(null);
 	}
+
+	public getConfigurationData() {
+		return null;
+	}
 }
 
 export class SimpleResourceConfigurationService implements ITextResourceConfigurationService {

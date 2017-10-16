@@ -82,4 +82,8 @@ export class TestConfigurationService extends EventEmitter implements IConfigura
 			workspaceFolder: []
 		};
 	}
+
+	public getConfigurationData() {
+		return null;
+	}
 }

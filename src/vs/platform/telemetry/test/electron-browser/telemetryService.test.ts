@@ -698,7 +698,8 @@ suite('TelemetryService', () => {
 				},
 				keys() { return { default: [], user: [], workspace: [], workspaceFolder: [] }; },
 				onDidUpdateConfiguration: emitter.event,
-				reloadConfiguration() { return null; }
+				reloadConfiguration() { return null; },
+				getConfigurationData() { return null; }
 			});
 
 		assert.equal(service.isOptedIn, false);
