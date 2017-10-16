@@ -23,6 +23,7 @@ export interface IValidatedEditOperation {
 	sortIndex: number;
 	identifier: editorCommon.ISingleEditOperationIdentifier;
 	range: Range;
+	rangeOffset: number;
 	rangeLength: number;
 	lines: string[];
 	forceMoveMarkers: boolean;
@@ -249,6 +250,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 			sortIndex: 0,
 			identifier: operations[0].identifier,
 			range: entireEditRange,
+			rangeOffset: this.getOffsetAt(entireEditRange.getStartPosition()),
 			rangeLength: this.getValueLengthInRange(entireEditRange),
 			lines: result.join('').split('\n'),
 			forceMoveMarkers: forceMoveMarkers,
@@ -288,6 +290,8 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 			return [];
 		}
 
+		this._ensureLineStarts();
+
 		let mightContainRTL = this._mightContainRTL;
 		let mightContainNonBasicASCII = this._mightContainNonBasicASCII;
 		let canReduceOperations = true;
@@ -310,6 +314,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				sortIndex: i,
 				identifier: op.identifier,
 				range: validatedRange,
+				rangeOffset: this.getOffsetAt(validatedRange.getStartPosition()),
 				rangeLength: this.getValueLengthInRange(validatedRange),
 				lines: op.text ? op.text.split(/\r\n|\r|\n/) : null,
 				forceMoveMarkers: op.forceMoveMarkers,
@@ -675,11 +680,14 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				);
 			}
 
+			const text = (op.lines ? op.lines.join(this.getEOL()) : '');
 			contentChanges.push({
 				range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
 				rangeLength: op.rangeLength,
-				text: op.lines ? op.lines.join(this.getEOL()) : ''
+				text: text
 			});
+
+			this._tree.acceptReplace(op.rangeOffset, op.rangeLength, text.length, op.forceMoveMarkers);
 
 			// console.log('AFTER:');
 			// console.log('<<<\n' + this._lines.map(l => l.text).join('\n') + '\n>>>');

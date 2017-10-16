@@ -15,12 +15,13 @@ import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvent
 
 suite('EditorModel - EditableTextModel._getInverseEdits', () => {
 
-	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, rangeLength: number, text: string[]): IValidatedEditOperation {
+	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text: string[]): IValidatedEditOperation {
 		return {
 			sortIndex: 0,
 			identifier: null,
 			range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
-			rangeLength: rangeLength,
+			rangeOffset: 0,
+			rangeLength: 0,
 			lines: text,
 			forceMoveMarkers: false,
 			isAutoWhitespaceEdit: false
@@ -39,7 +40,7 @@ suite('EditorModel - EditableTextModel._getInverseEdits', () => {
 	test('single insert', () => {
 		assertInverseEdits(
 			[
-				editOp(1, 1, 1, 1, 0, ['hello'])
+				editOp(1, 1, 1, 1, ['hello'])
 			],
 			[
 				inverseEditOp(1, 1, 1, 6)
@@ -50,8 +51,8 @@ suite('EditorModel - EditableTextModel._getInverseEdits', () => {
 	test('Bug 19872: Undo is funky', () => {
 		assertInverseEdits(
 			[
-				editOp(2, 1, 2, 2, 0, ['']),
-				editOp(3, 1, 4, 2, 0, [''])
+				editOp(2, 1, 2, 2, ['']),
+				editOp(3, 1, 4, 2, [''])
 			],
 			[
 				inverseEditOp(2, 1, 2, 1),
@@ -63,8 +64,8 @@ suite('EditorModel - EditableTextModel._getInverseEdits', () => {
 	test('two single unrelated inserts', () => {
 		assertInverseEdits(
 			[
-				editOp(1, 1, 1, 1, 0, ['hello']),
-				editOp(2, 1, 2, 1, 0, ['world'])
+				editOp(1, 1, 1, 1, ['hello']),
+				editOp(2, 1, 2, 1, ['world'])
 			],
 			[
 				inverseEditOp(1, 1, 1, 6),
@@ -76,8 +77,8 @@ suite('EditorModel - EditableTextModel._getInverseEdits', () => {
 	test('two single inserts 1', () => {
 		assertInverseEdits(
 			[
-				editOp(1, 1, 1, 1, 0, ['hello']),
-				editOp(1, 2, 1, 2, 0, ['world'])
+				editOp(1, 1, 1, 1, ['hello']),
+				editOp(1, 2, 1, 2, ['world'])
 			],
 			[
 				inverseEditOp(1, 1, 1, 6),
@@ -89,8 +90,8 @@ suite('EditorModel - EditableTextModel._getInverseEdits', () => {
 	test('two single inserts 2', () => {
 		assertInverseEdits(
 			[
-				editOp(1, 1, 1, 1, 0, ['hello']),
-				editOp(1, 4, 1, 4, 0, ['world'])
+				editOp(1, 1, 1, 1, ['hello']),
+				editOp(1, 4, 1, 4, ['world'])
 			],
 			[
 				inverseEditOp(1, 1, 1, 6),
@@ -102,7 +103,7 @@ suite('EditorModel - EditableTextModel._getInverseEdits', () => {
 	test('multiline insert', () => {
 		assertInverseEdits(
 			[
-				editOp(1, 1, 1, 1, 0, ['hello', 'world'])
+				editOp(1, 1, 1, 1, ['hello', 'world'])
 			],
 			[
 				inverseEditOp(1, 1, 2, 6)
@@ -113,8 +114,8 @@ suite('EditorModel - EditableTextModel._getInverseEdits', () => {
 	test('two unrelated multiline inserts', () => {
 		assertInverseEdits(
 			[
-				editOp(1, 1, 1, 1, 0, ['hello', 'world']),
-				editOp(2, 1, 2, 1, 0, ['how', 'are', 'you?']),
+				editOp(1, 1, 1, 1, ['hello', 'world']),
+				editOp(2, 1, 2, 1, ['how', 'are', 'you?']),
 			],
 			[
 				inverseEditOp(1, 1, 2, 6),
@@ -126,8 +127,8 @@ suite('EditorModel - EditableTextModel._getInverseEdits', () => {
 	test('two multiline inserts 1', () => {
 		assertInverseEdits(
 			[
-				editOp(1, 1, 1, 1, 0, ['hello', 'world']),
-				editOp(1, 2, 1, 2, 0, ['how', 'are', 'you?']),
+				editOp(1, 1, 1, 1, ['hello', 'world']),
+				editOp(1, 2, 1, 2, ['how', 'are', 'you?']),
 			],
 			[
 				inverseEditOp(1, 1, 2, 6),
@@ -139,7 +140,7 @@ suite('EditorModel - EditableTextModel._getInverseEdits', () => {
 	test('single delete', () => {
 		assertInverseEdits(
 			[
-				editOp(1, 1, 1, 6, 0, null)
+				editOp(1, 1, 1, 6, null)
 			],
 			[
 				inverseEditOp(1, 1, 1, 1)
@@ -150,8 +151,8 @@ suite('EditorModel - EditableTextModel._getInverseEdits', () => {
 	test('two single unrelated deletes', () => {
 		assertInverseEdits(
 			[
-				editOp(1, 1, 1, 6, 0, null),
-				editOp(2, 1, 2, 6, 0, null)
+				editOp(1, 1, 1, 6, null),
+				editOp(2, 1, 2, 6, null)
 			],
 			[
 				inverseEditOp(1, 1, 1, 1),
@@ -163,8 +164,8 @@ suite('EditorModel - EditableTextModel._getInverseEdits', () => {
 	test('two single deletes 1', () => {
 		assertInverseEdits(
 			[
-				editOp(1, 1, 1, 6, 0, null),
-				editOp(1, 7, 1, 12, 0, null)
+				editOp(1, 1, 1, 6, null),
+				editOp(1, 7, 1, 12, null)
 			],
 			[
 				inverseEditOp(1, 1, 1, 1),
@@ -176,8 +177,8 @@ suite('EditorModel - EditableTextModel._getInverseEdits', () => {
 	test('two single deletes 2', () => {
 		assertInverseEdits(
 			[
-				editOp(1, 1, 1, 6, 0, null),
-				editOp(1, 9, 1, 14, 0, null)
+				editOp(1, 1, 1, 6, null),
+				editOp(1, 9, 1, 14, null)
 			],
 			[
 				inverseEditOp(1, 1, 1, 1),
@@ -189,7 +190,7 @@ suite('EditorModel - EditableTextModel._getInverseEdits', () => {
 	test('multiline delete', () => {
 		assertInverseEdits(
 			[
-				editOp(1, 1, 2, 6, 0, null)
+				editOp(1, 1, 2, 6, null)
 			],
 			[
 				inverseEditOp(1, 1, 1, 1)
@@ -200,8 +201,8 @@ suite('EditorModel - EditableTextModel._getInverseEdits', () => {
 	test('two unrelated multiline deletes', () => {
 		assertInverseEdits(
 			[
-				editOp(1, 1, 2, 6, 0, null),
-				editOp(3, 1, 5, 5, 0, null),
+				editOp(1, 1, 2, 6, null),
+				editOp(3, 1, 5, 5, null),
 			],
 			[
 				inverseEditOp(1, 1, 1, 1),
@@ -213,8 +214,8 @@ suite('EditorModel - EditableTextModel._getInverseEdits', () => {
 	test('two multiline deletes 1', () => {
 		assertInverseEdits(
 			[
-				editOp(1, 1, 2, 6, 0, null),
-				editOp(2, 7, 4, 5, 0, null),
+				editOp(1, 1, 2, 6, null),
+				editOp(2, 7, 4, 5, null),
 			],
 			[
 				inverseEditOp(1, 1, 1, 1),
@@ -226,7 +227,7 @@ suite('EditorModel - EditableTextModel._getInverseEdits', () => {
 	test('single replace', () => {
 		assertInverseEdits(
 			[
-				editOp(1, 1, 1, 6, 0, ['Hello world'])
+				editOp(1, 1, 1, 6, ['Hello world'])
 			],
 			[
 				inverseEditOp(1, 1, 1, 12)
@@ -237,8 +238,8 @@ suite('EditorModel - EditableTextModel._getInverseEdits', () => {
 	test('two replaces', () => {
 		assertInverseEdits(
 			[
-				editOp(1, 1, 1, 6, 0, ['Hello world']),
-				editOp(1, 7, 1, 8, 0, ['How are you?']),
+				editOp(1, 1, 1, 6, ['Hello world']),
+				editOp(1, 7, 1, 8, ['How are you?']),
 			],
 			[
 				inverseEditOp(1, 1, 1, 12),
@@ -250,9 +251,9 @@ suite('EditorModel - EditableTextModel._getInverseEdits', () => {
 	test('many edits', () => {
 		assertInverseEdits(
 			[
-				editOp(1, 2, 1, 2, 0, ['', '  ']),
-				editOp(1, 5, 1, 6, 0, ['']),
-				editOp(1, 9, 1, 9, 0, ['', ''])
+				editOp(1, 2, 1, 2, ['', '  ']),
+				editOp(1, 5, 1, 6, ['']),
+				editOp(1, 9, 1, 9, ['', ''])
 			],
 			[
 				inverseEditOp(1, 2, 2, 3),
@@ -265,11 +266,12 @@ suite('EditorModel - EditableTextModel._getInverseEdits', () => {
 
 suite('EditorModel - EditableTextModel._toSingleEditOperation', () => {
 
-	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, rangeLength: number, text: string[]): IValidatedEditOperation {
+	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, rangeOffset: number, rangeLength: number, text: string[]): IValidatedEditOperation {
 		return {
 			sortIndex: 0,
 			identifier: null,
 			range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
+			rangeOffset: rangeOffset,
 			rangeLength: rangeLength,
 			lines: text,
 			forceMoveMarkers: false,
@@ -297,9 +299,9 @@ suite('EditorModel - EditableTextModel._toSingleEditOperation', () => {
 				'1'
 			],
 			[
-				editOp(1, 3, 1, 3, 0, [' new line', 'No longer'])
+				editOp(1, 3, 1, 3, 2, 0, [' new line', 'No longer'])
 			],
-			editOp(1, 3, 1, 3, 0, [' new line', 'No longer'])
+			editOp(1, 3, 1, 3, 2, 0, [' new line', 'No longer'])
 		);
 	});
 
@@ -311,11 +313,11 @@ suite('EditorModel - EditableTextModel._toSingleEditOperation', () => {
 			'',
 			'1'
 		], [
-				editOp(1, 1, 1, 3, 0, ['Your']),
-				editOp(1, 4, 1, 4, 0, ['Interesting ']),
-				editOp(2, 3, 2, 6, 0, null)
+				editOp(1, 1, 1, 3, 0, 2, ['Your']),
+				editOp(1, 4, 1, 4, 3, 0, ['Interesting ']),
+				editOp(2, 3, 2, 6, 16, 3, null)
 			],
-			editOp(1, 1, 2, 6, 19, [
+			editOp(1, 1, 2, 6, 0, 19, [
 				'Your Interesting First Line',
 				'\t\t'
 			]));
@@ -331,10 +333,10 @@ suite('EditorModel - EditableTextModel._toSingleEditOperation', () => {
 				'1'
 			],
 			[
-				editOp(1, 3, 1, 3, 0, ['', '', '', '', '']),
-				editOp(3, 15, 3, 15, 0, ['a', 'b'])
+				editOp(1, 3, 1, 3, 2, 0, ['', '', '', '', '']),
+				editOp(3, 15, 3, 15, 45, 0, ['a', 'b'])
 			],
-			editOp(1, 3, 3, 15, 43, [
+			editOp(1, 3, 3, 15, 2, 43, [
 				'',
 				'',
 				'',
@@ -357,9 +359,9 @@ suite('EditorModel - EditableTextModel._toSingleEditOperation', () => {
 				'1'
 			],
 			[
-				editOp(1, 1, 1, 1, 0, [''])
+				editOp(1, 1, 1, 1, 0, 0, [''])
 			],
-			editOp(1, 1, 1, 1, 0, [''])
+			editOp(1, 1, 1, 1, 0, 0, [''])
 		);
 	});
 
@@ -373,10 +375,10 @@ suite('EditorModel - EditableTextModel._toSingleEditOperation', () => {
 				'123'
 			],
 			[
-				editOp(2, 1, 2, 3, 0, ['\t']),
-				editOp(3, 1, 3, 5, 0, [''])
+				editOp(2, 1, 2, 3, 14, 2, ['\t']),
+				editOp(3, 1, 3, 5, 31, 4, [''])
 			],
-			editOp(2, 1, 3, 5, 21, ['\tMy Second Line', ''])
+			editOp(2, 1, 3, 5, 14, 21, ['\tMy Second Line', ''])
 		);
 	});
 
@@ -386,11 +388,11 @@ suite('EditorModel - EditableTextModel._toSingleEditOperation', () => {
 				'{"x" : 1}'
 			],
 			[
-				editOp(1, 2, 1, 2, 0, ['\n  ']),
-				editOp(1, 5, 1, 6, 0, ['']),
-				editOp(1, 9, 1, 9, 0, ['\n'])
+				editOp(1, 2, 1, 2, 1, 0, ['\n  ']),
+				editOp(1, 5, 1, 6, 4, 1, ['']),
+				editOp(1, 9, 1, 9, 8, 0, ['\n'])
 			],
-			editOp(1, 2, 1, 9, 7, [
+			editOp(1, 2, 1, 9, 1, 7, [
 				'',
 				'  "x": 1',
 				''
@@ -406,11 +408,11 @@ suite('EditorModel - EditableTextModel._toSingleEditOperation', () => {
 				'}'
 			],
 			[
-				editOp(1, 2, 2, 3, 0, ['']),
-				editOp(2, 6, 2, 6, 0, [' ']),
-				editOp(2, 9, 3, 1, 0, [''])
+				editOp(1, 2, 2, 3, 1, 3, ['']),
+				editOp(2, 6, 2, 6, 7, 0, [' ']),
+				editOp(2, 9, 3, 1, 10, 1, [''])
 			],
-			editOp(1, 2, 3, 1, 10, ['"x" : 1'])
+			editOp(1, 2, 3, 1, 1, 10, ['"x" : 1'])
 		);
 	});
 
@@ -424,10 +426,10 @@ suite('EditorModel - EditableTextModel._toSingleEditOperation', () => {
 				'}'
 			],
 			[
-				editOp(1, 2, 2, 1, 0, ['', '\t']),
-				editOp(2, 11, 4, 1, 0, ['', '\t'])
+				editOp(1, 2, 2, 1, 1, 1, ['', '\t']),
+				editOp(2, 11, 4, 1, 12, 2, ['', '\t'])
 			],
-			editOp(1, 2, 4, 1, 13, [
+			editOp(1, 2, 4, 1, 1, 13, [
 				'',
 				'\t"a": true,',
 				'\t'
@@ -446,12 +448,12 @@ suite('EditorModel - EditableTextModel._toSingleEditOperation', () => {
 				'and the last line'
 			],
 			[
-				editOp(1, 5, 3, 1, 0, [' text', 'some more text', 'some more text']),
-				editOp(3, 2, 4, 1, 0, ['o more lines', 'asd', 'asd', 'asd']),
-				editOp(5, 1, 5, 6, 0, ['zzzzzzzz']),
-				editOp(5, 11, 6, 16, 0, ['1', '2', '3', '4'])
+				editOp(1, 5, 3, 1, 4, 21, [' text', 'some more text', 'some more text']),
+				editOp(3, 2, 4, 1, 26, 23, ['o more lines', 'asd', 'asd', 'asd']),
+				editOp(5, 1, 5, 6, 50, 5, ['zzzzzzzz']),
+				editOp(5, 11, 6, 16, 60, 22, ['1', '2', '3', '4'])
 			],
-			editOp(1, 5, 6, 16, 78, [
+			editOp(1, 5, 6, 16, 4, 78, [
 				' text',
 				'some more text',
 				'some more textno more lines',
@@ -475,17 +477,17 @@ suite('EditorModel - EditableTextModel._toSingleEditOperation', () => {
 				'        ,"e": /*comment*/ [null] }',
 			],
 			[
-				editOp(1, 1, 1, 2, 0, ['']),
-				editOp(1, 3, 1, 10, 0, ['', '  ']),
-				editOp(1, 16, 2, 14, 0, ['', '    ']),
-				editOp(2, 18, 3, 9, 0, ['', '  ']),
-				editOp(3, 22, 4, 9, 0, ['']),
-				editOp(4, 10, 4, 10, 0, ['', '  ']),
-				editOp(4, 28, 4, 28, 0, ['', '    ']),
-				editOp(4, 32, 4, 32, 0, ['', '  ']),
-				editOp(4, 33, 4, 34, 0, ['', ''])
+				editOp(1, 1, 1, 2, 0, 1, ['']),
+				editOp(1, 3, 1, 10, 2, 7, ['', '  ']),
+				editOp(1, 16, 2, 14, 15, 14, ['', '    ']),
+				editOp(2, 18, 3, 9, 33, 9, ['', '  ']),
+				editOp(3, 22, 4, 9, 55, 9, ['']),
+				editOp(4, 10, 4, 10, 65, 0, ['', '  ']),
+				editOp(4, 28, 4, 28, 83, 0, ['', '    ']),
+				editOp(4, 32, 4, 32, 87, 0, ['', '  ']),
+				editOp(4, 33, 4, 34, 88, 1, ['', ''])
 			],
-			editOp(1, 1, 4, 34, 89, [
+			editOp(1, 1, 4, 34, 0, 89, [
 				'{',
 				'  "d": [',
 				'    null',
@@ -505,11 +507,11 @@ suite('EditorModel - EditableTextModel._toSingleEditOperation', () => {
 				' ,def'
 			],
 			[
-				editOp(1, 1, 1, 4, 0, ['']),
-				editOp(1, 7, 2, 2, 0, ['']),
-				editOp(2, 3, 2, 3, 0, ['', ''])
+				editOp(1, 1, 1, 4, 0, 3, ['']),
+				editOp(1, 7, 2, 2, 6, 2, ['']),
+				editOp(2, 3, 2, 3, 9, 0, ['', ''])
 			],
-			editOp(1, 1, 2, 3, 9, [
+			editOp(1, 1, 2, 3, 0, 9, [
 				'abc,',
 				''
 			])

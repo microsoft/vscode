@@ -169,6 +169,10 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		this._decorations = null;
 		this._internalDecorations = null;
 		this._multiLineDecorationsMap = null;
+
+		this._tree = null;
+		this._treeDecorations = null;
+
 		super.dispose();
 	}
 
@@ -179,6 +183,9 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		this._decorations = Object.create(null);
 		this._internalDecorations = Object.create(null);
 		this._multiLineDecorationsMap = Object.create(null);
+
+		this._tree = new IntervalTree();
+		this._treeDecorations = Object.create(null);
 	}
 
 	private static _shouldStartMarkerSticksToPreviousCharacter(stickiness: editorCommon.TrackedRangeStickiness): boolean {

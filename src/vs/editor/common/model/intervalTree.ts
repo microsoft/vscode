@@ -197,7 +197,7 @@ export class IntervalTree {
 			const node = nodesOfInterest[i];
 			node.start = node.cachedAbsoluteStart;
 			node.end = node.cachedAbsoluteEnd;
-			nodeAcceptEdit(0, node, node.start, node.end, offset, (offset + length), textLength, forceMoveMarkers);
+			nodeAcceptEdit(node, offset, (offset + length), textLength, forceMoveMarkers);
 			node.maxEnd = node.end;
 			rbTreeInsert(this, node);
 		}
@@ -269,7 +269,11 @@ function adjustMarkerBeforeColumn(markerOffset: number, markerStickToPreviousCha
 	return markerStickToPreviousCharacter;
 };
 
-function nodeAcceptEdit(delta: number, node: IntervalNode, nodeStart: number, nodeEnd: number, start: number, end: number, textLength: number, forceMoveMarkers: boolean): void {
+/**
+ * This is a lot more complicated than strictly necessary to maintain the same behaviour
+ * as when decorations were implemented using two markers.
+ */
+function nodeAcceptEdit(node: IntervalNode, start: number, end: number, textLength: number, forceMoveMarkers: boolean): void {
 	const startStickToPreviousCharacter = (
 		node.stickiness === TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
 		|| node.stickiness === TrackedRangeStickiness.GrowsOnlyWhenTypingBefore
@@ -283,7 +287,10 @@ function nodeAcceptEdit(delta: number, node: IntervalNode, nodeStart: number, no
 	const insertingCnt = textLength;
 	const commonLength = Math.min(deletingCnt, insertingCnt);
 
+	const nodeStart = node.start;
 	let startDone = false;
+
+	const nodeEnd = node.end;
 	let endDone = false;
 
 	{
@@ -309,13 +316,11 @@ function nodeAcceptEdit(delta: number, node: IntervalNode, nodeStart: number, no
 	{
 		const moveSemantics = forceMoveMarkers ? MarkerMoveSemantics.ForceMove : MarkerMoveSemantics.MarkerDefined;
 		if (!startDone && adjustMarkerBeforeColumn(nodeStart, startStickToPreviousCharacter, end, moveSemantics)) {
-			const desiredStart = start + insertingCnt;
-			node.start = desiredStart - delta;
+			node.start = start + insertingCnt;
 			startDone = true;
 		}
 		if (!endDone && adjustMarkerBeforeColumn(nodeEnd, endStickToPreviousCharacter, end, moveSemantics)) {
-			const desiredEnd = start + insertingCnt;
-			node.end = desiredEnd - delta;
+			node.end = start + insertingCnt;
 			endDone = true;
 		}
 	}
@@ -323,13 +328,11 @@ function nodeAcceptEdit(delta: number, node: IntervalNode, nodeStart: number, no
 	// Finish
 	const deltaColumn = (insertingCnt - deletingCnt);
 	if (!startDone) {
-		const desiredStart = Math.max(0, nodeStart + deltaColumn);
-		node.start = desiredStart - delta;
+		node.start = Math.max(0, nodeStart + deltaColumn);
 		startDone = true;
 	}
 	if (!endDone) {
-		const desiredEnd = Math.max(0, nodeEnd + deltaColumn);
-		node.end = desiredEnd - delta;
+		node.end = Math.max(0, nodeEnd + deltaColumn);
 		endDone = true;
 	}
 

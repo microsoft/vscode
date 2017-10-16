@@ -1096,7 +1096,7 @@ suite('deltaDecorations', () => {
 		assert.equal(initialIds.length, model.getAllDecorations().length, 'does not leak decorations');
 		assert.equal(initialIds.length, model._getTrackedRangesCount(), 'does not leak tracked ranges');
 		if (!USE_NEW_DECORATIONS) {
-		assert.equal(2 * initialIds.length, model._getMarkersCount(), 'does not leak markers');
+			assert.equal(2 * initialIds.length, model._getMarkersCount(), 'does not leak markers');
 		} else {
 			assert.equal(0, model._getMarkersCount(), 'does not leak markers');
 		}
@@ -1111,7 +1111,7 @@ suite('deltaDecorations', () => {
 		assert.equal(newIds.length, model.getAllDecorations().length, 'does not leak decorations');
 		assert.equal(newIds.length, model._getTrackedRangesCount(), 'does not leak tracked ranges');
 		if (!USE_NEW_DECORATIONS) {
-		assert.equal(2 * newIds.length, model._getMarkersCount(), 'does not leak markers');
+			assert.equal(2 * newIds.length, model._getMarkersCount(), 'does not leak markers');
 		} else {
 			assert.equal(0, model._getMarkersCount(), 'does not leak markers');
 		}
