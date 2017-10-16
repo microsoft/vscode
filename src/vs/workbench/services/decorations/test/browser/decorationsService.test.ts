@@ -66,7 +66,7 @@ suite('DecorationsService', function () {
 			readonly onDidChange: Event<URI[]> = Event.None;
 			provideDecorations(uri: URI) {
 				callCounter += 1;
-				return { color: 'someBlue', tooltip: 'Z' };
+				return { color: 'someBlue', title: 'Z' };
 			}
 		});
 
@@ -84,7 +84,7 @@ suite('DecorationsService', function () {
 			readonly onDidChange: Event<URI[]> = Event.None;
 			provideDecorations(uri: URI) {
 				callCounter += 1;
-				return { color: 'someBlue', tooltip: 'J' };
+				return { color: 'someBlue', title: 'J' };
 			}
 		});
 
