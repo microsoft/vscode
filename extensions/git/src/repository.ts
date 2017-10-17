@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, ThemeColor } from 'vscode';
+import { Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, ThemeColor, DecorationData } from 'vscode';
 import { Repository as BaseRepository, Ref, Branch, Remote, Commit, GitErrorCodes, Stash, RefType } from './git';
 import { anyEvent, filterEvent, eventToPromise, dispose, find } from './util';
 import { memoize, throttle, debounce } from './decorators';
@@ -170,27 +170,29 @@ export class Resource implements SourceControlResourceState {
 		// return this.resourceUri.fsPath.substr(0, workspaceRootPath.length) !== workspaceRootPath;
 	}
 
-	private get color(): ThemeColor | undefined {
-		switch (this.type) {
-			case Status.INDEX_MODIFIED:
-			case Status.MODIFIED:
-				return new ThemeColor('git.color.modified');
-			case Status.UNTRACKED:
-				return new ThemeColor('git.color.untracked');
-			default:
-				return undefined;
-		}
-	}
-
 	get decorations(): SourceControlResourceDecorations {
 		const light = { iconPath: this.getIconPath('light') };
 		const dark = { iconPath: this.getIconPath('dark') };
 		const tooltip = this.tooltip;
 		const strikeThrough = this.strikeThrough;
 		const faded = this.faded;
-		const color = this.color;
 
-		return { strikeThrough, faded, tooltip, light, dark, color };
+		return { strikeThrough, faded, tooltip, light, dark };
+	}
+
+	get resourceDecoration(): DecorationData | undefined {
+		const title = this.tooltip;
+		switch (this.type) {
+			case Status.IGNORED:
+				return { priority: 3, title, opacity: 0.75 };
+			case Status.UNTRACKED:
+				return { priority: 1, title, abbreviation: localize('untracked, short', "U"), bubble: true, color: new ThemeColor('git.color.untracked') };
+			case Status.INDEX_MODIFIED:
+			case Status.MODIFIED:
+				return { priority: 2, title, abbreviation: localize('modified, short', "M"), bubble: true, color: new ThemeColor('git.color.modified') };
+			default:
+				return undefined;
+		}
 	}
 
 	constructor(

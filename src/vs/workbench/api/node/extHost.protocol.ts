@@ -362,8 +362,7 @@ export type SCMRawResource = [
 	string[] /*icons: light, dark*/,
 	string /*tooltip*/,
 	boolean /*strike through*/,
-	boolean /*faded*/,
-	{ id: string } /*ThemeColor*/
+	boolean /*faded*/
 ];
 
 export type SCMRawResourceSplice = [
@@ -603,7 +602,7 @@ export interface ExtHostDebugServiceShape {
 }
 
 
-export type DecorationData = [number, string, string, number, ThemeColor];
+export type DecorationData = [number, boolean, string, string, number, ThemeColor];
 
 export interface ExtHostDecorationsShape {
 	$providerDecorations(handle: number, uri: URI): TPromise<DecorationData>;

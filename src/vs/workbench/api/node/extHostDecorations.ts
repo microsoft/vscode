@@ -41,7 +41,7 @@ export class ExtHostDecorations implements ExtHostDecorationsShape {
 	$providerDecorations(handle: number, uri: URI): TPromise<DecorationData> {
 		const provider = this._provider.get(handle);
 		return asWinJsPromise(token => provider.provideDecoration(uri, token)).then(data => {
-			return <DecorationData>[data.priority, data.title, data.abbreviation, data.opacity, data.color];
+			return data && <DecorationData>[data.priority, data.bubble, data.title, data.abbreviation, data.opacity, data.color];
 		});
 	}
 }

@@ -36,9 +36,13 @@ export class MainThreadDecorations implements MainThreadDecorationsShape {
 			onDidChange: emitter.event,
 			provideDecorations: (uri) => {
 				return this._proxy.$providerDecorations(handle, uri).then(data => {
-					const [weight, title, letter, opacity, themeColor] = data;
+					if (!data) {
+						return undefined;
+					}
+					const [weight, bubble, title, letter, opacity, themeColor] = data;
 					return {
 						weight: weight || 0,
+						bubble: bubble || false,
 						title,
 						letter,
 						opacity,

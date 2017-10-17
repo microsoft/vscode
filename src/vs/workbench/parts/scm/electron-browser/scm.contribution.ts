@@ -17,9 +17,7 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { StatusUpdater, StatusBarController } from './scmActivity';
-import { FileDecorations } from './scmFileDecorations';
 import { SCMViewlet } from 'vs/workbench/parts/scm/electron-browser/scmViewlet';
-import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 
 class OpenSCMViewletAction extends ToggleViewletAction {
 
@@ -51,9 +49,6 @@ Registry.as(WorkbenchExtensions.Workbench)
 Registry.as(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(StatusBarController);
 
-Registry.as(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(FileDecorations);
-
 // Register Action to Open Viewlet
 Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions).registerWorkbenchAction(
 	new SyncActionDescriptor(OpenSCMViewletAction, VIEWLET_ID, localize('toggleSCMViewlet', "Show SCM"), {
@@ -65,17 +60,3 @@ Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions
 	'View: Show SCM',
 	localize('view', "View")
 );
-
-
-Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
-	'id': 'scm',
-	'order': 101,
-	'type': 'object',
-	'properties': {
-		'scm.fileDecorations.enabled': {
-			'description': localize('scm.fileDecorations.enabled', "Show source control status on files and folders"),
-			'type': 'boolean',
-			'default': true
-		}
-	}
-});

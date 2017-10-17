@@ -175,6 +175,7 @@ declare module 'vscode' {
 	export interface DecorationData {
 		priority?: number;
 		title?: string;
+		bubble?: boolean;
 		abbreviation?: string;
 		color?: ThemeColor;
 		opacity?: number;
