@@ -364,16 +364,25 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private loadWithContent(content: IRawTextContent | IContent, backup?: URI): TPromise<TextFileEditorModel> {
-		diag('load() - resolved content', this.resource, new Date());
+		return this.doLoadWithContent(content, backup).then(model => {
 
-		/* __GDPR__
-			"fileGet" : {
-				"mimeType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"path": { "classification": "CustomerContent", "purpose": "FeatureInsight" }
-			}
-		*/
-		this.telemetryService.publicLog('fileGet', { mimeType: guessMimeTypes(this.resource.fsPath).join(', '), ext: paths.extname(this.resource.fsPath), path: anonymize(this.resource.fsPath) });
+			// We log the fileGet telemetry event after the model has been loaded to ensure a good mimetype
+
+			/* __GDPR__
+				"fileGet" : {
+					"mimeType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"path": { "classification": "CustomerContent", "purpose": "FeatureInsight" }
+				}
+			*/
+			this.telemetryService.publicLog('fileGet', { mimeType: guessMimeTypes(this.resource.fsPath).join(', '), ext: paths.extname(this.resource.fsPath), path: anonymize(this.resource.fsPath) });
+
+			return model;
+		});
+	}
+
+	private doLoadWithContent(content: IRawTextContent | IContent, backup?: URI): TPromise<TextFileEditorModel> {
+		diag('load() - resolved content', this.resource, new Date());
 
 		// Update our resolved disk stat model
 		const resolvedStat: IFileStat = {

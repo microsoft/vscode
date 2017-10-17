@@ -196,7 +196,7 @@ suite('WorkspaceConfigurationService - Node', () => {
 				fs.writeFileSync(globalSettingsFile, '{ "testworkbench.editor.tabs": true }');
 
 				return service.initialize(workspaceDir).then(() => {
-					service.onDidUpdateConfiguration(event => {
+					service.onDidChangeConfiguration(event => {
 						const config = service.getConfiguration<{ testworkbench: { editor: { tabs: boolean } } }>();
 						assert.equal(config.testworkbench.editor.tabs, false);
 
@@ -279,7 +279,7 @@ suite('WorkspaceConfigurationService - Node', () => {
 	test('workspace change triggers event', (done: () => void) => {
 		createWorkspace((workspaceDir, globalSettingsFile, cleanUp) => {
 			return createService(workspaceDir, globalSettingsFile).then(service => {
-				service.onDidUpdateConfiguration(event => {
+				service.onDidChangeConfiguration(event => {
 					const config = service.getConfiguration<{ testworkbench: { editor: { icons: boolean } } }>();
 					assert.equal(config.testworkbench.editor.icons, true);
 					assert.equal(service.getConfiguration<any>().testworkbench.editor.icons, true);
@@ -305,7 +305,7 @@ suite('WorkspaceConfigurationService - Node', () => {
 				fs.writeFileSync(settingsFile, '{ "testworkbench.editor.icons": true }');
 
 				const target = sinon.stub();
-				service.onDidUpdateConfiguration(event => target());
+				service.onDidChangeConfiguration(event => target());
 
 				fs.writeFileSync(settingsFile, '{ "testworkbench.editor.icons": false }');
 
@@ -327,7 +327,7 @@ suite('WorkspaceConfigurationService - Node', () => {
 
 				service.reloadWorkspaceConfiguration().done(() => {
 					const target = sinon.stub();
-					service.onDidUpdateConfiguration(event => target());
+					service.onDidChangeConfiguration(event => target());
 
 					service.reloadWorkspaceConfiguration().done(() => {
 						assert.ok(!target.called);
@@ -344,7 +344,7 @@ suite('WorkspaceConfigurationService - Node', () => {
 		createWorkspace((workspaceDir, globalSettingsFile, cleanUp) => {
 			return createService(workspaceDir, globalSettingsFile).then(service => {
 				const target = sinon.stub();
-				service.onDidUpdateConfiguration(event => target());
+				service.onDidChangeConfiguration(event => target());
 				service.reloadUserConfiguration().done(() => {
 					assert.ok(!target.called);
 					service.dispose();

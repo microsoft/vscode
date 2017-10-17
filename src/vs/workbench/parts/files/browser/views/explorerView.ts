@@ -204,7 +204,7 @@ export class ExplorerView extends ViewsViewletPanel {
 			this.disposables.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
 
 			// Also handle configuration updates
-			this.disposables.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IFilesConfiguration>(), e)));
+			this.disposables.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IFilesConfiguration>(), e)));
 		});
 	}
 
@@ -275,8 +275,8 @@ export class ExplorerView extends ViewsViewletPanel {
 				|| event.affectsConfiguration('explorer.decorations.badges');
 		}
 
-		// Refresh viewer as needed
-		if (needsRefresh) {
+		// Refresh viewer as needed if this originates from a config event
+		if (event && needsRefresh) {
 			this.doRefresh().done(null, errors.onUnexpectedError);
 		}
 	}

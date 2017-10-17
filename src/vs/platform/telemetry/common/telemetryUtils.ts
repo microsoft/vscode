@@ -185,7 +185,7 @@ const configurationValueWhitelist = [
 ];
 
 export function configurationTelemetry(telemetryService: ITelemetryService, configurationService: IConfigurationService): IDisposable {
-	return configurationService.onDidUpdateConfiguration(event => {
+	return configurationService.onDidChangeConfiguration(event => {
 		if (event.source !== ConfigurationTarget.DEFAULT) {
 			/* __GDPR__
 				"updateConfiguration" : {

@@ -18,6 +18,7 @@ export interface IDecorationData {
 	readonly opacity?: number;
 	readonly letter?: string;
 	readonly title?: string;
+	readonly bubble?: boolean;
 }
 
 export interface IDecoration {

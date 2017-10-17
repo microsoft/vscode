@@ -23,7 +23,6 @@ import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorIn
 import { IFileEditorInput, EncodingMode, IEncodingSupport, toResource, SideBySideEditorInput } from 'vs/workbench/common/editor';
 import { IDisposable, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IEditorAction, ICommonCodeEditor, EndOfLineSequence, IModel } from 'vs/editor/common/editorCommon';
 import { IModelLanguageChangedEvent, IModelOptionsChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { TrimTrailingWhitespaceAction } from 'vs/editor/contrib/linesOperations/common/linesOperations';
@@ -56,6 +55,7 @@ import { widgetShadow, editorWidgetBackground } from 'vs/platform/theme/common/c
 // TODO@Sandeep layer breaker
 // tslint:disable-next-line:import-patterns
 import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
 function toEditorWithEncodingSupport(input: IEditorInput): IEncodingSupport {
 	if (input instanceof SideBySideEditorInput) {
@@ -793,14 +793,12 @@ export class ChangeModeAction extends Action {
 		@IModeService private modeService: IModeService,
 		@IModelService private modelService: IModelService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ICommandService private commandService: ICommandService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IConfigurationEditingService private configurationEditService: IConfigurationEditingService
+		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
 	) {
 		super(actionId, actionLabel);
 	}
@@ -989,8 +987,7 @@ export class ChangeModeAction extends Action {
 
 					currentAssociations[associationKey] = language.id;
 
-					// Write config
-					this.configurationEditingService.writeConfiguration(target, { key: ChangeModeAction.FILE_ASSOCIATION_KEY, value: currentAssociations });
+					this.configurationService.updateValue(ChangeModeAction.FILE_ASSOCIATION_KEY, currentAssociations, target);
 				}
 			});
 		});
@@ -1229,7 +1226,7 @@ class ScreenReaderDetectedExplanation {
 		anchorElement: HTMLElement,
 		@IThemeService private readonly themeService: IThemeService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
-		@IConfigurationEditingService private readonly configurationEditingService: IConfigurationEditingService,
+		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService,
 	) {
 		this._isDisposed = false;
 		this._toDispose = [];
@@ -1281,20 +1278,14 @@ class ScreenReaderDetectedExplanation {
 
 		const yesBtn = $('div.button', {}, nls.localize('screenReaderDetectedExplanation.answerYes', "Yes"));
 		this._toDispose.push(addDisposableListener(yesBtn, 'click', () => {
-			this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, {
-				key: 'editor.accessibilitySupport',
-				value: 'on'
-			});
+			this.configurationService.updateValue('editor.accessibilitySupport', 'on', ConfigurationTarget.USER);
 			this.contextViewService.hideContextView();
 		}));
 		domNode.appendChild(yesBtn);
 
 		const noBtn = $('div.button', {}, nls.localize('screenReaderDetectedExplanation.answerNo', "No"));
 		this._toDispose.push(addDisposableListener(noBtn, 'click', () => {
-			this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, {
-				key: 'editor.accessibilitySupport',
-				value: 'off'
-			});
+			this.configurationService.updateValue('editor.accessibilitySupport', 'off', ConfigurationTarget.USER);
 			this.contextViewService.hideContextView();
 		}));
 		domNode.appendChild(noBtn);

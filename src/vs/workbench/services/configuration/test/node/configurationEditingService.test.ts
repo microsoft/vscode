@@ -23,11 +23,10 @@ import uuid = require('vs/base/common/uuid');
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
-import { ConfigurationEditingService } from 'vs/workbench/services/configuration/node/configurationEditingService';
-import { ConfigurationTarget, ConfigurationEditingError, ConfigurationEditingErrorCode } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { ConfigurationEditingService, ConfigurationEditingError, ConfigurationEditingErrorCode } from 'vs/workbench/services/configuration/node/configurationEditingService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { WORKSPACE_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -224,6 +223,7 @@ suite('ConfigurationEditingService', () => {
 
 	test('write one setting - empty file', () => {
 		return testObject.writeConfiguration(ConfigurationTarget.USER, { key: 'configurationEditing.service.testSetting', value: 'value' })
+			.then(() => instantiationService.get(IConfigurationService).reloadConfiguration())
 			.then(() => {
 				const contents = fs.readFileSync(globalSettingsFile).toString('utf8');
 				const parsed = json.parse(contents);
@@ -235,6 +235,7 @@ suite('ConfigurationEditingService', () => {
 	test('write one setting - existing file', () => {
 		fs.writeFileSync(globalSettingsFile, '{ "my.super.setting": "my.super.value" }');
 		return testObject.writeConfiguration(ConfigurationTarget.USER, { key: 'configurationEditing.service.testSetting', value: 'value' })
+			.then(() => instantiationService.get(IConfigurationService).reloadConfiguration())
 			.then(() => {
 				const contents = fs.readFileSync(globalSettingsFile).toString('utf8');
 				const parsed = json.parse(contents);
@@ -249,6 +250,7 @@ suite('ConfigurationEditingService', () => {
 
 	test('write workspace standalone setting - empty file', () => {
 		return testObject.writeConfiguration(ConfigurationTarget.WORKSPACE, { key: 'tasks.service.testSetting', value: 'value' })
+			.then(() => instantiationService.get(IConfigurationService).reloadConfiguration())
 			.then(() => {
 				const target = path.join(workspaceDir, WORKSPACE_STANDALONE_CONFIGURATIONS['tasks']);
 				const contents = fs.readFileSync(target).toString('utf8');
@@ -263,6 +265,7 @@ suite('ConfigurationEditingService', () => {
 		const target = path.join(workspaceDir, WORKSPACE_STANDALONE_CONFIGURATIONS['launch']);
 		fs.writeFileSync(target, '{ "my.super.setting": "my.super.value" }');
 		return testObject.writeConfiguration(ConfigurationTarget.WORKSPACE, { key: 'launch.service.testSetting', value: 'value' })
+			.then(() => instantiationService.get(IConfigurationService).reloadConfiguration())
 			.then(() => {
 				const contents = fs.readFileSync(target).toString('utf8');
 				const parsed = json.parse(contents);

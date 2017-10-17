@@ -253,7 +253,7 @@ export class MarkersPanel extends Panel {
 	}
 
 	private createListeners(): void {
-		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationsUpdated(this.configurationService.getConfiguration<IProblemsConfiguration>())));
+		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationsUpdated(this.configurationService.getConfiguration<IProblemsConfiguration>())));
 		this.toUnbind.push(this.markerService.onMarkerChanged(this.onMarkerChanged, this));
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(this.onEditorsChanged, this));
 		this.toUnbind.push(this.tree.addListener('selection', () => this.onSelected()));

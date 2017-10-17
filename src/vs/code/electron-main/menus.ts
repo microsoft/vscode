@@ -136,7 +136,7 @@ export class CodeMenu {
 		});
 
 		// Update when auto save config changes
-		this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IConfiguration>(), true /* update menu if changed */));
+		this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IConfiguration>(), true /* update menu if changed */));
 
 		// Listen to update service
 		this.updateService.onStateChange(() => this.updateMenu());

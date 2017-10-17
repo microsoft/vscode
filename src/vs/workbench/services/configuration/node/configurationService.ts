@@ -37,7 +37,6 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
-import { IConfigurationEditingService, ConfigurationTarget as EditableConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ConfigurationEditingService } from 'vs/workbench/services/configuration/node/configurationEditingService';
 
@@ -62,8 +61,8 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	private workspaceConfiguration: WorkspaceConfiguration;
 	private cachedFolderConfigs: StrictResourceMap<FolderConfiguration>;
 
-	protected readonly _onDidUpdateConfiguration: Emitter<IConfigurationChangeEvent> = this._register(new Emitter<IConfigurationChangeEvent>());
-	public readonly onDidUpdateConfiguration: Event<IConfigurationChangeEvent> = this._onDidUpdateConfiguration.event;
+	protected readonly _onDidChangeConfiguration: Emitter<IConfigurationChangeEvent> = this._register(new Emitter<IConfigurationChangeEvent>());
+	public readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent> = this._onDidChangeConfiguration.event;
 
 	protected readonly _onDidChangeWorkspaceFolders: Emitter<IWorkspaceFoldersChangeEvent> = this._register(new Emitter<IWorkspaceFoldersChangeEvent>());
 	public readonly onDidChangeWorkspaceFolders: Event<IWorkspaceFoldersChangeEvent> = this._onDidChangeWorkspaceFolders.event;
@@ -74,7 +73,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	protected readonly _onDidChangeWorkbenchState: Emitter<WorkbenchState> = this._register(new Emitter<WorkbenchState>());
 	public readonly onDidChangeWorkbenchState: Event<WorkbenchState> = this._onDidChangeWorkbenchState.event;
 
-	private configurationEditingService: IConfigurationEditingService;
+	private configurationEditingService: ConfigurationEditingService;
 
 	constructor(private environmentService: IEnvironmentService, private workspacesService: IWorkspacesService, private workspaceSettingsRootFolder: string = WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME) {
 		super();
@@ -83,7 +82,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		this._register(this.workspaceConfiguration.onDidUpdateConfiguration(() => this.onWorkspaceConfigurationChanged()));
 
 		this.baseConfigurationService = this._register(new GlobalConfigurationService(environmentService));
-		this._register(this.baseConfigurationService.onDidUpdateConfiguration(e => this.onBaseConfigurationChanged(e)));
+		this._register(this.baseConfigurationService.onDidChangeConfiguration(e => this.onBaseConfigurationChanged(e)));
 		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidRegisterConfiguration(e => this.registerConfigurationSchemas()));
 	}
 
@@ -150,11 +149,11 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	updateValue(key: string, value: any, overrides: IConfigurationOverrides): TPromise<void>
 	updateValue(key: string, value: any, target: ConfigurationTarget): TPromise<void>
 	updateValue(key: string, value: any, overrides: IConfigurationOverrides, target: ConfigurationTarget): TPromise<void>
-	updateValue(key: string, value: any, arg3?: any, arg4?: any): TPromise<void> {
+	updateValue(key: string, value: any, arg3?: any, arg4?: any, donotNotifyError?: any): TPromise<void> {
 		assert.ok(this.configurationEditingService, 'Workbench is not initialized yet');
 		const overrides = isConfigurationOverrides(arg3) ? arg3 : void 0;
 		const target = this.deriveConfigurationTarget(key, value, overrides, overrides ? arg4 : arg3);
-		return target ? this.writeConfigurationValue(key, value, target, overrides)
+		return target ? this.writeConfigurationValue(key, value, target, overrides, donotNotifyError)
 			: TPromise.as(null);
 	}
 
@@ -329,7 +328,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 				// TODO Sandy: compare with old values??
 
 				const keys = this._configuration.keys();
-				this._onDidUpdateConfiguration.fire(new AllKeysConfigurationChangeEvent([...keys.default, ...keys.user, ...keys.workspace, ...keys.workspaceFolder], ConfigurationTarget.WORKSPACE, this.getTargetConfiguration(ConfigurationTarget.WORKSPACE)));
+				this._onDidChangeConfiguration.fire(new AllKeysConfigurationChangeEvent([...keys.default, ...keys.user, ...keys.workspace, ...keys.workspaceFolder], ConfigurationTarget.WORKSPACE, this.getTargetConfiguration(ConfigurationTarget.WORKSPACE)));
 			});
 	}
 
@@ -463,14 +462,9 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		})]);
 	}
 
-	private writeConfigurationValue(key: string, value: any, target: ConfigurationTarget, overrides: IConfigurationOverrides): TPromise<void> {
+	private writeConfigurationValue(key: string, value: any, target: ConfigurationTarget, overrides: IConfigurationOverrides, donotNotifyError: boolean): TPromise<void> {
 		if (target === ConfigurationTarget.DEFAULT) {
 			return TPromise.wrapError(new Error('Invalid configuration target'));
-		}
-
-		let currentTargetValue = this.getTargetValue(key, target, overrides);
-		if (equals(currentTargetValue, value)) {
-			return TPromise.as(null);
 		}
 
 		if (target === ConfigurationTarget.MEMORY) {
@@ -479,7 +473,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 			return TPromise.as(null);
 		}
 
-		return this.configurationEditingService.writeConfiguration(this.toEditableConfigurationTarget(target), { key, value }, { scopes: overrides })
+		return this.configurationEditingService.writeConfiguration(target, { key, value }, { scopes: overrides, donotNotifyError })
 			.then(() => {
 				switch (target) {
 					case ConfigurationTarget.USER:
@@ -523,41 +517,11 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		return ConfigurationTarget.USER;
 	}
 
-	private toEditableConfigurationTarget(target: ConfigurationTarget): EditableConfigurationTarget {
-		switch (target) {
-			case ConfigurationTarget.USER:
-				return EditableConfigurationTarget.USER;
-			case ConfigurationTarget.WORKSPACE:
-				return EditableConfigurationTarget.WORKSPACE;
-			case ConfigurationTarget.WORKSPACE_FOLDER:
-				return EditableConfigurationTarget.FOLDER;
-			default:
-				return EditableConfigurationTarget.WORKSPACE;
-		}
-	}
-
 	private triggerConfigurationChange(configurationEvent: ConfigurationChangeEvent, target: ConfigurationTarget): void {
 		if (configurationEvent.affectedKeys.length) {
 			configurationEvent.telemetryData(target, this.getTargetConfiguration(target));
-			this._onDidUpdateConfiguration.fire(new WorkspaceConfigurationChangeEvent(configurationEvent, this.workspace));
+			this._onDidChangeConfiguration.fire(new WorkspaceConfigurationChangeEvent(configurationEvent, this.workspace));
 		}
-	}
-
-	private getTargetValue(key: string, target: ConfigurationTarget, overrides?: IConfigurationOverrides): any {
-		const inspect = this.inspect(key, overrides);
-		switch (target) {
-			case ConfigurationTarget.DEFAULT:
-				return inspect.default;
-			case ConfigurationTarget.USER:
-				return inspect.user;
-			case ConfigurationTarget.WORKSPACE:
-				return inspect.workspace;
-			case ConfigurationTarget.WORKSPACE_FOLDER:
-				return inspect.workspaceFolder;
-			case ConfigurationTarget.MEMORY:
-				return inspect.memory;
-		}
-		return void 0;
 	}
 
 	private getTargetConfiguration(target: ConfigurationTarget): any {

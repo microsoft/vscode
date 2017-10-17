@@ -709,7 +709,7 @@ export class ToggleAutoUpdateAction extends Action {
 	) {
 		super(id, label, '', true);
 		this.updateEnablement();
-		configurationService.onDidUpdateConfiguration(() => this.updateEnablement());
+		configurationService.onDidChangeConfiguration(() => this.updateEnablement());
 	}
 
 	private updateEnablement(): void {

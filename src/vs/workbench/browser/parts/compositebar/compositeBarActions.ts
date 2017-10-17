@@ -15,7 +15,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { dispose } from 'vs/base/common/lifecycle';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
-import { IActivityBarService, TextBadge, NumberBadge, IBadge, IconBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activityBarService';
+import { TextBadge, NumberBadge, IBadge, IconBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activityBarService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_FOREGROUND } from 'vs/workbench/common/theme';
@@ -27,6 +27,28 @@ import Event, { Emitter } from 'vs/base/common/event';
 export interface ICompositeActivity {
 	badge: IBadge;
 	clazz: string;
+}
+
+export interface ICompositeBar {
+	/**
+	 * Unpins a viewlet from the activitybar.
+	 */
+	unpin(viewletId: string): void;
+
+	/**
+	 * Pin a viewlet inside the activity bar.
+	 */
+	pin(viewletId: string): void;
+
+	/**
+	 * Find out if a viewlet is pinned in the activity bar.
+	 */
+	isPinned(viewletId: string): boolean;
+
+	/**
+	 * Reorder viewlet ordering by moving a viewlet to the location of another viewlet.
+	 */
+	move(viewletId: string, toViewletId: string): void;
 }
 
 export class ActivityAction extends Action {
@@ -342,8 +364,8 @@ export class CompositeActionItem extends ActivityActionItem {
 	constructor(
 		private compositeActivityAction: ActivityAction,
 		private toggleCompositePinnedAction: Action,
+		private compositeBar: ICompositeBar,
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IActivityBarService private activityBarService: IActivityBarService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService
@@ -448,7 +470,7 @@ export class CompositeActionItem extends ActivityActionItem {
 				this.updateFromDragging(container, false);
 				CompositeActionItem.clearDraggedComposite();
 
-				this.activityBarService.move(draggedCompositeId, this.activity.id);
+				this.compositeBar.move(draggedCompositeId, this.activity.id);
 			}
 		});
 
@@ -488,7 +510,7 @@ export class CompositeActionItem extends ActivityActionItem {
 			actions.push(CompositeActionItem.manageExtensionAction);
 		}
 
-		const isPinned = this.activityBarService.isPinned(this.activity.id);
+		const isPinned = this.compositeBar.isPinned(this.activity.id);
 		if (isPinned) {
 			this.toggleCompositePinnedAction.label = nls.localize('removeFromActivityBar', "Hide from Activity Bar");
 			this.toggleCompositePinnedAction.checked = false;
@@ -538,5 +560,29 @@ export class CompositeActionItem extends ActivityActionItem {
 		CompositeActionItem.clearDraggedComposite();
 
 		this.$label.destroy();
+	}
+}
+
+export class ToggleCompositePinnedAction extends Action {
+
+	constructor(
+		private activity: IActivity,
+		private compositeBar: ICompositeBar
+	) {
+		super('activitybar.show.toggleViewletPinned', activity ? activity.name : nls.localize('toggle', "Toggle View Pinned"));
+
+		this.checked = this.activity && this.compositeBar.isPinned(this.activity.id);
+	}
+
+	public run(context: string): TPromise<any> {
+		const id = this.activity ? this.activity.id : context;
+
+		if (this.compositeBar.isPinned(id)) {
+			this.compositeBar.unpin(id);
+		} else {
+			this.compositeBar.pin(id);
+		}
+
+		return TPromise.as(true);
 	}
 }

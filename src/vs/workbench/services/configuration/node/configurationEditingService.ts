@@ -23,15 +23,78 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IConfigurationService, IConfigurationOverrides, keyFromOverrideIdentifier } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationOverrides, keyFromOverrideIdentifier, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { WORKSPACE_CONFIG_DEFAULT_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS, TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY } from 'vs/workbench/services/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
-import { ConfigurationTarget, ConfigurationEditingErrorCode, ConfigurationEditingError, IConfigurationValue, IConfigurationEditingOptions, IConfigurationEditingService } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { OVERRIDE_PROPERTY_PATTERN, IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IChoiceService, IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+
+export enum ConfigurationEditingErrorCode {
+
+	/**
+	 * Error when trying to write a configuration key that is not registered.
+	 */
+	ERROR_UNKNOWN_KEY,
+
+	/**
+	 * Error when trying to write an invalid folder configuration key to folder settings.
+	 */
+	ERROR_INVALID_FOLDER_CONFIGURATION,
+
+	/**
+	 * Error when trying to write to user target but not supported for provided key.
+	 */
+	ERROR_INVALID_USER_TARGET,
+
+	/**
+	 * Error when trying to write a configuration key to folder target
+	 */
+	ERROR_INVALID_FOLDER_TARGET,
+
+	/**
+	 * Error when trying to write to the workspace configuration without having a workspace opened.
+	 */
+	ERROR_NO_WORKSPACE_OPENED,
+
+	/**
+	 * Error when trying to write and save to the configuration file while it is dirty in the editor.
+	 */
+	ERROR_CONFIGURATION_FILE_DIRTY,
+
+	/**
+	 * Error when trying to write to a configuration file that contains JSON errors.
+	 */
+	ERROR_INVALID_CONFIGURATION
+}
+
+export class ConfigurationEditingError extends Error {
+	constructor(message: string, public code: ConfigurationEditingErrorCode) {
+		super(message);
+	}
+}
+
+export interface IConfigurationValue {
+	key: string;
+	value: any;
+}
+
+export interface IConfigurationEditingOptions {
+	/**
+	 * If `true`, do not saves the configuration. Default is `false`.
+	 */
+	donotSave?: boolean;
+	/**
+	 * If `true`, do not notifies the error to user by showing the message box. Default is `false`.
+	 */
+	donotNotifyError?: boolean;
+	/**
+	 * Scope of configuration to be written into.
+	 */
+	scopes?: IConfigurationOverrides;
+}
 
 interface IConfigurationEditOperation extends IConfigurationValue {
 	target: ConfigurationTarget;
@@ -50,7 +113,7 @@ interface ConfigurationEditingOptions extends IConfigurationEditingOptions {
 	force?: boolean;
 }
 
-export class ConfigurationEditingService implements IConfigurationEditingService {
+export class ConfigurationEditingService {
 
 	public _serviceBrand: any;
 
@@ -94,9 +157,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 	private writeToBuffer(model: editorCommon.IModel, operation: IConfigurationEditOperation, save: boolean): TPromise<any> {
 		const edit = this.getEdits(model, operation)[0];
 		if (this.applyEditsToBuffer(edit, model) && save) {
-			return this.textFileService.save(operation.resource, { skipSaveParticipants: true /* programmatic change */ })
-				// Reload the configuration so that we make sure all parties are updated
-				.then(() => this.configurationService.reloadConfiguration());
+			return this.textFileService.save(operation.resource, { skipSaveParticipants: true /* programmatic change */ });
 		}
 		return TPromise.as(null);
 	}
@@ -192,7 +253,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 			case ConfigurationTarget.WORKSPACE:
 				this.commandService.executeCommand('workbench.action.openWorkspaceSettings');
 				break;
-			case ConfigurationTarget.FOLDER:
+			case ConfigurationTarget.WORKSPACE_FOLDER:
 				if (operation.resource) {
 					const workspaceFolder = this.contextService.getWorkspaceFolder(operation.resource);
 					if (workspaceFolder) {
@@ -236,7 +297,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 						return nls.localize('errorInvalidConfiguration', "Unable to write into user settings. Please open **User Settings** file to correct errors/warnings in it and try again.");
 					case ConfigurationTarget.WORKSPACE:
 						return nls.localize('errorInvalidConfigurationWorkspace', "Unable to write into workspace settings. Please open **Workspace Settings** file to correct errors/warnings in the file and try again.");
-					case ConfigurationTarget.FOLDER:
+					case ConfigurationTarget.WORKSPACE_FOLDER:
 						const workspaceFolderName = this.contextService.getWorkspaceFolder(operation.resource).name;
 						return nls.localize('errorInvalidConfigurationFolder', "Unable to write into folder settings. Please open **Folder Settings** file under **{0}** folder to correct errors/warnings in it and try again.", workspaceFolderName);
 				}
@@ -254,7 +315,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 						return nls.localize('errorConfigurationFileDirty', "Unable to write into user settings because the file is dirty. Please save the **User Settings** file and try again.");
 					case ConfigurationTarget.WORKSPACE:
 						return nls.localize('errorConfigurationFileDirtyWorkspace', "Unable to write into workspace settings because the file is dirty. Please save the **Workspace Settings** file and try again.");
-					case ConfigurationTarget.FOLDER:
+					case ConfigurationTarget.WORKSPACE_FOLDER:
 						const workspaceFolderName = this.contextService.getWorkspaceFolder(operation.resource).name;
 						return nls.localize('errorConfigurationFileDirtyFolder', "Unable to write into folder settings because the file is dirty. Please save the **Folder Settings** file under **{0}** folder and try again.", workspaceFolderName);
 				}
@@ -269,9 +330,10 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 				return nls.localize('userTarget', "User Settings");
 			case ConfigurationTarget.WORKSPACE:
 				return nls.localize('workspaceTarget', "Workspace Settings");
-			case ConfigurationTarget.FOLDER:
+			case ConfigurationTarget.WORKSPACE_FOLDER:
 				return nls.localize('folderTarget', "Folder Settings");
 		}
+		return '';
 	}
 
 	private getEdits(model: editorCommon.IModel, edit: IConfigurationEditOperation): Edit[] {
@@ -327,11 +389,11 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		}
 
 		// Target cannot be workspace or folder if no workspace opened
-		if ((target === ConfigurationTarget.WORKSPACE || target === ConfigurationTarget.FOLDER) && this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
+		if ((target === ConfigurationTarget.WORKSPACE || target === ConfigurationTarget.WORKSPACE_FOLDER) && this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			return this.wrapError(ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED, target, operation);
 		}
 
-		if (target === ConfigurationTarget.FOLDER) {
+		if (target === ConfigurationTarget.WORKSPACE_FOLDER) {
 			if (!operation.resource) {
 				return this.wrapError(ConfigurationEditingErrorCode.ERROR_INVALID_FOLDER_TARGET, target, operation);
 			}
@@ -418,7 +480,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 				}
 			}
 
-			if (target === ConfigurationTarget.FOLDER) {
+			if (target === ConfigurationTarget.WORKSPACE_FOLDER) {
 				if (resource) {
 					const folder = this.contextService.getWorkspaceFolder(resource);
 					if (folder) {

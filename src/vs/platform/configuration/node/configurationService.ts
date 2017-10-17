@@ -24,8 +24,8 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 	private _configuration: Configuration;
 	private userConfigModelWatcher: ConfigWatcher<ConfigurationModel>;
 
-	private _onDidUpdateConfiguration: Emitter<IConfigurationChangeEvent> = this._register(new Emitter<IConfigurationChangeEvent>());
-	readonly onDidUpdateConfiguration: Event<IConfigurationChangeEvent> = this._onDidUpdateConfiguration.event;
+	private _onDidChangeConfiguration: Emitter<IConfigurationChangeEvent> = this._register(new Emitter<IConfigurationChangeEvent>());
+	readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent> = this._onDidChangeConfiguration.event;
 
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService
@@ -128,7 +128,7 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 	}
 
 	private trigger(keys: string[], source: ConfigurationTarget): void {
-		this._onDidUpdateConfiguration.fire(new ConfigurationChangeEvent().change(keys).telemetryData(source, this.getTargetConfiguration(source)));
+		this._onDidChangeConfiguration.fire(new ConfigurationChangeEvent().change(keys).telemetryData(source, this.getTargetConfiguration(source)));
 	}
 
 	private getTargetConfiguration(target: ConfigurationTarget): any {

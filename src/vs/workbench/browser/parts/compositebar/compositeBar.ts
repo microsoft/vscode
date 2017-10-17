@@ -17,7 +17,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ActionBar, IActionItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import Event, { Emitter } from 'vs/base/common/event';
-import { CompositeActionItem, CompositeOverflowActivityAction, ICompositeActivity, CompositeOverflowActivityActionItem, ActivityAction } from 'vs/workbench/browser/parts/compositebar/compositeBarActions';
+import { CompositeActionItem, CompositeOverflowActivityAction, ICompositeActivity, CompositeOverflowActivityActionItem, ActivityAction, ICompositeBar } from 'vs/workbench/browser/parts/compositebar/compositeBarActions';
 import { TPromise } from 'vs/base/common/winjs.base';
 
 export interface ICompositeBarOptions {
@@ -34,7 +34,7 @@ export interface ICompositeBarOptions {
 	hidePart: () => TPromise<any>;
 }
 
-export class CompositeBar {
+export class CompositeBar implements ICompositeBar {
 
 	private _onDidContextMenu: Emitter<MouseEvent>;
 
@@ -152,9 +152,9 @@ export class CompositeBar {
 		}
 	}
 
-	public create(container: HTMLElement): void {
-		dom.addClass(container, 'composite-bar');
-		this.compositeSwitcherBar = new ActionBar(container, {
+	public create(parent: HTMLElement): void {
+		const actionBarDiv = parent.appendChild(dom.$('composite-bar'));
+		this.compositeSwitcherBar = new ActionBar(actionBarDiv, {
 			actionItemProvider: (action: Action) => action instanceof CompositeOverflowActivityAction ? this.compositeOverflowActionItem : this.compositeIdToActionItems[action.id],
 			orientation: this.options.orientation,
 			ariaLabel: nls.localize('activityBarAriaLabel', "Active View Switcher"),
@@ -163,13 +163,13 @@ export class CompositeBar {
 		this.updateCompositeSwitcher();
 
 		// Contextmenu for composites
-		this.toDispose.push(dom.addDisposableListener(container, dom.EventType.CONTEXT_MENU, (e: MouseEvent) => {
+		this.toDispose.push(dom.addDisposableListener(parent, dom.EventType.CONTEXT_MENU, (e: MouseEvent) => {
 			dom.EventHelper.stop(e, true);
 			this._onDidContextMenu.fire(e);
 		}));
 
 		// Allow to drop at the end to move composites to the end
-		this.toDispose.push(dom.addDisposableListener(container, dom.EventType.DROP, (e: DragEvent) => {
+		this.toDispose.push(dom.addDisposableListener(parent, dom.EventType.DROP, (e: DragEvent) => {
 			const draggedCompositeId = CompositeActionItem.getDraggedCompositeId();
 			if (draggedCompositeId) {
 				dom.EventHelper.stop(e, true);
@@ -312,7 +312,7 @@ export class CompositeBar {
 	private toAction(compositeId: string): ActivityAction {
 		const compositeActivityAction = this.options.getActivityAction(compositeId);
 		const pinnedAction = this.options.getCompositePinnedAction(compositeId);
-		this.compositeIdToActionItems[compositeId] = this.instantiationService.createInstance(CompositeActionItem, compositeActivityAction, pinnedAction);
+		this.compositeIdToActionItems[compositeId] = this.instantiationService.createInstance(CompositeActionItem, compositeActivityAction, pinnedAction, this);
 		this.compositeIdToActions[compositeId] = compositeActivityAction;
 
 		return compositeActivityAction;

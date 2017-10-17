@@ -26,7 +26,6 @@ import { IMessageService, Severity, IChoiceService } from 'vs/platform/message/c
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IPreferencesService, IPreferencesEditorModel, ISetting, getSettingsTargetName, FOLDER_SETTINGS_PATH, DEFAULT_SETTINGS_EDITOR_SETTING } from 'vs/workbench/parts/preferences/common/preferences';
 import { SettingsEditorModel, DefaultSettingsEditorModel, DefaultKeybindingsEditorModel, defaultKeybindingsContents, WorkspaceConfigModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -40,6 +39,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
 const emptyEditableSettingsContent = '{\n}';
 
@@ -66,7 +66,6 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@ITextModelService private textModelResolverService: ITextModelService,
-		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService private modelService: IModelService,
@@ -107,7 +106,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	getFolderSettingsResource(resource: URI): URI {
-		return this.getEditableSettingsURI(ConfigurationTarget.FOLDER, resource);
+		return this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE_FOLDER, resource);
 	}
 
 	resolveContent(uri: URI): TPromise<string> {
@@ -170,7 +169,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		}
 
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
-			return this.createEditableSettingsEditorModel(ConfigurationTarget.FOLDER, uri);
+			return this.createEditableSettingsEditorModel(ConfigurationTarget.WORKSPACE_FOLDER, uri);
 		}
 
 		return TPromise.wrap<IPreferencesEditorModel<any>>(null);
@@ -189,7 +188,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	openFolderSettings(folder: URI, options?: IEditorOptions, position?: EditorPosition): TPromise<IEditor> {
-		return this.doOpenSettings(ConfigurationTarget.FOLDER, this.getEditableSettingsURI(ConfigurationTarget.FOLDER, folder), options, position);
+		return this.doOpenSettings(ConfigurationTarget.WORKSPACE_FOLDER, this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE_FOLDER, folder), options, position);
 	}
 
 	switchSettings(target: ConfigurationTarget, resource: URI): TPromise<void> {
@@ -270,7 +269,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	private getDefaultSettingsResource(configurationTarget: ConfigurationTarget): URI {
-		if (configurationTarget === ConfigurationTarget.FOLDER) {
+		if (configurationTarget === ConfigurationTarget.WORKSPACE_FOLDER) {
 			return this.defaultResourceSettingsResource;
 		}
 		return this.defaultSettingsResource;
@@ -278,7 +277,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	private getPreferencesEditorInputName(target: ConfigurationTarget, resource: URI): string {
 		const name = getSettingsTargetName(target, resource, this.contextService);
-		return target === ConfigurationTarget.FOLDER ? nls.localize('folderSettingsName', "{0} (Folder Settings)", name) : name;
+		return target === ConfigurationTarget.WORKSPACE_FOLDER ? nls.localize('folderSettingsName', "{0} (Folder Settings)", name) : name;
 	}
 
 	private getOrCreateEditableSettingsEditorInput(target: ConfigurationTarget, resource: URI): TPromise<EditorInput> {
@@ -322,7 +321,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 				}
 				const workspace = this.contextService.getWorkspace();
 				return workspace.configuration || workspace.folders[0].toResource(FOLDER_SETTINGS_PATH);
-			case ConfigurationTarget.FOLDER:
+			case ConfigurationTarget.WORKSPACE_FOLDER:
 				const folder = this.contextService.getWorkspaceFolder(resource);
 				return folder ? folder.toResource(FOLDER_SETTINGS_PATH) : null;
 		}
@@ -389,7 +388,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 					}
 					return { lineNumber: setting.valueRange.startLineNumber, column: setting.valueRange.startColumn + 1 };
 				}
-				return this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: languageKey, value: {} }, { donotSave: true })
+				return this.configurationService.updateValue(languageKey, {}, ConfigurationTarget.USER)
 					.then(() => {
 						setting = settingsModel.getPreference(languageKey);
 						let content = eol + this.spaces(2, configuration) + eol + this.spaces(1, configuration);

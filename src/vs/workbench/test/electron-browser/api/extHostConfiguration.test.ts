@@ -11,11 +11,11 @@ import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { MainThreadConfigurationShape } from 'vs/workbench/api/node/extHost.protocol';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ConfigurationTarget, ConfigurationEditingErrorCode, ConfigurationEditingError } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { TestThreadService } from './testThreadService';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { IWorkspaceFolder, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
 suite('ExtHostConfiguration', function () {
 
@@ -394,7 +394,7 @@ suite('ExtHostConfiguration', function () {
 
 		const shape = new class extends mock<MainThreadConfigurationShape>() {
 			$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any): TPromise<any> {
-				return TPromise.wrapError(new ConfigurationEditingError('Unknown Key', ConfigurationEditingErrorCode.ERROR_UNKNOWN_KEY)); // something !== OK
+				return TPromise.wrapError(new Error('Unknown Key')); // something !== OK
 			}
 		};
 
