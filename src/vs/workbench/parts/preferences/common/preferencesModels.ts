@@ -481,7 +481,8 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	public static MOST_RELEVANT_SECTION_LENGTH = 100;
 	public static MOST_RELEVANT_START_LINE = 3;
 	public static MOST_RELEVANT_END_LINE = DefaultSettingsEditorModel.MOST_RELEVANT_SECTION_LENGTH - 1;
-	private static BUNCH_OF_NEWLINES = strings.repeat('\n', DefaultSettingsEditorModel.MOST_RELEVANT_END_LINE - DefaultSettingsEditorModel.MOST_RELEVANT_START_LINE + 1);
+	private static MOST_RELEVANT_CONTENT_LENGTH = DefaultSettingsEditorModel.MOST_RELEVANT_END_LINE - DefaultSettingsEditorModel.MOST_RELEVANT_START_LINE + 1;
+	private static BUNCH_OF_NEWLINES = strings.repeat('\n', DefaultSettingsEditorModel.MOST_RELEVANT_CONTENT_LENGTH);
 
 	private _allSettingsGroups: ISettingsGroup[];
 	private _content: string;
@@ -532,8 +533,6 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 			const builder = new SettingsContentBuilder(DefaultSettingsEditorModel.MOST_RELEVANT_START_LINE - 1);
 			builder.pushGroup(group, false);
 
-			const settingsTextEndLine = DefaultSettingsEditorModel.MOST_RELEVANT_START_LINE + builder.lineCount - 1;
-
 			this.model.applyEdits([
 				{
 					text: DefaultSettingsEditorModel.BUNCH_OF_NEWLINES,
@@ -543,9 +542,13 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 				}
 			]);
 
+			let lines = builder.lines.slice(0, DefaultSettingsEditorModel.MOST_RELEVANT_CONTENT_LENGTH);
+			lines = lines.slice(0, lines.lastIndexOf(''));
+			const mostRelevantContent = lines.join('\n');
+			const settingsTextEndLine = DefaultSettingsEditorModel.MOST_RELEVANT_START_LINE + lines.length - 1;
 			this.model.applyEdits([
 				{
-					text: builder.content,
+					text: mostRelevantContent,
 					forceMoveMarkers: false,
 					range: new Range(DefaultSettingsEditorModel.MOST_RELEVANT_START_LINE, 0, settingsTextEndLine, 0),
 					identifier: { major: 1, minor: 0 }
@@ -756,7 +759,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		builder.pushLine(',');
 		builder.pushGroups(settingsGroups);
 		builder.pushLine(']');
-		return builder.content;
+		return builder.getContent();
 	}
 
 	public dispose(): void {
@@ -767,19 +770,15 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 class SettingsContentBuilder {
 	private _contentByLines: string[];
 
-	get content(): string {
-		return this._contentByLines.join('\n');
-	}
-
-	get lineCount(): number {
-		return this._contentByLines.length;
+	get lines(): string[] {
+		return this._contentByLines;
 	}
 
 	private get lineCountWithOffset(): number {
 		return this._contentByLines.length + this._rangeOffset;
 	}
 
-	constructor(private _rangeOffset = 0) {
+	constructor(private _rangeOffset = 0, private _maxLines = Infinity) {
 		this._contentByLines = [];
 	}
 
@@ -826,6 +825,10 @@ class SettingsContentBuilder {
 		}
 		group.range = { startLineNumber: groupStart, startColumn: 1, endLineNumber: this.lineCountWithOffset, endColumn: this._contentByLines[this._contentByLines.length - 1].length };
 		return lastSetting;
+	}
+
+	getContent(): string {
+		return this._contentByLines.join('\n');
 	}
 
 	private pushSetting(setting: ISetting, indent: string): void {
