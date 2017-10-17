@@ -986,7 +986,7 @@ export class Workbench implements IPartService {
 		this.toDispose.push(this.quickOpen.onHide(() => (<WorkbenchMessageService>this.messageService).resume()));  // resume messages once quick open is closed again
 
 		// Configuration changes
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(() => this.onDidUpdateConfiguration()));
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration(() => this.onDidUpdateConfiguration()));
 
 		// Fullscreen changes
 		this.toDispose.push(browser.onDidChangeFullscreen(() => this.onFullscreenChanged()));

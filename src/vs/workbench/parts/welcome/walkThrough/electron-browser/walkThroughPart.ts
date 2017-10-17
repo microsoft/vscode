@@ -401,7 +401,7 @@ export class WalkThroughPart extends BaseEditor {
 						}
 					}));
 
-					this.contentDisposables.push(this.configurationService.onDidUpdateConfiguration(() => {
+					this.contentDisposables.push(this.configurationService.onDidChangeConfiguration(() => {
 						if (snippet.textEditorModel) {
 							editor.updateOptions(this.getEditorOptions(snippet.textEditorModel.getModeId()));
 						}
@@ -452,7 +452,7 @@ export class WalkThroughPart extends BaseEditor {
 				});
 				this.updateSizeClasses();
 				this.multiCursorModifier();
-				this.contentDisposables.push(this.configurationService.onDidUpdateConfiguration(() => this.multiCursorModifier()));
+				this.contentDisposables.push(this.configurationService.onDidChangeConfiguration(() => this.multiCursorModifier()));
 				if (input.onReady) {
 					input.onReady(innerContent);
 				}

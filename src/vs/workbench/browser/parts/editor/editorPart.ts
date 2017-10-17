@@ -205,7 +205,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this.toUnbind.push(this.stacks.onEditorClosed(event => this.onEditorClosed(event)));
 		this.toUnbind.push(this.stacks.onGroupOpened(event => this.onEditorGroupOpenedOrClosed()));
 		this.toUnbind.push(this.stacks.onGroupClosed(event => this.onEditorGroupOpenedOrClosed()));
-		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>())));
+		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>())));
 	}
 
 	private onEditorGroupOpenedOrClosed(): void {

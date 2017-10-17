@@ -61,8 +61,8 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	private workspaceConfiguration: WorkspaceConfiguration;
 	private cachedFolderConfigs: StrictResourceMap<FolderConfiguration>;
 
-	protected readonly _onDidUpdateConfiguration: Emitter<IConfigurationChangeEvent> = this._register(new Emitter<IConfigurationChangeEvent>());
-	public readonly onDidUpdateConfiguration: Event<IConfigurationChangeEvent> = this._onDidUpdateConfiguration.event;
+	protected readonly _onDidChangeConfiguration: Emitter<IConfigurationChangeEvent> = this._register(new Emitter<IConfigurationChangeEvent>());
+	public readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent> = this._onDidChangeConfiguration.event;
 
 	protected readonly _onDidChangeWorkspaceFolders: Emitter<IWorkspaceFoldersChangeEvent> = this._register(new Emitter<IWorkspaceFoldersChangeEvent>());
 	public readonly onDidChangeWorkspaceFolders: Event<IWorkspaceFoldersChangeEvent> = this._onDidChangeWorkspaceFolders.event;
@@ -82,7 +82,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		this._register(this.workspaceConfiguration.onDidUpdateConfiguration(() => this.onWorkspaceConfigurationChanged()));
 
 		this.baseConfigurationService = this._register(new GlobalConfigurationService(environmentService));
-		this._register(this.baseConfigurationService.onDidUpdateConfiguration(e => this.onBaseConfigurationChanged(e)));
+		this._register(this.baseConfigurationService.onDidChangeConfiguration(e => this.onBaseConfigurationChanged(e)));
 		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidRegisterConfiguration(e => this.registerConfigurationSchemas()));
 	}
 
@@ -328,7 +328,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 				// TODO Sandy: compare with old values??
 
 				const keys = this._configuration.keys();
-				this._onDidUpdateConfiguration.fire(new AllKeysConfigurationChangeEvent([...keys.default, ...keys.user, ...keys.workspace, ...keys.workspaceFolder], ConfigurationTarget.WORKSPACE, this.getTargetConfiguration(ConfigurationTarget.WORKSPACE)));
+				this._onDidChangeConfiguration.fire(new AllKeysConfigurationChangeEvent([...keys.default, ...keys.user, ...keys.workspace, ...keys.workspaceFolder], ConfigurationTarget.WORKSPACE, this.getTargetConfiguration(ConfigurationTarget.WORKSPACE)));
 			});
 	}
 
@@ -520,7 +520,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	private triggerConfigurationChange(configurationEvent: ConfigurationChangeEvent, target: ConfigurationTarget): void {
 		if (configurationEvent.affectedKeys.length) {
 			configurationEvent.telemetryData(target, this.getTargetConfiguration(target));
-			this._onDidUpdateConfiguration.fire(new WorkspaceConfigurationChangeEvent(configurationEvent, this.workspace));
+			this._onDidChangeConfiguration.fire(new WorkspaceConfigurationChangeEvent(configurationEvent, this.workspace));
 		}
 	}
 

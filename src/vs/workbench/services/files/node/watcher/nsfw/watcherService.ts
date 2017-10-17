@@ -83,7 +83,7 @@ export class FileWatcher {
 		// Start watching
 		this.updateFolders();
 		this.toDispose.push(this.contextService.onDidChangeWorkspaceFolders(() => this.updateFolders()));
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(() => this.updateFolders()));
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration(() => this.updateFolders()));
 
 		return () => this.dispose();
 	}

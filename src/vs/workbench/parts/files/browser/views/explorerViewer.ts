@@ -568,7 +568,7 @@ export class FileSorter implements ISorter {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IFilesConfiguration>())));
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IFilesConfiguration>())));
 	}
 
 	private onConfigurationUpdated(configuration: IFilesConfiguration): void {
@@ -769,7 +769,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IFilesConfiguration>())));
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IFilesConfiguration>())));
 	}
 
 	private onConfigurationUpdated(config: IFilesConfiguration): void {

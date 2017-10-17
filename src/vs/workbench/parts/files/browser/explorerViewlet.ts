@@ -62,7 +62,7 @@ export class ExplorerViewlet extends PersistentViewsViewlet {
 
 		this.registerViews();
 		this.onConfigurationUpdated();
-		this._register(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated()));
 		this._register(this.contextService.onDidChangeWorkspaceName(e => this.updateTitleArea()));
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.registerViews()));
 		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.registerViews()));

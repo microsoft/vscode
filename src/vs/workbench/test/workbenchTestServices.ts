@@ -1211,7 +1211,7 @@ export class TestTextResourceConfigurationService implements ITextResourceConfig
 	constructor(private configurationService = new TestConfigurationService()) {
 	}
 
-	public onDidUpdateConfiguration() {
+	public onDidChangeConfiguration() {
 		return { dispose() { } };
 	}
 

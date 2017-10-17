@@ -65,7 +65,7 @@ export class ResourceLabel extends IconLabel {
 
 	private registerListeners(): void {
 		this.extensionService.onReady().then(() => this.render(true /* clear cache */)); // update when extensions are loaded with potentially new languages
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(() => this.render(true /* clear cache */))); // update when file.associations change
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration(() => this.render(true /* clear cache */))); // update when file.associations change
 		this.toDispose.push(this.modelService.onModelModeChanged(e => this.onModelModeChanged(e))); // react to model mode changes
 		this.toDispose.push(this.decorationsService.onDidChangeDecorations(this.onFileDecorationsChanges, this)); // react to file decoration changes
 		this.toDispose.push(this.themeService.onThemeChange(() => this.render(false)));

@@ -90,7 +90,7 @@ export class FileDecorations implements IWorkbenchContribution {
 		@IConfigurationService private _configurationService: IConfigurationService,
 		@ISCMService private _scmService: ISCMService,
 	) {
-		this._configListener = this._configurationService.onDidUpdateConfiguration(e => e.affectsConfiguration('scm.fileDecorations.enabled') && this._update());
+		this._configListener = this._configurationService.onDidChangeConfiguration(e => e.affectsConfiguration('scm.fileDecorations.enabled') && this._update());
 		this._update();
 	}
 

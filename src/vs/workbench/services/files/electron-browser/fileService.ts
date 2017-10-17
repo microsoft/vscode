@@ -119,7 +119,7 @@ export class FileService implements IFileService {
 		this.toUnbind.push(this.raw.onAfterOperation(e => this._onAfterOperation.fire(e)));
 
 		// Config changes
-		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(this.configurationService.getConfiguration<IFilesConfiguration>())));
+		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange(this.configurationService.getConfiguration<IFilesConfiguration>())));
 
 		// Root changes
 		this.toUnbind.push(this.contextService.onDidChangeWorkspaceFolders(() => this.onDidChangeWorkspaceFolders()));

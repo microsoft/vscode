@@ -950,7 +950,7 @@ class UnsupportedWorkspaceSettingsRenderer extends Disposable {
 		@IMarkerService private markerService: IMarkerService
 	) {
 		super();
-		this._register(this.configurationService.onDidUpdateConfiguration(() => this.render()));
+		this._register(this.configurationService.onDidChangeConfiguration(() => this.render()));
 	}
 
 	private getMarkerMessage(settingKey: string): string {

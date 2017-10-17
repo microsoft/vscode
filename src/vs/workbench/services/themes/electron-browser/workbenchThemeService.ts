@@ -235,7 +235,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	}
 
 	private installConfigurationListener() {
-		this.configurationService.onDidUpdateConfiguration(e => {
+		this.configurationService.onDidChangeConfiguration(e => {
 			let colorThemeSetting = this.configurationService.getValue<string>(COLOR_THEME_SETTING);
 			if (colorThemeSetting !== this.currentColorTheme.settingsId) {
 				this.colorThemeStore.findThemeDataBySettingsId(colorThemeSetting, null).then(theme => {

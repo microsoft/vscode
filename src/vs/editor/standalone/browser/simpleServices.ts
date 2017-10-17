@@ -445,8 +445,8 @@ export class SimpleConfigurationService implements IConfigurationService {
 
 	_serviceBrand: any;
 
-	private _onDidUpdateConfiguration = new Emitter<IConfigurationChangeEvent>();
-	public onDidUpdateConfiguration: Event<IConfigurationChangeEvent> = this._onDidUpdateConfiguration.event;
+	private _onDidChangeConfiguration = new Emitter<IConfigurationChangeEvent>();
+	public onDidChangeConfiguration: Event<IConfigurationChangeEvent> = this._onDidChangeConfiguration.event;
 
 	private _configuration: Configuration;
 
@@ -503,12 +503,12 @@ export class SimpleResourceConfigurationService implements ITextResourceConfigur
 
 	_serviceBrand: any;
 
-	public readonly onDidUpdateConfiguration: Event<void>;
-	private readonly _onDidUpdateConfigurationEmitter = new Emitter();
+	public readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent>;
+	private readonly _onDidChangeConfigurationEmitter = new Emitter();
 
 	constructor(private configurationService: SimpleConfigurationService) {
-		this.configurationService.onDidUpdateConfiguration(() => {
-			this._onDidUpdateConfigurationEmitter.fire();
+		this.configurationService.onDidChangeConfiguration((e) => {
+			this._onDidChangeConfigurationEmitter.fire(e);
 		});
 	}
 

@@ -48,7 +48,7 @@ export interface IConfigurationChangeEvent {
 export interface IConfigurationService {
 	_serviceBrand: any;
 
-	onDidUpdateConfiguration: Event<IConfigurationChangeEvent>;
+	onDidChangeConfiguration: Event<IConfigurationChangeEvent>;
 
 	getConfigurationData(): IConfigurationData;
 

@@ -347,7 +347,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			.on(this.onOpenExtensionUrl, this, this.disposables);
 
 		this._isAutoUpdateEnabled = this.configurationService.getConfiguration<IExtensionsConfiguration>(ConfigurationKey).autoUpdate;
-		this.configurationService.onDidUpdateConfiguration(() => {
+		this.configurationService.onDidChangeConfiguration(() => {
 			const isAutoUpdateEnabled = this.configurationService.getConfiguration<IExtensionsConfiguration>(ConfigurationKey).autoUpdate;
 			if (this._isAutoUpdateEnabled !== isAutoUpdateEnabled) {
 				this._isAutoUpdateEnabled = isAutoUpdateEnabled;

@@ -240,7 +240,7 @@ export class ElectronWindow extends Themable {
 		});
 
 		// Configuration changes
-		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onDidUpdateConfiguration(e)));
+		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => this.onDidUpdateConfiguration(e)));
 
 		// Context menu support in input/textarea
 		window.document.addEventListener('contextmenu', e => this.onContextMenu(e));
