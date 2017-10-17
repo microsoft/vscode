@@ -103,4 +103,43 @@ suite('DecorationsService', function () {
 		reg.dispose();
 		assert.equal(didSeeEvent, true);
 	});
+
+	test('No default bubbling', function () {
+
+		let reg = service.registerDecorationsProvider({
+			label: 'Test',
+			onDidChange: Event.None,
+			provideDecorations(uri: URI) {
+				return uri.path.match(/\.txt/)
+					? { title: '.txt' }
+					: undefined;
+			}
+		});
+
+		let childUri = URI.parse('file:///some/path/some/file.txt');
+
+		let deco = service.getDecoration(childUri, false);
+		assert.equal(deco.title, '.txt');
+
+		deco = service.getDecoration(childUri.with({ path: 'some/path/' }), true);
+		assert.equal(deco, undefined);
+		reg.dispose();
+
+		// bubble
+		reg = service.registerDecorationsProvider({
+			label: 'Test',
+			onDidChange: Event.None,
+			provideDecorations(uri: URI) {
+				return uri.path.match(/\.txt/)
+					? { title: '.txt.bubble', bubble: true }
+					: undefined;
+			}
+		});
+
+		deco = service.getDecoration(childUri, false);
+		assert.equal(deco.title, '.txt.bubble');
+
+		deco = service.getDecoration(childUri.with({ path: 'some/path/' }), true);
+		assert.equal(deco.title, '.txt.bubble');
+	});
 });

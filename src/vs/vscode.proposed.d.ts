@@ -168,4 +168,26 @@ declare module 'vscode' {
 		 */
 		export function registerDiffInformationCommand(command: string, callback: (diff: LineChange[], ...args: any[]) => any, thisArg?: any): Disposable;
 	}
+
+	//#region decorations
+
+	//todo@joh -> make class
+	export interface DecorationData {
+		priority?: number;
+		title?: string;
+		abbreviation?: string;
+		color?: ThemeColor;
+		opacity?: number;
+	}
+
+	export interface DecorationProvider {
+		onDidChangeDecorations: Event<Uri | Uri[]>;
+		provideDecoration(uri: Uri, token: CancellationToken): ProviderResult<DecorationData>;
+	}
+
+	export namespace window {
+		export function registerDecorationProvider(provider: DecorationProvider, label: string): Disposable;
+	}
+
+	//#endregion
 }

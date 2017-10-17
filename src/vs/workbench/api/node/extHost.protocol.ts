@@ -135,6 +135,12 @@ export interface MainThreadDiaglogsShape extends IDisposable {
 	$showSaveDialog(options: MainThreadDialogSaveOptions): TPromise<string>;
 }
 
+export interface MainThreadDecorationsShape extends IDisposable {
+	$registerDecorationProvider(handle: number, label: string): void;
+	$unregisterDecorationProvider(handle: number): void;
+	$onDidChange(handle: number, resources: URI[]): void;
+}
+
 export interface MainThreadDocumentContentProvidersShape extends IDisposable {
 	$registerTextContentProvider(handle: number, scheme: string): void;
 	$unregisterTextContentProvider(handle: number): void;
@@ -596,6 +602,13 @@ export interface ExtHostDebugServiceShape {
 	$acceptDebugSessionCustomEvent(id: DebugSessionUUID, type: string, name: string, event: any): void;
 }
 
+
+export type DecorationData = [number, string, string, number, ThemeColor];
+
+export interface ExtHostDecorationsShape {
+	$providerDecorations(handle: number, uri: URI): TPromise<DecorationData>;
+}
+
 export interface ExtHostCredentialsShape {
 }
 
@@ -609,6 +622,7 @@ export const MainContext = {
 	MainThreadCommands: createMainId<MainThreadCommandsShape>('MainThreadCommands'),
 	MainThreadConfiguration: createMainId<MainThreadConfigurationShape>('MainThreadConfiguration'),
 	MainThreadDebugService: createMainId<MainThreadDebugServiceShape>('MainThreadDebugService'),
+	MainThreadDecorations: createMainId<MainThreadDecorationsShape>('MainThreadDecorations'),
 	MainThreadDiagnostics: createMainId<MainThreadDiagnosticsShape>('MainThreadDiagnostics'),
 	MainThreadDialogs: createMainId<MainThreadDiaglogsShape>('MainThreadDiaglogs'),
 	MainThreadDocuments: createMainId<MainThreadDocumentsShape>('MainThreadDocuments'),
@@ -640,6 +654,7 @@ export const ExtHostContext = {
 	ExtHostConfiguration: createExtId<ExtHostConfigurationShape>('ExtHostConfiguration'),
 	ExtHostDiagnostics: createExtId<ExtHostDiagnosticsShape>('ExtHostDiagnostics'),
 	ExtHostDebugService: createExtId<ExtHostDebugServiceShape>('ExtHostDebugService'),
+	ExtHostDecorations: createExtId<ExtHostDecorationsShape>('ExtHostDecorations'),
 	ExtHostDocumentsAndEditors: createExtId<ExtHostDocumentsAndEditorsShape>('ExtHostDocumentsAndEditors'),
 	ExtHostDocuments: createExtId<ExtHostDocumentsShape>('ExtHostDocuments'),
 	ExtHostDocumentContentProviders: createExtId<ExtHostDocumentContentProvidersShape>('ExtHostDocumentContentProviders'),

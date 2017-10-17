@@ -347,6 +347,12 @@ export class FileDecorationsService implements IDecorationsService {
 			this._onDidChangeDecorationsDelayed
 		);
 		const remove = this._data.push(wrapper);
+
+		this._onDidChangeDecorations.fire({
+			// everything might have changed
+			affectsResource() { return true; }
+		});
+
 		return {
 			dispose: () => {
 				// fire event that says 'yes' for any resource
@@ -363,9 +369,10 @@ export class FileDecorationsService implements IDecorationsService {
 		let onlyChildren = true;
 		for (let iter = this._data.iterator(), next = iter.next(); !next.done; next = iter.next()) {
 			next.value.getOrRetrieve(uri, includeChildren, (deco, isChild) => {
-				// top = FileDecorationsService._pickBest(top, candidate);
-				data.push(deco);
-				onlyChildren = onlyChildren && isChild;
+				if (!isChild || deco.bubble) {
+					data.push(deco);
+					onlyChildren = onlyChildren && isChild;
+				}
 			});
 		}
 
