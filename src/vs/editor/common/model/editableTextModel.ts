@@ -289,8 +289,6 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 			return [];
 		}
 
-		this._ensureLineStarts();
-
 		let mightContainRTL = this._mightContainRTL;
 		let mightContainNonBasicASCII = this._mightContainNonBasicASCII;
 		let canReduceOperations = true;
@@ -508,10 +506,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 				this._invalidateLine(currentLineNumber - 1);
 				this._lines[currentLineNumber - 1].applyEdits(lineEditsQueue.slice(currentLineNumberStart, i), tabSize);
-				if (this._lineStarts) {
-					// update prefix sum
-					this._lineStarts.changeValue(currentLineNumber - 1, this._lines[currentLineNumber - 1].text.length + this._EOL.length);
-				}
+				this._lineStarts.changeValue(currentLineNumber - 1, this._lines[currentLineNumber - 1].text.length + this._EOL.length);
 				rawContentChanges.push(
 					new textModelEvents.ModelRawLineChanged(currentLineNumber, this._lines[currentLineNumber - 1].text)
 				);
@@ -522,10 +517,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 			this._invalidateLine(currentLineNumber - 1);
 			this._lines[currentLineNumber - 1].applyEdits(lineEditsQueue.slice(currentLineNumberStart, lineEditsQueue.length), tabSize);
-			if (this._lineStarts) {
-				// update prefix sum
-				this._lineStarts.changeValue(currentLineNumber - 1, this._lines[currentLineNumber - 1].text.length + this._EOL.length);
-			}
+			this._lineStarts.changeValue(currentLineNumber - 1, this._lines[currentLineNumber - 1].text.length + this._EOL.length);
 			rawContentChanges.push(
 				new textModelEvents.ModelRawLineChanged(currentLineNumber, this._lines[currentLineNumber - 1].text)
 			);
@@ -583,17 +575,11 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				const spliceCnt = endLineNumber - spliceStartLineNumber;
 
 				this._lines.splice(spliceStartLineNumber, spliceCnt);
-				if (this._lineStarts) {
-					// update prefix sum
-					this._lineStarts.removeValues(spliceStartLineNumber, spliceCnt);
-				}
+				this._lineStarts.removeValues(spliceStartLineNumber, spliceCnt);
 
 				// Reconstruct first line
 				this._lines[spliceStartLineNumber - 1].append(endLineRemains, tabSize);
-				if (this._lineStarts) {
-					// update prefix sum
-					this._lineStarts.changeValue(spliceStartLineNumber - 1, this._lines[spliceStartLineNumber - 1].text.length + this._EOL.length);
-				}
+				this._lineStarts.changeValue(spliceStartLineNumber - 1, this._lines[spliceStartLineNumber - 1].text.length + this._EOL.length);
 
 				rawContentChanges.push(
 					new textModelEvents.ModelRawLineChanged(spliceStartLineNumber, this._lines[spliceStartLineNumber - 1].text)
@@ -618,10 +604,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 				// Split last line
 				let leftoverLine = this._lines[spliceLineNumber - 1].split(spliceColumn, tabSize);
-				if (this._lineStarts) {
-					// update prefix sum
-					this._lineStarts.changeValue(spliceLineNumber - 1, this._lines[spliceLineNumber - 1].text.length + this._EOL.length);
-				}
+				this._lineStarts.changeValue(spliceLineNumber - 1, this._lines[spliceLineNumber - 1].text.length + this._EOL.length);
 				rawContentChanges.push(
 					new textModelEvents.ModelRawLineChanged(spliceLineNumber, this._lines[spliceLineNumber - 1].text)
 				);
@@ -638,17 +621,11 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				}
 				this._lines = arrays.arrayInsert(this._lines, startLineNumber + editingLinesCnt, newLines);
 				newLinesContent[newLinesContent.length - 1] += leftoverLine.text;
-				if (this._lineStarts) {
-					// update prefix sum
-					this._lineStarts.insertValues(startLineNumber + editingLinesCnt, newLinesLengths);
-				}
+				this._lineStarts.insertValues(startLineNumber + editingLinesCnt, newLinesLengths);
 
 				// Last line
 				this._lines[startLineNumber + insertingLinesCnt - 1].append(leftoverLine, tabSize);
-				if (this._lineStarts) {
-					// update prefix sum
-					this._lineStarts.changeValue(startLineNumber + insertingLinesCnt - 1, this._lines[startLineNumber + insertingLinesCnt - 1].text.length + this._EOL.length);
-				}
+				this._lineStarts.changeValue(startLineNumber + insertingLinesCnt - 1, this._lines[startLineNumber + insertingLinesCnt - 1].text.length + this._EOL.length);
 				rawContentChanges.push(
 					new textModelEvents.ModelRawLinesInserted(spliceLineNumber + 1, startLineNumber + insertingLinesCnt, newLinesContent.join('\n'))
 				);

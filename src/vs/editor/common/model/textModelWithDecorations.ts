@@ -180,7 +180,6 @@ export class TextModelWithDecorations extends TextModelWithTokens implements edi
 
 		// node exists, the request is to set => change the tracked range and its options
 		const range = this._validateRangeRelaxedNoAllocations(newRange);
-		this._ensureLineStarts();
 		const startOffset = this._lineStarts.getAccumulatedValue(range.startLineNumber - 2) + range.startColumn - 1;
 		const endOffset = this._lineStarts.getAccumulatedValue(range.endLineNumber - 2) + range.endColumn - 1;
 		this._decorationsTree.delete(node);
@@ -218,7 +217,6 @@ export class TextModelWithDecorations extends TextModelWithTokens implements edi
 			this._decorationsTree.resolveNode(node, versionId);
 		}
 		if (node.range === null) {
-			this._ensureLineStarts();
 			node.range = this._getRangeAt(node.cachedAbsoluteStart, node.cachedAbsoluteEnd);
 		}
 		return node.range;
@@ -265,8 +263,6 @@ export class TextModelWithDecorations extends TextModelWithTokens implements edi
 	}
 
 	private _getDecorationsInRange(filterRange: Range, filterOwnerId: number, filterOutValidation: boolean): IntervalNode[] {
-		this._ensureLineStarts();
-
 		const startOffset = this._lineStarts.getAccumulatedValue(filterRange.startLineNumber - 2) + filterRange.startColumn - 1;
 		const endOffset = this._lineStarts.getAccumulatedValue(filterRange.endLineNumber - 2) + filterRange.endColumn - 1;
 
@@ -277,8 +273,6 @@ export class TextModelWithDecorations extends TextModelWithTokens implements edi
 	}
 
 	private _ensureNodesHaveRanges(nodes: IntervalNode[]): IntervalNode[] {
-		this._ensureLineStarts();
-
 		for (let i = 0, len = nodes.length; i < len; i++) {
 			const node = nodes[i];
 			if (node.range === null) {
@@ -305,7 +299,6 @@ export class TextModelWithDecorations extends TextModelWithTokens implements edi
 		if (!node) {
 			return;
 		}
-		this._ensureLineStarts();
 		const range = this._validateRangeRelaxedNoAllocations(_range);
 		const startOffset = this._lineStarts.getAccumulatedValue(range.startLineNumber - 2) + range.startColumn - 1;
 		const endOffset = this._lineStarts.getAccumulatedValue(range.endLineNumber - 2) + range.endColumn - 1;
@@ -325,7 +318,6 @@ export class TextModelWithDecorations extends TextModelWithTokens implements edi
 	}
 
 	private _deltaDecorationsImpl(ownerId: number, oldDecorationsIds: string[], newDecorations: editorCommon.IModelDeltaDecoration[]): string[] {
-		this._ensureLineStarts();
 		const versionId = this.getVersionId();
 
 		const oldDecorationsLen = oldDecorationsIds.length;

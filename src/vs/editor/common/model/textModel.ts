@@ -19,8 +19,6 @@ import { TextSource, ITextSource, IRawTextSource, RawTextSource } from 'vs/edito
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 
-const USE_MIMINAL_MODEL_LINE = true;
-
 const LIMIT_FIND_COUNT = 999;
 export const LONG_LINE_BOUNDARY = 10000;
 
@@ -124,7 +122,7 @@ export class TextModel implements editorCommon.ITextModel {
 	}
 
 	protected _createModelLine(text: string, tabSize: number): IModelLine {
-		if (USE_MIMINAL_MODEL_LINE && this._isTooLargeForTokenization) {
+		if (this._isTooLargeForTokenization) {
 			return new MinimalModelLine(text, tabSize);
 		}
 		return new ModelLine(text, tabSize);
@@ -262,22 +260,9 @@ export class TextModel implements editorCommon.ITextModel {
 		return this._alternativeVersionId;
 	}
 
-	protected _ensureLineStarts(): void {
-		if (!this._lineStarts) {
-			const eolLength = this._EOL.length;
-			const linesLength = this._lines.length;
-			const lineStartValues = new Uint32Array(linesLength);
-			for (let i = 0; i < linesLength; i++) {
-				lineStartValues[i] = this._lines[i].text.length + eolLength;
-			}
-			this._lineStarts = new PrefixSumComputer(lineStartValues);
-		}
-	}
-
 	public getOffsetAt(rawPosition: IPosition): number {
 		this._assertNotDisposed();
 		let position = this._validatePosition(rawPosition.lineNumber, rawPosition.column, false);
-		this._ensureLineStarts();
 		return this._lineStarts.getAccumulatedValue(position.lineNumber - 2) + position.column - 1;
 	}
 
@@ -286,7 +271,6 @@ export class TextModel implements editorCommon.ITextModel {
 		offset = Math.floor(offset);
 		offset = Math.max(0, offset);
 
-		this._ensureLineStarts();
 		let out = this._lineStarts.getIndexOf(offset);
 
 		let lineLength = this._lines[out.index].text.length;
@@ -541,7 +525,7 @@ export class TextModel implements editorCommon.ITextModel {
 		const endColumn = this.getLineMaxColumn(endLineNumber);
 
 		this._EOL = newEOL;
-		this._lineStarts = null;
+		this._constructLineStarts();
 		this._increaseVersionId();
 
 		this._emitModelRawContentChangedEvent(
@@ -796,7 +780,17 @@ export class TextModel implements editorCommon.ITextModel {
 		this._mightContainNonBasicASCII = !textSource.isBasicASCII;
 		this._EOL = textSource.EOL;
 		this._lines = modelLines;
-		this._lineStarts = null;
+		this._constructLineStarts();
+	}
+
+	private _constructLineStarts(): void {
+		const eolLength = this._EOL.length;
+		const linesLength = this._lines.length;
+		const lineStartValues = new Uint32Array(linesLength);
+		for (let i = 0; i < linesLength; i++) {
+			lineStartValues[i] = this._lines[i].text.length + eolLength;
+		}
+		this._lineStarts = new PrefixSumComputer(lineStartValues);
 	}
 
 	private _getEndOfLine(eol: editorCommon.EndOfLinePreference): string {
