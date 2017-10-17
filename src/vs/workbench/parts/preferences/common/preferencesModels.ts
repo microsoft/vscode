@@ -542,8 +542,11 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 				}
 			]);
 
-			let lines = builder.lines.slice(0, DefaultSettingsEditorModel.MOST_RELEVANT_CONTENT_LENGTH);
-			lines = lines.slice(0, lines.lastIndexOf(''));
+			const lines = builder.getTrimmedLines(DefaultSettingsEditorModel.MOST_RELEVANT_CONTENT_LENGTH);
+			if (!lines.length) {
+				lines.push('');
+			}
+
 			const mostRelevantContent = lines.join('\n');
 			const settingsTextEndLine = DefaultSettingsEditorModel.MOST_RELEVANT_START_LINE + lines.length - 1;
 			this.model.applyEdits([
@@ -829,6 +832,23 @@ class SettingsContentBuilder {
 
 	getContent(): string {
 		return this._contentByLines.join('\n');
+	}
+
+	getTrimmedLines(maxLines: number): string[] {
+		let lines: string[];
+		if (this._contentByLines.length > maxLines) {
+			lines = this._contentByLines.slice(0, maxLines);
+
+			// If the trim happened in the middle of a setting, remove the truncated setting range.
+			if (this._contentByLines[maxLines] !== '') {
+				const lastEmptyLineIdx = lines.lastIndexOf('');
+				lines = lines.slice(0, lastEmptyLineIdx);
+			}
+		} else {
+			lines = this._contentByLines;
+		}
+
+		return lines;
 	}
 
 	private pushSetting(setting: ISetting, indent: string): void {

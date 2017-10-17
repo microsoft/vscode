@@ -432,14 +432,10 @@ class PreferencesRenderers extends Disposable {
 			this._filtersInProgress.forEach(p => p.cancel && p.cancel());
 		}
 
-		if (filter) {
-			const searchModel = searchProvider.startSearch(filter, fuzzy);
-			this._filtersInProgress = [
-				this._filterPreferences(filter, searchModel, this._defaultPreferencesRenderer),
-				this._filterPreferences(filter, searchModel, this._editablePreferencesRenderer)];
-		} else {
-			this._filtersInProgress = [TPromise.wrap(null), TPromise.wrap(null)];
-		}
+		const searchModel = searchProvider.startSearch(filter, fuzzy);
+		this._filtersInProgress = [
+			this._filterPreferences(filter, searchModel, this._defaultPreferencesRenderer),
+			this._filterPreferences(filter, searchModel, this._editablePreferencesRenderer)];
 
 		return TPromise.join<IFilterResult>(this._filtersInProgress).then(filterResults => {
 			this._filtersInProgress = null;
@@ -477,7 +473,9 @@ class PreferencesRenderers extends Disposable {
 
 	private _filterPreferences(filter: string, searchModel: PreferencesSearchModel, preferencesRenderer: IPreferencesRenderer<ISetting>): TPromise<IFilterResult> {
 		if (preferencesRenderer) {
-			const prefSearchP = searchModel.filterPreferences(<ISettingsEditorModel>preferencesRenderer.preferencesModel);
+			const prefSearchP = filter ?
+				searchModel.filterPreferences(<ISettingsEditorModel>preferencesRenderer.preferencesModel) :
+				TPromise.wrap(null);
 
 			return prefSearchP.then(filterResult => {
 				preferencesRenderer.filterPreferences(filterResult);
