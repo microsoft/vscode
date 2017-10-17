@@ -563,7 +563,10 @@ export class MostRelevantMatchesRenderer extends Disposable implements HiddenAre
 
 	public render(result: IFilterResult): void {
 		if (result && result.metadata) {
-			// TODO - Hide unused portion of most relevant results section
+			const lineCount = this.editor.getModel().getLineCount();
+			this.hiddenAreas = [new Range(DefaultSettingsEditorModel.MOST_RELEVANT_END_LINE, 1, lineCount - 1, 1)];
+		} else {
+			this.hiddenAreas = [new Range(DefaultSettingsEditorModel.MOST_RELEVANT_START_LINE, 1, DefaultSettingsEditorModel.MOST_RELEVANT_END_LINE, 1)];
 		}
 	}
 }

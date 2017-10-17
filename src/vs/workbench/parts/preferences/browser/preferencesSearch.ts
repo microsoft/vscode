@@ -23,8 +23,8 @@ export class PreferencesSearchProvider {
 		return !!this.configurationService.getConfiguration<IWorkbenchSettingsConfiguration>().workbench.settings.useExperimentalRemoteSearch;
 	}
 
-	startSearch(filter: string): PreferencesSearchModel {
-		return new PreferencesSearchModel(this, filter);
+	startSearch(filter: string, remote: boolean): PreferencesSearchModel {
+		return new PreferencesSearchModel(this, filter, remote);
 	}
 }
 
@@ -32,10 +32,10 @@ export class PreferencesSearchModel {
 	private _localProvider: LocalSearchProvider;
 	private _remoteProvider: RemoteSearchProvider;
 
-	constructor(private provider: PreferencesSearchProvider, filter: string) {
+	constructor(private provider: PreferencesSearchProvider, filter: string, remote: boolean) {
 		this._localProvider = new LocalSearchProvider(filter);
 
-		if (this.provider.remoteSearchEnabled) {
+		if (remote) {
 			this._remoteProvider = new RemoteSearchProvider(filter);
 		}
 	}

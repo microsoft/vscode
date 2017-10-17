@@ -247,7 +247,7 @@ export class PreferencesEditor extends BaseEditor {
 	}
 
 	private onInputChanged(): void {
-		if (this.searchProvider.remoteSearchEnabled) {
+		if (this.searchWidget.fuzzyEnabled) {
 			this.onInput.fire();
 		} else {
 			this.filterPreferences();
@@ -319,7 +319,7 @@ export class PreferencesEditor extends BaseEditor {
 
 	private filterPreferences() {
 		const filter = this.searchWidget.getValue().trim();
-		this.preferencesRenderers.filterPreferences(filter, this.searchProvider).then(count => {
+		this.preferencesRenderers.filterPreferences(filter, this.searchProvider, this.searchWidget.fuzzyEnabled).then(count => {
 			const message = filter ? this.showSearchResultsMessage(count) : nls.localize('totalSettingsMessage', "Total {0} Settings", count);
 			this.searchWidget.showMessage(message, count);
 			if (count === 0) {
@@ -426,14 +426,14 @@ class PreferencesRenderers extends Disposable {
 		this._editablePreferencesRenderer = editableSettingsRenderer;
 	}
 
-	public filterPreferences(filter: string, searchProvider: PreferencesSearchProvider): TPromise<number> {
+	public filterPreferences(filter: string, searchProvider: PreferencesSearchProvider, fuzzy: boolean): TPromise<number> {
 		if (this._filtersInProgress) {
 			// Resolved/rejected promises have no .cancel()
 			this._filtersInProgress.forEach(p => p.cancel && p.cancel());
 		}
 
 		if (filter) {
-			const searchModel = searchProvider.startSearch(filter);
+			const searchModel = searchProvider.startSearch(filter, fuzzy);
 			this._filtersInProgress = [
 				this._filterPreferences(filter, searchModel, this._defaultPreferencesRenderer),
 				this._filterPreferences(filter, searchModel, this._editablePreferencesRenderer)];
