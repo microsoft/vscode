@@ -15,7 +15,7 @@ import { ActionsOrientation, ActionBar, Separator } from 'vs/base/browser/ui/act
 import { GlobalActivityExtensions, IGlobalActivityRegistry } from 'vs/workbench/common/activity';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Part } from 'vs/workbench/browser/part';
-import { ToggleViewletPinnedAction, GlobalActivityActionItem, GlobalActivityAction, ViewletActivityAction, ToggleViewletAction } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
+import { GlobalActivityActionItem, GlobalActivityAction, ViewletActivityAction, ToggleViewletAction } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IActivityBarService, IBadge } from 'vs/workbench/services/activity/common/activityBarService';
 import { IPartService, Position as SideBarPosition } from 'vs/workbench/services/part/common/partService';
@@ -30,6 +30,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER } from 'vs/workbench/common/theme';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { CompositeBar } from 'vs/workbench/browser/parts/compositebar/compositeBar';
+import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositebar/compositeBarActions';
 
 export class ActivitybarPart extends Part implements IActivityBarService {
 
@@ -66,7 +67,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			getCompositeSize: (compositeId: string) => ActivitybarPart.ACTIVITY_ACTION_HEIGHT,
 			openComposite: (compositeId: string) => this.viewletService.openViewlet(compositeId, true),
 			getActivityAction: (compositeId: string) => this.instantiationService.createInstance(ViewletActivityAction, this.viewletService.getViewlet(compositeId)),
-			getCompositePinnedAction: (compositeId: string) => this.instantiationService.createInstance(ToggleViewletPinnedAction, this.viewletService.getViewlet(compositeId)),
+			getCompositePinnedAction: (compositeId: string) => new ToggleCompositePinnedAction(this.viewletService.getViewlet(compositeId), this.compositeBar),
 			getOnCompositeClickAction: (compositeId: string) => this.instantiationService.createInstance(ToggleViewletAction, this.viewletService.getViewlet(compositeId)),
 			getDefaultCompositeId: () => this.viewletService.getDefaultViewletId(),
 			hidePart: () => this.partService.setSideBarHidden(true)
@@ -142,7 +143,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	private showContextMenu(e: MouseEvent): void {
 		const event = new StandardMouseEvent(e);
 
-		const actions: Action[] = this.viewletService.getViewlets().map(viewlet => this.instantiationService.createInstance(ToggleViewletPinnedAction, viewlet));
+		const actions: Action[] = this.viewletService.getViewlets().map(viewlet => this.instantiationService.createInstance(ToggleCompositePinnedAction, viewlet, this.compositeBar));
 		actions.push(new Separator());
 		actions.push(this.instantiationService.createInstance(ToggleActivityBarVisibilityAction, ToggleActivityBarVisibilityAction.ID, nls.localize('hideActivitBar', "Hide Activity Bar")));
 
@@ -175,22 +176,6 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	public getPinned(): string[] {
 		return this.viewletService.getViewlets().map(v => v.id).filter(id => this.compositeBar.isPinned(id));;
-	}
-
-	public unpin(viewletId: string): void {
-		this.compositeBar.unpin(viewletId);
-	}
-
-	public isPinned(viewletId: string): boolean {
-		return this.compositeBar.isPinned(viewletId);
-	}
-
-	public pin(viewletId: string, update = true): void {
-		this.compositeBar.pin(viewletId, update);
-	}
-
-	public move(viewletId: string, toViewletId: string): void {
-		this.compositeBar.move(viewletId, toViewletId);
 	}
 
 	/**

@@ -6,11 +6,9 @@
 'use strict';
 
 import 'vs/css!./media/activityaction';
-import nls = require('vs/nls');
 import DOM = require('vs/base/browser/dom');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
-import { IActivityBarService } from 'vs/workbench/services/activity/common/activityBarService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { IActivity, IGlobalActivity } from 'vs/workbench/common/activity';
@@ -82,30 +80,6 @@ export class ToggleViewletAction extends Action {
 		}
 
 		return this.viewletService.openViewlet(this._viewlet.id, true);
-	}
-}
-
-export class ToggleViewletPinnedAction extends Action {
-
-	constructor(
-		private activity: IActivity,
-		@IActivityBarService private activityBarService: IActivityBarService
-	) {
-		super('activitybar.show.toggleViewletPinned', activity ? activity.name : nls.localize('toggle', "Toggle View Pinned"));
-
-		this.checked = this.activity && this.activityBarService.isPinned(this.activity.id);
-	}
-
-	public run(context: string): TPromise<any> {
-		const id = this.activity ? this.activity.id : context;
-
-		if (this.activityBarService.isPinned(id)) {
-			this.activityBarService.unpin(id);
-		} else {
-			this.activityBarService.pin(id);
-		}
-
-		return TPromise.as(true);
 	}
 }
 

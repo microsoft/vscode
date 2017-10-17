@@ -67,24 +67,4 @@ export interface IActivityBarService {
 	 * Show activity in the activitybar for the given viewlet or global action.
 	 */
 	showActivity(viewletOrActionId: string, badge: IBadge, clazz?: string): IDisposable;
-
-	/**
-	 * Unpins a viewlet from the activitybar.
-	 */
-	unpin(viewletId: string): void;
-
-	/**
-	 * Pin a viewlet inside the activity bar.
-	 */
-	pin(viewletId: string): void;
-
-	/**
-	 * Find out if a viewlet is pinned in the activity bar.
-	 */
-	isPinned(viewletId: string): boolean;
-
-	/**
-	 * Reorder viewlet ordering by moving a viewlet to the location of another viewlet.
-	 */
-	move(viewletId: string, toViewletId: string): void;
 }
