@@ -10,7 +10,6 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
-import { USE_NEW_DECORATIONS } from 'vs/editor/common/model/textModelWithDecorations';
 
 // --------- utils
 
@@ -1095,11 +1094,7 @@ suite('deltaDecorations', () => {
 		assert.equal(initialIds.length, decorations.length, 'returns expected cnt of ids');
 		assert.equal(initialIds.length, model.getAllDecorations().length, 'does not leak decorations');
 		assert.equal(initialIds.length, model._getTrackedRangesCount(), 'does not leak tracked ranges');
-		if (!USE_NEW_DECORATIONS) {
-			assert.equal(2 * initialIds.length, model._getMarkersCount(), 'does not leak markers');
-		} else {
-			assert.equal(0, model._getMarkersCount(), 'does not leak markers');
-		}
+		assert.equal(0, model._getMarkersCount(), 'does not leak markers');
 		actualDecorations.sort((a, b) => strcmp(a.id, b.id));
 		decorations.sort((a, b) => strcmp(a.id, b.id));
 		assert.deepEqual(actualDecorations, decorations);
@@ -1110,11 +1105,7 @@ suite('deltaDecorations', () => {
 		assert.equal(newIds.length, newDecorations.length, 'returns expected cnt of ids');
 		assert.equal(newIds.length, model.getAllDecorations().length, 'does not leak decorations');
 		assert.equal(newIds.length, model._getTrackedRangesCount(), 'does not leak tracked ranges');
-		if (!USE_NEW_DECORATIONS) {
-			assert.equal(2 * newIds.length, model._getMarkersCount(), 'does not leak markers');
-		} else {
-			assert.equal(0, model._getMarkersCount(), 'does not leak markers');
-		}
+		assert.equal(0, model._getMarkersCount(), 'does not leak markers');
 		actualNewDecorations.sort((a, b) => strcmp(a.id, b.id));
 		newDecorations.sort((a, b) => strcmp(a.id, b.id));
 		assert.deepEqual(actualDecorations, decorations);

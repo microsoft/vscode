@@ -12,7 +12,6 @@ import { SnippetSession } from 'vs/editor/contrib/snippet/browser/snippetSession
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { mockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
 import { Model } from 'vs/editor/common/model/model';
-import { USE_NEW_DECORATIONS } from 'vs/editor/common/model/textModelWithDecorations';
 
 suite('SnippetSession', function () {
 
@@ -235,17 +234,9 @@ suite('SnippetSession', function () {
 		assertSelections(editor, new Selection(1, 10, 1, 10), new Selection(2, 14, 2, 14));
 
 		session.prev();
-		if (USE_NEW_DECORATIONS) {
-			assertSelections(editor, new Selection(1, 7, 1, 10), new Selection(2, 11, 2, 14));
-		} else {
-			assertSelections(editor, new Selection(1, 7, 1, 7), new Selection(2, 11, 2, 11));
-		}
+		assertSelections(editor, new Selection(1, 7, 1, 10), new Selection(2, 11, 2, 14));
 		session.prev();
-		if (USE_NEW_DECORATIONS) {
-			assertSelections(editor, new Selection(1, 4, 1, 7), new Selection(2, 8, 2, 11));
-		} else {
-			assertSelections(editor, new Selection(1, 4, 1, 4), new Selection(2, 8, 2, 8));
-		}
+		assertSelections(editor, new Selection(1, 4, 1, 7), new Selection(2, 8, 2, 11));
 		session.prev();
 		assertSelections(editor, new Selection(1, 1, 1, 4), new Selection(2, 5, 2, 8));
 	});

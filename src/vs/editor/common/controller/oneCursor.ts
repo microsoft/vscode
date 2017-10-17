@@ -9,15 +9,11 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 import { TrackedRangeStickiness } from 'vs/editor/common/editorCommon';
-import { USE_NEW_DECORATIONS } from 'vs/editor/common/model/textModelWithDecorations';
 
 export class OneCursor {
 
 	public modelState: SingleCursorState;
 	public viewState: SingleCursorState;
-
-	private _selStartMarker: string;
-	private _selEndMarker: string;
 
 	private _selTrackedRange: string;
 
@@ -25,12 +21,7 @@ export class OneCursor {
 		this.modelState = null;
 		this.viewState = null;
 
-		if (USE_NEW_DECORATIONS) {
-			this._selTrackedRange = null;
-		} else {
-			this._selStartMarker = null;
-			this._selEndMarker = null;
-		}
+		this._selTrackedRange = null;
 
 		this._setState(
 			context,
@@ -40,12 +31,7 @@ export class OneCursor {
 	}
 
 	public dispose(context: CursorContext): void {
-		if (USE_NEW_DECORATIONS) {
-			this._selTrackedRange = context.model._deltaTrackedRange(this._selTrackedRange, null, TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
-		} else {
-			context.model._removeMarker(this._selStartMarker);
-			context.model._removeMarker(this._selEndMarker);
-		}
+		this._selTrackedRange = context.model._deltaTrackedRange(this._selTrackedRange, null, TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
 	}
 
 	public asCursorState(): CursorState {
@@ -53,23 +39,11 @@ export class OneCursor {
 	}
 
 	public readSelectionFromMarkers(context: CursorContext): Selection {
-		if (USE_NEW_DECORATIONS) {
-			const range = context.model._getTrackedRange(this._selTrackedRange);
-			if (this.modelState.selection.getDirection() === SelectionDirection.LTR) {
-				return new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
-			}
-
-			return new Selection(range.endLineNumber, range.endColumn, range.startLineNumber, range.startColumn);
-		} else {
-			const start = context.model._getMarker(this._selStartMarker);
-			const end = context.model._getMarker(this._selEndMarker);
-
-			if (this.modelState.selection.getDirection() === SelectionDirection.LTR) {
-				return new Selection(start.lineNumber, start.column, end.lineNumber, end.column);
-			}
-
-			return new Selection(end.lineNumber, end.column, start.lineNumber, start.column);
+		const range = context.model._getTrackedRange(this._selTrackedRange);
+		if (this.modelState.selection.getDirection() === SelectionDirection.LTR) {
+			return new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
 		}
+		return new Selection(range.endLineNumber, range.endColumn, range.startLineNumber, range.startColumn);
 	}
 
 	public ensureValidState(context: CursorContext): void {
@@ -127,21 +101,6 @@ export class OneCursor {
 		this.modelState = modelState;
 		this.viewState = viewState;
 
-		if (USE_NEW_DECORATIONS) {
-			this._selTrackedRange = context.model._deltaTrackedRange(this._selTrackedRange, this.modelState.selection, TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
-		} else {
-			this._selStartMarker = this._ensureMarker(context, this._selStartMarker, this.modelState.selection.startLineNumber, this.modelState.selection.startColumn, true);
-			this._selEndMarker = this._ensureMarker(context, this._selEndMarker, this.modelState.selection.endLineNumber, this.modelState.selection.endColumn, false);
-		}
-	}
-
-	private _ensureMarker(context: CursorContext, markerId: string, lineNumber: number, column: number, stickToPreviousCharacter: boolean): string {
-		if (!markerId) {
-			return context.model._addMarker(0, lineNumber, column, stickToPreviousCharacter);
-		} else {
-			context.model._changeMarker(markerId, lineNumber, column);
-			context.model._changeMarkerStickiness(markerId, stickToPreviousCharacter);
-			return markerId;
-		}
+		this._selTrackedRange = context.model._deltaTrackedRange(this._selTrackedRange, this.modelState.selection, TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
 	}
 }

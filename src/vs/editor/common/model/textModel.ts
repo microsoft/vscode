@@ -527,6 +527,7 @@ export class TextModel implements editorCommon.ITextModel {
 	}
 
 	public setEOL(eol: editorCommon.EndOfLineSequence): void {
+		// TODO@interval!!!
 		this._assertNotDisposed();
 		const newEOL = (eol === editorCommon.EndOfLineSequence.CRLF ? '\r\n' : '\n');
 		if (this._EOL === newEOL) {

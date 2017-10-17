@@ -12,14 +12,12 @@ import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { MarkersTracker, LineMarker } from 'vs/editor/common/model/modelLine';
 import { Position } from 'vs/editor/common/core/position';
-import { INewMarker, TextModelWithMarkers } from 'vs/editor/common/model/textModelWithMarkers';
+import { TextModelWithMarkers } from 'vs/editor/common/model/textModelWithMarkers';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { ITextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { IntervalNode, IntervalTree } from 'vs/editor/common/model/intervalTree';
-
-export const USE_NEW_DECORATIONS = true;
 
 export const ClassName = {
 	EditorInfoDecoration: 'infosquiggly',
@@ -188,25 +186,8 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		this._treeDecorations = Object.create(null);
 	}
 
-	private static _shouldStartMarkerSticksToPreviousCharacter(stickiness: editorCommon.TrackedRangeStickiness): boolean {
-		if (stickiness === editorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges || stickiness === editorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingBefore) {
-			return true;
-		}
-		return false;
-	}
-
-	private static _shouldEndMarkerSticksToPreviousCharacter(stickiness: editorCommon.TrackedRangeStickiness): boolean {
-		if (stickiness === editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges || stickiness === editorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingBefore) {
-			return true;
-		}
-		return false;
-	}
-
 	_getTrackedRangesCount(): number {
-		if (USE_NEW_DECORATIONS) {
-			return this._tree.count();
-		}
-		return Object.keys(this._decorations).length;
+		return this._tree.count();
 	}
 
 	// --- END TrackedRanges
@@ -227,43 +208,25 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 	private _changeDecorations<T>(decorationsTracker: DecorationsTracker, ownerId: number, callback: (changeAccessor: editorCommon.IModelDecorationsChangeAccessor) => T): T {
 		let changeAccessor: editorCommon.IModelDecorationsChangeAccessor = {
 			addDecoration: (range: IRange, options: editorCommon.IModelDecorationOptions): string => {
-				if (USE_NEW_DECORATIONS) {
-					decorationsTracker.markDidAddDecorations();
-					decorationsTracker.markDidRemoveDecorations();
-					return this._deltaDecorationsImpl2(ownerId, [], [{ range: range, options: options }])[0];
-				}
-				return this._addDecorationImpl(decorationsTracker, ownerId, this.validateRange(range), _normalizeOptions(options));
+				decorationsTracker.markDidAddDecorations();
+				decorationsTracker.markDidRemoveDecorations();
+				return this._deltaDecorationsImpl2(ownerId, [], [{ range: range, options: options }])[0];
 			},
 			changeDecoration: (id: string, newRange: IRange): void => {
-				if (USE_NEW_DECORATIONS) {
-					this._changeDecorationImpl2(decorationsTracker, id, newRange);
-					return;
-				}
-				this._changeDecorationImpl(decorationsTracker, id, this.validateRange(newRange));
+				this._changeDecorationImpl2(decorationsTracker, id, newRange);
 			},
 			changeDecorationOptions: (id: string, options: editorCommon.IModelDecorationOptions) => {
-				if (USE_NEW_DECORATIONS) {
-					this._changeDecorationOptionsImpl2(decorationsTracker, id, _normalizeOptions(options));
-					return;
-				}
-				this._changeDecorationOptionsImpl(decorationsTracker, id, _normalizeOptions(options));
+				this._changeDecorationOptionsImpl2(decorationsTracker, id, _normalizeOptions(options));
 			},
 			removeDecoration: (id: string): void => {
-				if (USE_NEW_DECORATIONS) {
-					decorationsTracker.markDidAddDecorations();
-					decorationsTracker.markDidRemoveDecorations();
-					this._deltaDecorationsImpl2(ownerId, [id], []);
-					return;
-				}
-				this._removeDecorationImpl(decorationsTracker, id);
+				decorationsTracker.markDidAddDecorations();
+				decorationsTracker.markDidRemoveDecorations();
+				this._deltaDecorationsImpl2(ownerId, [id], []);
 			},
 			deltaDecorations: (oldDecorations: string[], newDecorations: editorCommon.IModelDeltaDecoration[]): string[] => {
-				if (USE_NEW_DECORATIONS) {
-					decorationsTracker.markDidAddDecorations();
-					decorationsTracker.markDidRemoveDecorations();
-					return this._deltaDecorationsImpl2(ownerId, oldDecorations, newDecorations);
-				}
-				return this._deltaDecorationsImpl(decorationsTracker, ownerId, oldDecorations, this._normalizeDeltaDecorations(newDecorations));
+				decorationsTracker.markDidAddDecorations();
+				decorationsTracker.markDidRemoveDecorations();
+				return this._deltaDecorationsImpl2(ownerId, oldDecorations, newDecorations);
 			}
 		};
 		let result: T = null;
@@ -326,44 +289,21 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 	}
 
 	public removeAllDecorationsWithOwnerId(ownerId: number): void {
-		if (USE_NEW_DECORATIONS) {
-			const nodes = this._tree.collectNodesFromOwner(ownerId);
-			for (let i = 0, len = nodes.length; i < len; i++) {
-				const node = nodes[i];
+		const nodes = this._tree.collectNodesFromOwner(ownerId);
+		for (let i = 0, len = nodes.length; i < len; i++) {
+			const node = nodes[i];
 
-				this._tree.delete(node);
-				delete this._treeDecorations[node.id];
-			}
-			return;
+			this._tree.delete(node);
+			delete this._treeDecorations[node.id];
 		}
-		let toRemove: string[] = [];
-
-		for (let decorationId in this._decorations) {
-			// No `hasOwnProperty` call due to using Object.create(null)
-
-			let decoration = this._decorations[decorationId];
-
-			if (decoration.ownerId === ownerId) {
-				toRemove.push(decoration.id);
-			}
-		}
-
-		this._removeDecorationsImpl(null, toRemove);
 	}
 
 	public getDecorationOptions(decorationId: string): editorCommon.IModelDecorationOptions {
-		if (USE_NEW_DECORATIONS) {
-			const node = this._treeDecorations[decorationId];
-			if (!node) {
-				return null;
-			}
-			return node.options;
-		}
-		let decoration = this._decorations[decorationId];
-		if (!decoration) {
+		const node = this._treeDecorations[decorationId];
+		if (!node) {
 			return null;
 		}
-		return decoration.options;
+		return node.options;
 	}
 
 	private _getRangeAt(start: number, end: number): Range {
@@ -379,26 +319,19 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 	}
 
 	public getDecorationRange(decorationId: string): Range {
-		if (USE_NEW_DECORATIONS) {
-			const node = this._treeDecorations[decorationId];
-			if (!node) {
-				return null;
-			}
-			const versionId = this.getVersionId();
-			if (node.cachedVersionId !== versionId) {
-				this._tree.resolveNode(node, versionId);
-			}
-			if (node.range === null) {
-				this._ensureLineStarts();
-				node.range = this._getRangeAt(node.cachedAbsoluteStart, node.cachedAbsoluteEnd);
-			}
-			return node.range;
-		}
-		let decoration = this._decorations[decorationId];
-		if (!decoration) {
+		const node = this._treeDecorations[decorationId];
+		if (!node) {
 			return null;
 		}
-		return decoration.range;
+		const versionId = this.getVersionId();
+		if (node.cachedVersionId !== versionId) {
+			this._tree.resolveNode(node, versionId);
+		}
+		if (node.range === null) {
+			this._ensureLineStarts();
+			node.range = this._getRangeAt(node.cachedAbsoluteStart, node.cachedAbsoluteEnd);
+		}
+		return node.range;
 	}
 
 	public getLineDecorations(lineNumber: number, ownerId: number = 0, filterOutValidation: boolean = false): editorCommon.IModelDecoration[] {
@@ -407,50 +340,6 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		}
 
 		return this.getLinesDecorations(lineNumber, lineNumber, ownerId, filterOutValidation);
-	}
-
-	/**
-	 * Fetch only multi-line decorations that intersect with the given line number range
-	 */
-	private _getMultiLineDecorations(filterRange: Range, filterOwnerId: number, filterOutValidation: boolean): InternalDecoration[] {
-		const filterStartLineNumber = filterRange.startLineNumber;
-		const filterStartColumn = filterRange.startColumn;
-		const filterEndLineNumber = filterRange.endLineNumber;
-		const filterEndColumn = filterRange.endColumn;
-
-		let result: InternalDecoration[] = [], resultLen = 0;
-
-		for (let decorationId in this._multiLineDecorationsMap) {
-			// No `hasOwnProperty` call due to using Object.create(null)
-			let decoration = this._multiLineDecorationsMap[decorationId];
-
-			if (filterOwnerId && decoration.ownerId && decoration.ownerId !== filterOwnerId) {
-				continue;
-			}
-
-			if (filterOutValidation && decoration.isForValidation) {
-				continue;
-			}
-
-			let range = decoration.range;
-
-			if (range.startLineNumber > filterEndLineNumber) {
-				continue;
-			}
-			if (range.startLineNumber === filterEndLineNumber && range.startColumn > filterEndColumn) {
-				continue;
-			}
-			if (range.endLineNumber < filterStartLineNumber) {
-				continue;
-			}
-			if (range.endLineNumber === filterStartLineNumber && range.endColumn < filterStartColumn) {
-				continue;
-			}
-
-			result[resultLen++] = decoration;
-		}
-
-		return result;
 	}
 
 	private _ensureNodesHaveRanges(nodes: IntervalNode[]): IntervalNode[] {
@@ -465,82 +354,16 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		return nodes;
 	}
 
-	private _getDecorationsInRange(filterRange: Range, filterOwnerId: number, filterOutValidation: boolean): IntervalNode[] | InternalDecoration[] {
-		if (USE_NEW_DECORATIONS) {
-			this._ensureLineStarts();
+	private _getDecorationsInRange(filterRange: Range, filterOwnerId: number, filterOutValidation: boolean): IntervalNode[] {
+		this._ensureLineStarts();
 
-			const startOffset = this._lineStarts.getAccumulatedValue(filterRange.startLineNumber - 2) + filterRange.startColumn - 1;
-			const endOffset = this._lineStarts.getAccumulatedValue(filterRange.endLineNumber - 2) + filterRange.endColumn - 1;
+		const startOffset = this._lineStarts.getAccumulatedValue(filterRange.startLineNumber - 2) + filterRange.startColumn - 1;
+		const endOffset = this._lineStarts.getAccumulatedValue(filterRange.endLineNumber - 2) + filterRange.endColumn - 1;
 
-			const versionId = this.getVersionId();
-			const result = this._tree.intervalSearch(startOffset, endOffset, filterOwnerId, filterOutValidation, versionId);
+		const versionId = this.getVersionId();
+		const result = this._tree.intervalSearch(startOffset, endOffset, filterOwnerId, filterOutValidation, versionId);
 
-			return this._ensureNodesHaveRanges(result);
-		}
-
-		const filterStartLineNumber = filterRange.startLineNumber;
-		const filterStartColumn = filterRange.startColumn;
-		const filterEndLineNumber = filterRange.endLineNumber;
-		const filterEndColumn = filterRange.endColumn;
-
-		let result = this._getMultiLineDecorations(filterRange, filterOwnerId, filterOutValidation);
-		let resultLen = result.length;
-		let resultMap: { [decorationId: string]: boolean; } = {};
-
-		for (let i = 0, len = resultLen; i < len; i++) {
-			resultMap[result[i].id] = true;
-		}
-
-		for (let lineNumber = filterStartLineNumber; lineNumber <= filterEndLineNumber; lineNumber++) {
-			let lineMarkers = this._lines[lineNumber - 1].getMarkers();
-			if (lineMarkers === null) {
-				continue;
-			}
-			for (let i = 0, len = lineMarkers.length; i < len; i++) {
-				let lineMarker = lineMarkers[i];
-				let internalDecorationId = lineMarker.internalDecorationId;
-
-				if (internalDecorationId === 0) {
-					// marker does not belong to any decoration
-					continue;
-				}
-
-				let decoration = this._internalDecorations[internalDecorationId];
-
-				if (resultMap.hasOwnProperty(decoration.id)) {
-					// decoration already in result
-					continue;
-				}
-
-				if (filterOwnerId && decoration.ownerId && decoration.ownerId !== filterOwnerId) {
-					continue;
-				}
-
-				if (filterOutValidation && decoration.isForValidation) {
-					continue;
-				}
-
-				let range = decoration.range;
-
-				if (range.startLineNumber > filterEndLineNumber) {
-					continue;
-				}
-				if (range.startLineNumber === filterEndLineNumber && range.startColumn > filterEndColumn) {
-					continue;
-				}
-				if (range.endLineNumber < filterStartLineNumber) {
-					continue;
-				}
-				if (range.endLineNumber === filterStartLineNumber && range.endColumn < filterStartColumn) {
-					continue;
-				}
-
-				result[resultLen++] = decoration;
-				resultMap[decoration.id] = true;
-			}
-		}
-
-		return result;
+		return this._ensureNodesHaveRanges(result);
 	}
 
 	public getLinesDecorations(_startLineNumber: number, _endLineNumber: number, ownerId: number = 0, filterOutValidation: boolean = false): editorCommon.IModelDecoration[] {
@@ -557,59 +380,15 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 	}
 
 	public getOverviewRulerDecorations(ownerId: number = 0, filterOutValidation: boolean = false): editorCommon.IModelDecoration[] {
-		if (USE_NEW_DECORATIONS) {
-			const versionId = this.getVersionId();
-			const result = this._tree.search(ownerId, filterOutValidation, true, versionId);
-			return this._ensureNodesHaveRanges(result);
-		}
-		let result: InternalDecoration[] = [], resultLen = 0;
-
-		for (let decorationId in this._decorations) {
-			// No `hasOwnProperty` call due to using Object.create(null)
-			let decoration = this._decorations[decorationId];
-
-			if (ownerId && decoration.ownerId && decoration.ownerId !== ownerId) {
-				continue;
-			}
-
-			if (filterOutValidation && decoration.isForValidation) {
-				continue;
-			}
-
-			if (!decoration.options.overviewRuler.color) {
-				continue;
-			}
-
-			result[resultLen++] = decoration;
-		}
-
-		return result;
+		const versionId = this.getVersionId();
+		const result = this._tree.search(ownerId, filterOutValidation, true, versionId);
+		return this._ensureNodesHaveRanges(result);
 	}
 
 	public getAllDecorations(ownerId: number = 0, filterOutValidation: boolean = false): editorCommon.IModelDecoration[] {
-		if (USE_NEW_DECORATIONS) {
-			const versionId = this.getVersionId();
-			const result = this._tree.search(ownerId, filterOutValidation, false, versionId);
-			return this._ensureNodesHaveRanges(result);
-		}
-		let result: InternalDecoration[] = [], resultLen = 0;
-
-		for (let decorationId in this._decorations) {
-			// No `hasOwnProperty` call due to using Object.create(null)
-			let decoration = this._decorations[decorationId];
-
-			if (ownerId && decoration.ownerId && decoration.ownerId !== ownerId) {
-				continue;
-			}
-
-			if (filterOutValidation && decoration.isForValidation) {
-				continue;
-			}
-
-			result[resultLen++] = decoration;
-		}
-
-		return result;
+		const versionId = this.getVersionId();
+		const result = this._tree.search(ownerId, filterOutValidation, false, versionId);
+		return this._ensureNodesHaveRanges(result);
 	}
 
 	protected _acquireMarkersTracker(): MarkersTracker {
@@ -711,127 +490,8 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		}
 	}
 
-	private _normalizeDeltaDecorations(deltaDecorations: editorCommon.IModelDeltaDecoration[]): ModelDeltaDecoration[] {
-		let result: ModelDeltaDecoration[] = [];
-		for (let i = 0, len = deltaDecorations.length; i < len; i++) {
-			let deltaDecoration = deltaDecorations[i];
-			result.push(new ModelDeltaDecoration(i, this.validateRange(deltaDecoration.range), _normalizeOptions(deltaDecoration.options)));
-		}
-		return result;
-	}
-
 	private _externalDecorationId(internalId: number): string {
 		return `${this._instanceId};${internalId}`;
-	}
-
-	private _addDecorationImpl(decorationsTracker: DecorationsTracker, ownerId: number, _range: Range, options: ModelDecorationOptions): string {
-		let range = this.validateRange(_range);
-
-		let internalDecorationId = (++this._lastDecorationId);
-		let decorationId = this._externalDecorationId(internalDecorationId);
-
-		let markers = this._addMarkers([
-			{
-				internalDecorationId: internalDecorationId,
-				position: new Position(range.startLineNumber, range.startColumn),
-				stickToPreviousCharacter: TextModelWithDecorations._shouldStartMarkerSticksToPreviousCharacter(options.stickiness)
-			},
-			{
-				internalDecorationId: internalDecorationId,
-				position: new Position(range.endLineNumber, range.endColumn),
-				stickToPreviousCharacter: TextModelWithDecorations._shouldEndMarkerSticksToPreviousCharacter(options.stickiness)
-			}
-		]);
-
-		let decoration = new InternalDecoration(decorationId, internalDecorationId, ownerId, range, markers[0], markers[1], options);
-		this._decorations[decorationId] = decoration;
-		this._internalDecorations[internalDecorationId] = decoration;
-		if (range.startLineNumber !== range.endLineNumber) {
-			this._multiLineDecorationsMap[decorationId] = decoration;
-		}
-
-		decorationsTracker.markDidAddDecorations();
-
-		return decorationId;
-	}
-
-	private _addDecorationsImpl(decorationsTracker: DecorationsTracker, ownerId: number, newDecorations: ModelDeltaDecoration[]): string[] {
-		let internalDecorationIds: number[] = [];
-		let decorationIds: string[] = [];
-		let newMarkers: INewMarker[] = [];
-
-		for (let i = 0, len = newDecorations.length; i < len; i++) {
-			let newDecoration = newDecorations[i];
-			let range = newDecoration.range;
-			let stickiness = newDecoration.options.stickiness;
-
-			let internalDecorationId = (++this._lastDecorationId);
-			let decorationId = this._externalDecorationId(internalDecorationId);
-
-			internalDecorationIds[i] = internalDecorationId;
-			decorationIds[i] = decorationId;
-
-			newMarkers[2 * i] = {
-				internalDecorationId: internalDecorationId,
-				position: new Position(range.startLineNumber, range.startColumn),
-				stickToPreviousCharacter: TextModelWithDecorations._shouldStartMarkerSticksToPreviousCharacter(stickiness)
-			};
-
-			newMarkers[2 * i + 1] = {
-				internalDecorationId: internalDecorationId,
-				position: new Position(range.endLineNumber, range.endColumn),
-				stickToPreviousCharacter: TextModelWithDecorations._shouldEndMarkerSticksToPreviousCharacter(stickiness)
-			};
-		}
-
-		let markerIds = this._addMarkers(newMarkers);
-
-		for (let i = 0, len = newDecorations.length; i < len; i++) {
-			let newDecoration = newDecorations[i];
-			let range = newDecoration.range;
-			let internalDecorationId = internalDecorationIds[i];
-			let decorationId = decorationIds[i];
-			let startMarker = markerIds[2 * i];
-			let endMarker = markerIds[2 * i + 1];
-
-			let decoration = new InternalDecoration(decorationId, internalDecorationId, ownerId, range, startMarker, endMarker, newDecoration.options);
-			this._decorations[decorationId] = decoration;
-			this._internalDecorations[internalDecorationId] = decoration;
-			if (range.startLineNumber !== range.endLineNumber) {
-				this._multiLineDecorationsMap[decorationId] = decoration;
-			}
-
-			decorationsTracker.markDidAddDecorations();
-		}
-
-		return decorationIds;
-	}
-
-	private _changeDecorationImpl(decorationsTracker: DecorationsTracker, decorationId: string, newRange: Range): void {
-		let decoration = this._decorations[decorationId];
-		if (!decoration) {
-			return;
-		}
-
-		let startMarker = decoration.startMarker;
-		if (newRange.startLineNumber !== startMarker.position.lineNumber) {
-			// move marker between lines
-			this._lines[startMarker.position.lineNumber - 1].removeMarker(startMarker);
-			this._lines[newRange.startLineNumber - 1].addMarker(startMarker);
-		}
-		startMarker.setPosition(new Position(newRange.startLineNumber, newRange.startColumn));
-
-		let endMarker = decoration.endMarker;
-		if (newRange.endLineNumber !== endMarker.position.lineNumber) {
-			// move marker between lines
-			this._lines[endMarker.position.lineNumber - 1].removeMarker(endMarker);
-			this._lines[newRange.endLineNumber - 1].addMarker(endMarker);
-		}
-		endMarker.setPosition(new Position(newRange.endLineNumber, newRange.endColumn));
-
-		decoration.setRange(this._multiLineDecorationsMap, newRange);
-
-		decorationsTracker.markDidChangeDecorations();
 	}
 
 	private _changeDecorationImpl2(decorationsTracker: DecorationsTracker, decorationId: string, _range: IRange): void {
@@ -851,22 +511,6 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		decorationsTracker.markDidChangeDecorations();
 	}
 
-	private _changeDecorationOptionsImpl(decorationsTracker: DecorationsTracker, decorationId: string, options: ModelDecorationOptions): void {
-		let decoration = this._decorations[decorationId];
-		if (!decoration) {
-			return;
-		}
-
-		if (decoration.options.stickiness !== options.stickiness) {
-			decoration.startMarker.stickToPreviousCharacter = TextModelWithDecorations._shouldStartMarkerSticksToPreviousCharacter(options.stickiness);
-			decoration.endMarker.stickToPreviousCharacter = TextModelWithDecorations._shouldEndMarkerSticksToPreviousCharacter(options.stickiness);
-		}
-
-		decoration.setOptions(options);
-
-		decorationsTracker.markDidChangeDecorations();
-	}
-
 	private _changeDecorationOptionsImpl2(decorationsTracker: DecorationsTracker, decorationId: string, options: ModelDecorationOptions): void {
 		const node = this._treeDecorations[decorationId];
 		if (!node) {
@@ -876,151 +520,6 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		node.setOptions(options);
 
 		decorationsTracker.markDidChangeDecorations();
-	}
-
-	private _removeDecorationImpl(decorationsTracker: DecorationsTracker, decorationId: string): void {
-		let decoration = this._decorations[decorationId];
-		if (!decoration) {
-			return;
-		}
-
-		this._removeMarkers([decoration.startMarker, decoration.endMarker]);
-
-		delete this._multiLineDecorationsMap[decorationId];
-		delete this._decorations[decorationId];
-		delete this._internalDecorations[decoration.internalId];
-
-		if (decorationsTracker) {
-			decorationsTracker.markDidRemoveDecorations();
-		}
-	}
-
-	private _removeDecorationsImpl(decorationsTracker: DecorationsTracker, decorationIds: string[]): void {
-		let removeMarkers: LineMarker[] = [], removeMarkersLen = 0;
-
-		for (let i = 0, len = decorationIds.length; i < len; i++) {
-			let decorationId = decorationIds[i];
-			let decoration = this._decorations[decorationId];
-			if (!decoration) {
-				continue;
-			}
-
-			if (decorationsTracker) {
-				decorationsTracker.markDidRemoveDecorations();
-			}
-
-			removeMarkers[removeMarkersLen++] = decoration.startMarker;
-			removeMarkers[removeMarkersLen++] = decoration.endMarker;
-			delete this._multiLineDecorationsMap[decorationId];
-			delete this._decorations[decorationId];
-			delete this._internalDecorations[decoration.internalId];
-		}
-
-		if (removeMarkers.length > 0) {
-			this._removeMarkers(removeMarkers);
-		}
-	}
-
-	private _resolveOldDecorations(oldDecorations: string[]): InternalDecoration[] {
-		let result: InternalDecoration[] = [];
-		for (let i = 0, len = oldDecorations.length; i < len; i++) {
-			let id = oldDecorations[i];
-			let decoration = this._decorations[id];
-			if (!decoration) {
-				continue;
-			}
-
-			result.push(decoration);
-		}
-		return result;
-	}
-
-	private _deltaDecorationsImpl(decorationsTracker: DecorationsTracker, ownerId: number, oldDecorationsIds: string[], newDecorations: ModelDeltaDecoration[]): string[] {
-
-		if (oldDecorationsIds.length === 0) {
-			// Nothing to remove
-			return this._addDecorationsImpl(decorationsTracker, ownerId, newDecorations);
-		}
-
-		if (newDecorations.length === 0) {
-			// Nothing to add
-			this._removeDecorationsImpl(decorationsTracker, oldDecorationsIds);
-			return [];
-		}
-
-		let oldDecorations = this._resolveOldDecorations(oldDecorationsIds);
-
-		oldDecorations.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
-		newDecorations.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
-
-		let result: string[] = [],
-			oldDecorationsIndex = 0,
-			oldDecorationsLength = oldDecorations.length,
-			newDecorationsIndex = 0,
-			newDecorationsLength = newDecorations.length,
-			decorationsToAdd: ModelDeltaDecoration[] = [],
-			decorationsToRemove: string[] = [];
-
-		while (oldDecorationsIndex < oldDecorationsLength && newDecorationsIndex < newDecorationsLength) {
-			let oldDecoration = oldDecorations[oldDecorationsIndex];
-			let newDecoration = newDecorations[newDecorationsIndex];
-			let comparison = Range.compareRangesUsingStarts(oldDecoration.range, newDecoration.range);
-
-			if (comparison < 0) {
-				// `oldDecoration` is before `newDecoration` => remove `oldDecoration`
-				decorationsToRemove.push(oldDecoration.id);
-				oldDecorationsIndex++;
-				continue;
-			}
-
-			if (comparison > 0) {
-				// `newDecoration` is before `oldDecoration` => add `newDecoration`
-				decorationsToAdd.push(newDecoration);
-				newDecorationsIndex++;
-				continue;
-			}
-
-			// The ranges of `oldDecoration` and `newDecoration` are equal
-
-			if (!oldDecoration.options.equals(newDecoration.options)) {
-				// The options do not match => remove `oldDecoration`
-				decorationsToRemove.push(oldDecoration.id);
-				oldDecorationsIndex++;
-				continue;
-			}
-
-			// Bingo! We can reuse `oldDecoration` for `newDecoration`
-			result[newDecoration.index] = oldDecoration.id;
-			oldDecorationsIndex++;
-			newDecorationsIndex++;
-		}
-
-		while (oldDecorationsIndex < oldDecorationsLength) {
-			// No more new decorations => remove decoration at `oldDecorationsIndex`
-			decorationsToRemove.push(oldDecorations[oldDecorationsIndex].id);
-			oldDecorationsIndex++;
-		}
-
-		while (newDecorationsIndex < newDecorationsLength) {
-			// No more old decorations => add decoration at `newDecorationsIndex`
-			decorationsToAdd.push(newDecorations[newDecorationsIndex]);
-			newDecorationsIndex++;
-		}
-
-		// Remove `decorationsToRemove`
-		if (decorationsToRemove.length > 0) {
-			this._removeDecorationsImpl(decorationsTracker, decorationsToRemove);
-		}
-
-		// Add `decorationsToAdd`
-		if (decorationsToAdd.length > 0) {
-			let newIds = this._addDecorationsImpl(decorationsTracker, ownerId, decorationsToAdd);
-			for (let i = 0, len = decorationsToAdd.length; i < len; i++) {
-				result[decorationsToAdd[i].index] = newIds[i];
-			}
-		}
-
-		return result;
 	}
 
 	private _deltaDecorationsImpl2(ownerId: number, oldDecorationsIds: string[], newDecorations: editorCommon.IModelDeltaDecoration[]): string[] {

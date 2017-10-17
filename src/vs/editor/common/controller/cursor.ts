@@ -20,7 +20,6 @@ import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import Event, { Emitter } from 'vs/base/common/event';
-import { USE_NEW_DECORATIONS } from 'vs/editor/common/model/textModelWithDecorations';
 
 function containsLineMappingChanged(events: viewEvents.ViewEvent[]): boolean {
 	for (let i = 0, len = events.length; i < len; i++) {
@@ -556,8 +555,6 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 interface IExecContext {
 	readonly model: editorCommon.IModel;
 	readonly selectionsBefore: Selection[];
-	readonly selectionStartMarkers: string[];
-	readonly positionMarkers: string[];
 	readonly trackedRanges: string[];
 	readonly trackedRangesDirection: SelectionDirection[];
 }
@@ -579,23 +576,14 @@ class CommandExecutor {
 		const ctx: IExecContext = {
 			model: model,
 			selectionsBefore: selectionsBefore,
-			selectionStartMarkers: [],
-			positionMarkers: [],
 			trackedRanges: [],
 			trackedRangesDirection: []
 		};
 
 		const result = this._innerExecuteCommands(ctx, commands);
 
-		if (USE_NEW_DECORATIONS) {
-			for (let i = 0, len = ctx.trackedRanges.length; i < len; i++) {
-				ctx.model._deltaTrackedRange(ctx.trackedRanges[i], null, editorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
-			}
-		} else {
-			for (let i = 0; i < ctx.selectionStartMarkers.length; i++) {
-				ctx.model._removeMarker(ctx.selectionStartMarkers[i]);
-				ctx.model._removeMarker(ctx.positionMarkers[i]);
-			}
+		for (let i = 0, len = ctx.trackedRanges.length; i < len; i++) {
+			ctx.model._deltaTrackedRange(ctx.trackedRanges[i], null, editorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
 		}
 
 		return result;
@@ -672,17 +660,11 @@ class CommandExecutor {
 
 						getTrackedSelection: (id: string) => {
 							const idx = parseInt(id, 10);
-							if (USE_NEW_DECORATIONS) {
-								const range = ctx.model._getTrackedRange(ctx.trackedRanges[idx]);
-								if (ctx.trackedRangesDirection[idx] === SelectionDirection.LTR) {
-									return new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
-								}
-								return new Selection(range.endLineNumber, range.endColumn, range.startLineNumber, range.startColumn);
-							} else {
-								const selectionStartMarker = ctx.model._getMarker(ctx.selectionStartMarkers[idx]);
-								const positionMarker = ctx.model._getMarker(ctx.positionMarkers[idx]);
-								return new Selection(selectionStartMarker.lineNumber, selectionStartMarker.column, positionMarker.lineNumber, positionMarker.column);
+							const range = ctx.model._getTrackedRange(ctx.trackedRanges[idx]);
+							if (ctx.trackedRangesDirection[idx] === SelectionDirection.LTR) {
+								return new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
 							}
+							return new Selection(range.endLineNumber, range.endColumn, range.startLineNumber, range.startColumn);
 						}
 					});
 				} else {
@@ -769,68 +751,32 @@ class CommandExecutor {
 		};
 
 		const trackSelection = (selection: Selection, trackPreviousOnEmpty?: boolean) => {
-			if (USE_NEW_DECORATIONS) {
-				let stickiness: editorCommon.TrackedRangeStickiness;
-				if (selection.isEmpty()) {
-					if (typeof trackPreviousOnEmpty === 'boolean') {
-						if (trackPreviousOnEmpty) {
-							stickiness = editorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingBefore;
-						} else {
-							stickiness = editorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingAfter;
-						}
+			let stickiness: editorCommon.TrackedRangeStickiness;
+			if (selection.isEmpty()) {
+				if (typeof trackPreviousOnEmpty === 'boolean') {
+					if (trackPreviousOnEmpty) {
+						stickiness = editorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingBefore;
 					} else {
-						// Try to lock it with surrounding text
-						const maxLineColumn = ctx.model.getLineMaxColumn(selection.startLineNumber);
-						if (selection.startColumn === maxLineColumn) {
-							stickiness = editorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingBefore;
-						} else {
-							stickiness = editorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingAfter;
-						}
+						stickiness = editorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingAfter;
 					}
 				} else {
-					stickiness = editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
-				}
-
-				const l = ctx.trackedRanges.length;
-				const id = ctx.model._deltaTrackedRange(null, selection, stickiness);
-				ctx.trackedRanges[l] = id;
-				ctx.trackedRangesDirection[l] = selection.getDirection();
-				return l.toString();
-
-			} else {
-				let selectionMarkerStickToPreviousCharacter: boolean;
-				let positionMarkerStickToPreviousCharacter: boolean;
-
-				if (selection.isEmpty()) {
 					// Try to lock it with surrounding text
-					if (typeof trackPreviousOnEmpty === 'boolean') {
-						selectionMarkerStickToPreviousCharacter = trackPreviousOnEmpty;
-						positionMarkerStickToPreviousCharacter = trackPreviousOnEmpty;
+					const maxLineColumn = ctx.model.getLineMaxColumn(selection.startLineNumber);
+					if (selection.startColumn === maxLineColumn) {
+						stickiness = editorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingBefore;
 					} else {
-						const maxLineColumn = ctx.model.getLineMaxColumn(selection.startLineNumber);
-						if (selection.startColumn === maxLineColumn) {
-							selectionMarkerStickToPreviousCharacter = true;
-							positionMarkerStickToPreviousCharacter = true;
-						} else {
-							selectionMarkerStickToPreviousCharacter = false;
-							positionMarkerStickToPreviousCharacter = false;
-						}
-					}
-				} else {
-					if (selection.getDirection() === SelectionDirection.LTR) {
-						selectionMarkerStickToPreviousCharacter = false;
-						positionMarkerStickToPreviousCharacter = true;
-					} else {
-						selectionMarkerStickToPreviousCharacter = true;
-						positionMarkerStickToPreviousCharacter = false;
+						stickiness = editorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingAfter;
 					}
 				}
-
-				const l = ctx.selectionStartMarkers.length;
-				ctx.selectionStartMarkers[l] = ctx.model._addMarker(0, selection.selectionStartLineNumber, selection.selectionStartColumn, selectionMarkerStickToPreviousCharacter);
-				ctx.positionMarkers[l] = ctx.model._addMarker(0, selection.positionLineNumber, selection.positionColumn, positionMarkerStickToPreviousCharacter);
-				return l.toString();
+			} else {
+				stickiness = editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
 			}
+
+			const l = ctx.trackedRanges.length;
+			const id = ctx.model._deltaTrackedRange(null, selection, stickiness);
+			ctx.trackedRanges[l] = id;
+			ctx.trackedRangesDirection[l] = selection.getDirection();
+			return l.toString();
 		};
 
 		const editOperationBuilder: editorCommon.IEditOperationBuilder = {
