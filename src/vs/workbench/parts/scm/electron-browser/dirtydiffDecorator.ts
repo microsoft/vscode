@@ -315,6 +315,10 @@ class DirtyDiffWidget extends PeekViewWidget {
 			secondaryHeadingColor: theme.getColor(peekViewTitleInfoForeground)
 		});
 	}
+
+	protected revealLine(lineNumber: number) {
+		this.editor.revealLineInCenterIfOutsideViewport(lineNumber, ScrollType.Smooth);
+	}
 }
 
 @editorAction
