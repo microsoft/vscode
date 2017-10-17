@@ -152,9 +152,9 @@ export class CompositeBar implements ICompositeBar {
 		}
 	}
 
-	public create(container: HTMLElement): void {
-		dom.addClass(container, 'composite-bar');
-		this.compositeSwitcherBar = new ActionBar(container, {
+	public create(parent: HTMLElement): void {
+		const actionBarDiv = parent.appendChild(dom.$('composite-bar'));
+		this.compositeSwitcherBar = new ActionBar(actionBarDiv, {
 			actionItemProvider: (action: Action) => action instanceof CompositeOverflowActivityAction ? this.compositeOverflowActionItem : this.compositeIdToActionItems[action.id],
 			orientation: this.options.orientation,
 			ariaLabel: nls.localize('activityBarAriaLabel', "Active View Switcher"),
@@ -163,13 +163,13 @@ export class CompositeBar implements ICompositeBar {
 		this.updateCompositeSwitcher();
 
 		// Contextmenu for composites
-		this.toDispose.push(dom.addDisposableListener(container, dom.EventType.CONTEXT_MENU, (e: MouseEvent) => {
+		this.toDispose.push(dom.addDisposableListener(parent, dom.EventType.CONTEXT_MENU, (e: MouseEvent) => {
 			dom.EventHelper.stop(e, true);
 			this._onDidContextMenu.fire(e);
 		}));
 
 		// Allow to drop at the end to move composites to the end
-		this.toDispose.push(dom.addDisposableListener(container, dom.EventType.DROP, (e: DragEvent) => {
+		this.toDispose.push(dom.addDisposableListener(parent, dom.EventType.DROP, (e: DragEvent) => {
 			const draggedCompositeId = CompositeActionItem.getDraggedCompositeId();
 			if (draggedCompositeId) {
 				dom.EventHelper.stop(e, true);
