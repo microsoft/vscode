@@ -107,7 +107,8 @@ class RemoteSearchProvider {
 			};
 
 			if (remoteResult) {
-				const result = preferencesModel.filterSettings(this._filter, group => null, settingFilter, remoteResult.scores);
+				const sortedNames = Object.keys(remoteResult.scores).sort((a, b) => remoteResult.scores[b] - remoteResult.scores[a]);
+				const result = preferencesModel.filterSettings(this._filter, group => null, settingFilter, sortedNames);
 				result.metadata = remoteResult.metadata;
 				return result;
 			} else {

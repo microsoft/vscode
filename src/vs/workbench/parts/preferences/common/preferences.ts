@@ -78,7 +78,7 @@ export type ISettingFilter = (setting: ISetting) => IRange[];
 export interface ISettingsEditorModel extends IPreferencesEditorModel<ISetting> {
 	settingsGroups: ISettingsGroup[];
 	groupsTerms: string[];
-	filterSettings(filter: string, groupFilter: IGroupFilter, settingFilter: ISettingFilter, scores?: { [key: string]: number }): IFilterResult;
+	filterSettings(filter: string, groupFilter: IGroupFilter, settingFilter: ISettingFilter, mostRelevantSettings?: string[]): IFilterResult;
 	findValueMatches(filter: string, setting: ISetting): IRange[];
 }
 

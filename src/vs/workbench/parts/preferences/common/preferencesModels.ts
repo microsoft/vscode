@@ -526,9 +526,9 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		return this.settingsGroups[0];
 	}
 
-	public filterSettings(filter: string, groupFilter: IGroupFilter, settingFilter: ISettingFilter, scores?: { [key: string]: number }): IFilterResult {
-		if (scores) {
-			const group = this.getMostRelevantSettings(Object.keys(scores));
+	public filterSettings(filter: string, groupFilter: IGroupFilter, settingFilter: ISettingFilter, mostRelevantSettings?: string[]): IFilterResult {
+		if (mostRelevantSettings) {
+			const group = this.getMostRelevantSettings(mostRelevantSettings);
 			const builder = new SettingsContentBuilder(DefaultSettingsEditorModel.MOST_RELEVANT_START_LINE - 1);
 			builder.pushGroup(group);
 
