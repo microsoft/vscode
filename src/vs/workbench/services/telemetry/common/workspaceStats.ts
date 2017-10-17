@@ -176,9 +176,9 @@ export class WorkspaceStats {
 		const tags: Tags = Object.create(null);
 
 		const { filesToOpen, filesToCreate, filesToDiff } = configuration;
-		tags['workbench.filesToOpen'] = filesToOpen && filesToOpen.length || undefined;
-		tags['workbench.filesToCreate'] = filesToCreate && filesToCreate.length || undefined;
-		tags['workbench.filesToDiff'] = filesToDiff && filesToDiff.length || undefined;
+		tags['workbench.filesToOpen'] = filesToOpen && filesToOpen.length || 0;
+		tags['workbench.filesToCreate'] = filesToCreate && filesToCreate.length || 0;
+		tags['workbench.filesToDiff'] = filesToDiff && filesToDiff.length || 0;
 
 		const isEmpty = this.contextService.getWorkbenchState() === WorkbenchState.EMPTY;
 		const workspace = this.contextService.getWorkspace();
