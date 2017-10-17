@@ -530,7 +530,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		if (mostRelevantSettings) {
 			const group = this.getMostRelevantSettings(mostRelevantSettings);
 			const builder = new SettingsContentBuilder(DefaultSettingsEditorModel.MOST_RELEVANT_START_LINE - 1);
-			builder.pushGroup(group);
+			builder.pushGroup(group, false);
 
 			const settingsTextEndLine = DefaultSettingsEditorModel.MOST_RELEVANT_START_LINE + builder.lineCount - 1;
 
@@ -801,7 +801,7 @@ class SettingsContentBuilder {
 		this._contentByLines.push('}');
 	}
 
-	pushGroup(group: ISettingsGroup): ISetting {
+	pushGroup(group: ISettingsGroup, showEmptyGroupMessage = true): ISetting {
 		const indent = '  ';
 		let lastSetting: ISetting = null;
 		this._contentByLines.push('');
@@ -818,7 +818,7 @@ class SettingsContentBuilder {
 					this.pushSetting(setting, indent);
 					lastSetting = setting;
 				}
-			} else {
+			} else if (showEmptyGroupMessage) {
 				this._contentByLines.push('// ' + nls.localize('noSettings', "No Settings"));
 				this._contentByLines.push('');
 			}
