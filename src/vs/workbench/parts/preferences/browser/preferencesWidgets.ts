@@ -23,7 +23,7 @@ import { ISettingsGroup, IPreferencesService, getSettingsTargetName } from 'vs/w
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
-import { attachInputBoxStyler, attachStylerCallback, attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
+import { attachInputBoxStyler, attachStylerCallback, attachSelectBoxStyler, attachCheckboxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Position } from 'vs/editor/common/core/position';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
@@ -431,11 +431,13 @@ export class SearchWidget extends Widget {
 			actionClassName: 'prefs-fuzzy-search-toggle',
 			isChecked: false,
 			onChange: () => {
-				console.log(`onChange`);
+				this.inputBox.focus();
+				this._onDidChange.fire();
 			},
 			title: 'Enable experimental fuzzy search'
 		}));
 		DOM.append(this.controlsDiv, this.fuzzyToggle.domNode);
+		this._register(attachCheckboxStyler(this.fuzzyToggle, this.themeService));
 
 		this.countElement = DOM.append(this.controlsDiv, DOM.$('.settings-count-widget'));
 		this._register(attachStylerCallback(this.themeService, { badgeBackground, contrastBorder }, colors => {
