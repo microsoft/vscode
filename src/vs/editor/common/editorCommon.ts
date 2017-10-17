@@ -916,32 +916,6 @@ export interface ITokenizedModel extends ITextModel {
 }
 
 /**
- * A model that can track markers.
- */
-export interface ITextModelWithMarkers extends ITextModel {
-	/**
-	 * @internal
-	 */
-	_addMarker(internalDecorationId: number, lineNumber: number, column: number, stickToPreviousCharacter: boolean): string;
-	/**
-	 * @internal
-	 */
-	_changeMarker(id: string, newLineNumber: number, newColumn: number): void;
-	/**
-	 * @internal
-	 */
-	_changeMarkerStickiness(id: string, newStickToPreviousCharacter: boolean): void;
-	/**
-	 * @internal
-	 */
-	_getMarker(id: string): Position;
-	/**
-	 * @internal
-	 */
-	_removeMarker(id: string): void;
-}
-
-/**
  * Describes the behavior of decorations when typing/editing near their edges.
  * Note: Please do not edit the values, as they very carefully match `DecorationRangeBehavior`
  */
@@ -1056,7 +1030,7 @@ export interface ITextModelWithDecorations {
 /**
  * An editable text model.
  */
-export interface IEditableTextModel extends ITextModelWithMarkers {
+export interface IEditableTextModel extends ITextModel {
 
 	/**
 	 * Normalize a string containing whitespace according to indentation rules (converts to spaces or to tabs).
@@ -1139,7 +1113,7 @@ export interface IEditableTextModel extends ITextModelWithMarkers {
 /**
  * A model.
  */
-export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWithMarkers, ITokenizedModel, ITextModelWithDecorations {
+export interface IModel extends IReadOnlyModel, IEditableTextModel, ITokenizedModel, ITextModelWithDecorations {
 	/**
 	 * @deprecated Please use `onDidChangeContent` instead.
 	 * An event emitted when the contents of the model have changed.

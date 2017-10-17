@@ -730,31 +730,6 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		this._resetIndentRanges();
 	}
 
-	public _assertLineNumbersOK(): void {
-		let foundMarkersCnt = 0;
-		for (let i = 0, len = this._lines.length; i < len; i++) {
-			let line = this._lines[i];
-			let lineNumber = i + 1;
-
-			let markers = line.getMarkers();
-			if (markers !== null) {
-				for (let j = 0, lenJ = markers.length; j < lenJ; j++) {
-					foundMarkersCnt++;
-					let markerId = markers[j].id;
-					let marker = this._markerIdToMarker[markerId];
-					if (marker.position.lineNumber !== lineNumber) {
-						throw new Error('Misplaced marker with id ' + markerId);
-					}
-				}
-			}
-		}
-
-		let totalMarkersCnt = Object.keys(this._markerIdToMarker).length;
-		if (totalMarkersCnt !== foundMarkersCnt) {
-			throw new Error('There are misplaced markers!');
-		}
-	}
-
 	private _undo(): Selection[] {
 		this._isUndoing = true;
 		let r = this._commandManager.undo();

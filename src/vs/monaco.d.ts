@@ -1642,12 +1642,6 @@ declare module monaco.editor {
 	}
 
 	/**
-	 * A model that can track markers.
-	 */
-	export interface ITextModelWithMarkers extends ITextModel {
-	}
-
-	/**
 	 * Describes the behavior of decorations when typing/editing near their edges.
 	 * Note: Please do not edit the values, as they very carefully match `DecorationRangeBehavior`
 	 */
@@ -1728,7 +1722,7 @@ declare module monaco.editor {
 	/**
 	 * An editable text model.
 	 */
-	export interface IEditableTextModel extends ITextModelWithMarkers {
+	export interface IEditableTextModel extends ITextModel {
 		/**
 		 * Normalize a string containing whitespace according to indentation rules (converts to spaces or to tabs).
 		 */
@@ -1772,7 +1766,7 @@ declare module monaco.editor {
 	/**
 	 * A model.
 	 */
-	export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWithMarkers, ITokenizedModel, ITextModelWithDecorations {
+	export interface IModel extends IReadOnlyModel, IEditableTextModel, ITokenizedModel, ITextModelWithDecorations {
 		/**
 		 * An event emitted when the contents of the model have changed.
 		 * @event
