@@ -49,8 +49,9 @@ export class TextModelWithDecorations extends TextModelWithTokens implements edi
 	private readonly _instanceId: string;
 	private _lastDecorationId: number;
 	private _currentDecorationsTrackerCnt: number;
+	private _currentDecorationsTrackerDidChange: boolean;
 	private _decorations: { [decorationId: string]: IntervalNode; };
-	protected _decorationsTree: IntervalTree;
+	private _decorationsTree: IntervalTree;
 
 	constructor(rawTextSource: IRawTextSource, creationOptions: editorCommon.ITextModelCreationOptions, languageIdentifier: LanguageIdentifier) {
 		super(rawTextSource, creationOptions, languageIdentifier);
@@ -58,6 +59,7 @@ export class TextModelWithDecorations extends TextModelWithTokens implements edi
 		this._instanceId = nextInstanceId();
 		this._lastDecorationId = 0;
 		this._currentDecorationsTrackerCnt = 0;
+		this._currentDecorationsTrackerDidChange = false;
 		this._decorations = Object.create(null);
 		this._decorationsTree = new IntervalTree();
 	}
@@ -84,14 +86,24 @@ export class TextModelWithDecorations extends TextModelWithTokens implements edi
 	// --- END TrackedRanges
 
 	protected _acquireDecorationsTracker(): void {
+		if (this._currentDecorationsTrackerCnt === 0) {
+			this._currentDecorationsTrackerDidChange = false;
+		}
 		this._currentDecorationsTrackerCnt++;
 	}
 
 	protected _releaseDecorationsTracker(): void {
 		this._currentDecorationsTrackerCnt--;
 		if (this._currentDecorationsTrackerCnt === 0) {
-			this._emitModelDecorationsChangedEvent();
+			if (this._currentDecorationsTrackerDidChange) {
+				this._emitModelDecorationsChangedEvent();
+			}
 		}
+	}
+
+	protected _adjustDecorationsForEdit(offset: number, length: number, textLength: number, forceMoveMarkers: boolean): void {
+		this._currentDecorationsTrackerDidChange = true;
+		this._decorationsTree.acceptReplace(offset, length, textLength, forceMoveMarkers);
 	}
 
 	public changeDecorations<T>(callback: (changeAccessor: editorCommon.IModelDecorationsChangeAccessor) => T, ownerId: number = 0): T {
@@ -110,18 +122,23 @@ export class TextModelWithDecorations extends TextModelWithTokens implements edi
 	private _changeDecorations<T>(ownerId: number, callback: (changeAccessor: editorCommon.IModelDecorationsChangeAccessor) => T): T {
 		let changeAccessor: editorCommon.IModelDecorationsChangeAccessor = {
 			addDecoration: (range: IRange, options: editorCommon.IModelDecorationOptions): string => {
+				this._currentDecorationsTrackerDidChange = true;
 				return this._deltaDecorationsImpl(ownerId, [], [{ range: range, options: options }])[0];
 			},
 			changeDecoration: (id: string, newRange: IRange): void => {
+				this._currentDecorationsTrackerDidChange = true;
 				this._changeDecorationImpl(id, newRange);
 			},
 			changeDecorationOptions: (id: string, options: editorCommon.IModelDecorationOptions) => {
+				this._currentDecorationsTrackerDidChange = true;
 				this._changeDecorationOptionsImpl(id, _normalizeOptions(options));
 			},
 			removeDecoration: (id: string): void => {
+				this._currentDecorationsTrackerDidChange = true;
 				this._deltaDecorationsImpl(ownerId, [id], []);
 			},
 			deltaDecorations: (oldDecorations: string[], newDecorations: editorCommon.IModelDeltaDecoration[]): string[] => {
+				this._currentDecorationsTrackerDidChange = true;
 				return this._deltaDecorationsImpl(ownerId, oldDecorations, newDecorations);
 			}
 		};
@@ -148,6 +165,7 @@ export class TextModelWithDecorations extends TextModelWithTokens implements edi
 		try {
 			this._eventEmitter.beginDeferredEmit();
 			this._acquireDecorationsTracker();
+			this._currentDecorationsTrackerDidChange = true;
 			return this._deltaDecorationsImpl(ownerId, oldDecorations, newDecorations);
 		} finally {
 			this._releaseDecorationsTracker();

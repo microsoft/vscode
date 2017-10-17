@@ -638,7 +638,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				text: text
 			});
 
-			this._decorationsTree.acceptReplace(op.rangeOffset, op.rangeLength, text.length, op.forceMoveMarkers);
+			this._adjustDecorationsForEdit(op.rangeOffset, op.rangeLength, text.length, op.forceMoveMarkers);
 
 			// console.log('AFTER:');
 			// console.log('<<<\n' + this._lines.map(l => l.text).join('\n') + '\n>>>');
