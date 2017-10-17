@@ -583,7 +583,7 @@ class CommandExecutor {
 		const result = this._innerExecuteCommands(ctx, commands);
 
 		for (let i = 0, len = ctx.trackedRanges.length; i < len; i++) {
-			ctx.model._deltaTrackedRange(ctx.trackedRanges[i], null, editorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
+			ctx.model._setTrackedRange(ctx.trackedRanges[i], null, editorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
 		}
 
 		return result;
@@ -773,7 +773,7 @@ class CommandExecutor {
 			}
 
 			const l = ctx.trackedRanges.length;
-			const id = ctx.model._deltaTrackedRange(null, selection, stickiness);
+			const id = ctx.model._setTrackedRange(null, selection, stickiness);
 			ctx.trackedRanges[l] = id;
 			ctx.trackedRangesDirection[l] = selection.getDirection();
 			return l.toString();

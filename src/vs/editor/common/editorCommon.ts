@@ -1024,7 +1024,7 @@ export interface ITextModelWithDecorations {
 	/**
 	 * @internal
 	 */
-	_deltaTrackedRange(id: string, newRange: Range, newStickiness: TrackedRangeStickiness): string;
+	_setTrackedRange(id: string, newRange: Range, newStickiness: TrackedRangeStickiness): string;
 }
 
 /**

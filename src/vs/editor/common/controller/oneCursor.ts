@@ -31,7 +31,7 @@ export class OneCursor {
 	}
 
 	public dispose(context: CursorContext): void {
-		this._selTrackedRange = context.model._deltaTrackedRange(this._selTrackedRange, null, TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
+		this._selTrackedRange = context.model._setTrackedRange(this._selTrackedRange, null, TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
 	}
 
 	public asCursorState(): CursorState {
@@ -101,6 +101,6 @@ export class OneCursor {
 		this.modelState = modelState;
 		this.viewState = viewState;
 
-		this._selTrackedRange = context.model._deltaTrackedRange(this._selTrackedRange, this.modelState.selection, TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
+		this._selTrackedRange = context.model._setTrackedRange(this._selTrackedRange, this.modelState.selection, TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
 	}
 }

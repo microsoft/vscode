@@ -276,10 +276,10 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 	public applyEdits(rawOperations: editorCommon.IIdentifiedSingleEditOperation[]): editorCommon.IIdentifiedSingleEditOperation[] {
 		try {
 			this._eventEmitter.beginDeferredEmit();
-			this._acquireMarkersTracker();
+			this._acquireDecorationsTracker();
 			return this._applyEdits(rawOperations);
 		} finally {
-			this._releaseMarkersTracker();
+			this._releaseDecorationsTracker();
 			this._eventEmitter.endDeferredEmit();
 		}
 	}
@@ -661,7 +661,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				text: text
 			});
 
-			this._tree.acceptReplace(op.rangeOffset, op.rangeLength, text.length, op.forceMoveMarkers);
+			this._decorationsTree.acceptReplace(op.rangeOffset, op.rangeLength, text.length, op.forceMoveMarkers);
 
 			// console.log('AFTER:');
 			// console.log('<<<\n' + this._lines.map(l => l.text).join('\n') + '\n>>>');
@@ -710,10 +710,10 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 	public undo(): Selection[] {
 		try {
 			this._eventEmitter.beginDeferredEmit();
-			this._acquireMarkersTracker();
+			this._acquireDecorationsTracker();
 			return this._undo();
 		} finally {
-			this._releaseMarkersTracker();
+			this._releaseDecorationsTracker();
 			this._eventEmitter.endDeferredEmit();
 		}
 	}
@@ -735,10 +735,10 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 	public redo(): Selection[] {
 		try {
 			this._eventEmitter.beginDeferredEmit();
-			this._acquireMarkersTracker();
+			this._acquireDecorationsTracker();
 			return this._redo();
 		} finally {
-			this._releaseMarkersTracker();
+			this._releaseDecorationsTracker();
 			this._eventEmitter.endDeferredEmit();
 		}
 	}
