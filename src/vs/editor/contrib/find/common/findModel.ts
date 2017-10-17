@@ -171,7 +171,7 @@ export class FindModelBoundToEditorModel {
 		}
 
 		let findMatches = this._findMatches(findScope, false, MATCHES_LIMIT);
-		this._decorations.set(findMatches.map(match => match.range), findScope);
+		this._decorations.set(findMatches, findScope);
 
 		this._state.changeMatchInfo(
 			this._decorations.getCurrentMatchesPosition(this._editor.getSelection()),

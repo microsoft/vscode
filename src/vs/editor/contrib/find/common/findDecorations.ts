@@ -68,11 +68,21 @@ export class FindDecorations implements IDisposable {
 		this.setCurrentFindMatch(null);
 	}
 
+	private _getDecorationIndex(decorationId: string): number {
+		const index = this._decorations.indexOf(decorationId);
+		if (index >= 0) {
+			return index + 1;
+		}
+		return 1;
+	}
+
 	public getCurrentMatchesPosition(desiredRange: Range): number {
-		for (let i = 0, len = this._decorations.length; i < len; i++) {
-			let range = this._editor.getModel().getDecorationRange(this._decorations[i]);
-			if (desiredRange.equalsRange(range)) {
-				return (i + 1);
+		let candidates = this._editor.getModel().getDecorationsInRange(desiredRange);
+		for (let i = 0, len = candidates.length; i < len; i++) {
+			const candidate = candidates[i];
+			const candidateOpts = candidate.options;
+			if (candidateOpts === FindDecorations._FIND_MATCH_DECORATION || candidateOpts === FindDecorations._CURRENT_FIND_MATCH_DECORATION) {
+				return this._getDecorationIndex(candidate.id);
 			}
 		}
 		return 1;
@@ -95,12 +105,12 @@ export class FindDecorations implements IDisposable {
 		if (this._highlightedDecorationId !== null || newCurrentDecorationId !== null) {
 			this._editor.changeDecorations((changeAccessor: editorCommon.IModelDecorationsChangeAccessor) => {
 				if (this._highlightedDecorationId !== null) {
-					changeAccessor.changeDecorationOptions(this._highlightedDecorationId, FindDecorations.createFindMatchDecorationOptions(false));
+					changeAccessor.changeDecorationOptions(this._highlightedDecorationId, FindDecorations._FIND_MATCH_DECORATION);
 					this._highlightedDecorationId = null;
 				}
 				if (newCurrentDecorationId !== null) {
 					this._highlightedDecorationId = newCurrentDecorationId;
-					changeAccessor.changeDecorationOptions(this._highlightedDecorationId, FindDecorations.createFindMatchDecorationOptions(true));
+					changeAccessor.changeDecorationOptions(this._highlightedDecorationId, FindDecorations._CURRENT_FIND_MATCH_DECORATION);
 				}
 				if (this._rangeHighlightDecorationId !== null) {
 					changeAccessor.removeDecoration(this._rangeHighlightDecorationId);
@@ -121,13 +131,14 @@ export class FindDecorations implements IDisposable {
 		return matchPosition;
 	}
 
-	public set(matches: Range[], findScope: Range): void {
-		let newDecorations: editorCommon.IModelDeltaDecoration[] = matches.map((match) => {
-			return {
-				range: match,
-				options: FindDecorations.createFindMatchDecorationOptions(false)
+	public set(findMatches: editorCommon.FindMatch[], findScope: Range): void {
+		let newDecorations: editorCommon.IModelDeltaDecoration[] = new Array<editorCommon.IModelDeltaDecoration>(findMatches.length);
+		for (let i = 0, len = findMatches.length; i < len; i++) {
+			newDecorations[i] = {
+				range: findMatches[i].range,
+				options: FindDecorations._FIND_MATCH_DECORATION
 			};
-		});
+		}
 		if (findScope) {
 			newDecorations.unshift({
 				range: findScope,
@@ -156,10 +167,6 @@ export class FindDecorations implements IDisposable {
 			result.push(this._rangeHighlightDecorationId);
 		}
 		return result;
-	}
-
-	private static createFindMatchDecorationOptions(isCurrent: boolean): ModelDecorationOptions {
-		return (isCurrent ? this._CURRENT_FIND_MATCH_DECORATION : this._FIND_MATCH_DECORATION);
 	}
 
 	private static _CURRENT_FIND_MATCH_DECORATION = ModelDecorationOptions.register({
