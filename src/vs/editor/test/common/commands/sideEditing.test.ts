@@ -10,14 +10,11 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
-import { ILineEdit, ModelLine, LineMarker, MarkersTracker } from 'vs/editor/common/model/modelLine';
 import { withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
 import { Model } from 'vs/editor/common/model/model';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { Cursor } from 'vs/editor/common/controller/cursor';
-
-const NO_TAB_SIZE = 0;
 
 function testCommand(lines: string[], selections: Selection[], edits: IIdentifiedSingleEditOperation[], expectedLines: string[], expectedSelections: Selection[]): void {
 	withMockCodeEditor(lines, {}, (editor, cursor) => {
@@ -33,15 +30,6 @@ function testCommand(lines: string[], selections: Selection[], edits: IIdentifie
 		assert.deepEqual(actualSelections.map(s => s.toString()), expectedSelections.map(s => s.toString()));
 
 	});
-}
-
-function testLineEditMarker(text: string, column: number, stickToPreviousCharacter: boolean, edit: ILineEdit, expectedColumn: number): void {
-	var line = new ModelLine(text, NO_TAB_SIZE);
-	line.addMarker(new LineMarker('1', 0, new Position(0, column), stickToPreviousCharacter));
-
-	line.applyEdits(new MarkersTracker(), [edit], NO_TAB_SIZE);
-
-	assert.equal(line.getMarkers()[0].position.column, expectedColumn);
 }
 
 suite('Editor Side Editing - collapsed selection', () => {
@@ -88,14 +76,6 @@ suite('Editor Side Editing - collapsed selection', () => {
 			],
 			[new Selection(1, 1, 1, 10)]
 		);
-	});
-
-	test('ModelLine.applyEdits uses `isReplace`', () => {
-		testLineEditMarker('something', 1, true, { startColumn: 1, endColumn: 1, text: 'asd', forceMoveMarkers: false }, 1);
-		testLineEditMarker('something', 1, true, { startColumn: 1, endColumn: 1, text: 'asd', forceMoveMarkers: true }, 4);
-
-		testLineEditMarker('something', 1, false, { startColumn: 1, endColumn: 1, text: 'asd', forceMoveMarkers: false }, 4);
-		testLineEditMarker('something', 1, false, { startColumn: 1, endColumn: 1, text: 'asd', forceMoveMarkers: true }, 4);
 	});
 
 	test('insert at selection', () => {

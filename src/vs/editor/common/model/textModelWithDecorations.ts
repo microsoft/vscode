@@ -10,7 +10,6 @@ import * as strings from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { MarkersTracker } from 'vs/editor/common/model/modelLine';
 import { TextModelWithTokens } from 'vs/editor/common/model/textModelWithTokens';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { ITextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
@@ -80,7 +79,6 @@ export class TextModelWithDecorations extends TextModelWithTokens implements edi
 	private _currentDecorationsTracker: DecorationsTracker;
 	private _currentDecorationsTrackerCnt: number;
 
-	private _currentMarkersTracker: MarkersTracker;
 	private _currentMarkersTrackerCnt: number;
 
 	protected _tree: IntervalTree;
@@ -96,7 +94,6 @@ export class TextModelWithDecorations extends TextModelWithTokens implements edi
 		this._currentDecorationsTracker = null;
 		this._currentDecorationsTrackerCnt = 0;
 
-		this._currentMarkersTracker = null;
 		this._currentMarkersTrackerCnt = 0;
 
 		this._tree = new IntervalTree();
@@ -123,6 +120,35 @@ export class TextModelWithDecorations extends TextModelWithTokens implements edi
 	}
 
 	// --- END TrackedRanges
+
+	private _acquireDecorationsTracker(): DecorationsTracker {
+		if (this._currentDecorationsTrackerCnt === 0) {
+			this._currentDecorationsTracker = new DecorationsTracker();
+		}
+		this._currentDecorationsTrackerCnt++;
+		return this._currentDecorationsTracker;
+	}
+
+	private _releaseDecorationsTracker(): void {
+		this._currentDecorationsTrackerCnt--;
+		if (this._currentDecorationsTrackerCnt === 0) {
+			let decorationsTracker = this._currentDecorationsTracker;
+			this._currentDecorationsTracker = null;
+			this._handleTrackedDecorations(decorationsTracker);
+		}
+	}
+
+	private _handleTrackedDecorations(decorationsTracker: DecorationsTracker): void {
+		if (
+			!decorationsTracker.didAddDecorations
+			&& !decorationsTracker.didChangeDecorations
+			&& !decorationsTracker.didRemoveDecorations
+		) {
+			return;
+		}
+
+		this.emitModelDecorationsChangedEvent();
+	}
 
 	public changeDecorations<T>(callback: (changeAccessor: editorCommon.IModelDecorationsChangeAccessor) => T, ownerId: number = 0): T {
 		this._assertNotDisposed();
@@ -323,57 +349,15 @@ export class TextModelWithDecorations extends TextModelWithTokens implements edi
 		return this._ensureNodesHaveRanges(result);
 	}
 
-	protected _acquireMarkersTracker(): MarkersTracker {
-		if (this._currentMarkersTrackerCnt === 0) {
-			this._currentMarkersTracker = new MarkersTracker();
-		}
+	protected _acquireMarkersTracker(): void {
 		this._currentMarkersTrackerCnt++;
-		return this._currentMarkersTracker;
 	}
 
 	protected _releaseMarkersTracker(): void {
 		this._currentMarkersTrackerCnt--;
 		if (this._currentMarkersTrackerCnt === 0) {
-			let markersTracker = this._currentMarkersTracker;
-			this._currentMarkersTracker = null;
-			this._handleTrackedMarkers(markersTracker);
+			this.emitModelDecorationsChangedEvent();
 		}
-	}
-
-	/**
-	 * Handle changed markers (i.e. update decorations ranges)
-	 */
-	private _handleTrackedMarkers(markersTracker: MarkersTracker): void {
-		this.emitModelDecorationsChangedEvent();
-	}
-
-	private _acquireDecorationsTracker(): DecorationsTracker {
-		if (this._currentDecorationsTrackerCnt === 0) {
-			this._currentDecorationsTracker = new DecorationsTracker();
-		}
-		this._currentDecorationsTrackerCnt++;
-		return this._currentDecorationsTracker;
-	}
-
-	private _releaseDecorationsTracker(): void {
-		this._currentDecorationsTrackerCnt--;
-		if (this._currentDecorationsTrackerCnt === 0) {
-			let decorationsTracker = this._currentDecorationsTracker;
-			this._currentDecorationsTracker = null;
-			this._handleTrackedDecorations(decorationsTracker);
-		}
-	}
-
-	private _handleTrackedDecorations(decorationsTracker: DecorationsTracker): void {
-		if (
-			!decorationsTracker.didAddDecorations
-			&& !decorationsTracker.didChangeDecorations
-			&& !decorationsTracker.didRemoveDecorations
-		) {
-			return;
-		}
-
-		this.emitModelDecorationsChangedEvent();
 	}
 
 	private emitModelDecorationsChangedEvent(): void {
@@ -598,21 +582,6 @@ const TRACKED_RANGE_OPTIONS = [
 	ModelDecorationOptions.register({ stickiness: editorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingBefore }),
 	ModelDecorationOptions.register({ stickiness: editorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingAfter }),
 ];
-
-class ModelDeltaDecoration implements editorCommon.IModelDeltaDecoration {
-
-	_modelDeltaDecorationBrand: void;
-
-	index: number;
-	range: Range;
-	options: ModelDecorationOptions;
-
-	constructor(index: number, range: Range, options: ModelDecorationOptions) {
-		this.index = index;
-		this.range = range;
-		this.options = options;
-	}
-}
 
 function _normalizeOptions(options: editorCommon.IModelDecorationOptions): ModelDecorationOptions {
 	if (options instanceof ModelDecorationOptions) {
