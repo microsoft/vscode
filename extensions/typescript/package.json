@@ -399,6 +399,15 @@
           "default": true,
           "description": "%typescript.quickSuggestionsForPaths%",
           "scope": "resource"
+        },
+        "typescript.locale": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "%typescript.locale%",
+          "scope": "window"
         }
       }
     },

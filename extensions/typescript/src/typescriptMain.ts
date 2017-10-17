@@ -690,7 +690,9 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 			const converted = new Diagnostic(range, text);
 			converted.severity = this.getDiagnosticSeverity(diagnostic);
 			converted.source = diagnostic.source || source;
-			converted.code = '' + diagnostic.code;
+			if (diagnostic.code) {
+				converted.code = diagnostic.code;
+			}
 			result.push(converted);
 		}
 		return result;
