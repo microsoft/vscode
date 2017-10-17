@@ -8,6 +8,57 @@
 import { window, Uri, Disposable, Event, EventEmitter, DecorationData, DecorationProvider } from 'vscode';
 import { Repository, GitResourceGroup } from './repository';
 import { Model } from './model';
+import { debounce } from './decorators';
+
+class GitIgnoreDecorationProvider implements DecorationProvider {
+
+	private readonly _onDidChangeDecorations = new EventEmitter<Uri[]>();
+	readonly onDidChangeDecorations: Event<Uri[]> = this._onDidChangeDecorations.event;
+
+	private checkIgnoreQueue = new Map<string, { resolve: (status: boolean) => void, reject: (err: any) => void }>();
+	private disposables: Disposable[] = [];
+
+	constructor(private repository: Repository) {
+		this.disposables.push(
+			window.registerDecorationProvider(this, '.gitignore')
+			//todo@joh -> events when the ignore status actually changes, not when the file changes
+		);
+	}
+
+	dispose(): void {
+		this.disposables.forEach(d => d.dispose());
+		this.checkIgnoreQueue.clear();
+	}
+
+	provideDecoration(uri: Uri): Promise<DecorationData | undefined> {
+		return new Promise<boolean>((resolve, reject) => {
+			this.checkIgnoreQueue.set(uri.fsPath, { resolve, reject });
+			this.checkIgnoreSoon();
+		}).then(ignored => {
+			if (ignored) {
+				return <DecorationData>{
+					priority: 3,
+					opacity: 0.75
+				};
+			}
+		});
+	}
+
+	@debounce(500)
+	private checkIgnoreSoon(): void {
+		const queue = new Map(this.checkIgnoreQueue.entries());
+		this.checkIgnoreQueue.clear();
+		this.repository.checkIgnore([...queue.keys()]).then(ignoreSet => {
+			for (const [key, value] of queue.entries()) {
+				value.resolve(ignoreSet.has(key));
+			}
+		}, err => {
+			for (const [, value] of queue.entries()) {
+				value.reject(err);
+			}
+		});
+	}
+}
 
 class GitDecorationProvider implements DecorationProvider {
 
@@ -65,7 +116,7 @@ class GitDecorationProvider implements DecorationProvider {
 export class GitDecorations {
 
 	private disposables: Disposable[] = [];
-	private providers = new Map<Repository, GitDecorationProvider>();
+	private providers = new Map<Repository, Disposable>();
 
 	constructor(private model: Model) {
 		this.disposables.push(
@@ -77,7 +128,8 @@ export class GitDecorations {
 
 	private onDidOpenRepository(repository: Repository): void {
 		const provider = new GitDecorationProvider(repository);
-		this.providers.set(repository, provider);
+		const ignoreProvider = new GitIgnoreDecorationProvider(repository);
+		this.providers.set(repository, Disposable.from(provider, ignoreProvider));
 	}
 
 	private onDidCloseRepository(repository: Repository): void {

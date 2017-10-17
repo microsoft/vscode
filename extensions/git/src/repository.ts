@@ -646,6 +646,42 @@ export class Repository implements Disposable {
 		});
 	}
 
+	checkIgnore(filePaths: string[]): Promise<Set<string>> {
+		return this.run(Operation.Ignore, () => {
+			return new Promise<Set<string>>((resolve, reject) => {
+
+				const child = this.repository.stream(['check-ignore', ...filePaths]);
+
+				const onExit = exitCode => {
+					if (exitCode === 1) {
+						// nothing ignored
+						resolve(new Set<string>());
+					} else if (exitCode === 0) {
+						// each line is something ignored
+						resolve(new Set<string>(data.split('\n')));
+					} else {
+						reject();
+					}
+				};
+
+				let data = '';
+				const onStdoutData = (raw: string) => {
+					data += raw;
+				};
+
+				child.stdout.setEncoding('utf8');
+				child.stdout.on('data', onStdoutData);
+
+				// const stderrData: string[] = [];
+				// child.stderr.setEncoding('utf8');
+				// child.stderr.on('data', raw => stderrData.push(raw as string));
+
+				child.on('error', reject);
+				child.on('exit', onExit);
+			});
+		});
+	}
+
 	private async run<T>(operation: Operation, runOperation: () => Promise<T> = () => Promise.resolve<any>(null)): Promise<T> {
 		if (this.state !== RepositoryState.Idle) {
 			throw new Error('Repository not initialized');

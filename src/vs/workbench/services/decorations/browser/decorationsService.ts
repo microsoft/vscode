@@ -249,15 +249,16 @@ class DecorationProviderWrapper {
 			return;
 		}
 
-		if (item === undefined && !includeChildren) {
-			// unknown, a leaf node -> trigger request
+		if (item === undefined) {
+			// unknown -> trigger request
 			item = this._fetchData(uri);
 		}
 
 		if (item) {
-			// leaf node
+			// found something
 			callback(item, false);
 		}
+
 		if (includeChildren) {
 			// (resolved) children
 			const childTree = this.data.findSuperstr(key);
