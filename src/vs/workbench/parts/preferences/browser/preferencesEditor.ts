@@ -450,7 +450,7 @@ class PreferencesRenderers extends Disposable {
 			const editablePreferencesFilteredGroups = editablePreferencesFilterResult ? editablePreferencesFilterResult.filteredGroups : this._getAllPreferences(this._editablePreferencesRenderer);
 			const consolidatedSettings = this._consolidateSettings(editablePreferencesFilteredGroups, defaultPreferencesFilteredGroups);
 
-			if (defaultPreferencesFilterResult && defaultPreferencesFilterResult.remoteResult) {
+			if (defaultPreferencesFilterResult && defaultPreferencesFilterResult.metadata) {
 				// Disable navigation for remote settings search
 				this._settingsNavigator = null;
 			} else {

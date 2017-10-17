@@ -56,14 +56,13 @@ export interface IFilterResult {
 	filteredGroups: ISettingsGroup[];
 	allGroups: ISettingsGroup[];
 	matches: IRange[];
-	remoteResult?: IRemoteFilterResult;
+	metadata?: IFilterMetadata;
 }
 
-export interface IRemoteFilterResult {
-	url: string;
+export interface IFilterMetadata {
+	remoteUrl: string;
 	timestamp: number;
 	duration: number;
-	scores: { [key: string]: number };
 }
 
 export interface IPreferencesEditorModel<T> {
@@ -79,7 +78,7 @@ export type ISettingFilter = (setting: ISetting) => IRange[];
 export interface ISettingsEditorModel extends IPreferencesEditorModel<ISetting> {
 	settingsGroups: ISettingsGroup[];
 	groupsTerms: string[];
-	filterSettings(filter: string, groupFilter: IGroupFilter, settingFilter: ISettingFilter): IFilterResult;
+	filterSettings(filter: string, groupFilter: IGroupFilter, settingFilter: ISettingFilter, scores?: { [key: string]: number }): IFilterResult;
 	findValueMatches(filter: string, setting: ISetting): IRange[];
 }
 

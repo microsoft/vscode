@@ -296,7 +296,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 	public filterPreferences(filterResult: IFilterResult): void {
 		this.filterResult = filterResult;
 		if (filterResult) {
-			if (filterResult.remoteResult) {
+			if (filterResult.metadata) {
 				this.filteredMatchesRenderer.render(null);
 				this.settingsGroupTitleRenderer.render(null);
 			} else {
@@ -553,13 +553,6 @@ export class HiddenAreasRenderer extends Disposable {
 }
 
 export class MostRelevantMatchesRenderer extends Disposable implements HiddenAreasProvider {
-
-	private static settingsInsertStart = 4;
-	private static settingsInsertEnd = DefaultSettingsEditorModel.MOST_RELEVANT_SECTION_LENGTH - 1;
-	private static emptyLines = MostRelevantMatchesRenderer.settingsInsertEnd - MostRelevantMatchesRenderer.settingsInsertStart + 1;
-	private static bunchOfNewlines = strings.repeat('\n', MostRelevantMatchesRenderer.emptyLines);
-	private static editId = 'mostRelevantMatchesRenderer';
-
 	public hiddenAreas: IRange[] = [];
 
 	constructor(private editor: ICodeEditor,
@@ -569,128 +562,9 @@ export class MostRelevantMatchesRenderer extends Disposable implements HiddenAre
 	}
 
 	public render(result: IFilterResult): void {
-		this.hiddenAreas = [];
-		if (result && result.matches.length && result.remoteResult) {
-			const settingsTextEndLine = this.renderResults(result);
-
-			this.hiddenAreas = [{
-				startLineNumber: settingsTextEndLine + 1,
-				startColumn: 0,
-				endLineNumber: this.editor.getModel().getLineCount(),
-				endColumn: 0
-			}];
-		} else {
-			this.renderSearchResultsSection();
-			this.hiddenAreas = [{
-				startLineNumber: MostRelevantMatchesRenderer.settingsInsertStart,
-				startColumn: 0,
-				endLineNumber: MostRelevantMatchesRenderer.settingsInsertEnd,
-				endColumn: 0
-			}];
+		if (result && result.metadata) {
+			// TODO - Hide unused portion of most relevant results section
 		}
-	}
-
-	private renderResults(result: IFilterResult): number {
-		this.hiddenAreas = [];
-		this.editor.updateOptions({ readOnly: false });
-
-		const relevantRanges = this.getOrderedSettingRanges(result.filteredGroups, result.allGroups, result.remoteResult.scores, this.editor.getModel());
-		let totalLines = 0;
-		const settingsValue = relevantRanges.map(visibleRange => {
-			const settingLines = (visibleRange.endLineNumber - visibleRange.startLineNumber) + 1;
-			if (totalLines + settingLines <= MostRelevantMatchesRenderer.emptyLines) {
-				totalLines += settingLines;
-				const value = this.editor.getModel().getValueInRange(visibleRange);
-				return value.replace(/([^,])\n$/, '$1,\n'); // ensure ends in ','
-			} else {
-				// Skip lines that push the total length past 50
-				return null;
-			}
-		})
-			.filter(line => !!line)
-			.join('\n');
-
-		const settingsTextStartLine = MostRelevantMatchesRenderer.settingsInsertStart;
-		const settingsTextEndLine = settingsTextStartLine + totalLines - 1;
-		this.editor.executeEdits(MostRelevantMatchesRenderer.editId, [{
-			text: settingsValue,
-			forceMoveMarkers: false,
-			range: new Range(settingsTextStartLine, 0, settingsTextEndLine, 0),
-			identifier: { major: 1, minor: 0 }
-		}]);
-
-		this.editor.updateOptions({ readOnly: true });
-
-		return settingsTextEndLine;
-	}
-
-	private renderSearchResultsSection(): void {
-		this.editor.updateOptions({ readOnly: false });
-
-		this.editor.executeEdits(MostRelevantMatchesRenderer.editId, [{
-			text: MostRelevantMatchesRenderer.bunchOfNewlines,
-			forceMoveMarkers: false,
-			range: new Range(MostRelevantMatchesRenderer.settingsInsertStart, 0, MostRelevantMatchesRenderer.settingsInsertEnd + 1, 0),
-			identifier: { major: 1, minor: 0 }
-		}]);
-
-		this.editor.updateOptions({ readOnly: true });
-	}
-
-	private getOrderedSettingRanges(filteredGroups: ISettingsGroup[], allSettingsGroups: ISettingsGroup[], scores: any, model: editorCommon.IModel): IRange[] {
-		// Manually exclude mostCommonlyUsed section to avoid dupes
-		if (filteredGroups.length && filteredGroups[0].id === 'mostCommonlyUsed') {
-			filteredGroups.shift();
-		}
-
-		const matchingRanges: { range: IRange, name: string }[] = [];
-		for (const group of allSettingsGroups) {
-			const filteredGroup = filteredGroups.filter(g => g.title === group.title)[0];
-			if (filteredGroup) {
-				for (const section of group.sections) {
-					for (const setting of section.settings) {
-						if (this.containsLine(setting.range.startLineNumber, filteredGroup)) {
-							matchingRanges.push({
-								name: setting.key,
-								range: this.createCompleteRange(setting.range, model)
-							});
-						}
-					}
-				}
-			}
-		}
-
-		return matchingRanges
-			.sort((a, b) => scores[b.name] - scores[a.name])
-			.map(r => r.range);
-	}
-
-	private containsLine(lineNumber: number, settingsGroup: ISettingsGroup): boolean {
-		if (settingsGroup.titleRange && lineNumber >= settingsGroup.titleRange.startLineNumber && lineNumber <= settingsGroup.titleRange.endLineNumber) {
-			return true;
-		}
-
-		for (const section of settingsGroup.sections) {
-			if (section.titleRange && lineNumber >= section.titleRange.startLineNumber && lineNumber <= section.titleRange.endLineNumber) {
-				return true;
-			}
-
-			for (const setting of section.settings) {
-				if (lineNumber >= setting.range.startLineNumber && lineNumber <= setting.range.endLineNumber) {
-					return true;
-				}
-			}
-		}
-		return false;
-	}
-
-	private createCompleteRange(range: IRange, model: editorCommon.IModel): IRange {
-		return {
-			startLineNumber: range.startLineNumber,
-			startColumn: model.getLineMinColumn(range.startLineNumber),
-			endLineNumber: range.endLineNumber,
-			endColumn: model.getLineMaxColumn(range.endLineNumber)
-		};
 	}
 }
 
@@ -710,7 +584,7 @@ export class FeedbackWidgetRenderer extends Disposable {
 
 	public render(result: IFilterResult): void {
 		this._currentResult = result;
-		if (result && result.remoteResult) {
+		if (result && result.metadata) {
 			this.showWidget();
 		} else if (this._feedbackWidget) {
 			this.disposeWidget();
@@ -727,8 +601,7 @@ export class FeedbackWidgetRenderer extends Disposable {
 
 	private getFeedback(): void {
 		const result = this._currentResult;
-		const actualResults = Object.keys(result.remoteResult.scores)
-			.sort((a, b) => result.remoteResult.scores[b] - result.remoteResult.scores[a]);
+		const actualResults = result.filteredGroups[0].sections[0].settings.map(setting => setting.key);
 		const actualResultText = actualResults.join('\n');
 
 		const contents = FeedbackWidgetRenderer.COMMENT_TEXT + '\n' + actualResultText;
@@ -769,9 +642,9 @@ export class FeedbackWidgetRenderer extends Disposable {
 			userComment: commentText === FeedbackWidgetRenderer.COMMENT_TEXT ? undefined : commentText,
 			actualResults,
 			expectedResults,
-			url: result.remoteResult.url,
-			duration: result.remoteResult.duration,
-			timestamp: result.remoteResult.timestamp
+			url: result.metadata.remoteUrl,
+			duration: result.metadata.duration,
+			timestamp: result.metadata.timestamp
 		});
 		console.log('Feedback sent successfully');
 	}

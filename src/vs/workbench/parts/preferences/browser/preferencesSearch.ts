@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ISettingsEditorModel, IFilterResult, ISetting, ISettingsGroup, IWorkbenchSettingsConfiguration, IRemoteFilterResult } from 'vs/workbench/parts/preferences/common/preferences';
+import { ISettingsEditorModel, IFilterResult, ISetting, ISettingsGroup, IWorkbenchSettingsConfiguration, IFilterMetadata } from 'vs/workbench/parts/preferences/common/preferences';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { distinct } from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
@@ -73,9 +73,18 @@ class LocalSearchProvider {
 	}
 }
 
+export interface IRemoteScores {
+	[key: string]: number;
+}
+
+interface IRemoteResult {
+	metadata: IFilterMetadata;
+	scores: IRemoteScores;
+}
+
 class RemoteSearchProvider {
 	private _filter: string;
-	private _remoteSearchP: TPromise<IRemoteFilterResult>;
+	private _remoteSearchP: TPromise<IRemoteResult>;
 
 	constructor(filter: string) {
 		this._filter = filter;
@@ -98,8 +107,8 @@ class RemoteSearchProvider {
 			};
 
 			if (remoteResult) {
-				const result = preferencesModel.filterSettings(this._filter, group => null, settingFilter);
-				result.remoteResult = remoteResult;
+				const result = preferencesModel.filterSettings(this._filter, group => null, settingFilter, remoteResult.scores);
+				result.metadata = remoteResult.metadata;
 				return result;
 			} else {
 				return null;
@@ -108,16 +117,16 @@ class RemoteSearchProvider {
 	}
 }
 
-function getSettingsFromBing(filter: string): TPromise<IRemoteFilterResult> {
+function getSettingsFromBing(filter: string): TPromise<IRemoteResult> {
 	const url = prepareUrl(filter);
 	console.log('fetching: ' + url);
 	const start = Date.now();
 	const p = fetch(url, {
-		headers: {
+		headers: new Headers({
 			'User-Agent': 'request',
 			'Content-Type': 'application/json; charset=utf-8',
 			'api-key': endpoint.key
-		}
+		})
 	})
 		.then(r => r.json())
 		.then(result => {
@@ -138,11 +147,13 @@ function getSettingsFromBing(filter: string): TPromise<IRemoteFilterResult> {
 				scores[name] = s.score;
 			});
 
-			return <IRemoteFilterResult>{
-				url,
-				scores,
-				duration,
-				timestamp
+			return <IRemoteResult>{
+				metadata: {
+					remoteUrl: url,
+					duration,
+					timestamp
+				},
+				scores
 			};
 		});
 
