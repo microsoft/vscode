@@ -228,7 +228,9 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		let changeAccessor: editorCommon.IModelDecorationsChangeAccessor = {
 			addDecoration: (range: IRange, options: editorCommon.IModelDecorationOptions): string => {
 				if (USE_NEW_DECORATIONS) {
-					return this._deltaDecorationsImpl2(decorationsTracker, ownerId, [], [{ range: range, options: options }])[0];
+					decorationsTracker.markDidAddDecorations();
+					decorationsTracker.markDidRemoveDecorations();
+					return this._deltaDecorationsImpl2(ownerId, [], [{ range: range, options: options }])[0];
 				}
 				return this._addDecorationImpl(decorationsTracker, ownerId, this.validateRange(range), _normalizeOptions(options));
 			},
@@ -248,14 +250,18 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 			},
 			removeDecoration: (id: string): void => {
 				if (USE_NEW_DECORATIONS) {
-					this._deltaDecorationsImpl2(decorationsTracker, ownerId, [id], []);
+					decorationsTracker.markDidAddDecorations();
+					decorationsTracker.markDidRemoveDecorations();
+					this._deltaDecorationsImpl2(ownerId, [id], []);
 					return;
 				}
 				this._removeDecorationImpl(decorationsTracker, id);
 			},
 			deltaDecorations: (oldDecorations: string[], newDecorations: editorCommon.IModelDeltaDecoration[]): string[] => {
 				if (USE_NEW_DECORATIONS) {
-					return this._deltaDecorationsImpl2(decorationsTracker, ownerId, oldDecorations, newDecorations);
+					decorationsTracker.markDidAddDecorations();
+					decorationsTracker.markDidRemoveDecorations();
+					return this._deltaDecorationsImpl2(ownerId, oldDecorations, newDecorations);
 				}
 				return this._deltaDecorationsImpl(decorationsTracker, ownerId, oldDecorations, this._normalizeDeltaDecorations(newDecorations));
 			}
@@ -282,6 +288,41 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		return this.changeDecorations((changeAccessor) => {
 			return changeAccessor.deltaDecorations(oldDecorations, newDecorations);
 		}, ownerId);
+	}
+
+	_getTrackedRange(id: string): Range {
+		return this.getDecorationRange(id);
+	}
+
+	_deltaTrackedRange(id: string, newRange: Range, newStickiness: editorCommon.TrackedRangeStickiness): string {
+		const node = (id ? this._treeDecorations[id] : null);
+
+		if (!node) {
+			if (!newRange) {
+				// node doesn't exist, the request is to delete => nothing to do
+				return null;
+			}
+			// node doesn't exist, the request is to set => add the tracked range
+			return this._deltaDecorationsImpl2(0, [], [{ range: newRange, options: TRACKED_RANGE_OPTIONS[newStickiness] }])[0];
+		}
+
+		if (!newRange) {
+			// node exists, the request is to delete => delete node
+			this._tree.delete(node);
+			delete this._treeDecorations[node.id];
+			return null;
+		}
+
+		// node exists, the request is to set => change the tracked range and its options
+		const range = this._validateRangeRelaxedNoAllocations(newRange);
+		this._ensureLineStarts();
+		const startOffset = this._lineStarts.getAccumulatedValue(range.startLineNumber - 2) + range.startColumn - 1;
+		const endOffset = this._lineStarts.getAccumulatedValue(range.endLineNumber - 2) + range.endColumn - 1;
+		this._tree.delete(node);
+		node.reset(this.getVersionId(), startOffset, endOffset, range);
+		node.setOptions(TRACKED_RANGE_OPTIONS[newStickiness]);
+		this._tree.insert(node);
+		return node.id;
 	}
 
 	public removeAllDecorationsWithOwnerId(ownerId: number): void {
@@ -798,6 +839,7 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		if (!node) {
 			return;
 		}
+		this._ensureLineStarts();
 		const range = this._validateRangeRelaxedNoAllocations(_range);
 		const startOffset = this._lineStarts.getAccumulatedValue(range.startLineNumber - 2) + range.startColumn - 1;
 		const endOffset = this._lineStarts.getAccumulatedValue(range.endLineNumber - 2) + range.endColumn - 1;
@@ -981,7 +1023,7 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		return result;
 	}
 
-	private _deltaDecorationsImpl2(decorationsTracker: DecorationsTracker, ownerId: number, oldDecorationsIds: string[], newDecorations: editorCommon.IModelDeltaDecoration[]): string[] {
+	private _deltaDecorationsImpl2(ownerId: number, oldDecorationsIds: string[], newDecorations: editorCommon.IModelDeltaDecoration[]): string[] {
 		this._ensureLineStarts();
 		const versionId = this.getVersionId();
 
@@ -1039,9 +1081,6 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 				}
 			}
 		}
-
-		decorationsTracker.markDidAddDecorations();
-		decorationsTracker.markDidRemoveDecorations();
 
 		return result;
 	}
@@ -1157,6 +1196,16 @@ export class ModelDecorationOptions implements editorCommon.IModelDecorationOpti
 	}
 }
 ModelDecorationOptions.EMPTY = ModelDecorationOptions.register({});
+
+/**
+ * The order carefully matches the values of the enum.
+ */
+const TRACKED_RANGE_OPTIONS = [
+	ModelDecorationOptions.register({ stickiness: editorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges }),
+	ModelDecorationOptions.register({ stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges }),
+	ModelDecorationOptions.register({ stickiness: editorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingBefore }),
+	ModelDecorationOptions.register({ stickiness: editorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingAfter }),
+];
 
 class ModelDeltaDecoration implements editorCommon.IModelDeltaDecoration {
 

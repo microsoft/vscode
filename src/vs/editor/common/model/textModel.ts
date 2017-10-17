@@ -8,6 +8,7 @@ import { OrderGuaranteeEventEmitter, BulkListenerCallback } from 'vs/base/common
 import * as strings from 'vs/base/common/strings';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range, IRange } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ModelLine, IModelLine, MinimalModelLine } from 'vs/editor/common/model/modelLine';
 import { guessIndentation } from 'vs/editor/common/model/indentationGuesser';
@@ -670,6 +671,7 @@ export class TextModel implements editorCommon.ITextModel {
 			&& initialEndLineNumber === endLineNumber
 			&& initialEndColumn === endColumn
 			&& range instanceof Range
+			&& !(range instanceof Selection)
 		) {
 			return range;
 		}

@@ -1041,6 +1041,16 @@ export interface ITextModelWithDecorations {
 	 * @param filterOutValidation If set, it will ignore decorations specific to validation (i.e. warnings, errors).
 	 */
 	getOverviewRulerDecorations(ownerId?: number, filterOutValidation?: boolean): IModelDecoration[];
+
+	/**
+	 * @internal
+	 */
+	_getTrackedRange(id: string): Range;
+
+	/**
+	 * @internal
+	 */
+	_deltaTrackedRange(id: string, newRange: Range, newStickiness: TrackedRangeStickiness): string;
 }
 
 /**
