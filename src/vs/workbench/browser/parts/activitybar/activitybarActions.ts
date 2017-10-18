@@ -121,6 +121,12 @@ export class GlobalActivityActionItem extends ActivityActionItem {
 	public onClick(event?: MouseEvent | KeyboardEvent): void {
 		DOM.EventHelper.stop(event, true);
 
+		// Prevent duplicate menu showing because we already handle MOUSE_DOWN
+		// (refs: // https://github.com/Microsoft/vscode/issues/36244)
+		if (event.type === DOM.EventType.CLICK) {
+			return;
+		}
+
 		let location: HTMLElement | { x: number, y: number };
 		if (event instanceof MouseEvent) {
 			const mouseEvent = new StandardMouseEvent(event);
