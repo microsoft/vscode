@@ -68,6 +68,14 @@ function setNodeIsVisited(node: IntervalNode, value: boolean): void {
 		(node.metadata & Constants.IsVisitedMaskInverse) | ((value ? 1 : 0) << Constants.IsVisitedOffset)
 	);
 }
+function getNodeIsForValidation(node: IntervalNode): boolean {
+	return ((node.metadata & Constants.IsForValidationMask) >>> Constants.IsForValidationOffset) === 1;
+}
+function setNodeIsForValidation(node: IntervalNode, value: boolean): void {
+	node.metadata = (
+		(node.metadata & Constants.IsForValidationMaskInverse) | ((value ? 1 : 0) << Constants.IsForValidationOffset)
+	);
+}
 
 export class IntervalNode implements IModelDecoration {
 
@@ -88,7 +96,6 @@ export class IntervalNode implements IModelDecoration {
 	public id: string;
 	public ownerId: number;
 	public options: ModelDecorationOptions;
-	public isForValidation: boolean;
 	public stickiness: TrackedRangeStickiness;
 
 	public cachedVersionId: number;
@@ -112,7 +119,7 @@ export class IntervalNode implements IModelDecoration {
 		this.id = id;
 		this.ownerId = 0;
 		this.options = null;
-		this.isForValidation = false;
+		setNodeIsForValidation(this, false);
 		this.stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
 
 		this.cachedVersionId = 0;
@@ -135,10 +142,10 @@ export class IntervalNode implements IModelDecoration {
 
 	public setOptions(options: ModelDecorationOptions) {
 		this.options = options;
-		this.isForValidation = (
+		setNodeIsForValidation(this, (
 			this.options.className === ClassName.EditorErrorDecoration
 			|| this.options.className === ClassName.EditorWarningDecoration
-		);
+		));
 		this.stickiness = <number>this.options.stickiness;
 	}
 
@@ -646,7 +653,7 @@ function search(T: IntervalTree, filterOwnerId: number, filterOutValidation: boo
 		if (filterOwnerId && node.ownerId && node.ownerId !== filterOwnerId) {
 			include = false;
 		}
-		if (filterOutValidation && node.isForValidation) {
+		if (filterOutValidation && getNodeIsForValidation(node)) {
 			include = false;
 		}
 		if (overviewRulerOnly && !node.options.overviewRuler.color) {
@@ -736,7 +743,7 @@ function intervalSearch(T: IntervalTree, intervalStart: number, intervalEnd: num
 			if (filterOwnerId && node.ownerId && node.ownerId !== filterOwnerId) {
 				include = false;
 			}
-			if (filterOutValidation && node.isForValidation) {
+			if (filterOutValidation && getNodeIsForValidation(node)) {
 				include = false;
 			}
 
