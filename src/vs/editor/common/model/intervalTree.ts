@@ -157,14 +157,12 @@ export class IntervalNode implements IModelDecoration {
 	}
 
 	public setCachedOffsets(absoluteStart: number, absoluteEnd: number, cachedVersionId: number): void {
-		this.cachedVersionId = cachedVersionId;
-		if (this.cachedAbsoluteStart === absoluteStart && this.cachedAbsoluteEnd === absoluteEnd) {
-			// no change
-			return;
+		if (this.cachedVersionId !== cachedVersionId) {
+			this.range = null;
 		}
+		this.cachedVersionId = cachedVersionId;
 		this.cachedAbsoluteStart = absoluteStart;
 		this.cachedAbsoluteEnd = absoluteEnd;
-		this.range = null;
 	}
 
 	public detach(): void {
@@ -265,8 +263,8 @@ export class IntervalTree {
 		}
 	}
 
-	public recomputeAllMaxEnds(): void {
-		recomputeAllMaxEnds(this);
+	public collectNodesPostOrder(): IntervalNode[] {
+		return collectNodesPostOrder(this);
 	}
 
 	public assertInvariants(): void {
@@ -621,6 +619,43 @@ function collectNodesFromOwner(T: IntervalTree, ownerId: number): IntervalNode[]
 			node = node.right;
 			continue;
 		}
+	}
+
+	if (T.root) {
+		setNodeIsVisited(T.root, false);
+	}
+
+	return result;
+}
+
+function collectNodesPostOrder(T: IntervalTree): IntervalNode[] {
+	let node = T.root;
+	let result: IntervalNode[] = [];
+	let resultLen = 0;
+	while (node !== SENTINEL) {
+		if (getNodeIsVisited(node)) {
+			// going up from this node
+			setNodeIsVisited(node.left, false);
+			setNodeIsVisited(node.right, false);
+			node = node.parent;
+			continue;
+		}
+
+		if (node.left !== SENTINEL && !getNodeIsVisited(node.left)) {
+			// go left
+			node = node.left;
+			continue;
+		}
+
+		if (node.right !== SENTINEL && !getNodeIsVisited(node.right)) {
+			// go right
+			node = node.right;
+			continue;
+		}
+
+		// handle current node
+		result[resultLen++] = node;
+		setNodeIsVisited(node, true);
 	}
 
 	if (T.root) {
@@ -1134,39 +1169,6 @@ function rightRotate(T: IntervalTree, y: IntervalNode): void {
 
 //#region max end computation
 
-function recomputeAllMaxEnds(T: IntervalTree): void {
-	let node = T.root;
-	while (node !== SENTINEL) {
-		if (getNodeIsVisited(node)) {
-			// going up from this node
-			setNodeIsVisited(node.left, false);
-			setNodeIsVisited(node.right, false);
-			node = node.parent;
-			continue;
-		}
-
-		if (node.left !== SENTINEL && !getNodeIsVisited(node.left)) {
-			// go left
-			node = node.left;
-			continue;
-		}
-
-		if (node.right !== SENTINEL && !getNodeIsVisited(node.right)) {
-			// go right
-			node = node.right;
-			continue;
-		}
-
-		// handle current node
-		recomputeMaxEnd(node);
-		setNodeIsVisited(node, true);
-	}
-
-	if (T.root) {
-		setNodeIsVisited(T.root, false);
-	}
-}
-
 function computeMaxEnd(node: IntervalNode): number {
 	let maxEnd = node.end;
 	if (node.left !== SENTINEL) {
@@ -1184,7 +1186,7 @@ function computeMaxEnd(node: IntervalNode): number {
 	return maxEnd;
 }
 
-function recomputeMaxEnd(node: IntervalNode): void {
+export function recomputeMaxEnd(node: IntervalNode): void {
 	node.maxEnd = computeMaxEnd(node);
 }
 

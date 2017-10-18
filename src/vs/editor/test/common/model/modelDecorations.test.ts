@@ -377,6 +377,14 @@ suite('Editor Model - Model Decorations', () => {
 			{ range: new Range(1, 12, 4, 1), className: 'myType9' },
 		]);
 	});
+
+	test('an apparently simple edit', () => {
+		addDecoration(thisModel, 1, 2, 4, 1, 'myType1');
+		thisModel.applyEdits([EditOperation.replace(new Range(1, 14, 2, 1), 'x')]);
+		modelHasDecorations(thisModel, [
+			{ range: new Range(1, 2, 3, 1), className: 'myType1' },
+		]);
+	});
 });
 
 suite('Decorations and editing', () => {

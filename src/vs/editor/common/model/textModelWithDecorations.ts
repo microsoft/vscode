@@ -15,7 +15,7 @@ import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { ITextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
-import { IntervalNode, IntervalTree } from 'vs/editor/common/model/intervalTree';
+import { IntervalNode, IntervalTree, recomputeMaxEnd } from 'vs/editor/common/model/intervalTree';
 
 let _INSTANCE_COUNT = 0;
 /**
@@ -114,7 +114,7 @@ export class TextModelWithDecorations extends TextModelWithTokens implements edi
 
 		// Transform back `range` to offsets
 		const versionId = this.getVersionId();
-		const allDecorations = this._decorationsTree.search(0, false, false, versionId);
+		const allDecorations = this._decorationsTree.collectNodesPostOrder();
 		for (let i = 0, len = allDecorations.length; i < len; i++) {
 			const node = allDecorations[i];
 
@@ -129,9 +129,9 @@ export class TextModelWithDecorations extends TextModelWithTokens implements edi
 
 			node.start = startOffset - delta;
 			node.end = endOffset - delta;
-		}
 
-		this._decorationsTree.recomputeAllMaxEnds();
+			recomputeMaxEnd(node);
+		}
 	}
 
 	public changeDecorations<T>(callback: (changeAccessor: editorCommon.IModelDecorationsChangeAccessor) => T, ownerId: number = 0): T {
