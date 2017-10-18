@@ -297,7 +297,7 @@ export class WorkspaceConfigurationChangeEvent implements IConfigurationChangeEv
 			return true;
 		}
 
-		if (resource) {
+		if (resource && this.workspace) {
 			let workspaceFolder = this.workspace.getFolder(resource);
 			if (workspaceFolder) {
 				return this.configurationChangeEvent.affectsConfiguration(config, workspaceFolder.uri);
