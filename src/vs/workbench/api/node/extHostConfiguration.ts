@@ -9,10 +9,12 @@ import URI from 'vs/base/common/uri';
 import Event, { Emitter } from 'vs/base/common/event';
 import * as vscode from 'vscode';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
-import { ExtHostConfigurationShape, MainThreadConfigurationShape } from './extHost.protocol';
+import { ExtHostConfigurationShape, MainThreadConfigurationShape, IWorkspaceConfigurationChangeEventData } from './extHost.protocol';
 import { ConfigurationTarget as ExtHostConfigurationTarget } from './extHostTypes';
-import { IConfigurationData, ConfigurationTarget, IConfigurationChangeEventData } from 'vs/platform/configuration/common/configuration';
-import { Configuration } from 'vs/platform/configuration/common/configurationModels';
+import { IConfigurationData, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { Configuration, ConfigurationModel, ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
+import { WorkspaceConfigurationChangeEvent } from 'vs/workbench/services/configuration/common/configurationModels';
+import { StrictResourceMap } from 'vs/base/common/map';
 
 function lookUp(tree: any, key: string) {
 	if (key) {
@@ -50,7 +52,7 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 		return this._onDidChangeConfiguration && this._onDidChangeConfiguration.event;
 	}
 
-	$acceptConfigurationChanged(data: IConfigurationData, eventData: IConfigurationChangeEventData) {
+	$acceptConfigurationChanged(data: IConfigurationData, eventData: IWorkspaceConfigurationChangeEventData) {
 		this._configuration = Configuration.parse(data, this._extHostWorkspace.workspace);
 		this._onDidChangeConfiguration.fire(undefined);
 	}
@@ -116,5 +118,17 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 		}
 
 		return <vscode.WorkspaceConfiguration>Object.freeze(result);
+	}
+
+	protected toConfigurationChangeEvent(data: IWorkspaceConfigurationChangeEventData): WorkspaceConfigurationChangeEvent {
+		const changedConfiguration = new ConfigurationModel(data.changedConfiguration.contents, data.changedConfiguration.keys, data.changedConfiguration.overrides);
+		const changedConfigurationByResource: StrictResourceMap<ConfigurationModel> = new StrictResourceMap<ConfigurationModel>();
+		for (const key of Object.keys(data.changedConfigurationByResource)) {
+			const resource = URI.parse(key);
+			const model = data.changedConfigurationByResource[key];
+			changedConfigurationByResource.set(resource, new ConfigurationModel(model.contents, model.keys, model.overrides));
+		}
+		const event = new ConfigurationChangeEvent(changedConfiguration, changedConfigurationByResource);
+		return new WorkspaceConfigurationChangeEvent(event, this._extHostWorkspace.workspace);
 	}
 }
