@@ -5,10 +5,11 @@
 
 'use strict';
 
-import { window, Uri, Disposable, Event, EventEmitter, DecorationData, DecorationProvider, ThemeColor } from 'vscode';
+import { window, workspace, Uri, Disposable, Event, EventEmitter, DecorationData, DecorationProvider, ThemeColor } from 'vscode';
 import { Repository, GitResourceGroup } from './repository';
 import { Model } from './model';
 import { debounce } from './decorators';
+import { filterEvent } from './util';
 
 class GitIgnoreDecorationProvider implements DecorationProvider {
 
@@ -20,8 +21,9 @@ class GitIgnoreDecorationProvider implements DecorationProvider {
 
 	constructor(private repository: Repository) {
 		this.disposables.push(
-			window.registerDecorationProvider(this, '.gitignore')
-			//todo@joh -> events when the ignore status actually changes, not when the file changes
+			window.registerDecorationProvider(this, '.gitignore'),
+			filterEvent(workspace.onDidSaveTextDocument, e => e.fileName.endsWith('.gitignore'))(_ => this._onDidChangeDecorations.fire())
+			//todo@joh -> events when the ignore status actually changes, not only when the file changes
 		);
 	}
 

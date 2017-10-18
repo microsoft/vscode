@@ -28,7 +28,7 @@ export class ExtHostDecorations implements ExtHostDecorationsShape {
 		this._proxy.$registerDecorationProvider(handle, label);
 
 		const listener = provider.onDidChangeDecorations(e => {
-			this._proxy.$onDidChange(handle, Array.isArray(e) ? e : [e]);
+			this._proxy.$onDidChange(handle, !e ? null : Array.isArray(e) ? e : [e]);
 		});
 
 		return new Disposable(() => {

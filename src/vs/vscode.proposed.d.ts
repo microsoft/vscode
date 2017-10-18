@@ -182,7 +182,7 @@ declare module 'vscode' {
 	}
 
 	export interface DecorationProvider {
-		onDidChangeDecorations: Event<Uri | Uri[]>;
+		onDidChangeDecorations: Event<undefined | Uri | Uri[]>;
 		provideDecoration(uri: Uri, token: CancellationToken): ProviderResult<DecorationData>;
 	}
 

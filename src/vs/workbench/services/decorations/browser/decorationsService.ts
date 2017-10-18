@@ -221,12 +221,21 @@ class DecorationProviderWrapper {
 
 	constructor(
 		private readonly _provider: IDecorationsProvider,
-		private readonly _emitter: Emitter<URI | URI[]>
+		private readonly _uriEmitter: Emitter<URI | URI[]>,
+		private readonly _flushEmitter: Emitter<IResourceDecorationChangeEvent>
 	) {
 		this._dispoable = this._provider.onDidChange(uris => {
-			for (const uri of uris) {
-				this.data.delete(uri.toString());
-				this._fetchData(uri);
+			if (!uris) {
+				// flush event -> drop all data, can affect everything
+				this.data.clear();
+				this._flushEmitter.fire({ affectsResource() { return true; } });
+
+			} else {
+				// selective changes -> drop for resource, fetch again, send event
+				for (const uri of uris) {
+					this.data.delete(uri.toString());
+					this._fetchData(uri);
+				}
 			}
 		});
 	}
@@ -293,7 +302,7 @@ class DecorationProviderWrapper {
 	private _keepItem(uri: URI, data: IDecorationData): IDecorationData {
 		let deco = data ? data : null;
 		this.data.set(uri.toString(), deco);
-		this._emitter.fire(uri);
+		this._uriEmitter.fire(uri);
 		return deco;
 	}
 }
@@ -345,7 +354,8 @@ export class FileDecorationsService implements IDecorationsService {
 
 		const wrapper = new DecorationProviderWrapper(
 			provider,
-			this._onDidChangeDecorationsDelayed
+			this._onDidChangeDecorationsDelayed,
+			this._onDidChangeDecorations
 		);
 		const remove = this._data.push(wrapper);
 
