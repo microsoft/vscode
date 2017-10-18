@@ -621,8 +621,9 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		const settingsGroups = this.removeEmptySettingsGroups(configurations.sort(this.compareConfigurationNodes).reduce((result, config, index, array) => this.parseConfig(config, result, array), []));
 		this.initAllSettingsMap(settingsGroups);
 		const mostCommonlyUsed = this.getMostCommonlyUsedSettings(settingsGroups);
-		this._allSettingsGroups = [mostCommonlyUsed, ...settingsGroups];
-		this._content = this.toContent(mostCommonlyUsed, settingsGroups);
+		const mostRelevant = this.getMostRelevantSettings([]);
+		this._allSettingsGroups = [mostRelevant, mostCommonlyUsed, ...settingsGroups];
+		this._content = this.toContent(mostRelevant, mostCommonlyUsed, settingsGroups);
 	}
 
 	private initAllSettingsMap(allSettingsGroups: ISettingsGroup[]): void {
@@ -751,11 +752,12 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		return c1.order - c2.order;
 	}
 
-	private toContent(mostCommonlyUsed: ISettingsGroup, settingsGroups: ISettingsGroup[]): string {
+	private toContent(mostRelevant: ISettingsGroup, mostCommonlyUsed: ISettingsGroup, settingsGroups: ISettingsGroup[]): string {
 		const builder = new SettingsContentBuilder();
 		builder.pushLine('[');
 		builder.pushLine('{');
-		builder.pushLine(...arrays.fill(DefaultSettingsEditorModel.MOST_RELEVANT_SECTION_LENGTH - 3, () => ''));
+		const mostRelevantSectionContent = arrays.fill(DefaultSettingsEditorModel.MOST_RELEVANT_SECTION_LENGTH - 3, () => '');
+		builder.pushGroup(mostRelevant, false, mostRelevantSectionContent); // Empty at this point
 		builder.pushLine('}');
 		builder.pushLine(',');
 		builder.pushGroups([mostCommonlyUsed]);
@@ -808,7 +810,7 @@ class SettingsContentBuilder {
 		this._contentByLines.push('}');
 	}
 
-	pushGroup(group: ISettingsGroup, showEmptyGroupMessage = true): ISetting {
+	pushGroup(group: ISettingsGroup, showEmptyGroupMessage = true, alternateContentLines?: string[]): ISetting {
 		const indent = '  ';
 		let lastSetting: ISetting = null;
 		let groupStart = this.lineCountWithOffset + 1;
@@ -819,7 +821,9 @@ class SettingsContentBuilder {
 				section.titleRange = { startLineNumber: sectionTitleStart, startColumn: 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length };
 			}
 
-			if (section.settings.length) {
+			if (alternateContentLines) {
+				this.pushLine(...alternateContentLines);
+			} else if (section.settings.length) {
 				for (const setting of section.settings) {
 					this.pushSetting(setting, indent);
 					lastSetting = setting;
