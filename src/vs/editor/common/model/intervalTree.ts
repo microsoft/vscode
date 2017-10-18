@@ -88,7 +88,7 @@ function setNodeStickiness(node: IntervalNode, stickiness: TrackedRangeStickines
 export class IntervalNode implements IModelDecoration {
 
 	/**
-	 * contains binary encoded information for color, isForValidation, visited, and stickiness.
+	 * contains binary encoded information for color, visited, isForValidation and stickiness.
 	 */
 	public metadata: number;
 
@@ -263,6 +263,10 @@ export class IntervalTree {
 			node.maxEnd = node.end;
 			rbTreeInsert(this, node);
 		}
+	}
+
+	public recomputeAllMaxEnds(): void {
+		recomputeAllMaxEnds(this);
 	}
 
 	public assertInvariants(): void {
@@ -1129,6 +1133,39 @@ function rightRotate(T: IntervalTree, y: IntervalNode): void {
 //#endregion
 
 //#region max end computation
+
+function recomputeAllMaxEnds(T: IntervalTree): void {
+	let node = T.root;
+	while (node !== SENTINEL) {
+		if (getNodeIsVisited(node)) {
+			// going up from this node
+			setNodeIsVisited(node.left, false);
+			setNodeIsVisited(node.right, false);
+			node = node.parent;
+			continue;
+		}
+
+		if (node.left !== SENTINEL && !getNodeIsVisited(node.left)) {
+			// go left
+			node = node.left;
+			continue;
+		}
+
+		if (node.right !== SENTINEL && !getNodeIsVisited(node.right)) {
+			// go right
+			node = node.right;
+			continue;
+		}
+
+		// handle current node
+		recomputeMaxEnd(node);
+		setNodeIsVisited(node, true);
+	}
+
+	if (T.root) {
+		setNodeIsVisited(T.root, false);
+	}
+}
 
 function computeMaxEnd(node: IntervalNode): number {
 	let maxEnd = node.end;

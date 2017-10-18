@@ -100,6 +100,40 @@ export class TextModelWithDecorations extends TextModelWithTokens implements edi
 		this._decorationsTree.acceptReplace(offset, length, textLength, forceMoveMarkers);
 	}
 
+	protected _onBeforeEOLChange(): void {
+		super._onBeforeEOLChange();
+
+		// Ensure all decorations get their `range` set.
+		const versionId = this.getVersionId();
+		const allDecorations = this._decorationsTree.search(0, false, false, versionId);
+		this._ensureNodesHaveRanges(allDecorations);
+	}
+
+	protected _onAfterEOLChange(): void {
+		super._onAfterEOLChange();
+
+		// Transform back `range` to offsets
+		const versionId = this.getVersionId();
+		const allDecorations = this._decorationsTree.search(0, false, false, versionId);
+		for (let i = 0, len = allDecorations.length; i < len; i++) {
+			const node = allDecorations[i];
+
+			const delta = node.cachedAbsoluteStart - node.start;
+
+			const startOffset = this._lineStarts.getAccumulatedValue(node.range.startLineNumber - 2) + node.range.startColumn - 1;
+			const endOffset = this._lineStarts.getAccumulatedValue(node.range.endLineNumber - 2) + node.range.endColumn - 1;
+
+			node.cachedAbsoluteStart = startOffset;
+			node.cachedAbsoluteEnd = endOffset;
+			node.cachedVersionId = versionId;
+
+			node.start = startOffset - delta;
+			node.end = endOffset - delta;
+		}
+
+		this._decorationsTree.recomputeAllMaxEnds();
+	}
+
 	public changeDecorations<T>(callback: (changeAccessor: editorCommon.IModelDecorationsChangeAccessor) => T, ownerId: number = 0): T {
 		this._assertNotDisposed();
 

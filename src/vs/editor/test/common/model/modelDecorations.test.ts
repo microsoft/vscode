@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/editorCommon';
+import { IModelDeltaDecoration, TrackedRangeStickiness, EndOfLineSequence } from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
 
 // --------- utils
@@ -28,7 +28,7 @@ function modelHasDecorations(model: Model, decorations: ILightWeightDecoration2[
 		});
 	}
 	modelDecorations.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
-	assert.deepEqual(modelDecorations, decorations, 'Model decorations');
+	assert.deepEqual(modelDecorations, decorations);
 }
 
 function modelHasDecoration(model: Model, startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, className: string) {
@@ -350,6 +350,32 @@ suite('Editor Model - Model Decorations', () => {
 		modelHasDecoration(thisModel, 1, 2, 4, 1, 'myType');
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 3, 1))]);
 		modelHasDecoration(thisModel, 1, 1, 2, 1, 'myType');
+	});
+
+	test('decorations are updated when changing EOL', () => {
+		addDecoration(thisModel, 1, 2, 4, 1, 'myType1');
+		addDecoration(thisModel, 1, 3, 4, 1, 'myType2');
+		addDecoration(thisModel, 1, 4, 4, 1, 'myType3');
+		addDecoration(thisModel, 1, 5, 4, 1, 'myType4');
+		addDecoration(thisModel, 1, 6, 4, 1, 'myType5');
+		addDecoration(thisModel, 1, 7, 4, 1, 'myType6');
+		addDecoration(thisModel, 1, 8, 4, 1, 'myType7');
+		addDecoration(thisModel, 1, 9, 4, 1, 'myType8');
+		addDecoration(thisModel, 1, 10, 4, 1, 'myType9');
+		thisModel.applyEdits([EditOperation.insert(new Position(1, 1), 'x')]);
+		thisModel.setEOL(EndOfLineSequence.CRLF);
+		thisModel.applyEdits([EditOperation.insert(new Position(1, 1), 'x')]);
+		modelHasDecorations(thisModel, [
+			{ range: new Range(1, 4, 4, 1), className: 'myType1' },
+			{ range: new Range(1, 5, 4, 1), className: 'myType2' },
+			{ range: new Range(1, 6, 4, 1), className: 'myType3' },
+			{ range: new Range(1, 7, 4, 1), className: 'myType4' },
+			{ range: new Range(1, 8, 4, 1), className: 'myType5' },
+			{ range: new Range(1, 9, 4, 1), className: 'myType6' },
+			{ range: new Range(1, 10, 4, 1), className: 'myType7' },
+			{ range: new Range(1, 11, 4, 1), className: 'myType8' },
+			{ range: new Range(1, 12, 4, 1), className: 'myType9' },
+		]);
 	});
 });
 

@@ -510,8 +510,13 @@ export class TextModel implements editorCommon.ITextModel {
 		return this._EOL;
 	}
 
+	protected _onBeforeEOLChange(): void {
+	}
+
+	protected _onAfterEOLChange(): void {
+	}
+
 	public setEOL(eol: editorCommon.EndOfLineSequence): void {
-		// TODO@interval!!!
 		this._assertNotDisposed();
 		const newEOL = (eol === editorCommon.EndOfLineSequence.CRLF ? '\r\n' : '\n');
 		if (this._EOL === newEOL) {
@@ -524,9 +529,11 @@ export class TextModel implements editorCommon.ITextModel {
 		const endLineNumber = this.getLineCount();
 		const endColumn = this.getLineMaxColumn(endLineNumber);
 
+		this._onBeforeEOLChange();
 		this._EOL = newEOL;
 		this._constructLineStarts();
 		this._increaseVersionId();
+		this._onAfterEOLChange();
 
 		this._emitModelRawContentChangedEvent(
 			new textModelEvents.ModelRawContentChangedEvent(
