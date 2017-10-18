@@ -32,6 +32,13 @@
 
 /** Panel Switcher */
 
+.monaco-workbench .composite-bar > .monaco-action-bar .action-label.toggle-more {
+	background: url('ellipsis.svg') center center no-repeat;
+	display: block;
+	height: 35px;
+	min-width: 28px;
+}
+
 .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar {
 	line-height: 35px;
 }

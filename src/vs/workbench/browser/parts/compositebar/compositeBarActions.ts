@@ -91,17 +91,22 @@ export class ActivityAction extends Action {
 	}
 }
 
+export interface IActivityActionItemOptions extends IBaseActionItemOptions {
+	icon?: boolean;
+}
+
 export class ActivityActionItem extends BaseActionItem {
 	protected $container: Builder;
 	protected $label: Builder;
 	protected $badge: Builder;
+	protected options: IActivityActionItemOptions;
 
 	private $badgeContent: Builder;
 	private mouseUpTimeout: number;
 
 	constructor(
 		action: ActivityAction,
-		options: IBaseActionItemOptions,
+		options: IActivityActionItemOptions,
 		@IThemeService protected themeService: IThemeService
 	) {
 		super(null, action, options);
@@ -169,7 +174,9 @@ export class ActivityActionItem extends BaseActionItem {
 		if (this.activity.cssClass) {
 			this.$label.addClass(this.activity.cssClass);
 		}
-		this.$label.text(this.getAction().label);
+		if (!this.options.icon) {
+			this.$label.text(this.getAction().label);
+		}
 
 		this.$badge = this.builder.clone().div({ 'class': 'badge' }, (badge: Builder) => {
 			this.$badgeContent = badge.div({ 'class': 'badge-content' });
@@ -291,7 +298,7 @@ export class CompositeOverflowActivityActionItem extends ActivityActionItem {
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IThemeService themeService: IThemeService
 	) {
-		super(action, null, themeService);
+		super(action, { icon: true }, themeService);
 
 		this.cssClass = action.class;
 		this.name = action.label;
