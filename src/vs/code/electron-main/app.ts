@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { app, ipcMain as ipc, BrowserWindow } from 'electron';
+import { app, ipcMain as ipc, BrowserWindow, dialog } from 'electron';
 import * as platform from 'vs/base/common/platform';
 import { WindowsManager } from 'vs/code/electron-main/windows';
 import { IWindowsService, OpenContext } from 'vs/platform/windows/common/windows';
@@ -379,7 +379,12 @@ export class CodeApplication {
 				windowsMutex = new Mutex(product.win32MutexName);
 				this.toDispose.push({ dispose: () => windowsMutex.release() });
 			} catch (e) {
-				// noop
+				if (!this.environmentService.isBuilt) {
+					dialog.showMessageBox({
+						message: 'Module loading error',
+						detail: 'Could not load `windows-mutex`. Make sure you have it installed as a Code dependency.'
+					});
+				}
 			}
 		}
 
