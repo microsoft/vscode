@@ -34,21 +34,21 @@ describe('Editor', () => {
 		await app.screenCapturer.capture('Rename result');
 	});
 
-	it('folds/unfolds the code correctly', async function () {
-		await app.workbench.quickopen.openFile('www');
+	// it('folds/unfolds the code correctly', async function () {
+	// 	await app.workbench.quickopen.openFile('www');
 
-		// Fold
-		await app.workbench.editor.foldAtLine(3);
-		await app.workbench.editor.waitUntilShown(3);
-		await app.workbench.editor.waitUntilHidden(4);
-		await app.workbench.editor.waitUntilHidden(5);
+	// 	// Fold
+	// 	await app.workbench.editor.foldAtLine(3);
+	// 	await app.workbench.editor.waitUntilShown(3);
+	// 	await app.workbench.editor.waitUntilHidden(4);
+	// 	await app.workbench.editor.waitUntilHidden(5);
 
-		// Unfold
-		await app.workbench.editor.unfoldAtLine(3);
-		await app.workbench.editor.waitUntilShown(3);
-		await app.workbench.editor.waitUntilShown(4);
-		await app.workbench.editor.waitUntilShown(5);
-	});
+	// 	// Unfold
+	// 	await app.workbench.editor.unfoldAtLine(3);
+	// 	await app.workbench.editor.waitUntilShown(3);
+	// 	await app.workbench.editor.waitUntilShown(4);
+	// 	await app.workbench.editor.waitUntilShown(5);
+	// });
 
 	it(`verifies that 'Go To Definition' works`, async function () {
 		await app.workbench.quickopen.openFile('app.js');
