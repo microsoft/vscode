@@ -34,7 +34,6 @@ import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/composit
 
 export class ActivitybarPart extends Part implements IActivityBarService {
 
-	private static readonly ACTIVITY_ACTION_HEIGHT = 50;
 	private static readonly PINNED_VIEWLETS = 'workbench.activity.pinnedViewlets';
 
 	public _serviceBrand: any;
@@ -64,7 +63,6 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			storageId: ActivitybarPart.PINNED_VIEWLETS,
 			orientation: ActionsOrientation.VERTICAL,
 			composites: this.viewletService.getViewlets(),
-			getCompositeSize: (compositeId: string) => ActivitybarPart.ACTIVITY_ACTION_HEIGHT,
 			openComposite: (compositeId: string) => this.viewletService.openViewlet(compositeId, true),
 			getActivityAction: (compositeId: string) => this.instantiationService.createInstance(ViewletActivityAction, this.viewletService.getViewlet(compositeId)),
 			getCompositePinnedAction: (compositeId: string) => new ToggleCompositePinnedAction(this.viewletService.getViewlet(compositeId), this.compositeBar),
@@ -191,7 +189,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		let availableHeight = this.dimension.height;
 		if (this.globalActionBar) {
 			// adjust height for global actions showing
-			availableHeight -= (this.globalActionBar.items.length * ActivitybarPart.ACTIVITY_ACTION_HEIGHT);
+			availableHeight -= (this.globalActionBar.items.length * this.globalActionBar.domNode.clientHeight);
 		}
 		this.compositeBar.layout(new Dimension(dimension.width, availableHeight));
 

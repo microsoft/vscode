@@ -31,7 +31,6 @@ export interface ICompositeBarOptions {
 	getOnCompositeClickAction: (compositeId: string) => Action;
 	openComposite: (compositeId: string) => TPromise<any>;
 	getDefaultCompositeId: () => string;
-	getCompositeSize: (compositeId: string) => number;
 	hidePart: () => TPromise<any>;
 }
 
@@ -49,6 +48,7 @@ export class CompositeBar implements ICompositeBar {
 	private compositeIdToActions: { [compositeId: string]: ActivityAction; };
 	private compositeIdToActionItems: { [compositeId: string]: IActionItem; };
 	private compositeIdToActivityStack: { [compositeId: string]: ICompositeActivity[]; };
+	private compositeSizeInBar: Map<string, number>;
 
 	private pinnedComposites: string[];
 	private activeCompositeId: string;
@@ -63,6 +63,7 @@ export class CompositeBar implements ICompositeBar {
 		this.compositeIdToActionItems = Object.create(null);
 		this.compositeIdToActions = Object.create(null);
 		this.compositeIdToActivityStack = Object.create(null);
+		this.compositeSizeInBar = new Map<string, number>();
 
 		this._onDidContextMenu = new Emitter<MouseEvent>();
 
@@ -161,7 +162,6 @@ export class CompositeBar implements ICompositeBar {
 			ariaLabel: nls.localize('activityBarAriaLabel', "Active View Switcher"),
 			animated: false,
 		});
-		this.updateCompositeSwitcher();
 
 		// Contextmenu for composites
 		this.toDispose.push(dom.addDisposableListener(parent, dom.EventType.CONTEXT_MENU, (e: MouseEvent) => {
@@ -212,7 +212,7 @@ export class CompositeBar implements ICompositeBar {
 			let size = 0;
 			const limit = this.options.orientation === ActionsOrientation.VERTICAL ? this.dimension.height : this.dimension.width;
 			for (let i = 0; i < compositesToShow.length && size <= limit; i++) {
-				size += this.options.getCompositeSize(compositesToShow[i]);
+				size += this.compositeSizeInBar.get(compositesToShow[i]);
 				if (size > limit) {
 					maxVisible = i;
 				}
@@ -317,6 +317,10 @@ export class CompositeBar implements ICompositeBar {
 	}
 
 	private toAction(compositeId: string): ActivityAction {
+		if (this.compositeIdToActions[compositeId]) {
+			return this.compositeIdToActions[compositeId];
+		}
+
 		const compositeActivityAction = this.options.getActivityAction(compositeId);
 		const pinnedAction = this.options.getCompositePinnedAction(compositeId);
 		this.compositeIdToActionItems[compositeId] = this.instantiationService.createInstance(CompositeActionItem, compositeActivityAction, pinnedAction, this);
@@ -413,6 +417,17 @@ export class CompositeBar implements ICompositeBar {
 
 	public layout(dimension: Dimension): void {
 		this.dimension = dimension;
+		if (this.compositeSizeInBar.size === 0) {
+			// Compute size of each composite by getting the size from the css renderer
+			// Size is later used for overflow computation
+			this.compositeSwitcherBar.clear();
+			this.compositeSwitcherBar.push(this.options.composites.map(c => this.options.getActivityAction(c.id)));
+			this.options.composites.map((c, index) => this.compositeSizeInBar.set(c.id, this.options.orientation === ActionsOrientation.VERTICAL
+				? this.compositeSwitcherBar.getHeight(index)
+				: this.compositeSwitcherBar.getWidth(index)
+			));
+			this.compositeSwitcherBar.clear();
+		}
 		this.updateCompositeSwitcher();
 	}
 

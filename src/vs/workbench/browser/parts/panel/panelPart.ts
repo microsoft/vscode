@@ -77,10 +77,6 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			storageId: PanelPart.PINNED_PANELS,
 			orientation: ActionsOrientation.HORIZONTAL,
 			composites: this.getPanels(),
-			getCompositeSize: (compositeId: string) => {
-				const panel = this.getPanel(compositeId);
-				return 10 * panel.name.length;
-			},
 			openComposite: (compositeId: string) => this.openPanel(compositeId, true),
 			getActivityAction: (compositeId: string) => this.instantiationService.createInstance(PanelActivityAction, this.getPanel(compositeId)),
 			getCompositePinnedAction: (compositeId: string) => new ToggleCompositePinnedAction(this.getPanel(compositeId), this.compositeBar),
