@@ -109,10 +109,19 @@ export class Editor {
 		await this.spectron.client.waitForActiveElement(textarea);
 
 		// https://github.com/Microsoft/vscode/issues/34203#issuecomment-334441786
-		this.spectron.app.electron.clipboard.writeText(text);
-		await new Promise(c => setTimeout(c, 100));
-		this.spectron.app.webContents.paste();
-		await new Promise(c => setTimeout(c, 100));
+		await this.spectron.client.spectron.client.selectorExecute(textarea, (elements, text) => {
+			const textarea = (Array.isArray(elements) ? elements : [elements])[0] as HTMLTextAreaElement;
+			const start = textarea.selectionStart;
+			const newStart = start + text.length;
+			const value = textarea.value;
+			const newValue = value.substr(0, start) + text + value.substr(start);
+
+			textarea.value = newValue;
+			textarea.setSelectionRange(newStart, newStart);
+
+			const event = new Event('input', { 'bubbles': true, 'cancelable': true });
+			textarea.dispatchEvent(event);
+		}, text);
 
 		await this.waitForEditorContents(filename, c => c.indexOf(text) > -1, selectorPrefix);
 	}
