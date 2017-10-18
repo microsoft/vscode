@@ -69,9 +69,9 @@ class ConfigAwareContextValuesContainer extends Context {
 	}
 
 	private _onConfigurationUpdated(event: IConfigurationChangeEvent): void {
-		if (event.affectsConfiguration('config')) {
-			this._updateConfigurationContext(this._configurationService.getConfiguration());
-		}
+		// if (event.affectsConfiguration('config')) {
+		this._updateConfigurationContext(this._configurationService.getConfiguration());
+		// }
 	}
 
 	private _updateConfigurationContext(config: any) {
