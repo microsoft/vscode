@@ -386,6 +386,17 @@ export class CodeApplication {
 					});
 				}
 			}
+
+			try {
+				<any>require.__$__nodeRequire('windows-foreground-love');
+			} catch (e) {
+				if (!this.environmentService.isBuilt) {
+					dialog.showMessageBox({
+						message: 'Module loading error',
+						detail: 'Could not load `windows-foreground-love`. Make sure you have it installed as a Code dependency.'
+					});
+				}
+			}
 		}
 
 		// Install Menu
