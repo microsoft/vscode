@@ -811,14 +811,8 @@ export class Repository implements Disposable {
 		this._onDidChangeStatus.fire();
 	}
 
-	private detectActiveFile(fullFilePath: string): boolean {
-		if (window.activeTextEditor !== undefined) {
-			if (window.activeTextEditor.document.fileName === fullFilePath) {
-				return true;
-			}
-		}
-
-		return false;
+	private detectActiveFile(fullFilePath: string): boolean | undefined {
+		return window.activeTextEditor && window.activeTextEditor.document.fileName === fullFilePath;
 	}
 
 	private onFSChange(uri: Uri): void {
