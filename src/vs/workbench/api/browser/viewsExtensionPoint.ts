@@ -108,7 +108,8 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyV
 						ctor: TreeView,
 						location,
 						when: ContextKeyExpr.deserialize(item.when),
-						canToggleVisibility: true
+						canToggleVisibility: true,
+						collapsed: true
 					};
 
 					// validate
