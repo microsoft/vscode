@@ -29,17 +29,48 @@ export const enum TrackedRangeStickiness {
 	GrowsOnlyWhenTypingAfter = 3,
 }
 
-export const enum NodeColor {
-	Red,
-	Black
+const enum NodeColor {
+	Black = 0,
+	Red = 1,
+}
+
+const enum Constants {
+	ColorMask = 0b00000001,
+	ColorMaskInverse = 0b11111110,
+	ColorOffset = 0,
+
+	IsForValidationMask = 0b00000010,
+	IsForValidationMaskInverse = 0b11111101,
+	IsForValidationOffset = 1,
+
+	IsVisitedMask = 0b00000100,
+	IsVisitedMaskInverse = 0b11111011,
+	IsVisitedOffset = 2,
+
+	StickinessMask = 0b00011000,
+	StickinessMaskInverse = 0b11100111,
+	StickinessOffset = 3
+}
+
+function getNodeColor(node: IntervalNode): NodeColor {
+	return ((node.metadata & Constants.ColorMask) >>> Constants.ColorOffset);
+}
+function setNodeColor(node: IntervalNode, color: NodeColor): void {
+	node.metadata = (
+		(node.metadata & Constants.ColorMaskInverse) | (color << Constants.ColorOffset)
+	);
 }
 
 export class IntervalNode implements IModelDecoration {
 
+	/**
+	 * contains binary encoded information for color, isForValidation, visited, and stickiness.
+	 */
+	public metadata: number;
+
 	public parent: IntervalNode;
 	public left: IntervalNode;
 	public right: IntervalNode;
-	public color: NodeColor;
 
 	public start: number;
 	public end: number;
@@ -60,10 +91,12 @@ export class IntervalNode implements IModelDecoration {
 	public visited: boolean;
 
 	constructor(id: string, start: number, end: number) {
+		this.metadata = 0;
+
 		this.parent = null;
 		this.left = null;
 		this.right = null;
-		this.color = NodeColor.Red;
+		setNodeColor(this, NodeColor.Red);
 
 		this.start = start;
 		this.end = end;
@@ -125,7 +158,7 @@ const SENTINEL: IntervalNode = new IntervalNode(null, 0, 0);
 SENTINEL.parent = SENTINEL;
 SENTINEL.left = SENTINEL;
 SENTINEL.right = SENTINEL;
-SENTINEL.color = NodeColor.Black;
+setNodeColor(SENTINEL, NodeColor.Black);
 
 export class IntervalTree {
 
@@ -213,7 +246,7 @@ export class IntervalTree {
 	}
 
 	public assertInvariants(): void {
-		assert(SENTINEL.color === NodeColor.Black);
+		assert(getNodeColor(SENTINEL) === NodeColor.Black);
 		assert(SENTINEL.parent === SENTINEL);
 		assert(SENTINEL.left === SENTINEL);
 		assert(SENTINEL.right === SENTINEL);
@@ -239,7 +272,7 @@ export class IntervalTree {
 	}
 
 	private _print(n: IntervalNode, indent: string, delta: number, out: string[]): void {
-		out.push(`${indent}[${n.color === NodeColor.Red ? 'R' : 'B'},${n.delta}, ${n.start}->${n.end}, ${n.maxEnd}] : {${delta + n.start}->${delta + n.end}}, maxEnd: ${n.maxEnd + delta}\n`);
+		out.push(`${indent}[${getNodeColor(n) === NodeColor.Red ? 'R' : 'B'},${n.delta}, ${n.start}->${n.end}, ${n.maxEnd}] : {${delta + n.start}->${delta + n.end}}, maxEnd: ${n.maxEnd + delta}\n`);
 		if (n.left !== SENTINEL) {
 			this._print(n.left, indent + '    ', delta, out);
 		} else {
@@ -731,7 +764,7 @@ function rbTreeInsert(T: IntervalTree, newNode: IntervalNode): IntervalNode {
 		newNode.parent = SENTINEL;
 		newNode.left = SENTINEL;
 		newNode.right = SENTINEL;
-		newNode.color = NodeColor.Black;
+		setNodeColor(newNode, NodeColor.Black);
 		T.root = newNode;
 		return T.root;
 	}
@@ -742,45 +775,45 @@ function rbTreeInsert(T: IntervalTree, newNode: IntervalNode): IntervalNode {
 
 	// repair tree
 	let x = newNode;
-	while (x !== T.root && x.parent.color === NodeColor.Red) {
+	while (x !== T.root && getNodeColor(x.parent) === NodeColor.Red) {
 		if (x.parent === x.parent.parent.left) {
 			const y = x.parent.parent.right;
 
-			if (y.color === NodeColor.Red) {
-				x.parent.color = NodeColor.Black;
-				y.color = NodeColor.Black;
-				x.parent.parent.color = NodeColor.Red;
+			if (getNodeColor(y) === NodeColor.Red) {
+				setNodeColor(x.parent, NodeColor.Black);
+				setNodeColor(y, NodeColor.Black);
+				setNodeColor(x.parent.parent, NodeColor.Red);
 				x = x.parent.parent;
 			} else {
 				if (x === x.parent.right) {
 					x = x.parent;
 					leftRotate(T, x);
 				}
-				x.parent.color = NodeColor.Black;
-				x.parent.parent.color = NodeColor.Red;
+				setNodeColor(x.parent, NodeColor.Black);
+				setNodeColor(x.parent.parent, NodeColor.Red);
 				rightRotate(T, x.parent.parent);
 			}
 		} else {
 			const y = x.parent.parent.left;
 
-			if (y.color === NodeColor.Red) {
-				x.parent.color = NodeColor.Black;
-				y.color = NodeColor.Black;
-				x.parent.parent.color = NodeColor.Red;
+			if (getNodeColor(y) === NodeColor.Red) {
+				setNodeColor(x.parent, NodeColor.Black);
+				setNodeColor(y, NodeColor.Black);
+				setNodeColor(x.parent.parent, NodeColor.Red);
 				x = x.parent.parent;
 			} else {
 				if (x === x.parent.left) {
 					x = x.parent;
 					rightRotate(T, x);
 				}
-				x.parent.color = NodeColor.Black;
-				x.parent.parent.color = NodeColor.Red;
+				setNodeColor(x.parent, NodeColor.Black);
+				setNodeColor(x.parent.parent, NodeColor.Red);
 				leftRotate(T, x.parent.parent);
 			}
 		}
 	}
 
-	T.root.color = NodeColor.Black;
+	setNodeColor(T.root, NodeColor.Black);
 
 	return newNode;
 }
@@ -823,7 +856,7 @@ function treeInsert(T: IntervalTree, z: IntervalNode): void {
 	z.parent = x;
 	z.left = SENTINEL;
 	z.right = SENTINEL;
-	z.color = NodeColor.Red;
+	setNodeColor(z, NodeColor.Red);
 }
 //#endregion
 
@@ -867,7 +900,7 @@ function rbTreeDelete(T: IntervalTree, z: IntervalNode): void {
 
 	if (y === T.root) {
 		T.root = x;
-		x.color = NodeColor.Black;
+		setNodeColor(x, NodeColor.Black);
 
 		z.detach();
 		resetSentinel();
@@ -876,7 +909,7 @@ function rbTreeDelete(T: IntervalTree, z: IntervalNode): void {
 		return;
 	}
 
-	let yWasRed = (y.color === NodeColor.Red);
+	let yWasRed = (getNodeColor(y) === NodeColor.Red);
 
 	if (y === y.parent.left) {
 		y.parent.left = x;
@@ -897,7 +930,7 @@ function rbTreeDelete(T: IntervalTree, z: IntervalNode): void {
 		y.left = z.left;
 		y.right = z.right;
 		y.parent = z.parent;
-		y.color = z.color;
+		setNodeColor(y, getNodeColor(z));
 
 		if (z === T.root) {
 			T.root = y;
@@ -938,32 +971,32 @@ function rbTreeDelete(T: IntervalTree, z: IntervalNode): void {
 
 	// RB-DELETE-FIXUP
 	let w: IntervalNode;
-	while (x !== T.root && x.color === NodeColor.Black) {
+	while (x !== T.root && getNodeColor(x) === NodeColor.Black) {
 
 		if (x === x.parent.left) {
 			w = x.parent.right;
 
-			if (w.color === NodeColor.Red) {
-				w.color = NodeColor.Black;
-				x.parent.color = NodeColor.Red;
+			if (getNodeColor(w) === NodeColor.Red) {
+				setNodeColor(w, NodeColor.Black);
+				setNodeColor(x.parent, NodeColor.Red);
 				leftRotate(T, x.parent);
 				w = x.parent.right;
 			}
 
-			if (w.left.color === NodeColor.Black && w.right.color === NodeColor.Black) {
-				w.color = NodeColor.Red;
+			if (getNodeColor(w.left) === NodeColor.Black && getNodeColor(w.right) === NodeColor.Black) {
+				setNodeColor(w, NodeColor.Red);
 				x = x.parent;
 			} else {
-				if (w.right.color === NodeColor.Black) {
-					w.left.color = NodeColor.Black;
-					w.color = NodeColor.Red;
+				if (getNodeColor(w.right) === NodeColor.Black) {
+					setNodeColor(w.left, NodeColor.Black);
+					setNodeColor(w, NodeColor.Red);
 					rightRotate(T, w);
 					w = x.parent.right;
 				}
 
-				w.color = x.parent.color;
-				x.parent.color = NodeColor.Black;
-				w.right.color = NodeColor.Black;
+				setNodeColor(w, getNodeColor(x.parent));
+				setNodeColor(x.parent, NodeColor.Black);
+				setNodeColor(w.right, NodeColor.Black);
 				leftRotate(T, x.parent);
 				x = T.root;
 			}
@@ -971,35 +1004,35 @@ function rbTreeDelete(T: IntervalTree, z: IntervalNode): void {
 		} else {
 			w = x.parent.left;
 
-			if (w.color === NodeColor.Red) {
-				w.color = NodeColor.Black;
-				x.parent.color = NodeColor.Red;
+			if (getNodeColor(w) === NodeColor.Red) {
+				setNodeColor(w, NodeColor.Black);
+				setNodeColor(x.parent, NodeColor.Red);
 				rightRotate(T, x.parent);
 				w = x.parent.left;
 			}
 
-			if (w.left.color === NodeColor.Black && w.right.color === NodeColor.Black) {
-				w.color = NodeColor.Red;
+			if (getNodeColor(w.left) === NodeColor.Black && getNodeColor(w.right) === NodeColor.Black) {
+				setNodeColor(w, NodeColor.Red);
 				x = x.parent;
 
 			} else {
-				if (w.left.color === NodeColor.Black) {
-					w.right.color = NodeColor.Black;
-					w.color = NodeColor.Red;
+				if (getNodeColor(w.left) === NodeColor.Black) {
+					setNodeColor(w.right, NodeColor.Black);
+					setNodeColor(w, NodeColor.Red);
 					leftRotate(T, w);
 					w = x.parent.left;
 				}
 
-				w.color = x.parent.color;
-				x.parent.color = NodeColor.Black;
-				w.left.color = NodeColor.Black;
+				setNodeColor(w, getNodeColor(x.parent));
+				setNodeColor(x.parent, NodeColor.Black);
+				setNodeColor(w.left, NodeColor.Black);
 				rightRotate(T, x.parent);
 				x = T.root;
 			}
 		}
 	}
 
-	x.color = NodeColor.Black;
+	setNodeColor(x, NodeColor.Black);
 	resetSentinel();
 }
 
@@ -1131,7 +1164,7 @@ function depth(n: IntervalNode): number {
 		return 1;
 	}
 	assert(depth(n.left) === depth(n.right));
-	return (n.color === NodeColor.Black ? 1 : 0) + depth(n.left);
+	return (getNodeColor(n) === NodeColor.Black ? 1 : 0) + depth(n.left);
 }
 
 function assertValidNode(n: IntervalNode, delta): void {
@@ -1142,9 +1175,9 @@ function assertValidNode(n: IntervalNode, delta): void {
 	let l = n.left;
 	let r = n.right;
 
-	if (n.color === NodeColor.Red) {
-		assert(l.color === NodeColor.Black);
-		assert(r.color === NodeColor.Black);
+	if (getNodeColor(n) === NodeColor.Red) {
+		assert(getNodeColor(l) === NodeColor.Black);
+		assert(getNodeColor(r) === NodeColor.Black);
 	}
 
 	let expectedMaxEnd = n.end;
@@ -1166,7 +1199,7 @@ function assertValidTree(tree: IntervalTree): void {
 	if (tree.root === SENTINEL) {
 		return;
 	}
-	assert(tree.root.color === NodeColor.Black);
+	assert(getNodeColor(tree.root) === NodeColor.Black);
 	assert(depth(tree.root.left) === depth(tree.root.right));
 	assertValidNode(tree.root, 0);
 }
