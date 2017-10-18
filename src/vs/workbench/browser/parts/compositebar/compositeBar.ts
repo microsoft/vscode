@@ -5,7 +5,6 @@
 
 'use strict';
 
-import 'vs/css!./media/compositeBar';
 import nls = require('vs/nls');
 import { Action } from 'vs/base/common/actions';
 import { illegalArgument } from 'vs/base/common/errors';
