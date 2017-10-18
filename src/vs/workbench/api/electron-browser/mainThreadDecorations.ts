@@ -29,23 +29,22 @@ export class MainThreadDecorations implements MainThreadDecorationsShape {
 		this._provider.clear();
 	}
 
-	$registerDecorationProvider(handle: number, label: string): void {
+	$registerDecorationProvider(handle: number): void {
 		let emitter = new Emitter<URI[]>();
 		let registration = this._decorationsService.registerDecorationsProvider({
-			label,
+			label: 'extension-provider',
 			onDidChange: emitter.event,
 			provideDecorations: (uri) => {
 				return this._proxy.$providerDecorations(handle, uri).then(data => {
 					if (!data) {
 						return undefined;
 					}
-					const [weight, bubble, title, letter, opacity, themeColor] = data;
+					const [weight, bubble, title, letter, themeColor] = data;
 					return {
 						weight: weight || 0,
 						bubble: bubble || false,
 						title,
 						letter,
-						opacity,
 						color: themeColor && themeColor.id
 					};
 				});

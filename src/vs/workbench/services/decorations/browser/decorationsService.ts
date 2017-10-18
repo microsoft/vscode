@@ -23,8 +23,8 @@ class DecorationRule {
 		if (Array.isArray(data)) {
 			return data.map(DecorationRule.keyOf).join(',');
 		} else {
-			const { color, opacity, letter } = data;
-			return `${color}/${opacity}/${letter}`;
+			const { color, letter } = data;
+			return `${color}/${letter}`;
 		}
 	}
 
@@ -49,9 +49,9 @@ class DecorationRule {
 	}
 
 	private _appendForOne(data: IDecorationData, element: HTMLStyleElement, theme: ITheme): void {
-		const { color, opacity, letter } = data;
+		const { color, letter } = data;
 		// label
-		createCSSRule(`.${this.labelClassName}`, `color: ${theme.getColor(color) || 'inherit'}; opacity: ${opacity || 1};`, element);
+		createCSSRule(`.${this.labelClassName}`, `color: ${theme.getColor(color) || 'inherit'};`, element);
 		createCSSRule(`.focused .selected .${this.labelClassName}`, `color: inherit; opacity: inherit;`, element);
 		// badge
 		if (letter) {
@@ -62,8 +62,8 @@ class DecorationRule {
 
 	private _appendForMany(data: IDecorationData[], element: HTMLStyleElement, theme: ITheme): void {
 		// label
-		const { color, opacity } = data[0];
-		createCSSRule(`.${this.labelClassName}`, `color: ${theme.getColor(color) || 'inherit'}; opacity: ${opacity || 1};`, element);
+		const { color } = data[0];
+		createCSSRule(`.${this.labelClassName}`, `color: ${theme.getColor(color) || 'inherit'};`, element);
 		createCSSRule(`.focused .selected .${this.labelClassName}`, `color: inherit; opacity: inherit;`, element);
 
 		// badge

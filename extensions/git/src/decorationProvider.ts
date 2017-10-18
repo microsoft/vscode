@@ -21,7 +21,7 @@ class GitIgnoreDecorationProvider implements DecorationProvider {
 
 	constructor(private repository: Repository) {
 		this.disposables.push(
-			window.registerDecorationProvider(this, '.gitignore'),
+			window.registerDecorationProvider(this),
 			filterEvent(workspace.onDidSaveTextDocument, e => e.fileName.endsWith('.gitignore'))(_ => this._onDidChangeDecorations.fire())
 			//todo@joh -> events when the ignore status actually changes, not only when the file changes
 		);
@@ -72,7 +72,7 @@ class GitDecorationProvider implements DecorationProvider {
 
 	constructor(private repository: Repository) {
 		this.disposables.push(
-			window.registerDecorationProvider(this, repository.root),
+			window.registerDecorationProvider(this),
 			repository.onDidRunOperation(this.onDidRunOperation, this)
 		);
 	}

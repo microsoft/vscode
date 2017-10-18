@@ -183,8 +183,6 @@ export class Resource implements SourceControlResourceState {
 	get resourceDecoration(): DecorationData | undefined {
 		const title = this.tooltip;
 		switch (this.type) {
-			case Status.IGNORED:
-				return { priority: 3, title, opacity: 0.75 };
 			case Status.UNTRACKED:
 				return { priority: 1, title, abbreviation: localize('untracked, short', "U"), bubble: true, color: new ThemeColor('git.color.untracked') };
 			case Status.INDEX_MODIFIED:
