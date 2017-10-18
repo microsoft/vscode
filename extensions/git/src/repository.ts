@@ -650,6 +650,11 @@ export class Repository implements Disposable {
 
 				filePaths = filePaths.filter(filePath => !path.relative(this.root, filePath).startsWith('..'));
 
+				if (filePaths.length === 0) {
+					// nothing left
+					return Promise.resolve(new Set<string>());
+				}
+
 				const child = this.repository.stream(['check-ignore', ...filePaths]);
 
 				const onExit = exitCode => {
