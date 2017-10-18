@@ -7,11 +7,11 @@
 import { mixin } from 'vs/base/common/objects';
 import URI from 'vs/base/common/uri';
 import Event, { Emitter } from 'vs/base/common/event';
-import { WorkspaceConfiguration } from 'vscode';
+import * as vscode from 'vscode';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostConfigurationShape, MainThreadConfigurationShape } from './extHost.protocol';
 import { ConfigurationTarget as ExtHostConfigurationTarget } from './extHostTypes';
-import { IConfigurationData, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationData, ConfigurationTarget, IConfigurationChangeEventData } from 'vs/platform/configuration/common/configuration';
 import { Configuration } from 'vs/platform/configuration/common/configurationModels';
 
 function lookUp(tree: any, key: string) {
@@ -50,12 +50,12 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 		return this._onDidChangeConfiguration && this._onDidChangeConfiguration.event;
 	}
 
-	$acceptConfigurationChanged(data: IConfigurationData) {
+	$acceptConfigurationChanged(data: IConfigurationData, eventData: IConfigurationChangeEventData) {
 		this._configuration = Configuration.parse(data, this._extHostWorkspace.workspace);
 		this._onDidChangeConfiguration.fire(undefined);
 	}
 
-	getConfiguration(section?: string, resource?: URI): WorkspaceConfiguration {
+	getConfiguration(section?: string, resource?: URI): vscode.WorkspaceConfiguration {
 		const config = section
 			? lookUp(this._configuration.getSection(null, { resource }), section)
 			: this._configuration.getSection(null, { resource });
@@ -75,7 +75,7 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 			}
 		}
 
-		const result: WorkspaceConfiguration = {
+		const result: vscode.WorkspaceConfiguration = {
 			has(key: string): boolean {
 				return typeof lookUp(config, key) !== 'undefined';
 			},
@@ -115,6 +115,6 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 			mixin(result, config, false);
 		}
 
-		return <WorkspaceConfiguration>Object.freeze(result);
+		return <vscode.WorkspaceConfiguration>Object.freeze(result);
 	}
 }

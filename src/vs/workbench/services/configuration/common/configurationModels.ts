@@ -5,7 +5,7 @@
 'use strict';
 
 import { clone, equals } from 'vs/base/common/objects';
-import { compare, toValuesTree, IConfigurationChangeEvent, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { compare, toValuesTree, IConfigurationChangeEvent, ConfigurationTarget, IConfigurationChangeEventData } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationModel, Configuration as BaseConfiguration, CustomConfigurationModel, ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, IConfigurationPropertySchema, Extensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
@@ -270,7 +270,7 @@ export class Configuration extends BaseConfiguration {
 
 export class WorkspaceConfigurationChangeEvent implements IConfigurationChangeEvent {
 
-	constructor(private configurationChangeEvent: ConfigurationChangeEvent, private workspace: Workspace) {
+	constructor(private configurationChangeEvent: IConfigurationChangeEvent, private workspace: Workspace) {
 	}
 
 	get affectedKeys(): string[] {
@@ -298,5 +298,23 @@ export class WorkspaceConfigurationChangeEvent implements IConfigurationChangeEv
 		}
 
 		return false;
+	}
+
+	toJSON(): IConfigurationChangeEventData {
+		return this.configurationChangeEvent.toJSON();
+	}
+
+	public static parse(data: IConfigurationChangeEventData, workspace: Workspace): WorkspaceConfigurationChangeEvent {
+		const changedConfiguration = new ConfigurationModel(data.changedConfiguration.contents, data.changedConfiguration.keys, data.changedConfiguration.overrides);
+		const resources: URI[] = [];
+		const changedConfigurationByResource: StrictResourceMap<ConfigurationModel> = new StrictResourceMap<ConfigurationModel>();
+		for (const key of Object.keys(data.changedConfigurationByResource)) {
+			const resource = URI.parse(key);
+			const model = data.changedConfigurationByResource[key];
+			resources.push(resource);
+			changedConfigurationByResource.set(resource, new ConfigurationModel(model.contents, model.keys, model.overrides));
+		}
+		const event = new ConfigurationChangeEvent(changedConfiguration, resources, changedConfigurationByResource);
+		return new WorkspaceConfigurationChangeEvent(event, workspace);
 	}
 }

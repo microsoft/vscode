@@ -11,7 +11,7 @@ import * as objects from 'vs/base/common/objects';
 import URI from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
-import { IOverrides, overrideIdentifierFromKey, addToValueTree, toValuesTree, IConfiguraionModel, merge, getConfigurationValue, IConfigurationOverrides, IConfigurationData, getDefaultValues, getConfigurationKeys, IConfigurationChangeEvent, ConfigurationTarget, removeFromValueTree } from 'vs/platform/configuration/common/configuration';
+import { IOverrides, overrideIdentifierFromKey, addToValueTree, toValuesTree, IConfiguraionModel, merge, getConfigurationValue, IConfigurationOverrides, IConfigurationData, getDefaultValues, getConfigurationKeys, IConfigurationChangeEvent, ConfigurationTarget, removeFromValueTree, IConfigurationChangeEventData } from 'vs/platform/configuration/common/configuration';
 import { Workspace } from 'vs/platform/workspace/common/workspace';
 
 export class ConfigurationModel implements IConfiguraionModel {
@@ -481,28 +481,45 @@ export class AbstractConfigurationChangeEvent {
 
 export class AllKeysConfigurationChangeEvent extends AbstractConfigurationChangeEvent implements IConfigurationChangeEvent {
 
-	private changedConfiguration: ConfigurationModel = null;
+	private _changedConfiguration: ConfigurationModel = null;
 
 	constructor(readonly affectedKeys: string[], readonly source: ConfigurationTarget, readonly sourceConfig: any) { super(); }
 
-	affectsConfiguration(config: string, resource?: URI): boolean {
-		if (!this.changedConfiguration) {
-			this.changedConfiguration = new ConfigurationModel();
-			this.updateKeys(this.changedConfiguration, this.affectedKeys);
+	get changedConfiguration(): ConfigurationModel {
+		if (!this._changedConfiguration) {
+			this._changedConfiguration = new ConfigurationModel();
+			this.updateKeys(this._changedConfiguration, this.affectedKeys);
 		}
+		return this._changedConfiguration;
+	}
+
+	affectsConfiguration(config: string, resource?: URI): boolean {
 		return this.doesConfigurationContains(this.changedConfiguration, config);
 	}
 
+	toJSON(): IConfigurationChangeEventData {
+		return {
+			changedConfiguration: {
+				contents: this.changedConfiguration.contents,
+				overrides: this.changedConfiguration.overrides,
+				keys: this.changedConfiguration.keys
+			},
+			changedConfigurationByResource: Object.create({})
+		};
+	}
 }
 
 export class ConfigurationChangeEvent extends AbstractConfigurationChangeEvent implements IConfigurationChangeEvent {
 
-	private changedConfiguration: ConfigurationModel = new ConfigurationModel();
-	private changedConfigurationByResource: StrictResourceMap<ConfigurationModel> = new StrictResourceMap<ConfigurationModel>();
-	private resources: URI[] = [];
-
 	private _source: ConfigurationTarget;
 	private _sourceConfig: any;
+
+	constructor(
+		private changedConfiguration: ConfigurationModel = new ConfigurationModel(),
+		private resources: URI[] = [],
+		private changedConfigurationByResource: StrictResourceMap<ConfigurationModel> = new StrictResourceMap<ConfigurationModel>()) {
+		super();
+	}
 
 	change(event: ConfigurationChangeEvent): ConfigurationChangeEvent
 	change(keys: string[], resource?: URI): ConfigurationChangeEvent
@@ -573,5 +590,20 @@ export class ConfigurationChangeEvent extends AbstractConfigurationChangeEvent i
 			this.resources.push(resource);
 		}
 		return changedConfigurationByResource;
+	}
+
+	toJSON(): IConfigurationChangeEventData {
+		return {
+			changedConfiguration: {
+				contents: this.changedConfiguration.contents,
+				overrides: this.changedConfiguration.overrides,
+				keys: this.changedConfiguration.keys
+			},
+			changedConfigurationByResource: this.changedConfigurationByResource.keys().reduce((result, resource) => {
+				const { contents, overrides, keys } = this.changedConfigurationByResource.get(resource);
+				result[resource.toString()] = { contents, overrides, keys };
+				return result;
+			}, Object.create({}))
+		};
 	}
 }

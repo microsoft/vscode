@@ -43,6 +43,9 @@ export interface IConfigurationChangeEvent {
 	// Following data is used for telemetry
 	source: ConfigurationTarget;
 	sourceConfig: any;
+
+	// Following data is used for Extension host configuration event
+	toJSON(): IConfigurationChangeEventData;
 }
 
 export interface IConfigurationService {
@@ -101,6 +104,11 @@ export interface IConfigurationData {
 	user: IConfiguraionModel;
 	workspace: IConfiguraionModel;
 	folders: { [folder: string]: IConfiguraionModel };
+}
+
+export interface IConfigurationChangeEventData {
+	changedConfiguration: IConfiguraionModel;
+	changedConfigurationByResource: { [folder: string]: IConfiguraionModel };
 }
 
 export function compare(from: IConfiguraionModel, to: IConfiguraionModel): { added: string[], removed: string[], updated: string[] } {
