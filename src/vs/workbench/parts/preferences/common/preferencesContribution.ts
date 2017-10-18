@@ -38,7 +38,11 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		@IWorkspaceContextService private workspaceService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		this.settingsListener = this.configurationService.onDidChangeConfiguration(() => this.handleSettingsEditorOverride());
+		this.settingsListener = this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(DEFAULT_SETTINGS_EDITOR_SETTING)) {
+				this.handleSettingsEditorOverride();
+			}
+		});
 		this.handleSettingsEditorOverride();
 
 		this.start();
