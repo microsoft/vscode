@@ -8,7 +8,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IContextKey, IContext, IContextKeyServiceTarget, IContextKeyService, SET_CONTEXT_COMMAND_ID, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationChangeEvent, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import Event, { Emitter, debounceEvent } from 'vs/base/common/event';
 
 const KEYBINDING_CONTEXT_ATTR = 'data-keybinding-context';
@@ -51,17 +51,17 @@ export class Context implements IContext {
 
 class ConfigAwareContextValuesContainer extends Context {
 
-	private _emitter: Emitter<string>;
-	private _subscription: IDisposable;
-	private _configurationService: IConfigurationService;
+	private readonly _emitter: Emitter<string>;
+	private readonly _subscription: IDisposable;
+	private readonly _configurationService: IConfigurationService;
 
 	constructor(id: number, configurationService: IConfigurationService, emitter: Emitter<string>) {
 		super(id, null);
 
 		this._emitter = emitter;
 		this._configurationService = configurationService;
-		this._subscription = configurationService.onDidChangeConfiguration(e => this._onConfigurationUpdated(e));
-		this._updateConfigurationContext(configurationService.getConfiguration());
+		this._subscription = configurationService.onDidChangeConfiguration(this._onConfigurationUpdated, this);
+		this._initFromConfiguration();
 	}
 
 	public dispose() {
@@ -69,12 +69,24 @@ class ConfigAwareContextValuesContainer extends Context {
 	}
 
 	private _onConfigurationUpdated(event: IConfigurationChangeEvent): void {
-		// if (event.affectsConfiguration('config')) {
-		this._updateConfigurationContext(this._configurationService.getConfiguration());
-		// }
+		if (event.source === ConfigurationTarget.DEFAULT) {
+			// new setting, rebuild everything
+			this._initFromConfiguration();
+		} else {
+			// update those that we know
+			for (const configKey of event.affectedKeys) {
+				const contextKey = `config.${configKey}`;
+				if (contextKey in this._value) {
+					this._value[contextKey] = this._configurationService.getValue(configKey);
+					this._emitter.fire(configKey);
+				}
+			}
+		}
 	}
 
-	private _updateConfigurationContext(config: any) {
+	private _initFromConfiguration() {
+
+		const config = this._configurationService.getConfiguration();
 
 		// remove old config.xyz values
 		for (let key in this._value) {
