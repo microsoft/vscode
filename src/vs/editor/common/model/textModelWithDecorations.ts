@@ -406,12 +406,14 @@ export class ModelDecorationOverviewRulerOptions implements editorCommon.IModelD
 	readonly darkColor: string | ThemeColor;
 	readonly hcColor: string | ThemeColor;
 	readonly position: editorCommon.OverviewRulerLane;
+	_resolvedColor: string;
 
 	constructor(options: editorCommon.IModelDecorationOverviewRulerOptions) {
 		this.color = strings.empty;
 		this.darkColor = strings.empty;
 		this.hcColor = strings.empty;
 		this.position = editorCommon.OverviewRulerLane.Center;
+		this._resolvedColor = null;
 
 		if (options && options.color) {
 			this.color = options.color;
