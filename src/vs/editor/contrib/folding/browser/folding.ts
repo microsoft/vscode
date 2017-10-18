@@ -24,6 +24,7 @@ import { IFoldingController, ID } from 'vs/editor/contrib/folding/common/folding
 import { Selection } from 'vs/editor/common/core/selection';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 
 @editorContribution
 export class FoldingController implements IFoldingController {
@@ -322,6 +323,14 @@ export class FoldingController implements IFoldingController {
 		let iconClicked = false;
 		switch (e.target.type) {
 			case MouseTargetType.GUTTER_LINE_DECORATIONS:
+				const data = e.target.detail as IMarginData;
+				const gutterOffsetX = data.offsetX - data.glyphMarginWidth - data.lineNumbersWidth;
+
+				// TODO@joao TODO@alex TODO@martin this is such that we don't collide with dirty diff
+				if (gutterOffsetX <= 12) {
+					return;
+				}
+
 				iconClicked = true;
 				break;
 			case MouseTargetType.CONTENT_EMPTY:
