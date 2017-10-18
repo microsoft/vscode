@@ -366,16 +366,22 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private loadWithContent(content: IRawTextContent | IContent, backup?: URI): TPromise<TextFileEditorModel> {
 		return this.doLoadWithContent(content, backup).then(model => {
 
-			// We log the fileGet telemetry event after the model has been loaded to ensure a good mimetype
-
-			/* __GDPR__
-				"fileGet" : {
-					"mimeType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"path": { "classification": "CustomerContent", "purpose": "FeatureInsight" }
-				}
-			*/
-			this.telemetryService.publicLog('fileGet', { mimeType: guessMimeTypes(this.resource.fsPath).join(', '), ext: paths.extname(this.resource.fsPath), path: anonymize(this.resource.fsPath) });
+			// Telemetry: We log the fileGet telemetry event after the model has been loaded to ensure a good mimetype
+			if (this.isSettingsFile()) {
+				/* __GDPR__
+					"settingsRead" : {}
+				*/
+				this.telemetryService.publicLog('settingsRead'); // Do not log read to user settings.json and .vscode folder as a fileGet event as it ruins our JSON usage data
+			} else {
+				/* __GDPR__
+					"fileGet" : {
+						"mimeType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"path": { "classification": "CustomerContent", "purpose": "FeatureInsight" }
+					}
+				*/
+				this.telemetryService.publicLog('fileGet', { mimeType: guessMimeTypes(this.resource.fsPath).join(', '), ext: paths.extname(this.resource.fsPath), path: anonymize(this.resource.fsPath) });
+			}
 
 			return model;
 		});
