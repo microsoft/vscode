@@ -60,7 +60,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		this.globalActivityIdToActions = Object.create(null);
 		this.compositeBar = this.instantiationService.createInstance(CompositeBar, {
-			label: 'icon',
+			icon: true,
 			storageId: ActivitybarPart.PINNED_VIEWLETS,
 			orientation: ActionsOrientation.VERTICAL,
 			composites: this.viewletService.getViewlets(),
@@ -213,7 +213,6 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	public shutdown(): void {
-
 		// Persist Hidden State
 		this.compositeBar.store();
 

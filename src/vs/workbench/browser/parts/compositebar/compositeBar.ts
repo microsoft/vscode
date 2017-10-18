@@ -5,6 +5,7 @@
 
 'use strict';
 
+import 'vs/css!./media/compositeBar';
 import nls = require('vs/nls');
 import { Action } from 'vs/base/common/actions';
 import { illegalArgument } from 'vs/base/common/errors';
@@ -21,7 +22,7 @@ import { CompositeActionItem, CompositeOverflowActivityAction, ICompositeActivit
 import { TPromise } from 'vs/base/common/winjs.base';
 
 export interface ICompositeBarOptions {
-	label: 'icon' | 'name';
+	icon: boolean;
 	storageId: string;
 	orientation: ActionsOrientation;
 	composites: { id: string, name: string }[];
@@ -152,13 +153,13 @@ export class CompositeBar implements ICompositeBar {
 		}
 	}
 
-	public create(parent: HTMLElement): void {
-		const actionBarDiv = parent.appendChild(dom.$('composite-bar'));
+	public create(parent: HTMLElement): HTMLElement {
+		const actionBarDiv = parent.appendChild(dom.$('.composite-bar'));
 		this.compositeSwitcherBar = new ActionBar(actionBarDiv, {
 			actionItemProvider: (action: Action) => action instanceof CompositeOverflowActivityAction ? this.compositeOverflowActionItem : this.compositeIdToActionItems[action.id],
 			orientation: this.options.orientation,
 			ariaLabel: nls.localize('activityBarAriaLabel', "Active View Switcher"),
-			animated: false
+			animated: false,
 		});
 		this.updateCompositeSwitcher();
 
@@ -181,6 +182,12 @@ export class CompositeBar implements ICompositeBar {
 				}
 			}
 		}));
+
+		return actionBarDiv;
+	}
+
+	public getAction(compositeId): ActivityAction {
+		return this.compositeIdToActions[compositeId];
 	}
 
 	private updateCompositeSwitcher(): void {
@@ -247,7 +254,7 @@ export class CompositeBar implements ICompositeBar {
 		if (newCompositesToShow.length) {
 
 			// Add to composite switcher
-			this.compositeSwitcherBar.push(newCompositesToShow, { label: true, icon: true });
+			this.compositeSwitcherBar.push(newCompositesToShow, { label: true, icon: this.options.icon });
 
 			// Make sure to activate the active one
 			if (this.activeCompositeId) {
@@ -275,7 +282,7 @@ export class CompositeBar implements ICompositeBar {
 				this.options.getOnCompositeClickAction
 			);
 
-			this.compositeSwitcherBar.push(this.compositeOverflowAction, { label: true, icon: true });
+			this.compositeSwitcherBar.push(this.compositeOverflowAction, { label: false, icon: true });
 		}
 	}
 

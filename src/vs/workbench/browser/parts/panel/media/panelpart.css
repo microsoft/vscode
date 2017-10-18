@@ -17,6 +17,13 @@
 	border-top-style: solid;
 	padding-right: 0px;
 	height: 35px;
+	display: flex;
+	flex-direction: row;
+	justify-content: space-between;
+}
+
+.monaco-workbench > .part.panel > .composite.title > .title-actions {
+	flex: 0;
 }
 
 .monaco-workbench > .part.panel > .title > .title-actions .monaco-action-bar .action-item .action-label {
@@ -41,7 +48,7 @@
 	padding-bottom: 4px; /* puts the bottom border down */
 }
 
-.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label.checked {
+.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked .action-label {
 	border-bottom: 1px solid;
 }
 
