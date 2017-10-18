@@ -37,7 +37,7 @@ type ConfigurationInspect<T> = {
 
 export class ExtHostConfiguration implements ExtHostConfigurationShape {
 
-	private readonly _onDidChangeConfiguration = new Emitter<vscode.IConfigurationChangeEvent>();
+	private readonly _onDidChangeConfiguration = new Emitter<vscode.ConfigurationChangeEvent>();
 	private readonly _proxy: MainThreadConfigurationShape;
 	private readonly _extHostWorkspace: ExtHostWorkspace;
 	private _configuration: Configuration;
@@ -48,7 +48,7 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 		this._configuration = Configuration.parse(data, extHostWorkspace.workspace);
 	}
 
-	get onDidChangeConfiguration(): Event<vscode.IConfigurationChangeEvent> {
+	get onDidChangeConfiguration(): Event<vscode.ConfigurationChangeEvent> {
 		return this._onDidChangeConfiguration && this._onDidChangeConfiguration.event;
 	}
 
@@ -120,7 +120,7 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 		return <vscode.WorkspaceConfiguration>Object.freeze(result);
 	}
 
-	private toConfigurationChangeEvent(data: IWorkspaceConfigurationChangeEventData): vscode.IConfigurationChangeEvent {
+	private toConfigurationChangeEvent(data: IWorkspaceConfigurationChangeEventData): vscode.ConfigurationChangeEvent {
 		const changedConfiguration = new ConfigurationModel(data.changedConfiguration.contents, data.changedConfiguration.keys, data.changedConfiguration.overrides);
 		const changedConfigurationByResource: StrictResourceMap<ConfigurationModel> = new StrictResourceMap<ConfigurationModel>();
 		for (const key of Object.keys(data.changedConfigurationByResource)) {

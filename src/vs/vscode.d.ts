@@ -5387,7 +5387,7 @@ declare module 'vscode' {
 		/**
 		 * An event that is emitted when the [configuration](#WorkspaceConfiguration) changed.
 		 */
-		export const onDidChangeConfiguration: Event<IConfigurationChangeEvent>;
+		export const onDidChangeConfiguration: Event<ConfigurationChangeEvent>;
 
 		/**
 		 * Register a task provider.
@@ -5399,12 +5399,15 @@ declare module 'vscode' {
 		export function registerTaskProvider(type: string, provider: TaskProvider): Disposable;
 	}
 
-	export interface IConfigurationChangeEvent {
+	/**
+	 * An event describing the change in Configuration
+	 */
+	export interface ConfigurationChangeEvent {
 
 		/**
 		 * Affected configuration keys
 		 */
-		affectedKeys: string[];
+		readonly affectedKeys: string[];
 
 		/**
 		 * Returns `true` if the given section for the given resource (if provided) has affected.
