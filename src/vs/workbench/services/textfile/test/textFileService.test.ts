@@ -19,7 +19,7 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
 import { HotExitConfiguration } from 'vs/platform/files/common/files';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, Workspace } from 'vs/platform/workspace/common/workspace';
 
 class ServiceAccessor {
 	constructor(
@@ -380,7 +380,7 @@ suite('Files - TextFileService', () => {
 			service.onConfigurationChange({ files: { hotExit: setting } });
 			// Set empty workspace if required
 			if (!workspace) {
-				accessor.contextService.setWorkspace(null);
+				accessor.contextService.setWorkspace(new Workspace('empty:1508317022751'));
 			}
 			// Set multiple windows if required
 			if (multipleWindows) {

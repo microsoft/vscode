@@ -11,6 +11,7 @@
 	right: 28px;
 	width: 220px;
 	max-width: calc(100% - 28px - 28px - 8px);
+	pointer-events: none;
 }
 
 .monaco-workbench .simple-find-part {
@@ -20,6 +21,7 @@
 	display: flex;
 	padding: 4px;
 	align-items: center;
+	pointer-events: all;
 
 	-webkit-transition: top 200ms linear;
 	-o-transition: top 200ms linear;

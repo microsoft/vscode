@@ -37,7 +37,7 @@ import { DragMouseEvent, IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -57,7 +57,6 @@ import { distinct } from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { getPathLabel } from 'vs/base/common/labels';
 import { extractResources } from 'vs/base/browser/dnd';
-import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 
 export class FileDataSource implements IDataSource {
 	constructor(
@@ -108,14 +107,8 @@ export class FileDataSource implements IDataSource {
 
 				return stat.children;
 			}, (e: any) => {
-				stat.exists = false;
 				stat.hasChildren = false;
-				if (!stat.isRoot) {
-					this.messageService.show(Severity.Error, e);
-				} else {
-					// We render the roots that do not exist differently, nned to do a refresh
-					tree.refresh(stat, false);
-				}
+				this.messageService.show(Severity.Error, e);
 
 				return []; // we could not resolve any children because of an error
 			});
@@ -290,7 +283,8 @@ export class FileRenderer implements IRenderer {
 		state: FileViewletState,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService private themeService: IThemeService
+		@IThemeService private themeService: IThemeService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		this.state = state;
 	}
@@ -318,12 +312,18 @@ export class FileRenderer implements IRenderer {
 
 		// File Label
 		if (!editableData) {
-			templateData.label.element.style.display = 'block';
+			templateData.label.element.style.display = 'flex';
 			const extraClasses = ['explorer-item'];
-			if (!stat.exists && stat.isRoot) {
+			if (stat.nonexistentRoot) {
 				extraClasses.push('nonexistent-root');
 			}
-			templateData.label.setFile(stat.resource, { hidePath: true, fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE, extraClasses });
+			templateData.label.setFile(stat.resource, {
+				hidePath: true,
+				title: stat.nonexistentRoot ? nls.localize('canNotResolve', "Can not resolve folder {0}", stat.resource.toString()) : undefined,
+				fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE,
+				extraClasses,
+				fileDecorations: this.configurationService.getConfiguration<IFilesConfiguration>().explorer.decorations
+			});
 		}
 
 		// Input Box
@@ -568,7 +568,7 @@ export class FileSorter implements ISorter {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IFilesConfiguration>())));
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IFilesConfiguration>())));
 	}
 
 	private onConfigurationUpdated(configuration: IFilesConfiguration): void {
@@ -688,7 +688,7 @@ export class FileFilter implements IFilter {
 	public updateConfiguration(): boolean {
 		let needsRefresh = false;
 		this.contextService.getWorkspace().folders.forEach(folder => {
-			const configuration = this.configurationService.getConfiguration<IFilesConfiguration>(undefined, { resource: folder.uri });
+			const configuration = this.configurationService.getConfiguration<IFilesConfiguration>({ resource: folder.uri });
 			const excludesConfig = (configuration && configuration.files && configuration.files.exclude) || Object.create(null);
 			needsRefresh = needsRefresh || !objects.equals(this.hiddenExpressionPerRoot.get(folder.uri.toString()), excludesConfig);
 			this.hiddenExpressionPerRoot.set(folder.uri.toString(), objects.clone(excludesConfig)); // do not keep the config, as it gets mutated under our hoods
@@ -745,8 +745,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		@IBackupFileService private backupFileService: IBackupFileService,
 		@IWindowService private windowService: IWindowService,
 		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super(stat => this.statToResource(stat));
 
@@ -770,7 +769,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IFilesConfiguration>())));
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IFilesConfiguration>())));
 	}
 
 	private onConfigurationUpdated(config: IFilesConfiguration): void {
@@ -910,10 +909,6 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 			// Handle folders by adding to workspace if we are in workspace context
 			const folders = result.filter(result => result.stat.isDirectory).map(result => result.stat.resource);
 			if (folders.length > 0) {
-				if (this.environmentService.appQuality === 'stable') {
-					return void 0; // TODO@Ben multi root
-				}
-
 				if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 					return this.workspaceEditingService.addFolders(folders);
 				}
@@ -952,7 +947,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		let confirmPromise: TPromise<IConfirmationResult>;
 
 		// Handle confirm setting
-		const confirmDragAndDrop = !isCopy && this.configurationService.lookup<boolean>(FileDragAndDrop.CONFIRM_DND_SETTING_KEY).value;
+		const confirmDragAndDrop = !isCopy && this.configurationService.getValue<boolean>(FileDragAndDrop.CONFIRM_DND_SETTING_KEY);
 		if (confirmDragAndDrop) {
 			confirmPromise = this.messageService.confirm({
 				message: nls.localize('confirmMove', "Are you sure you want to move '{0}'?", source.name),
@@ -970,7 +965,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 			// Check for confirmation checkbox
 			let updateConfirmSettingsPromise: TPromise<void> = TPromise.as(void 0);
 			if (confirmation.checkboxChecked === true) {
-				updateConfirmSettingsPromise = this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: FileDragAndDrop.CONFIRM_DND_SETTING_KEY, value: false });
+				updateConfirmSettingsPromise = this.configurationService.updateValue(FileDragAndDrop.CONFIRM_DND_SETTING_KEY, false, ConfigurationTarget.USER);
 			}
 
 			return updateConfirmSettingsPromise.then(() => {

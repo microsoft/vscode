@@ -507,7 +507,7 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 export class RemoveAction extends AbstractSearchAndReplaceAction {
 
 	constructor(private viewer: ITree, private element: RenderableMatch) {
-		super('remove', nls.localize('RemoveAction.label', "Remove"), 'action-remove');
+		super('remove', nls.localize('RemoveAction.label', "Dismiss"), 'action-remove');
 	}
 
 	public run(): TPromise<any> {

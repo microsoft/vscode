@@ -29,7 +29,7 @@ export class RequestService implements IRequestService {
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		this.configure(configurationService.getConfiguration<IHTTPConfiguration>());
-		configurationService.onDidUpdateConfiguration(() => this.configure(configurationService.getConfiguration()), this, this.disposables);
+		configurationService.onDidChangeConfiguration(() => this.configure(configurationService.getConfiguration()), this, this.disposables);
 	}
 
 	private configure(config: IHTTPConfiguration) {

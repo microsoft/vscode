@@ -93,7 +93,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 
 	private registerListeners(): void {
 		this.toUnbind.push(this.debugService.onDidChangeState(state => this.update(state)));
-		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(() => this.update(this.debugService.state)));
+		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(() => this.update(this.debugService.state)));
 		this.toUnbind.push(this.actionBar.actionRunner.addListener(EventType.RUN, (e: any) => {
 			// check for error
 			if (e.error && !errors.isPromiseCanceledError(e.error)) {

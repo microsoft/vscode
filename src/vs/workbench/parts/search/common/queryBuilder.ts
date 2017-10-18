@@ -56,7 +56,7 @@ export class QueryBuilder {
 		}
 
 		const useRipgrep = !folderResources || folderResources.every(folder => {
-			const folderConfig = this.configurationService.getConfiguration<ISearchConfiguration>(undefined, { resource: folder });
+			const folderConfig = this.configurationService.getConfiguration<ISearchConfiguration>({ resource: folder });
 			return folderConfig.search.useRipgrep;
 		});
 
@@ -244,7 +244,7 @@ export class QueryBuilder {
 
 	private getFolderQueryForSearchPath(searchPath: ISearchPathPattern): IFolderQuery {
 		const folder = searchPath.searchPath;
-		const folderConfig = this.configurationService.getConfiguration<ISearchConfiguration>(undefined, { resource: folder });
+		const folderConfig = this.configurationService.getConfiguration<ISearchConfiguration>({ resource: folder });
 		return <IFolderQuery>{
 			folder,
 			includePattern: searchPath.pattern && patternListToIExpression([searchPath.pattern]),
@@ -253,7 +253,7 @@ export class QueryBuilder {
 	}
 
 	private getFolderQueryForRoot(folder: uri, options?: IQueryOptions): IFolderQuery {
-		const folderConfig = this.configurationService.getConfiguration<ISearchConfiguration>(undefined, { resource: folder });
+		const folderConfig = this.configurationService.getConfiguration<ISearchConfiguration>({ resource: folder });
 		return <IFolderQuery>{
 			folder,
 			excludePattern: this.getExcludesForFolder(folderConfig, options),

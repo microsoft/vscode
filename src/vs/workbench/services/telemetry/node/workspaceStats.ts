@@ -36,7 +36,7 @@ const SecondLevelDomainWhitelist = [
 	'google.com'
 ];
 
-type Tags = { [index: string]: boolean | number };
+type Tags = { [index: string]: boolean | number | string };
 
 function stripLowLevelDomains(domain: string): string {
 	let match = domain.match(SecondLevelDomainMatcher);
@@ -149,6 +149,7 @@ export class WorkspaceStats {
 			"workbench.filesToOpen" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			"workbench.filesToCreate" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			"workbench.filesToDiff" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"workspace.id" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
 			"workspace.roots" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
 			"workspace.empty" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
 			"workspace.grunt" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
@@ -175,13 +176,29 @@ export class WorkspaceStats {
 	private getWorkspaceTags(configuration: IWindowConfiguration): TPromise<Tags> {
 		const tags: Tags = Object.create(null);
 
-		const { filesToOpen, filesToCreate, filesToDiff } = configuration;
-		tags['workbench.filesToOpen'] = filesToOpen && filesToOpen.length || undefined;
-		tags['workbench.filesToCreate'] = filesToCreate && filesToCreate.length || undefined;
-		tags['workbench.filesToDiff'] = filesToDiff && filesToDiff.length || undefined;
-
-		const isEmpty = this.contextService.getWorkbenchState() === WorkbenchState.EMPTY;
+		const state = this.contextService.getWorkbenchState();
 		const workspace = this.contextService.getWorkspace();
+
+		let workspaceId: string;
+		switch (state) {
+			case WorkbenchState.EMPTY:
+				workspaceId = void 0;
+				break;
+			case WorkbenchState.FOLDER:
+				workspaceId = crypto.createHash('sha1').update(workspace.folders[0].uri.fsPath).digest('hex');
+				break;
+			case WorkbenchState.WORKSPACE:
+				workspaceId = crypto.createHash('sha1').update(workspace.configuration.fsPath).digest('hex');
+		}
+
+		tags['workspace.id'] = workspaceId;
+
+		const { filesToOpen, filesToCreate, filesToDiff } = configuration;
+		tags['workbench.filesToOpen'] = filesToOpen && filesToOpen.length || 0;
+		tags['workbench.filesToCreate'] = filesToCreate && filesToCreate.length || 0;
+		tags['workbench.filesToDiff'] = filesToDiff && filesToDiff.length || 0;
+
+		const isEmpty = state === WorkbenchState.EMPTY;
 		tags['workspace.roots'] = isEmpty ? 0 : workspace.folders.length;
 		tags['workspace.empty'] = isEmpty;
 

@@ -68,7 +68,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		}
 
 		const useRipgrep = folderQueries.every(folderQuery => {
-			const folderConfig = this._configurationService.getConfiguration<ISearchConfiguration>(undefined, { resource: folderQuery.folder });
+			const folderConfig = this._configurationService.getConfiguration<ISearchConfiguration>({ resource: folderQuery.folder });
 			return folderConfig.search.useRipgrep;
 		});
 

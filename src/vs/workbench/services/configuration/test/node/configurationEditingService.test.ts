@@ -21,13 +21,12 @@ import extfs = require('vs/base/node/extfs');
 import { TestTextFileService, TestEditorGroupService, TestLifecycleService, TestBackupFileService, TestTextResourceConfigurationService } from 'vs/workbench/test/workbenchTestServices';
 import uuid = require('vs/base/common/uuid');
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { WorkspaceService } from 'vs/workbench/services/configuration/node/configuration';
+import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
-import { ConfigurationEditingService } from 'vs/workbench/services/configuration/node/configurationEditingService';
-import { ConfigurationTarget, ConfigurationEditingError, ConfigurationEditingErrorCode } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { ConfigurationEditingService, ConfigurationEditingError, ConfigurationEditingErrorCode } from 'vs/workbench/services/configuration/node/configurationEditingService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { WORKSPACE_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -224,17 +223,19 @@ suite('ConfigurationEditingService', () => {
 
 	test('write one setting - empty file', () => {
 		return testObject.writeConfiguration(ConfigurationTarget.USER, { key: 'configurationEditing.service.testSetting', value: 'value' })
+			.then(() => instantiationService.get(IConfigurationService).reloadConfiguration())
 			.then(() => {
 				const contents = fs.readFileSync(globalSettingsFile).toString('utf8');
 				const parsed = json.parse(contents);
 				assert.equal(parsed['configurationEditing.service.testSetting'], 'value');
-				assert.equal(instantiationService.get(IConfigurationService).lookup('configurationEditing.service.testSetting').value, 'value');
+				assert.equal(instantiationService.get(IConfigurationService).getValue('configurationEditing.service.testSetting'), 'value');
 			});
 	});
 
 	test('write one setting - existing file', () => {
 		fs.writeFileSync(globalSettingsFile, '{ "my.super.setting": "my.super.value" }');
 		return testObject.writeConfiguration(ConfigurationTarget.USER, { key: 'configurationEditing.service.testSetting', value: 'value' })
+			.then(() => instantiationService.get(IConfigurationService).reloadConfiguration())
 			.then(() => {
 				const contents = fs.readFileSync(globalSettingsFile).toString('utf8');
 				const parsed = json.parse(contents);
@@ -242,20 +243,21 @@ suite('ConfigurationEditingService', () => {
 				assert.equal(parsed['my.super.setting'], 'my.super.value');
 
 				const configurationService = instantiationService.get(IConfigurationService);
-				assert.equal(configurationService.lookup('configurationEditing.service.testSetting').value, 'value');
-				assert.equal(configurationService.lookup('my.super.setting').value, 'my.super.value');
+				assert.equal(configurationService.getValue('configurationEditing.service.testSetting'), 'value');
+				assert.equal(configurationService.getValue('my.super.setting'), 'my.super.value');
 			});
 	});
 
 	test('write workspace standalone setting - empty file', () => {
 		return testObject.writeConfiguration(ConfigurationTarget.WORKSPACE, { key: 'tasks.service.testSetting', value: 'value' })
+			.then(() => instantiationService.get(IConfigurationService).reloadConfiguration())
 			.then(() => {
 				const target = path.join(workspaceDir, WORKSPACE_STANDALONE_CONFIGURATIONS['tasks']);
 				const contents = fs.readFileSync(target).toString('utf8');
 				const parsed = json.parse(contents);
 				assert.equal(parsed['service.testSetting'], 'value');
 				const configurationService = instantiationService.get(IConfigurationService);
-				assert.equal(configurationService.lookup('tasks.service.testSetting').value, 'value');
+				assert.equal(configurationService.getValue('tasks.service.testSetting'), 'value');
 			});
 	});
 
@@ -263,6 +265,7 @@ suite('ConfigurationEditingService', () => {
 		const target = path.join(workspaceDir, WORKSPACE_STANDALONE_CONFIGURATIONS['launch']);
 		fs.writeFileSync(target, '{ "my.super.setting": "my.super.value" }');
 		return testObject.writeConfiguration(ConfigurationTarget.WORKSPACE, { key: 'launch.service.testSetting', value: 'value' })
+			.then(() => instantiationService.get(IConfigurationService).reloadConfiguration())
 			.then(() => {
 				const contents = fs.readFileSync(target).toString('utf8');
 				const parsed = json.parse(contents);
@@ -270,8 +273,8 @@ suite('ConfigurationEditingService', () => {
 				assert.equal(parsed['my.super.setting'], 'my.super.value');
 
 				const configurationService = instantiationService.get(IConfigurationService);
-				assert.equal(configurationService.lookup('launch.service.testSetting').value, 'value');
-				assert.equal(configurationService.lookup('launch.my.super.setting').value, 'my.super.value');
+				assert.equal(configurationService.getValue('launch.service.testSetting'), 'value');
+				assert.equal(configurationService.getValue('launch.my.super.setting'), 'my.super.value');
 			});
 	});
 

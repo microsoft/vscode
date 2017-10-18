@@ -103,8 +103,8 @@
 }
 
 /* Debug status */
-.monaco-workbench .part.statusbar .debug-statusbar-item {
-	cursor: pointer;
+/* A very precise css rule to overwrite the display set in statusbar.css */
+.monaco-workbench > .part.statusbar > .statusbar-item > .debug-statusbar-item > a:not([disabled]):not(.disabled) {
 	display: flex;
 }
 

@@ -13,7 +13,7 @@ export default class TypeScriptDefinitionProviderBase {
 	constructor(
 		private client: ITypescriptServiceClient) { }
 
-	protected getSymbolLocations(
+	protected async getSymbolLocations(
 		definitionType: 'definition' | 'implementation' | 'typeDefinition',
 		document: TextDocument,
 		position: Position,
@@ -21,24 +21,24 @@ export default class TypeScriptDefinitionProviderBase {
 	): Promise<Location[] | null> {
 		const filepath = this.client.normalizePath(document.uri);
 		if (!filepath) {
-			return Promise.resolve(null);
+			return null;
 		}
+
 		const args = vsPositionToTsFileLocation(filepath, position);
-		return this.client.execute(definitionType, args, token).then(response => {
+		try {
+			const response = await this.client.execute(definitionType, args, token);
 			const locations: Proto.FileSpan[] = (response && response.body) || [];
 			if (!locations || locations.length === 0) {
 				return [];
 			}
 			return locations.map(location => {
 				const resource = this.client.asUrl(location.file);
-				if (resource === null) {
-					return null;
-				} else {
-					return new Location(resource, tsTextSpanToVsRange(location));
-				}
-			}).filter(x => x !== null) as Location[];
-		}, () => {
+				return !resource
+					? null
+					: new Location(resource, tsTextSpanToVsRange(location));
+			}).filter(x => x) as Location[];
+		} catch {
 			return [];
-		});
+		}
 	}
 }

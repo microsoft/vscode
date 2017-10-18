@@ -350,8 +350,10 @@ export class ActionItem extends BaseActionItem {
 }
 
 export enum ActionsOrientation {
-	HORIZONTAL = 1,
-	VERTICAL = 2
+	HORIZONTAL,
+	HORIZONTAL_REVERSE,
+	VERTICAL,
+	VERTICAL_REVERSE,
 }
 
 export interface IActionItemProvider {
@@ -420,18 +422,38 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 			DOM.addClass(this.domNode, 'animated');
 		}
 
-		let isVertical = this.options.orientation === ActionsOrientation.VERTICAL;
-		if (isVertical) {
-			this.domNode.className += ' vertical';
+		let previousKey: KeyCode;
+		let nextKey: KeyCode;
+
+		switch (this.options.orientation) {
+			case ActionsOrientation.HORIZONTAL:
+				previousKey = KeyCode.LeftArrow;
+				nextKey = KeyCode.RightArrow;
+				break;
+			case ActionsOrientation.HORIZONTAL_REVERSE:
+				previousKey = KeyCode.RightArrow;
+				nextKey = KeyCode.LeftArrow;
+				this.domNode.className += ' reverse';
+				break;
+			case ActionsOrientation.VERTICAL:
+				previousKey = KeyCode.UpArrow;
+				nextKey = KeyCode.DownArrow;
+				this.domNode.className += ' vertical';
+				break;
+			case ActionsOrientation.VERTICAL_REVERSE:
+				previousKey = KeyCode.DownArrow;
+				nextKey = KeyCode.UpArrow;
+				this.domNode.className += ' vertical reverse';
+				break;
 		}
 
 		$(this.domNode).on(DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			let event = new StandardKeyboardEvent(e);
 			let eventHandled = true;
 
-			if (event.equals(isVertical ? KeyCode.UpArrow : KeyCode.LeftArrow)) {
+			if (event.equals(previousKey)) {
 				this.focusPrevious();
-			} else if (event.equals(isVertical ? KeyCode.DownArrow : KeyCode.RightArrow)) {
+			} else if (event.equals(nextKey)) {
 				this.focusNext();
 			} else if (event.equals(KeyCode.Escape)) {
 				this.cancel();

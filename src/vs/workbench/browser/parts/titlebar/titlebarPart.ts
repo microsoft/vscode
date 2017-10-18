@@ -99,7 +99,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	private registerListeners(): void {
 		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.BLUR, () => this.onBlur()));
 		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.FOCUS, () => this.onFocus()));
-		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(() => this.onConfigurationChanged(true)));
+		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(() => this.onConfigurationChanged(true)));
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
 		this.toUnbind.push(this.contextService.onDidChangeWorkspaceFolders(() => this.setTitle(this.getWindowTitle())));
 		this.toUnbind.push(this.contextService.onDidChangeWorkbenchState(() => this.setTitle(this.getWindowTitle())));
@@ -118,7 +118,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	private onConfigurationChanged(update?: boolean): void {
 		const currentTitleTemplate = this.titleTemplate;
-		this.titleTemplate = this.configurationService.lookup<string>('window.title').value;
+		this.titleTemplate = this.configurationService.getValue<string>('window.title');
 
 		if (update && currentTitleTemplate !== this.titleTemplate) {
 			this.setTitle(this.getWindowTitle());

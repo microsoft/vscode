@@ -111,7 +111,7 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 		this.disposables.push(viewletService.onDidViewletOpen(this.onViewletOpen, this, this.disposables));
 		this.isAutoUpdateEnabled = this.extensionsWorkbenchService.isAutoUpdateEnabled;
 
-		this.configurationService.onDidUpdateConfiguration(() => {
+		this.configurationService.onDidChangeConfiguration(() => {
 			const isAutoUpdateEnabled = this.extensionsWorkbenchService.isAutoUpdateEnabled;
 			if (this.isAutoUpdateEnabled !== isAutoUpdateEnabled) {
 				this.isAutoUpdateEnabled = isAutoUpdateEnabled;

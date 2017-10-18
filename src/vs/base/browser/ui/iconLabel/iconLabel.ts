@@ -18,11 +18,17 @@ export interface IIconLabelCreationOptions {
 	supportHighlights?: boolean;
 }
 
+export interface ILabelBadgeOptions {
+	title: string;
+	className: string;
+}
+
 export interface IIconLabelOptions {
 	title?: string;
 	extraClasses?: string[];
 	italic?: boolean;
 	matches?: IMatch[];
+	badge?: ILabelBadgeOptions;
 }
 
 class FastLabelNode {
@@ -84,6 +90,7 @@ export class IconLabel {
 	private domNode: FastLabelNode;
 	private labelNode: FastLabelNode | HighlightedLabel;
 	private descriptionNode: FastLabelNode;
+	private badgeNode: HTMLSpanElement;
 
 	constructor(container: HTMLElement, options?: IIconLabelCreationOptions) {
 		this.domNode = new FastLabelNode(dom.append(container, dom.$('.monaco-icon-label')));
@@ -141,6 +148,20 @@ export class IconLabel {
 
 		this.descriptionNode.textContent = description || '';
 		this.descriptionNode.empty = !description;
+
+		if (options && options.badge) {
+			if (!this.badgeNode) {
+				this.badgeNode = document.createElement('span');
+				this.element.style.display = 'flex';
+				this.element.appendChild(this.badgeNode);
+			}
+			this.badgeNode.title = options.badge.title;
+			this.badgeNode.className = `label-badge ${options.badge.className}`;
+			dom.show(this.badgeNode);
+
+		} else if (this.badgeNode) {
+			dom.hide(this.badgeNode);
+		}
 	}
 
 	public dispose(): void {

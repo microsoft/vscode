@@ -11,6 +11,8 @@ cache:
 
 notifications:
   email: false
+  webhooks:
+    - http://vscode-test-probot.westus.cloudapp.azure.com:3450/travis/notifications
 
 addons:
   apt:

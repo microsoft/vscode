@@ -350,6 +350,16 @@ configurationRegistry.registerConfiguration({
 				nls.localize('sortOrder.modified', 'Files and folders are sorted by last modified date, in descending order. Folders are displayed before files.')
 			],
 			'description': nls.localize({ key: 'sortOrder', comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'] }, "Controls sorting order of files and folders in the explorer. In addition to the default sorting, you can set the order to 'mixed' (files and folders sorted combined), 'type' (by file type), 'modified' (by last modified date) or 'filesFirst' (sort files before folders).")
-		}
+		},
+		'explorer.decorations.colors': {
+			type: 'boolean',
+			description: nls.localize('explorer.decorations.colors', "Controls if file decorations should use colors."),
+			default: true
+		},
+		'explorer.decorations.badges': {
+			type: 'boolean',
+			description: nls.localize('explorer.decorations.badges', "Controls if file decorations should use badges."),
+			default: true
+		},
 	}
 });

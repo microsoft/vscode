@@ -48,6 +48,7 @@ export function registerContributions(): void {
 		}
 	});
 
+
 	// markers panel
 	Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescriptor(
 		MarkersPanel,

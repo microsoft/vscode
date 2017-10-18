@@ -13,13 +13,16 @@ export const WORKSPACE_CONFIG_DEFAULT_PATH = `${WORKSPACE_CONFIG_FOLDER_DEFAULT_
 export const IWorkspaceConfigurationService = createDecorator<IWorkspaceConfigurationService>('configurationService');
 
 export interface IWorkspaceConfigurationService extends IConfigurationService {
-
 	/**
 	 * Returns untrusted configuration keys for the current workspace.
 	 */
 	getUnsupportedWorkspaceKeys(): string[];
-
 }
+
+export const defaultSettingsSchemaId = 'vscode://schemas/settings/default';
+export const userSettingsSchemaId = 'vscode://schemas/settings/user';
+export const workspaceSettingsSchemaId = 'vscode://schemas/settings/workspace';
+export const folderSettingsSchemaId = 'vscode://schemas/settings/folder';
 
 export const TASKS_CONFIGURATION_KEY = 'tasks';
 export const LAUNCH_CONFIGURATION_KEY = 'launch';

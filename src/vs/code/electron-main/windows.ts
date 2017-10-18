@@ -362,7 +362,7 @@ export class WindowsManager implements IWindowsMainService {
 		// When run with --add, take the folders that are to be opened as
 		// folders that should be added to the currently active window.
 		let foldersToAdd: IPath[] = [];
-		if (openConfig.addMode && product.quality !== 'stable') { // TODO@Ben multi root
+		if (openConfig.addMode) {
 			foldersToAdd = pathsToOpen.filter(path => !!path.folderPath).map(path => ({ filePath: path.folderPath }));
 			pathsToOpen = pathsToOpen.filter(path => !path.folderPath);
 		}
@@ -792,7 +792,7 @@ export class WindowsManager implements IWindowsMainService {
 		// This will ensure to open these folders in one window instead of multiple
 		// If we are in addMode, we should not do this because in that case all
 		// folders should be added to the existing window.
-		if (!openConfig.addMode && isCommandLineOrAPICall && product.quality !== 'stable') { // TODO@Ben multi root
+		if (!openConfig.addMode && isCommandLineOrAPICall) {
 			const foldersToOpen = windowsToOpen.filter(path => !!path.folderPath);
 			if (foldersToOpen.length > 1) {
 				const workspace = this.workspacesService.createWorkspaceSync(foldersToOpen.map(folder => folder.folderPath));
@@ -937,7 +937,7 @@ export class WindowsManager implements IWindowsMainService {
 			restoreWindows = ((windowConfig && windowConfig.restoreWindows) || 'one') as RestoreWindowsSetting;
 
 			if (restoreWindows === 'one' /* default */ && windowConfig && windowConfig.reopenFolders) {
-				restoreWindows = windowConfig.reopenFolders; // TODO@Ben migration
+				restoreWindows = windowConfig.reopenFolders; // TODO@Ben migration from deprecated window.reopenFolders setting
 			}
 
 			if (['all', 'folders', 'one', 'none'].indexOf(restoreWindows) === -1) {
