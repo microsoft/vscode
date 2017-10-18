@@ -381,8 +381,8 @@ export class CodeApplication {
 			} catch (e) {
 				if (!this.environmentService.isBuilt) {
 					dialog.showMessageBox({
-						message: 'Module loading error',
-						detail: 'Could not load `windows-mutex`. Make sure you have it installed as a Code dependency.'
+						message: 'Failed to load windows-mutex',
+						detail: e.toString()
 					});
 				}
 			}
@@ -392,8 +392,8 @@ export class CodeApplication {
 			} catch (e) {
 				if (!this.environmentService.isBuilt) {
 					dialog.showMessageBox({
-						message: 'Module loading error',
-						detail: 'Could not load `windows-foreground-love`. Make sure you have it installed as a Code dependency.'
+						message: 'Failed to load windows-foreground-love',
+						detail: e.toString()
 					});
 				}
 			}
