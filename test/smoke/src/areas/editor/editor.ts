@@ -110,7 +110,9 @@ export class Editor {
 
 		// https://github.com/Microsoft/vscode/issues/34203#issuecomment-334441786
 		this.spectron.app.electron.clipboard.writeText(text);
+		await new Promise(c => setTimeout(c, 100));
 		this.spectron.app.webContents.paste();
+		await new Promise(c => setTimeout(c, 100));
 
 		await this.waitForEditorContents(filename, c => c.indexOf(text) > -1, selectorPrefix);
 	}
