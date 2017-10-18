@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { window, Uri, Disposable, Event, EventEmitter, DecorationData, DecorationProvider } from 'vscode';
+import { window, Uri, Disposable, Event, EventEmitter, DecorationData, DecorationProvider, ThemeColor } from 'vscode';
 import { Repository, GitResourceGroup } from './repository';
 import { Model } from './model';
 import { debounce } from './decorators';
@@ -38,7 +38,7 @@ class GitIgnoreDecorationProvider implements DecorationProvider {
 			if (ignored) {
 				return <DecorationData>{
 					priority: 3,
-					opacity: 0.75
+					color: new ThemeColor('git.color.ignored')
 				};
 			}
 		});

@@ -850,6 +850,15 @@
           "dark": "#73C991",
           "highContrast": "#73C991"
         }
+      },
+      {
+        "id": "git.color.ignored",
+        "description": "Color for ignored resources",
+        "defaults": {
+          "light": "#8E8E90",
+          "dark": "#A7A8A9",
+          "highContrast": "#A7A8A9"
+        }
       }
     ]
   },
