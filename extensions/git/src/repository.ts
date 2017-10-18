@@ -6,7 +6,7 @@
 'use strict';
 
 import { Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, ThemeColor, DecorationData } from 'vscode';
-import { Repository as BaseRepository, Ref, Branch, Remote, Commit, GitErrorCodes, Stash, RefType } from './git';
+import { Repository as BaseRepository, Ref, Branch, Remote, Commit, GitErrorCodes, Stash, RefType, GitError } from './git';
 import { anyEvent, filterEvent, eventToPromise, dispose, find } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import { toGitUri } from './uri';
@@ -648,6 +648,8 @@ export class Repository implements Disposable {
 		return this.run(Operation.Ignore, () => {
 			return new Promise<Set<string>>((resolve, reject) => {
 
+				filePaths = filePaths.filter(filePath => !path.relative(this.root, filePath).startsWith('..'));
+
 				const child = this.repository.stream(['check-ignore', ...filePaths]);
 
 				const onExit = exitCode => {
@@ -658,7 +660,7 @@ export class Repository implements Disposable {
 						// each line is something ignored
 						resolve(new Set<string>(data.split('\n')));
 					} else {
-						reject();
+						reject(new GitError({ stdout: data, stderr, exitCode }));
 					}
 				};
 
@@ -670,9 +672,9 @@ export class Repository implements Disposable {
 				child.stdout.setEncoding('utf8');
 				child.stdout.on('data', onStdoutData);
 
-				// const stderrData: string[] = [];
-				// child.stderr.setEncoding('utf8');
-				// child.stderr.on('data', raw => stderrData.push(raw as string));
+				let stderr: string = '';
+				child.stderr.setEncoding('utf8');
+				child.stderr.on('data', raw => stderr += raw);
 
 				child.on('error', reject);
 				child.on('exit', onExit);

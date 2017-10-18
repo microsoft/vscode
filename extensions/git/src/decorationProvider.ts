@@ -55,6 +55,7 @@ class GitIgnoreDecorationProvider implements DecorationProvider {
 				value.resolve(ignoreSet.has(key));
 			}
 		}, err => {
+			console.error(err);
 			for (const [, value] of queue.entries()) {
 				value.reject(err);
 			}
