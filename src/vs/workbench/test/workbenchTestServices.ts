@@ -102,12 +102,14 @@ export class TestContextService implements IWorkspaceContextService {
 	}
 
 	public getWorkbenchState(): WorkbenchState {
-		if (this.workspace) {
-			if (this.workspace.configuration) {
-				return WorkbenchState.WORKSPACE;
-			}
+		if (this.workspace.configuration) {
+			return WorkbenchState.WORKSPACE;
+		}
+
+		if (this.workspace.folders.length) {
 			return WorkbenchState.FOLDER;
 		}
+
 		return WorkbenchState.EMPTY;
 	}
 
