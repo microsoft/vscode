@@ -39,13 +39,13 @@ const enum Constants {
 	ColorMaskInverse = 0b11111110,
 	ColorOffset = 0,
 
-	IsForValidationMask = 0b00000010,
-	IsForValidationMaskInverse = 0b11111101,
-	IsForValidationOffset = 1,
+	IsVisitedMask = 0b00000010,
+	IsVisitedMaskInverse = 0b11111101,
+	IsVisitedOffset = 1,
 
-	IsVisitedMask = 0b00000100,
-	IsVisitedMaskInverse = 0b11111011,
-	IsVisitedOffset = 2,
+	IsForValidationMask = 0b00000100,
+	IsForValidationMaskInverse = 0b11111011,
+	IsForValidationOffset = 2,
 
 	StickinessMask = 0b00011000,
 	StickinessMaskInverse = 0b11100111,
@@ -58,6 +58,14 @@ function getNodeColor(node: IntervalNode): NodeColor {
 function setNodeColor(node: IntervalNode, color: NodeColor): void {
 	node.metadata = (
 		(node.metadata & Constants.ColorMaskInverse) | (color << Constants.ColorOffset)
+	);
+}
+function getNodeIsVisited(node: IntervalNode): boolean {
+	return ((node.metadata & Constants.IsVisitedMask) >>> Constants.IsVisitedOffset) === 1;
+}
+function setNodeIsVisited(node: IntervalNode, value: boolean): void {
+	node.metadata = (
+		(node.metadata & Constants.IsVisitedMaskInverse) | ((value ? 1 : 0) << Constants.IsVisitedOffset)
 	);
 }
 
@@ -88,8 +96,6 @@ export class IntervalNode implements IModelDecoration {
 	public cachedAbsoluteEnd: number;
 	public range: Range;
 
-	public visited: boolean;
-
 	constructor(id: string, start: number, end: number) {
 		this.metadata = 0;
 
@@ -114,7 +120,7 @@ export class IntervalNode implements IModelDecoration {
 		this.cachedAbsoluteEnd = end;
 		this.range = null;
 
-		this.visited = false;
+		setNodeIsVisited(this, false);
 	}
 
 	public reset(versionId: number, start: number, end: number, range: Range): void {
@@ -398,10 +404,10 @@ function searchForEditing(T: IntervalTree, start: number, end: number): Interval
 	let result: IntervalNode[] = [];
 	let resultLen = 0;
 	while (node !== SENTINEL) {
-		if (node.visited) {
+		if (getNodeIsVisited(node)) {
 			// going up from this node
-			node.left.visited = false;
-			node.right.visited = false;
+			setNodeIsVisited(node.left, false);
+			setNodeIsVisited(node.right, false);
 			if (node === node.parent.right) {
 				delta -= node.parent.delta;
 			}
@@ -409,13 +415,13 @@ function searchForEditing(T: IntervalTree, start: number, end: number): Interval
 			continue;
 		}
 
-		if (!node.left.visited) {
+		if (!getNodeIsVisited(node.left)) {
 			// first time seeing this node
 			nodeMaxEnd = delta + node.maxEnd;
 			if (nodeMaxEnd < start) {
 				// cover case b) from above
 				// there is no need to search this node or its children
-				node.visited = true;
+				setNodeIsVisited(node, true);
 				continue;
 			}
 
@@ -431,7 +437,7 @@ function searchForEditing(T: IntervalTree, start: number, end: number): Interval
 		if (nodeStart > end) {
 			// cover case a) from above
 			// there is no need to search this node or its right subtree
-			node.visited = true;
+			setNodeIsVisited(node, true);
 			continue;
 		}
 
@@ -440,9 +446,9 @@ function searchForEditing(T: IntervalTree, start: number, end: number): Interval
 			node.setCachedOffsets(nodeStart, nodeEnd, 0);
 			result[resultLen++] = node;
 		}
-		node.visited = true;
+		setNodeIsVisited(node, true);
 
-		if (node.right !== SENTINEL && !node.right.visited) {
+		if (node.right !== SENTINEL && !getNodeIsVisited(node.right)) {
 			// go right
 			delta += node.delta;
 			node = node.right;
@@ -451,7 +457,7 @@ function searchForEditing(T: IntervalTree, start: number, end: number): Interval
 	}
 
 	if (T.root) {
-		T.root.visited = false;
+		setNodeIsVisited(T.root, false);
 	}
 
 	return result;
@@ -469,10 +475,10 @@ function noOverlapReplace(T: IntervalTree, start: number, end: number, textLengt
 	let nodeMaxEnd = 0;
 	let nodeStart = 0;
 	while (node !== SENTINEL) {
-		if (node.visited) {
+		if (getNodeIsVisited(node)) {
 			// going up from this node
-			node.left.visited = false;
-			node.right.visited = false;
+			setNodeIsVisited(node.left, false);
+			setNodeIsVisited(node.right, false);
 			if (node === node.parent.right) {
 				delta -= node.parent.delta;
 			}
@@ -481,13 +487,13 @@ function noOverlapReplace(T: IntervalTree, start: number, end: number, textLengt
 			continue;
 		}
 
-		if (!node.left.visited) {
+		if (!getNodeIsVisited(node.left)) {
 			// first time seeing this node
 			nodeMaxEnd = delta + node.maxEnd;
 			if (nodeMaxEnd < start) {
 				// cover case b) from above
 				// there is no need to search this node or its children
-				node.visited = true;
+				setNodeIsVisited(node, true);
 				continue;
 			}
 
@@ -506,13 +512,13 @@ function noOverlapReplace(T: IntervalTree, start: number, end: number, textLengt
 			node.delta += (textLength - (end - start));
 			// cover case a) from above
 			// there is no need to search this node or its right subtree
-			node.visited = true;
+			setNodeIsVisited(node, true);
 			continue;
 		}
 
-		node.visited = true;
+		setNodeIsVisited(node, true);
 
-		if (node.right !== SENTINEL && !node.right.visited) {
+		if (node.right !== SENTINEL && !getNodeIsVisited(node.right)) {
 			// go right
 			delta += node.delta;
 			node = node.right;
@@ -521,7 +527,7 @@ function noOverlapReplace(T: IntervalTree, start: number, end: number, textLengt
 	}
 
 	if (T.root) {
-		T.root.visited = false;
+		setNodeIsVisited(T.root, false);
 	}
 }
 
@@ -533,15 +539,15 @@ function nodeCount(T: IntervalTree): number {
 	let node = T.root;
 	let count = 0;
 	while (node !== SENTINEL) {
-		if (node.visited) {
+		if (getNodeIsVisited(node)) {
 			// going up from this node
-			node.left.visited = false;
-			node.right.visited = false;
+			setNodeIsVisited(node.left, false);
+			setNodeIsVisited(node.right, false);
 			node = node.parent;
 			continue;
 		}
 
-		if (node.left !== SENTINEL && !node.left.visited) {
+		if (node.left !== SENTINEL && !getNodeIsVisited(node.left)) {
 			// go left
 			node = node.left;
 			continue;
@@ -549,9 +555,9 @@ function nodeCount(T: IntervalTree): number {
 
 		// handle current node
 		count++;
-		node.visited = true;
+		setNodeIsVisited(node, true);
 
-		if (node.right !== SENTINEL && !node.right.visited) {
+		if (node.right !== SENTINEL && !getNodeIsVisited(node.right)) {
 			// go right
 			node = node.right;
 			continue;
@@ -559,7 +565,7 @@ function nodeCount(T: IntervalTree): number {
 	}
 
 	if (T.root) {
-		T.root.visited = false;
+		setNodeIsVisited(T.root, false);
 	}
 
 	return count;
@@ -570,15 +576,15 @@ function collectNodesFromOwner(T: IntervalTree, ownerId: number): IntervalNode[]
 	let result: IntervalNode[] = [];
 	let resultLen = 0;
 	while (node !== SENTINEL) {
-		if (node.visited) {
+		if (getNodeIsVisited(node)) {
 			// going up from this node
-			node.left.visited = false;
-			node.right.visited = false;
+			setNodeIsVisited(node.left, false);
+			setNodeIsVisited(node.right, false);
 			node = node.parent;
 			continue;
 		}
 
-		if (node.left !== SENTINEL && !node.left.visited) {
+		if (node.left !== SENTINEL && !getNodeIsVisited(node.left)) {
 			// go left
 			node = node.left;
 			continue;
@@ -589,9 +595,9 @@ function collectNodesFromOwner(T: IntervalTree, ownerId: number): IntervalNode[]
 			result[resultLen++] = node;
 		}
 
-		node.visited = true;
+		setNodeIsVisited(node, true);
 
-		if (node.right !== SENTINEL && !node.right.visited) {
+		if (node.right !== SENTINEL && !getNodeIsVisited(node.right)) {
 			// go right
 			node = node.right;
 			continue;
@@ -599,7 +605,7 @@ function collectNodesFromOwner(T: IntervalTree, ownerId: number): IntervalNode[]
 	}
 
 	if (T.root) {
-		T.root.visited = false;
+		setNodeIsVisited(T.root, false);
 	}
 
 	return result;
@@ -613,10 +619,10 @@ function search(T: IntervalTree, filterOwnerId: number, filterOutValidation: boo
 	let result: IntervalNode[] = [];
 	let resultLen = 0;
 	while (node !== SENTINEL) {
-		if (node.visited) {
+		if (getNodeIsVisited(node)) {
 			// going up from this node
-			node.left.visited = false;
-			node.right.visited = false;
+			setNodeIsVisited(node.left, false);
+			setNodeIsVisited(node.right, false);
 			if (node === node.parent.right) {
 				delta -= node.parent.delta;
 			}
@@ -624,7 +630,7 @@ function search(T: IntervalTree, filterOwnerId: number, filterOutValidation: boo
 			continue;
 		}
 
-		if (node.left !== SENTINEL && !node.left.visited) {
+		if (node.left !== SENTINEL && !getNodeIsVisited(node.left)) {
 			// go left
 			node = node.left;
 			continue;
@@ -650,9 +656,9 @@ function search(T: IntervalTree, filterOwnerId: number, filterOutValidation: boo
 			result[resultLen++] = node;
 		}
 
-		node.visited = true;
+		setNodeIsVisited(node, true);
 
-		if (node.right !== SENTINEL && !node.right.visited) {
+		if (node.right !== SENTINEL && !getNodeIsVisited(node.right)) {
 			// go right
 			delta += node.delta;
 			node = node.right;
@@ -661,7 +667,7 @@ function search(T: IntervalTree, filterOwnerId: number, filterOutValidation: boo
 	}
 
 	if (T.root) {
-		T.root.visited = false;
+		setNodeIsVisited(T.root, false);
 	}
 
 	return result;
@@ -683,10 +689,10 @@ function intervalSearch(T: IntervalTree, intervalStart: number, intervalEnd: num
 	let result: IntervalNode[] = [];
 	let resultLen = 0;
 	while (node !== SENTINEL) {
-		if (node.visited) {
+		if (getNodeIsVisited(node)) {
 			// going up from this node
-			node.left.visited = false;
-			node.right.visited = false;
+			setNodeIsVisited(node.left, false);
+			setNodeIsVisited(node.right, false);
 			if (node === node.parent.right) {
 				delta -= node.parent.delta;
 			}
@@ -694,13 +700,13 @@ function intervalSearch(T: IntervalTree, intervalStart: number, intervalEnd: num
 			continue;
 		}
 
-		if (!node.left.visited) {
+		if (!getNodeIsVisited(node.left)) {
 			// first time seeing this node
 			nodeMaxEnd = delta + node.maxEnd;
 			if (nodeMaxEnd < intervalStart) {
 				// cover case b) from above
 				// there is no need to search this node or its children
-				node.visited = true;
+				setNodeIsVisited(node, true);
 				continue;
 			}
 
@@ -716,7 +722,7 @@ function intervalSearch(T: IntervalTree, intervalStart: number, intervalEnd: num
 		if (nodeStart > intervalEnd) {
 			// cover case a) from above
 			// there is no need to search this node or its right subtree
-			node.visited = true;
+			setNodeIsVisited(node, true);
 			continue;
 		}
 
@@ -739,9 +745,9 @@ function intervalSearch(T: IntervalTree, intervalStart: number, intervalEnd: num
 			}
 		}
 
-		node.visited = true;
+		setNodeIsVisited(node, true);
 
-		if (node.right !== SENTINEL && !node.right.visited) {
+		if (node.right !== SENTINEL && !getNodeIsVisited(node.right)) {
 			// go right
 			delta += node.delta;
 			node = node.right;
@@ -750,7 +756,7 @@ function intervalSearch(T: IntervalTree, intervalStart: number, intervalEnd: num
 	}
 
 	if (T.root) {
-		T.root.visited = false;
+		setNodeIsVisited(T.root, false);
 	}
 
 	return result;
