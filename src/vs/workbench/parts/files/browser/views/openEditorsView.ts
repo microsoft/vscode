@@ -14,7 +14,7 @@ import { IItemCollapseEvent } from 'vs/base/parts/tree/browser/treeModel';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup } from 'vs/workbench/common/editor';
 import { SaveAllAction } from 'vs/workbench/parts/files/browser/fileActions';
@@ -183,7 +183,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		this.disposables.push(this.model.onModelChanged(e => this.onEditorStacksModelChanged(e)));
 
 		// Also handle configuration updates
-		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IFilesConfiguration>())));
+		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IFilesConfiguration>(), e)));
 
 		// Handle dirty counter
 		this.disposables.push(this.untitledEditorService.onDidChangeDirty(e => this.updateDirtyIndicator()));
@@ -259,7 +259,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		}
 	}
 
-	private onConfigurationUpdated(configuration: IFilesConfiguration): void {
+	private onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): void {
 		if (this.isDisposed) {
 			return; // guard against possible race condition when config change causes recreate of views
 		}
@@ -280,6 +280,11 @@ export class OpenEditorsView extends ViewsViewletPanel {
 
 		// Adjust expanded body size
 		this.minimumBodySize = this.maximumBodySize = this.getExpandedBodySize(this.model);
+
+		// Trigger a 'repaint' when decoration settings change
+		if (event && event.affectsConfiguration('explorer.decorations')) {
+			this.tree.refresh();
+		}
 	}
 
 	private updateDirtyIndicator(): void {
