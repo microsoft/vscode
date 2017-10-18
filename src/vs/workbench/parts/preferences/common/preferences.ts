@@ -72,6 +72,10 @@ export interface IPreferencesEditorModel<T> {
 	dispose(): void;
 }
 
+export interface IDefaultPreferencesEditorModel {
+	model: IModel;
+}
+
 export type IGroupFilter = (group: ISettingsGroup) => boolean;
 export type ISettingFilter = (setting: ISetting) => IRange[];
 

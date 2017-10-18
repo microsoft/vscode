@@ -15,7 +15,7 @@ import { visit, JSONVisitor } from 'vs/base/common/json';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { EditorModel } from 'vs/workbench/common/editor';
 import { IConfigurationNode, IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN, IConfigurationPropertySchema, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { ISettingsEditorModel, IKeybindingsEditorModel, ISettingsGroup, ISetting, IFilterResult, ISettingsSection, IGroupFilter, ISettingFilter } from 'vs/workbench/parts/preferences/common/preferences';
+import { ISettingsEditorModel, IDefaultPreferencesEditorModel, IKeybindingsEditorModel, ISettingsGroup, ISetting, IFilterResult, ISettingsSection, IGroupFilter, ISettingFilter } from 'vs/workbench/parts/preferences/common/preferences';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -476,7 +476,7 @@ export class WorkspaceConfigModel extends SettingsEditorModel implements ISettin
 	}
 }
 
-export class DefaultSettingsEditorModel extends AbstractSettingsModel implements ISettingsEditorModel {
+export class DefaultSettingsEditorModel extends AbstractSettingsModel implements ISettingsEditorModel, IDefaultPreferencesEditorModel {
 
 	public static MOST_RELEVANT_SECTION_LENGTH = 100;
 	public static MOST_RELEVANT_START_LINE = 4;
@@ -916,11 +916,19 @@ export function defaultKeybindingsContents(keybindingService: IKeybindingService
 	return defaultsHeader + '\n' + keybindingService.getDefaultKeybindingsContent();
 }
 
-export class DefaultKeybindingsEditorModel implements IKeybindingsEditorModel<any> {
+export class DefaultKeybindingsEditorModel implements IKeybindingsEditorModel<any>, IDefaultPreferencesEditorModel {
 
 	private _content: string;
+	private _model: IModel;
 
-	constructor(private _uri: URI, @IKeybindingService private keybindingService: IKeybindingService) {
+	constructor(private _uri: URI,
+		@IKeybindingService private keybindingService: IKeybindingService,
+		@IModeService private modeService: IModeService,
+		@IModelService private modelService: IModelService) {
+	}
+
+	public get model(): IModel {
+		return this._model;
 	}
 
 	public get uri(): URI {

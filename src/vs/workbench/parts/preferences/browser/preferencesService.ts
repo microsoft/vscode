@@ -117,30 +117,15 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	resolveModel(uri: URI): TPromise<IModel> {
-		const workspaceSettingsUri = this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE);
-		if (workspaceSettingsUri && workspaceSettingsUri.toString() === uri.toString()) {
-			return this.resolveSettingsContentFromWorkspaceConfiguration().then(content => {
-				return this.getJsonModel(content, uri);
-			});
-		}
-
 		return this.createPreferencesEditorModel(uri)
 			.then(preferencesEditorModel => {
-				if (preferencesEditorModel instanceof DefaultSettingsEditorModel) {
+				if (preferencesEditorModel instanceof DefaultSettingsEditorModel || preferencesEditorModel instanceof DefaultKeybindingsEditorModel) {
 					return preferencesEditorModel.model;
 				} else {
-					return this.getJsonModel(preferencesEditorModel && preferencesEditorModel.content, uri);
+					// This provider only handles the Default model types
+					return null;
 				}
 			});
-	}
-
-	private getJsonModel(content: string, uri: URI): IModel {
-		if (content !== null && content !== undefined) {
-			const mode = this.modeService.getOrCreateMode('json');
-			return this.modelService.createModel(content, mode, uri);
-		}
-
-		return null;
 	}
 
 	disownPreferencesEditorModel(editorModel: IPreferencesEditorModel<any>): void {
@@ -353,19 +338,6 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 				.then(reference => this.instantiationService.createInstance(SettingsEditorModel, reference, configurationTarget));
 		}
 		return TPromise.wrap<SettingsEditorModel>(null);
-	}
-
-	private resolveSettingsContentFromWorkspaceConfiguration(): TPromise<string> {
-		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
-			return this.textModelResolverService.createModelReference(this.contextService.getWorkspace().configuration)
-				.then(reference => {
-					const model = reference.object.textEditorModel;
-					const settingsContent = WorkspaceConfigModel.getSettingsContentFromConfigContent(model.getValue());
-					reference.dispose();
-					return TPromise.as(settingsContent ? settingsContent : emptyEditableSettingsContent);
-				});
-		}
-		return TPromise.as(null);
 	}
 
 	private getEditableSettingsURI(configurationTarget: ConfigurationTarget, resource?: URI): URI {
