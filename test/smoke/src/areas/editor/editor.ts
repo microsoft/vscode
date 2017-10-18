@@ -109,12 +109,8 @@ export class Editor {
 		await this.spectron.client.waitForActiveElement(textarea);
 
 		// https://github.com/Microsoft/vscode/issues/34203#issuecomment-334441786
-		for (let i = 0; i < text.length; i++) {
-			this.spectron.client.spectron.client.keys([text[i], 'NULL']);
-			await new Promise(c => setTimeout(c, 50));
-		}
-
-		// this.spectron.client.spectron.client.keys([text, 'NULL']);
+		this.spectron.app.electron.clipboard.writeText(text);
+		this.spectron.app.webContents.paste();
 
 		await this.waitForEditorContents(filename, c => c.indexOf(text) > -1, selectorPrefix);
 	}
