@@ -76,6 +76,14 @@ function setNodeIsForValidation(node: IntervalNode, value: boolean): void {
 		(node.metadata & Constants.IsForValidationMaskInverse) | ((value ? 1 : 0) << Constants.IsForValidationOffset)
 	);
 }
+function getNodeStickiness(node: IntervalNode): TrackedRangeStickiness {
+	return ((node.metadata & Constants.StickinessMask) >>> Constants.StickinessOffset);
+}
+function setNodeStickiness(node: IntervalNode, stickiness: TrackedRangeStickiness): void {
+	node.metadata = (
+		(node.metadata & Constants.StickinessMaskInverse) | (stickiness << Constants.StickinessOffset)
+	);
+}
 
 export class IntervalNode implements IModelDecoration {
 
@@ -96,7 +104,6 @@ export class IntervalNode implements IModelDecoration {
 	public id: string;
 	public ownerId: number;
 	public options: ModelDecorationOptions;
-	public stickiness: TrackedRangeStickiness;
 
 	public cachedVersionId: number;
 	public cachedAbsoluteStart: number;
@@ -120,7 +127,7 @@ export class IntervalNode implements IModelDecoration {
 		this.ownerId = 0;
 		this.options = null;
 		setNodeIsForValidation(this, false);
-		this.stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
+		setNodeStickiness(this, TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges);
 
 		this.cachedVersionId = 0;
 		this.cachedAbsoluteStart = start;
@@ -146,7 +153,7 @@ export class IntervalNode implements IModelDecoration {
 			this.options.className === ClassName.EditorErrorDecoration
 			|| this.options.className === ClassName.EditorWarningDecoration
 		));
-		this.stickiness = <number>this.options.stickiness;
+		setNodeStickiness(this, <number>this.options.stickiness);
 	}
 
 	public setCachedOffsets(absoluteStart: number, absoluteEnd: number, cachedVersionId: number): void {
@@ -329,13 +336,14 @@ function adjustMarkerBeforeColumn(markerOffset: number, markerStickToPreviousCha
  * as when decorations were implemented using two markers.
  */
 function nodeAcceptEdit(node: IntervalNode, start: number, end: number, textLength: number, forceMoveMarkers: boolean): void {
+	const nodeStickiness = getNodeStickiness(node);
 	const startStickToPreviousCharacter = (
-		node.stickiness === TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
-		|| node.stickiness === TrackedRangeStickiness.GrowsOnlyWhenTypingBefore
+		nodeStickiness === TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
+		|| nodeStickiness === TrackedRangeStickiness.GrowsOnlyWhenTypingBefore
 	);
 	const endStickToPreviousCharacter = (
-		node.stickiness === TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
-		|| node.stickiness === TrackedRangeStickiness.GrowsOnlyWhenTypingBefore
+		nodeStickiness === TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+		|| nodeStickiness === TrackedRangeStickiness.GrowsOnlyWhenTypingBefore
 	);
 
 	const deletingCnt = (end - start);
