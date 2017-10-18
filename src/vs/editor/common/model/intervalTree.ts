@@ -12,7 +12,6 @@ import { IModelDecoration } from 'vs/editor/common/editorCommon';
 // The red-black tree is based on the "Introduction to Algorithms" by Cormen, Leiserson and Rivest.
 //
 
-// TODO@interval!!!
 export const ClassName = {
 	EditorInfoDecoration: 'infosquiggly',
 	EditorWarningDecoration: 'warningsquiggly',

@@ -17,12 +17,6 @@ import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { IntervalNode, IntervalTree } from 'vs/editor/common/model/intervalTree';
 
-export const ClassName = {
-	EditorInfoDecoration: 'infosquiggly',
-	EditorWarningDecoration: 'warningsquiggly',
-	EditorErrorDecoration: 'errorsquiggly'
-};
-
 let _INSTANCE_COUNT = 0;
 /**
  * Produces 'a'-'z', followed by 'A'-'Z'... followed by 'a'-'z', etc.
