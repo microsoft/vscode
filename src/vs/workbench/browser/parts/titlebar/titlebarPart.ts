@@ -18,7 +18,7 @@ import * as errors from 'vs/base/common/errors';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IAction, Action } from 'vs/base/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -51,7 +51,6 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	private isInactive: boolean;
 
-	private titleTemplate: string;
 	private isPure: boolean;
 	private activeEditorListeners: IDisposable[];
 
@@ -81,9 +80,6 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	private init(): void {
 
-		// Read initial config
-		this.onConfigurationChanged();
-
 		// Initial window title when loading is done
 		this.partService.joinCreation().done(() => this.setTitle(this.getWindowTitle()));
 
@@ -99,7 +95,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	private registerListeners(): void {
 		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.BLUR, () => this.onBlur()));
 		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.FOCUS, () => this.onFocus()));
-		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(() => this.onConfigurationChanged(true)));
+		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChanged(e)));
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
 		this.toUnbind.push(this.contextService.onDidChangeWorkspaceFolders(() => this.setTitle(this.getWindowTitle())));
 		this.toUnbind.push(this.contextService.onDidChangeWorkbenchState(() => this.setTitle(this.getWindowTitle())));
@@ -116,11 +112,8 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.updateStyles();
 	}
 
-	private onConfigurationChanged(update?: boolean): void {
-		const currentTitleTemplate = this.titleTemplate;
-		this.titleTemplate = this.configurationService.getValue<string>('window.title');
-
-		if (update && currentTitleTemplate !== this.titleTemplate) {
+	private onConfigurationChanged(event: IConfigurationChangeEvent): void {
+		if (event.affectsConfiguration('window.title')) {
 			this.setTitle(this.getWindowTitle());
 		}
 	}
@@ -208,8 +201,9 @@ export class TitlebarPart extends Part implements ITitleService {
 		const dirty = input && input.isDirty() ? TitlebarPart.TITLE_DIRTY : '';
 		const appName = this.environmentService.appNameLong;
 		const separator = TitlebarPart.TITLE_SEPARATOR;
+		const titleTemplate = this.configurationService.getValue<string>('window.title');
 
-		return labels.template(this.titleTemplate, {
+		return labels.template(titleTemplate, {
 			activeEditorShort,
 			activeEditorLong,
 			activeEditorMedium,
