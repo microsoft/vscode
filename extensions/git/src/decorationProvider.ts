@@ -5,10 +5,11 @@
 
 'use strict';
 
-import { window, Uri, Disposable, Event, EventEmitter, DecorationData, DecorationProvider } from 'vscode';
+import { window, workspace, Uri, Disposable, Event, EventEmitter, DecorationData, DecorationProvider, ThemeColor } from 'vscode';
 import { Repository, GitResourceGroup } from './repository';
 import { Model } from './model';
 import { debounce } from './decorators';
+import { filterEvent } from './util';
 
 class GitIgnoreDecorationProvider implements DecorationProvider {
 
@@ -20,8 +21,9 @@ class GitIgnoreDecorationProvider implements DecorationProvider {
 
 	constructor(private repository: Repository) {
 		this.disposables.push(
-			window.registerDecorationProvider(this, '.gitignore')
-			//todo@joh -> events when the ignore status actually changes, not when the file changes
+			window.registerDecorationProvider(this),
+			filterEvent(workspace.onDidSaveTextDocument, e => e.fileName.endsWith('.gitignore'))(_ => this._onDidChangeDecorations.fire())
+			//todo@joh -> events when the ignore status actually changes, not only when the file changes
 		);
 	}
 
@@ -38,7 +40,7 @@ class GitIgnoreDecorationProvider implements DecorationProvider {
 			if (ignored) {
 				return <DecorationData>{
 					priority: 3,
-					opacity: 0.75
+					color: new ThemeColor('git.color.ignored')
 				};
 			}
 		});
@@ -53,6 +55,7 @@ class GitIgnoreDecorationProvider implements DecorationProvider {
 				value.resolve(ignoreSet.has(key));
 			}
 		}, err => {
+			console.error(err);
 			for (const [, value] of queue.entries()) {
 				value.reject(err);
 			}
@@ -70,7 +73,7 @@ class GitDecorationProvider implements DecorationProvider {
 
 	constructor(private repository: Repository) {
 		this.disposables.push(
-			window.registerDecorationProvider(this, repository.root),
+			window.registerDecorationProvider(this),
 			repository.onDidRunOperation(this.onDidRunOperation, this)
 		);
 	}

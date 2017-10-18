@@ -5,7 +5,7 @@
 'use strict';
 
 import { clone, equals } from 'vs/base/common/objects';
-import { compare, toValuesTree, IConfigurationChangeEvent, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { compare, toValuesTree, IConfigurationChangeEvent, ConfigurationTarget, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationModel, Configuration as BaseConfiguration, CustomConfigurationModel, ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, IConfigurationPropertySchema, Extensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
@@ -270,7 +270,14 @@ export class Configuration extends BaseConfiguration {
 
 export class WorkspaceConfigurationChangeEvent implements IConfigurationChangeEvent {
 
-	constructor(private configurationChangeEvent: ConfigurationChangeEvent, private workspace: Workspace) {
+	constructor(private configurationChangeEvent: IConfigurationChangeEvent, private workspace: Workspace) { }
+
+	get changedConfiguration(): IConfigurationModel {
+		return this.configurationChangeEvent.changedConfiguration;
+	}
+
+	get changedConfigurationByResource(): StrictResourceMap<IConfigurationModel> {
+		return this.configurationChangeEvent.changedConfigurationByResource;
 	}
 
 	get affectedKeys(): string[] {
@@ -290,7 +297,7 @@ export class WorkspaceConfigurationChangeEvent implements IConfigurationChangeEv
 			return true;
 		}
 
-		if (resource) {
+		if (resource && this.workspace) {
 			let workspaceFolder = this.workspace.getFolder(resource);
 			if (workspaceFolder) {
 				return this.configurationChangeEvent.affectsConfiguration(config, workspaceFolder.uri);

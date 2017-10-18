@@ -178,16 +178,15 @@ declare module 'vscode' {
 		bubble?: boolean;
 		abbreviation?: string;
 		color?: ThemeColor;
-		opacity?: number;
 	}
 
 	export interface DecorationProvider {
-		onDidChangeDecorations: Event<Uri | Uri[]>;
+		onDidChangeDecorations: Event<undefined | Uri | Uri[]>;
 		provideDecoration(uri: Uri, token: CancellationToken): ProviderResult<DecorationData>;
 	}
 
 	export namespace window {
-		export function registerDecorationProvider(provider: DecorationProvider, label: string): Disposable;
+		export function registerDecorationProvider(provider: DecorationProvider): Disposable;
 	}
 
 	//#endregion

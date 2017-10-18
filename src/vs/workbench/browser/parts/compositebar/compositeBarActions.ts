@@ -31,24 +31,24 @@ export interface ICompositeActivity {
 
 export interface ICompositeBar {
 	/**
-	 * Unpins a viewlet from the activitybar.
+	 * Unpins a composite from the activitybar.
 	 */
-	unpin(viewletId: string): void;
+	unpin(compositeId: string): void;
 
 	/**
-	 * Pin a viewlet inside the activity bar.
+	 * Pin a composite inside the activity bar.
 	 */
-	pin(viewletId: string): void;
+	pin(compositeId: string): void;
 
 	/**
-	 * Find out if a viewlet is pinned in the activity bar.
+	 * Find out if a composite is pinned in the activity bar.
 	 */
-	isPinned(viewletId: string): boolean;
+	isPinned(compositeId: string): boolean;
 
 	/**
-	 * Reorder viewlet ordering by moving a viewlet to the location of another viewlet.
+	 * Reorder composite ordering by moving a composite to the location of another composite.
 	 */
-	move(viewletId: string, toViewletId: string): void;
+	move(compositeId: string, tocompositeId: string): void;
 }
 
 export class ActivityAction extends Action {
@@ -91,17 +91,22 @@ export class ActivityAction extends Action {
 	}
 }
 
+export interface IActivityActionItemOptions extends IBaseActionItemOptions {
+	icon?: boolean;
+}
+
 export class ActivityActionItem extends BaseActionItem {
 	protected $container: Builder;
 	protected $label: Builder;
 	protected $badge: Builder;
+	protected options: IActivityActionItemOptions;
 
 	private $badgeContent: Builder;
 	private mouseUpTimeout: number;
 
 	constructor(
 		action: ActivityAction,
-		options: IBaseActionItemOptions,
+		options: IActivityActionItemOptions,
 		@IThemeService protected themeService: IThemeService
 	) {
 		super(null, action, options);
@@ -168,6 +173,9 @@ export class ActivityActionItem extends BaseActionItem {
 		this.$label = $('a.action-label').appendTo(this.builder);
 		if (this.activity.cssClass) {
 			this.$label.addClass(this.activity.cssClass);
+		}
+		if (!this.options.icon) {
+			this.$label.text(this.getAction().label);
 		}
 
 		this.$badge = this.builder.clone().div({ 'class': 'badge' }, (badge: Builder) => {
@@ -262,7 +270,7 @@ export class CompositeOverflowActivityAction extends ActivityAction {
 		private showMenu: () => void
 	) {
 		super({
-			id: 'activitybar.additionalComposites.action',
+			id: 'additionalComposites.action',
 			name: nls.localize('additionalViews', "Additional Views"),
 			cssClass: 'toggle-more'
 		});
@@ -290,7 +298,7 @@ export class CompositeOverflowActivityActionItem extends ActivityActionItem {
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IThemeService themeService: IThemeService
 	) {
-		super(action, null, themeService);
+		super(action, { icon: true }, themeService);
 
 		this.cssClass = action.class;
 		this.name = action.label;
@@ -512,10 +520,10 @@ export class CompositeActionItem extends ActivityActionItem {
 
 		const isPinned = this.compositeBar.isPinned(this.activity.id);
 		if (isPinned) {
-			this.toggleCompositePinnedAction.label = nls.localize('removeFromActivityBar', "Hide from Activity Bar");
+			this.toggleCompositePinnedAction.label = nls.localize('hide', "Hide");
 			this.toggleCompositePinnedAction.checked = false;
 		} else {
-			this.toggleCompositePinnedAction.label = nls.localize('keepInActivityBar', "Keep in Activity Bar");
+			this.toggleCompositePinnedAction.label = nls.localize('keep', "Keep");
 		}
 
 		this.contextMenuService.showContextMenu({
@@ -569,7 +577,7 @@ export class ToggleCompositePinnedAction extends Action {
 		private activity: IActivity,
 		private compositeBar: ICompositeBar
 	) {
-		super('activitybar.show.toggleViewletPinned', activity ? activity.name : nls.localize('toggle', "Toggle View Pinned"));
+		super('show.toggleCompositePinned', activity ? activity.name : nls.localize('toggle', "Toggle View Pinned"));
 
 		this.checked = this.activity && this.compositeBar.isPinned(this.activity.id);
 	}

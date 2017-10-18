@@ -35,6 +35,7 @@ import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 
 export class SettingsHeaderWidget extends Widget implements IViewZone {
 
@@ -585,7 +586,8 @@ export class EditPreferenceWidget<T> extends Disposable {
 		super();
 		this._editPreferenceDecoration = [];
 		this._register(this.editor.onMouseDown((e: IEditorMouseEvent) => {
-			if (e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN || /* after last line */ e.target.detail || !this.isVisible()) {
+			const data = e.target.detail as IMarginData;
+			if (e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN || data.isAfterLines || !this.isVisible()) {
 				return;
 			}
 			this._onClick.fire(e);

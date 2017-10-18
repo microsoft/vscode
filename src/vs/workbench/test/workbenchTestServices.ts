@@ -59,6 +59,7 @@ import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IPosition } from 'vs/editor/common/core/position';
 import { ICommandAction } from 'vs/platform/actions/common/actions';
+import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -102,12 +103,14 @@ export class TestContextService implements IWorkspaceContextService {
 	}
 
 	public getWorkbenchState(): WorkbenchState {
-		if (this.workspace) {
-			if (this.workspace.configuration) {
-				return WorkbenchState.WORKSPACE;
-			}
+		if (this.workspace.configuration) {
+			return WorkbenchState.WORKSPACE;
+		}
+
+		if (this.workspace.folders.length) {
 			return WorkbenchState.FOLDER;
 		}
+
 		return WorkbenchState.EMPTY;
 	}
 
@@ -257,6 +260,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
 	instantiationService.stub(IEnvironmentService, TestEnvironmentService);
 	instantiationService.stub(IThemeService, new TestThemeService());
+	instantiationService.stub(IHashService, new TestHashService());
 
 	return instantiationService;
 }
@@ -1220,5 +1224,13 @@ export class TestTextResourceConfigurationService implements ITextResourceConfig
 	public getConfiguration(resource: any, position?: any, section?: any): any;
 	public getConfiguration(resource: any, position?: any, section?: any): any {
 		return this.configurationService.getConfiguration(section, { resource });
+	}
+}
+
+export class TestHashService implements IHashService {
+	_serviceBrand: any;
+
+	createSHA1(content: string): string {
+		return content;
 	}
 }

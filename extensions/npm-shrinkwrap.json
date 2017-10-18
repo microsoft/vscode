@@ -3,9 +3,9 @@
   "version": "0.0.1",
   "dependencies": {
     "typescript": {
-      "version": "2.6.0-insiders.20171013",
-      "from": "typescript@2.6.0-insiders.20171013",
-      "resolved": "https://registry.npmjs.org/typescript/-/typescript-2.6.0-insiders.20171013.tgz"
+      "version": "2.6.1-insiders.20171016",
+      "from": "typescript@2.6.1-insiders.20171016",
+      "resolved": "https://registry.npmjs.org/typescript/-/typescript-2.6.1-insiders.20171016.tgz"
     }
   }
 }

@@ -55,7 +55,7 @@ export class TabCompletionController implements editorCommon.IEditorContribution
 				const prefix = getNonWhitespacePrefix(editor.getModel(), editor.getPosition());
 				selectFn = prefix && (snippet => endsWith(prefix, snippet.prefix));
 
-			} else {
+			} else if (e.selection.startLineNumber === e.selection.endLineNumber && editor.getModel().getValueLengthInRange(e.selection) <= 100) {
 				// actual selection -> snippet must be a full match
 				const selected = editor.getModel().getValueInRange(e.selection);
 				selectFn = snippet => selected === snippet.prefix;

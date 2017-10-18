@@ -562,17 +562,17 @@ export class FileSorter implements ISorter {
 	) {
 		this.toDispose = [];
 
-		this.onConfigurationUpdated(configurationService.getConfiguration<IFilesConfiguration>());
+		this.updateSortOrder();
 
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IFilesConfiguration>())));
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => this.updateSortOrder()));
 	}
 
-	private onConfigurationUpdated(configuration: IFilesConfiguration): void {
-		this.sortOrder = configuration && configuration.explorer && configuration.explorer.sortOrder || 'default';
+	private updateSortOrder(): void {
+		this.sortOrder = this.configurationService.getValue('explorer.sortOrder') || 'default';
 	}
 
 	public compare(tree: ITree, statA: FileStat, statB: FileStat): number {
@@ -751,7 +751,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 
 		this.toDispose = [];
 
-		this.onConfigurationUpdated(configurationService.getConfiguration<IFilesConfiguration>());
+		this.updateDropEnablement();
 
 		this.registerListeners();
 	}
@@ -769,11 +769,11 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IFilesConfiguration>())));
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => this.updateDropEnablement()));
 	}
 
-	private onConfigurationUpdated(config: IFilesConfiguration): void {
-		this.dropEnabled = config && config.explorer && config.explorer.enableDragAndDrop;
+	private updateDropEnablement(): void {
+		this.dropEnabled = this.configurationService.getValue('explorer.enableDragAndDrop');
 	}
 
 	public onDragStart(tree: ITree, data: IDragAndDropData, originalEvent: DragMouseEvent): void {

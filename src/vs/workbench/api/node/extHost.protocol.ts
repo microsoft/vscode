@@ -28,7 +28,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 import { ITextSource } from 'vs/editor/common/model/textSource';
 
-import { IConfigurationData, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationData, ConfigurationTarget, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
 
 import { IPickOpenEntry, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
@@ -75,6 +75,11 @@ export interface IInitData {
 	extensions: IExtensionDescription[];
 	configuration: IConfigurationData;
 	telemetryInfo: ITelemetryInfo;
+}
+
+export interface IWorkspaceConfigurationChangeEventData {
+	changedConfiguration: IConfigurationModel;
+	changedConfigurationByResource: { [folder: string]: IConfigurationModel };
 }
 
 export interface IExtHostContext {
@@ -418,7 +423,7 @@ export interface ExtHostCommandsShape {
 }
 
 export interface ExtHostConfigurationShape {
-	$acceptConfigurationChanged(data: IConfigurationData): void;
+	$acceptConfigurationChanged(data: IConfigurationData, eventData: IWorkspaceConfigurationChangeEventData): void;
 }
 
 export interface ExtHostDiagnosticsShape {
@@ -602,7 +607,7 @@ export interface ExtHostDebugServiceShape {
 }
 
 
-export type DecorationData = [number, boolean, string, string, number, ThemeColor];
+export type DecorationData = [number, boolean, string, string, ThemeColor];
 
 export interface ExtHostDecorationsShape {
 	$providerDecorations(handle: number, uri: URI): TPromise<DecorationData>;

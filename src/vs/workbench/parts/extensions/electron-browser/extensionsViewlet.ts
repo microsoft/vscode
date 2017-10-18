@@ -25,7 +25,7 @@ import { append, $, addStandardDisposableListener, EventType, addClass, removeCl
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
-import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, ExtensionState } from '../common/extensions';
+import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, ExtensionState, AutoUpdateConfigurationKey } from '../common/extensions';
 import {
 	ShowEnabledExtensionsAction, ShowInstalledExtensionsAction, ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowDisabledExtensionsAction,
 	ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction, CheckForUpdatesAction, DisableAllAction, EnableAllAction,
@@ -79,8 +79,6 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 	private secondaryActions: IAction[];
 	private disposables: IDisposable[] = [];
 
-	private isAutoUpdateEnabled: boolean;
-
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IProgressService private progressService: IProgressService,
@@ -109,12 +107,9 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 		this.searchRecommendedExtensionsContextKey = SearchRecommendedExtensionsContext.bindTo(contextKeyService);
 
 		this.disposables.push(viewletService.onDidViewletOpen(this.onViewletOpen, this, this.disposables));
-		this.isAutoUpdateEnabled = this.extensionsWorkbenchService.isAutoUpdateEnabled;
 
-		this.configurationService.onDidChangeConfiguration(() => {
-			const isAutoUpdateEnabled = this.extensionsWorkbenchService.isAutoUpdateEnabled;
-			if (this.isAutoUpdateEnabled !== isAutoUpdateEnabled) {
-				this.isAutoUpdateEnabled = isAutoUpdateEnabled;
+		this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AutoUpdateConfigurationKey)) {
 				this.secondaryActions = null;
 				this.updateTitleArea();
 			}
@@ -277,7 +272,7 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.name', localize('sort by name', "Sort By: Name"), this.onSearchChange, 'name'),
 				new Separator(),
 				this.instantiationService.createInstance(CheckForUpdatesAction, CheckForUpdatesAction.ID, CheckForUpdatesAction.LABEL),
-				...(this.isAutoUpdateEnabled ? [this.instantiationService.createInstance(DisableAutoUpdateAction, DisableAutoUpdateAction.ID, DisableAutoUpdateAction.LABEL)] : [this.instantiationService.createInstance(UpdateAllAction, UpdateAllAction.ID, UpdateAllAction.LABEL), this.instantiationService.createInstance(EnableAutoUpdateAction, EnableAutoUpdateAction.ID, EnableAutoUpdateAction.LABEL)]),
+				...(this.configurationService.getValue(AutoUpdateConfigurationKey) ? [this.instantiationService.createInstance(DisableAutoUpdateAction, DisableAutoUpdateAction.ID, DisableAutoUpdateAction.LABEL)] : [this.instantiationService.createInstance(UpdateAllAction, UpdateAllAction.ID, UpdateAllAction.LABEL), this.instantiationService.createInstance(EnableAutoUpdateAction, EnableAutoUpdateAction.ID, EnableAutoUpdateAction.LABEL)]),
 				this.instantiationService.createInstance(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL),
 				new Separator(),
 				this.instantiationService.createInstance(DisableAllAction, DisableAllAction.ID, DisableAllAction.LABEL),

@@ -28,7 +28,7 @@ export class ExtHostDecorations implements ExtHostDecorationsShape {
 		this._proxy.$registerDecorationProvider(handle, label);
 
 		const listener = provider.onDidChangeDecorations(e => {
-			this._proxy.$onDidChange(handle, Array.isArray(e) ? e : [e]);
+			this._proxy.$onDidChange(handle, !e ? null : Array.isArray(e) ? e : [e]);
 		});
 
 		return new Disposable(() => {
@@ -41,7 +41,7 @@ export class ExtHostDecorations implements ExtHostDecorationsShape {
 	$providerDecorations(handle: number, uri: URI): TPromise<DecorationData> {
 		const provider = this._provider.get(handle);
 		return asWinJsPromise(token => provider.provideDecoration(uri, token)).then(data => {
-			return data && <DecorationData>[data.priority, data.bubble, data.title, data.abbreviation, data.opacity, data.color];
+			return data && <DecorationData>[data.priority, data.bubble, data.title, data.abbreviation, data.color];
 		});
 	}
 }

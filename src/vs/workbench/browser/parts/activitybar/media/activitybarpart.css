@@ -22,3 +22,7 @@
 .monaco-workbench > .activitybar [tabindex="0"]:focus {
 	outline: 0 !important; /* activity bar indicates focus custom */
 }
+
+.monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-label.toggle-more {
+	-webkit-mask: url('ellipsis-global.svg') no-repeat 50% 50%;
+}

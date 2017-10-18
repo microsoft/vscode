@@ -31,7 +31,7 @@ import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorE
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { overrideIdentifierFromKey, IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { overrideIdentifierFromKey, IConfigurationService, ConfigurationTarget, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 
 export interface IPreferencesRenderer<T> extends IDisposable {
 	preferencesModel: IPreferencesEditorModel<T>;
@@ -950,7 +950,7 @@ class UnsupportedWorkspaceSettingsRenderer extends Disposable {
 		@IMarkerService private markerService: IMarkerService
 	) {
 		super();
-		this._register(this.configurationService.onDidChangeConfiguration(() => this.render()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => this.onDidConfigurationChange(e)));
 	}
 
 	private getMarkerMessage(settingKey: string): string {
@@ -984,6 +984,12 @@ class UnsupportedWorkspaceSettingsRenderer extends Disposable {
 			} else {
 				this.markerService.remove('preferencesEditor', [this.workspaceSettingsEditorModel.uri]);
 			}
+		}
+	}
+
+	private onDidConfigurationChange(event: IConfigurationChangeEvent): void {
+		if (event.source === ConfigurationTarget.DEFAULT || event.source === ConfigurationTarget.WORKSPACE || event.source === ConfigurationTarget.WORKSPACE_FOLDER) {
+			this.render();
 		}
 	}
 
