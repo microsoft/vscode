@@ -479,7 +479,7 @@ export class WorkspaceConfigModel extends SettingsEditorModel implements ISettin
 export class DefaultSettingsEditorModel extends AbstractSettingsModel implements ISettingsEditorModel {
 
 	public static MOST_RELEVANT_SECTION_LENGTH = 100;
-	public static MOST_RELEVANT_START_LINE = 3;
+	public static MOST_RELEVANT_START_LINE = 4;
 	public static MOST_RELEVANT_END_LINE = DefaultSettingsEditorModel.MOST_RELEVANT_SECTION_LENGTH - 1;
 	private static MOST_RELEVANT_CONTENT_LENGTH = DefaultSettingsEditorModel.MOST_RELEVANT_END_LINE - DefaultSettingsEditorModel.MOST_RELEVANT_START_LINE + 1;
 	private static BUNCH_OF_NEWLINES = strings.repeat('\n', DefaultSettingsEditorModel.MOST_RELEVANT_CONTENT_LENGTH);
@@ -781,6 +781,10 @@ class SettingsContentBuilder {
 		return this._contentByLines.length + this._rangeOffset;
 	}
 
+	private get lastLine(): string {
+		return this._contentByLines[this._contentByLines.length - 1] || '';
+	}
+
 	constructor(private _rangeOffset = 0, private _maxLines = Infinity) {
 		this._contentByLines = [];
 	}
@@ -794,6 +798,7 @@ class SettingsContentBuilder {
 		this._contentByLines.push('{');
 		this._contentByLines.push('');
 		for (const group of settingsGroups) {
+			this._contentByLines.push('');
 			lastSetting = this.pushGroup(group);
 		}
 		if (lastSetting) {
@@ -806,13 +811,12 @@ class SettingsContentBuilder {
 	pushGroup(group: ISettingsGroup, showEmptyGroupMessage = true): ISetting {
 		const indent = '  ';
 		let lastSetting: ISetting = null;
-		this._contentByLines.push('');
 		let groupStart = this.lineCountWithOffset + 1;
 		for (const section of group.sections) {
 			if (section.title) {
 				let sectionTitleStart = this.lineCountWithOffset + 1;
 				this.addDescription([section.title], indent, this._contentByLines);
-				section.titleRange = { startLineNumber: sectionTitleStart, startColumn: 1, endLineNumber: this.lineCountWithOffset, endColumn: this._contentByLines[this._contentByLines.length - 1].length };
+				section.titleRange = { startLineNumber: sectionTitleStart, startColumn: 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length };
 			}
 
 			if (section.settings.length) {
@@ -826,7 +830,7 @@ class SettingsContentBuilder {
 			}
 
 		}
-		group.range = { startLineNumber: groupStart, startColumn: 1, endLineNumber: this.lineCountWithOffset, endColumn: this._contentByLines[this._contentByLines.length - 1].length };
+		group.range = { startLineNumber: groupStart, startColumn: 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length };
 		return lastSetting;
 	}
 
@@ -857,7 +861,7 @@ class SettingsContentBuilder {
 		const descriptionPreValue = indent + '// ';
 		for (const line of setting.description) {
 			this._contentByLines.push(descriptionPreValue + line);
-			setting.descriptionRanges.push({ startLineNumber: this.lineCountWithOffset, startColumn: this._contentByLines[this._contentByLines.length - 1].indexOf(line) + 1, endLineNumber: this.lineCountWithOffset, endColumn: this._contentByLines[this._contentByLines.length - 1].length });
+			setting.descriptionRanges.push({ startLineNumber: this.lineCountWithOffset, startColumn: this.lastLine.indexOf(line) + 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length });
 		}
 
 		let preValueConent = indent;
@@ -869,10 +873,10 @@ class SettingsContentBuilder {
 		const valueStart = this.lineCountWithOffset + 1;
 		this.pushValue(setting, preValueConent, indent);
 
-		setting.valueRange = { startLineNumber: valueStart, startColumn: preValueConent.length + 1, endLineNumber: this.lineCountWithOffset, endColumn: this._contentByLines[this._contentByLines.length - 1].length + 1 };
+		setting.valueRange = { startLineNumber: valueStart, startColumn: preValueConent.length + 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length + 1 };
 		this._contentByLines[this._contentByLines.length - 1] += ',';
 		this._contentByLines.push('');
-		setting.range = { startLineNumber: settingStart, startColumn: 1, endLineNumber: this.lineCountWithOffset, endColumn: this._contentByLines[this._contentByLines.length - 1].length };
+		setting.range = { startLineNumber: settingStart, startColumn: 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length };
 	}
 
 	private pushValue(setting: ISetting, preValueConent: string, indent: string): void {
