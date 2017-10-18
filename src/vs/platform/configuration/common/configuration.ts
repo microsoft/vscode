@@ -37,17 +37,17 @@ export enum ConfigurationTarget {
 }
 
 export interface IConfigurationChangeEvent {
-	affectedKeys: string[];
 
+	source: ConfigurationTarget;
+	affectedKeys: string[];
 	affectsConfiguration(configuration: string, resource?: URI): boolean;
 
 	// Following data is used for telemetry
-	source: ConfigurationTarget;
 	sourceConfig: any;
 
 	// Following data is used for Extension host configuration event
-	changedConfiguration: IConfiguraionModel;
-	changedConfigurationByResource: StrictResourceMap<IConfiguraionModel>;
+	changedConfiguration: IConfigurationModel;
+	changedConfigurationByResource: StrictResourceMap<IConfigurationModel>;
 }
 
 export interface IConfigurationService {
@@ -90,7 +90,7 @@ export interface IConfigurationService {
 	};
 }
 
-export interface IConfiguraionModel {
+export interface IConfigurationModel {
 	contents: any;
 	keys: string[];
 	overrides: IOverrides[];
@@ -102,13 +102,13 @@ export interface IOverrides {
 }
 
 export interface IConfigurationData {
-	defaults: IConfiguraionModel;
-	user: IConfiguraionModel;
-	workspace: IConfiguraionModel;
-	folders: { [folder: string]: IConfiguraionModel };
+	defaults: IConfigurationModel;
+	user: IConfigurationModel;
+	workspace: IConfigurationModel;
+	folders: { [folder: string]: IConfigurationModel };
 }
 
-export function compare(from: IConfiguraionModel, to: IConfiguraionModel): { added: string[], removed: string[], updated: string[] } {
+export function compare(from: IConfigurationModel, to: IConfigurationModel): { added: string[], removed: string[], updated: string[] } {
 	const added = to.keys.filter(key => from.keys.indexOf(key) === -1);
 	const removed = from.keys.filter(key => to.keys.indexOf(key) === -1);
 	const updated = [];

@@ -11,10 +11,10 @@ import * as objects from 'vs/base/common/objects';
 import URI from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
-import { IOverrides, overrideIdentifierFromKey, addToValueTree, toValuesTree, IConfiguraionModel, merge, getConfigurationValue, IConfigurationOverrides, IConfigurationData, getDefaultValues, getConfigurationKeys, IConfigurationChangeEvent, ConfigurationTarget, removeFromValueTree } from 'vs/platform/configuration/common/configuration';
+import { IOverrides, overrideIdentifierFromKey, addToValueTree, toValuesTree, IConfigurationModel, merge, getConfigurationValue, IConfigurationOverrides, IConfigurationData, getDefaultValues, getConfigurationKeys, IConfigurationChangeEvent, ConfigurationTarget, removeFromValueTree } from 'vs/platform/configuration/common/configuration';
 import { Workspace } from 'vs/platform/workspace/common/workspace';
 
-export class ConfigurationModel implements IConfiguraionModel {
+export class ConfigurationModel implements IConfigurationModel {
 
 	constructor(protected _contents: any = {}, protected _keys: string[] = [], protected _overrides: IOverrides[] = []) {
 	}
@@ -134,7 +134,7 @@ export class ConfigurationModel implements IConfiguraionModel {
 		return false;
 	}
 
-	toJSON(): IConfiguraionModel {
+	toJSON(): IConfigurationModel {
 		return {
 			contents: this.contents,
 			overrides: this.overrides,
@@ -458,7 +458,7 @@ export class Configuration {
 		return new Configuration(defaultConfiguration, userConfiguration, workspaceConfiguration, folders, new ConfigurationModel(), new StrictResourceMap<ConfigurationModel>(), workspace);
 	}
 
-	private static parseConfigurationModel(model: IConfiguraionModel): ConfigurationModel {
+	private static parseConfigurationModel(model: IConfigurationModel): ConfigurationModel {
 		return new ConfigurationModel(model.contents, model.keys, model.overrides);
 	}
 }
@@ -501,7 +501,7 @@ export class AllKeysConfigurationChangeEvent extends AbstractConfigurationChange
 		return this._changedConfiguration;
 	}
 
-	get changedConfigurationByResource(): StrictResourceMap<IConfiguraionModel> {
+	get changedConfigurationByResource(): StrictResourceMap<IConfigurationModel> {
 		return new StrictResourceMap();
 	}
 
@@ -521,11 +521,11 @@ export class ConfigurationChangeEvent extends AbstractConfigurationChangeEvent i
 		super();
 	}
 
-	get changedConfiguration(): IConfiguraionModel {
+	get changedConfiguration(): IConfigurationModel {
 		return this._changedConfiguration;
 	}
 
-	get changedConfigurationByResource(): StrictResourceMap<IConfiguraionModel> {
+	get changedConfigurationByResource(): StrictResourceMap<IConfigurationModel> {
 		return this._changedConfigurationByResource;
 	}
 

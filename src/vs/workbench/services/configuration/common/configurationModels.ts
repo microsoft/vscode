@@ -5,7 +5,7 @@
 'use strict';
 
 import { clone, equals } from 'vs/base/common/objects';
-import { compare, toValuesTree, IConfigurationChangeEvent, ConfigurationTarget, IConfiguraionModel } from 'vs/platform/configuration/common/configuration';
+import { compare, toValuesTree, IConfigurationChangeEvent, ConfigurationTarget, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationModel, Configuration as BaseConfiguration, CustomConfigurationModel, ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, IConfigurationPropertySchema, Extensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
@@ -272,11 +272,11 @@ export class WorkspaceConfigurationChangeEvent implements IConfigurationChangeEv
 
 	constructor(private configurationChangeEvent: IConfigurationChangeEvent, private workspace: Workspace) { }
 
-	get changedConfiguration(): IConfiguraionModel {
+	get changedConfiguration(): IConfigurationModel {
 		return this.configurationChangeEvent.changedConfiguration;
 	}
 
-	get changedConfigurationByResource(): StrictResourceMap<IConfiguraionModel> {
+	get changedConfigurationByResource(): StrictResourceMap<IConfigurationModel> {
 		return this.configurationChangeEvent.changedConfigurationByResource;
 	}
 
