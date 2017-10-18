@@ -560,7 +560,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 
 			return {
 				allGroups: this._allSettingsGroups,
-				filteredGroups: [group],
+				filteredGroups: group.sections[0].settings.length ? [group] : [],
 				matches: [],
 				query: filter
 			};

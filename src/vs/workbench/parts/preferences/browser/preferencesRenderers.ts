@@ -296,14 +296,8 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 	public filterPreferences(filterResult: IFilterResult): void {
 		this.filterResult = filterResult;
 		if (filterResult) {
-			if (filterResult.metadata) {
-				this.filteredMatchesRenderer.render(null);
-				this.settingsGroupTitleRenderer.render(null);
-			} else {
-				this.filteredMatchesRenderer.render(filterResult);
-				this.settingsGroupTitleRenderer.render(filterResult.filteredGroups);
-			}
-
+			this.filteredMatchesRenderer.render(filterResult);
+			this.settingsGroupTitleRenderer.render(filterResult.filteredGroups);
 			this.mostRelevantMatchesRenderer.render(filterResult);
 			this.feedbackWidgetRenderer.render(filterResult);
 			this.settingsHeaderRenderer.render(filterResult.filteredGroups);
