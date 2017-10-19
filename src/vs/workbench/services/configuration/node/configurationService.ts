@@ -219,15 +219,14 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		this.configurationEditingService = instantiationService.createInstance(ConfigurationEditingService);
 	}
 
-	handleWorkspaceFileEvents(event: FileChangesEvent): void {
+	handleWorkspaceFileEvents(event: FileChangesEvent): TPromise<void> {
 		switch (this.getWorkbenchState()) {
 			case WorkbenchState.FOLDER:
-				this.onSingleFolderFileChanges(event);
-				return;
+				return this.onSingleFolderFileChanges(event);
 			case WorkbenchState.WORKSPACE:
-				this.onWorkspaceFileChanges(event);
-				return;
+				return this.onWorkspaceFileChanges(event);
 		}
+		return TPromise.as(void 0);
 	}
 
 	private createWorkspace(arg: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWindowConfiguration): TPromise<Workspace> {
@@ -325,11 +324,15 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 				const folderConfigurationModels = new StrictResourceMap<FolderConfigurationModel>();
 				folderConfigurations.forEach((folderConfiguration, index) => folderConfigurationModels.set(folders[index].uri, folderConfiguration));
 
+				const currentConfiguration = this._configuration;
 				this._configuration = new Configuration(this.baseConfigurationService.configuration.defaults, this.baseConfigurationService.configuration.user, workspaceConfiguration, folderConfigurationModels, new ConfigurationModel(), new StrictResourceMap<ConfigurationModel>(), this.getWorkbenchState() !== WorkbenchState.EMPTY ? this.workspace : null); //TODO: Sandy Avoid passing null
-				// TODO Sandy: compare with old values??
 
-				const keys = this._configuration.keys();
-				this._onDidChangeConfiguration.fire(new AllKeysConfigurationChangeEvent([...keys.default, ...keys.user, ...keys.workspace, ...keys.workspaceFolder], ConfigurationTarget.WORKSPACE, this.getTargetConfiguration(ConfigurationTarget.WORKSPACE)));
+				if (currentConfiguration) {
+					const changedKeys = this._configuration.compare(currentConfiguration);
+					this.triggerConfigurationChange(new ConfigurationChangeEvent().change(changedKeys), ConfigurationTarget.WORKSPACE);
+				} else {
+					this._onDidChangeConfiguration.fire(new AllKeysConfigurationChangeEvent(this._configuration.allKeys(), ConfigurationTarget.WORKSPACE, this.getTargetConfiguration(ConfigurationTarget.WORKSPACE)));
+				}
 			});
 	}
 

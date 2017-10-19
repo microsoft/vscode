@@ -539,8 +539,9 @@ export class ConfigurationChangeEvent extends AbstractConfigurationChangeEvent i
 				changedConfigurationByResource = changedConfigurationByResource.merge(arg1._changedConfigurationByResource.get(resource));
 				this._changedConfigurationByResource.set(resource, changedConfigurationByResource);
 			}
+		} else {
+			this.changeWithKeys(arg1, arg2);
 		}
-		this.changeWithKeys(arg1, arg2);
 		return this;
 	}
 

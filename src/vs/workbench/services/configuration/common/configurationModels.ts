@@ -14,6 +14,7 @@ import { IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces
 import { Workspace } from 'vs/platform/workspace/common/workspace';
 import { StrictResourceMap } from 'vs/base/common/map';
 import URI from 'vs/base/common/uri';
+import { distinct } from 'vs/base/common/arrays';
 
 export class WorkspaceConfigurationModel extends CustomConfigurationModel {
 
@@ -265,6 +266,34 @@ export class Configuration extends BaseConfiguration {
 
 	getFolderConfigurationModel(folder: URI): FolderConfigurationModel {
 		return <FolderConfigurationModel>this.folders.get(folder);
+	}
+
+	compare(other: Configuration): string[] {
+		let from = other.allKeys();
+		let to = this.allKeys();
+
+		const added = to.filter(key => from.indexOf(key) === -1);
+		const removed = from.filter(key => to.indexOf(key) === -1);
+		const updated = [];
+
+		for (const key of from) {
+			const value1 = this.getValue(key);
+			const value2 = other.getValue(key);
+			if (!equals(value1, value2)) {
+				updated.push(key);
+			}
+		}
+
+		return [...added, ...removed, ...updated];
+	}
+
+	allKeys(): string[] {
+		let keys = this.keys();
+		let all = [...keys.default, ...keys.user, ...keys.workspace];
+		for (const resource of this.folders.keys()) {
+			all.push(...this.folders.get(resource).keys);
+		}
+		return distinct(all);
 	}
 }
 
