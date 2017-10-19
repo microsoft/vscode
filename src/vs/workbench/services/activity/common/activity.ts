@@ -58,13 +58,13 @@ export class IconBadge extends BaseBadge {
 export class ProgressBadge extends BaseBadge {
 }
 
-export const IActivityBarService = createDecorator<IActivityBarService>('activityBarService');
+export const IActivityService = createDecorator<IActivityService>('activityService');
 
-export interface IActivityBarService {
+export interface IActivityService {
 	_serviceBrand: any;
 
 	/**
-	 * Show activity in the activitybar for the given viewlet or global action.
+	 * Show activity in the panel for the given panel or in the activitybar for the given viewlet or global action.
 	 */
-	showActivity(viewletOrActionId: string, badge: IBadge, clazz?: string): IDisposable;
+	showActivity(compositeOrActionId: string, badge: IBadge, clazz?: string): IDisposable;
 }

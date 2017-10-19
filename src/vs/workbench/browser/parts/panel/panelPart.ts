@@ -29,7 +29,8 @@ import { activeContrastBorder, focusBorder, contrastBorder, editorBackground } f
 import { CompositeBar } from 'vs/workbench/browser/parts/compositebar/compositeBar';
 import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositebar/compositeBarActions';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { dispose } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { IBadge } from 'vs/workbench/services/activity/common/activity';
 
 export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
@@ -135,6 +136,10 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		}
 
 		return promise.then(() => this.openComposite(id, focus));
+	}
+
+	public showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable {
+		return this.compositeBar.showActivity(panelId, badge, clazz);
 	}
 
 	private getPanel(panelId: string): IPanelIdentifier {
