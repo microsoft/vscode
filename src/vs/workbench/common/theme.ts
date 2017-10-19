@@ -114,18 +114,6 @@ const DRAG_AND_DROP_BACKGROUND = {
 	hc: Color.white.transparent(0.12),
 };
 
-const BADGE_BACKGROUND = {
-	dark: '#007ACC',
-	light: '#007ACC',
-	hc: '#000000'
-};
-
-const BADGE_FOREGROUND = {
-	dark: Color.white,
-	light: Color.white,
-	hc: Color.white
-};
-
 export const PANEL_BACKGROUND = registerColor('panel.background', {
 	dark: editorBackground,
 	light: editorBackground,
@@ -157,11 +145,6 @@ export const PANEL_ACTIVE_TITLE_BORDER = registerColor('panelTitle.activeBorder'
 }, nls.localize('panelActiveTitleBorder', "Border color for the active panel title. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
 export const PANEL_DRAG_AND_DROP_BACKGROUND = registerColor('panel.dropBackground', DRAG_AND_DROP_BACKGROUND, nls.localize('panelDragAndDropBackground', "Drag and drop feedback color for the panel title items. The color should have transparency so that the panel entries can still shine through. Panels are shown below the editor area and contain views like output and integrated terminal."));
-
-export const PANEL_BADGE_BACKGROUND = registerColor('panelBadge.background', BADGE_BACKGROUND, nls.localize('panelBadgeBackground', "Activity notification badge background color. Panels are shown below the editor area and contain views like output and integrated terminal."));
-
-export const PANEL_BADGE_FOREGROUND = registerColor('panelBadge.foreground', BADGE_FOREGROUND, nls.localize('panelBadgeForeground', "Activity notification badge foreground color. Panels are shown below the editor area and contain views like output and integrated terminal."));
-
 
 
 // < --- Status --- >
@@ -251,9 +234,17 @@ export const ACTIVITY_BAR_BORDER = registerColor('activityBar.border', {
 
 export const ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND = registerColor('activityBar.dropBackground', DRAG_AND_DROP_BACKGROUND, nls.localize('activityBarDragAndDropBackground', "Drag and drop feedback color for the activity bar items. The color should have transparency so that the activity bar entries can still shine through. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
-export const ACTIVITY_BAR_BADGE_BACKGROUND = registerColor('activityBarBadge.background', BADGE_BACKGROUND, nls.localize('activityBarBadgeBackground', "Activity notification badge background color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+export const ACTIVITY_BAR_BADGE_BACKGROUND = registerColor('activityBarBadge.background', {
+	dark: '#007ACC',
+	light: '#007ACC',
+	hc: '#000000'
+}, nls.localize('activityBarBadgeBackground', "Activity notification badge background color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
-export const ACTIVITY_BAR_BADGE_FOREGROUND = registerColor('activityBarBadge.foreground', BADGE_FOREGROUND, nls.localize('activityBarBadgeForeground', "Activity notification badge foreground color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+export const ACTIVITY_BAR_BADGE_FOREGROUND = registerColor('activityBarBadge.foreground', {
+	dark: Color.white,
+	light: Color.white,
+	hc: Color.white
+}, nls.localize('activityBarBadgeForeground', "Activity notification badge foreground color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
 
 // < --- Side Bar --- >

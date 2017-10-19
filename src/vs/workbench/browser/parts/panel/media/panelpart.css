@@ -49,14 +49,26 @@
 
 .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label {
 	text-transform: uppercase;
-	margin-left: 16px;
-	margin-right: 16px;
+	margin-left: 12px;
+	margin-right: 20px;
 	font-size: 11px;
 	padding-bottom: 4px; /* puts the bottom border down */
 }
 
 .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked .action-label {
 	border-bottom: 1px solid;
+}
+
+.monaco-workbench  > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .badge .badge-content {
+	top: 8px;
+	right: 0px;
+	position: absolute;
+	font-size: 11px;
+	min-width: 6px;
+	line-height: 18px;
+	padding: 0 5px;
+	border-radius: 20px;
+	text-align: center;
 }
 
 /** Actions */

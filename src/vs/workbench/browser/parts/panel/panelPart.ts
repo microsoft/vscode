@@ -24,8 +24,8 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ClosePanelAction, ToggleMaximizedPanelAction, PanelActivityAction, OpenPanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_BADGE_BACKGROUND, PANEL_BADGE_FOREGROUND, PANEL_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
-import { activeContrastBorder, focusBorder, contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
+import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
+import { activeContrastBorder, focusBorder, contrastBorder, editorBackground, badgeBackground, badgeForeground } from 'vs/platform/theme/common/colorRegistry';
 import { CompositeBar } from 'vs/workbench/browser/parts/compositebar/compositeBar';
 import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositebar/compositeBarActions';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -86,8 +86,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			hidePart: () => this.partService.setPanelHidden(true),
 			colors: {
 				backgroundColor: PANEL_BACKGROUND,
-				badgeBackground: PANEL_BADGE_BACKGROUND,
-				badgeForeground: PANEL_BADGE_FOREGROUND,
+				badgeBackground,
+				badgeForeground,
 				dragAndDropBackground: PANEL_DRAG_AND_DROP_BACKGROUND
 			}
 		});
