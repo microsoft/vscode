@@ -112,6 +112,10 @@ class DecorationsManager implements IDisposable {
 		this._decorations.forEach((reference, decorationId) => {
 			const newRange = this._editor.getModel().getDecorationRange(decorationId);
 
+			if (!newRange) {
+				return;
+			}
+
 			let ignore = false;
 
 			if (Range.equalsRange(newRange, reference.range)) {
