@@ -6,6 +6,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import * as DOM from 'vs/base/browser/dom';
 import { Delayer, ThrottledDelayer } from 'vs/base/common/async';
 import { Dimension, Builder } from 'vs/base/browser/builder';
@@ -258,7 +259,7 @@ export class PreferencesEditor extends BaseEditor {
 	}
 
 	private triggerThrottledFilter(): void {
-		this.filterThrottle.trigger(() => this.filterPreferences()).then(null, err => console.error('something'));
+		this.filterThrottle.trigger(() => this.filterPreferences());
 	}
 
 	private getSettingsConfigurationTarget(resource: URI): ConfigurationTarget {
@@ -333,7 +334,7 @@ export class PreferencesEditor extends BaseEditor {
 				this.latestEmptyFilters.push(filter);
 			}
 			this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(filter));
-		});
+		}, onUnexpectedError);
 	}
 
 	private showSearchResultsMessage(count: number): string {
