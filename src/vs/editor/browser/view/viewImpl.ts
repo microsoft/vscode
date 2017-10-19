@@ -30,7 +30,7 @@ import { Margin } from 'vs/editor/browser/viewParts/margin/margin';
 import { LinesDecorationsOverlay } from 'vs/editor/browser/viewParts/linesDecorations/linesDecorations';
 import { MarginViewLineDecorationsOverlay } from 'vs/editor/browser/viewParts/marginDecorations/marginDecorations';
 import { ViewOverlayWidgets } from 'vs/editor/browser/viewParts/overlayWidgets/overlayWidgets';
-import { DecorationsOverviewRuler } from 'vs/editor/browser/viewParts/overviewRuler/decorationsOverviewRuler';
+import { DecorationsOverviewRuler2 } from 'vs/editor/browser/viewParts/overviewRuler/decorationsOverviewRuler2';
 import { OverviewRuler } from 'vs/editor/browser/viewParts/overviewRuler/overviewRuler';
 import { Rulers } from 'vs/editor/browser/viewParts/rulers/rulers';
 import { ScrollDecorationViewPart } from 'vs/editor/browser/viewParts/scrollDecoration/scrollDecoration';
@@ -170,7 +170,7 @@ export class View extends ViewEventHandler {
 		this.viewParts.push(this.viewZones);
 
 		// Decorations overview ruler
-		let decorationsOverviewRuler = new DecorationsOverviewRuler(this._context);
+		let decorationsOverviewRuler = new DecorationsOverviewRuler2(this._context);
 		this.viewParts.push(decorationsOverviewRuler);
 
 
