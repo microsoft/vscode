@@ -65,7 +65,7 @@ export class HiddenRangeModel {
 			if (!r.startLineNumber || !r.endLineNumber) {
 				return false;
 			}
-			hiddenRanges.push(new Range(r.startLineNumber, 1, r.endLineNumber, 1));
+			hiddenRanges.push(new Range(r.startLineNumber + 1, 1, r.endLineNumber, 1));
 		}
 		this.applyHiddenRanges(hiddenRanges);
 		return true;

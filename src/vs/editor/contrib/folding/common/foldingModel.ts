@@ -146,7 +146,7 @@ export class FoldingModel {
 				let range = this._textModel.getDecorationRange(region.editorDecorationId);
 				if (range) {
 					let startLineNumber = range.startLineNumber;
-					let endLineNumber = range.endLineNumber + region.range.endLineNumber + region.range.startLineNumber;
+					let endLineNumber = range.endLineNumber + region.range.endLineNumber - region.range.startLineNumber;
 					collapsedRanges.push({ startLineNumber, endLineNumber });
 				}
 			}
