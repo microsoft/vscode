@@ -7,7 +7,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
 import * as DOM from 'vs/base/browser/dom';
-import { Delayer } from 'vs/base/common/async';
+import { Delayer, ThrottledDelayer } from 'vs/base/common/async';
 import { Dimension, Builder } from 'vs/base/browser/builder';
 import { ArrayNavigator, INavigator } from 'vs/base/common/iterator';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -56,7 +56,7 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import Event, { Emitter, debounceEvent } from 'vs/base/common/event';
+import Event, { Emitter } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { MessageController } from 'vs/editor/contrib/message/messageController';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
@@ -110,7 +110,7 @@ export class PreferencesEditor extends BaseEditor {
 	private searchProvider: PreferencesSearchProvider;
 
 	private delayedFilterLogging: Delayer<void>;
-	private onInput: Emitter<void>;
+	private filterThrottle: ThrottledDelayer<void>;
 
 	private latestEmptyFilters: string[] = [];
 	private lastFocusedWidget: SearchWidget | SideBySidePreferencesWidget = null;
@@ -130,11 +130,7 @@ export class PreferencesEditor extends BaseEditor {
 		this.focusSettingsContextKey = CONTEXT_SETTINGS_SEARCH_FOCUS.bindTo(this.contextKeyService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
 		this.searchProvider = this.instantiationService.createInstance(PreferencesSearchProvider);
-		this.onInput = new Emitter();
-
-		debounceEvent(this.onInput.event, (l, e) => e, 200, /*leading=*/true)(() => {
-			this.filterPreferences();
-		});
+		this.filterThrottle = new ThrottledDelayer(200);
 	}
 
 	public createEditor(parent: Builder): void {
@@ -248,10 +244,14 @@ export class PreferencesEditor extends BaseEditor {
 
 	private onInputChanged(): void {
 		if (this.searchWidget.fuzzyEnabled) {
-			this.onInput.fire();
+			this.triggerThrottledFilter();
 		} else {
 			this.filterPreferences();
 		}
+	}
+
+	private triggerThrottledFilter(): void {
+		this.filterThrottle.trigger(() => this.filterPreferences()).then(null, err => console.error('something'));
 	}
 
 	private getSettingsConfigurationTarget(resource: URI): ConfigurationTarget {
@@ -317,9 +317,9 @@ export class PreferencesEditor extends BaseEditor {
 		promise.done(value => this.preferencesService.switchSettings(this.getSettingsConfigurationTarget(resource), resource));
 	}
 
-	private filterPreferences() {
+	private filterPreferences(): TPromise<void> {
 		const filter = this.searchWidget.getValue().trim();
-		this.preferencesRenderers.filterPreferences(filter, this.searchProvider, this.searchWidget.fuzzyEnabled).then(count => {
+		return this.preferencesRenderers.filterPreferences(filter, this.searchProvider, this.searchWidget.fuzzyEnabled).then(count => {
 			const message = filter ? this.showSearchResultsMessage(count) : nls.localize('totalSettingsMessage', "Total {0} Settings", count);
 			this.searchWidget.showMessage(message, count);
 			if (count === 0) {
