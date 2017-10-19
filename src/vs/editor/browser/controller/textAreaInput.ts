@@ -11,7 +11,7 @@ import * as strings from 'vs/base/common/strings';
 import Event, { Emitter } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ITypeData, TextAreaState, ITextAreaWrapper, log } from 'vs/editor/browser/controller/textAreaState';
+import { ITypeData, TextAreaState, ITextAreaWrapper } from 'vs/editor/browser/controller/textAreaState';
 import * as browser from 'vs/base/browser/browser';
 import * as platform from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
@@ -220,7 +220,6 @@ export class TextAreaInput extends Disposable {
 		}));
 
 		this._register(dom.addDisposableListener(textArea.domNode, 'input', () => {
-			log.push(`${Date.now()}: input, last known state: ${this._textAreaState}, current state: ${this._textAreaState.readFromTextArea(this._textArea)}`);
 			// Pretend here we touched the text area, as the `input` event will most likely
 			// result in a `selectionchange` event which we want to ignore
 			this._textArea.setIgnoreSelectionChangeTime('received input event');

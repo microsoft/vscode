@@ -14,7 +14,6 @@ import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { ViewOutgoingEvents } from 'vs/editor/browser/view/viewOutgoingEvents';
 import { CoreNavigationCommands, CoreEditorCommand } from 'vs/editor/common/controller/coreCommands';
 import { Configuration } from 'vs/editor/browser/config/configuration';
-import { log } from 'vs/editor/browser/controller/textAreaState';
 
 export interface ExecCoreEditorCommandFunc {
 	(editorCommand: CoreEditorCommand, args: any): void;
@@ -64,7 +63,6 @@ export class ViewController {
 	}
 
 	public paste(source: string, text: string, pasteOnNewLine: boolean): void {
-		log.push(`${Date.now()}: viewController.paste: ${text}, ${pasteOnNewLine}`);
 		this.commandService.executeCommand(editorCommon.Handler.Paste, {
 			text: text,
 			pasteOnNewLine: pasteOnNewLine,
@@ -72,14 +70,12 @@ export class ViewController {
 	}
 
 	public type(source: string, text: string): void {
-		log.push(`${Date.now()}: viewController.type: ${text}`);
 		this.commandService.executeCommand(editorCommon.Handler.Type, {
 			text: text
 		});
 	}
 
 	public replacePreviousChar(source: string, text: string, replaceCharCnt: number): void {
-		log.push(`${Date.now()}: viewController.replacePreviousChar: ${text}, ${replaceCharCnt}`);
 		this.commandService.executeCommand(editorCommon.Handler.ReplacePreviousChar, {
 			text: text,
 			replaceCharCnt: replaceCharCnt
@@ -87,22 +83,18 @@ export class ViewController {
 	}
 
 	public compositionStart(source: string): void {
-		log.push(`${Date.now()}: viewController.compositionStart`);
 		this.commandService.executeCommand(editorCommon.Handler.CompositionStart, {});
 	}
 
 	public compositionEnd(source: string): void {
-		log.push(`${Date.now()}: viewController.compositionEnd`);
 		this.commandService.executeCommand(editorCommon.Handler.CompositionEnd, {});
 	}
 
 	public cut(source: string): void {
-		log.push(`${Date.now()}: viewController.cut`);
 		this.commandService.executeCommand(editorCommon.Handler.Cut, {});
 	}
 
 	public setSelection(source: string, modelSelection: Selection): void {
-		log.push(`${Date.now()}: viewController.setSelection: ${modelSelection}`);
 		this._execCoreEditorCommandFunc(CoreNavigationCommands.SetSelection, {
 			source: source,
 			selection: modelSelection
