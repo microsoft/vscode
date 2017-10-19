@@ -32,7 +32,7 @@
 
 /** Panel Switcher */
 
-.monaco-workbench .composite-bar > .monaco-action-bar .action-label.toggle-more {
+.monaco-workbench > .part.panel .composite-bar > .monaco-action-bar .action-label.toggle-more {
 	background: url('ellipsis.svg') center center no-repeat;
 	display: block;
 	height: 35px;
