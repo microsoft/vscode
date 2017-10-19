@@ -190,25 +190,6 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		return this.getWorkbenchState() === WorkbenchState.FOLDER ? this._configuration.getFolderConfigurationModel(this.workspace.folders[0].uri).workspaceSettingsConfig.unsupportedKeys : [];
 	}
 
-	reloadUserConfiguration(key?: string): TPromise<void> {
-		return this.baseConfigurationService.reloadConfiguration();
-	}
-
-	reloadWorkspaceConfiguration(key?: string): TPromise<void> {
-		const workbenchState = this.getWorkbenchState();
-		if (workbenchState === WorkbenchState.FOLDER) {
-			return this.onWorkspaceFolderConfigurationChanged(this.workspace.folders[0], key);
-		}
-		if (workbenchState === WorkbenchState.WORKSPACE) {
-			return this.workspaceConfiguration.reload().then(() => this.onWorkspaceConfigurationChanged());
-		}
-		return TPromise.as(null);
-	}
-
-	reloadWorkspaceFolderConfiguration(folder: IWorkspaceFolder, key?: string): TPromise<void> {
-		return this.onWorkspaceFolderConfigurationChanged(folder, key);
-	}
-
 	initialize(arg: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWindowConfiguration): TPromise<any> {
 		return this.createWorkspace(arg)
 			.then(workspace => this.setWorkspace(workspace))
@@ -310,6 +291,25 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	private initializeConfiguration(): TPromise<void> {
 		this.registerConfigurationSchemas();
 		return this.loadConfiguration();
+	}
+
+	private reloadUserConfiguration(key?: string): TPromise<void> {
+		return this.baseConfigurationService.reloadConfiguration();
+	}
+
+	private reloadWorkspaceConfiguration(key?: string): TPromise<void> {
+		const workbenchState = this.getWorkbenchState();
+		if (workbenchState === WorkbenchState.FOLDER) {
+			return this.onWorkspaceFolderConfigurationChanged(this.workspace.folders[0], key);
+		}
+		if (workbenchState === WorkbenchState.WORKSPACE) {
+			return this.workspaceConfiguration.reload().then(() => this.onWorkspaceConfigurationChanged());
+		}
+		return TPromise.as(null);
+	}
+
+	private reloadWorkspaceFolderConfiguration(folder: IWorkspaceFolder, key?: string): TPromise<void> {
+		return this.onWorkspaceFolderConfigurationChanged(folder, key);
 	}
 
 	private loadConfiguration(): TPromise<void> {
