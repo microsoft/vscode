@@ -400,6 +400,18 @@ suite('Editor Model - Model Decorations', () => {
 			{ range: new Range(1, 2, 3, 1), className: 'myType1' },
 		]);
 	});
+
+	test('removeAllDecorationsWithOwnerId can be called after model dispose', () => {
+		let model = Model.createFromString('asd');
+		model.dispose();
+		model.removeAllDecorationsWithOwnerId(1);
+	});
+
+	test('removeAllDecorationsWithOwnerId works', () => {
+		thisModel.deltaDecorations([], [{ range: new Range(1, 2, 4, 1), options: { className: 'myType1' } }], 1);
+		thisModel.removeAllDecorationsWithOwnerId(1);
+		modelHasNoDecorations(thisModel);
+	});
 });
 
 suite('Decorations and editing', () => {

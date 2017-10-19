@@ -244,7 +244,7 @@ export class TextModelWithDecorations extends TextModelWithTokens implements edi
 	}
 
 	public removeAllDecorationsWithOwnerId(ownerId: number): void {
-		if (this.isDisposed) {
+		if (this._isDisposed) {
 			return;
 		}
 		const nodes = this._decorationsTree.collectNodesFromOwner(ownerId);
