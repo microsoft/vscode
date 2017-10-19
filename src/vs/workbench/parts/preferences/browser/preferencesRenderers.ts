@@ -50,13 +50,13 @@ export interface IPreferencesRenderer<T> extends IDisposable {
 	clearFocus(setting: T): void;
 }
 
-
 export class UserSettingsRenderer extends Disposable implements IPreferencesRenderer<ISetting> {
 
 	private settingHighlighter: SettingHighlighter;
 	private editSettingActionRenderer: EditSettingRenderer;
 	private highlightMatchesRenderer: HighlightMatchesRenderer;
 	private modelChangeDelayer: Delayer<void> = new Delayer<void>(200);
+	private _associatedPreferencesModel: IPreferencesEditorModel<ISetting>;
 
 	private _onFocusPreference: Emitter<ISetting> = new Emitter<ISetting>();
 	public readonly onFocusPreference: Event<ISetting> = this._onFocusPreference.event;
@@ -69,7 +69,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 
 	private filterResult: IFilterResult;
 
-	constructor(protected editor: ICodeEditor, public readonly preferencesModel: SettingsEditorModel, private _associatedPreferencesModel: IPreferencesEditorModel<ISetting>,
+	constructor(protected editor: ICodeEditor, public readonly preferencesModel: SettingsEditorModel,
 		@IPreferencesService protected preferencesService: IPreferencesService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@ITextFileService private textFileService: ITextFileService,
@@ -178,7 +178,7 @@ export class WorkspaceSettingsRenderer extends UserSettingsRenderer implements I
 	private untrustedSettingRenderer: UnsupportedWorkspaceSettingsRenderer;
 	private workspaceConfigurationRenderer: WorkspaceConfigurationRenderer;
 
-	constructor(editor: ICodeEditor, preferencesModel: SettingsEditorModel, associatedPreferencesModel: IPreferencesEditorModel<ISetting>,
+	constructor(editor: ICodeEditor, preferencesModel: SettingsEditorModel,
 		@IPreferencesService preferencesService: IPreferencesService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ITextFileService textFileService: ITextFileService,
@@ -186,7 +186,7 @@ export class WorkspaceSettingsRenderer extends UserSettingsRenderer implements I
 		@IMessageService messageService: IMessageService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(editor, preferencesModel, associatedPreferencesModel, preferencesService, telemetryService, textFileService, configurationService, messageService, instantiationService);
+		super(editor, preferencesModel, preferencesService, telemetryService, textFileService, configurationService, messageService, instantiationService);
 		this.untrustedSettingRenderer = this._register(instantiationService.createInstance(UnsupportedWorkspaceSettingsRenderer, editor, preferencesModel));
 		this.workspaceConfigurationRenderer = this._register(instantiationService.createInstance(WorkspaceConfigurationRenderer, editor, preferencesModel));
 	}
@@ -206,7 +206,7 @@ export class FolderSettingsRenderer extends UserSettingsRenderer implements IPre
 
 	private unsupportedWorkbenchSettingsRenderer: UnsupportedWorkbenchSettingsRenderer;
 
-	constructor(editor: ICodeEditor, preferencesModel: SettingsEditorModel, associatedPreferencesModel: IPreferencesEditorModel<ISetting>,
+	constructor(editor: ICodeEditor, preferencesModel: SettingsEditorModel,
 		@IPreferencesService preferencesService: IPreferencesService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ITextFileService textFileService: ITextFileService,
@@ -214,7 +214,7 @@ export class FolderSettingsRenderer extends UserSettingsRenderer implements IPre
 		@IMessageService messageService: IMessageService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(editor, preferencesModel, associatedPreferencesModel, preferencesService, telemetryService, textFileService, configurationService, messageService, instantiationService);
+		super(editor, preferencesModel, preferencesService, telemetryService, textFileService, configurationService, messageService, instantiationService);
 		this.unsupportedWorkbenchSettingsRenderer = this._register(instantiationService.createInstance(UnsupportedWorkbenchSettingsRenderer, editor, preferencesModel));
 	}
 
@@ -1016,8 +1016,8 @@ class EditSettingRenderer extends Disposable {
 	}
 
 	private getDefaultActions(setting: ISetting): IAction[] {
-		const settingInOtherModel = this.associatedPreferencesModel.getPreference(setting.key);
 		if (this.isDefaultSettings()) {
+			const settingInOtherModel = this.associatedPreferencesModel.getPreference(setting.key);
 			return [<IAction>{
 				id: 'setDefaultValue',
 				label: settingInOtherModel ? nls.localize('replaceDefaultValue', "Replace in Settings") : nls.localize('copyDefaultValue', "Copy to Settings"),

@@ -94,14 +94,12 @@ export const IPreferencesService = createDecorator<IPreferencesService>('prefere
 export interface IPreferencesService {
 	_serviceBrand: any;
 
-	defaultSettingsResource: URI;
 	userSettingsResource: URI;
 	workspaceSettingsResource: URI;
 	getFolderSettingsResource(resource: URI): URI;
 
 	resolveModel(uri: URI): TPromise<IModel>;
 	createPreferencesEditorModel<T>(uri: URI): TPromise<IPreferencesEditorModel<T>>;
-	disownPreferencesEditorModel(editorModel: IPreferencesEditorModel<any>): void;
 
 	openGlobalSettings(options?: IEditorOptions, position?: Position): TPromise<IEditor>;
 	openWorkspaceSettings(options?: IEditorOptions, position?: Position): TPromise<IEditor>;

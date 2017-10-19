@@ -50,7 +50,6 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	// TODO:@sandy merge these models into editor inputs by extending resource editor model
 	private defaultPreferencesEditorModels: ResourceMap<TPromise<IPreferencesEditorModel<any>>>;
-	private defaultPreferencesEditorModelsInUse: ResourceMap<boolean>;
 	private lastOpenedSettingsInput: PreferencesEditorInput = null;
 
 	private _onDispose: Emitter<void> = new Emitter<void>();
@@ -79,7 +78,6 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	) {
 		super();
 		this.defaultPreferencesEditorModels = new ResourceMap<TPromise<IPreferencesEditorModel<any>>>();
-		this.defaultPreferencesEditorModelsInUse = new ResourceMap<boolean>();
 		this.editorGroupService.onEditorsChanged(() => {
 			const activeEditorInput = this.editorService.getActiveEditorInput();
 			if (activeEditorInput instanceof PreferencesEditorInput) {
@@ -99,8 +97,6 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		});
 	}
 
-	readonly defaultSettingsResource = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/0/settings.json' });
-	readonly defaultResourceSettingsResource = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/0/resourceSettings.json' });
 	readonly defaultKeybindingsResource = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/keybindings.json' });
 	private readonly workspaceConfigSettingsResource = URI.from({ scheme: network.Schemas.vscode, authority: 'settings', path: '/workspaceSettings.json' });
 
@@ -128,43 +124,19 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			});
 	}
 
-	disownPreferencesEditorModel(editorModel: IPreferencesEditorModel<any>): void {
-		const uriStr = editorModel.uri.toString();
-		if (uriStr === this.defaultSettingsResource.toString()) {
-			this.defaultPreferencesEditorModelsInUse.set(editorModel.uri, false);
-		} else {
-			this.defaultPreferencesEditorModels.delete(editorModel.uri);
-			editorModel.dispose();
-		}
-	}
-
 	createPreferencesEditorModel(uri: URI): TPromise<IPreferencesEditorModel<any>> {
-		// Mark model 0 in use
-		if (uri.toString() === this.defaultSettingsResource.toString()) {
-			this.defaultPreferencesEditorModelsInUse.set(uri, true);
-		}
-
 		let promise = this.defaultPreferencesEditorModels.get(uri);
 		if (promise) {
 			return promise;
 		}
 
-		if (this.isDefaultSettingsResource(uri)) {
+		if (this.isDefaultSettingsResource(uri) || this.isDefaultResourceSettingsResource(uri)) {
 			promise = TPromise.join<any>([this.extensionService.onReady(), this.fetchMostCommonlyUsedSettings()])
 				.then(result => {
 					const mostCommonSettings = result[1];
-					const model = this.instantiationService.createInstance(DefaultSettingsEditorModel, uri, mostCommonSettings, ConfigurationScope.WINDOW);
-					return model;
-				});
-			this.defaultPreferencesEditorModels.set(uri, promise);
-			return promise;
-		}
-
-		if (this.isDefaultResourceSettingsResource(uri)) {
-			promise = TPromise.join<any>([this.extensionService.onReady(), this.fetchMostCommonlyUsedSettings()])
-				.then(result => {
-					const mostCommonSettings = result[1];
-					const model = this.instantiationService.createInstance(DefaultSettingsEditorModel, uri, mostCommonSettings, ConfigurationScope.RESOURCE);
+					const scope = this.isDefaultSettingsResource(uri) ? ConfigurationScope.WINDOW : ConfigurationScope.RESOURCE;
+					const model = this.instantiationService.createInstance(DefaultSettingsEditorModel, uri, mostCommonSettings, scope);
+					model.onDispose(() => this.defaultPreferencesEditorModels.delete(uri));
 					return model;
 				});
 			this.defaultPreferencesEditorModels.set(uri, promise);
@@ -303,17 +275,9 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	private getDefaultSettingsResource(configurationTarget: ConfigurationTarget): URI {
 		if (configurationTarget === ConfigurationTarget.WORKSPACE_FOLDER) {
-			if (this.defaultPreferencesEditorModelsInUse.get(this.defaultSettingsResource)) {
-				return URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: `/${this._defaultResourceSettingsUriCounter++}/resourceSettings.json` });
-			} else {
-				return this.defaultResourceSettingsResource;
-			}
+			return URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: `/${this._defaultResourceSettingsUriCounter++}/resourceSettings.json` });
 		} else {
-			if (this.defaultPreferencesEditorModelsInUse.get(this.defaultSettingsResource)) {
-				return URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: `/${this._defaultSettingsUriCounter++}/settings.json` });
-			} else {
-				return this.defaultSettingsResource;
-			}
+			return URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: `/${this._defaultSettingsUriCounter++}/settings.json` });
 		}
 	}
 

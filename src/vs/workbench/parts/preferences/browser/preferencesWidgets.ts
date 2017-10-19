@@ -115,9 +115,10 @@ export class DefaultSettingsHeaderWidget extends SettingsHeaderWidget {
 		this.linkElement.textContent = localize('defaultSettingsFuzzyPrompt', "Try fuzzy search!");
 
 		this.onclick(this.linkElement, e => this._onClick.fire());
+		this.toggleMessage(true);
 	}
 
-	public toggleMessage(hasSettings: boolean, promptFuzzy: boolean): void {
+	public toggleMessage(hasSettings: boolean, promptFuzzy = false): void {
 		if (hasSettings) {
 			this.setMessage(localize('defaultSettings', "Place your settings in the right hand side editor to override."));
 			DOM.addClass(this.linkElement, 'hidden');

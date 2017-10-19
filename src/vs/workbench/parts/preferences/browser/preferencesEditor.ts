@@ -907,7 +907,7 @@ abstract class AbstractSettingsEditorContribution extends Disposable {
 			this.preferencesRendererCreationPromise.then(preferencesRenderer => {
 				if (preferencesRenderer) {
 					if (preferencesRenderer.associatedPreferencesModel) {
-						this.preferencesService.disownPreferencesEditorModel(preferencesRenderer.associatedPreferencesModel);
+						preferencesRenderer.associatedPreferencesModel.dispose();
 					}
 					preferencesRenderer.dispose();
 				}
@@ -965,16 +965,16 @@ class SettingsEditorContribution extends AbstractSettingsEditorContribution impl
 
 	protected _createPreferencesRenderer(): TPromise<IPreferencesRenderer<ISetting>> {
 		if (this.isSettingsModel()) {
-			return TPromise.join<any>([this.preferencesService.createPreferencesEditorModel(this.preferencesService.defaultSettingsResource), this.preferencesService.createPreferencesEditorModel(this.editor.getModel().uri)])
-				.then(([defaultSettingsModel, settingsModel]) => {
+			return this.preferencesService.createPreferencesEditorModel(this.editor.getModel().uri)
+				.then(settingsModel => {
 					if (settingsModel instanceof SettingsEditorModel && this.editor.getModel()) {
 						switch (settingsModel.configurationTarget) {
 							case ConfigurationTarget.USER:
-								return this.instantiationService.createInstance(UserSettingsRenderer, this.editor, settingsModel, defaultSettingsModel);
+								return this.instantiationService.createInstance(UserSettingsRenderer, this.editor, settingsModel);
 							case ConfigurationTarget.WORKSPACE:
-								return this.instantiationService.createInstance(WorkspaceSettingsRenderer, this.editor, settingsModel, defaultSettingsModel);
+								return this.instantiationService.createInstance(WorkspaceSettingsRenderer, this.editor, settingsModel);
 							case ConfigurationTarget.WORKSPACE_FOLDER:
-								return this.instantiationService.createInstance(FolderSettingsRenderer, this.editor, settingsModel, defaultSettingsModel);
+								return this.instantiationService.createInstance(FolderSettingsRenderer, this.editor, settingsModel);
 						}
 					}
 					return null;
