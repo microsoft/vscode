@@ -9,14 +9,10 @@ import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IWindowsService, IWindowService, IEnterWorkspaceResult } from 'vs/platform/windows/common/windows';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWindowService, IEnterWorkspaceResult } from 'vs/platform/windows/common/windows';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { IWorkspacesService, IStoredWorkspaceFolder, IWorkspaceIdentifier, isStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
-import { dirname } from 'path';
+import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { massageFolderPathForWorkspace } from 'vs/platform/workspaces/node/workspaces';
-import { isLinux } from 'vs/base/common/platform';
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
 import { migrateStorageToMultiRootWorkspace } from 'vs/platform/storage/common/migration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -26,7 +22,6 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { BackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
-import { Schemas } from 'vs/base/common/network';
 
 export class WorkspaceEditingService implements IWorkspaceEditingService {
 
@@ -35,98 +30,12 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	constructor(
 		@IJSONEditingService private jsonEditingService: IJSONEditingService,
 		@IWorkspaceContextService private contextService: WorkspaceService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWindowsService private windowsService: IWindowsService,
 		@IWindowService private windowService: IWindowService,
-		@IWorkspacesService private workspacesService: IWorkspacesService,
 		@IWorkspaceConfigurationService private workspaceConfigurationService: IWorkspaceConfigurationService,
 		@IStorageService private storageService: IStorageService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IBackupFileService private backupFileService: IBackupFileService
 	) {
-	}
-
-	public addFolders(foldersToAdd: URI[]): TPromise<void> {
-		if (!this.isSupported()) {
-			return TPromise.as(void 0); // we need a workspace to begin with
-		}
-
-		const currentWorkspaceFolders = this.contextService.getWorkspace().folders;
-		const currentWorkspaceFolderUris = currentWorkspaceFolders.map(folder => folder.uri);
-		const currentStoredFolders = currentWorkspaceFolders.map(folder => folder.raw);
-
-		const storedFoldersToAdd: IStoredWorkspaceFolder[] = [];
-
-		const workspaceConfigFolder = dirname(this.contextService.getWorkspace().configuration.fsPath);
-
-		foldersToAdd.forEach(folderToAdd => {
-			if (this.contains(currentWorkspaceFolderUris, folderToAdd)) {
-				return; // already existing
-			}
-
-			// File resource: use "path" property
-			if (folderToAdd.scheme === Schemas.file) {
-				storedFoldersToAdd.push({
-					path: massageFolderPathForWorkspace(folderToAdd.fsPath, workspaceConfigFolder, currentStoredFolders)
-				});
-			}
-
-			// Any other resource: use "uri" property
-			else {
-				storedFoldersToAdd.push({
-					uri: folderToAdd.toString(true)
-				});
-			}
-		});
-
-		if (storedFoldersToAdd.length > 0) {
-			return this.doSetFolders([...currentStoredFolders, ...storedFoldersToAdd]);
-		}
-
-		return TPromise.as(void 0);
-	}
-
-	public removeFolders(foldersToRemove: URI[]): TPromise<void> {
-		if (!this.isSupported()) {
-			return TPromise.as(void 0); // we need a workspace to begin with
-		}
-
-		const currentWorkspaceFolders = this.contextService.getWorkspace().folders;
-		const currentStoredFolders = currentWorkspaceFolders.map(folder => folder.raw);
-
-		const newStoredFolders: IStoredWorkspaceFolder[] = currentStoredFolders.filter((folder, index) => {
-			if (!isStoredWorkspaceFolder(folder)) {
-				return true; // keep entries which are unrelated
-			}
-
-			return !this.contains(foldersToRemove, currentWorkspaceFolders[index].uri); // keep entries which are unrelated
-		});
-
-		if (newStoredFolders.length !== currentStoredFolders.length) {
-			return this.doSetFolders(newStoredFolders);
-		}
-
-		return TPromise.as(void 0);
-	}
-
-	private doSetFolders(folders: IStoredWorkspaceFolder[]): TPromise<void> {
-		const workspace = this.contextService.getWorkspace();
-
-		return this.jsonEditingService.write(workspace.configuration, { key: 'folders', value: folders }, true);
-	}
-
-	private isSupported(): boolean {
-		return this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE; // we need a multi folder workspace to begin with;
-	}
-
-	private contains(resources: URI[], toCheck: URI): boolean {
-		return resources.some(resource => {
-			if (isLinux) {
-				return resource.toString() === toCheck.toString();
-			}
-
-			return resource.toString().toLowerCase() === toCheck.toString().toLowerCase();
-		});
 	}
 
 	public createAndEnterWorkspace(folderPaths?: string[], path?: string): TPromise<void> {

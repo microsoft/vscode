@@ -400,7 +400,7 @@ export class ElectronWindow extends Themable {
 
 		// Workspace: just add to workspace config
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
-			this.workspaceEditingService.addFolders(foldersToAdd).done(null, errors.onUnexpectedError);
+			this.contextService.addFolders(foldersToAdd).done(null, errors.onUnexpectedError);
 		}
 
 		// Single folder or no workspace: create workspace and open

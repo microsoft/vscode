@@ -12,8 +12,8 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { IProgress } from 'vs/platform/progress/common/progress';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { ISearchResultProvider, ISearchQuery, ISearchComplete, ISearchProgressItem, QueryType, IFileMatch, ISearchService } from 'vs/platform/search/common/search';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 @extHostNamedCustomer(MainContext.MainThreadFileSystem)
 export class MainThreadFileSystem implements MainThreadFileSystemShape {
@@ -26,7 +26,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 		extHostContext: IExtHostContext,
 		@IFileService private readonly _fileService: IFileService,
 		@ISearchService private readonly _searchService: ISearchService,
-		@IWorkspaceEditingService private readonly _workspaceEditService: IWorkspaceEditingService
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
 	) {
 		this._proxy = extHostContext.get(ExtHostContext.ExtHostFileSystem);
 	}
@@ -45,7 +45,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	}
 
 	$onDidAddFileSystemRoot(uri: URI): void {
-		this._workspaceEditService.addFolders([uri]);
+		this._workspaceContextService.addFolders([uri]);
 	}
 
 	$onFileSystemChange(handle: number, changes: IFileChange[]): void {
