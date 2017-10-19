@@ -53,7 +53,22 @@ const enum Constants {
 
 	StickinessMask = 0b00110000,
 	StickinessMaskInverse = 0b11001111,
-	StickinessOffset = 4
+	StickinessOffset = 4,
+
+	/**
+	 * Due to how deletion works (in order to avoid always walking the right subtree of the deleted node),
+	 * the deltas for nodes can grow and shrink dramatically. It has been observed, in practice, that unless
+	 * the deltas are corrected, integer overflow will occur.
+	 *
+	 * The integer overflow occurs when 53 bits are used in the numbers, but we will try to avoid it as
+	 * a node's delta gets below a negative 30 bits number.
+	 *
+	 * MIN SMI (SMall Integer) as defined in v8.
+	 * one bit is lost for boxing/unboxing flag.
+	 * one bit is lost for sign flag.
+	 * See https://thibaultlaurens.github.io/javascript/2013/04/29/how-the-v8-engine-works/#tagged-values
+	 */
+	MIN_SAFE_DELTA = -(1 << 30),
 }
 
 function getNodeColor(node: IntervalNode): NodeColor {
@@ -132,7 +147,8 @@ export class IntervalNode implements IModelDecoration {
 
 		this.start = start;
 		this.end = end;
-		this.delta = start;
+		// FORCE_OVERFLOWING_TEST: this.delta = start;
+		this.delta = 0;
 		this.maxEnd = end;
 
 		this.id = id;
@@ -195,9 +211,11 @@ setNodeColor(SENTINEL, NodeColor.Black);
 export class IntervalTree {
 
 	public root: IntervalNode;
+	public requestNormalizeDelta: boolean;
 
 	constructor() {
 		this.root = SENTINEL;
+		this.requestNormalizeDelta = false;
 	}
 
 	public intervalSearch(start: number, end: number, filterOwnerId: number, filterOutValidation: boolean, cachedVersionId: number): IntervalNode[] {
@@ -237,10 +255,12 @@ export class IntervalTree {
 
 	public insert(node: IntervalNode): void {
 		rbTreeInsert(this, node);
+		this._normalizeDeltaIfNecessary();
 	}
 
 	public delete(node: IntervalNode): void {
 		rbTreeDelete(this, node);
+		this._normalizeDeltaIfNecessary();
 	}
 
 	public resolveNode(node: IntervalNode, cachedVersionId: number): void {
@@ -269,9 +289,11 @@ export class IntervalTree {
 			const node = nodesOfInterest[i];
 			rbTreeDelete(this, node);
 		}
+		this._normalizeDeltaIfNecessary();
 
 		// (3) edit all tree nodes except the nodes of interest
 		noOverlapReplace(this, offset, offset + length, textLength);
+		this._normalizeDeltaIfNecessary();
 
 		// (4) edit the nodes of interest and insert them back in the tree
 		for (let i = 0, len = nodesOfInterest.length; i < len; i++) {
@@ -282,6 +304,7 @@ export class IntervalTree {
 			node.maxEnd = node.end;
 			rbTreeInsert(this, node);
 		}
+		this._normalizeDeltaIfNecessary();
 	}
 
 	public assertInvariants(): void {
@@ -323,8 +346,57 @@ export class IntervalTree {
 			out.push(`${indent}    NIL\n`);
 		}
 	}
+
+	private _normalizeDeltaIfNecessary(): void {
+		if (!this.requestNormalizeDelta) {
+			return;
+		}
+		this.requestNormalizeDelta = false;
+		normalizeDelta(this);
+	}
 }
 
+//#region Delta Normalization
+function normalizeDelta(T: IntervalTree): void {
+	let node = T.root;
+	let delta = 0;
+	while (node !== SENTINEL) {
+
+		if (node.left !== SENTINEL && !getNodeIsVisited(node.left)) {
+			// go left
+			node = node.left;
+			continue;
+		}
+
+		if (node.right !== SENTINEL && !getNodeIsVisited(node.right)) {
+			// go right
+			delta += node.delta;
+			node = node.right;
+			continue;
+		}
+
+		// handle current node
+		node.start = delta + node.start;
+		node.end = delta + node.end;
+		node.delta = 0;
+		recomputeMaxEnd(node);
+
+		setNodeIsVisited(node, true);
+
+		// going up from this node
+		setNodeIsVisited(node.left, false);
+		setNodeIsVisited(node.right, false);
+		if (node === node.parent.right) {
+			delta -= node.parent.delta;
+		}
+		node = node.parent;
+	}
+
+	if (T.root) {
+		setNodeIsVisited(T.root, false);
+	}
+}
+//#endregion
 
 //#region Editing
 
@@ -508,6 +580,7 @@ function noOverlapReplace(T: IntervalTree, start: number, end: number, textLengt
 	let delta = 0;
 	let nodeMaxEnd = 0;
 	let nodeStart = 0;
+	const editDelta = (textLength - (end - start));
 	while (node !== SENTINEL) {
 		if (getNodeIsVisited(node)) {
 			// going up from this node
@@ -541,9 +614,12 @@ function noOverlapReplace(T: IntervalTree, start: number, end: number, textLengt
 		// handle current node
 		nodeStart = delta + node.start;
 		if (nodeStart > end) {
-			node.start += (textLength - (end - start));
-			node.end += (textLength - (end - start));
-			node.delta += (textLength - (end - start));
+			node.start += editDelta;
+			node.end += editDelta;
+			node.delta += editDelta;
+			if (node.delta < Constants.MIN_SAFE_DELTA) {
+				T.requestNormalizeDelta = true;
+			}
 			// cover case a) from above
 			// there is no need to search this node or its right subtree
 			setNodeIsVisited(node, true);
@@ -949,6 +1025,9 @@ function rbTreeDelete(T: IntervalTree, z: IntervalNode): void {
 
 		// x's delta is no longer influenced by z's delta
 		x.delta += z.delta;
+		if (x.delta < Constants.MIN_SAFE_DELTA) {
+			T.requestNormalizeDelta = true;
+		}
 		x.start += z.delta;
 		x.end += z.delta;
 
@@ -966,10 +1045,16 @@ function rbTreeDelete(T: IntervalTree, z: IntervalNode): void {
 		x.start += y.delta;
 		x.end += y.delta;
 		x.delta += y.delta;
+		if (x.delta < Constants.MIN_SAFE_DELTA) {
+			T.requestNormalizeDelta = true;
+		}
 
 		y.start += z.delta;
 		y.end += z.delta;
 		y.delta = z.delta;
+		if (y.delta < Constants.MIN_SAFE_DELTA) {
+			T.requestNormalizeDelta = true;
+		}
 	}
 
 	if (y === T.root) {
@@ -1130,6 +1215,9 @@ function leftRotate(T: IntervalTree, x: IntervalNode): void {
 	const y = x.right;				// set y.
 
 	y.delta += x.delta;				// y's delta is no longer influenced by x's delta
+	if (y.delta < Constants.MIN_SAFE_DELTA) {
+		T.requestNormalizeDelta = true;
+	}
 	y.start += x.delta;
 	y.end += x.delta;
 
@@ -1157,6 +1245,9 @@ function rightRotate(T: IntervalTree, y: IntervalNode): void {
 	const x = y.left;
 
 	y.delta -= x.delta;
+	if (y.delta < Constants.MIN_SAFE_DELTA) {
+		T.requestNormalizeDelta = true;
+	}
 	y.start -= x.delta;
 	y.end -= x.delta;
 

@@ -14,6 +14,8 @@ const MIN_INTERVAL_START = 1;
 const MAX_INTERVAL_END = 100;
 const MIN_INSERTS = 1;
 const MAX_INSERTS = 30;
+const MIN_CHANGE_CNT = 10;
+const MAX_CHANGE_CNT = 20;
 
 suite('IntervalTree', () => {
 
@@ -94,6 +96,17 @@ suite('IntervalTree', () => {
 
 				this._treeNodes[op.id] = null;
 				this._oracleNodes[op.id] = null;
+			} else if (op.type === 'change') {
+
+				this._tree.delete(this._treeNodes[op.id]);
+				this._treeNodes[op.id].reset(0, op.begin, op.end, null);
+				this._tree.insert(this._treeNodes[op.id]);
+
+				this._oracle.delete(this._oracleNodes[op.id]);
+				this._oracleNodes[op.id].start = op.begin;
+				this._oracleNodes[op.id].end = op.end;
+				this._oracle.insert(this._oracleNodes[op.id]);
+
 			} else {
 				let actualNodes = this._tree.intervalSearch(op.begin, op.end, 0, false, 0);
 				let actual = actualNodes.map(n => new Interval(n.cachedAbsoluteStart, n.cachedAbsoluteEnd));
@@ -139,13 +152,20 @@ suite('IntervalTree', () => {
 		id: number;
 	}
 
+	interface IChangeOperation {
+		type: 'change';
+		id: number;
+		begin: number;
+		end: number;
+	}
+
 	interface ISearchOperation {
 		type: 'search';
 		begin: number;
 		end: number;
 	}
 
-	type IOperation = IInsertOperation | IDeleteOperation | ISearchOperation;
+	type IOperation = IInsertOperation | IDeleteOperation | IChangeOperation | ISearchOperation;
 
 	function testIntervalTree(ops: IOperation[]): void {
 		let state = new TestState();
@@ -176,35 +196,53 @@ suite('IntervalTree', () => {
 		private _state: TestState = new TestState();
 		private _insertCnt: number;
 		private _deleteCnt: number;
+		private _changeCnt: number;
 
 		constructor() {
 			this._insertCnt = getRandomInt(MIN_INSERTS, MAX_INSERTS);
+			this._changeCnt = getRandomInt(MIN_CHANGE_CNT, MAX_CHANGE_CNT);
 			this._deleteCnt = 0;
 		}
 
+		private _doRandomInsert(): void {
+			let range = getRandomRange(MIN_INTERVAL_START, MAX_INTERVAL_END);
+			this._run({
+				type: 'insert',
+				begin: range[0],
+				end: range[1]
+			});
+		}
+
+		private _doRandomDelete(): void {
+			let idx = getRandomInt(Math.floor(this._deleteCnt / 2), this._deleteCnt - 1);
+			this._run({
+				type: 'delete',
+				id: this._state.getExistingNodeId(idx)
+			});
+		}
+
+		private _doRandomChange(): void {
+			let idx = getRandomInt(0, this._deleteCnt - 1);
+			let range = getRandomRange(MIN_INTERVAL_START, MAX_INTERVAL_END);
+			this._run({
+				type: 'change',
+				id: this._state.getExistingNodeId(idx),
+				begin: range[0],
+				end: range[1]
+			});
+		}
+
 		public run() {
-			while (this._insertCnt > 0 || this._deleteCnt > 0) {
-				let type: 'insert' | 'delete';
+			while (this._insertCnt > 0 || this._deleteCnt > 0 || this._changeCnt > 0) {
 				if (this._insertCnt > 0) {
-					type = 'insert';
-				} else {
-					type = 'delete';
-				}
-				if (type === 'insert') {
-					let range = getRandomRange(MIN_INTERVAL_START, MAX_INTERVAL_END);
-					this._run({
-						type: 'insert',
-						begin: range[0],
-						end: range[1]
-					});
+					this._doRandomInsert();
 					this._insertCnt--;
 					this._deleteCnt++;
+				} else if (this._changeCnt > 0) {
+					this._doRandomChange();
+					this._changeCnt--;
 				} else {
-					let idx = getRandomInt(0, this._deleteCnt - 1);
-					this._run({
-						type: 'delete',
-						id: this._state.getExistingNodeId(idx)
-					});
+					this._doRandomDelete();
 					this._deleteCnt--;
 				}
 
@@ -399,6 +437,19 @@ suite('IntervalTree', () => {
 				{ type: 'insert', begin: 67, end: 79 },
 				{ type: 'delete', id: 0 },
 				{ type: 'search', begin: 65, end: 75 }
+			]);
+		});
+
+		test('force delta overflow', () => {
+			// Search the IntervalNode ctor for FORCE_OVERFLOWING_TEST
+			// to force that this test leads to a delta normalization
+			testIntervalTree([
+				{ type: 'insert', begin: 686081138593427, end: 733009856502260 },
+				{ type: 'insert', begin: 591031326181669, end: 591031326181672 },
+				{ type: 'insert', begin: 940037682731896, end: 940037682731903 },
+				{ type: 'insert', begin: 598413641151120, end: 598413641151128 },
+				{ type: 'insert', begin: 800564156553344, end: 800564156553351 },
+				{ type: 'insert', begin: 894198957565481, end: 894198957565491 }
 			]);
 		});
 	});
