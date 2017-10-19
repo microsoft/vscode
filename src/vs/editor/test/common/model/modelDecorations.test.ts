@@ -249,6 +249,21 @@ suite('Editor Model - Model Decorations', () => {
 		assert.equal(listenerCalled, 1, 'listener called');
 	});
 
+	test('decorations do not emit event on no-op deltaDecorations', () => {
+		let listenerCalled = 0;
+
+		thisModel.onDidChangeDecorations((e) => {
+			listenerCalled++;
+		});
+
+		thisModel.deltaDecorations([], []);
+		thisModel.changeDecorations((accessor) => {
+			accessor.deltaDecorations([], []);
+		});
+
+		assert.equal(listenerCalled, 0, 'listener not called');
+	});
+
 	// --------- editing text & effects on decorations
 
 	test('decorations are updated when inserting one line text before it', () => {

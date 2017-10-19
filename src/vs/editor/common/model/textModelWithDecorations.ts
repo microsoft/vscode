@@ -166,6 +166,10 @@ export class TextModelWithDecorations extends TextModelWithTokens implements edi
 				this._deltaDecorationsImpl(ownerId, [id], []);
 			},
 			deltaDecorations: (oldDecorations: string[], newDecorations: editorCommon.IModelDeltaDecoration[]): string[] => {
+				if (oldDecorations.length === 0 && newDecorations.length === 0) {
+					// nothing to do
+					return [];
+				}
 				this._currentDecorationsTrackerDidChange = true;
 				return this._deltaDecorationsImpl(ownerId, oldDecorations, newDecorations);
 			}
@@ -188,6 +192,10 @@ export class TextModelWithDecorations extends TextModelWithTokens implements edi
 		this._assertNotDisposed();
 		if (!oldDecorations) {
 			oldDecorations = [];
+		}
+		if (oldDecorations.length === 0 && newDecorations.length === 0) {
+			// nothing to do
+			return [];
 		}
 
 		try {
