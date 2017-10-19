@@ -20,7 +20,8 @@ export interface IWorkbenchSettingsConfiguration {
 	workbench: {
 		settings: {
 			openDefaultSettings: boolean;
-			useExperimentalRemoteSearch: boolean;
+			experimentalFuzzySearchEndpoint: string;
+			experimentalFuzzySearchKey: string;
 		}
 	};
 }
@@ -56,6 +57,7 @@ export interface IFilterResult {
 	filteredGroups: ISettingsGroup[];
 	allGroups: ISettingsGroup[];
 	matches: IRange[];
+	fuzzySearchAvailable?: boolean;
 	metadata?: IFilterMetadata;
 }
 

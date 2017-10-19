@@ -144,6 +144,8 @@ export class PreferencesEditor extends BaseEditor {
 			placeholder: nls.localize('SearchSettingsWidget.Placeholder', "Search Settings"),
 			focusKey: this.focusSettingsContextKey
 		}));
+		this.searchWidget.setFuzzyToggleVisible(this.searchProvider.remoteSearchEnabled);
+		this._register(this.searchProvider.onRemoteSearchEnablementChanged(enabled => this.searchWidget.setFuzzyToggleVisible(enabled)));
 		this._register(this.searchWidget.onDidChange(value => this.onInputChanged()));
 		this._register(this.searchWidget.onFocus(() => this.lastFocusedWidget = this.searchWidget));
 		this.lastFocusedWidget = this.searchWidget;
@@ -445,8 +447,8 @@ class PreferencesRenderers extends Disposable {
 
 		const searchModel = searchProvider.startSearch(filter, fuzzy);
 		this._filtersInProgress = [
-			this._filterPreferences(filter, searchModel, this._defaultPreferencesRenderer),
-			this._filterPreferences(filter, searchModel, this._editablePreferencesRenderer)];
+			this._filterPreferences(searchModel, searchProvider, this._defaultPreferencesRenderer),
+			this._filterPreferences(searchModel, searchProvider, this._editablePreferencesRenderer)];
 
 		return TPromise.join<IFilterResult>(this._filtersInProgress).then(filterResults => {
 			this._filtersInProgress = null;
@@ -477,14 +479,12 @@ class PreferencesRenderers extends Disposable {
 		return preferencesRenderer ? (<ISettingsEditorModel>preferencesRenderer.preferencesModel).settingsGroups : [];
 	}
 
-	private _filterPreferences(filter: string, searchModel: PreferencesSearchModel, preferencesRenderer: IPreferencesRenderer<ISetting>): TPromise<IFilterResult> {
+	private _filterPreferences(searchModel: PreferencesSearchModel, searchProvider: PreferencesSearchProvider, preferencesRenderer: IPreferencesRenderer<ISetting>): TPromise<IFilterResult> {
 		if (preferencesRenderer) {
-			const prefSearchP = filter ?
-				searchModel.filterPreferences(<ISettingsEditorModel>preferencesRenderer.preferencesModel) :
-				TPromise.wrap(null);
+			const prefSearchP = searchModel.filterPreferences(<ISettingsEditorModel>preferencesRenderer.preferencesModel);
 
 			return prefSearchP.then(filterResult => {
-				preferencesRenderer.filterPreferences(filterResult);
+				preferencesRenderer.filterPreferences(filterResult, searchProvider.remoteSearchEnabled);
 				return filterResult;
 			});
 		}

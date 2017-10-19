@@ -197,10 +197,15 @@ let workbenchProperties: { [path: string]: IJSONSchema; } = {
 		'description': nls.localize('openDefaultSettings', "Controls if opening settings also opens an editor showing all default settings."),
 		'default': true
 	},
-	'workbench.settings.useExperimentalRemoteSearch': {
-		'type': 'boolean',
-		'description': nls.localize('useExperimentalRemoteSearch', "Controls whether to use the experimetal remote search engine for settings search."),
-		'default': false
+	'workbench.settings.experimentalFuzzySearchEndpoint': {
+		'type': 'string',
+		'description': nls.localize('experimentalFuzzySearchEndpoint', "Indicates the endpoint to use for the experimental settings search."),
+		'default': ''
+	},
+	'workbench.settings.experimentalFuzzySearchKey': {
+		'type': 'string',
+		'description': nls.localize('experimentalFuzzySearchKey', "Indicates the key to use for the experimental settings search."),
+		'default': ''
 	},
 	'workbench.sideBar.location': {
 		'type': 'string',

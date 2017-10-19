@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
+import Event, { Emitter } from 'vs/base/common/event';
 import { ISettingsEditorModel, IFilterResult, ISetting, ISettingsGroup, IWorkbenchSettingsConfiguration, IFilterMetadata } from 'vs/workbench/parts/preferences/common/preferences';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { distinct } from 'vs/base/common/arrays';
@@ -14,13 +15,30 @@ import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/co
 import { IMatch, or, matchesContiguousSubString, matchesPrefix, matchesCamelCase, matchesWords } from 'vs/base/common/filters';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 
+export interface IEndpointDetails {
+	urlBase: string;
+	key: string;
+}
+
 export class PreferencesSearchProvider {
+	private _onRemoteSearchEnablementChanged = new Emitter<boolean>();
+	public onRemoteSearchEnablementChanged: Event<boolean> = this._onRemoteSearchEnablementChanged.event;
 
 	constructor( @IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService) {
+		configurationService.onDidUpdateConfiguration(() => this._onRemoteSearchEnablementChanged.fire(this.remoteSearchEnabled));
 	}
 
 	get remoteSearchEnabled(): boolean {
-		return !!this.configurationService.getConfiguration<IWorkbenchSettingsConfiguration>().workbench.settings.useExperimentalRemoteSearch;
+		const endpoint = this.endpoint;
+		return !!endpoint.urlBase && !!endpoint.key;
+	}
+
+	get endpoint(): IEndpointDetails {
+		const workbenchSettings = this.configurationService.getConfiguration<IWorkbenchSettingsConfiguration>().workbench.settings;
+		return {
+			urlBase: workbenchSettings.experimentalFuzzySearchEndpoint,
+			key: workbenchSettings.experimentalFuzzySearchKey
+		};
 	}
 
 	startSearch(filter: string, remote: boolean): PreferencesSearchModel {
@@ -32,15 +50,19 @@ export class PreferencesSearchModel {
 	private _localProvider: LocalSearchProvider;
 	private _remoteProvider: RemoteSearchProvider;
 
-	constructor(private provider: PreferencesSearchProvider, filter: string, remote: boolean) {
+	constructor(private provider: PreferencesSearchProvider, private filter: string, remote: boolean) {
 		this._localProvider = new LocalSearchProvider(filter);
 
-		if (remote) {
-			this._remoteProvider = new RemoteSearchProvider(filter);
+		if (remote && filter) {
+			this._remoteProvider = new RemoteSearchProvider(filter, this.provider.endpoint);
 		}
 	}
 
 	filterPreferences(preferencesModel: ISettingsEditorModel): TPromise<IFilterResult> {
+		if (!this.filter) {
+			return TPromise.wrap(null);
+		}
+
 		if (this._remoteProvider) {
 			return this._remoteProvider.filterPreferences(preferencesModel).then(null, err => {
 				return this._localProvider.filterPreferences(preferencesModel);
@@ -86,9 +108,9 @@ class RemoteSearchProvider {
 	private _filter: string;
 	private _remoteSearchP: TPromise<IRemoteResult>;
 
-	constructor(filter: string) {
+	constructor(filter: string, endpoint: IEndpointDetails) {
 		this._filter = filter;
-		this._remoteSearchP = filter ? getSettingsFromBing(filter) : TPromise.wrap(null);
+		this._remoteSearchP = filter ? getSettingsFromBing(filter, endpoint) : TPromise.wrap(null);
 	}
 
 	filterPreferences(preferencesModel: ISettingsEditorModel): TPromise<IFilterResult> {
@@ -118,8 +140,8 @@ class RemoteSearchProvider {
 	}
 }
 
-function getSettingsFromBing(filter: string): TPromise<IRemoteResult> {
-	const url = prepareUrl(filter);
+function getSettingsFromBing(filter: string, endpoint: IEndpointDetails): TPromise<IRemoteResult> {
+	const url = prepareUrl(filter, endpoint);
 	console.log('fetching: ' + url);
 	const start = Date.now();
 	const p = fetch(url, {
@@ -161,11 +183,6 @@ function getSettingsFromBing(filter: string): TPromise<IRemoteResult> {
 	return TPromise.as(p as any);
 }
 
-const endpoint = {
-	key: 'F3F22B32DD89DDA74B1935ED0BE6FCBA',
-	urlBase: 'https://vscodesearch6.search.windows.net/indexes/vscodeindex/docs'
-};
-
 const API_VERSION = 'api-version=2015-02-28-Preview';
 const QUERY_TYPE = 'querytype=full';
 const SCORING_PROFILE = 'scoringProfile=ranking1';
@@ -177,7 +194,7 @@ function escapeSpecialChars(query: string): string {
 		.trim();
 }
 
-function prepareUrl(query: string): string {
+function prepareUrl(query: string, endpoint: IEndpointDetails): string {
 	query = escapeSpecialChars(query);
 	const userQuery = query;
 

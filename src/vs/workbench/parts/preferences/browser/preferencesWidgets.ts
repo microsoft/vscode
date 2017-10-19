@@ -450,7 +450,7 @@ export class SearchWidget extends Widget {
 	}
 
 	public get fuzzyEnabled(): boolean {
-		return this.fuzzyToggle.checked;
+		return this.fuzzyToggle.checked && this.fuzzyToggle.enabled;
 	}
 
 	public set fuzzyEnabled(value: boolean) {
@@ -517,6 +517,16 @@ export class SearchWidget extends Widget {
 		DOM.toggleClass(this.countElement, 'no-results', count === 0);
 		this.inputBox.inputElement.style.paddingRight = this.getControlsWidth() + 'px';
 		this.styleCountElementForeground();
+	}
+
+	public setFuzzyToggleVisible(visible: boolean): void {
+		if (visible) {
+			this.fuzzyToggle.domNode.classList.remove('hidden');
+			this.fuzzyToggle.enable();
+		} else {
+			this.fuzzyToggle.domNode.classList.add('hidden');
+			this.fuzzyToggle.disable();
+		}
 	}
 
 	private styleCountElementForeground() {

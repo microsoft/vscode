@@ -45,7 +45,7 @@ export interface IPreferencesRenderer<T> extends IDisposable {
 
 	render(): void;
 	updatePreference(key: string, value: any, source: T): void;
-	filterPreferences(filterResult: IFilterResult): void;
+	filterPreferences(filterResult: IFilterResult, fuzzySearchAvailable: boolean): void;
 	focusPreference(setting: T): void;
 	clearFocus(setting: T): void;
 }
@@ -295,13 +295,13 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		this.hiddenAreasRenderer.render();
 	}
 
-	public filterPreferences(filterResult: IFilterResult): void {
+	public filterPreferences(filterResult: IFilterResult, fuzzySearchAvailable: boolean): void {
 		this.filterResult = filterResult;
 		if (filterResult) {
 			this.filteredMatchesRenderer.render(filterResult, this.preferencesModel.settingsGroups);
 			this.settingsGroupTitleRenderer.render(filterResult.filteredGroups);
 			this.feedbackWidgetRenderer.render(filterResult);
-			this.settingsHeaderRenderer.render(filterResult);
+			this.settingsHeaderRenderer.render(filterResult, fuzzySearchAvailable);
 			this.settingHighlighter.clear(true);
 			this.editSettingActionRenderer.render(filterResult.filteredGroups, this._associatedPreferencesModel);
 		} else {
@@ -424,9 +424,9 @@ class DefaultSettingsHeaderRenderer extends Disposable {
 		this.onClick = this.settingsHeaderWidget.onClick;
 	}
 
-	public render(filterResult: IFilterResult) {
+	public render(filterResult: IFilterResult, fuzzySearchAvailable = false) {
 		const hasSettings = !filterResult || filterResult.filteredGroups.length > 0;
-		const promptFuzzy = filterResult && !filterResult.metadata;
+		const promptFuzzy = fuzzySearchAvailable && filterResult && !filterResult.metadata;
 		this.settingsHeaderWidget.toggleMessage(hasSettings, promptFuzzy);
 	}
 }
