@@ -80,7 +80,7 @@ function setNodeIsForValidation(node: IntervalNode, value: boolean): void {
 		(node.metadata & Constants.IsForValidationMaskInverse) | ((value ? 1 : 0) << Constants.IsForValidationOffset)
 	);
 }
-function getNodeIsInOverviewRuler(node: IntervalNode): boolean {
+export function getNodeIsInOverviewRuler(node: IntervalNode): boolean {
 	return ((node.metadata & Constants.IsInOverviewRulerMask) >>> Constants.IsInOverviewRulerOffset) === 1;
 }
 function setNodeIsInOverviewRuler(node: IntervalNode, value: boolean): void {
@@ -207,11 +207,11 @@ export class IntervalTree {
 		return intervalSearch(this, start, end, filterOwnerId, filterOutValidation, cachedVersionId);
 	}
 
-	public search(filterOwnerId: number, filterOutValidation: boolean, overviewRulerOnly: boolean, cachedVersionId: number): IntervalNode[] {
+	public search(filterOwnerId: number, filterOutValidation: boolean, cachedVersionId: number): IntervalNode[] {
 		if (this.root === SENTINEL) {
 			return [];
 		}
-		return search(this, filterOwnerId, filterOutValidation, overviewRulerOnly, cachedVersionId);
+		return search(this, filterOwnerId, filterOutValidation, cachedVersionId);
 	}
 
 	public count(): number {
@@ -226,6 +226,13 @@ export class IntervalTree {
 	 */
 	public collectNodesFromOwner(ownerId: number): IntervalNode[] {
 		return collectNodesFromOwner(this, ownerId);
+	}
+
+	/**
+	 * Will not set `cachedAbsoluteStart` nor `cachedAbsoluteEnd` on the returned nodes!
+	 */
+	public collectNodesPostOrder(): IntervalNode[] {
+		return collectNodesPostOrder(this);
 	}
 
 	public insert(node: IntervalNode): void {
@@ -277,10 +284,6 @@ export class IntervalTree {
 		}
 	}
 
-	public collectNodesPostOrder(): IntervalNode[] {
-		return collectNodesPostOrder(this);
-	}
-
 	public assertInvariants(): void {
 		assert(getNodeColor(SENTINEL) === NodeColor.Black);
 		assert(SENTINEL.parent === SENTINEL);
@@ -294,7 +297,7 @@ export class IntervalTree {
 	}
 
 	public getAllInOrder(): IntervalNode[] {
-		return search(this, 0, false, false, 0);
+		return search(this, 0, false, 0);
 	}
 
 	public print(): void {
@@ -679,7 +682,7 @@ function collectNodesPostOrder(T: IntervalTree): IntervalNode[] {
 	return result;
 }
 
-function search(T: IntervalTree, filterOwnerId: number, filterOutValidation: boolean, overviewRulerOnly: boolean, cachedVersionId: number): IntervalNode[] {
+function search(T: IntervalTree, filterOwnerId: number, filterOutValidation: boolean, cachedVersionId: number): IntervalNode[] {
 	let node = T.root;
 	let delta = 0;
 	let nodeStart = 0;
@@ -715,9 +718,6 @@ function search(T: IntervalTree, filterOwnerId: number, filterOutValidation: boo
 			include = false;
 		}
 		if (filterOutValidation && getNodeIsForValidation(node)) {
-			include = false;
-		}
-		if (overviewRulerOnly && !getNodeIsInOverviewRuler(node)) {
 			include = false;
 		}
 		if (include) {

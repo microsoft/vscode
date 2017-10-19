@@ -15,7 +15,7 @@ import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { ITextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
-import { IntervalNode, IntervalTree, recomputeMaxEnd } from 'vs/editor/common/model/intervalTree';
+import { IntervalNode, IntervalTree, recomputeMaxEnd, getNodeIsInOverviewRuler } from 'vs/editor/common/model/intervalTree';
 
 let _INSTANCE_COUNT = 0;
 /**
@@ -45,7 +45,7 @@ export class TextModelWithDecorations extends TextModelWithTokens implements edi
 	private _currentDecorationsTrackerCnt: number;
 	private _currentDecorationsTrackerDidChange: boolean;
 	private _decorations: { [decorationId: string]: IntervalNode; };
-	private _decorationsTree: IntervalTree;
+	private _decorationsTree: DecorationsTrees;
 
 	constructor(rawTextSource: IRawTextSource, creationOptions: editorCommon.ITextModelCreationOptions, languageIdentifier: LanguageIdentifier) {
 		super(rawTextSource, creationOptions, languageIdentifier);
@@ -55,7 +55,7 @@ export class TextModelWithDecorations extends TextModelWithTokens implements edi
 		this._currentDecorationsTrackerCnt = 0;
 		this._currentDecorationsTrackerDidChange = false;
 		this._decorations = Object.create(null);
-		this._decorationsTree = new IntervalTree();
+		this._decorationsTree = new DecorationsTrees();
 	}
 
 	public dispose(): void {
@@ -70,7 +70,7 @@ export class TextModelWithDecorations extends TextModelWithTokens implements edi
 
 		// Destroy all my decorations
 		this._decorations = Object.create(null);
-		this._decorationsTree = new IntervalTree();
+		this._decorationsTree = new DecorationsTrees();
 	}
 
 	_getTrackedRangesCount(): number {
@@ -371,7 +371,17 @@ export class TextModelWithDecorations extends TextModelWithTokens implements edi
 			return;
 		}
 
-		node.setOptions(options);
+		const nodeWasInOverviewRuler = (node.options.overviewRuler.color ? true : false);
+		const nodeIsInOverviewRuler = (options.overviewRuler.color ? true : false);
+
+		if (nodeWasInOverviewRuler !== nodeIsInOverviewRuler) {
+			// Delete + Insert due to an overview ruler status change
+			this._decorationsTree.delete(node);
+			node.setOptions(options);
+			this._decorationsTree.insert(node);
+		} else {
+			node.setOptions(options);
+		}
 	}
 
 	private _deltaDecorationsImpl(ownerId: number, oldDecorationsIds: string[], newDecorations: editorCommon.IModelDeltaDecoration[]): string[] {
@@ -433,6 +443,87 @@ export class TextModelWithDecorations extends TextModelWithTokens implements edi
 		}
 
 		return result;
+	}
+}
+
+class DecorationsTrees {
+
+	/**
+	 * This tree holds decorations that do not show up in the overview ruler.
+	 */
+	private _decorationsTree0: IntervalTree;
+
+	/**
+	 * This tree holds decorations that show up in the overview ruler.
+	 */
+	private _decorationsTree1: IntervalTree;
+
+	constructor() {
+		this._decorationsTree0 = new IntervalTree();
+		this._decorationsTree1 = new IntervalTree();
+	}
+
+	public intervalSearch(start: number, end: number, filterOwnerId: number, filterOutValidation: boolean, cachedVersionId: number): IntervalNode[] {
+		const r0 = this._decorationsTree0.intervalSearch(start, end, filterOwnerId, filterOutValidation, cachedVersionId);
+		const r1 = this._decorationsTree1.intervalSearch(start, end, filterOwnerId, filterOutValidation, cachedVersionId);
+		return r0.concat(r1);
+	}
+
+	public search(filterOwnerId: number, filterOutValidation: boolean, overviewRulerOnly: boolean, cachedVersionId: number): IntervalNode[] {
+		if (overviewRulerOnly) {
+			return this._decorationsTree1.search(filterOwnerId, filterOutValidation, cachedVersionId);
+		} else {
+			const r0 = this._decorationsTree0.search(filterOwnerId, filterOutValidation, cachedVersionId);
+			const r1 = this._decorationsTree1.search(filterOwnerId, filterOutValidation, cachedVersionId);
+			return r0.concat(r1);
+		}
+	}
+
+	public count(): number {
+		const c0 = this._decorationsTree0.count();
+		const c1 = this._decorationsTree1.count();
+		return c0 + c1;
+	}
+
+	public collectNodesFromOwner(ownerId: number): IntervalNode[] {
+		const r0 = this._decorationsTree0.collectNodesFromOwner(ownerId);
+		const r1 = this._decorationsTree1.collectNodesFromOwner(ownerId);
+		return r0.concat(r1);
+	}
+
+	public collectNodesPostOrder(): IntervalNode[] {
+		const r0 = this._decorationsTree0.collectNodesPostOrder();
+		const r1 = this._decorationsTree1.collectNodesPostOrder();
+		return r0.concat(r1);
+	}
+
+	public insert(node: IntervalNode): void {
+		if (getNodeIsInOverviewRuler(node)) {
+			this._decorationsTree1.insert(node);
+		} else {
+			this._decorationsTree0.insert(node);
+		}
+	}
+
+	public delete(node: IntervalNode): void {
+		if (getNodeIsInOverviewRuler(node)) {
+			this._decorationsTree1.delete(node);
+		} else {
+			this._decorationsTree0.delete(node);
+		}
+	}
+
+	public resolveNode(node: IntervalNode, cachedVersionId: number): void {
+		if (getNodeIsInOverviewRuler(node)) {
+			this._decorationsTree1.resolveNode(node, cachedVersionId);
+		} else {
+			this._decorationsTree0.resolveNode(node, cachedVersionId);
+		}
+	}
+
+	public acceptReplace(offset: number, length: number, textLength: number, forceMoveMarkers: boolean): void {
+		this._decorationsTree0.acceptReplace(offset, length, textLength, forceMoveMarkers);
+		this._decorationsTree1.acceptReplace(offset, length, textLength, forceMoveMarkers);
 	}
 }
 
