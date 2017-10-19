@@ -482,7 +482,6 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	public static MOST_RELEVANT_START_LINE = 4;
 	public static MOST_RELEVANT_END_LINE = DefaultSettingsEditorModel.MOST_RELEVANT_SECTION_LENGTH - 1;
 	private static MOST_RELEVANT_CONTENT_LENGTH = DefaultSettingsEditorModel.MOST_RELEVANT_END_LINE - DefaultSettingsEditorModel.MOST_RELEVANT_START_LINE + 1;
-	private static BUNCH_OF_NEWLINES = strings.repeat('\n', DefaultSettingsEditorModel.MOST_RELEVANT_CONTENT_LENGTH);
 
 	private _allSettingsGroups: ISettingsGroup[];
 	private _content: string;
@@ -533,15 +532,6 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 			const builder = new SettingsContentBuilder(DefaultSettingsEditorModel.MOST_RELEVANT_START_LINE - 1);
 			builder.pushGroup(group, false);
 
-			this.model.applyEdits([
-				{
-					text: DefaultSettingsEditorModel.BUNCH_OF_NEWLINES,
-					forceMoveMarkers: false,
-					range: new Range(DefaultSettingsEditorModel.MOST_RELEVANT_START_LINE, 0, DefaultSettingsEditorModel.MOST_RELEVANT_END_LINE + 1, 0),
-					identifier: { major: 1, minor: 0 }
-				}
-			]);
-
 			const lines = builder.getTrimmedLines(DefaultSettingsEditorModel.MOST_RELEVANT_CONTENT_LENGTH);
 			if (!lines.length) {
 				lines.push('');
@@ -557,6 +547,17 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 					identifier: { major: 1, minor: 0 }
 				}
 			]);
+
+			if (settingsTextEndLine < DefaultSettingsEditorModel.MOST_RELEVANT_END_LINE) {
+				this.model.applyEdits([
+					{
+						text: strings.repeat('\n', DefaultSettingsEditorModel.MOST_RELEVANT_END_LINE - settingsTextEndLine),
+						forceMoveMarkers: false,
+						range: new Range(settingsTextEndLine + 1, 0, DefaultSettingsEditorModel.MOST_RELEVANT_END_LINE + 1, 0),
+						identifier: { major: 1, minor: 0 }
+					}
+				]);
+			}
 
 			return {
 				allGroups: this._allSettingsGroups,
