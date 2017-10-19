@@ -25,6 +25,7 @@ export interface ICompositeBarOptions {
 	storageId: string;
 	orientation: ActionsOrientation;
 	composites: { id: string, name: string }[];
+	backgroundColor: string;
 	getActivityAction: (compositeId: string) => ActivityAction;
 	getCompositePinnedAction: (compositeId: string) => Action;
 	getOnCompositeClickAction: (compositeId: string) => Action;
@@ -278,7 +279,8 @@ export class CompositeBar implements ICompositeBar {
 				() => this.getOverflowingComposites(),
 				() => this.activeCompositeId,
 				(compositeId: string) => this.compositeIdToActivityStack[compositeId] && this.compositeIdToActivityStack[compositeId][0].badge,
-				this.options.getOnCompositeClickAction
+				this.options.getOnCompositeClickAction,
+				this.options.backgroundColor
 			);
 
 			this.compositeSwitcherBar.push(this.compositeOverflowAction, { label: false, icon: true });
@@ -322,7 +324,7 @@ export class CompositeBar implements ICompositeBar {
 
 		const compositeActivityAction = this.options.getActivityAction(compositeId);
 		const pinnedAction = this.options.getCompositePinnedAction(compositeId);
-		this.compositeIdToActionItems[compositeId] = this.instantiationService.createInstance(CompositeActionItem, compositeActivityAction, pinnedAction, this);
+		this.compositeIdToActionItems[compositeId] = this.instantiationService.createInstance(CompositeActionItem, compositeActivityAction, pinnedAction, this, this.options.backgroundColor);
 		this.compositeIdToActions[compositeId] = compositeActivityAction;
 
 		return compositeActivityAction;

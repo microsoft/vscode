@@ -82,7 +82,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			getCompositePinnedAction: (compositeId: string) => new ToggleCompositePinnedAction(this.getPanel(compositeId), this.compositeBar),
 			getOnCompositeClickAction: (compositeId: string) => this.instantiationService.createInstance(OpenPanelAction, this.getPanel(compositeId)),
 			getDefaultCompositeId: () => Registry.as<PanelRegistry>(PanelExtensions.Panels).getDefaultPanelId(),
-			hidePart: () => this.partService.setPanelHidden(true)
+			hidePart: () => this.partService.setPanelHidden(true),
+			backgroundColor: PANEL_BACKGROUND
 		});
 		this.toUnbind.push(this.compositeBar);
 

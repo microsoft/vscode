@@ -18,7 +18,7 @@ import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { TextBadge, NumberBadge, IBadge, IconBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activityBarService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_FOREGROUND } from 'vs/workbench/common/theme';
+import { ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND, ACTIVITY_BAR_BADGE_BACKGROUND } from 'vs/workbench/common/theme';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { IActivity } from 'vs/workbench/common/activity';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -93,6 +93,7 @@ export class ActivityAction extends Action {
 
 export interface IActivityActionItemOptions extends IBaseActionItemOptions {
 	icon?: boolean;
+	backgroundColor: string;
 }
 
 export class ActivityActionItem extends BaseActionItem {
@@ -124,7 +125,7 @@ export class ActivityActionItem extends BaseActionItem {
 
 		// Label
 		if (this.$label) {
-			const background = theme.getColor(ACTIVITY_BAR_FOREGROUND);
+			const background = theme.getColor(this.options.backgroundColor);
 
 			this.$label.style('background-color', background ? background.toString() : null);
 		}
@@ -294,11 +295,12 @@ export class CompositeOverflowActivityActionItem extends ActivityActionItem {
 		private getActiveCompositeId: () => string,
 		private getBadge: (compositeId: string) => IBadge,
 		private getCompositeOpenAction: (compositeId: string) => Action,
+		backgroundColor: string,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IThemeService themeService: IThemeService
 	) {
-		super(action, { icon: true }, themeService);
+		super(action, { icon: true, backgroundColor }, themeService);
 
 		this.cssClass = action.class;
 		this.name = action.label;
@@ -373,12 +375,13 @@ export class CompositeActionItem extends ActivityActionItem {
 		private compositeActivityAction: ActivityAction,
 		private toggleCompositePinnedAction: Action,
 		private compositeBar: ICompositeBar,
+		backgroundColor: string,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService
 	) {
-		super(compositeActivityAction, { draggable: true }, themeService);
+		super(compositeActivityAction, { draggable: true, backgroundColor }, themeService);
 
 		this.cssClass = compositeActivityAction.class;
 

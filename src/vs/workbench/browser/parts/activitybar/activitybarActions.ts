@@ -20,6 +20,7 @@ import { activeContrastBorder, focusBorder } from 'vs/platform/theme/common/colo
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { ACTIVITY_BAR_FOREGROUND } from 'vs/workbench/common/theme';
 import { ActivityAction, ActivityActionItem } from 'vs/workbench/browser/parts/compositebar/compositeBarActions';
 
 export class ViewletActivityAction extends ActivityAction {
@@ -97,7 +98,7 @@ export class GlobalActivityActionItem extends ActivityActionItem {
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService protected contextMenuService: IContextMenuService
 	) {
-		super(action, { draggable: false }, themeService);
+		super(action, { draggable: false, backgroundColor: ACTIVITY_BAR_FOREGROUND }, themeService);
 	}
 
 	public render(container: HTMLElement): void {
