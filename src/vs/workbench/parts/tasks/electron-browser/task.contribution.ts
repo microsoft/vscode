@@ -955,59 +955,61 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	private attachProblemMatcher(task: ContributedTask | CustomTask): TPromise<Task> {
-		interface ProblemMatcherPickEntry extends IPickOpenEntry {
-			matcher: NamedProblemMatcher;
-			never?: boolean;
-			learnMore?: boolean;
-		}
-		let entries: ProblemMatcherPickEntry[] = [];
-		for (let key of ProblemMatcherRegistry.keys()) {
-			let matcher = ProblemMatcherRegistry.get(key);
-			if (matcher.deprecated) {
-				continue;
+		if (task.problemMatchers === void 0) {
+			interface ProblemMatcherPickEntry extends IPickOpenEntry {
+				matcher: NamedProblemMatcher;
+				never?: boolean;
+				learnMore?: boolean;
 			}
-			if (matcher.name === matcher.label) {
-				entries.push({ label: matcher.name, matcher: matcher });
-			} else {
-				entries.push({
-					label: matcher.label,
-					description: `$${matcher.name}`,
-					matcher: matcher
+			let entries: ProblemMatcherPickEntry[] = [];
+			for (let key of ProblemMatcherRegistry.keys()) {
+				let matcher = ProblemMatcherRegistry.get(key);
+				if (matcher.deprecated) {
+					continue;
+				}
+				if (matcher.name === matcher.label) {
+					entries.push({ label: matcher.name, matcher: matcher });
+				} else {
+					entries.push({
+						label: matcher.label,
+						description: `$${matcher.name}`,
+						matcher: matcher
+					});
+				}
+			}
+			if (entries.length > 0) {
+				entries = entries.sort((a, b) => a.label.localeCompare(b.label));
+				entries[0].separator = { border: true, label: nls.localize('TaskService.associate', 'associate') };
+				entries.unshift(
+					{ label: nls.localize('TaskService.attachProblemMatcher.continueWithout', 'Continue without scanning the task output'), matcher: undefined },
+					{ label: nls.localize('TaskService.attachProblemMatcher.never', 'Never scan the task output'), matcher: undefined, never: true },
+					{ label: nls.localize('TaskService.attachProblemMatcher.learnMoreAbout', 'Learn more about scanning the task output'), matcher: undefined, learnMore: true }
+				);
+				return this.quickOpenService.pick(entries, {
+					placeHolder: nls.localize('selectProblemMatcher', 'Select for which kind of errors and warnings to scan the task output'),
+					autoFocus: { autoFocusFirstEntry: true }
+				}).then((selected) => {
+					if (selected) {
+						if (selected.learnMore) {
+							this.openDocumentation();
+							return undefined;
+						} else if (selected.never) {
+							this.customize(task, { problemMatcher: [] }, true);
+							return task;
+						} else if (selected.matcher) {
+							let newTask = Task.clone(task);
+							let matcherReference = `$${selected.matcher.name}`;
+							newTask.problemMatchers = [matcherReference];
+							this.customize(task, { problemMatcher: [matcherReference] }, true);
+							return newTask;
+						} else {
+							return task;
+						}
+					} else {
+						return undefined;
+					}
 				});
 			}
-		}
-		if (entries.length > 0) {
-			entries = entries.sort((a, b) => a.label.localeCompare(b.label));
-			entries[0].separator = { border: true, label: nls.localize('TaskService.associate', 'associate') };
-			entries.unshift(
-				{ label: nls.localize('TaskService.attachProblemMatcher.continueWithout', 'Continue without scanning the task output'), matcher: undefined },
-				{ label: nls.localize('TaskService.attachProblemMatcher.never', 'Never scan the task output'), matcher: undefined, never: true },
-				{ label: nls.localize('TaskService.attachProblemMatcher.learnMoreAbout', 'Learn more about scanning the task output'), matcher: undefined, learnMore: true }
-			);
-			return this.quickOpenService.pick(entries, {
-				placeHolder: nls.localize('selectProblemMatcher', 'Select for which kind of errors and warnings to scan the task output'),
-				autoFocus: { autoFocusFirstEntry: true }
-			}).then((selected) => {
-				if (selected) {
-					if (selected.learnMore) {
-						this.openDocumentation();
-						return undefined;
-					} else if (selected.never) {
-						this.customize(task, { problemMatcher: [] }, true);
-						return task;
-					} else if (selected.matcher) {
-						let newTask = Task.clone(task);
-						let matcherReference = `$${selected.matcher.name}`;
-						newTask.problemMatchers = [matcherReference];
-						this.customize(task, { problemMatcher: [matcherReference] }, true);
-						return newTask;
-					} else {
-						return task;
-					}
-				} else {
-					return undefined;
-				}
-			});
 		}
 		return TPromise.as(task);
 	}
