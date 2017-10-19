@@ -24,7 +24,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ClosePanelAction, ToggleMaximizedPanelAction, PanelActivityAction, OpenPanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER } from 'vs/workbench/common/theme';
+import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_BADGE_BACKGROUND, PANEL_BADGE_FOREGROUND, PANEL_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 import { activeContrastBorder, focusBorder, contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { CompositeBar } from 'vs/workbench/browser/parts/compositebar/compositeBar';
 import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositebar/compositeBarActions';
@@ -84,7 +84,12 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			getOnCompositeClickAction: (compositeId: string) => this.instantiationService.createInstance(OpenPanelAction, this.getPanel(compositeId)),
 			getDefaultCompositeId: () => Registry.as<PanelRegistry>(PanelExtensions.Panels).getDefaultPanelId(),
 			hidePart: () => this.partService.setPanelHidden(true),
-			backgroundColor: PANEL_BACKGROUND
+			colors: {
+				backgroundColor: PANEL_BACKGROUND,
+				badgeBackground: PANEL_BADGE_BACKGROUND,
+				badgeForeground: PANEL_BADGE_FOREGROUND,
+				dragAndDropBackground: PANEL_DRAG_AND_DROP_BACKGROUND
+			}
 		});
 		this.toUnbind.push(this.compositeBar);
 

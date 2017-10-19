@@ -27,7 +27,7 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ToggleActivityBarVisibilityAction } from 'vs/workbench/browser/actions/toggleActivityBarVisibility';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND } from 'vs/workbench/common/theme';
+import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { CompositeBar } from 'vs/workbench/browser/parts/compositebar/compositeBar';
 import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositebar/compositeBarActions';
@@ -35,6 +35,12 @@ import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/composit
 export class ActivitybarPart extends Part {
 
 	private static readonly PINNED_VIEWLETS = 'workbench.activity.pinnedViewlets';
+	private static COLORS = {
+		backgroundColor: ACTIVITY_BAR_FOREGROUND,
+		badgeBackground: ACTIVITY_BAR_BADGE_BACKGROUND,
+		badgeForeground: ACTIVITY_BAR_BADGE_FOREGROUND,
+		dragAndDropBackground: ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND
+	};
 
 	public _serviceBrand: any;
 
@@ -69,7 +75,7 @@ export class ActivitybarPart extends Part {
 			getOnCompositeClickAction: (compositeId: string) => this.instantiationService.createInstance(ToggleViewletAction, this.viewletService.getViewlet(compositeId)),
 			getDefaultCompositeId: () => this.viewletService.getDefaultViewletId(),
 			hidePart: () => this.partService.setSideBarHidden(true),
-			backgroundColor: ACTIVITY_BAR_FOREGROUND
+			colors: ActivitybarPart.COLORS
 		});
 		this.registerListeners();
 	}
@@ -161,7 +167,7 @@ export class ActivitybarPart extends Part {
 			.map(a => new GlobalActivityAction(a));
 
 		this.globalActionBar = new ActionBar(container, {
-			actionItemProvider: a => this.instantiationService.createInstance(GlobalActivityActionItem, a),
+			actionItemProvider: a => this.instantiationService.createInstance(GlobalActivityActionItem, a, ActivitybarPart.COLORS),
 			orientation: ActionsOrientation.VERTICAL,
 			ariaLabel: nls.localize('globalActions', "Global Actions"),
 			animated: false

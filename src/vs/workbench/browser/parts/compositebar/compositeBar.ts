@@ -17,7 +17,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ActionBar, IActionItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import Event, { Emitter } from 'vs/base/common/event';
-import { CompositeActionItem, CompositeOverflowActivityAction, ICompositeActivity, CompositeOverflowActivityActionItem, ActivityAction, ICompositeBar } from 'vs/workbench/browser/parts/compositebar/compositeBarActions';
+import { CompositeActionItem, CompositeOverflowActivityAction, ICompositeActivity, CompositeOverflowActivityActionItem, ActivityAction, ICompositeBar, ICompositeBarColors } from 'vs/workbench/browser/parts/compositebar/compositeBarActions';
 import { TPromise } from 'vs/base/common/winjs.base';
 
 export interface ICompositeBarOptions {
@@ -25,7 +25,7 @@ export interface ICompositeBarOptions {
 	storageId: string;
 	orientation: ActionsOrientation;
 	composites: { id: string, name: string }[];
-	backgroundColor: string;
+	colors: ICompositeBarColors;
 	getActivityAction: (compositeId: string) => ActivityAction;
 	getCompositePinnedAction: (compositeId: string) => Action;
 	getOnCompositeClickAction: (compositeId: string) => Action;
@@ -283,7 +283,7 @@ export class CompositeBar implements ICompositeBar {
 				() => this.activeCompositeId,
 				(compositeId: string) => this.compositeIdToActivityStack[compositeId] && this.compositeIdToActivityStack[compositeId][0].badge,
 				this.options.getOnCompositeClickAction,
-				this.options.backgroundColor
+				this.options.colors
 			);
 
 			this.compositeSwitcherBar.push(this.compositeOverflowAction, { label: false, icon: true });
@@ -327,7 +327,7 @@ export class CompositeBar implements ICompositeBar {
 
 		const compositeActivityAction = this.options.getActivityAction(compositeId);
 		const pinnedAction = this.options.getCompositePinnedAction(compositeId);
-		this.compositeIdToActionItems[compositeId] = this.instantiationService.createInstance(CompositeActionItem, compositeActivityAction, pinnedAction, this, this.options.backgroundColor);
+		this.compositeIdToActionItems[compositeId] = this.instantiationService.createInstance(CompositeActionItem, compositeActivityAction, pinnedAction, this.options.colors, this);
 		this.compositeIdToActions[compositeId] = compositeActivityAction;
 
 		return compositeActivityAction;

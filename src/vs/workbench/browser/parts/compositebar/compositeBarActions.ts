@@ -18,7 +18,6 @@ import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { TextBadge, NumberBadge, IBadge, IconBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND, ACTIVITY_BAR_BADGE_BACKGROUND } from 'vs/workbench/common/theme';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { IActivity } from 'vs/workbench/common/activity';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -31,17 +30,17 @@ export interface ICompositeActivity {
 
 export interface ICompositeBar {
 	/**
-	 * Unpins a composite from the activitybar.
+	 * Unpins a composite from the composite bar.
 	 */
 	unpin(compositeId: string): void;
 
 	/**
-	 * Pin a composite inside the activity bar.
+	 * Pin a composite inside the composite bar.
 	 */
 	pin(compositeId: string): void;
 
 	/**
-	 * Find out if a composite is pinned in the activity bar.
+	 * Find out if a composite is pinned in the composite bar.
 	 */
 	isPinned(compositeId: string): boolean;
 
@@ -91,9 +90,16 @@ export class ActivityAction extends Action {
 	}
 }
 
+export interface ICompositeBarColors {
+	backgroundColor: string;
+	badgeBackground: string;
+	badgeForeground: string;
+	dragAndDropBackground: string;
+}
+
 export interface IActivityActionItemOptions extends IBaseActionItemOptions {
 	icon?: boolean;
-	backgroundColor: string;
+	colors: ICompositeBarColors;
 }
 
 export class ActivityActionItem extends BaseActionItem {
@@ -125,15 +131,15 @@ export class ActivityActionItem extends BaseActionItem {
 
 		// Label
 		if (this.$label) {
-			const background = theme.getColor(this.options.backgroundColor);
+			const background = theme.getColor(this.options.colors.backgroundColor);
 
 			this.$label.style('background-color', background ? background.toString() : null);
 		}
 
 		// Badge
 		if (this.$badgeContent) {
-			const badgeForeground = theme.getColor(ACTIVITY_BAR_BADGE_FOREGROUND);
-			const badgeBackground = theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND);
+			const badgeForeground = theme.getColor(this.options.colors.badgeForeground);
+			const badgeBackground = theme.getColor(this.options.colors.badgeBackground);
 			const contrastBorderColor = theme.getColor(contrastBorder);
 
 			this.$badgeContent.style('color', badgeForeground ? badgeForeground.toString() : null);
@@ -295,12 +301,12 @@ export class CompositeOverflowActivityActionItem extends ActivityActionItem {
 		private getActiveCompositeId: () => string,
 		private getBadge: (compositeId: string) => IBadge,
 		private getCompositeOpenAction: (compositeId: string) => Action,
-		backgroundColor: string,
+		colors: ICompositeBarColors,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IThemeService themeService: IThemeService
 	) {
-		super(action, { icon: true, backgroundColor }, themeService);
+		super(action, { icon: true, colors }, themeService);
 
 		this.cssClass = action.class;
 		this.name = action.label;
@@ -374,14 +380,14 @@ export class CompositeActionItem extends ActivityActionItem {
 	constructor(
 		private compositeActivityAction: ActivityAction,
 		private toggleCompositePinnedAction: Action,
+		colors: ICompositeBarColors,
 		private compositeBar: ICompositeBar,
-		backgroundColor: string,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService
 	) {
-		super(compositeActivityAction, { draggable: true, backgroundColor }, themeService);
+		super(compositeActivityAction, { draggable: true, colors }, themeService);
 
 		this.cssClass = compositeActivityAction.class;
 
@@ -497,7 +503,7 @@ export class CompositeActionItem extends ActivityActionItem {
 
 	private updateFromDragging(element: HTMLElement, isDragging: boolean): void {
 		const theme = this.themeService.getTheme();
-		const dragBackground = theme.getColor(ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND);
+		const dragBackground = theme.getColor(this.options.colors.dragAndDropBackground);
 
 		element.style.backgroundColor = isDragging && dragBackground ? dragBackground.toString() : null;
 	}
