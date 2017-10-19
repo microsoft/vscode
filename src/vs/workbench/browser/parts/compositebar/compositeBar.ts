@@ -36,6 +36,7 @@ export interface ICompositeBarOptions {
 
 export class CompositeBar implements ICompositeBar {
 
+	private static OVERFLOW_ACTION_SIZE = 50;
 	private _onDidContextMenu: Emitter<MouseEvent>;
 
 	private dimension: Dimension;
@@ -219,8 +220,10 @@ export class CompositeBar implements ICompositeBar {
 			}
 			overflows = compositesToShow.length > maxVisible;
 
-			if (overflows) {
-				compositesToShow = compositesToShow.slice(0, maxVisible - 1 /* make room for overflow action */);
+			compositesToShow = compositesToShow.slice(0, maxVisible);
+			// Check if we need to make room for the overflow action
+			if (overflows && (size + CompositeBar.OVERFLOW_ACTION_SIZE - this.compositeSizeInBar.get(compositesToShow[maxVisible - 1]) - this.compositeSizeInBar.get(compositesToShow[maxVisible]) > limit)) {
+				compositesToShow.pop();
 			}
 		}
 
