@@ -47,9 +47,13 @@ const enum Constants {
 	IsForValidationMaskInverse = 0b11111011,
 	IsForValidationOffset = 2,
 
-	StickinessMask = 0b00011000,
-	StickinessMaskInverse = 0b11100111,
-	StickinessOffset = 3
+	IsInOverviewRulerMask = 0b00001000,
+	IsInOverviewRulerMaskInverse = 0b11110111,
+	IsInOverviewRulerOffset = 3,
+
+	StickinessMask = 0b00110000,
+	StickinessMaskInverse = 0b11001111,
+	StickinessOffset = 4
 }
 
 function getNodeColor(node: IntervalNode): NodeColor {
@@ -74,6 +78,14 @@ function getNodeIsForValidation(node: IntervalNode): boolean {
 function setNodeIsForValidation(node: IntervalNode, value: boolean): void {
 	node.metadata = (
 		(node.metadata & Constants.IsForValidationMaskInverse) | ((value ? 1 : 0) << Constants.IsForValidationOffset)
+	);
+}
+function getNodeIsInOverviewRuler(node: IntervalNode): boolean {
+	return ((node.metadata & Constants.IsInOverviewRulerMask) >>> Constants.IsInOverviewRulerOffset) === 1;
+}
+function setNodeIsInOverviewRuler(node: IntervalNode, value: boolean): void {
+	node.metadata = (
+		(node.metadata & Constants.IsInOverviewRulerMaskInverse) | ((value ? 1 : 0) << Constants.IsInOverviewRulerOffset)
 	);
 }
 function getNodeStickiness(node: IntervalNode): TrackedRangeStickiness {
@@ -128,6 +140,7 @@ export class IntervalNode implements IModelDecoration {
 		this.options = null;
 		setNodeIsForValidation(this, false);
 		setNodeStickiness(this, TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges);
+		setNodeIsInOverviewRuler(this, false);
 
 		this.cachedVersionId = 0;
 		this.cachedAbsoluteStart = start;
@@ -154,6 +167,7 @@ export class IntervalNode implements IModelDecoration {
 			|| this.options.className === ClassName.EditorWarningDecoration
 		));
 		setNodeStickiness(this, <number>this.options.stickiness);
+		setNodeIsInOverviewRuler(this, this.options.overviewRuler.color ? true : false);
 	}
 
 	public setCachedOffsets(absoluteStart: number, absoluteEnd: number, cachedVersionId: number): void {
@@ -703,7 +717,7 @@ function search(T: IntervalTree, filterOwnerId: number, filterOutValidation: boo
 		if (filterOutValidation && getNodeIsForValidation(node)) {
 			include = false;
 		}
-		if (overviewRulerOnly && !node.options.overviewRuler.color) {
+		if (overviewRulerOnly && !getNodeIsInOverviewRuler(node)) {
 			include = false;
 		}
 		if (include) {
