@@ -471,6 +471,47 @@ export class FoldingController implements IFoldingController {
 		}
 	}
 
+	public foldAt(line: number) {
+		let hasChanges = false;
+		let toFold: CollapsibleRegion[] = getCollapsibleRegionsToFoldAtLine(this.decorations, this.editor.getModel(), line, 1, true);
+		toFold.forEach(collapsibleRegion => this.editor.changeDecorations(changeAccessor => {
+			collapsibleRegion.setCollapsed(true, changeAccessor);
+			hasChanges = true;
+		}));
+		if (hasChanges) {
+			this.updateHiddenAreas(line);
+		}
+	}
+
+	public unfoldAt(line: number) {
+		let model = this.editor.getModel();
+		let hasChanges = false;
+		let selections = this.editor.getSelections();
+		let selectionsHasChanged = false;
+		let toUnfold: CollapsibleRegion[] = getCollapsibleRegionsToUnfoldAtLine(this.decorations, this.editor.getModel(), line, 1);
+		if (toUnfold.length > 0) {
+			toUnfold.forEach(collapsibleRegion => this.editor.changeDecorations(changeAccessor => {
+				collapsibleRegion.setCollapsed(true, changeAccessor);
+				hasChanges = true;
+			}));
+
+			selections.forEach((selection, index) => {
+				if (!doesLineBelongsToCollapsibleRegion(toUnfold[0].foldingRange, selection.startLineNumber)) {
+					let lineNumber = toUnfold[0].startLineNumber, column = model.getLineMaxColumn(toUnfold[0].startLineNumber);
+					selections[index] = selection.setEndPosition(lineNumber, column).setStartPosition(lineNumber, column);
+					selectionsHasChanged = true;
+				}
+			});
+		}
+		if (selectionsHasChanged) {
+			this.editor.setSelections(selections);
+		}
+
+		if (hasChanges) {
+			this.updateHiddenAreas(line);
+		}
+	}
+
 	public foldUnfoldRecursively(isFold: boolean): void {
 		let hasChanges = false;
 		let model = this.editor.getModel();
@@ -580,6 +621,7 @@ abstract class FoldingAction<T> extends EditorAction {
 interface FoldingArguments {
 	levels?: number;
 	direction?: 'up' | 'down';
+	line?: number;
 }
 
 function foldingArgumentsConstraint(args: any) {
@@ -630,7 +672,11 @@ class UnfoldAction extends FoldingAction<FoldingArguments> {
 	}
 
 	invoke(foldingController: FoldingController, editor: editorCommon.ICommonCodeEditor, args: FoldingArguments): void {
-		foldingController.unfold(args ? args.levels || 1 : 1);
+		if (args && args.line >= 0) {
+			foldingController.unfoldAt(args.line);
+		} else {
+			foldingController.unfold(args ? args.levels || 1 : 1);
+		}
 	}
 }
 
@@ -689,7 +735,12 @@ class FoldAction extends FoldingAction<FoldingArguments> {
 
 	invoke(foldingController: FoldingController, editor: editorCommon.ICommonCodeEditor, args: FoldingArguments): void {
 		args = args ? args : { levels: 1, direction: 'up' };
-		foldingController.fold(args.levels || 1, args.direction === 'up');
+
+		if (args && args.line >= 0) {
+			foldingController.foldAt(args.line);
+		} else {
+			foldingController.fold(args.levels || 1, args.direction === 'up');
+		}
 	}
 }
 
