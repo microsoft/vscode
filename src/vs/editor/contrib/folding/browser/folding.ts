@@ -17,7 +17,7 @@ import { ICommonCodeEditor, ScrollType } from 'vs/editor/common/editorCommon';
 import { editorAction, ServicesAccessor, EditorAction, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
-import { FoldingModel, setCollapseStateAtLevel, setCollapseStateRecursivly, fold, unfold, CollapseState } from 'vs/editor/contrib/folding/common/foldingModel';
+import { FoldingModel, setCollapseStateAtLevel, setCollapseStateDown, CollapseState, setCollapseStateLevelsDown, setCollapseStateLevelsUp } from 'vs/editor/contrib/folding/common/foldingModel';
 import { computeRanges, limitByIndent } from 'vs/editor/contrib/folding/common/indentFoldStrategy';
 import { FoldingDecorationProvider } from './foldingDecorations';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -318,6 +318,13 @@ abstract class FoldingAction<T> extends EditorAction {
 		return editor.getSelections().map(s => s.startLineNumber);
 	}
 
+	protected getLineNumbers(args: FoldingArguments, editor: ICommonCodeEditor) {
+		if (args && args.selectionLines) {
+			return args.selectionLines.map(l => l + 1); // to 0-bases line numbers
+		}
+		return this.getSelectedLines(editor);
+	}
+
 	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
 	}
 }
@@ -325,6 +332,7 @@ abstract class FoldingAction<T> extends EditorAction {
 interface FoldingArguments {
 	levels?: number;
 	direction?: 'up' | 'down';
+	selectionLines?: number[];
 }
 
 function foldingArgumentsConstraint(args: any) {
@@ -337,6 +345,9 @@ function foldingArgumentsConstraint(args: any) {
 			return false;
 		}
 		if (!types.isUndefined(foldingArgs.direction) && !types.isString(foldingArgs.direction)) {
+			return false;
+		}
+		if (!types.isUndefined(foldingArgs.selectionLines) && (!types.isArray(foldingArgs.selectionLines) || !foldingArgs.selectionLines.every(types.isNumber))) {
 			return false;
 		}
 	}
@@ -365,7 +376,9 @@ class UnfoldAction extends FoldingAction<FoldingArguments> {
 					{
 						name: 'Unfold editor argument',
 						description: `Property-value pairs that can be passed through this argument:
-							* 'level': Number of levels to unfold
+						* 'levels': Number of levels to unfold. If not set, defaults to 1.
+						* 'direction': If 'up', unfold given number of levels up otherwise unfolds down
+						* 'selectionLines': The start lines (0-based) of the editor selections to apply the unfold action to. If not set, the active selection(s) will be used.
 						`,
 						constraint: foldingArgumentsConstraint
 					}
@@ -375,7 +388,13 @@ class UnfoldAction extends FoldingAction<FoldingArguments> {
 	}
 
 	invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICommonCodeEditor, args: FoldingArguments): void {
-		unfold(foldingModel, args ? args.levels || 1 : 1, this.getSelectedLines(editor));
+		let levels = args && args.levels || 1;
+		let lineNumbers = this.getLineNumbers(args, editor);
+		if (args && args.direction === 'up') {
+			setCollapseStateLevelsUp(foldingModel, levels, false, lineNumbers);
+		} else {
+			setCollapseStateLevelsDown(foldingModel, levels, false, lineNumbers);
+		}
 	}
 }
 
@@ -396,7 +415,7 @@ class UnFoldRecursivelyAction extends FoldingAction<void> {
 	}
 
 	invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICommonCodeEditor, args: any): void {
-		setCollapseStateRecursivly(foldingModel, false, this.getSelectedLines(editor));
+		setCollapseStateDown(foldingModel, false, this.getSelectedLines(editor));
 	}
 }
 
@@ -422,8 +441,9 @@ class FoldAction extends FoldingAction<FoldingArguments> {
 					{
 						name: 'Fold editor argument',
 						description: `Property-value pairs that can be passed through this argument:
-							* 'levels': Number of levels to fold
-							* 'up': If 'true', folds given number of levels up otherwise folds down
+							* 'levels': Number of levels to fold. Defauts to 1
+							* 'direction': If 'up', folds given number of levels up otherwise folds down
+							* 'selectionLines': The start lines (0-based) of the editor selections to apply the fold action to. If not set, the active selection(s) will be used.
 						`,
 						constraint: foldingArgumentsConstraint
 					}
@@ -433,8 +453,13 @@ class FoldAction extends FoldingAction<FoldingArguments> {
 	}
 
 	invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICommonCodeEditor, args: FoldingArguments): void {
-		args = args ? args : { levels: 1, direction: 'up' };
-		fold(foldingModel, args.levels || 1, args.direction === 'up', this.getSelectedLines(editor));
+		let levels = args && args.levels || 1;
+		let lineNumbers = this.getLineNumbers(args, editor);
+		if (args && args.direction === 'up') {
+			setCollapseStateLevelsUp(foldingModel, levels, true, lineNumbers);
+		} else {
+			setCollapseStateLevelsDown(foldingModel, levels, true, lineNumbers);
+		}
 	}
 }
 
@@ -456,7 +481,7 @@ class FoldRecursivelyAction extends FoldingAction<void> {
 
 	invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICommonCodeEditor): void {
 		let selectedLines = this.getSelectedLines(editor);
-		setCollapseStateRecursivly(foldingModel, true, selectedLines);
+		setCollapseStateDown(foldingModel, true, selectedLines);
 		if (selectedLines.length > 0) {
 			foldingController.reveal(selectedLines[0]);
 		}
@@ -481,7 +506,7 @@ class FoldAllAction extends FoldingAction<void> {
 	}
 
 	invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICommonCodeEditor): void {
-		setCollapseStateRecursivly(foldingModel, true);
+		setCollapseStateDown(foldingModel, true);
 	}
 }
 
@@ -502,7 +527,7 @@ class UnfoldAllAction extends FoldingAction<void> {
 	}
 
 	invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICommonCodeEditor): void {
-		setCollapseStateRecursivly(foldingModel, false);
+		setCollapseStateDown(foldingModel, false);
 	}
 }
 

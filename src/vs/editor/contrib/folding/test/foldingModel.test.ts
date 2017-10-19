@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { FoldingModel, FoldingRegion, setCollapseStateRecursivly, setCollapseStateAtLevel } from 'vs/editor/contrib/folding/common/foldingModel';
+import { FoldingModel, FoldingRegion, setCollapseStateDown, setCollapseStateAtLevel, setCollapseStateLevelsDown, setCollapseStateLevelsUp } from 'vs/editor/contrib/folding/common/foldingModel';
 import { Model } from 'vs/editor/common/model/model';
 import { computeRanges } from 'vs/editor/common/model/indentRanges';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
@@ -299,22 +299,22 @@ suite('Folding Model', () => {
 		let r5 = r(9, 10, false);
 		assertRegions(foldingModel.regions, [r1, r2, r3, r4, r5]);
 
-		setCollapseStateRecursivly(foldingModel, true, [4]);
+		setCollapseStateDown(foldingModel, true, [4]);
 		assertFoldedRegions(foldingModel, [r3, r4, r5], '1');
 
-		setCollapseStateRecursivly(foldingModel, false, [8]);
+		setCollapseStateDown(foldingModel, false, [8]);
 		assertFoldedRegions(foldingModel, [], '2');
 
-		setCollapseStateRecursivly(foldingModel, true, [12]);
+		setCollapseStateDown(foldingModel, true, [12]);
 		assertFoldedRegions(foldingModel, [r2, r3, r4, r5], '1');
 
-		setCollapseStateRecursivly(foldingModel, false, [7]);
+		setCollapseStateDown(foldingModel, false, [7]);
 		assertFoldedRegions(foldingModel, [r2], '1');
 
-		setCollapseStateRecursivly(foldingModel, false);
+		setCollapseStateDown(foldingModel, false);
 		assertFoldedRegions(foldingModel, [], '1');
 
-		setCollapseStateRecursivly(foldingModel, true);
+		setCollapseStateDown(foldingModel, true);
 		assertFoldedRegions(foldingModel, [r1, r2, r3, r4, r5], '1');
 
 	});
@@ -365,6 +365,99 @@ suite('Folding Model', () => {
 
 		setCollapseStateAtLevel(foldingModel, 3, false, [4, 9]);
 		assertFoldedRegions(foldingModel, [r3], '1');
+
+	});
+
+	test('setCollapseStateLevelsDown', () => {
+		let lines = [
+		/* 1*/	'//#region',
+		/* 2*/	'//#endregion',
+		/* 3*/	'class A {',
+		/* 4*/	'  void foo() {',
+		/* 5*/	'    if (true) {',
+		/* 6*/	'        return;',
+		/* 7*/	'    }',
+		/* 8*/	'',
+		/* 9*/	'    if (true) {',
+		/* 10*/	'      return;',
+		/* 11*/	'    }',
+		/* 12*/	'  }',
+		/* 13*/	'}'];
+
+		let textModel = Model.createFromString(lines.join('\n'));
+		let foldingModel = new FoldingModel(textModel, new TestDecorationProvider());
+
+		let ranges = computeRanges(textModel, false, { start: /^\/\/#region$/, end: /^\/\/#endregion$/ });
+		foldingModel.update(ranges);
+
+		let r1 = r(1, 2, false);
+		let r2 = r(3, 12, false);
+		let r3 = r(4, 11, false);
+		let r4 = r(5, 6, false);
+		let r5 = r(9, 10, false);
+		assertRegions(foldingModel.regions, [r1, r2, r3, r4, r5]);
+
+		setCollapseStateLevelsDown(foldingModel, 1, true, [4]);
+		assertFoldedRegions(foldingModel, [r3], '1');
+
+		setCollapseStateLevelsDown(foldingModel, 2, true, [4]);
+		assertFoldedRegions(foldingModel, [r3, r4, r5], '2');
+
+		setCollapseStateLevelsDown(foldingModel, 2, false, [3]);
+		assertFoldedRegions(foldingModel, [r4, r5], '3');
+
+		setCollapseStateLevelsDown(foldingModel, 2, false, [2]);
+		assertFoldedRegions(foldingModel, [r4, r5], '4');
+
+		setCollapseStateLevelsDown(foldingModel, 4, true, [2]);
+		assertFoldedRegions(foldingModel, [r1, r4, r5], '5');
+
+		setCollapseStateLevelsDown(foldingModel, 4, false, [2, 3]);
+		assertFoldedRegions(foldingModel, [], '6');
+
+	});
+
+	test('setCollapseStateLevelsUp', () => {
+		let lines = [
+		/* 1*/	'//#region',
+		/* 2*/	'//#endregion',
+		/* 3*/	'class A {',
+		/* 4*/	'  void foo() {',
+		/* 5*/	'    if (true) {',
+		/* 6*/	'        return;',
+		/* 7*/	'    }',
+		/* 8*/	'',
+		/* 9*/	'    if (true) {',
+		/* 10*/	'      return;',
+		/* 11*/	'    }',
+		/* 12*/	'  }',
+		/* 13*/	'}'];
+
+		let textModel = Model.createFromString(lines.join('\n'));
+		let foldingModel = new FoldingModel(textModel, new TestDecorationProvider());
+
+		let ranges = computeRanges(textModel, false, { start: /^\/\/#region$/, end: /^\/\/#endregion$/ });
+		foldingModel.update(ranges);
+
+		let r1 = r(1, 2, false);
+		let r2 = r(3, 12, false);
+		let r3 = r(4, 11, false);
+		let r4 = r(5, 6, false);
+		let r5 = r(9, 10, false);
+		assertRegions(foldingModel.regions, [r1, r2, r3, r4, r5]);
+
+		setCollapseStateLevelsUp(foldingModel, 1, true, [4]);
+		assertFoldedRegions(foldingModel, [r3], '1');
+
+		setCollapseStateLevelsUp(foldingModel, 2, true, [4]);
+		assertFoldedRegions(foldingModel, [r2, r3], '2');
+
+		setCollapseStateLevelsUp(foldingModel, 4, false, [1, 3, 4]);
+		assertFoldedRegions(foldingModel, [], '3');
+
+		setCollapseStateLevelsUp(foldingModel, 2, true, [10]);
+		assertFoldedRegions(foldingModel, [r3, r5], '4');
+
 
 	});
 

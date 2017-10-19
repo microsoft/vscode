@@ -290,27 +290,31 @@ export class FoldingRegion {
 	}
 }
 
-export function unfold(foldingModel: FoldingModel, levels: number, lineNumbers: number[]): void {
+export function setCollapseStateLevelsDown(foldingModel: FoldingModel, levels: number, doCollapse: boolean, lineNumbers?: number[]) {
 	let toToggle = [];
 	for (let lineNumber of lineNumbers) {
-		let regionsAtLine = getCollapsibleRegionsToUnfoldAtLine(foldingModel, lineNumber, levels);
-		if (regionsAtLine.length > 0) {
-			for (let region of regionsAtLine) {
-				if (region.isCollapsed) {
+		let region = foldingModel.getRegionAtLine(lineNumber);
+		if (region) {
+			if (levels === 1) {
+				if (region.isCollapsed !== doCollapse) {
 					toToggle.push(region);
 				}
+			} else {
+				let regionsInside = foldingModel.getRegionsInside(region.range, (r, level) => r.isCollapsed !== doCollapse && level <= levels);
+				toToggle.push(...regionsInside);
 			}
 		}
-	};
+	}
 	foldingModel.toggleCollapseState(toToggle);
 }
 
-export function fold(foldingModel: FoldingModel, levels: number, up: boolean, lineNumbers: number[]): void {
+export function setCollapseStateLevelsUp(foldingModel: FoldingModel, levels: number, doCollapse: boolean, lineNumbers?: number[]) {
 	let toToggle = [];
 	for (let lineNumber of lineNumbers) {
-		let regionsAtLine = getCollapsibleRegionsToFoldAtLine(foldingModel, lineNumber, levels, up);
-		for (let region of regionsAtLine) {
-			if (region.isCollapsed) {
+		let regions = foldingModel.getAllRegionsAtLine(lineNumber);
+		for (let i = 0; i < levels && regions.length > 0; i++) {
+			let region = regions.pop();
+			if (region.isCollapsed !== doCollapse) {
 				toToggle.push(region);
 			}
 		}
@@ -323,7 +327,7 @@ export function fold(foldingModel: FoldingModel, levels: number, up: boolean, li
  * @param doCollapse Wheter to collase or expand
  * @param lineNumbers the regions to fold, or if not set all regions in the model.
  */
-export function setCollapseStateRecursivly(foldingModel: FoldingModel, doCollapse: boolean, lineNumbers?: number[]): void {
+export function setCollapseStateDown(foldingModel: FoldingModel, doCollapse: boolean, lineNumbers?: number[]): void {
 	let toToggle = [];
 	if (!lineNumbers) {
 		toToggle = foldingModel.regions.filter(region => region.isCollapsed !== doCollapse);
@@ -349,121 +353,4 @@ export function setCollapseStateAtLevel(foldingModel: FoldingModel, foldLevel: n
 	let filter = (region, level) => level === foldLevel && region.isCollapsed !== doCollapse && !blockedLineNumbers.some(line => region.containsLine(line));
 	let toToggle = foldingModel.getRegionsInside({ startLineNumber: 1, endLineNumber: Number.MAX_VALUE }, filter);
 	foldingModel.toggleCollapseState(toToggle);
-}
-
-
-
-// old
-
-export function getCollapsibleRegionsToFoldAtLine(model: FoldingModel, lineNumber: number, levels: number, up: boolean): FoldingRegion[] {
-	let surroundingRegion: FoldingRegion = model.getRegionAtLine(lineNumber);
-	if (!surroundingRegion) {
-		return [];
-	}
-	if (levels === 1) {
-		return [surroundingRegion];
-	}
-	let result = getCollapsibleRegionsFor(model, surroundingRegion, levels, up);
-	return result.filter(collapsibleRegion => !collapsibleRegion.isCollapsed);
-}
-
-export function getCollapsibleRegionsToUnfoldAtLine(model: FoldingModel, lineNumber: number, levels: number): FoldingRegion[] {
-	let surroundingRegion: FoldingRegion = model.getRegionAtLine(lineNumber);
-	if (!surroundingRegion) {
-		return [];
-	}
-	if (levels === 1) {
-		let regionToUnfold = surroundingRegion.isCollapsed ? surroundingRegion : getFoldedCollapsibleRegionAfterLine(model, surroundingRegion, lineNumber);
-		return regionToUnfold ? [regionToUnfold] : [];
-	}
-	let result = getCollapsibleRegionsFor(model, surroundingRegion, levels, false);
-	return result.filter(collapsibleRegion => collapsibleRegion.isCollapsed);
-}
-
-
-function getFoldedCollapsibleRegionAfterLine(model: FoldingModel, surroundingRegion: FoldingRegion, lineNumber: number): FoldingRegion {
-	let allRegions = model.regions;
-	let index = allRegions.indexOf(surroundingRegion);
-	for (let i = index + 1; i < allRegions.length; i++) {
-		let region = allRegions[i];
-		if (region.isAfterLine(lineNumber)) {
-			if (!surroundingRegion.contains(region.range)) {
-				return null;
-			}
-			if (region.isCollapsed) {
-				return region;
-			}
-		}
-	}
-	return null;
-}
-
-function getCollapsibleRegionsFor(model: FoldingModel, surroundingRegion: FoldingRegion, levels: number, up: boolean): FoldingRegion[] {
-	let collapsibleRegionsHierarchy: CollapsibleRegionsHierarchy = up ? new CollapsibleRegionsParentHierarchy(model, surroundingRegion) : new CollapsibleRegionsChildrenHierarchy(model, surroundingRegion);
-	return collapsibleRegionsHierarchy.getRegionsTill(levels);
-}
-
-interface CollapsibleRegionsHierarchy {
-	getRegionsTill(level: number): FoldingRegion[];
-}
-
-class CollapsibleRegionsChildrenHierarchy implements CollapsibleRegionsHierarchy {
-
-	children: CollapsibleRegionsChildrenHierarchy[] = [];
-	lastChildIndex: number;
-
-	constructor(model: FoldingModel, private region: FoldingRegion) {
-		let allRegions = model.regions;
-		for (let index = allRegions.indexOf(region) + 1; index < allRegions.length; index++) {
-			let curr = allRegions[index];
-			if (curr.contains(region.range)) {
-				index = this.processChildRegion(model, curr, index);
-			}
-			if (curr.isAfterLine(region.range.endLineNumber)) {
-				break;
-			}
-		}
-	}
-
-	private processChildRegion(model: FoldingModel, dec: FoldingRegion, index: number): number {
-		let childRegion = new CollapsibleRegionsChildrenHierarchy(model, dec);
-		this.children.push(childRegion);
-		this.lastChildIndex = index;
-		return childRegion.children.length > 0 ? childRegion.lastChildIndex : index;
-	}
-
-	public getRegionsTill(level: number): FoldingRegion[] {
-		let result = [this.region];
-		if (level > 1) {
-			this.children.forEach(region => result = result.concat(region.getRegionsTill(level - 1)));
-		}
-		return result;
-	}
-}
-class CollapsibleRegionsParentHierarchy implements CollapsibleRegionsHierarchy {
-
-	parent: CollapsibleRegionsParentHierarchy;
-	lastChildIndex: number;
-
-	constructor(model: FoldingModel, private region: FoldingRegion) {
-		let allRegions = model.regions;
-		for (let index = allRegions.indexOf(region) - 1; index >= 0; index--) {
-			let curr = allRegions[index];
-			if (curr.contains(region.range)) {
-				this.parent = new CollapsibleRegionsParentHierarchy(model, curr);
-				break;
-			}
-			if (curr.isBeforeLine(region.range.endLineNumber)) {
-				break;
-			}
-		}
-	}
-
-	public getRegionsTill(level: number): FoldingRegion[] {
-		let result = [this.region];
-		if (this.parent && level > 1) {
-			result = result.concat(this.parent.getRegionsTill(level - 1));
-		}
-		return result;
-	}
 }
