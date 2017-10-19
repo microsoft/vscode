@@ -17,7 +17,7 @@ import { ICommonCodeEditor, ScrollType } from 'vs/editor/common/editorCommon';
 import { editorAction, ServicesAccessor, EditorAction, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
-import { FoldingModel, FoldingRegion, setCollapseStateAtLevel, setCollapseStateRecursivly, fold, unfold } from 'vs/editor/contrib/folding/common/foldingModel';
+import { FoldingModel, setCollapseStateAtLevel, setCollapseStateRecursivly, fold, unfold, CollapseState } from 'vs/editor/contrib/folding/common/foldingModel';
 import { computeRanges, limitByIndent } from 'vs/editor/contrib/folding/common/indentFoldStrategy';
 import { FoldingDecorationProvider } from './foldingDecorations';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -99,27 +99,18 @@ export class FoldingController {
 	/**
 	 * Store view state.
 	 */
-	public saveViewState(): any {
+	public saveViewState(): { collapsedRegions?: CollapseState, lineCount?: number } {
 		let model = this.editor.getModel();
 		if (!model) {
 			return {};
 		}
-		let collapsedIndexes: number[] = [];
-		for (let region of this.foldingModel.regions) {
-			if (region.isCollapsed && region.editorDecorationId) {
-				var range = model.getDecorationRange(region.editorDecorationId);
-				if (range) {
-					collapsedIndexes.push(range.startLineNumber);
-				}
-			}
-		}
-		return { collapsedIndexes, lineCount: model.getLineCount() };
+		return { collapsedRegions: this.foldingModel.getCollapseState(), lineCount: model.getLineCount() };
 	}
 
 	/**
 	 * Restore view state.
 	 */
-	public restoreViewState(state: any): void {
+	public restoreViewState(state: { collapsedRegions?: CollapseState, lineCount?: number }): void {
 		let model = this.editor.getModel();
 		if (!model) {
 			return;
@@ -127,19 +118,16 @@ export class FoldingController {
 		if (!this._isEnabled) {
 			return;
 		}
-		if (!state || !Array.isArray(state.collapsedIndexes) || state.collapsedIndexes.length === 0 || state.lineCount !== model.getLineCount()) {
+		if (!state || !state.collapsedRegions || state.lineCount !== model.getLineCount()) {
 			return;
 		}
-		this.getFoldingModel().then(foldingModel => {
-			let toToogle: FoldingRegion[] = [];
-			for (let index of state.collapsedIndexes) {
-				let region = foldingModel.getRegionAtLine(index);
-				if (region && !region.isCollapsed) {
-					toToogle.push(region);
-				}
-			}
-			foldingModel.toggleCollapseState(toToogle);
-		});
+
+		// set the hidden ranges right way, before waiting for the folding model.
+		if (this.hiddenRangeModel.applyCollapseState(state.collapsedRegions)) {
+			this.getFoldingModel().then(foldingModel => {
+				foldingModel.applyCollapseState(state.collapsedRegions);
+			});
+		}
 	}
 
 	private onModelChanged(): void {

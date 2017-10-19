@@ -5,11 +5,10 @@
 
 import Event, { Emitter } from 'vs/base/common/event';
 import { Range, IRange } from 'vs/editor/common/core/range';
-import { FoldingRegion, FoldingModel, IFoldingRange } from 'vs/editor/contrib/folding/common/foldingModel';
+import { FoldingRegion, FoldingModel, IFoldingRange, CollapseState } from 'vs/editor/contrib/folding/common/foldingModel';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Selection } from 'vs/editor/common/core/selection';
 import { findFirst } from 'vs/base/common/arrays';
-
 
 export class HiddenRangeModel {
 	private _foldingModel: FoldingModel;
@@ -53,9 +52,28 @@ export class HiddenRangeModel {
 			}
 		};
 		if (updateHiddenAreas || i < this._hiddenRanges.length) {
-			this._hiddenRanges = newHiddenAreas;
-			this._updateEventEmitter.fire(newHiddenAreas);
+			this.applyHiddenRanges(newHiddenAreas);
 		}
+	}
+
+	public applyCollapseState(state: CollapseState): boolean {
+		if (!Array.isArray(state) || state.length === 0) {
+			return false;
+		}
+		let hiddenRanges = [];
+		for (let r of state) {
+			if (!r.startLineNumber || !r.endLineNumber) {
+				return false;
+			}
+			hiddenRanges.push(new Range(r.startLineNumber, 1, r.endLineNumber, 1));
+		}
+		this.applyHiddenRanges(hiddenRanges);
+		return true;
+	}
+
+	private applyHiddenRanges(newHiddenAreas: IRange[]) {
+		this._hiddenRanges = newHiddenAreas;
+		this._updateEventEmitter.fire(newHiddenAreas);
 	}
 
 	public hasRanges() {

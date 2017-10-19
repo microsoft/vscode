@@ -32,6 +32,8 @@ export interface FoldingModelChangeEvent {
 	collapseStateChanged?: FoldingRegion[];
 }
 
+export type CollapseState = ILineRange[];
+
 export class FoldingModel {
 	private _textModel: IModel;
 	private _decorationProvider: IDecorationProvider;
@@ -132,6 +134,44 @@ export class FoldingModel {
 
 		this._regions = newRegions;
 		this._updateEventEmitter.fire({ model: this });
+	}
+
+	/**
+	 * Collapse state, for persistence only
+	 */
+	public getCollapseState(): CollapseState {
+		let collapsedRanges: ILineRange[] = [];
+		for (let region of this._regions) {
+			if (region.isCollapsed && region.editorDecorationId) {
+				let range = this._textModel.getDecorationRange(region.editorDecorationId);
+				if (range) {
+					let startLineNumber = range.startLineNumber;
+					let endLineNumber = range.endLineNumber + region.range.endLineNumber + region.range.startLineNumber;
+					collapsedRanges.push({ startLineNumber, endLineNumber });
+				}
+			}
+		}
+		if (collapsedRanges.length > 0) {
+			return collapsedRanges;
+		}
+		return null;
+	}
+
+	/**
+	 * Apply persisted state, for persistence only
+	 */
+	public applyCollapseState(state: CollapseState) {
+		if (!Array.isArray(state)) {
+			return;
+		}
+		let toToogle: FoldingRegion[] = [];
+		for (let range of state) {
+			let region = this.getRegionAtLine(range.startLineNumber);
+			if (region && !region.isCollapsed) {
+				toToogle.push(region);
+			}
+		}
+		this.toggleCollapseState(toToogle);
 	}
 
 	public dispose() {
