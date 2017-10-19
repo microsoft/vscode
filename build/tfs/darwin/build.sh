@@ -37,6 +37,16 @@ step "Run unit tests" \
 step "Run integration tests" \
 	./scripts/test-integration.sh
 
+function smoketest {
+	ARTIFACTS="$AGENT_BUILDDIRECTORY/smoketest-artifacts"
+	rm -rf $ARTIFACTS
+
+	npm run smoketest -- --build "$AGENT_BUILDDIRECTORY/VSCode-darwin/Visual Studio Code - Insiders.app" --log $ARTIFACTS
+}
+
+step "Run smoke test" \
+	smoketest
+
 step "Publish release" \
 	./build/tfs/darwin/release.sh
 

@@ -12,6 +12,7 @@ VSO_PAT="$2"
 echo "machine monacotools.visualstudio.com password $VSO_PAT" > ~/.netrc
 
 export SCREENSHOTS="$AGENT_BUILDDIRECTORY/smoketest-screenshots"
+export LOGS="$AGENT_BUILDDIRECTORY/smoketest-logs"
 
 function configureEnvironment {
 	id -u testuser &>/dev/null || (useradd -m testuser; chpasswd <<< testuser:testpassword)
@@ -20,10 +21,14 @@ function configureEnvironment {
 	sudo rm -rf $SCREENSHOTS
 	mkdir -p $SCREENSHOTS
 	chown -R testuser $SCREENSHOTS
+
+	sudo rm -rf $LOGS
+	mkdir -p $LOGS
+	chown -R testuser $LOGS
 }
 
 function runSmokeTest {
-	DISPLAY=:10 sudo -i -u testuser -- sh -c "cd $BUILD_SOURCESDIRECTORY/test/smoke && ./node_modules/.bin/mocha --build $AGENT_BUILDDIRECTORY/VSCode-linux-x64 --screenshots $SCREENSHOTS"
+	DISPLAY=:10 sudo -i -u testuser -- sh -c "cd $BUILD_SOURCESDIRECTORY/test/smoke && ./node_modules/.bin/mocha --build $AGENT_BUILDDIRECTORY/VSCode-linux-x64 --screenshots $SCREENSHOTS --logs $LOGS"
 }
 
 step "Install dependencies" \

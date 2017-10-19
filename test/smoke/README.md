@@ -40,3 +40,7 @@ Here's an example: when opening quick open, focus goes from its list to its inpu
 ### I type in a Monaco editor instance, but the text doesn't appear to be there
 
 This is a **waiting** issue. When you type in a Monaco editor instance, you're really typing in a `textarea`. The `textarea` is then polled for its contents, then the editor model gets updated and finally the editor view gets updated. It's a good idea to always wait for the text to appear rendered in the editor after you type in it.
+
+### I type in a Monaco editor instance, but the text appears scrambled
+
+This is an issue which is **not yet fixed**. Unfortunately this seems to happen whenever the CPU load of the system is high. Rerunning the test will often result in a successful outcome.

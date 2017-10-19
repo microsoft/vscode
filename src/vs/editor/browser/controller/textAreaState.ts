@@ -9,6 +9,9 @@ import { Position } from 'vs/editor/common/core/position';
 import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
 import * as strings from 'vs/base/common/strings';
 
+export let log: string[] = [];
+(<any>this).myLog = log;
+
 export interface ITextAreaWrapper {
 	getValue(): string;
 	setValue(reason: string, value: string): void;
@@ -73,6 +76,7 @@ export class TextAreaState {
 	}
 
 	public writeToTextArea(reason: string, textArea: ITextAreaWrapper, select: boolean): void {
+		log.push(`${Date.now()}: writeToTextArea - ${reason} - ${this}`);
 		// console.log(Date.now() + ': applyToTextArea ' + reason + ': ' + this.toString());
 		textArea.setValue(reason, this.value);
 		if (select) {

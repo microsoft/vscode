@@ -23,9 +23,10 @@ step "Build minified & upload source maps" \
 
 function runSmokeTest {
 	SCREENSHOTS="$AGENT_BUILDDIRECTORY/smoketest-screenshots"
-	rm -rf $SCREENSHOTS
+	LOGS="$AGENT_BUILDDIRECTORY/smoketest-logs"
+	rm -rf $SCREENSHOTS $LOGS
 
-	npm run smoketest -- --build "$AGENT_BUILDDIRECTORY/VSCode-darwin/Visual Studio Code - Insiders.app"  --screenshots $SCREENSHOTS
+	npm run smoketest -- --build "$AGENT_BUILDDIRECTORY/VSCode-darwin/Visual Studio Code - Insiders.app"  --screenshots $SCREENSHOTS --logs $LOGS
 }
 
 step "Run smoke test" \
