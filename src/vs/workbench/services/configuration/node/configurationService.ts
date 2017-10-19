@@ -149,6 +149,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	updateValue(key: string, value: any, overrides: IConfigurationOverrides): TPromise<void>
 	updateValue(key: string, value: any, target: ConfigurationTarget): TPromise<void>
 	updateValue(key: string, value: any, overrides: IConfigurationOverrides, target: ConfigurationTarget): TPromise<void>
+	updateValue(key: string, value: any, overrides: IConfigurationOverrides, target: ConfigurationTarget, donotNotifyError: boolean): TPromise<void>
 	updateValue(key: string, value: any, arg3?: any, arg4?: any, donotNotifyError?: any): TPromise<void> {
 		assert.ok(this.configurationEditingService, 'Workbench is not initialized yet');
 		const overrides = isConfigurationOverrides(arg3) ? arg3 : void 0;
@@ -199,7 +200,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 			return this.onWorkspaceFolderConfigurationChanged(this.workspace.folders[0], key);
 		}
 		if (workbenchState === WorkbenchState.WORKSPACE) {
-			return this.onWorkspaceConfigurationChanged();
+			return this.workspaceConfiguration.reload().then(() => this.onWorkspaceConfigurationChanged());
 		}
 		return TPromise.as(null);
 	}
@@ -564,7 +565,7 @@ class WorkspaceConfiguration extends Disposable {
 
 	load(workspaceConfigPath: URI): TPromise<void> {
 		if (this._workspaceConfigPath && this._workspaceConfigPath.fsPath === workspaceConfigPath.fsPath) {
-			return this._reload();
+			return this.reload();
 		}
 
 		this._workspaceConfigPath = workspaceConfigPath;
@@ -590,7 +591,7 @@ class WorkspaceConfiguration extends Disposable {
 		return this._workspaceConfigurationWatcher ? this._workspaceConfigurationWatcher.getConfig() : new WorkspaceConfigurationModel();
 	}
 
-	private _reload(): TPromise<void> {
+	reload(): TPromise<void> {
 		return new TPromise<void>(c => this._workspaceConfigurationWatcher.reload(() => c(null)));
 	}
 
