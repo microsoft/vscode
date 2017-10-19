@@ -86,7 +86,7 @@ export class WorkspaceConfiguration extends Disposable {
 
 		this._workspaceConfigPath = workspaceConfigPath;
 
-		this._workspaceConfigurationWatcherDisposables = dispose(this._workspaceConfigurationWatcherDisposables);
+		this.stopListeningToWatcher();
 		return new TPromise<void>((c, e) => {
 			this._workspaceConfigurationWatcher = new ConfigWatcher(this._workspaceConfigPath.fsPath, {
 				changeBufferDelay: 300,
@@ -98,8 +98,7 @@ export class WorkspaceConfiguration extends Disposable {
 					return workspaceConfigurationModel;
 				}, initCallback: () => c(null)
 			});
-			this._workspaceConfigurationWatcherDisposables.push(this._workspaceConfigurationWatcher);
-			this._workspaceConfigurationWatcher.onDidUpdateConfiguration(() => this._onDidUpdateConfiguration.fire(), this, this._workspaceConfigurationWatcherDisposables);
+			this.listenToWatcher();
 		});
 	}
 
@@ -108,7 +107,11 @@ export class WorkspaceConfiguration extends Disposable {
 	}
 
 	reload(): TPromise<void> {
-		return new TPromise<void>(c => this._workspaceConfigurationWatcher.reload(() => c(null)));
+		this.stopListeningToWatcher();
+		return new TPromise<void>(c => this._workspaceConfigurationWatcher.reload(() => {
+			this.listenToWatcher();
+			c(null);
+		}));
 	}
 
 	getFolders(): IStoredWorkspaceFolder[] {
@@ -122,6 +125,15 @@ export class WorkspaceConfiguration extends Disposable {
 
 	getConfiguration(): ConfigurationModel {
 		return this.workspaceConfigurationModel.workspaceConfiguration;
+	}
+
+	private listenToWatcher() {
+		this._workspaceConfigurationWatcherDisposables.push(this._workspaceConfigurationWatcher);
+		this._workspaceConfigurationWatcher.onDidUpdateConfiguration(() => this._onDidUpdateConfiguration.fire(), this, this._workspaceConfigurationWatcherDisposables);
+	}
+
+	private stopListeningToWatcher() {
+		this._workspaceConfigurationWatcherDisposables = dispose(this._workspaceConfigurationWatcherDisposables);
 	}
 
 	dispose(): void {

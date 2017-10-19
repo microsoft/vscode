@@ -164,7 +164,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		});
 
 		if (storedFoldersToAdd.length > 0) {
-			return this.workspaceConfiguration.setFolders([...currentStoredFolders, ...storedFoldersToAdd], this.jsonEditingService);
+			return this.setFolders([...currentStoredFolders, ...storedFoldersToAdd]);
 		}
 
 		return TPromise.as(void 0);
@@ -187,10 +187,15 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		});
 
 		if (newStoredFolders.length !== currentStoredFolders.length) {
-			return this.workspaceConfiguration.setFolders(newStoredFolders, this.jsonEditingService);
+			return this.setFolders(newStoredFolders);
 		}
 
 		return TPromise.as(void 0);
+	}
+
+	private setFolders(folders: IStoredWorkspaceFolder[]): TPromise<void> {
+		return this.workspaceConfiguration.setFolders(folders, this.jsonEditingService)
+			.then(() => this.onWorkspaceConfigurationChanged());
 	}
 
 	private contains(resources: URI[], toCheck: URI): boolean {

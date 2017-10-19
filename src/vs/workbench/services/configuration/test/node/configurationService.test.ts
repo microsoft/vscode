@@ -5,11 +5,11 @@
 
 'use strict';
 
-import assert = require('assert');
-import os = require('os');
-import path = require('path');
-import fs = require('fs');
+import * as assert from 'assert';
 import * as sinon from 'sinon';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -142,6 +142,93 @@ suite('WorkspaceContextService - Folder', () => {
 	test('isCurrentWorkspace() => false', () => {
 		assert.ok(!workspaceContextService.isCurrentWorkspace(workspaceResource + 'abc'));
 	});
+});
+
+suite('WorkspaceContextService - Workspace', () => {
+
+	let parentResource: string, testObject: IWorkspaceContextService;
+
+	setup(() => {
+		return setUpWorkspace(['a', 'b'])
+			.then(({ parentDir, configPath }) => {
+
+				parentResource = parentDir;
+
+				const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, path.join(parentDir, 'settings.json'));
+				const workspaceService = new WorkspaceService(environmentService, null);
+
+				const instantiationService = <TestInstantiationService>workbenchInstantiationService();
+				instantiationService.stub(IWorkspaceContextService, workspaceService);
+				instantiationService.stub(IConfigurationService, workspaceService);
+				instantiationService.stub(IEnvironmentService, environmentService);
+
+				return workspaceService.initialize({ id: configPath, configPath }).then(() => {
+
+					instantiationService.stub(IFileService, new FileService(<IWorkspaceContextService>workspaceService, new TestTextResourceConfigurationService(), workspaceService, { disableWatcher: true }));
+					instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
+					instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
+					workspaceService.setInstantiationService(instantiationService);
+
+					testObject = workspaceService;
+				});
+			});
+	});
+
+	teardown(done => {
+		if (testObject) {
+			(<WorkspaceService>testObject).dispose();
+		}
+		if (parentResource) {
+			extfs.del(parentResource, os.tmpdir(), () => { }, done);
+		}
+	});
+
+	test('workspace folders', () => {
+		const actual = testObject.getWorkspace().folders;
+
+		assert.equal(actual.length, 2);
+		assert.equal(path.basename(actual[0].uri.fsPath), 'a');
+		assert.equal(path.basename(actual[1].uri.fsPath), 'b');
+	});
+
+	test('add folders', () => {
+		const workspaceDir = path.dirname(testObject.getWorkspace().folders[0].uri.fsPath);
+		return testObject.addFolders([URI.file(path.join(workspaceDir, 'd')), URI.file(path.join(workspaceDir, 'c'))])
+			.then(() => {
+				const actual = testObject.getWorkspace().folders;
+
+				assert.equal(actual.length, 4);
+				assert.equal(path.basename(actual[0].uri.fsPath), 'a');
+				assert.equal(path.basename(actual[1].uri.fsPath), 'b');
+				assert.equal(path.basename(actual[2].uri.fsPath), 'd');
+				assert.equal(path.basename(actual[3].uri.fsPath), 'c');
+			});
+	});
+
+	test('add folders triggers change event', () => {
+		const target = sinon.spy();
+		testObject.onDidChangeWorkspaceFolders(target);
+		const workspaceDir = path.dirname(testObject.getWorkspace().folders[0].uri.fsPath);
+		return testObject.addFolders([URI.file(path.join(workspaceDir, 'd')), URI.file(path.join(workspaceDir, 'c'))])
+			.then(() => assert.ok(target.called));
+	});
+
+	test('remove folders', () => {
+		return testObject.removeFolders([testObject.getWorkspace().folders[0].uri])
+			.then(() => {
+				const actual = testObject.getWorkspace().folders;
+				assert.equal(actual.length, 1);
+				assert.equal(path.basename(actual[0].uri.fsPath), 'b');
+			});
+	});
+
+	test('remove folders triggers change event', () => {
+		const target = sinon.spy();
+		testObject.onDidChangeWorkspaceFolders(target);
+		return testObject.removeFolders([testObject.getWorkspace().folders[0].uri])
+			.then(() => assert.ok(target.called));
+	});
+
 });
 
 suite('WorkspaceConfigurationService - Folder', () => {
