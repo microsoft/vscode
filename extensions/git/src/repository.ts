@@ -221,7 +221,8 @@ export enum Operation {
 	Merge = 1 << 16,
 	Ignore = 1 << 17,
 	Tag = 1 << 18,
-	Stash = 1 << 19
+	Stash = 1 << 19,
+	CheckIgnore = 1 << 20
 }
 
 // function getOperationName(operation: Operation): string {
@@ -250,6 +251,7 @@ function isReadOnly(operation: Operation): boolean {
 	switch (operation) {
 		case Operation.Show:
 		case Operation.GetCommitTemplate:
+		case Operation.CheckIgnore:
 			return true;
 		default:
 			return false;
@@ -645,7 +647,7 @@ export class Repository implements Disposable {
 	}
 
 	checkIgnore(filePaths: string[]): Promise<Set<string>> {
-		return this.run(Operation.Ignore, () => {
+		return this.run(Operation.CheckIgnore, () => {
 			return new Promise<Set<string>>((resolve, reject) => {
 
 				filePaths = filePaths.filter(filePath => !path.relative(this.root, filePath).startsWith('..'));
