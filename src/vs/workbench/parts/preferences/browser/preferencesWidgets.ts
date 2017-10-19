@@ -42,10 +42,10 @@ export class SettingsHeaderWidget extends Widget implements IViewZone {
 	private id: number;
 	private _domNode: HTMLElement;
 
-	private titleContainer: HTMLElement;
+	protected titleContainer: HTMLElement;
 	private messageElement: HTMLElement;
 
-	constructor(private editor: ICodeEditor, private title: string) {
+	constructor(protected editor: ICodeEditor, private title: string) {
 		super();
 		this.create();
 		this._register(this.editor.onDidChangeConfiguration(() => this.layout()));
@@ -64,7 +64,7 @@ export class SettingsHeaderWidget extends Widget implements IViewZone {
 		return 0;
 	}
 
-	private create() {
+	protected create() {
 		this._domNode = DOM.$('.settings-header-widget');
 
 		this.titleContainer = DOM.append(this._domNode, DOM.$('.title-container'));
@@ -99,6 +99,35 @@ export class SettingsHeaderWidget extends Widget implements IViewZone {
 			accessor.removeZone(this.id);
 		});
 		super.dispose();
+	}
+}
+
+export class DefaultSettingsHeaderWidget extends SettingsHeaderWidget {
+
+	private linkElement: HTMLElement;
+	private _onClick = this._register(new Emitter<void>());
+	public onClick: Event<void> = this._onClick.event;
+
+	protected create() {
+		super.create();
+
+		this.linkElement = DOM.append(this.titleContainer, DOM.$('a.settings-header-fuzzy-link'));
+		this.linkElement.textContent = localize('defaultSettingsFuzzyPrompt', "Try fuzzy search!");
+
+		this.onclick(this.linkElement, e => this._onClick.fire());
+	}
+
+	public toggleMessage(hasSettings: boolean, promptFuzzy: boolean): void {
+		if (hasSettings) {
+			this.setMessage(localize('defaultSettings', "Place your settings in the right hand side editor to override."));
+			DOM.addClass(this.linkElement, 'hidden');
+		} else {
+			this.setMessage(localize('noSettingsFound', "No Settings Found."));
+
+			if (promptFuzzy) {
+				DOM.removeClass(this.linkElement, 'hidden');
+			}
+		}
 	}
 }
 
@@ -421,6 +450,10 @@ export class SearchWidget extends Widget {
 
 	public get fuzzyEnabled(): boolean {
 		return this.fuzzyToggle.checked;
+	}
+
+	public set fuzzyEnabled(value: boolean) {
+		this.fuzzyToggle.checked = value;
 	}
 
 	private create(parent: HTMLElement) {

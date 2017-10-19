@@ -158,6 +158,11 @@ export class PreferencesEditor extends BaseEditor {
 		this.preferencesRenderers = this._register(new PreferencesRenderers());
 		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => this.onWorkspaceFoldersChanged()));
 		this._register(this.workspaceContextService.onDidChangeWorkbenchState(() => this.onWorkbenchStateChanged()));
+
+		this._register(this.preferencesRenderers.onTriggeredFuzzy(() => {
+			this.searchWidget.fuzzyEnabled = true;
+			this.filterPreferences();
+		}));
 	}
 
 	public clearSearchResults(): void {
@@ -404,6 +409,9 @@ class PreferencesRenderers extends Disposable {
 
 	private _disposables: IDisposable[] = [];
 
+	private _onTriggeredFuzzy: Emitter<void> = new Emitter<void>();
+	public onTriggeredFuzzy: Event<void> = this._onTriggeredFuzzy.event;
+
 	public get defaultPreferencesRenderer(): IPreferencesRenderer<ISetting> {
 		return this._defaultPreferencesRenderer;
 	}
@@ -418,6 +426,9 @@ class PreferencesRenderers extends Disposable {
 				this._defaultPreferencesRenderer.onUpdatePreference(({ key, value, source }) => this._updatePreference(key, value, source, this._editablePreferencesRenderer), this, this._disposables);
 				this._defaultPreferencesRenderer.onFocusPreference(preference => this._focusPreference(preference, this._editablePreferencesRenderer), this, this._disposables);
 				this._defaultPreferencesRenderer.onClearFocusPreference(preference => this._clearFocus(preference, this._editablePreferencesRenderer), this, this._disposables);
+				if (this._defaultPreferencesRenderer.onTriggeredFuzzy) {
+					this._register(this._defaultPreferencesRenderer.onTriggeredFuzzy(() => this._onTriggeredFuzzy.fire()));
+				}
 			}
 		}
 	}

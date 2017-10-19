@@ -20,7 +20,7 @@ import { IPreferencesService, ISettingsGroup, ISetting, IPreferencesEditorModel,
 import { SettingsEditorModel, DefaultSettingsEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { IContextMenuService, ContextSubMenu } from 'vs/platform/contextview/browser/contextView';
-import { SettingsGroupTitleWidget, EditPreferenceWidget, SettingsHeaderWidget, FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
+import { SettingsGroupTitleWidget, EditPreferenceWidget, SettingsHeaderWidget, DefaultSettingsHeaderWidget, FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -41,6 +41,7 @@ export interface IPreferencesRenderer<T> extends IDisposable {
 	onFocusPreference: Event<T>;
 	onClearFocusPreference: Event<T>;
 	onUpdatePreference: Event<{ key: string, value: any, source: T }>;
+	onTriggeredFuzzy?: Event<void>;
 
 	render(): void;
 	updatePreference(key: string, value: any, source: T): void;
@@ -247,6 +248,8 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 	private _onClearFocusPreference: Emitter<ISetting> = new Emitter<ISetting>();
 	public readonly onClearFocusPreference: Event<ISetting> = this._onClearFocusPreference.event;
 
+	public readonly onTriggeredFuzzy: Event<void>;
+
 	private filterResult: IFilterResult;
 
 	constructor(protected editor: ICodeEditor, public readonly preferencesModel: DefaultSettingsEditorModel,
@@ -269,6 +272,8 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		this.hiddenAreasRenderer = this._register(instantiationService.createInstance(HiddenAreasRenderer, editor, hiddenAreasProviders));
 
 		this._register(this.settingsGroupTitleRenderer.onHiddenAreasChanged(() => this.hiddenAreasRenderer.render()));
+
+		this.onTriggeredFuzzy = this.settingsHeaderRenderer.onClick;
 	}
 
 	public get associatedPreferencesModel(): IPreferencesEditorModel<ISetting> {
@@ -296,14 +301,14 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 			this.filteredMatchesRenderer.render(filterResult, this.preferencesModel.settingsGroups);
 			this.settingsGroupTitleRenderer.render(filterResult.filteredGroups);
 			this.feedbackWidgetRenderer.render(filterResult);
-			this.settingsHeaderRenderer.render(filterResult.filteredGroups);
+			this.settingsHeaderRenderer.render(filterResult);
 			this.settingHighlighter.clear(true);
 			this.editSettingActionRenderer.render(filterResult.filteredGroups, this._associatedPreferencesModel);
 		} else {
 			this.settingHighlighter.clear(true);
 			this.filteredMatchesRenderer.render(null, this.preferencesModel.settingsGroups);
 			this.feedbackWidgetRenderer.render(null);
-			this.settingsHeaderRenderer.render(this.preferencesModel.settingsGroups);
+			this.settingsHeaderRenderer.render(null);
 			this.settingsGroupTitleRenderer.render(this.preferencesModel.settingsGroups);
 			this.settingsGroupTitleRenderer.showGroup(0);
 			this.editSettingActionRenderer.render(this.preferencesModel.settingsGroups, this._associatedPreferencesModel);
@@ -409,20 +414,20 @@ export class StaticContentHidingRenderer extends Disposable implements HiddenAre
 
 class DefaultSettingsHeaderRenderer extends Disposable {
 
-	private settingsHeaderWidget: SettingsHeaderWidget;
+	private settingsHeaderWidget: DefaultSettingsHeaderWidget;
+	public onClick: Event<void>;
 
 	constructor(private editor: ICodeEditor, scope: ConfigurationScope) {
 		super();
 		const title = scope === ConfigurationScope.RESOURCE ? nls.localize('defaultFolderSettingsTitle', "Default Folder Settings") : nls.localize('defaultSettingsTitle', "Default Settings");
-		this.settingsHeaderWidget = this._register(new SettingsHeaderWidget(editor, title));
+		this.settingsHeaderWidget = this._register(new DefaultSettingsHeaderWidget(editor, title));
+		this.onClick = this.settingsHeaderWidget.onClick;
 	}
 
-	public render(settingsGroups: ISettingsGroup[]) {
-		if (settingsGroups.length) {
-			this.settingsHeaderWidget.setMessage(nls.localize('defaultSettings', "Place your settings in the right hand side editor to override."));
-		} else {
-			this.settingsHeaderWidget.setMessage(nls.localize('noSettingsFound', "No Settings Found."));
-		}
+	public render(filterResult: IFilterResult) {
+		const hasSettings = !filterResult || filterResult.filteredGroups.length > 0;
+		const promptFuzzy = filterResult && !filterResult.metadata;
+		this.settingsHeaderWidget.toggleMessage(hasSettings, promptFuzzy);
 	}
 }
 
