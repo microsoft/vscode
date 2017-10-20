@@ -41,47 +41,20 @@ export const NullAppender: ITelemetryAppender = { log: () => null };
 
 // --- util
 
-export function anonymize(input: string): string {
-	if (!input) {
-		return input;
-	}
-
-	let r = '';
-	for (let i = 0; i < input.length; i++) {
-		let ch = input[i];
-		if (ch >= '0' && ch <= '9') {
-			r += '0';
-			continue;
-		}
-		if (ch >= 'a' && ch <= 'z') {
-			r += 'a';
-			continue;
-		}
-		if (ch >= 'A' && ch <= 'Z') {
-			r += 'A';
-			continue;
-		}
-		r += ch;
-	}
-	return r;
-}
-
 /* __GDPR__FRAGMENT__
 	"URIDescriptor" : {
 		"mimeType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"path": { "classification": "CustomerContent", "purpose": "FeatureInsight" }
+		"ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	}
 */
 export interface URIDescriptor {
 	mimeType?: string;
 	ext?: string;
-	path?: string;
 }
 
 export function telemetryURIDescriptor(uri: URI): URIDescriptor {
 	const fsPath = uri && uri.fsPath;
-	return fsPath ? { mimeType: guessMimeTypes(fsPath).join(', '), ext: paths.extname(fsPath), path: anonymize(fsPath) } : {};
+	return fsPath ? { mimeType: guessMimeTypes(fsPath).join(', '), ext: paths.extname(fsPath) } : {};
 }
 
 /**
