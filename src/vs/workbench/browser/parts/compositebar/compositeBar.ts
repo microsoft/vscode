@@ -228,6 +228,10 @@ export class CompositeBar implements ICompositeBar {
 			if (overflows && (size + this.options.overflowActionSize > limit)) {
 				compositesToShow.pop();
 			}
+			if (this.activeCompositeId && compositesToShow.length && compositesToShow.indexOf(this.activeCompositeId) === -1) {
+				compositesToShow.pop();
+				compositesToShow.push(this.activeCompositeId);
+			}
 		}
 
 		const visibleComposites = Object.keys(this.compositeIdToActions);
