@@ -327,7 +327,7 @@ export class CompositeBar implements ICompositeBar {
 
 		const compositeActivityAction = this.options.getActivityAction(compositeId);
 		const pinnedAction = this.options.getCompositePinnedAction(compositeId);
-		this.compositeIdToActionItems[compositeId] = this.instantiationService.createInstance(CompositeActionItem, compositeActivityAction, pinnedAction, this.options.colors, this);
+		this.compositeIdToActionItems[compositeId] = this.instantiationService.createInstance(CompositeActionItem, compositeActivityAction, pinnedAction, this.options.colors, this.options.icon, this);
 		this.compositeIdToActions[compositeId] = compositeActivityAction;
 
 		return compositeActivityAction;
