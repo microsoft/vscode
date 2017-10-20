@@ -10,10 +10,12 @@ import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { PrefixSumComputerWithCache } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { ViewLineData, ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
+import { ViewLineData, ICoordinatesConverter, OverviewRulerDecoration } from 'vs/editor/common/viewModel/viewModel';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ModelDecorationOptions, ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ThemeColor, ITheme } from 'vs/platform/theme/common/themeService';
+import { Color } from 'vs/base/common/color';
 
 export class OutputPosition {
 	_outputPositionBrand: void;
@@ -57,6 +59,7 @@ export interface ISplitLine {
 
 	getModelColumnOfViewPosition(outputLineIndex: number, outputColumn: number): number;
 	getViewPositionOfModelPosition(deltaLineNumber: number, inputColumn: number): Position;
+	getViewLineNumberOfModelPosition(deltaLineNumber: number, inputColumn: number): number;
 }
 
 export interface IViewModelLinesCollection {
@@ -82,6 +85,8 @@ export interface IViewModelLinesCollection {
 	getViewLineMaxColumn(viewLineNumber: number): number;
 	getViewLineData(viewLineNumber: number): ViewLineData;
 	getViewLinesData(viewStartLineNumber: number, viewEndLineNumber: number, needed: boolean[]): ViewLineData[];
+
+	getAllOverviewRulerDecorations(ownerId: number, filterOutValidation: boolean, theme: ITheme): OverviewRulerDecoration[];
 }
 
 export class CoordinatesConverter implements ICoordinatesConverter {
@@ -650,6 +655,42 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		// console.log('in -> out ' + inputLineNumber + ',' + inputColumn + ' ===> ' + r.lineNumber + ',' + r);
 		return r;
 	}
+
+	private _getViewLineNumberForModelPosition(inputLineNumber: number, inputColumn: number): number {
+		let lineIndex = inputLineNumber - 1;
+		if (this.lines[lineIndex].isVisible()) {
+			// this model line is visible
+			const deltaLineNumber = 1 + (lineIndex === 0 ? 0 : this.prefixSumComputer.getAccumulatedValue(lineIndex - 1));
+			return this.lines[lineIndex].getViewLineNumberOfModelPosition(deltaLineNumber, inputColumn);
+		}
+
+		// this model line is not visible
+		while (lineIndex > 0 && !this.lines[lineIndex].isVisible()) {
+			lineIndex--;
+		}
+		if (lineIndex === 0 && !this.lines[lineIndex].isVisible()) {
+			// Could not reach a real line
+			return 1;
+		}
+		const deltaLineNumber = 1 + (lineIndex === 0 ? 0 : this.prefixSumComputer.getAccumulatedValue(lineIndex - 1));
+		return this.lines[lineIndex].getViewLineNumberOfModelPosition(deltaLineNumber, this.model.getLineMaxColumn(lineIndex + 1));
+	}
+
+	public getAllOverviewRulerDecorations(ownerId: number, filterOutValidation: boolean, theme: ITheme): OverviewRulerDecoration[] {
+		const decorations = this.model.getOverviewRulerDecorations(ownerId, filterOutValidation);
+		const result = new OverviewRulerDecorations();
+		for (let i = 0, len = decorations.length; i < len; i++) {
+			const decoration = decorations[i];
+			const opts = <ModelDecorationOverviewRulerOptions>decoration.options.overviewRuler;
+			const lane = opts.position;
+			const color = resolveColor(opts, theme);
+			const viewStartLineNumber = this._getViewLineNumberForModelPosition(decoration.range.startLineNumber, decoration.range.startColumn);
+			const viewEndLineNumber = this._getViewLineNumberForModelPosition(decoration.range.endLineNumber, decoration.range.endColumn);
+
+			result.accept(color, viewStartLineNumber, viewEndLineNumber, lane);
+		}
+		return result.result;
+	}
 }
 
 class VisibleIdentitySplitLine implements ISplitLine {
@@ -711,6 +752,10 @@ class VisibleIdentitySplitLine implements ISplitLine {
 	public getViewPositionOfModelPosition(deltaLineNumber: number, inputColumn: number): Position {
 		return new Position(deltaLineNumber, inputColumn);
 	}
+
+	public getViewLineNumberOfModelPosition(deltaLineNumber: number, inputColumn: number): number {
+		return deltaLineNumber;
+	}
 }
 
 class InvisibleIdentitySplitLine implements ISplitLine {
@@ -759,6 +804,10 @@ class InvisibleIdentitySplitLine implements ISplitLine {
 	}
 
 	public getViewPositionOfModelPosition(deltaLineNumber: number, inputColumn: number): Position {
+		throw new Error('Not supported');
+	}
+
+	public getViewLineNumberOfModelPosition(deltaLineNumber: number, inputColumn: number): number {
 		throw new Error('Not supported');
 	}
 }
@@ -913,6 +962,14 @@ export class SplitLine implements ISplitLine {
 
 		//		console.log('in -> out ' + deltaLineNumber + ',' + inputColumn + ' ===> ' + (deltaLineNumber+outputLineIndex) + ',' + outputColumn);
 		return new Position(deltaLineNumber + outputLineIndex, outputColumn);
+	}
+
+	public getViewLineNumberOfModelPosition(deltaLineNumber: number, inputColumn: number): number {
+		if (!this._isVisible) {
+			throw new Error('Not supported');
+		}
+		const r = this.positionMapper.getOutputPositionOfInputOffset(inputColumn - 1);
+		return (deltaLineNumber + r.outputLineIndex);
 	}
 }
 
@@ -1093,4 +1150,99 @@ export class IdentityLinesCollection implements IViewModelLinesCollection {
 
 		return result;
 	}
+
+	public getAllOverviewRulerDecorations(ownerId: number, filterOutValidation: boolean, theme: ITheme): OverviewRulerDecoration[] {
+		const decorations = this.model.getOverviewRulerDecorations(ownerId, filterOutValidation);
+		const result = new OverviewRulerDecorations();
+		for (let i = 0, len = decorations.length; i < len; i++) {
+			const decoration = decorations[i];
+			const opts = <ModelDecorationOverviewRulerOptions>decoration.options.overviewRuler;
+			const lane = opts.position;
+			const color = resolveColor(opts, theme);
+			const viewStartLineNumber = decoration.range.startLineNumber;
+			const viewEndLineNumber = decoration.range.endLineNumber;
+
+			result.accept(color, viewStartLineNumber, viewEndLineNumber, lane);
+		}
+		result.flushAll();
+		return result.result;
+	}
+}
+
+class OverviewRulerDecorations {
+
+	readonly req: OverviewRulerDecoration[] = [];
+	readonly result: OverviewRulerDecoration[] = [];
+
+	constructor() {
+	}
+
+	public accept(color: string, startLineNumber: number, endLineNumber: number, lane: number): void {
+		let result: OverviewRulerDecoration = null;
+		for (let i = 0, len = this.req.length; i < len; i++) {
+			const req = this.req[i];
+			if (req.endLineNumber < startLineNumber) {
+				this._flush(req);
+
+				if (i + 1 === len) {
+					// last element
+					this.req.pop();
+					break;
+				} else {
+					this.req[i] = this.req.pop();
+					len--;
+					i--;
+					continue;
+				}
+			}
+
+			if (req.lane === lane && req.color === color) {
+				result = req;
+				break;
+			}
+		}
+
+		if (result !== null) {
+			// there is already an ongoing request for this color & lane
+			// => simply merge into it
+			if (endLineNumber > result.endLineNumber) {
+				result.endLineNumber = endLineNumber;
+			}
+			return;
+		}
+
+		result = new OverviewRulerDecoration(startLineNumber, endLineNumber, lane, color);
+		this.req.push(result);
+	}
+
+	public flushAll(): void {
+		for (let i = 0, len = this.req.length; i < len; i++) {
+			this._flush(this.req[i]);
+		}
+	}
+
+	private _flush(element: OverviewRulerDecoration): void {
+		this.result.push(element);
+	}
+}
+
+
+function resolveColor(opts: ModelDecorationOverviewRulerOptions, theme: ITheme): string {
+	if (!opts._resolvedColor) {
+		const themeType = theme.type;
+		const color = (themeType === 'dark' ? opts.darkColor : themeType === 'light' ? opts.color : opts.hcColor);
+		opts._resolvedColor = resolveRulerColor(color, theme);
+	}
+	return opts._resolvedColor;
+}
+
+function resolveRulerColor(color: string | ThemeColor, theme: ITheme): string {
+	if (typeof color === 'string') {
+		return color;
+	}
+	let c = color ? theme.getColor(color.id) : null;
+	if (!c) {
+		c = Color.transparent;
+	}
+	return c.toString();
 }

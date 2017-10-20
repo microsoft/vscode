@@ -14,9 +14,8 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { editorOverviewRulerBorder, editorCursorForeground } from 'vs/editor/common/view/editorColorRegistry';
 import { Color } from 'vs/base/common/color';
-import { ITheme, ThemeColor } from 'vs/platform/theme/common/themeService';
+import { ITheme } from 'vs/platform/theme/common/themeService';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModelWithDecorations';
 
 class Settings {
 
@@ -275,12 +274,7 @@ export class DecorationsOverviewRuler2 extends ViewPart {
 	}
 	public onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
 		// invalidate color cache
-		const decorations = this._context.model.getAllOverviewRulerDecorations();
-		for (let i = 0, len = decorations.length; i < len; i++) {
-			const decoration = decorations[i];
-			const opts = <ModelDecorationOverviewRulerOptions>decoration.source.options.overviewRuler;
-			opts._resolvedColor = null;
-		}
+		this._context.model.invalidateOverviewRulerColorCache();
 		return this._updateSettings(false);
 	}
 
@@ -303,10 +297,9 @@ export class DecorationsOverviewRuler2 extends ViewPart {
 		const canvasHeight = this._settings.canvasHeight;
 		const lineHeight = this._settings.lineHeight;
 		const viewLayout = this._context.viewLayout;
-		const theme = this._context.theme;
 		const outerHeight = this._context.viewLayout.getScrollHeight();
 		const heightRatio = canvasHeight / outerHeight;
-		const decorations = this._context.model.getAllOverviewRulerDecorations();
+		const decorations = this._context.model.getAllOverviewRulerDecorations(this._context.theme);
 
 		const minDecorationHeight = (Constants.MIN_DECORATION_HEIGHT * this._settings.pixelRatio) | 0;
 		const halfMinDecorationHeight = (minDecorationHeight / 2) | 0;
@@ -322,17 +315,12 @@ export class DecorationsOverviewRuler2 extends ViewPart {
 		const paintQueue = new PaintQueue(canvasCtx, this._settings.x, this._settings.w);
 		for (let i = 0, len = decorations.length; i < len; i++) {
 			const decoration = decorations[i];
-			const opts = <ModelDecorationOverviewRulerOptions>decoration.source.options.overviewRuler;
-			const lane = opts.position;
-			if (lane === 0) {
+			if (decoration.lane === 0) {
 				continue;
 			}
-			const startLineNumber = decoration.range.startLineNumber;
-			const endLineNumber = decoration.range.endLineNumber;
-			const color = resolveColor(opts, theme);
 
-			let y1 = (viewLayout.getVerticalOffsetForLineNumber(startLineNumber) * heightRatio) | 0;
-			let y2 = ((viewLayout.getVerticalOffsetForLineNumber(endLineNumber) + lineHeight) * heightRatio) | 0;
+			let y1 = (viewLayout.getVerticalOffsetForLineNumber(decoration.startLineNumber) * heightRatio) | 0;
+			let y2 = ((viewLayout.getVerticalOffsetForLineNumber(decoration.endLineNumber) + lineHeight) * heightRatio) | 0;
 			let height = y2 - y1;
 			if (height < minDecorationHeight) {
 				let yCenter = ((y1 + y2) / 2) | 0;
@@ -345,7 +333,7 @@ export class DecorationsOverviewRuler2 extends ViewPart {
 				y2 = yCenter + halfMinDecorationHeight;
 			}
 
-			paintQueueAccept(paintQueue, color, y1, y2, lane);
+			paintQueueAccept(paintQueue, decoration.color, y1, y2, decoration.lane);
 		}
 		for (let i = 0, len = paintQueue.req.length; i < len; i++) {
 			paintQueueFlush(paintQueue, paintQueue.req[i]);
@@ -448,7 +436,9 @@ function paintQueueAccept(Q: PaintQueue, color: string, y1: number, y2: number, 
 	if (result !== null) {
 		// there is already an ongoing request for this color & lane
 		// => simply merge into it
-		result.y2 = y2;
+		if (y2 > result.y2) {
+			result.y2 = y2;
+		}
 		return;
 	}
 
@@ -465,24 +455,4 @@ function paintQueueAccept(Q: PaintQueue, color: string, y1: number, y2: number, 
 function paintQueueFlush(Q: PaintQueue, req: PaintRequest): void {
 	Q.ctx.fillStyle = req.color;
 	Q.ctx.fillRect(Q.x[req.lane], req.y1, Q.w[req.lane], req.y2 - req.y1);
-}
-
-function resolveColor(opts: ModelDecorationOverviewRulerOptions, theme: ITheme): string {
-	if (!opts._resolvedColor) {
-		const themeType = theme.type;
-		const color = (themeType === 'dark' ? opts.darkColor : themeType === 'light' ? opts.color : opts.hcColor);
-		opts._resolvedColor = resolveRulerColor(color, theme);
-	}
-	return opts._resolvedColor;
-}
-
-function resolveRulerColor(color: string | ThemeColor, theme: ITheme): string {
-	if (typeof color === 'string') {
-		return color;
-	}
-	let c = color ? theme.getColor(color.id) : null;
-	if (!c) {
-		c = Color.transparent;
-	}
-	return c.toString();
 }

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { INewScrollPosition, IModelDecoration, EndOfLinePreference, IViewState } from 'vs/editor/common/editorCommon';
+import { INewScrollPosition, IModelDecoration, EndOfLinePreference, IViewState, OverviewRulerLane } from 'vs/editor/common/editorCommon';
 import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -14,6 +14,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { Scrollable, IScrollPosition } from 'vs/base/common/scrollable';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
+import { ITheme } from 'vs/platform/theme/common/themeService';
 
 export interface IViewWhitespaceViewportData {
 	readonly id: number;
@@ -138,7 +139,8 @@ export interface IViewModel {
 	getLineMaxColumn(lineNumber: number): number;
 	getLineFirstNonWhitespaceColumn(lineNumber: number): number;
 	getLineLastNonWhitespaceColumn(lineNumber: number): number;
-	getAllOverviewRulerDecorations(): ViewModelDecoration[];
+	getAllOverviewRulerDecorations(theme: ITheme): OverviewRulerDecoration[];
+	invalidateOverviewRulerColorCache(): void;
 	getValueInRange(range: Range, eol: EndOfLinePreference): string;
 
 	getModelLineMaxColumn(modelLineNumber: number): number;
@@ -274,6 +276,17 @@ export class ViewModelDecoration {
 		this.range = null;
 		this.source = source;
 	}
+}
+
+export class OverviewRulerDecoration {
+	_overviewRulerDecorationBrand: void;
+
+	constructor(
+		public readonly startLineNumber: number,
+		public endLineNumber: number,
+		public readonly lane: OverviewRulerLane,
+		public readonly color: string
+	) { }
 }
 
 export class ViewEventsCollector {

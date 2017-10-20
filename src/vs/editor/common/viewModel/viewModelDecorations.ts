@@ -88,17 +88,6 @@ export class ViewModelDecorations implements IDisposable {
 		return r;
 	}
 
-	public getAllOverviewRulerDecorations(): ViewModelDecoration[] {
-		let modelDecorations = this.model.getOverviewRulerDecorations(this.editorId, this.configuration.editor.readOnly);
-		let result: ViewModelDecoration[] = [], resultLen = 0;
-		for (let i = 0, len = modelDecorations.length; i < len; i++) {
-			let modelDecoration = modelDecorations[i];
-			let viewModelDecoration = this._getOrCreateViewModelDecoration(modelDecoration);
-			result[resultLen++] = viewModelDecoration;
-		}
-		return result;
-	}
-
 	public getDecorationsViewportData(viewRange: Range): IDecorationsViewportData {
 		var cacheIsValid = true;
 		cacheIsValid = cacheIsValid && (this._cachedModelDecorationsResolver !== null);
