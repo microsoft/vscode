@@ -69,6 +69,13 @@ const enum Constants {
 	 * See https://thibaultlaurens.github.io/javascript/2013/04/29/how-the-v8-engine-works/#tagged-values
 	 */
 	MIN_SAFE_DELTA = -(1 << 30),
+	/**
+	 * MAX SMI (SMall Integer) as defined in v8.
+	 * one bit is lost for boxing/unboxing flag.
+	 * one bit is lost for sign flag.
+	 * See https://thibaultlaurens.github.io/javascript/2013/04/29/how-the-v8-engine-works/#tagged-values
+	 */
+	MAX_SAFE_DELTA = 1 << 30,
 }
 
 function getNodeColor(node: IntervalNode): NodeColor {
@@ -617,7 +624,7 @@ function noOverlapReplace(T: IntervalTree, start: number, end: number, textLengt
 			node.start += editDelta;
 			node.end += editDelta;
 			node.delta += editDelta;
-			if (node.delta < Constants.MIN_SAFE_DELTA) {
+			if (node.delta < Constants.MIN_SAFE_DELTA || node.delta > Constants.MAX_SAFE_DELTA) {
 				T.requestNormalizeDelta = true;
 			}
 			// cover case a) from above
@@ -1025,7 +1032,7 @@ function rbTreeDelete(T: IntervalTree, z: IntervalNode): void {
 
 		// x's delta is no longer influenced by z's delta
 		x.delta += z.delta;
-		if (x.delta < Constants.MIN_SAFE_DELTA) {
+		if (x.delta < Constants.MIN_SAFE_DELTA || x.delta > Constants.MAX_SAFE_DELTA) {
 			T.requestNormalizeDelta = true;
 		}
 		x.start += z.delta;
@@ -1045,14 +1052,14 @@ function rbTreeDelete(T: IntervalTree, z: IntervalNode): void {
 		x.start += y.delta;
 		x.end += y.delta;
 		x.delta += y.delta;
-		if (x.delta < Constants.MIN_SAFE_DELTA) {
+		if (x.delta < Constants.MIN_SAFE_DELTA || x.delta > Constants.MAX_SAFE_DELTA) {
 			T.requestNormalizeDelta = true;
 		}
 
 		y.start += z.delta;
 		y.end += z.delta;
 		y.delta = z.delta;
-		if (y.delta < Constants.MIN_SAFE_DELTA) {
+		if (y.delta < Constants.MIN_SAFE_DELTA || y.delta > Constants.MAX_SAFE_DELTA) {
 			T.requestNormalizeDelta = true;
 		}
 	}
@@ -1215,7 +1222,7 @@ function leftRotate(T: IntervalTree, x: IntervalNode): void {
 	const y = x.right;				// set y.
 
 	y.delta += x.delta;				// y's delta is no longer influenced by x's delta
-	if (y.delta < Constants.MIN_SAFE_DELTA) {
+	if (y.delta < Constants.MIN_SAFE_DELTA || y.delta > Constants.MAX_SAFE_DELTA) {
 		T.requestNormalizeDelta = true;
 	}
 	y.start += x.delta;
@@ -1245,7 +1252,7 @@ function rightRotate(T: IntervalTree, y: IntervalNode): void {
 	const x = y.left;
 
 	y.delta -= x.delta;
-	if (y.delta < Constants.MIN_SAFE_DELTA) {
+	if (y.delta < Constants.MIN_SAFE_DELTA || y.delta > Constants.MAX_SAFE_DELTA) {
 		T.requestNormalizeDelta = true;
 	}
 	y.start -= x.delta;
