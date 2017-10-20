@@ -17,7 +17,7 @@ import { ICommonCodeEditor, ScrollType } from 'vs/editor/common/editorCommon';
 import { editorAction, ServicesAccessor, EditorAction, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
-import { FoldingModel, setCollapseStateAtLevel, setCollapseStateDown, CollapseState, setCollapseStateLevelsDown, setCollapseStateLevelsUp } from 'vs/editor/contrib/folding/common/foldingModel';
+import { FoldingModel, setCollapseStateAtLevel, setCollapseStateDown, CollapseMemento, setCollapseStateLevelsDown, setCollapseStateLevelsUp } from 'vs/editor/contrib/folding/common/foldingModel';
 import { computeRanges, limitByIndent } from 'vs/editor/contrib/folding/common/indentFoldStrategy';
 import { FoldingDecorationProvider } from './foldingDecorations';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -99,18 +99,18 @@ export class FoldingController {
 	/**
 	 * Store view state.
 	 */
-	public saveViewState(): { collapsedRegions?: CollapseState, lineCount?: number } {
+	public saveViewState(): { collapsedRegions?: CollapseMemento, lineCount?: number } {
 		let model = this.editor.getModel();
 		if (!model || !this._isEnabled) {
 			return {};
 		}
-		return { collapsedRegions: this.foldingModel.getCollapseState(), lineCount: model.getLineCount() };
+		return { collapsedRegions: this.foldingModel.getMemento(), lineCount: model.getLineCount() };
 	}
 
 	/**
 	 * Restore view state.
 	 */
-	public restoreViewState(state: { collapsedRegions?: CollapseState, lineCount?: number }): void {
+	public restoreViewState(state: { collapsedRegions?: CollapseMemento, lineCount?: number }): void {
 		let model = this.editor.getModel();
 		if (!model || !this._isEnabled) {
 			return;
@@ -120,10 +120,10 @@ export class FoldingController {
 		}
 
 		// set the hidden ranges right away, before waiting for the folding model.
-		if (this.hiddenRangeModel.applyCollapseState(state.collapsedRegions)) {
+		if (this.hiddenRangeModel.applyMemento(state.collapsedRegions)) {
 			this.getFoldingModel().then(foldingModel => {
 				if (foldingModel) {
-					foldingModel.applyCollapseState(state.collapsedRegions);
+					foldingModel.applyMemento(state.collapsedRegions);
 				}
 			});
 		}

@@ -5,7 +5,7 @@
 
 import Event, { Emitter } from 'vs/base/common/event';
 import { Range, IRange } from 'vs/editor/common/core/range';
-import { FoldingRegion, FoldingModel, IFoldingRange, CollapseState } from 'vs/editor/contrib/folding/common/foldingModel';
+import { FoldingRegion, FoldingModel, IFoldingRange, CollapseMemento } from 'vs/editor/contrib/folding/common/foldingModel';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Selection } from 'vs/editor/common/core/selection';
 import { findFirst } from 'vs/base/common/arrays';
@@ -56,7 +56,7 @@ export class HiddenRangeModel {
 		}
 	}
 
-	public applyCollapseState(state: CollapseState): boolean {
+	public applyMemento(state: CollapseMemento): boolean {
 		if (!Array.isArray(state) || state.length === 0) {
 			return false;
 		}

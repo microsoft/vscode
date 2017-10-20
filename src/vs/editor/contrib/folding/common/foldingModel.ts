@@ -32,7 +32,7 @@ export interface FoldingModelChangeEvent {
 	collapseStateChanged?: FoldingRegion[];
 }
 
-export type CollapseState = ILineRange[];
+export type CollapseMemento = ILineRange[];
 
 export class FoldingModel {
 	private _textModel: IModel;
@@ -137,9 +137,9 @@ export class FoldingModel {
 	}
 
 	/**
-	 * Collapse state, for persistence only
+	 * Collapse state memento, for persistence only
 	 */
-	public getCollapseState(): CollapseState {
+	public getMemento(): CollapseMemento {
 		let collapsedRanges: ILineRange[] = [];
 		for (let region of this._regions) {
 			if (region.isCollapsed && region.editorDecorationId) {
@@ -160,7 +160,7 @@ export class FoldingModel {
 	/**
 	 * Apply persisted state, for persistence only
 	 */
-	public applyCollapseState(state: CollapseState) {
+	public applyMemento(state: CollapseMemento) {
 		if (!Array.isArray(state)) {
 			return;
 		}
