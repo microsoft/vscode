@@ -248,9 +248,9 @@ export class CompositeBar implements ICompositeBar {
 			this.compositeOverflowActionItem = null;
 		}
 
-		// Pull out composites that overflow or got hidden
-		visibleComposites.forEach(compositeId => {
-			if (compositesToShow.indexOf(compositeId) === -1) {
+		// Pull out composites that overflow, got hidden or changed position
+		visibleComposites.forEach((compositeId, index) => {
+			if (compositesToShow.indexOf(compositeId) !== index) {
 				this.pullComposite(compositeId);
 			}
 		});
