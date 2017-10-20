@@ -67,7 +67,7 @@ export const FIND_IDS = {
 	ShowNextFindTermAction: 'find.history.showNext'
 };
 
-export const MATCHES_LIMIT = 999;
+export const MATCHES_LIMIT = 19999;
 
 export class FindModelBoundToEditorModel {
 
