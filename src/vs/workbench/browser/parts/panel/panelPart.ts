@@ -84,6 +84,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			getOnCompositeClickAction: (compositeId: string) => this.instantiationService.createInstance(OpenPanelAction, this.getPanel(compositeId)),
 			getDefaultCompositeId: () => Registry.as<PanelRegistry>(PanelExtensions.Panels).getDefaultPanelId(),
 			hidePart: () => this.partService.setPanelHidden(true),
+			overflowActionSize: 60,
 			colors: {
 				backgroundColor: PANEL_BACKGROUND,
 				badgeBackground,
@@ -207,7 +208,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 		// Pass to super
 		const sizes = super.layout(dimension);
-		let availableWidth = dimension.width;
+		let availableWidth = dimension.width - 8; // take padding into account
 		if (this.toolBar) {
 			// adjust height for global actions showing
 			availableWidth -= this.toolBar.getContainer().getHTMLElement().offsetWidth;

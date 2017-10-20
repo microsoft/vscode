@@ -75,7 +75,8 @@ export class ActivitybarPart extends Part {
 			getOnCompositeClickAction: (compositeId: string) => this.instantiationService.createInstance(ToggleViewletAction, this.viewletService.getViewlet(compositeId)),
 			getDefaultCompositeId: () => this.viewletService.getDefaultViewletId(),
 			hidePart: () => this.partService.setSideBarHidden(true),
-			colors: ActivitybarPart.COLORS
+			colors: ActivitybarPart.COLORS,
+			overflowActionSize: 50
 		});
 		this.registerListeners();
 	}

@@ -26,6 +26,7 @@ export interface ICompositeBarOptions {
 	orientation: ActionsOrientation;
 	composites: { id: string, name: string }[];
 	colors: ICompositeBarColors;
+	overflowActionSize: number;
 	getActivityAction: (compositeId: string) => ActivityAction;
 	getCompositePinnedAction: (compositeId: string) => Action;
 	getOnCompositeClickAction: (compositeId: string) => Action;
@@ -36,7 +37,6 @@ export interface ICompositeBarOptions {
 
 export class CompositeBar implements ICompositeBar {
 
-	private static OVERFLOW_ACTION_SIZE = 50;
 	private _onDidContextMenu: Emitter<MouseEvent>;
 
 	private dimension: Dimension;
@@ -220,9 +220,12 @@ export class CompositeBar implements ICompositeBar {
 			}
 			overflows = compositesToShow.length > maxVisible;
 
-			compositesToShow = compositesToShow.slice(0, maxVisible);
-			// Check if we need to make room for the overflow action
-			if (overflows && (size + CompositeBar.OVERFLOW_ACTION_SIZE - this.compositeSizeInBar.get(compositesToShow[maxVisible - 1]) - this.compositeSizeInBar.get(compositesToShow[maxVisible]) > limit)) {
+			if (overflows) {
+				size -= this.compositeSizeInBar.get(compositesToShow[maxVisible]);
+				compositesToShow = compositesToShow.slice(0, maxVisible);
+			}
+			// Check if we need to make extra room for the overflow action
+			if (overflows && (size + this.options.overflowActionSize > limit)) {
 				compositesToShow.pop();
 			}
 		}
