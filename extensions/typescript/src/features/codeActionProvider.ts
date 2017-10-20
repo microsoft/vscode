@@ -55,7 +55,7 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 			errorCodes: Array.from(supportedActions)
 		};
 		const response = await this.client.execute('getCodeFixes', args, token);
-		return (response.body || []).map(action => this.getCommandForAction(action));
+		return (response.body || []).map(action => this.getCommandForAction(action, file));
 	}
 
 	private get supportedCodeActions(): Thenable<NumberSet> {
@@ -72,31 +72,45 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 		return this._supportedCodeActions;
 	}
 
-	private getSupportedActionsForContext(context: CodeActionContext): Thenable<Set<number>> {
-		return this.supportedCodeActions.then(supportedActions =>
-			new Set(context.diagnostics
-				.map(diagnostic => +diagnostic.code)
-				.filter(code => supportedActions[code])));
+	private async getSupportedActionsForContext(context: CodeActionContext): Promise<Set<number>> {
+		const supportedActions = await this.supportedCodeActions;
+		return new Set(context.diagnostics
+			.map(diagnostic => +diagnostic.code)
+			.filter(code => supportedActions[code]));
 	}
 
-	private getCommandForAction(action: Proto.CodeAction): Command {
+	private getCommandForAction(action: Proto.CodeAction, file: string): Command {
 		return {
 			title: action.description,
 			command: this.commandId,
-			arguments: [action]
+			arguments: [action, file]
 		};
 	}
 
-	private async onCodeAction(action: Proto.CodeAction): Promise<boolean> {
-		const workspaceEdit = new WorkspaceEdit();
-		for (const change of action.changes) {
-			for (const textChange of change.textChanges) {
-				workspaceEdit.replace(this.client.asUrl(change.fileName),
-					tsTextSpanToVsRange(textChange),
-					textChange.newText);
+	private async onCodeAction(action: Proto.CodeAction, file: string): Promise<boolean> {
+		if (action.changes && action.changes.length) {
+			const workspaceEdit = new WorkspaceEdit();
+			for (const change of action.changes) {
+				for (const textChange of change.textChanges) {
+					workspaceEdit.replace(this.client.asUrl(change.fileName),
+						tsTextSpanToVsRange(textChange),
+						textChange.newText);
+				}
+			}
+
+			if (!(await workspace.applyEdit(workspaceEdit))) {
+				return false;
 			}
 		}
 
-		return workspace.applyEdit(workspaceEdit);
+		if (action.commands && action.commands.length) {
+			for (const command of action.commands) {
+				const response = await this.client.execute('applyCodeActionCommand', { file, command });
+				if (!response || !response.body) {
+					return false;
+				}
+			}
+		}
+		return true;
 	}
 }
