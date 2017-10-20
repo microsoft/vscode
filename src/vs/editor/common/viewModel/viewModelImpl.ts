@@ -82,7 +82,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		this._isDisposing = false;
 		this._centeredViewLine = -1;
 
-		this.decorations = new ViewModelDecorations(this.editorId, this.model, this.configuration, this.coordinatesConverter);
+		this.decorations = new ViewModelDecorations(this.editorId, this.model, this.configuration, this.lines, this.coordinatesConverter);
 
 		this._register(this.model.addBulkListener((events: EmitterEvent[]) => {
 			if (this._isDisposing) {

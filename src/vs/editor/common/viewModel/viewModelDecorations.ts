@@ -9,6 +9,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { InlineDecoration, ViewModelDecoration, ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
+import { IViewModelLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
 
 export interface IDecorationsViewportData {
 	/**
@@ -26,6 +27,7 @@ export class ViewModelDecorations implements IDisposable {
 	private readonly editorId: number;
 	private readonly model: editorCommon.IModel;
 	private readonly configuration: editorCommon.IConfiguration;
+	private readonly _linesCollection: IViewModelLinesCollection;
 	private readonly _coordinatesConverter: ICoordinatesConverter;
 
 	private _decorationsCache: { [decorationId: string]: ViewModelDecoration; };
@@ -33,10 +35,11 @@ export class ViewModelDecorations implements IDisposable {
 	private _cachedModelDecorationsResolver: IDecorationsViewportData;
 	private _cachedModelDecorationsResolverViewRange: Range;
 
-	constructor(editorId: number, model: editorCommon.IModel, configuration: editorCommon.IConfiguration, coordinatesConverter: ICoordinatesConverter) {
+	constructor(editorId: number, model: editorCommon.IModel, configuration: editorCommon.IConfiguration, linesCollection: IViewModelLinesCollection, coordinatesConverter: ICoordinatesConverter) {
 		this.editorId = editorId;
 		this.model = model;
 		this.configuration = configuration;
+		this._linesCollection = linesCollection;
 		this._coordinatesConverter = coordinatesConverter;
 		this._decorationsCache = Object.create(null);
 		this._clearCachedModelDecorationsResolver();
@@ -100,10 +103,9 @@ export class ViewModelDecorations implements IDisposable {
 	}
 
 	private _getDecorationsViewportData(viewportRange: Range): IDecorationsViewportData {
-		let viewportModelRange = this._coordinatesConverter.convertViewRangeToModelRange(viewportRange);
-		let startLineNumber = viewportRange.startLineNumber;
-		let endLineNumber = viewportRange.endLineNumber;
-		let modelDecorations = this.model.getDecorationsInRange(viewportModelRange, this.editorId, this.configuration.editor.readOnly);
+		const modelDecorations = this._linesCollection.getDecorationsInRange(viewportRange, this.editorId, this.configuration.editor.readOnly);
+		const startLineNumber = viewportRange.startLineNumber;
+		const endLineNumber = viewportRange.endLineNumber;
 
 		let decorationsInViewport: ViewModelDecoration[] = [], decorationsInViewportLen = 0;
 		let inlineDecorations: InlineDecoration[][] = [];

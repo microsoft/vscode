@@ -87,6 +87,7 @@ export interface IViewModelLinesCollection {
 	getViewLinesData(viewStartLineNumber: number, viewEndLineNumber: number, needed: boolean[]): ViewLineData[];
 
 	getAllOverviewRulerDecorations(ownerId: number, filterOutValidation: boolean, theme: ITheme): IOverviewRulerDecorations;
+	getDecorationsInRange(range: Range, ownerId: number, filterOutValidation: boolean): editorCommon.IModelDecoration[];
 }
 
 export class CoordinatesConverter implements ICoordinatesConverter {
@@ -694,6 +695,44 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		}
 		return result.result;
 	}
+
+	public getDecorationsInRange(range: Range, ownerId: number, filterOutValidation: boolean): editorCommon.IModelDecoration[] {
+		const modelStart = this.convertViewPositionToModelPosition(range.startLineNumber, range.startColumn);
+		const modelEnd = this.convertViewPositionToModelPosition(range.endLineNumber, range.endColumn);
+
+		if (modelEnd.lineNumber - modelStart.lineNumber <= range.endLineNumber - range.startLineNumber) {
+			// most likely there are no hidden lines => fast path
+			return this.model.getDecorationsInRange(new Range(modelStart.lineNumber, modelStart.column, modelEnd.lineNumber, modelEnd.column), ownerId, filterOutValidation);
+		}
+
+		let result: editorCommon.IModelDecoration[] = [];
+		const modelStartLineIndex = modelStart.lineNumber - 1;
+		const modelEndLineIndex = modelEnd.lineNumber - 1;
+
+		let reqStart: Position = null;
+		for (let modelLineIndex = modelStartLineIndex; modelLineIndex <= modelEndLineIndex; modelLineIndex++) {
+			const line = this.lines[modelLineIndex];
+			if (line.isVisible()) {
+				// merge into previous request
+				if (reqStart === null) {
+					reqStart = new Position(modelLineIndex + 1, modelLineIndex === modelStartLineIndex ? modelStart.column : 1);
+				}
+			} else {
+				// hit invisible line => flush request
+				if (reqStart !== null) {
+					result = result.concat(this.model.getDecorationsInRange(new Range(reqStart.lineNumber, reqStart.column, modelLineIndex + 1, 1)));
+					reqStart = null;
+				}
+			}
+		}
+
+		if (reqStart !== null) {
+			result = result.concat(this.model.getDecorationsInRange(new Range(reqStart.lineNumber, reqStart.column, modelEnd.lineNumber, modelEnd.column)));
+			reqStart = null;
+		}
+
+		return result;
+	}
 }
 
 class VisibleIdentitySplitLine implements ISplitLine {
@@ -1171,6 +1210,10 @@ export class IdentityLinesCollection implements IViewModelLinesCollection {
 			result.accept(color, viewStartLineNumber, viewEndLineNumber, lane);
 		}
 		return result.result;
+	}
+
+	public getDecorationsInRange(range: Range, ownerId: number, filterOutValidation: boolean): editorCommon.IModelDecoration[] {
+		return this.model.getDecorationsInRange(range, ownerId, filterOutValidation);
 	}
 }
 
