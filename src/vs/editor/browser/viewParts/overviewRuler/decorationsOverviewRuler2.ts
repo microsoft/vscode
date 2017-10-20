@@ -314,7 +314,13 @@ export class DecorationsOverviewRuler2 extends ViewPart {
 
 		const x = this._settings.x;
 		const w = this._settings.w;
-		for (let color in decorations) {
+		// Avoid flickering by always rendering the colors in the same order
+		// colors that don't use transparency will be sorted last (they start with #)
+		const colors = Object.keys(decorations);
+		colors.sort();
+		for (let cIndex = 0, cLen = colors.length; cIndex < cLen; cIndex++) {
+			const color = colors[cIndex];
+
 			const colorDecorations = decorations[color];
 
 			canvasCtx.fillStyle = color;
