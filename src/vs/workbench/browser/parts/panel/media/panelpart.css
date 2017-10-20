@@ -108,3 +108,8 @@
 .hc-black .monaco-workbench .hide-panel-action {
 	background: url('close-inverse.svg') center center no-repeat;
 }
+
+.vs-dark .monaco-workbench > .part.panel .composite-bar > .monaco-action-bar .action-label.toggle-more,
+.hc-black .monaco-workbench > .part.panel .composite-bar > .monaco-action-bar .action-label.toggle-more {
+	background: url('ellipsis-inverse.svg') center center no-repeat;
+}
