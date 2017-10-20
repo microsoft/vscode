@@ -399,9 +399,7 @@ function normalizeDelta(T: IntervalTree): void {
 		node = node.parent;
 	}
 
-	if (T.root) {
-		setNodeIsVisited(T.root, false);
-	}
+	setNodeIsVisited(T.root, false);
 }
 //#endregion
 
@@ -569,9 +567,7 @@ function searchForEditing(T: IntervalTree, start: number, end: number): Interval
 		}
 	}
 
-	if (T.root) {
-		setNodeIsVisited(T.root, false);
-	}
+	setNodeIsVisited(T.root, false);
 
 	return result;
 }
@@ -643,9 +639,7 @@ function noOverlapReplace(T: IntervalTree, start: number, end: number, textLengt
 		}
 	}
 
-	if (T.root) {
-		setNodeIsVisited(T.root, false);
-	}
+	setNodeIsVisited(T.root, false);
 }
 
 //#endregion
@@ -681,9 +675,7 @@ function nodeCount(T: IntervalTree): number {
 		}
 	}
 
-	if (T.root) {
-		setNodeIsVisited(T.root, false);
-	}
+	setNodeIsVisited(T.root, false);
 
 	return count;
 }
@@ -721,9 +713,7 @@ function collectNodesFromOwner(T: IntervalTree, ownerId: number): IntervalNode[]
 		}
 	}
 
-	if (T.root) {
-		setNodeIsVisited(T.root, false);
-	}
+	setNodeIsVisited(T.root, false);
 
 	return result;
 }
@@ -758,9 +748,7 @@ function collectNodesPostOrder(T: IntervalTree): IntervalNode[] {
 		setNodeIsVisited(node, true);
 	}
 
-	if (T.root) {
-		setNodeIsVisited(T.root, false);
-	}
+	setNodeIsVisited(T.root, false);
 
 	return result;
 }
@@ -817,9 +805,7 @@ function search(T: IntervalTree, filterOwnerId: number, filterOutValidation: boo
 		}
 	}
 
-	if (T.root) {
-		setNodeIsVisited(T.root, false);
-	}
+	setNodeIsVisited(T.root, false);
 
 	return result;
 }
@@ -906,9 +892,7 @@ function intervalSearch(T: IntervalTree, intervalStart: number, intervalEnd: num
 		}
 	}
 
-	if (T.root) {
-		setNodeIsVisited(T.root, false);
-	}
+	setNodeIsVisited(T.root, false);
 
 	return result;
 }
