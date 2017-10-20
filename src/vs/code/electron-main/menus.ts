@@ -221,7 +221,7 @@ export class CodeMenu {
 
 		this.closeWorkspace.visible = isInWorkspaceContext;
 		this.closeFolder.visible = !isInWorkspaceContext;
-		this.closeFolder.enabled = isInFolderContext;
+		this.closeFolder.enabled = isInFolderContext || isLinux /* https://github.com/Microsoft/vscode/issues/36431 */;
 	}
 
 	private install(): void {
