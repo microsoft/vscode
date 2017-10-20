@@ -6,7 +6,6 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import { Delayer } from 'vs/base/common/async';
-import * as strings from 'vs/base/common/strings';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
@@ -553,7 +552,7 @@ export class HiddenAreasRenderer extends Disposable {
 }
 
 export class FeedbackWidgetRenderer extends Disposable {
-	private static COMMENT_TEXT = '// Reorder and modify the below results to match your expectations. Replace this comment with any text feedback.';
+	private static COMMENT_TEXT = 'Modify the below results to match your expectations. Assign scores to indicate their relevance. Replace this comment with any text feedback.';
 
 	private _feedbackWidget: FloatingClickWidget;
 	private _currentResult: IFilterResult;
@@ -585,52 +584,66 @@ export class FeedbackWidgetRenderer extends Disposable {
 
 	private getFeedback(): void {
 		const result = this._currentResult;
-		const actualResults = result.filteredGroups[0].sections[0].settings.map(setting => setting.key);
-		const actualResultText = actualResults.join('\n');
+		const actualResults = result.filteredGroups[0] ? result.filteredGroups[0].sections[0].settings.map(setting => setting.key) : [];
 
-		const contents = FeedbackWidgetRenderer.COMMENT_TEXT + '\n' + actualResultText;
+		const feedbackQuery = {};
+		feedbackQuery['_comment'] = FeedbackWidgetRenderer.COMMENT_TEXT;
+		feedbackQuery['queryString'] = result.query;
+		feedbackQuery['resultScores'] = {};
+		actualResults.forEach(settingKey => {
+			feedbackQuery['resultScores'][settingKey] = 10;
+		});
+
+		const contents = JSON.stringify(feedbackQuery, undefined, '    ');
 		this.editorService.openEditor({ contents }, /*sideBySide=*/true).then(feedbackEditor => {
 			const sendFeedbackWidget = this._register(this.instantiationService.createInstance(FloatingClickWidget, feedbackEditor.getControl(), 'Send feedback', null));
 			sendFeedbackWidget.render();
 
 			this._register(sendFeedbackWidget.onClick(() => {
-				this.sendFeedback(feedbackEditor.getControl() as ICodeEditor, result, actualResults);
-				sendFeedbackWidget.dispose();
+				if (this.sendFeedback(feedbackEditor.getControl() as ICodeEditor, result, actualResults)) {
+					sendFeedbackWidget.dispose();
+				}
 			}));
 		});
 	}
 
-	private sendFeedback(feedbackEditor: ICodeEditor, result: IFilterResult, actualResults: string[]): void {
+	private sendFeedback(feedbackEditor: ICodeEditor, result: IFilterResult, actualResults: string[]): boolean {
 		const model = feedbackEditor.getModel();
-		const expectedResults = model.getLinesContent().slice();
-		const commentLines = [];
-		while (strings.startsWith(expectedResults[0], '//')) {
-			commentLines.push(expectedResults.shift());
+		const expectedQueryLines = model.getLinesContent();
+		let expectedQuery: string;
+		try {
+			expectedQuery = JSON.parse(expectedQueryLines.join('\n'));
+			if (expectedQuery['_comment'] === FeedbackWidgetRenderer.COMMENT_TEXT) {
+				delete expectedQuery['_comment'];
+			}
+		} catch (e) {
+			// invalid JSON
 		}
 
-		const commentText = commentLines.join('\n');
-
-		/* __GDPR__
-		"settingsSearchResultFeedback" : {
-			"query" : { "classification": "CustomContent", "purpose": "FeatureInsight" },
-			"userComment" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
-			"actualResults" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"expectedResults" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"url" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
-			"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"timestamp" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		if (expectedQuery) {
+			/* __GDPR__
+			"settingsSearchResultFeedback" : {
+				"query" : { "classification": "CustomContent", "purpose": "FeatureInsight" },
+				"userComment" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+				"actualResults" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"expectedResults" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"url" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+				"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"timestamp" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+			 */
+			this.telemetryService.publicLog('settingsSearchResultFeedback', {
+				query: result.query,
+				actualResults,
+				expectedQuery,
+				url: result.metadata.remoteUrl,
+				duration: result.metadata.duration,
+				timestamp: result.metadata.timestamp
+			});
+			return true;
 		}
-		 */
-		this.telemetryService.publicLog('settingsSearchResultFeedback', {
-			query: result.query,
-			userComment: commentText === FeedbackWidgetRenderer.COMMENT_TEXT ? undefined : commentText,
-			actualResults,
-			expectedResults,
-			url: result.metadata.remoteUrl,
-			duration: result.metadata.duration,
-			timestamp: result.metadata.timestamp
-		});
-		console.log('Feedback sent successfully');
+
+		return false;
 	}
 
 	private disposeWidget(): void {
