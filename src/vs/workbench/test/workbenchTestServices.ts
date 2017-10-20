@@ -1247,3 +1247,7 @@ export class TestHashService implements IHashService {
 		return content;
 	}
 }
+
+export function getRandomTestPath(tmpdir: string, ...segments: string[]): string {
+	return paths.join(tmpdir, ...segments, generateUuid());
+}
