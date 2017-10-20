@@ -20,11 +20,11 @@ import { VIEWLET_ID, IExtensionsViewlet } from 'vs/workbench/parts/extensions/co
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { Delayer } from 'vs/base/common/async';
-import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IColorRegistry, Extensions as ColorRegistryExtensions } from 'vs/platform/theme/common/colorRegistry';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Color } from 'vs/base/common/color';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
 export class SelectColorThemeAction extends Action {
 
@@ -60,7 +60,7 @@ export class SelectColorThemeAction extends Action {
 				}
 				let target = null;
 				if (applyTheme) {
-					let confValue = this.configurationService.lookup(COLOR_THEME_SETTING);
+					let confValue = this.configurationService.inspect(COLOR_THEME_SETTING);
 					target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
 				}
 
@@ -126,7 +126,7 @@ class SelectIconThemeAction extends Action {
 				}
 				let target = null;
 				if (applyTheme) {
-					let confValue = this.configurationService.lookup(ICON_THEME_SETTING);
+					let confValue = this.configurationService.inspect(ICON_THEME_SETTING);
 					target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
 				}
 				this.themeService.setFileIconTheme(theme && theme.id, target).done(null,

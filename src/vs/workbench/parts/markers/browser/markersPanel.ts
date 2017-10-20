@@ -19,7 +19,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { Panel } from 'vs/workbench/browser/panel';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import Constants from 'vs/workbench/parts/markers/common/constants';
-import { IProblemsConfiguration, MarkersModel, Marker, Resource, FilterOptions } from 'vs/workbench/parts/markers/common/markersModel';
+import { MarkersModel, Marker, Resource, FilterOptions } from 'vs/workbench/parts/markers/common/markersModel';
 import { Controller } from 'vs/workbench/parts/markers/browser/markersTreeController';
 import Tree = require('vs/base/parts/tree/browser/tree');
 import TreeImpl = require('vs/base/parts/tree/browser/treeImpl');
@@ -47,7 +47,6 @@ export class MarkersPanel extends Panel {
 
 	private lastSelectedRelativeTop: number = 0;
 	private currentActiveResource: URI = null;
-	private hasToAutoReveal: boolean;
 
 	private tree: Tree.ITree;
 	private autoExpanded: Set<string>;
@@ -89,9 +88,6 @@ export class MarkersPanel extends Panel {
 		this.toUnbind.push(this.rangeHighlightDecorations);
 
 		dom.addClass(parent.getHTMLElement(), 'markers-panel');
-
-		const conf = this.configurationService.getConfiguration<IProblemsConfiguration>();
-		this.onConfigurationsUpdated(conf);
 
 		let container = dom.append(parent.getHTMLElement(), dom.$('.markers-panel-container'));
 
@@ -253,7 +249,6 @@ export class MarkersPanel extends Panel {
 	}
 
 	private createListeners(): void {
-		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationsUpdated(this.configurationService.getConfiguration<IProblemsConfiguration>())));
 		this.toUnbind.push(this.markerService.onMarkerChanged(this.onMarkerChanged, this));
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(this.onEditorsChanged, this));
 		this.toUnbind.push(this.tree.addListener('selection', () => this.onSelected()));
@@ -287,10 +282,6 @@ export class MarkersPanel extends Panel {
 		const activeInput = this.editorService.getActiveEditorInput();
 		this.currentActiveResource = activeInput ? activeInput.getResource() : void 0;
 		this.autoReveal();
-	}
-
-	private onConfigurationsUpdated(conf: IProblemsConfiguration): void {
-		this.hasToAutoReveal = conf && conf.problems && conf.problems.autoReveal;
 	}
 
 	private onSelected(): void {
@@ -338,8 +329,8 @@ export class MarkersPanel extends Panel {
 	}
 
 	private autoReveal(focus: boolean = false): void {
-		let conf = this.configurationService.getConfiguration<IProblemsConfiguration>();
-		if (conf && conf.problems && conf.problems.autoReveal) {
+		let autoReveal = this.configurationService.getValue<boolean>('problems.autoReveal');
+		if (typeof autoReveal === 'boolean' && autoReveal) {
 			this.revealMarkersForCurrentActiveEditor(focus);
 		}
 	}

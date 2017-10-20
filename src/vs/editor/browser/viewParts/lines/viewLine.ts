@@ -15,8 +15,9 @@ import { IVisibleLine } from 'vs/editor/browser/view/viewLayer';
 import { RangeUtil } from 'vs/editor/browser/viewParts/lines/rangeUtil';
 import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { ThemeType, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
+import { ITheme } from 'vs/platform/theme/common/themeService';
 import { IStringBuilder } from 'vs/editor/common/core/stringBuilder';
+import { editorSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
 
 const canUseFastRenderedViewLine = (function () {
 	if (platform.isNative) {
@@ -69,7 +70,7 @@ export class DomReadingContext {
 }
 
 export class ViewLineOptions {
-	public readonly themeType: ThemeType;
+	public readonly useSelectionForegroundColor: boolean;
 	public readonly renderWhitespace: 'none' | 'boundary' | 'all';
 	public readonly renderControlCharacters: boolean;
 	public readonly spaceWidth: number;
@@ -78,8 +79,8 @@ export class ViewLineOptions {
 	public readonly stopRenderingLineAfter: number;
 	public readonly fontLigatures: boolean;
 
-	constructor(config: IConfiguration, themeType: ThemeType) {
-		this.themeType = themeType;
+	constructor(config: IConfiguration, theme: ITheme) {
+		this.useSelectionForegroundColor = !!theme.getColor(editorSelectionForeground);
 		this.renderWhitespace = config.editor.viewInfo.renderWhitespace;
 		this.renderControlCharacters = config.editor.viewInfo.renderControlCharacters;
 		this.spaceWidth = config.editor.fontInfo.spaceWidth;
@@ -94,7 +95,7 @@ export class ViewLineOptions {
 
 	public equals(other: ViewLineOptions): boolean {
 		return (
-			this.themeType === other.themeType
+			this.useSelectionForegroundColor === other.useSelectionForegroundColor
 			&& this.renderWhitespace === other.renderWhitespace
 			&& this.renderControlCharacters === other.renderControlCharacters
 			&& this.spaceWidth === other.spaceWidth
@@ -150,7 +151,7 @@ export class ViewLine implements IVisibleLine {
 		this._options = newOptions;
 	}
 	public onSelectionChanged(): boolean {
-		if (alwaysRenderInlineSelection || this._options.themeType === HIGH_CONTRAST) {
+		if (alwaysRenderInlineSelection || this._options.useSelectionForegroundColor) {
 			this._isMaybeInvalid = true;
 			return true;
 		}
@@ -169,7 +170,7 @@ export class ViewLine implements IVisibleLine {
 		const options = this._options;
 		const actualInlineDecorations = LineDecoration.filter(lineData.inlineDecorations, lineNumber, lineData.minColumn, lineData.maxColumn);
 
-		if (alwaysRenderInlineSelection || options.themeType === HIGH_CONTRAST) {
+		if (alwaysRenderInlineSelection || options.useSelectionForegroundColor) {
 			const selections = viewportData.selections;
 			for (let i = 0, len = selections.length; i < len; i++) {
 				const selection = selections[i];

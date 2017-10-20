@@ -73,7 +73,7 @@ const _driveLetter = /^[a-zA-Z]:/;
  *
  *
  */
-export default class URI {
+export default class URI implements UriComponents {
 
 	static isUri(thing: any): thing is URI {
 		if (thing instanceof URI) {
@@ -119,15 +119,35 @@ export default class URI {
 	/**
 	 * @internal
 	 */
-	protected constructor(scheme: string, authority: string, path: string, query: string, fragment: string) {
+	protected constructor(scheme: string, authority: string, path: string, query: string, fragment: string);
 
-		this.scheme = scheme || _empty;
-		this.authority = authority || _empty;
-		this.path = path || _empty;
-		this.query = query || _empty;
-		this.fragment = fragment || _empty;
+	/**
+	 * @internal
+	 */
+	protected constructor(components: UriComponents);
 
-		_validateUri(this);
+	/**
+	 * @internal
+	 */
+	protected constructor(schemeOrData: string | UriComponents, authority?: string, path?: string, query?: string, fragment?: string) {
+
+		if (typeof schemeOrData === 'object') {
+			this.scheme = schemeOrData.scheme || _empty;
+			this.authority = schemeOrData.authority || _empty;
+			this.path = schemeOrData.path || _empty;
+			this.query = schemeOrData.query || _empty;
+			this.fragment = schemeOrData.fragment || _empty;
+			// no validation because it's this URI
+			// that creates uri components.
+			// _validateUri(this);
+		} else {
+			this.scheme = schemeOrData || _empty;
+			this.authority = authority || _empty;
+			this.path = path || _empty;
+			this.query = query || _empty;
+			this.fragment = fragment || _empty;
+			_validateUri(this);
+		}
 	}
 
 	// ---- filesystem path -----------------------
@@ -264,7 +284,7 @@ export default class URI {
 		return _asFormatted(this, skipEncoding);
 	}
 
-	public toJSON(): any {
+	public toJSON(): object {
 		const res = <UriState>{
 			$mid: 1,
 			fsPath: this.fsPath,
@@ -294,21 +314,15 @@ export default class URI {
 		return res;
 	}
 
-	static revive(data: any): URI {
-		let result = new _URI(
-			(<UriState>data).scheme,
-			(<UriState>data).authority,
-			(<UriState>data).path,
-			(<UriState>data).query,
-			(<UriState>data).fragment
-		);
+	static revive(data: UriComponents | any): URI {
+		let result = new _URI(data);
 		result._fsPath = (<UriState>data).fsPath;
 		result._formatted = (<UriState>data).external;
 		return result;
 	}
 }
 
-interface UriComponents {
+export interface UriComponents {
 	scheme: string;
 	authority: string;
 	path: string;

@@ -9,7 +9,6 @@ describe('Explorer', () => {
 	let app: SpectronApplication;
 	before(() => { app = new SpectronApplication(); return app.start('Explorer'); });
 	after(() => app.stop());
-	beforeEach(function () { app.screenCapturer.testName = this.currentTest.title; });
 
 	it('quick open search produces correct result', async function () {
 		const expectedNames = [
@@ -22,8 +21,7 @@ describe('Explorer', () => {
 			'jsconfig.json'
 		];
 
-		await app.workbench.quickopen.openQuickOpen();
-		await app.client.type('.js');
+		await app.workbench.quickopen.openQuickOpen('.js');
 		await app.workbench.quickopen.waitForQuickOpenElements(names => expectedNames.every(n => names.some(m => n === m)));
 		await app.client.keys(['Escape', 'NULL']);
 	});
@@ -35,8 +33,7 @@ describe('Explorer', () => {
 			'package.json'
 		];
 
-		await app.workbench.quickopen.openQuickOpen();
-		await app.client.type('a.s');
+		await app.workbench.quickopen.openQuickOpen('a.s');
 		await app.workbench.quickopen.waitForQuickOpenElements(names => expectedNames.every(n => names.some(m => n === m)));
 		await app.client.keys(['Escape', 'NULL']);
 	});

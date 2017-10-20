@@ -98,14 +98,6 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		return this._debugServiceProxy.$startDebugging(folder ? folder.uri : undefined, nameOrConfig);
 	}
 
-	public startDebugSession(folder: vscode.WorkspaceFolder | undefined, config: vscode.DebugConfiguration): TPromise<vscode.DebugSession> {
-		return this._debugServiceProxy.$startDebugSession(folder ? folder.uri : undefined, config).then((id: DebugSessionUUID) => {
-			const debugSession = new ExtHostDebugSession(this._debugServiceProxy, id, config.type, config.name);
-			this._debugSessions.set(id, debugSession);
-			return debugSession;
-		});
-	}
-
 	public $acceptDebugSessionStarted(id: DebugSessionUUID, type: string, name: string): void {
 
 		let debugSession = this._debugSessions.get(id);

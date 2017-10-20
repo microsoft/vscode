@@ -55,7 +55,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ITree, IActionProvider } from 'vs/base/parts/tree/browser/tree';
 import { BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { FileKind, IFileService } from 'vs/platform/files/common/files';
-import { scoreItem, ScorerCache, compareItemsByScore, massageSearchForScoring } from 'vs/base/parts/quickopen/common/quickOpenScorer';
+import { scoreItem, ScorerCache, compareItemsByScore, prepareQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 
 const HELP_PREFIX = '?';
 
@@ -137,7 +137,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.updateConfiguration(this.configurationService.getConfiguration<IWorkbenchQuickOpenConfiguration>())));
+		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => this.updateConfiguration(this.configurationService.getConfiguration<IWorkbenchQuickOpenConfiguration>())));
 		this.toUnbind.push(this.partService.onTitleBarVisibilityChange(() => this.positionQuickOpenWidget()));
 		this.toUnbind.push(browser.onDidChangeZoomLevel(() => this.positionQuickOpenWidget()));
 	}
@@ -545,6 +545,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	public show(prefix?: string, options?: IShowOptions): TPromise<void> {
 		let quickNavigateConfiguration = options ? options.quickNavigateConfiguration : void 0;
 		let inputSelection = options ? options.inputSelection : void 0;
+		let autoFocus = options ? options.autoFocus : void 0;
 
 		this.previousValue = prefix;
 
@@ -565,8 +566,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		this.telemetryService.publicLog('quickOpenWidgetShown', { mode: handlerDescriptor.getId(), quickNavigate: quickNavigateConfiguration });
 
 		// Trigger onOpen
-		this.resolveHandler(handlerDescriptor)
-			.done(null, errors.onUnexpectedError);
+		this.resolveHandler(handlerDescriptor).done(null, errors.onUnexpectedError);
 
 		// Create upon first open
 		if (!this.quickOpenWidget) {
@@ -601,19 +601,21 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		// Show quick open with prefix or editor history
 		if (!this.quickOpenWidget.isVisible() || quickNavigateConfiguration) {
 			if (prefix) {
-				this.quickOpenWidget.show(prefix, { quickNavigateConfiguration, inputSelection });
+				this.quickOpenWidget.show(prefix, { quickNavigateConfiguration, inputSelection, autoFocus });
 			} else {
 				const editorHistory = this.getEditorHistoryWithGroupLabel();
 				if (editorHistory.getEntries().length < 2) {
 					quickNavigateConfiguration = null; // If no entries can be shown, default to normal quick open mode
 				}
 
-				let autoFocus: IAutoFocus;
-				if (!quickNavigateConfiguration) {
-					autoFocus = { autoFocusFirstEntry: true };
-				} else {
-					const visibleEditorCount = this.editorService.getVisibleEditors().length;
-					autoFocus = { autoFocusFirstEntry: visibleEditorCount === 0, autoFocusSecondEntry: visibleEditorCount !== 0 };
+				// Compute auto focus
+				if (!autoFocus) {
+					if (!quickNavigateConfiguration) {
+						autoFocus = { autoFocusFirstEntry: true };
+					} else {
+						const visibleEditorCount = this.editorService.getVisibleEditors().length;
+						autoFocus = { autoFocusFirstEntry: visibleEditorCount === 0, autoFocusSecondEntry: visibleEditorCount !== 0 };
+					}
 				}
 
 				// Update context
@@ -1179,17 +1181,17 @@ class EditorHistoryHandler {
 	public getResults(searchValue?: string): QuickOpenEntry[] {
 
 		// Massage search for scoring
-		searchValue = massageSearchForScoring(searchValue);
+		const query = prepareQuery(searchValue);
 
 		// Just return all if we are not searching
 		const history = this.historyService.getHistory();
-		if (!searchValue) {
+		if (!query.value) {
 			return history.map(input => this.instantiationService.createInstance(EditorHistoryEntry, input));
 		}
 
 		// Otherwise filter by search value and sort by score. Include matches on description
 		// in case the user is explicitly including path separators.
-		const accessor = searchValue.indexOf(paths.nativeSep) >= 0 ? MatchOnDescription : DoNotMatchOnDescription;
+		const accessor = query.containsPathSeparator ? MatchOnDescription : DoNotMatchOnDescription;
 		return history
 
 			// For now, only support to match on inputs that provide resource information
@@ -1209,7 +1211,7 @@ class EditorHistoryHandler {
 
 			// Make sure the search value is matching
 			.filter(e => {
-				const itemScore = scoreItem(e, searchValue, false, accessor, this.scorerCache);
+				const itemScore = scoreItem(e, query, false, accessor, this.scorerCache);
 				if (!itemScore.score) {
 					return false;
 				}
@@ -1221,7 +1223,7 @@ class EditorHistoryHandler {
 
 			// Sort by score and provide a fallback sorter that keeps the
 			// recency of items in case the score for items is the same
-			.sort((e1, e2) => compareItemsByScore(e1, e2, searchValue, false, accessor, this.scorerCache, (e1, e2, searchValue, accessor) => -1));
+			.sort((e1, e2) => compareItemsByScore(e1, e2, query, false, accessor, this.scorerCache, (e1, e2, query, accessor) => -1));
 	}
 }
 

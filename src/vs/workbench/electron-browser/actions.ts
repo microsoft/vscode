@@ -20,8 +20,7 @@ import errors = require('vs/base/common/errors');
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IExtensionManagementService, LocalExtensionType, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import paths = require('vs/base/common/paths');
@@ -157,14 +156,13 @@ export class ToggleMenuBarAction extends Action {
 		id: string,
 		label: string,
 		@IMessageService private messageService: IMessageService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<void> {
-		let currentVisibilityValue = this.configurationService.lookup<MenuBarVisibility>(ToggleMenuBarAction.menuBarVisibilityKey).value;
+		let currentVisibilityValue = this.configurationService.getValue<MenuBarVisibility>(ToggleMenuBarAction.menuBarVisibilityKey);
 		if (typeof currentVisibilityValue !== 'string') {
 			currentVisibilityValue = 'default';
 		}
@@ -176,7 +174,7 @@ export class ToggleMenuBarAction extends Action {
 			newVisibilityValue = 'default';
 		}
 
-		this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: ToggleMenuBarAction.menuBarVisibilityKey, value: newVisibilityValue });
+		this.configurationService.updateValue(ToggleMenuBarAction.menuBarVisibilityKey, newVisibilityValue, ConfigurationTarget.USER);
 
 		return TPromise.as(null);
 	}
@@ -202,18 +200,12 @@ export abstract class BaseZoomAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
-		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService
+		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
 	) {
 		super(id, label);
 	}
 
 	protected setConfiguredZoomLevel(level: number): void {
-		let target = ConfigurationTarget.USER;
-		if (typeof this.configurationService.lookup(BaseZoomAction.SETTING_KEY).workspace === 'number') {
-			target = ConfigurationTarget.WORKSPACE;
-		}
-
 		level = Math.round(level); // when reaching smallest zoom, prevent fractional zoom levels
 
 		const applyZoom = () => {
@@ -225,7 +217,7 @@ export abstract class BaseZoomAction extends Action {
 			browser.setZoomLevel(webFrame.getZoomLevel(), /*isTrusted*/false);
 		};
 
-		this.configurationEditingService.writeConfiguration(target, { key: BaseZoomAction.SETTING_KEY, value: level }, { donotNotifyError: true }).done(() => applyZoom(), error => applyZoom());
+		this.configurationService.updateValue(BaseZoomAction.SETTING_KEY, level).done(() => applyZoom());
 	}
 }
 
@@ -237,10 +229,9 @@ export class ZoomInAction extends BaseZoomAction {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService,
-		@IConfigurationEditingService configurationEditingService: IConfigurationEditingService
+		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService
 	) {
-		super(id, label, configurationService, configurationEditingService);
+		super(id, label, configurationService);
 	}
 
 	public run(): TPromise<boolean> {
@@ -258,10 +249,9 @@ export class ZoomOutAction extends BaseZoomAction {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService,
-		@IConfigurationEditingService configurationEditingService: IConfigurationEditingService
+		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService
 	) {
-		super(id, label, configurationService, configurationEditingService);
+		super(id, label, configurationService);
 	}
 
 	public run(): TPromise<boolean> {
@@ -279,10 +269,9 @@ export class ZoomResetAction extends BaseZoomAction {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService,
-		@IConfigurationEditingService configurationEditingService: IConfigurationEditingService
+		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService
 	) {
-		super(id, label, configurationService, configurationEditingService);
+		super(id, label, configurationService);
 	}
 
 	public run(): TPromise<boolean> {

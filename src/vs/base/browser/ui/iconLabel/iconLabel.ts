@@ -13,10 +13,14 @@ import uri from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import { IWorkspaceFolderProvider, getPathLabel, IUserHomeProvider } from 'vs/base/common/labels';
 import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import { Color } from 'vs/base/common/color';
 
 export interface IIconLabelCreationOptions {
 	supportHighlights?: boolean;
+}
+
+export interface ILabelBadgeOptions {
+	title: string;
+	className: string;
 }
 
 export interface IIconLabelOptions {
@@ -24,8 +28,7 @@ export interface IIconLabelOptions {
 	extraClasses?: string[];
 	italic?: boolean;
 	matches?: IMatch[];
-	color?: Color;
-	extraIcon?: uri;
+	badge?: ILabelBadgeOptions;
 }
 
 class FastLabelNode {
@@ -87,6 +90,7 @@ export class IconLabel {
 	private domNode: FastLabelNode;
 	private labelNode: FastLabelNode | HighlightedLabel;
 	private descriptionNode: FastLabelNode;
+	private badgeNode: HTMLSpanElement;
 
 	constructor(container: HTMLElement, options?: IIconLabelCreationOptions) {
 		this.domNode = new FastLabelNode(dom.append(container, dom.$('.monaco-icon-label')));
@@ -130,8 +134,6 @@ export class IconLabel {
 			if (options.italic) {
 				classes.push('italic');
 			}
-
-			this.element.style.color = options.color ? options.color.toString() : '';
 		}
 
 		this.domNode.className = classes.join(' ');
@@ -147,18 +149,18 @@ export class IconLabel {
 		this.descriptionNode.textContent = description || '';
 		this.descriptionNode.empty = !description;
 
-		if (options && options.extraIcon) {
-			this.element.style.backgroundImage = `url("${options.extraIcon.toString(true)}")`;
-			this.element.style.backgroundRepeat = 'no-repeat';
-			this.element.style.backgroundPosition = 'right center';
-			this.element.style.paddingRight = '20px';
-			this.element.style.marginRight = '14px';
-		} else {
-			this.element.style.backgroundImage = '';
-			this.element.style.backgroundRepeat = '';
-			this.element.style.backgroundPosition = '';
-			this.element.style.paddingRight = '';
-			this.element.style.marginRight = '';
+		if (options && options.badge) {
+			if (!this.badgeNode) {
+				this.badgeNode = document.createElement('span');
+				this.element.style.display = 'flex';
+				this.element.appendChild(this.badgeNode);
+			}
+			this.badgeNode.title = options.badge.title;
+			this.badgeNode.className = `label-badge ${options.badge.className}`;
+			dom.show(this.badgeNode);
+
+		} else if (this.badgeNode) {
+			dom.hide(this.badgeNode);
 		}
 	}
 

@@ -1,4 +1,4 @@
-// Type definitions for Electron 1.7.7
+// Type definitions for Electron 1.7.9
 // Project: http://electron.atom.io/
 // Definitions by: The Electron Team <https://github.com/electron/electron>
 // Definitions: https://github.com/electron/electron-typescript-definitions
@@ -37,91 +37,81 @@ declare namespace Electron {
 		shiftKey?: boolean;
 		altKey?: boolean;
 	}
+
 	interface CommonInterface {
-		clipboard: Electron.Clipboard;
-		crashReporter: Electron.CrashReporter;
-		nativeImage: typeof Electron.NativeImage;
-		screen: Electron.Screen;
-		shell: Electron.Shell;
+		clipboard: Clipboard;
+		crashReporter: CrashReporter;
+		nativeImage: typeof NativeImage;
+		screen: Screen;
+		shell: Shell;
 	}
 
 	interface MainInterface extends CommonInterface {
-		app: Electron.App;
-		autoUpdater: Electron.AutoUpdater;
-		BrowserView: typeof Electron.BrowserView;
-		BrowserWindow: typeof Electron.BrowserWindow;
-		ClientRequest: typeof Electron.ClientRequest;
-		contentTracing: Electron.ContentTracing;
-		Cookies: typeof Electron.Cookies;
-		Debugger: typeof Electron.Debugger;
-		dialog: Electron.Dialog;
-		DownloadItem: typeof Electron.DownloadItem;
-		globalShortcut: Electron.GlobalShortcut;
-		IncomingMessage: typeof Electron.IncomingMessage;
-		ipcMain: Electron.IpcMain;
-		Menu: typeof Electron.Menu;
-		MenuItem: typeof Electron.MenuItem;
-		net: Electron.Net;
-		Notification: typeof Electron.Notification;
-		powerMonitor: Electron.PowerMonitor;
-		powerSaveBlocker: Electron.PowerSaveBlocker;
-		protocol: Electron.Protocol;
-		session: typeof Electron.Session;
-		systemPreferences: Electron.SystemPreferences;
-		TouchBar: typeof Electron.TouchBar;
-		Tray: typeof Electron.Tray;
-		webContents: typeof Electron.WebContents;
-		WebRequest: typeof Electron.WebRequest;
+		app: App;
+		autoUpdater: AutoUpdater;
+		BrowserView: typeof BrowserView;
+		BrowserWindow: typeof BrowserWindow;
+		ClientRequest: typeof ClientRequest;
+		contentTracing: ContentTracing;
+		Cookies: typeof Cookies;
+		Debugger: typeof Debugger;
+		dialog: Dialog;
+		DownloadItem: typeof DownloadItem;
+		globalShortcut: GlobalShortcut;
+		IncomingMessage: typeof IncomingMessage;
+		ipcMain: IpcMain;
+		Menu: typeof Menu;
+		MenuItem: typeof MenuItem;
+		net: Net;
+		Notification: typeof Notification;
+		powerMonitor: PowerMonitor;
+		powerSaveBlocker: PowerSaveBlocker;
+		protocol: Protocol;
+		session: typeof Session;
+		systemPreferences: SystemPreferences;
+		TouchBar: typeof TouchBar;
+		Tray: typeof Tray;
+		webContents: typeof WebContents;
+		WebRequest: typeof WebRequest;
 	}
 
 	interface RendererInterface extends CommonInterface {
-		BrowserWindowProxy: typeof Electron.BrowserWindowProxy;
-		desktopCapturer: Electron.DesktopCapturer;
-		ipcRenderer: Electron.IpcRenderer;
-		remote: Electron.Remote;
-		webFrame: Electron.WebFrame;
-		webviewTag: Electron.WebviewTag;
+		BrowserWindowProxy: typeof BrowserWindowProxy;
+		desktopCapturer: DesktopCapturer;
+		ipcRenderer: IpcRenderer;
+		remote: Remote;
+		webFrame: WebFrame;
+		webviewTag: WebviewTag;
 	}
 
-	interface AllElectron {
-		app: Electron.App;
-		autoUpdater: Electron.AutoUpdater;
-		BrowserView: typeof Electron.BrowserView;
-		BrowserWindow: typeof Electron.BrowserWindow;
-		BrowserWindowProxy: typeof Electron.BrowserWindowProxy;
-		ClientRequest: typeof Electron.ClientRequest;
-		clipboard: Electron.Clipboard;
-		contentTracing: Electron.ContentTracing;
-		Cookies: typeof Electron.Cookies;
-		crashReporter: Electron.CrashReporter;
-		Debugger: typeof Electron.Debugger;
-		desktopCapturer: Electron.DesktopCapturer;
-		dialog: Electron.Dialog;
-		DownloadItem: typeof Electron.DownloadItem;
-		globalShortcut: Electron.GlobalShortcut;
-		IncomingMessage: typeof Electron.IncomingMessage;
-		ipcMain: Electron.IpcMain;
-		ipcRenderer: Electron.IpcRenderer;
-		Menu: typeof Electron.Menu;
-		MenuItem: typeof Electron.MenuItem;
-		nativeImage: typeof Electron.NativeImage;
-		net: Electron.Net;
-		Notification: typeof Electron.Notification;
-		powerMonitor: Electron.PowerMonitor;
-		powerSaveBlocker: Electron.PowerSaveBlocker;
-		protocol: Electron.Protocol;
-		remote: Electron.Remote;
-		screen: Electron.Screen;
-		session: typeof Electron.Session;
-		shell: Electron.Shell;
-		systemPreferences: Electron.SystemPreferences;
-		TouchBar: typeof Electron.TouchBar;
-		Tray: typeof Electron.Tray;
-		webContents: typeof Electron.WebContents;
-		webFrame: Electron.WebFrame;
-		WebRequest: typeof Electron.WebRequest;
-		webviewTag: Electron.WebviewTag;
-	}
+	interface AllElectron extends MainInterface, RendererInterface { }
+
+	const app: App;
+	const autoUpdater: AutoUpdater;
+	const clipboard: Clipboard;
+	const contentTracing: ContentTracing;
+	const crashReporter: CrashReporter;
+	const desktopCapturer: DesktopCapturer;
+	const dialog: Dialog;
+	const globalShortcut: GlobalShortcut;
+	const ipcMain: IpcMain;
+	const ipcRenderer: IpcRenderer;
+	type nativeImage = NativeImage;
+	const nativeImage: typeof NativeImage;
+	const net: Net;
+	const powerMonitor: PowerMonitor;
+	const powerSaveBlocker: PowerSaveBlocker;
+	const protocol: Protocol;
+	const remote: Remote;
+	const screen: Screen;
+	type session = Session;
+	const session: typeof Session;
+	const shell: Shell;
+	const systemPreferences: SystemPreferences;
+	type webContents = WebContents;
+	const webContents: typeof WebContents;
+	const webFrame: WebFrame;
+	const webviewTag: WebviewTag;
 
 	interface App extends EventEmitter {
 
@@ -6362,7 +6352,8 @@ declare namespace Electron {
 		ignoreSystemCrashHandler?: boolean;
 		/**
 		 * An object you can define that will be sent along with the report. Only string
-		 * properties are sent correctly. Nested objects are not supported.
+		 * properties are sent correctly. Nested objects are not supported and the property
+		 * names and values must be less than 64 characters long.
 		 */
 		extra?: any;
 		/**
@@ -8089,12 +8080,11 @@ declare namespace Electron {
 }
 
 declare module 'electron' {
-	const electron: Electron.AllElectron;
-	export = electron;
+	export = Electron;
 }
 
 interface NodeRequireFunction {
-	(moduleName: 'electron'): Electron.AllElectron;
+	(moduleName: 'electron'): typeof Electron;
 }
 
 interface File {

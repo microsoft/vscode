@@ -26,8 +26,8 @@
 	],
 	"folding": {
 		"markers": {
-			"start": "^\\s*#region",
-			"end": "^\\s*#endregion"
+			"start": "^\\s*#region\\b",
+			"end": "^\\s*#endregion\\b"
 		}
 	}
 }

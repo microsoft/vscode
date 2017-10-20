@@ -3,13 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
+'use strict';
 
-export const ID = 'editor.contrib.folding';
+import { createHash } from 'crypto';
+import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 
-export interface IFoldingController extends IEditorContribution {
+export class HashService implements IHashService {
 
-	foldAll(): void;
-	unfoldAll(): void;
+	_serviceBrand: any;
 
+	public createSHA1(content: string): string {
+		return createHash('sha1').update(content).digest('hex');
+	}
 }

@@ -276,7 +276,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'files.useExperimentalFileWatcher': {
 			'type': 'boolean',
-			'default': false,
+			'default': true,
 			'description': nls.localize('useExperimentalFileWatcher', "Use the new experimental file watcher.")
 		},
 		'files.defaultLanguage': {
@@ -351,10 +351,15 @@ configurationRegistry.registerConfiguration({
 			],
 			'description': nls.localize({ key: 'sortOrder', comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'] }, "Controls sorting order of files and folders in the explorer. In addition to the default sorting, you can set the order to 'mixed' (files and folders sorted combined), 'type' (by file type), 'modified' (by last modified date) or 'filesFirst' (sort files before folders).")
 		},
-		'explorer.enableFileDecorations': {
+		'explorer.decorations.colors': {
 			type: 'boolean',
-			description: nls.localize('enableFileDecorations', "Controls if the explorer should show file decorations, like SCM status or problems."),
+			description: nls.localize('explorer.decorations.colors', "Controls if file decorations should use colors."),
 			default: true
-		}
+		},
+		'explorer.decorations.badges': {
+			type: 'boolean',
+			description: nls.localize('explorer.decorations.badges', "Controls if file decorations should use badges."),
+			default: true
+		},
 	}
 });

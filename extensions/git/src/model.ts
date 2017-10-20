@@ -35,6 +35,11 @@ export interface ModelChangeEvent {
 	uri: Uri;
 }
 
+export interface OriginalResourceChangeEvent {
+	repository: Repository;
+	uri: Uri;
+}
+
 interface OpenRepository extends Disposable {
 	repository: Repository;
 }
@@ -53,6 +58,9 @@ export class Model {
 
 	private _onDidChangeRepository = new EventEmitter<ModelChangeEvent>();
 	readonly onDidChangeRepository: Event<ModelChangeEvent> = this._onDidChangeRepository.event;
+
+	private _onDidChangeOriginalResource = new EventEmitter<OriginalResourceChangeEvent>();
+	readonly onDidChangeOriginalResource: Event<OriginalResourceChangeEvent> = this._onDidChangeOriginalResource.event;
 
 	private openRepositories: OpenRepository[] = [];
 	get repositories(): Repository[] { return this.openRepositories.map(r => r.repository); }
@@ -217,10 +225,14 @@ export class Model {
 		const onDidDisappearRepository = filterEvent(repository.onDidChangeState, state => state === RepositoryState.Disposed);
 		const disappearListener = onDidDisappearRepository(() => dispose());
 		const changeListener = repository.onDidChangeRepository(uri => this._onDidChangeRepository.fire({ repository, uri }));
+		const originalResourceChangeListener = repository.onDidChangeOriginalResource(uri => this._onDidChangeOriginalResource.fire({ repository, uri }));
+
 		const dispose = () => {
 			disappearListener.dispose();
 			changeListener.dispose();
+			originalResourceChangeListener.dispose();
 			repository.dispose();
+
 			this.openRepositories = this.openRepositories.filter(e => e !== openRepository);
 			this._onDidCloseRepository.fire(repository);
 		};

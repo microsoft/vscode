@@ -11,7 +11,7 @@ import * as os from 'os';
 import * as electron from './utils/electron';
 import { Reader } from './utils/wireProtocol';
 
-import { workspace, window, Uri, CancellationToken, Disposable, Memento, MessageItem, EventEmitter, Event, commands } from 'vscode';
+import { workspace, window, Uri, CancellationToken, Disposable, Memento, MessageItem, EventEmitter, Event, commands, env } from 'vscode';
 import * as Proto from './protocol';
 import { ITypescriptServiceClient, ITypescriptServiceClientHost } from './typescriptService';
 import { TypeScriptServerPlugin } from './utils/plugins';
@@ -378,6 +378,13 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				if (this.apiVersion.has234Features()) {
 					if (this.configuration.npmLocation) {
 						args.push('--npmLocation', `"${this.configuration.npmLocation}"`);
+					}
+				}
+
+				if (this.apiVersion.has260Features()) {
+					const tsLocale = getTsLocale(this.configuration);
+					if (tsLocale) {
+						args.push('--locale', tsLocale);
 					}
 				}
 
@@ -862,3 +869,9 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this.logTelemetry(telemetryData.telemetryEventName, properties);
 	}
 }
+
+
+const getTsLocale = (configuration: TypeScriptServiceConfiguration): string | undefined =>
+	(configuration.locale
+		? configuration.locale
+		: env.language);

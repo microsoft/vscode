@@ -109,7 +109,7 @@ declare module monaco {
 	 *
 	 *
 	 */
-	export class Uri {
+	export class Uri implements UriComponents {
 		static isUri(thing: any): thing is Uri;
 		/**
 		 * scheme is the 'http' part of 'http://www.msft.com/some/path?query#fragment'.
@@ -161,8 +161,16 @@ declare module monaco {
 		 * @param skipEncoding Do not encode the result, default is `false`
 		 */
 		toString(skipEncoding?: boolean): string;
-		toJSON(): any;
-		static revive(data: any): Uri;
+		toJSON(): object;
+		static revive(data: UriComponents | any): Uri;
+	}
+
+	export interface UriComponents {
+		scheme: string;
+		authority: string;
+		path: string;
+		query: string;
+		fragment: string;
 	}
 
 	/**

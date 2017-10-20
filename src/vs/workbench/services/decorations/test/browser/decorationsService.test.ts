@@ -7,17 +7,20 @@
 
 import * as assert from 'assert';
 import { FileDecorationsService } from 'vs/workbench/services/decorations/browser/decorationsService';
-import { IDecorationsProvider, IResourceDecoration } from 'vs/workbench/services/decorations/browser/decorations';
+import { IDecorationsProvider, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
 import URI from 'vs/base/common/uri';
 import Event, { toPromise } from 'vs/base/common/event';
-import Severity from 'vs/base/common/severity';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 
 suite('DecorationsService', function () {
 
 	let service: FileDecorationsService;
 
 	setup(function () {
-		service = new FileDecorationsService();
+		if (service) {
+			service.dispose();
+		}
+		service = new FileDecorationsService(new TestThemeService());
 	});
 
 	test('Async provider, async/evented result', function () {
@@ -25,22 +28,22 @@ suite('DecorationsService', function () {
 		let uri = URI.parse('foo:bar');
 		let callCounter = 0;
 
-		service.registerDecortionsProvider(new class implements IDecorationsProvider {
+		service.registerDecorationsProvider(new class implements IDecorationsProvider {
 			readonly label: string = 'Test';
 			readonly onDidChange: Event<URI[]> = Event.None;
 			provideDecorations(uri: URI) {
 				callCounter += 1;
-				return new Promise<IResourceDecoration>(resolve => {
+				return new Promise<IDecorationData>(resolve => {
 					setTimeout(() => resolve({
-						severity: Severity.Info,
-						color: 'someBlue'
+						color: 'someBlue',
+						title: 'T'
 					}));
 				});
 			}
 		});
 
 		// trigger -> async
-		assert.equal(service.getTopDecoration(uri, false), undefined);
+		assert.equal(service.getDecoration(uri, false), undefined);
 		assert.equal(callCounter, 1);
 
 		// event when result is computed
@@ -48,7 +51,7 @@ suite('DecorationsService', function () {
 			assert.equal(e.affectsResource(uri), true);
 
 			// sync result
-			assert.deepEqual(service.getTopDecoration(uri, false), { severity: Severity.Info, color: 'someBlue' });
+			assert.deepEqual(service.getDecoration(uri, false).title, 'T');
 			assert.equal(callCounter, 1);
 		});
 	});
@@ -58,17 +61,17 @@ suite('DecorationsService', function () {
 		let uri = URI.parse('foo:bar');
 		let callCounter = 0;
 
-		service.registerDecortionsProvider(new class implements IDecorationsProvider {
+		service.registerDecorationsProvider(new class implements IDecorationsProvider {
 			readonly label: string = 'Test';
 			readonly onDidChange: Event<URI[]> = Event.None;
 			provideDecorations(uri: URI) {
 				callCounter += 1;
-				return { severity: Severity.Info, color: 'someBlue' };
+				return { color: 'someBlue', title: 'Z' };
 			}
 		});
 
 		// trigger -> sync
-		assert.deepEqual(service.getTopDecoration(uri, false), { severity: Severity.Info, color: 'someBlue' });
+		assert.deepEqual(service.getDecoration(uri, false).title, 'Z');
 		assert.equal(callCounter, 1);
 	});
 
@@ -76,28 +79,67 @@ suite('DecorationsService', function () {
 		let uri = URI.parse('foo:bar');
 		let callCounter = 0;
 
-		let reg = service.registerDecortionsProvider(new class implements IDecorationsProvider {
+		let reg = service.registerDecorationsProvider(new class implements IDecorationsProvider {
 			readonly label: string = 'Test';
 			readonly onDidChange: Event<URI[]> = Event.None;
 			provideDecorations(uri: URI) {
 				callCounter += 1;
-				return { severity: Severity.Info, color: 'someBlue' };
+				return { color: 'someBlue', title: 'J' };
 			}
 		});
 
 		// trigger -> sync
-		assert.deepEqual(service.getTopDecoration(uri, false), { severity: Severity.Info, color: 'someBlue' });
+		assert.deepEqual(service.getDecoration(uri, false).title, 'J');
 		assert.equal(callCounter, 1);
 
 		// un-register -> ensure good event
 		let didSeeEvent = false;
 		service.onDidChangeDecorations(e => {
 			assert.equal(e.affectsResource(uri), true);
-			assert.deepEqual(service.getTopDecoration(uri, false), undefined);
+			assert.deepEqual(service.getDecoration(uri, false), undefined);
 			assert.equal(callCounter, 1);
 			didSeeEvent = true;
 		});
 		reg.dispose();
 		assert.equal(didSeeEvent, true);
+	});
+
+	test('No default bubbling', function () {
+
+		let reg = service.registerDecorationsProvider({
+			label: 'Test',
+			onDidChange: Event.None,
+			provideDecorations(uri: URI) {
+				return uri.path.match(/\.txt/)
+					? { title: '.txt' }
+					: undefined;
+			}
+		});
+
+		let childUri = URI.parse('file:///some/path/some/file.txt');
+
+		let deco = service.getDecoration(childUri, false);
+		assert.equal(deco.title, '.txt');
+
+		deco = service.getDecoration(childUri.with({ path: 'some/path/' }), true);
+		assert.equal(deco, undefined);
+		reg.dispose();
+
+		// bubble
+		reg = service.registerDecorationsProvider({
+			label: 'Test',
+			onDidChange: Event.None,
+			provideDecorations(uri: URI) {
+				return uri.path.match(/\.txt/)
+					? { title: '.txt.bubble', bubble: true }
+					: undefined;
+			}
+		});
+
+		deco = service.getDecoration(childUri, false);
+		assert.equal(deco.title, '.txt.bubble');
+
+		deco = service.getDecoration(childUri.with({ path: 'some/path/' }), true);
+		assert.equal(deco.title, '.txt.bubble');
 	});
 });

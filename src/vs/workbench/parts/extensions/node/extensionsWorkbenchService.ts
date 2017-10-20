@@ -26,11 +26,10 @@ import { getGalleryExtensionIdFromLocal, getGalleryExtensionTelemetryData, getLo
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWindowService } from 'vs/platform/windows/common/windows';
-import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IChoiceService, IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
-import { IExtension, IExtensionDependencies, ExtensionState, IExtensionsWorkbenchService, IExtensionsConfiguration, ConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
+import { IExtension, IExtensionDependencies, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IURLService } from 'vs/platform/url/common/url';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
@@ -313,8 +312,6 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	private _onChange: Emitter<void> = new Emitter<void>();
 	get onChange(): Event<void> { return this._onChange.event; }
 
-	private _isAutoUpdateEnabled: boolean;
-
 	private _extensionAllowedBadgeProviders: string[];
 
 	constructor(
@@ -323,7 +320,6 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		@IExtensionManagementService private extensionService: IExtensionManagementService,
 		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IMessageService private messageService: IMessageService,
 		@IChoiceService private choiceService: IChoiceService,
@@ -348,12 +344,9 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			.filter(uri => /^extension/.test(uri.path))
 			.on(this.onOpenExtensionUrl, this, this.disposables);
 
-		this._isAutoUpdateEnabled = this.configurationService.getConfiguration<IExtensionsConfiguration>(ConfigurationKey).autoUpdate;
-		this.configurationService.onDidUpdateConfiguration(() => {
-			const isAutoUpdateEnabled = this.configurationService.getConfiguration<IExtensionsConfiguration>(ConfigurationKey).autoUpdate;
-			if (this._isAutoUpdateEnabled !== isAutoUpdateEnabled) {
-				this._isAutoUpdateEnabled = isAutoUpdateEnabled;
-				if (this._isAutoUpdateEnabled) {
+		this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AutoUpdateConfigurationKey)) {
+				if (this.isAutoUpdateEnabled()) {
 					this.checkForUpdates();
 				}
 			}
@@ -456,15 +449,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		return this.syncDelayer.trigger(() => this.syncWithGallery(), 0);
 	}
 
-	get isAutoUpdateEnabled(): boolean {
-		return this._isAutoUpdateEnabled;
-	}
-
-	setAutoUpdate(autoUpdate: boolean): TPromise<void> {
-		if (this.isAutoUpdateEnabled === autoUpdate) {
-			return TPromise.as(null);
-		}
-		return this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: 'extensions.autoUpdate', value: autoUpdate });
+	private isAutoUpdateEnabled(): boolean {
+		return this.configurationService.getValue(AutoUpdateConfigurationKey);
 	}
 
 	private eventuallySyncWithGallery(immediate = false): void {
@@ -493,7 +479,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	}
 
 	private autoUpdateExtensions(): TPromise<any> {
-		if (!this.isAutoUpdateEnabled) {
+		if (!this.isAutoUpdateEnabled()) {
 			return TPromise.as(null);
 		}
 

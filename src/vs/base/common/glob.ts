@@ -450,7 +450,7 @@ export function parse(arg1: string | IExpression | IRelativePattern, options: IG
 	}
 
 	// Glob with String
-	if (typeof arg1 === 'string' || (arg1 as IRelativePattern).base) {
+	if (typeof arg1 === 'string' || isRelativePattern(arg1)) {
 		const parsedPattern = parsePattern(arg1 as string | IRelativePattern, options);
 		if (parsedPattern === NULL) {
 			return FALSE;
@@ -469,6 +469,12 @@ export function parse(arg1: string | IExpression | IRelativePattern, options: IG
 
 	// Glob with Expression
 	return parsedExpression(<IExpression>arg1, options);
+}
+
+function isRelativePattern(obj: any): obj is IRelativePattern {
+	const rp = obj as IRelativePattern;
+
+	return typeof rp.base === 'string' && typeof rp.pattern === 'string';
 }
 
 /**
