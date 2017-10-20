@@ -72,11 +72,11 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 		return this._supportedCodeActions;
 	}
 
-	private getSupportedActionsForContext(context: CodeActionContext): Thenable<Set<number>> {
-		return this.supportedCodeActions.then(supportedActions =>
-			new Set(context.diagnostics
-				.map(diagnostic => +diagnostic.code)
-				.filter(code => supportedActions[code])));
+	private async getSupportedActionsForContext(context: CodeActionContext): Promise<Set<number>> {
+		const supportedActions = await this.supportedCodeActions;
+		return new Set(context.diagnostics
+			.map(diagnostic => +diagnostic.code)
+			.filter(code => supportedActions[code]));
 	}
 
 	private getCommandForAction(action: Proto.CodeAction, file: string): Command {
@@ -105,7 +105,7 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 
 		if (action.commands && action.commands.length) {
 			for (const command of action.commands) {
-				const response = await this.client.execute('applyCodeFixCommand', { file, command });
+				const response = await this.client.execute('applyCodeActionCommand', { file, command });
 				if (!response || !response.body) {
 					return false;
 				}

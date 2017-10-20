@@ -52,6 +52,11 @@ export default class TypeScriptRefactorProvider implements CodeActionProvider {
 
 			const actions: Command[] = [];
 			for (const info of response.body) {
+				// Workaround for https://github.com/Microsoft/TypeScript/issues/19378
+				if (info.name.startsWith('Install missing ')) {
+					continue;
+				}
+
 				if (info.inlineable === false) {
 					actions.push({
 						title: info.description,
