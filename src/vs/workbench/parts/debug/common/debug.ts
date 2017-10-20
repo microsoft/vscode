@@ -17,9 +17,14 @@ import { ISuggestion } from 'vs/editor/common/modes';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export const VIEWLET_ID = 'workbench.view.debug';
+export const VARIABLES_VIEW_ID = 'workbench.debug.variablesView';
+export const WATCH_VIEW_ID = 'workbench.debug.watchExpressionsView';
+export const CALLSTACK_VIEW_ID = 'workbench.debug.callStackView';
+export const BREAKPOINTS_VIEW_ID = 'workbench.debug.breakPointsView';
 export const REPL_ID = 'workbench.panel.repl';
 export const DEBUG_SERVICE_ID = 'debugService';
 export const CONTEXT_DEBUG_TYPE = new RawContextKey<string>('debugType', undefined);
@@ -51,7 +56,6 @@ export interface IRawModelUpdate {
 	thread?: DebugProtocol.Thread;
 	callStack?: DebugProtocol.StackFrame[];
 	stoppedDetails?: IRawStoppedDetails;
-	allThreadsStopped?: boolean;
 }
 
 export interface IRawStoppedDetails {
@@ -60,6 +64,7 @@ export interface IRawStoppedDetails {
 	threadId?: number;
 	text?: string;
 	totalFrames?: number;
+	allThreadsStopped?: boolean;
 	framesErrorMessage?: string;
 }
 
@@ -71,6 +76,13 @@ export interface ITreeElement {
 
 export interface IReplElement extends ITreeElement {
 	toString(): string;
+	sourceData?: IReplElementSource;
+}
+
+export interface IReplElementSource {
+	source: Source;
+	lineNumber: number;
+	column: number;
 }
 
 export interface IExpressionContainer extends ITreeElement {
@@ -86,7 +98,7 @@ export interface IExpression extends IReplElement, IExpressionContainer {
 }
 
 export interface ISession {
-	root: uri;
+	root: IWorkspaceFolder;
 	stackTrace(args: DebugProtocol.StackTraceArguments): TPromise<DebugProtocol.StackTraceResponse>;
 	exceptionInfo(args: DebugProtocol.ExceptionInfoArguments): TPromise<DebugProtocol.ExceptionInfoResponse>;
 	scopes(args: DebugProtocol.ScopesArguments): TPromise<DebugProtocol.ScopesResponse>;
@@ -98,6 +110,7 @@ export interface ISession {
 	custom(request: string, args: any): TPromise<DebugProtocol.Response>;
 	onDidEvent: Event<DebugProtocol.Event>;
 	onDidInitialize: Event<DebugProtocol.InitializedEvent>;
+	onDidExitAdapter: Event<DebugEvent>;
 	restartFrame(args: DebugProtocol.RestartFrameArguments, threadId: number): TPromise<DebugProtocol.RestartFrameResponse>;
 
 	next(args: DebugProtocol.NextArguments): TPromise<DebugProtocol.NextResponse>;
@@ -127,6 +140,7 @@ export interface IProcess extends ITreeElement {
 	state: ProcessState;
 	getThread(threadId: number): IThread;
 	getAllThreads(): IThread[];
+	getSource(raw: DebugProtocol.Source): Source;
 	completions(frameId: number, text: string, position: Position, overwriteBefore: number): TPromise<ISuggestion[]>;
 }
 
@@ -266,7 +280,7 @@ export interface IViewModel extends ITreeElement {
 	focusedStackFrame: IStackFrame;
 	getSelectedExpression(): IExpression;
 	getSelectedFunctionBreakpoint(): IFunctionBreakpoint;
-	setSelectedExpression(expression: IExpression);
+	setSelectedExpression(expression: IExpression): void;
 	setSelectedFunctionBreakpoint(functionBreakpoint: IFunctionBreakpoint): void;
 
 	isMultiProcessView(): boolean;
@@ -360,8 +374,7 @@ export interface IRawAdapter extends IRawEnvAdapter {
 	enableBreakpointsFor?: { languageIds: string[] };
 	configurationAttributes?: any;
 	configurationSnippets?: IJSONSchemaSnippet[];
-	initialConfigurations?: any[] | string;
-	startSessionCommand?: string;
+	initialConfigurations?: any[];
 	languages?: string[];
 	variables?: { [key: string]: string };
 	aiKey?: string;
@@ -374,8 +387,9 @@ export interface IRawAdapter extends IRawEnvAdapter {
 
 export interface IDebugConfigurationProvider {
 	type: string;
-	resolveDebugConfiguration?(folderUri: uri | undefined, debugConfiguration: any): TPromise<any>;
-	provideDebugConfigurations?(folderUri: uri | undefined): TPromise<any[]>;
+	handle: number;
+	resolveDebugConfiguration?(folderUri: uri | undefined, debugConfiguration: IConfig): TPromise<IConfig>;
+	provideDebugConfigurations?(folderUri: uri | undefined): TPromise<IConfig[]>;
 }
 
 export interface IConfigurationManager {
@@ -391,8 +405,6 @@ export interface IConfigurationManager {
 
 	selectedName: string;
 
-	mruConfigs: { name: string, launch: ILaunch }[];
-
 	selectConfiguration(launch: ILaunch, name?: string, debugStarted?: boolean): void;
 
 	getLaunches(): ILaunch[];
@@ -402,16 +414,9 @@ export interface IConfigurationManager {
 	 */
 	onDidSelectConfiguration: Event<void>;
 
-	/**
-	 * Returns a "startSessionCommand" contribution for an adapter with the passed type.
-	 * If no type is specified will try to automatically pick an adapter by looking at
-	 * the active editor language and matching it against the "languages" contribution of an adapter.
-	 */
-	getStartSessionCommand(type?: string): TPromise<{ command: string, type: string }>;
-
 	registerDebugConfigurationProvider(handle: number, debugConfigurationProvider: IDebugConfigurationProvider): void;
-	unregisterDebugConfigurationProvider(handle): void;
-	resolveDebugConfiguration(folderUri: uri | undefined, debugConfiguration: any): TPromise<any>;
+	unregisterDebugConfigurationProvider(handle: number): void;
+	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: any): TPromise<any>;
 }
 
 export interface ILaunch {
@@ -421,9 +426,7 @@ export interface ILaunch {
 	 */
 	uri: uri;
 
-	workspaceUri: uri;
-
-	name: string;
+	workspace: IWorkspaceFolder;
 
 	/**
 	 * Returns a configuration with the specified name.
@@ -577,16 +580,16 @@ export interface IDebugService {
 	removeWatchExpressions(id?: string): void;
 
 	/**
-	 * Starts debugging. If the configOrName is not passed uses the selected configuration in the debug dropdown.
-	 * Also saves all files, manages if compounds are present in the configuration
-	 * and calls the startSessionCommand if an adapter registered it.
+	 * Evaluates all watch expression.
 	 */
-	startDebugging(root: uri, configOrName?: IConfig | string, noDebug?: boolean): TPromise<any>;
+	evaluateWatchExpressions(): TPromise<void>;
 
 	/**
-	 * Creates a new debug process. Depending on the configuration will either 'launch' or 'attach'.
+	 * Starts debugging. If the configOrName is not passed uses the selected configuration in the debug dropdown.
+	 * Also saves all files, manages if compounds are present in the configuration
+	 * and resolveds configurations via DebugConfigurationProviders.
 	 */
-	createProcess(root: uri, config: IConfig): TPromise<IProcess>;
+	startDebugging(root: IWorkspaceFolder, configOrName?: IConfig | string, noDebug?: boolean): TPromise<any>;
 
 	/**
 	 * Find process by ID.

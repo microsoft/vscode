@@ -9,7 +9,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import errors = require('vs/base/common/errors');
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
-import { IEditor, IEditorViewState, isCommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { IEditorViewState, isCommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { toResource, IEditorStacksModel, SideBySideEditorInput, IEditorGroup, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
@@ -23,11 +23,18 @@ import { distinct } from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { isLinux } from 'vs/base/common/platform';
+import { ResourceQueue } from 'vs/base/common/async';
+import { ResourceMap } from 'vs/base/common/map';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 export class FileEditorTracker implements IWorkbenchContribution {
+
+	protected closeOnFileDelete: boolean;
+
 	private stacks: IEditorStacksModel;
 	private toUnbind: IDisposable[];
-	protected closeOnFileDelete: boolean;
+	private modelLoadQueue: ResourceQueue<void>;
+	private activeOutOfWorkspaceWatchers: ResourceMap<URI>;
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -36,10 +43,13 @@ export class FileEditorTracker implements IWorkbenchContribution {
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IFileService private fileService: IFileService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 	) {
 		this.toUnbind = [];
 		this.stacks = editorGroupService.getStacksModel();
+		this.modelLoadQueue = new ResourceQueue<void>();
+		this.activeOutOfWorkspaceWatchers = new ResourceMap<URI>();
 
 		this.onConfigurationUpdated(configurationService.getConfiguration<IWorkbenchEditorConfiguration>());
 
@@ -58,11 +68,14 @@ export class FileEditorTracker implements IWorkbenchContribution {
 		// Update editors from disk changes
 		this.toUnbind.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
 
+		// Editor changing
+		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
+
 		// Lifecycle
 		this.lifecycleService.onShutdown(this.dispose, this);
 
 		// Configuration
-		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>())));
+		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>())));
 	}
 
 	private onConfigurationUpdated(configuration: IWorkbenchEditorConfiguration): void {
@@ -200,8 +213,8 @@ export class FileEditorTracker implements IWorkbenchContribution {
 						if (oldResource.toString() === resource.toString()) {
 							reopenFileResource = newResource; // file got moved
 						} else {
-							const index = indexOf(resource.fsPath, oldResource.fsPath, !isLinux /* ignorecase */);
-							reopenFileResource = URI.file(paths.join(newResource.fsPath, resource.fsPath.substr(index + oldResource.fsPath.length + 1))); // parent folder got moved
+							const index = indexOf(resource.path, oldResource.path, !isLinux /* ignorecase */);
+							reopenFileResource = newResource.with({ path: paths.join(newResource.path, resource.path.substr(index + oldResource.path.length + 1)) }); // parent folder got moved
 						}
 
 						// Reopen
@@ -227,9 +240,9 @@ export class FileEditorTracker implements IWorkbenchContribution {
 
 		for (let i = 0; i < editors.length; i++) {
 			const editor = editors[i];
-			if (editor && editor.position === stacks.positionOfGroup(group)) {
-				const resource = toResource(editor.input, { filter: 'file' });
-				if (resource && paths.isEqual(resource.fsPath, resource.fsPath)) {
+			if (editor && editor.input && editor.position === stacks.positionOfGroup(group)) {
+				const editorResource = editor.input.getResource();
+				if (editorResource && resource.toString() === editorResource.toString()) {
 					const control = editor.getControl();
 					if (isCommonCodeEditor(control)) {
 						return control.saveViewState();
@@ -243,77 +256,84 @@ export class FileEditorTracker implements IWorkbenchContribution {
 
 	private handleUpdates(e: FileChangesEvent): void {
 
+		// Handle updates to visible binary editors
+		this.handleUpdatesToVisibleBinaryEditors(e);
+
+		// Handle updates to text models
+		this.handleUpdatesToTextModels(e);
+	}
+
+	private handleUpdatesToVisibleBinaryEditors(e: FileChangesEvent): void {
+		const editors = this.editorService.getVisibleEditors();
+		editors.forEach(editor => {
+			const resource = toResource(editor.input, { supportSideBySide: true });
+
+			// Binary editor that should reload from event
+			if (resource && editor.getId() === BINARY_FILE_EDITOR_ID && (e.contains(resource, FileChangeType.UPDATED) || e.contains(resource, FileChangeType.ADDED))) {
+				this.editorService.openEditor(editor.input, { forceOpen: true, preserveFocus: true }, editor.position).done(null, errors.onUnexpectedError);
+			}
+		});
+	}
+
+	private handleUpdatesToTextModels(e: FileChangesEvent): void {
+
 		// Collect distinct (saved) models to update.
 		//
 		// Note: we also consider the added event because it could be that a file was added
 		// and updated right after.
-		const modelsToUpdate = distinct([...e.getUpdated(), ...e.getAdded()]
+		distinct([...e.getUpdated(), ...e.getAdded()]
 			.map(u => this.textFileService.models.get(u.resource))
-			.filter(model => model && !model.isDirty()), m => m.getResource().toString());
-
-		// Handle updates to visible editors specially to preserve view state
-		const visibleModels = this.handleUpdatesToVisibleEditors(e);
-
-		// Handle updates to remaining models that are not visible
-		modelsToUpdate.forEach(model => {
-			if (visibleModels.indexOf(model) >= 0) {
-				return; // already updated
-			}
-
-			// Load model to update
-			model.load().done(null, errors.onUnexpectedError);
-		});
+			.filter(model => model && !model.isDirty()), m => m.getResource().toString())
+			.forEach(model => this.queueModelLoad(model));
 	}
 
-	private handleUpdatesToVisibleEditors(e: FileChangesEvent): ITextFileEditorModel[] {
-		const updatedModels: ITextFileEditorModel[] = [];
+	private queueModelLoad(model: ITextFileEditorModel): void {
 
-		const editors = this.editorService.getVisibleEditors();
-		editors.forEach(editor => {
-			const fileResource = toResource(editor.input, { filter: 'file', supportSideBySide: true });
+		// Load model to update (use a queue to prevent accumulation of loads
+		// when the load actually takes long. At most we only want the queue
+		// to have a size of 2 (1 running load and 1 queued load).
+		const queue = this.modelLoadQueue.queueFor(model.getResource());
+		if (queue.size <= 1) {
+			queue.queue(() => model.load().then(null, errors.onUnexpectedError));
+		}
+	}
 
-			// File Editor
-			if (fileResource) {
+	private onEditorsChanged(): void {
+		this.handleOutOfWorkspaceWatchers();
+	}
 
-				// File got added or updated, so check for model and update
-				// Note: we also consider the added event because it could be that a file was added
-				// and updated right after.
-				if (e.contains(fileResource, FileChangeType.UPDATED) || e.contains(fileResource, FileChangeType.ADDED)) {
+	private handleOutOfWorkspaceWatchers(): void {
+		const visibleOutOfWorkspacePaths = new ResourceMap<URI>();
+		this.editorService.getVisibleEditors().map(editor => {
+			return toResource(editor.input, { supportSideBySide: true });
+		}).filter(resource => {
+			return !!resource && this.fileService.canHandleResource(resource) && !this.contextService.isInsideWorkspace(resource);
+		}).forEach(resource => {
+			visibleOutOfWorkspacePaths.set(resource, resource);
+		});
 
-					// Text file: check for last save time
-					const textModel = this.textFileService.models.get(fileResource);
-					if (textModel) {
-
-						// We only ever update models that are in good saved state
-						if (!textModel.isDirty()) {
-							const codeEditor = editor.getControl() as IEditor;
-							const viewState = codeEditor.saveViewState();
-							const lastKnownEtag = textModel.getETag();
-
-							textModel.load().done(() => {
-
-								// only restore the view state if the model changed and the editor is still showing it
-								if (textModel.getETag() !== lastKnownEtag && codeEditor.getModel() === textModel.textEditorModel) {
-									codeEditor.restoreViewState(viewState);
-								}
-							}, errors.onUnexpectedError);
-
-							updatedModels.push(textModel);
-						}
-					}
-
-					// Binary file: always update
-					else if (editor.getId() === BINARY_FILE_EDITOR_ID) {
-						this.editorService.openEditor(editor.input, { forceOpen: true, preserveFocus: true }, editor.position).done(null, errors.onUnexpectedError);
-					}
-				}
+		// Handle no longer visible out of workspace resources
+		this.activeOutOfWorkspaceWatchers.forEach(resource => {
+			if (!visibleOutOfWorkspacePaths.get(resource)) {
+				this.fileService.unwatchFileChanges(resource);
+				this.activeOutOfWorkspaceWatchers.delete(resource);
 			}
 		});
 
-		return updatedModels;
+		// Handle newly visible out of workspace resources
+		visibleOutOfWorkspacePaths.forEach(resource => {
+			if (!this.activeOutOfWorkspaceWatchers.get(resource)) {
+				this.fileService.watchFileChanges(resource);
+				this.activeOutOfWorkspaceWatchers.set(resource, resource);
+			}
+		});
 	}
 
 	public dispose(): void {
 		this.toUnbind = dispose(this.toUnbind);
+
+		// Dispose watchers if any
+		this.activeOutOfWorkspaceWatchers.forEach(resource => this.fileService.unwatchFileChanges(resource));
+		this.activeOutOfWorkspaceWatchers.clear();
 	}
 }

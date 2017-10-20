@@ -6,13 +6,13 @@
 import fs = require('fs');
 import path = require('path');
 import * as nls from 'vs/nls';
-import uri from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as strings from 'vs/base/common/strings';
 import * as objects from 'vs/base/common/objects';
 import * as paths from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
 import { IJSONSchema, IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IConfig, IRawAdapter, IAdapterExecutable, INTERNAL_CONSOLE_OPTIONS_SCHEMA } from 'vs/workbench/parts/debug/common/debug';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
@@ -31,10 +31,12 @@ export class Adapter {
 		}
 	}
 
-	public getAdapterExecutable(root: uri, verifyAgainstFS = true): TPromise<IAdapterExecutable> {
+	public hasConfigurationProvider = false;
+
+	public getAdapterExecutable(root: IWorkspaceFolder, verifyAgainstFS = true): TPromise<IAdapterExecutable> {
 
 		if (this.rawAdapter.adapterExecutableCommand) {
-			return this.commandService.executeCommand<IAdapterExecutable>(this.rawAdapter.adapterExecutableCommand, root.toString()).then(ad => {
+			return this.commandService.executeCommand<IAdapterExecutable>(this.rawAdapter.adapterExecutableCommand, root.uri.toString()).then(ad => {
 				return this.verifyAdapterDetails(ad, verifyAgainstFS);
 			});
 		}
@@ -122,10 +124,6 @@ export class Adapter {
 		return this.rawAdapter.languages;
 	}
 
-	public get startSessionCommand(): string {
-		return this.rawAdapter.startSessionCommand;
-	}
-
 	public merge(secondRawAdapter: IRawAdapter, extensionDescription: IExtensionDescription): void {
 		// Give priority to built in debug adapters
 		if (extensionDescription.isBuiltin) {
@@ -138,24 +136,7 @@ export class Adapter {
 		return !!this.rawAdapter.initialConfigurations;
 	}
 
-	public getInitialConfigurationContent(folderUri: uri, initialConfigs?: IConfig[]): TPromise<string> {
-		const editorConfig = this.configurationService.getConfiguration<any>();
-
-		// deprecated code: use DebugConfigurationProvider instead of command
-		if (typeof this.rawAdapter.initialConfigurations === 'string') {
-			// Contributed initialConfigurations is a command that needs to be invoked
-			// Debug adapter will dynamically provide the full launch.json
-			return this.commandService.executeCommand<string>(<string>this.rawAdapter.initialConfigurations, folderUri).then(content => {
-				// Debug adapter returned the full content of the launch.json - return it after format
-				if (editorConfig.editor.insertSpaces) {
-					content = content.replace(new RegExp('\t', 'g'), strings.repeat(' ', editorConfig.editor.tabSize));
-				}
-
-				return content;
-			});
-		}
-		// end of deprecation
-
+	public getInitialConfigurationContent(initialConfigs?: IConfig[]): TPromise<string> {
 		// at this point we got some configs from the package.json and/or from registered DebugConfigurationProviders
 		let initialConfigurations = this.rawAdapter.initialConfigurations || [];
 		if (initialConfigs) {
@@ -163,7 +144,6 @@ export class Adapter {
 		}
 
 		const configs = JSON.stringify(initialConfigurations, null, '\t').split('\n').map(line => '\t' + line).join('\n').trim();
-
 		const comment1 = nls.localize('launch.config.comment1', "Use IntelliSense to learn about possible attributes.");
 		const comment2 = nls.localize('launch.config.comment2', "Hover to view descriptions of existing attributes.");
 		const comment3 = nls.localize('launch.config.comment3', "For more information, visit: {0}", 'https://go.microsoft.com/fwlink/?linkid=830387');
@@ -179,6 +159,7 @@ export class Adapter {
 		].join('\n');
 
 		// fix formatting
+		const editorConfig = this.configurationService.getConfiguration<any>();
 		if (editorConfig.editor && editorConfig.editor.insertSpaces) {
 			content = content.replace(new RegExp('\t', 'g'), strings.repeat(' ', editorConfig.editor.tabSize));
 		}
@@ -229,7 +210,7 @@ export class Adapter {
 			};
 			properties['internalConsoleOptions'] = INTERNAL_CONSOLE_OPTIONS_SCHEMA;
 
-			const osProperties = objects.deepClone(properties);
+			const osProperties = objects.clone(properties);
 			properties['windows'] = {
 				type: 'object',
 				description: nls.localize('debugWindowsConfiguration', "Windows specific launch configuration attributes."),

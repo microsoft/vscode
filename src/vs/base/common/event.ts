@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, combinedDisposable, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
 import CallbackList from 'vs/base/common/callbackList';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -82,7 +82,7 @@ export class Emitter<T> {
 					this._options.onFirstListenerAdd(this);
 				}
 
-				this._callbacks.add(listener, thisArgs);
+				const remove = this._callbacks.add(listener, thisArgs);
 
 				if (firstListener && this._options && this._options.onFirstListenerDidAdd) {
 					this._options.onFirstListenerDidAdd(this);
@@ -97,7 +97,7 @@ export class Emitter<T> {
 					dispose: () => {
 						result.dispose = Emitter._noop;
 						if (!this._disposed) {
-							this._callbacks.remove(listener, thisArgs);
+							remove();
 							if (this._options && this._options.onLastListenerRemove && this._callbacks.isEmpty()) {
 								this._options.onLastListenerRemove(this);
 							}
@@ -424,7 +424,7 @@ class ChainableEvent<T> implements IChainableEvent<T> {
 		return new ChainableEvent(filterEvent(this._event, fn));
 	}
 
-	on(listener, thisArgs, disposables: IDisposable[]) {
+	on(listener: (e: T) => any, thisArgs: any, disposables: IDisposable[]) {
 		return this._event(listener, thisArgs, disposables);
 	}
 }
@@ -514,10 +514,10 @@ export function echo<T>(event: Event<T>, nextTick = false, buffer: T[] = []): Ev
 		emitter.fire(e);
 	});
 
-	const flush = (listener, thisArgs?) => buffer.forEach(e => listener.call(thisArgs, e));
+	const flush = (listener: (e: T) => any, thisArgs?: any) => buffer.forEach(e => listener.call(thisArgs, e));
 
 	const emitter = new Emitter<T>({
-		onListenerDidAdd(emitter, listener, thisArgs?) {
+		onListenerDidAdd(emitter, listener: (e: T) => any, thisArgs?: any) {
 			if (nextTick) {
 				setTimeout(() => flush(listener, thisArgs));
 			} else {
@@ -527,4 +527,22 @@ export function echo<T>(event: Event<T>, nextTick = false, buffer: T[] = []): Ev
 	});
 
 	return emitter.event;
+}
+
+export class Relay<T> implements IDisposable {
+
+	private emitter = new Emitter<T>();
+	readonly output: Event<T> = this.emitter.event;
+
+	private disposable: IDisposable = EmptyDisposable;
+
+	set input(event: Event<T>) {
+		this.disposable.dispose();
+		this.disposable = event(this.emitter.fire, this.emitter);
+	}
+
+	dispose() {
+		this.disposable.dispose();
+		this.emitter.dispose();
+	}
 }

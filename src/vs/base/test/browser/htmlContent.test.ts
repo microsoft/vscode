@@ -10,7 +10,7 @@ import { renderMarkdown, renderText, renderFormattedText } from 'vs/base/browser
 
 suite('HtmlContent', () => {
 	test('render simple element', () => {
-		var result: HTMLElement = <any>renderText('testing');
+		var result: HTMLElement = renderText('testing');
 
 		assert.strictEqual(result.nodeType, document.ELEMENT_NODE);
 		assert.strictEqual(result.textContent, 'testing');
@@ -18,7 +18,7 @@ suite('HtmlContent', () => {
 	});
 
 	test('render element with class', () => {
-		var result: HTMLElement = <any>renderText('testing', {
+		var result: HTMLElement = renderText('testing', {
 			className: 'testClass'
 		});
 		assert.strictEqual(result.nodeType, document.ELEMENT_NODE);
@@ -26,32 +26,32 @@ suite('HtmlContent', () => {
 	});
 
 	test('simple formatting', () => {
-		var result: HTMLElement = <any>renderFormattedText('**bold**');
+		var result: HTMLElement = renderFormattedText('**bold**');
 		assert.strictEqual(result.children.length, 1);
 		assert.strictEqual(result.firstChild.textContent, 'bold');
 		assert.strictEqual((<HTMLElement>result.firstChild).tagName, 'B');
 		assert.strictEqual(result.innerHTML, '<b>bold</b>');
 
-		result = <any>renderFormattedText('__italics__');
+		result = renderFormattedText('__italics__');
 		assert.strictEqual(result.innerHTML, '<i>italics</i>');
 
-		result = <any>renderFormattedText('this string has **bold** and __italics__');
+		result = renderFormattedText('this string has **bold** and __italics__');
 		assert.strictEqual(result.innerHTML, 'this string has <b>bold</b> and <i>italics</i>');
 	});
 
 	test('no formatting', () => {
-		var result: HTMLElement = <any>renderFormattedText('this is just a string');
+		var result: HTMLElement = renderFormattedText('this is just a string');
 		assert.strictEqual(result.innerHTML, 'this is just a string');
 	});
 
 	test('preserve newlines', () => {
-		var result: HTMLElement = <any>renderFormattedText('line one\nline two');
+		var result: HTMLElement = renderFormattedText('line one\nline two');
 		assert.strictEqual(result.innerHTML, 'line one<br>line two');
 	});
 
 	test('action', () => {
 		var callbackCalled = false;
-		var result: HTMLElement = <any>renderFormattedText('[[action]]', {
+		var result: HTMLElement = renderFormattedText('[[action]]', {
 			actionCallback(content) {
 				assert.strictEqual(content, '0');
 				callbackCalled = true;
@@ -67,7 +67,7 @@ suite('HtmlContent', () => {
 
 	test('fancy action', () => {
 		var callbackCalled = false;
-		var result: HTMLElement = <any>renderFormattedText('__**[[action]]**__', {
+		var result: HTMLElement = renderFormattedText('__**[[action]]**__', {
 			actionCallback(content) {
 				assert.strictEqual(content, '0');
 				callbackCalled = true;
@@ -82,40 +82,40 @@ suite('HtmlContent', () => {
 	});
 
 	test('escaped formatting', () => {
-		var result: HTMLElement = <any>renderFormattedText('\\*\\*bold\\*\\*');
+		var result: HTMLElement = renderFormattedText('\\*\\*bold\\*\\*');
 		assert.strictEqual(result.children.length, 0);
 		assert.strictEqual(result.innerHTML, '**bold**');
 	});
 	test('image rendering conforms to default', () => {
-		const markdown = `![image](someimageurl 'caption')`;
-		const result: HTMLElement = <any>renderMarkdown(markdown);
+		const markdown = { value: `![image](someimageurl 'caption')` };
+		const result: HTMLElement = renderMarkdown(markdown);
 		const renderer = new marked.Renderer();
-		const imageFromMarked = marked(markdown, {
+		const imageFromMarked = marked(markdown.value, {
 			sanitize: true,
 			renderer
 		}).trim();
 		assert.strictEqual(result.innerHTML, imageFromMarked);
 	});
 	test('image rendering conforms to default without title', () => {
-		const markdown = `![image](someimageurl)`;
-		const result: HTMLElement = <any>renderMarkdown(markdown);
+		const markdown = { value: `![image](someimageurl)` };
+		const result: HTMLElement = renderMarkdown(markdown);
 		const renderer = new marked.Renderer();
-		const imageFromMarked = marked(markdown, {
+		const imageFromMarked = marked(markdown.value, {
 			sanitize: true,
 			renderer
 		}).trim();
 		assert.strictEqual(result.innerHTML, imageFromMarked);
 	});
 	test('image width from title params', () => {
-		var result: HTMLElement = <any>renderMarkdown(`![image](someimageurl|width=100 'caption')`);
+		var result: HTMLElement = renderMarkdown({ value: `![image](someimageurl|width=100 'caption')` });
 		assert.strictEqual(result.innerHTML, `<p><img src="someimageurl" alt="image" title="caption" width="100"></p>`);
 	});
 	test('image height from title params', () => {
-		var result: HTMLElement = <any>renderMarkdown(`![image](someimageurl|height=100 'caption')`);
+		var result: HTMLElement = renderMarkdown({ value: `![image](someimageurl|height=100 'caption')` });
 		assert.strictEqual(result.innerHTML, `<p><img src="someimageurl" alt="image" title="caption" height="100"></p>`);
 	});
 	test('image width and height from title params', () => {
-		var result: HTMLElement = <any>renderMarkdown(`![image](someimageurl|height=200,width=100 'caption')`);
+		var result: HTMLElement = renderMarkdown({ value: `![image](someimageurl|height=200,width=100 'caption')` });
 		assert.strictEqual(result.innerHTML, `<p><img src="someimageurl" alt="image" title="caption" width="100" height="200"></p>`);
 	});
 });

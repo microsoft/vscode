@@ -51,14 +51,19 @@ import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLa
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, RawContextKey, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { Command } from 'vs/editor/common/editorCommonExtensions';
+import { Command, ICommandOptions } from 'vs/editor/common/editorCommonExtensions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { Color } from 'vs/base/common/color';
 
 /**  A context key that is set when an extension editor webview has focus. */
 export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS = new RawContextKey<boolean>('extensionEditorWebviewFocus', undefined);
 /**  A context key that is set when an extension editor webview not have focus. */
 export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS.toNegated();
+/**  A context key that is set when the find widget find input in extension editor webview is focused. */
+export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_FOCUSED = new RawContextKey<boolean>('extensionEditorFindWidgetInputFocused', false);
+/**  A context key that is set when the find widget find input in extension editor webview is not focused. */
+export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_FOCUSED.toNegated();
 
 function renderBody(body: string): string {
 	return `<!DOCTYPE html>
@@ -168,6 +173,7 @@ export class ExtensionEditor extends BaseEditor {
 	private extensionDependencies: Cache<IExtensionDependencies>;
 
 	private contextKey: IContextKey<boolean>;
+	private findInputFocusContextKey: IContextKey<boolean>;
 	private layoutParticipants: ILayoutParticipant[] = [];
 	private contentDisposables: IDisposable[] = [];
 	private transientDisposables: IDisposable[] = [];
@@ -199,6 +205,7 @@ export class ExtensionEditor extends BaseEditor {
 		this.extensionManifest = null;
 		this.extensionDependencies = null;
 		this.contextKey = KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS.bindTo(contextKeyService);
+		this.findInputFocusContextKey = KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_FOCUSED.bindTo(contextKeyService);
 	}
 
 	createEditor(parent: Builder): void {
@@ -258,6 +265,13 @@ export class ExtensionEditor extends BaseEditor {
 
 		this.transientDisposables = dispose(this.transientDisposables);
 
+		/* __GDPR__
+			"extensionGallery:openExtension" : {
+				"${include}": [
+					"${GalleryExtensionTelemetryData}"
+				]
+			}
+		*/
 		this.telemetryService.publicLog('extensionGallery:openExtension', extension.telemetryData);
 
 		this.extensionReadme = new Cache(() => extension.getReadme());
@@ -346,6 +360,18 @@ export class ExtensionEditor extends BaseEditor {
 		}
 	}
 
+	public showNextFindTerm() {
+		if (this.activeWebview) {
+			this.activeWebview.showNextFindTerm();
+		}
+	}
+
+	public showPreviousFindTerm() {
+		if (this.activeWebview) {
+			this.activeWebview.showPreviousFindTerm();
+		}
+	}
+
 	private onNavbarChange(extension: IExtension, id: string): void {
 		this.contentDisposables = dispose(this.contentDisposables);
 		this.content.innerHTML = '';
@@ -366,7 +392,7 @@ export class ExtensionEditor extends BaseEditor {
 			.then<void>(body => {
 				const allowedBadgeProviders = this.extensionsWorkbenchService.allowedBadgeProviders;
 				const webViewOptions = allowedBadgeProviders.length > 0 ? { allowScripts: false, allowSvgs: false, svgWhiteList: allowedBadgeProviders } : undefined;
-				this.activeWebview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART), this.contextViewService, this.contextKey, webViewOptions);
+				this.activeWebview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART), this.contextViewService, this.contextKey, this.findInputFocusContextKey, webViewOptions);
 				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, this.activeWebview);
 				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
 
@@ -410,7 +436,9 @@ export class ExtensionEditor extends BaseEditor {
 					this.renderSettings(content, manifest, layout),
 					this.renderCommands(content, manifest, layout),
 					this.renderLanguages(content, manifest, layout),
-					this.renderThemes(content, manifest, layout),
+					this.renderColorThemes(content, manifest, layout),
+					this.renderIconThemes(content, manifest, layout),
+					this.renderColors(content, manifest, layout),
 					this.renderJSONValidation(content, manifest, layout),
 					this.renderDebuggers(content, manifest, layout),
 					this.renderViews(content, manifest, layout)
@@ -445,8 +473,8 @@ export class ExtensionEditor extends BaseEditor {
 				const tree = this.renderDependencies(content, extensionDependencies);
 				const layout = () => {
 					scrollableContent.scanDomNode();
-					const scrollState = scrollableContent.getScrollState();
-					tree.layout(scrollState.height);
+					const scrollDimensions = scrollableContent.getScrollDimensions();
+					tree.layout(scrollDimensions.height);
 				};
 				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
 				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
@@ -518,6 +546,8 @@ export class ExtensionEditor extends BaseEditor {
 		return true;
 	}
 
+
+
 	private renderDebuggers(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
 		const contributes = manifest.contributes;
 		const contrib = contributes && contributes.debuggers || [];
@@ -569,7 +599,7 @@ export class ExtensionEditor extends BaseEditor {
 		return true;
 	}
 
-	private renderThemes(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
+	private renderColorThemes(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
 		const contributes = manifest.contributes;
 		const contrib = contributes && contributes.themes || [];
 
@@ -578,13 +608,75 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', null, localize('themes', "Themes ({0})", contrib.length)),
+			$('summary', null, localize('colorThemes', "Color Themes ({0})", contrib.length)),
 			$('ul', null, ...contrib.map(theme => $('li', null, theme.label)))
 		);
 
 		append(container, details);
 		return true;
 	}
+
+	private renderIconThemes(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
+		const contributes = manifest.contributes;
+		const contrib = contributes && contributes.iconThemes || [];
+
+		if (!contrib.length) {
+			return false;
+		}
+
+		const details = $('details', { open: true, ontoggle: onDetailsToggle },
+			$('summary', null, localize('iconThemes', "Icon Themes ({0})", contrib.length)),
+			$('ul', null, ...contrib.map(theme => $('li', null, theme.label)))
+		);
+
+		append(container, details);
+		return true;
+	}
+
+	private renderColors(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
+		const contributes = manifest.contributes;
+		const colors = contributes && contributes.colors;
+
+		if (!colors || !colors.length) {
+			return false;
+		}
+
+		function colorPreview(colorReference: string): Node[] {
+			let result: Node[] = [];
+			if (colorReference && colorReference[0] === '#') {
+				let color = Color.fromHex(colorReference);
+				if (color) {
+					result.push($('span', { class: 'colorBox', style: 'background-color: ' + Color.Format.CSS.format(color) }, ''));
+				}
+			}
+			result.push($('code', null, colorReference));
+			return result;
+		}
+
+		const details = $('details', { open: true, ontoggle: onDetailsToggle },
+			$('summary', null, localize('colors', "Colors ({0})", colors.length)),
+			$('table', null,
+				$('tr', null,
+					$('th', null, localize('colorId', "Id")),
+					$('th', null, localize('description', "Description")),
+					$('th', null, localize('defaultDark', "Dark Default")),
+					$('th', null, localize('defaultLight', "Light Default")),
+					$('th', null, localize('defaultHC', "High Contrast Default"))
+				),
+				...colors.map(color => $('tr', null,
+					$('td', null, $('code', null, color.id)),
+					$('td', null, color.description),
+					$('td', null, ...colorPreview(color.defaults.dark)),
+					$('td', null, ...colorPreview(color.defaults.light)),
+					$('td', null, ...colorPreview(color.defaults.highContrast))
+				))
+			)
+		);
+
+		append(container, details);
+		return true;
+	}
+
 
 	private renderJSONValidation(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
 		const contributes = manifest.contributes;
@@ -847,3 +939,46 @@ const hideCommand = new ShowExtensionEditorFindCommand({
 	}
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule(hideCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
+
+class ShowExtensionEditorFindTermCommand extends Command {
+	constructor(opts: ICommandOptions, private _next: boolean) {
+		super(opts);
+	}
+
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		const extensionEditor = this.getExtensionEditor(accessor);
+		if (extensionEditor) {
+			if (this._next) {
+				extensionEditor.showNextFindTerm();
+			} else {
+				extensionEditor.showPreviousFindTerm();
+			}
+		}
+	}
+
+	private getExtensionEditor(accessor: ServicesAccessor): ExtensionEditor {
+		const activeEditor = accessor.get(IWorkbenchEditorService).getActiveEditor() as ExtensionEditor;
+		if (activeEditor instanceof ExtensionEditor) {
+			return activeEditor;
+		}
+		return null;
+	}
+}
+
+const showNextFindTermCommand = new ShowExtensionEditorFindTermCommand({
+	id: 'editor.action.extensioneditor.showNextFindTerm',
+	precondition: KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_FOCUSED,
+	kbOpts: {
+		primary: KeyMod.Alt | KeyCode.DownArrow
+	}
+}, true);
+KeybindingsRegistry.registerCommandAndKeybindingRule(showNextFindTermCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
+
+const showPreviousFindTermCommand = new ShowExtensionEditorFindTermCommand({
+	id: 'editor.action.extensioneditor.showPreviousFindTerm',
+	precondition: KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_FOCUSED,
+	kbOpts: {
+		primary: KeyMod.Alt | KeyCode.UpArrow
+	}
+}, false);
+KeybindingsRegistry.registerCommandAndKeybindingRule(showPreviousFindTermCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));

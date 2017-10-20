@@ -457,4 +457,17 @@ suite('Editor Contrib - Block Comment Command', () => {
 			new Selection(1, 16, 1, 22)
 		);
 	});
+
+	test('issue #34618', function () {
+		testBlockCommentCommand(
+			[
+				'<0  0> middle end',
+			],
+			new Selection(1, 4, 1, 4),
+			[
+				' middle end'
+			],
+			new Selection(1, 1, 1, 1)
+		);
+	});
 });

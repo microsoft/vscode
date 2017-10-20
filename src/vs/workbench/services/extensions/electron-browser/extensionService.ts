@@ -11,27 +11,28 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import pkg from 'vs/platform/node/package';
 import * as path from 'path';
 import URI from 'vs/base/common/uri';
-import { ExtensionDescriptionRegistry } from "vs/workbench/services/extensions/node/extensionDescriptionRegistry";
-import { IMessage, IExtensionDescription, IExtensionsStatus, IExtensionService, ExtensionPointContribution } from 'vs/platform/extensions/common/extensions';
+import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
+import { IMessage, IExtensionDescription, IExtensionsStatus, IExtensionService, ExtensionPointContribution, ActivationTimes } from 'vs/platform/extensions/common/extensions';
 import { IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, getGloballyDisabledExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionsRegistry, ExtensionPoint, IExtensionPointUser, ExtensionMessageCollector, IExtensionPoint } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ExtensionScanner, ILog } from 'vs/workbench/services/extensions/electron-browser/extensionPoints';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { ProxyIdentifier } from 'vs/workbench/services/thread/common/threadService';
-import { ExtHostContext, ExtHostExtensionServiceShape, IExtHostContext, MainContext } from "vs/workbench/api/node/extHost.protocol";
+import { ExtHostContext, ExtHostExtensionServiceShape, IExtHostContext, MainContext } from 'vs/workbench/api/node/extHost.protocol';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IInstantiationService } from "vs/platform/instantiation/common/instantiation";
-import { ExtensionHostProcessWorker } from "vs/workbench/services/extensions/electron-browser/extensionHost";
-import { MainThreadService } from "vs/workbench/services/thread/electron-browser/threadService";
-import { Barrier } from "vs/workbench/services/extensions/node/barrier";
-import { IMessagePassingProtocol } from "vs/base/parts/ipc/common/ipc";
-import { ExtHostCustomersRegistry } from "vs/workbench/api/electron-browser/extHostCustomers";
-import { IWindowService } from "vs/platform/windows/common/windows";
-import { Action } from "vs/base/common/actions";
-import { IDisposable } from "vs/base/common/lifecycle";
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ExtensionHostProcessWorker } from 'vs/workbench/services/extensions/electron-browser/extensionHost';
+import { MainThreadService } from 'vs/workbench/services/thread/electron-browser/threadService';
+import { Barrier } from 'vs/workbench/services/extensions/node/barrier';
+import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
+import { ExtHostCustomersRegistry } from 'vs/workbench/api/electron-browser/extHostCustomers';
+import { IWindowService } from 'vs/platform/windows/common/windows';
+import { Action } from 'vs/base/common/actions';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { startTimer } from 'vs/base/node/startupTimers';
 
 const SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
 
@@ -65,6 +66,7 @@ export class ExtensionService implements IExtensionService {
 	 * A map of already activated events to speed things up if the same activation event is triggered multiple times.
 	 */
 	private _extensionHostProcessFinishedActivateEvents: { [activationEvent: string]: boolean; };
+	private _extensionHostProcessActivationTimes: { [id: string]: ActivationTimes; };
 	private _extensionHostProcessWorker: ExtensionHostProcessWorker;
 	private _extensionHostProcessThreadService: MainThreadService;
 	private _extensionHostProcessCustomers: IDisposable[];
@@ -89,6 +91,7 @@ export class ExtensionService implements IExtensionService {
 		this._allRequestedActivateEvents = Object.create(null);
 
 		this._extensionHostProcessFinishedActivateEvents = Object.create(null);
+		this._extensionHostProcessActivationTimes = Object.create(null);
 		this._extensionHostProcessWorker = null;
 		this._extensionHostProcessThreadService = null;
 		this._extensionHostProcessCustomers = [];
@@ -98,8 +101,22 @@ export class ExtensionService implements IExtensionService {
 		this._scanAndHandleExtensions();
 	}
 
+	public restartExtensionHost(): void {
+		this._stopExtensionHostProcess();
+		this._startExtensionHostProcess(Object.keys(this._allRequestedActivateEvents));
+	}
+
+	public startExtensionHost(): void {
+		this._startExtensionHostProcess(Object.keys(this._allRequestedActivateEvents));
+	}
+
+	public stopExtensionHost(): void {
+		this._stopExtensionHostProcess();
+	}
+
 	private _stopExtensionHostProcess(): void {
 		this._extensionHostProcessFinishedActivateEvents = Object.create(null);
+		this._extensionHostProcessActivationTimes = Object.create(null);
 		if (this._extensionHostProcessWorker) {
 			this._extensionHostProcessWorker.dispose();
 			this._extensionHostProcessWorker = null;
@@ -146,6 +163,7 @@ export class ExtensionService implements IExtensionService {
 		});
 
 		const restart = new Action('restart', nls.localize('restart', "Restart Extension Host"), '', true, (): TPromise<boolean> => {
+			this._messageService.hideAll();
 			this._startExtensionHostProcess(Object.keys(this._allRequestedActivateEvents));
 			return TPromise.as(true);
 		});
@@ -198,7 +216,7 @@ export class ExtensionService implements IExtensionService {
 	// ---- begin IExtensionService
 
 	public activateByEvent(activationEvent: string): TPromise<void> {
-		if (this._barrier.isOpen) {
+		if (this._barrier.isOpen()) {
 			// Extensions have been scanned and interpreted
 
 			if (!this._registry.containsActivationEvent(activationEvent)) {
@@ -221,7 +239,7 @@ export class ExtensionService implements IExtensionService {
 	}
 
 	protected _activateByEvent(activationEvent: string): TPromise<void> {
-		if (this._extensionHostProcessFinishedActivateEvents[activationEvent]) {
+		if (this._extensionHostProcessFinishedActivateEvents[activationEvent] || !this._extensionHostProcessProxy) {
 			return NO_OP_VOID_PROMISE;
 		}
 		return this._extensionHostProcessProxy.then((proxy) => {
@@ -258,8 +276,12 @@ export class ExtensionService implements IExtensionService {
 		});
 	}
 
-	public getExtensionsStatus(): { [id: string]: IExtensionsStatus } {
+	public getExtensionsStatus(): { [id: string]: IExtensionsStatus; } {
 		return this._extensionsStatus;
+	}
+
+	public getExtensionsActivationTimes(): { [id: string]: ActivationTimes; } {
+		return this._extensionHostProcessActivationTimes;
 	}
 
 	// ---- end IExtensionService
@@ -278,6 +300,12 @@ export class ExtensionService implements IExtensionService {
 				...this._extensionEnablementService.getWorkspaceDisabledExtensions()
 			];
 
+			/* __GDPR__
+				"extensionsScanned" : {
+					"totalCount" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+					"disabledCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+				}
+			*/
 			this._telemetryService.publicLog('extensionsScanned', {
 				totalCount: installedExtensions.length,
 				disabledCount: disabledExtensions.length
@@ -297,7 +325,12 @@ export class ExtensionService implements IExtensionService {
 			let messageHandler = (msg: IMessage) => this._handleExtensionPointMessage(msg);
 
 			for (let i = 0, len = extensionPoints.length; i < len; i++) {
-				ExtensionService._handleExtensionPoint(extensionPoints[i], availableExtensions, messageHandler);
+				const clock = startTimer(`handleExtensionPoint:${extensionPoints[i].name}`);
+				try {
+					ExtensionService._handleExtensionPoint(extensionPoints[i], availableExtensions, messageHandler);
+				} finally {
+					clock.stop();
+				}
 			}
 
 			this._barrier.open();
@@ -320,6 +353,14 @@ export class ExtensionService implements IExtensionService {
 
 		if (!this._isDev && msg.extensionId) {
 			const { type, extensionId, extensionPointId, message } = msg;
+			/* __GDPR__
+				"extensionsMessage" : {
+					"type" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+					"extensionId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+					"extensionPointId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+					"message": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+				}
+			*/
 			this._telemetryService.publicLog('extensionsMessage', {
 				type, extensionId, extensionPointId, message
 			});
@@ -405,6 +446,10 @@ export class ExtensionService implements IExtensionService {
 		} else {
 			this._logMessageInConsole(severity, msg);
 		}
+	}
+
+	public _onExtensionActivated(extensionId: string, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number): void {
+		this._extensionHostProcessActivationTimes[extensionId] = new ActivationTimes(startup, codeLoadingTime, activateCallTime, activateResolvedTime);
 	}
 }
 

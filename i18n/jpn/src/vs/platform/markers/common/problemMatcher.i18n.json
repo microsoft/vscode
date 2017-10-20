@@ -66,5 +66,5 @@
 	"jshint-stylish": "JSHint の問題 (stylish)",
 	"eslint-compact": "ESLint の問題 (compact)",
 	"eslint-stylish": "ESLint の問題 (stylish)",
-	"go": "問題に移動する"
+	"go": "Go の問題"
 }

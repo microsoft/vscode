@@ -6,5 +6,8 @@
 {
 	"editorGutterModifiedBackground": "Değiştirilen satırlar için düzenleyici oluğu arka plan rengi.",
 	"editorGutterAddedBackground": "Eklenen satırlar için düzenleyici oluğu arka plan rengi.",
-	"editorGutterDeletedBackground": "Silinen satırlar için düzenleyici oluğu arka plan rengi."
+	"editorGutterDeletedBackground": "Silinen satırlar için düzenleyici oluğu arka plan rengi.",
+	"overviewRulerModifiedForeground": "Değiştirilen içerik için genel bakış cetvelinin işaretleyici rengi.",
+	"overviewRulerAddedForeground": "Eklenen içerik için genel bakış cetvelinin işaretleyici rengi.",
+	"overviewRulerDeletedForeground": "Silinen içerik için genel bakış cetvelinin işaretleyici rengi."
 }

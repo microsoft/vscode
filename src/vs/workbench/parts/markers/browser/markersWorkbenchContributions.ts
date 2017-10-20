@@ -9,7 +9,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
+import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { PanelRegistry, Extensions as PanelExtensions, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { ToggleMarkersPanelAction, ToggleErrorsAndWarningsAction } from 'vs/workbench/parts/markers/browser/markersPanelActions';
@@ -48,10 +48,10 @@ export function registerContributions(): void {
 		}
 	});
 
+
 	// markers panel
 	Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescriptor(
-		'vs/workbench/parts/markers/browser/markersPanel',
-		'MarkersPanel',
+		MarkersPanel,
 		Constants.MARKERS_PANEL_ID,
 		Messages.MARKERS_PANEL_TITLE_PROBLEMS,
 		'markersPanel',

@@ -62,6 +62,21 @@ export function getLocalExtensionTelemetryData(extension: ILocalExtension): any 
 	};
 }
 
+
+/* __GDPR__FRAGMENT__
+	"GalleryExtensionTelemetryData" : {
+		"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		"name": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		"galleryId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		"publisherId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+		"publisherName": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+		"publisherDisplayName": { "classification": "PublicPersonalData", "purpose": "FeatureInsight" },
+		"dependencies": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		"${include}": [
+			"${GalleryExtensionTelemetryData2}"
+		]
+	}
+*/
 export function getGalleryExtensionTelemetryData(extension: IGalleryExtension): any {
 	return {
 		id: extension.id,
@@ -70,7 +85,8 @@ export function getGalleryExtensionTelemetryData(extension: IGalleryExtension): 
 		publisherId: extension.publisherId,
 		publisherName: extension.publisher,
 		publisherDisplayName: extension.publisherDisplayName,
-		dependencies: extension.properties.dependencies.length > 0
+		dependencies: extension.properties.dependencies.length > 0,
+		...extension.telemetryData
 	};
 }
 

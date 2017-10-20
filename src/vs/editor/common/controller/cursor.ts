@@ -13,7 +13,6 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection, ISelection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { CursorColumns, CursorConfiguration, EditOperationResult, CursorContext, CursorState, RevealTarget, IColumnSelectData, ICursors } from 'vs/editor/common/controller/cursorCommon';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperations';
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
 import { TextModelEventType, ModelRawContentChangedEvent, RawContentChangedType } from 'vs/editor/common/model/textModelEvents';
@@ -21,7 +20,6 @@ import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import Event, { Emitter } from 'vs/base/common/event';
-// import { ScreenReaderMessageGenerator } from "vs/editor/common/controller/accGenerator";
 
 function containsLineMappingChanged(events: viewEvents.ViewEvent[]): boolean {
 	for (let i = 0, len = events.length; i < len; i++) {
@@ -151,11 +149,10 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 			this.context = new CursorContext(this._configuration, this._model, this._viewModel);
 			this._cursors.updateContext(this.context);
 		};
-		this._register(this._model.onDidChangeLanguage((e) => {
+		this._register(model.onDidChangeLanguage((e) => {
 			updateCursorContext();
 		}));
-		this._register(LanguageConfigurationRegistry.onDidChange(() => {
-			// TODO@Alex: react only if certain supports changed? (and if my model's mode changed)
+		this._register(model.onDidChangeLanguageConfiguration(() => {
 			updateCursorContext();
 		}));
 		this._register(model.onDidChangeOptions(() => {
@@ -201,16 +198,16 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		this._columnSelectData = columnSelectData;
 	}
 
-	public reveal(horizontal: boolean, target: RevealTarget): void {
-		this._revealRange(target, viewEvents.VerticalRevealType.Simple, horizontal);
+	public reveal(horizontal: boolean, target: RevealTarget, scrollType: editorCommon.ScrollType): void {
+		this._revealRange(target, viewEvents.VerticalRevealType.Simple, horizontal, scrollType);
 	}
 
-	public revealRange(revealHorizontal: boolean, viewRange: Range, verticalType: viewEvents.VerticalRevealType) {
-		this.emitCursorRevealRange(viewRange, verticalType, revealHorizontal);
+	public revealRange(revealHorizontal: boolean, viewRange: Range, verticalType: viewEvents.VerticalRevealType, scrollType: editorCommon.ScrollType) {
+		this.emitCursorRevealRange(viewRange, verticalType, revealHorizontal, scrollType);
 	}
 
 	public scrollTo(desiredScrollTop: number): void {
-		this._viewModel.viewLayout.setScrollPosition({
+		this._viewModel.viewLayout.setScrollPositionSmooth({
 			scrollTop: desiredScrollTop
 		});
 	}
@@ -277,7 +274,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		}
 
 		this.setStates('restoreState', CursorChangeReason.NotSet, CursorState.fromModelSelections(desiredSelections));
-		this.reveal(true, RevealTarget.Primary);
+		this.reveal(true, RevealTarget.Primary, editorCommon.ScrollType.Immediate);
 	}
 
 	private _onModelContentChanged(hadFlushEvent: boolean): void {
@@ -389,12 +386,17 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		this._emit([new viewEvents.ViewCursorStateChangedEvent(viewSelections, isInEditableRange)]);
 
 		// Only after the view has been notified, let the rest of the world know...
-		this._onDidChange.fire(new CursorStateChangedEvent(selections, source || 'keyboard', reason));
+		if (!oldState
+			|| oldState.cursorState.length !== newState.cursorState.length
+			|| newState.cursorState.some((newCursorState, i) => !newCursorState.modelState.equals(oldState.cursorState[i].modelState))
+		) {
+			this._onDidChange.fire(new CursorStateChangedEvent(selections, source || 'keyboard', reason));
+		}
 
 		return true;
 	}
 
-	private _revealRange(revealTarget: RevealTarget, verticalType: viewEvents.VerticalRevealType, revealHorizontal: boolean): void {
+	private _revealRange(revealTarget: RevealTarget, verticalType: viewEvents.VerticalRevealType, revealHorizontal: boolean, scrollType: editorCommon.ScrollType): void {
 		const viewPositions = this._cursors.getViewPositions();
 
 		let viewPosition = viewPositions[0];
@@ -419,11 +421,11 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		}
 
 		const viewRange = new Range(viewPosition.lineNumber, viewPosition.column, viewPosition.lineNumber, viewPosition.column);
-		this.emitCursorRevealRange(viewRange, verticalType, revealHorizontal);
+		this.emitCursorRevealRange(viewRange, verticalType, revealHorizontal, scrollType);
 	}
 
-	public emitCursorRevealRange(viewRange: Range, verticalType: viewEvents.VerticalRevealType, revealHorizontal: boolean) {
-		this._emit([new viewEvents.ViewRevealRangeRequestEvent(viewRange, verticalType, revealHorizontal)]);
+	public emitCursorRevealRange(viewRange: Range, verticalType: viewEvents.VerticalRevealType, revealHorizontal: boolean, scrollType: editorCommon.ScrollType) {
+		this._emit([new viewEvents.ViewRevealRangeRequestEvent(viewRange, verticalType, revealHorizontal, scrollType)]);
 	}
 
 	// -----------------------------------------------------------------------------------------------------------
@@ -494,7 +496,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		this._isHandling = false;
 
 		if (this._emitStateChangedIfNecessary(source, cursorChangeReason, oldState)) {
-			this._revealRange(RevealTarget.Primary, viewEvents.VerticalRevealType.Simple, true);
+			this._revealRange(RevealTarget.Primary, viewEvents.VerticalRevealType.Simple, true, editorCommon.ScrollType.Smooth);
 		}
 	}
 

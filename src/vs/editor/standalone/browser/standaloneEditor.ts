@@ -36,7 +36,7 @@ import { Token } from 'vs/editor/common/core/token';
 import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
-import { IMessageService } from "vs/platform/message/common/message";
+import { IMessageService } from 'vs/platform/message/common/message';
 
 /**
  * @internal
@@ -328,6 +328,18 @@ export function setTheme(themeName: string): void {
 
 /**
  * @internal
+ * --------------------------------------------
+ * This is repeated here so it can be exported
+ * because TS inlines const enums
+ * --------------------------------------------
+ */
+enum ScrollType {
+	Smooth = 0,
+	Immediate = 1,
+}
+
+/**
+ * @internal
  */
 export function createMonacoEditorAPI(): typeof monaco.editor {
 	return {
@@ -371,6 +383,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		ContentWidgetPositionPreference: ContentWidgetPositionPreference,
 		OverlayWidgetPositionPreference: OverlayWidgetPositionPreference,
 		RenderMinimap: editorOptions.RenderMinimap,
+		ScrollType: <any>ScrollType,
 
 		// classes
 		InternalEditorOptions: <any>editorOptions.InternalEditorOptions,

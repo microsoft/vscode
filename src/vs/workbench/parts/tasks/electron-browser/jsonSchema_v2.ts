@@ -84,6 +84,11 @@ const presentation: IJSONSchema = {
 		reveal: {
 			type: 'string',
 			enum: ['always', 'silent', 'never'],
+			enumDescriptions: [
+				nls.localize('JsonSchema.tasks.presentation.reveal.always', 'Always reveals the terminal when this task is executed.'),
+				nls.localize('JsonSchema.tasks.presentation.reveal.silent', 'Only reveals the terminal if no problem matcher is associated with the task and an errors occurs executing it.'),
+				nls.localize('JsonSchema.tasks.presentation.reveal.never', 'Never reveals the terminal when this task is executed.'),
+			],
 			default: 'always',
 			description: nls.localize('JsonSchema.tasks.presentation.reveals', 'Controls whether the panel running the task is revealed or not. Default is \"always\".')
 		},

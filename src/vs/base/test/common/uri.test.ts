@@ -310,6 +310,11 @@ suite('URI', () => {
 		}
 	});
 
+	test('VSCode URI module\'s driveLetterPath regex is incorrect, #32961', function () {
+		let uri = URI.parse('file:///_:/path');
+		assert.equal(uri.fsPath, isWindows ? '\\_:\\path' : '/_:/path');
+	});
+
 	test('URI#file, no path-is-uri check', () => {
 
 		// we don't complain here
@@ -361,6 +366,23 @@ suite('URI', () => {
 
 		value = URI.from({ scheme: 'http', authority: 'löcalhost:8080', path: '/far', query: undefined, fragment: undefined });
 		assert.equal(value.toString(), 'http://l%C3%B6calhost:8080/far');
+	});
+
+	test('URI#toString, user information in authority', () => {
+		var value = URI.parse('http://foo:bar@localhost/far');
+		assert.equal(value.toString(), 'http://foo:bar@localhost/far');
+
+		value = URI.parse('http://foo@localhost/far');
+		assert.equal(value.toString(), 'http://foo@localhost/far');
+
+		value = URI.parse('http://foo:bAr@localhost:8080/far');
+		assert.equal(value.toString(), 'http://foo:bAr@localhost:8080/far');
+
+		value = URI.parse('http://foo@localhost:8080/far');
+		assert.equal(value.toString(), 'http://foo@localhost:8080/far');
+
+		value = URI.from({ scheme: 'http', authority: 'föö:bör@löcalhost:8080', path: '/far', query: undefined, fragment: undefined });
+		assert.equal(value.toString(), 'http://f%C3%B6%C3%B6:b%C3%B6r@l%C3%B6calhost:8080/far');
 	});
 
 	test('correctFileUriToFilePath2', () => {

@@ -11,7 +11,7 @@
 	"endOfLineLineFeed": "LF",
 	"endOfLineCarriageReturnLineFeed": "CRLF",
 	"tabFocusModeEnabled": "Клавиша TAB перемещает фокус",
-	"screenReaderDetected": "Средство чтения с экрана обнаружено",
+	"screenReaderDetected": "Средство чтения с экрана оптимизировано",
 	"screenReaderDetectedExtra": "Если вы не используете средство чтения с экрана, измените значение параметра \"editor.accessibilitySupport\" на \"off\".",
 	"disableTabMode": "Отключить режим специальных возможностей",
 	"gotoLine": "Перейти к строке",
@@ -47,5 +47,11 @@
 	"reopenWithEncoding": "Повторно открыть в кодировке",
 	"guessedEncoding": "Предположение на основе содержимого",
 	"pickEncodingForReopen": "Выберите кодировку файла для его повторного открытия",
-	"pickEncodingForSave": "Выберите кодировку файла для его сохранения"
+	"pickEncodingForSave": "Выберите кодировку файла для его сохранения",
+	"screenReaderDetectedExplanation.title": "Средство чтения с экрана оптимизировано",
+	"screenReaderDetectedExplanation.question": "Вы используете средство чтения с экрана в VS Code?",
+	"screenReaderDetectedExplanation.answerYes": "Да",
+	"screenReaderDetectedExplanation.answerNo": "Нет",
+	"screenReaderDetectedExplanation.body1": "Теперь среда VS Code оптимизирована для средства чтения с экрана.",
+	"screenReaderDetectedExplanation.body2": "Некоторые функции редактора (например, перенос слов, сворачивание, автоматическая вставка закрывающих скобок и т.д.) будут работать по-другому."
 }

@@ -10,17 +10,17 @@ import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, Action } from 'vs/base/common/actions';
 import { mapEvent } from 'vs/base/common/event';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IMessageService, CloseAction, Severity } from 'vs/platform/message/common/message';
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
 import URI from 'vs/base/common/uri';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IActivityBarService, NumberBadge } from 'vs/workbench/services/activity/common/activityBarService';
+import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ReleaseNotesInput } from 'vs/workbench/parts/update/electron-browser/releaseNotesInput';
-import { IGlobalActivity } from 'vs/workbench/browser/activity';
+import { IGlobalActivity } from 'vs/workbench/common/activity';
 import { IRequestService } from 'vs/platform/request/node/request';
 import { asText } from 'vs/base/node/request';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -32,6 +32,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IUpdateService, State as UpdateState } from 'vs/platform/update/common/update';
 import * as semver from 'semver';
 import { OS, isLinux, isWindows } from 'vs/base/common/platform';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 class ApplyUpdateAction extends Action {
 	constructor( @IUpdateService private updateService: IUpdateService) {
@@ -267,8 +268,13 @@ export class Win3264BitContribution implements IWorkbenchContribution {
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMessageService messageService: IMessageService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IEnvironmentService environmentService: IEnvironmentService
 	) {
+		if (environmentService.disableUpdates) {
+			return;
+		}
+
 		const neverShowAgain = new NeverShowAgain(Win3264BitContribution.KEY, storageService);
 
 		if (!neverShowAgain.shouldShow()) {
@@ -280,7 +286,7 @@ export class Win3264BitContribution implements IWorkbenchContribution {
 			: Win3264BitContribution.URL;
 
 		messageService.show(Severity.Info, {
-			message: nls.localize('64bitisavailable', "{0} for Windows 64 bits is now available!", product.nameShort),
+			message: nls.localize('64bitisavailable', "{0} for 64-bit Windows is now available!", product.nameShort),
 			actions: [
 				LinkAction('update.show64bitreleasenotes', nls.localize('learn more', "Learn More"), url),
 				CloseAction,
@@ -312,6 +318,8 @@ export class UpdateContribution implements IGlobalActivity {
 	get id() { return 'vs.update'; }
 	get name() { return ''; }
 	get cssClass() { return 'update-activity'; }
+
+	private badgeDisposable: IDisposable = EmptyDisposable;
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -321,7 +329,7 @@ export class UpdateContribution implements IGlobalActivity {
 		@IMessageService private messageService: IMessageService,
 		@IUpdateService private updateService: IUpdateService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IActivityBarService private activityBarService: IActivityBarService
+		@IActivityService private activityService: IActivityService
 	) {
 		const onUpdateAvailable = isLinux
 			? mapEvent(updateService.onUpdateAvailable, e => e.version)
@@ -330,6 +338,9 @@ export class UpdateContribution implements IGlobalActivity {
 		onUpdateAvailable(this.onUpdateAvailable, this, this.disposables);
 		updateService.onError(this.onError, this, this.disposables);
 		updateService.onUpdateNotAvailable(this.onUpdateNotAvailable, this, this.disposables);
+
+		updateService.onStateChange(this.onUpdateStateChange, this, this.disposables);
+		this.onUpdateStateChange(this.updateService.state);
 
 		/*
 		The `update/lastKnownVersion` and `update/updateNotificationTime` storage keys are used in
@@ -349,10 +360,20 @@ export class UpdateContribution implements IGlobalActivity {
 		}
 	}
 
-	private onUpdateAvailable(version: string): void {
-		const badge = new NumberBadge(1, () => nls.localize('updateIsReady', "New {0} update available.", product.nameShort));
-		this.activityBarService.showGlobalActivity(this.id, badge);
+	private onUpdateStateChange(state: UpdateState): void {
+		this.badgeDisposable.dispose();
 
+		const isUpdateAvailable = isLinux
+			? state === UpdateState.UpdateAvailable
+			: state === UpdateState.UpdateDownloaded;
+
+		if (isUpdateAvailable) {
+			const badge = new NumberBadge(1, () => nls.localize('updateIsReady', "New {0} update available.", product.nameShort));
+			this.badgeDisposable = this.activityService.showActivity(this.id, badge);
+		}
+	}
+
+	private onUpdateAvailable(version: string): void {
 		const currentVersion = product.commit;
 		const currentMillis = new Date().getTime();
 		const lastKnownVersion = this.storageService.get('update/lastKnownVersion', StorageScope.GLOBAL);

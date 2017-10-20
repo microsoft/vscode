@@ -455,7 +455,7 @@ export interface IQueuedSender {
 // On Windows we always wait for the send() method to return before sending the next message
 // to workaround https://github.com/nodejs/node/issues/7657 (IPC can freeze process)
 export function createQueuedSender(childProcess: ChildProcess | NodeJS.Process): IQueuedSender {
-	let msgQueue = [];
+	let msgQueue: string[] = [];
 	let useQueue = false;
 
 	const send = function (msg: any): void {
@@ -464,7 +464,7 @@ export function createQueuedSender(childProcess: ChildProcess | NodeJS.Process):
 			return;
 		}
 
-		let result = childProcess.send(msg, error => {
+		let result = childProcess.send(msg, (error: Error) => {
 			if (error) {
 				console.error(error); // unlikely to happen, best we can do is log this error
 			}

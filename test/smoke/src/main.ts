@@ -3,239 +3,227 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const fs = require('fs');
-const https = require('https');
-const program = require('commander');
-const git = require('simple-git')();
-const child_process = require('child_process');
-const path = require('path');
+import * as fs from 'fs';
+import * as https from 'https';
+import * as cp from 'child_process';
+import * as path from 'path';
+import * as minimist from 'minimist';
+import * as tmp from 'tmp';
+import * as rimraf from 'rimraf';
+import * as mkdirp from 'mkdirp';
 
-const tempFolder = 'test_data';
-const codeWorkspace = path.join(process.cwd(), tempFolder, 'smoketest.code-workspace');
-const testRepoUrl = 'https://github.com/Microsoft/vscode-smoketest-express';
-const testRepoLocalDir = path.join(process.cwd(), `${tempFolder}/vscode-smoketest-express`);
-const keybindingsUrl = 'https://raw.githubusercontent.com/Microsoft/vscode-docs/master/scripts/keybindings';
+const tmpDir = tmp.dirSync({ prefix: 't' }) as { name: string; removeCallback: Function; };
+const testDataPath = tmpDir.name;
+process.once('exit', () => rimraf.sync(testDataPath));
 
-program
-	.option('-l, --latest <file path>', 'path to the latest VS Code to test')
-	.option('-s, --stable [file path]', 'path to the stable VS Code to be used in data migration tests');
-
-program.on('--help', () => {
-	console.log('  Examples:');
-	console.log('');
-	console.log('    $ npm test -- --latest path/to/binary');
-	console.log('    $ npm test -- -l path/to/binary');
-	console.log('');
-	console.log('    $ npm test -- --latest path/to/latest/binary --stable path/to/stable/binary');
-	console.log('    $ npm test -- -l path/to/latest/binary -s path/to/stable/binary');
-	console.log('');
+const [, , ...args] = process.argv;
+const opts = minimist(args, {
+	string: [
+		'build',
+		'stable-build',
+		'log',
+		'wait-time'
+	]
 });
-program.parse(process.argv);
 
-if (!program.latest) {
-	fail('You must specify the binary to run the smoke test against');
-}
-if (!binaryExists(program.latest) || (program.stable && !binaryExists(program.stable))) {
-	fail('The file path to electron binary does not exist or permissions do not allow to execute it. Please check the path provided.');
-}
-if (parseInt(process.version.substr(1)) < 6) {
-	fail('Please update your Node version to greater than 6 to run the smoke test.');
-}
+process.env.ARTIFACTS_DIR = opts.log || '';
 
-// Setting up environment variables
-process.env.VSCODE_LATEST_PATH = program.latest;
-if (program.stable) {
-	process.env.VSCODE_STABLE_PATH = program.stable;
-}
-process.env.SMOKETEST_REPO = testRepoLocalDir;
-if (program.latest && (program.latest.indexOf('Code - Insiders') /* macOS/Windows */ || program.latest.indexOf('code-insiders') /* Linux */) >= 0) {
-	process.env.VSCODE_EDITION = 'insiders';
-}
-process.env.VSCODE_WORKSPACE_PATH = codeWorkspace;
-
-// Setting up 'vscode-smoketest-express' project
-let os = process.platform.toString();
-if (os === 'darwin') {
-	os = 'osx';
-}
-else if (os === 'win32') {
-	os = 'win';
-}
-
-var promises: Promise<any>[] = [];
-
-promises.push(getKeybindings(`${keybindingsUrl}/doc.keybindings.${os}.json`, `${tempFolder}/keybindings.json`));
-promises.push(createWorkspaceFile(codeWorkspace, [
-	toUri(path.join(testRepoLocalDir, 'public')),
-	toUri(path.join(testRepoLocalDir, 'routes')),
-	toUri(path.join(testRepoLocalDir, 'views'))
-]));
-promises.push(cleanOrClone(testRepoUrl, testRepoLocalDir));
-
-Promise.all(promises)
-	.then(() => execute('npm install', testRepoLocalDir))
-	.then(() => runTests())
-	.catch(reason => {
-		throw new Error('Error caught running the smoke test: ' + reason);
-	});
+const workspacePath = path.join(testDataPath, 'smoketest.code-workspace');
+const testRepoUrl = 'https://github.com/Microsoft/vscode-smoketest-express';
+const testRepoLocalDir = path.join(testDataPath, 'vscode-smoketest-express');
+const keybindingsPath = path.join(testDataPath, 'keybindings.json');
+const extensionsPath = path.join(testDataPath, 'extensions-dir');
+mkdirp.sync(extensionsPath);
 
 function fail(errorMessage): void {
 	console.error(errorMessage);
 	process.exit(1);
 }
 
-function toUri(path: string): string {
-	if (os === 'win') {
-		return `file:///${path.replace(/\\/g, '/')}`;
+if (parseInt(process.version.substr(1)) < 6) {
+	fail('Please update your Node version to greater than 6 to run the smoke test.');
+}
+
+const repoPath = path.join(__dirname, '..', '..', '..');
+
+function getDevElectronPath(): string {
+	const buildPath = path.join(repoPath, '.build');
+	const product = require(path.join(repoPath, 'product.json'));
+
+	switch (process.platform) {
+		case 'darwin':
+			return path.join(buildPath, 'electron', `${product.nameLong}.app`, 'Contents', 'MacOS', 'Electron');
+		case 'linux':
+			return path.join(buildPath, 'electron', `${product.applicationName}`);
+		case 'win32':
+			return path.join(buildPath, 'electron', `${product.nameShort}.exe`);
+		default:
+			throw new Error('Unsupported platform.');
 	}
-
-	return `file://${path}`;
 }
 
-function runTests(): void {
-	console.log('Running tests...');
-	var proc = child_process.spawn(process.execPath, [
-		'out/mocha-runner.js'
-	]);
-	proc.stdout.on('data', data => {
-		console.log(data.toString());
-	});
-	proc.stderr.on('data', data => {
-		var date = new Date().toLocaleString();
-		fs.appendFile(`${tempFolder}/errors.log`, `${date}: ${data.toString()}`, (err) => {
-			if (err) {
-				throw new Error(`Could not write stderr to errors.log with the following error: ${err}`);
-			};
-		});
-	});
-	proc.on('exit', (code) => {
-		process.exit(code);
-	});
-}
-
-function cleanOrClone(repo: string, dir: string): Promise<any> {
-	console.log('Cleaning or cloning test project repository...');
-
-	return new Promise(async (res, rej) => {
-		if (!folderExists(dir)) {
-			await gitClone(repo, dir);
-			res();
-		} else {
-			git.cwd(dir);
-			git.fetch(async err => {
-				if (err) {
-					rej(err);
-				}
-				await gitResetAndClean();
-				res();
-			});
+function getBuildElectronPath(root: string): string {
+	switch (process.platform) {
+		case 'darwin':
+			return path.join(root, 'Contents', 'MacOS', 'Electron');
+		case 'linux': {
+			const product = require(path.join(root, 'resources', 'app', 'product.json'));
+			return path.join(root, product.applicationName);
 		}
-	});
-}
-
-function gitClone(repo: string, dir: string): Promise<any> {
-	return new Promise((res, rej) => {
-		git.clone(repo, dir, () => {
-			console.log('Test repository successfully cloned.');
-			res();
-		});
-	});
-}
-
-function gitResetAndClean(): Promise<any> {
-	return new Promise((res, rej) => {
-		git.reset(['FETCH_HEAD', '--hard'], err => {
-			if (err) {
-				rej(err);
-			}
-
-			git.clean('f', ['-d'], err => {
-				if (err) {
-					rej(err);
-				}
-				console.log('Test project was successfully reset to initial state.');
-				res();
-			});
-		});
-	});
-}
-
-function execute(cmd: string, dir: string): Promise<any> {
-	return new Promise((res, rej) => {
-		console.log(`Running ${cmd}...`);
-		child_process.exec(cmd, { cwd: dir, stdio: [0, 1, 2] }, (error, stdout, stderr) => {
-			if (error) {
-				rej(error);
-			}
-			if (stderr) {
-				console.error(stderr);
-			}
-			console.log(stdout);
-			res();
-		});
-	});
-}
-
-function getKeybindings(url: string, location: string): Promise<any> {
-	console.log(`Fetching keybindings from ${url}...`);
-	return new Promise((resolve, reject) => {
-		https.get(url, (res) => {
-			if (res.statusCode !== 200) {
-				reject(`Failed to obtain key bindings with response code: ${res.statusCode}`);
-			}
-
-			var buffer: Buffer[] = [];
-			res.on('data', (chunk) => buffer.push(chunk));
-			res.on('end', () => {
-				fs.writeFile(location, Buffer.concat(buffer), 'utf8', () => {
-					console.log('Keybindings were successfully fetched.');
-					resolve();
-				});
-			});
-		}).on('error', (e) => {
-			reject(`Failed to obtain key bindings with an error: ${e}`);
-		});
-	});
-}
-
-function createWorkspaceFile(path: string, folders: string[]): Promise<any> {
-	console.log(`Creating workspace file at ${path}...`);
-	return new Promise((resolve, reject) => {
-		fs.exists(path, exists => {
-			if (exists) {
-				return resolve();
-			}
-
-			const workspace = {
-				id: (Date.now() + Math.round(Math.random() * 1000)).toString(),
-				folders
-			};
-
-			fs.writeFile(path, JSON.stringify(workspace, null, '\t'), error => {
-				if (error) {
-					reject(error);
-				} else {
-					resolve();
-				}
-			});
-		});
-	});
-}
-
-function folderExists(folder: string): boolean {
-	try {
-		fs.accessSync(folder, 'rw');
-		return true;
-	} catch (e) {
-		return false;
+		case 'win32': {
+			const product = require(path.join(root, 'resources', 'app', 'product.json'));
+			return path.join(root, `${product.nameShort}.exe`);
+		}
+		default:
+			throw new Error('Unsupported platform.');
 	}
 }
 
-function binaryExists(filePath: string): boolean {
-	try {
-		fs.accessSync(filePath, 'x');
-		return true;
-	} catch (e) {
-		return false;
+let testCodePath = opts.build;
+let stableCodePath = opts['stable-build'];
+
+if (testCodePath) {
+	process.env.VSCODE_PATH = getBuildElectronPath(testCodePath);
+
+	if (stableCodePath) {
+		process.env.VSCODE_STABLE_PATH = getBuildElectronPath(stableCodePath);
+	}
+} else {
+	testCodePath = getDevElectronPath();
+	process.env.VSCODE_PATH = testCodePath;
+	process.env.VSCODE_REPOSITORY = repoPath;
+	process.env.VSCODE_DEV = '1';
+	process.env.VSCODE_CLI = '1';
+}
+
+if (!fs.existsSync(process.env.VSCODE_PATH || '')) {
+	fail(`Can't find Code at ${process.env.VSCODE_PATH}.`);
+}
+
+process.env.VSCODE_USER_DIR = path.join(testDataPath, 'd');
+process.env.VSCODE_EXTENSIONS_DIR = extensionsPath;
+process.env.SMOKETEST_REPO = testRepoLocalDir;
+process.env.VSCODE_WORKSPACE_PATH = workspacePath;
+process.env.VSCODE_KEYBINDINGS_PATH = keybindingsPath;
+process.env.WAIT_TIME = opts['wait-time'] || '20';
+
+if (process.env.VSCODE_DEV === '1') {
+	process.env.VSCODE_EDITION = 'dev';
+} else if ((testCodePath.indexOf('Code - Insiders') /* macOS/Windows */ || testCodePath.indexOf('code-insiders') /* Linux */) >= 0) {
+	process.env.VSCODE_EDITION = 'insiders';
+} else {
+	process.env.VSCODE_EDITION = 'stable';
+}
+
+function getKeybindingPlatform(): string {
+	switch (process.platform) {
+		case 'darwin': return 'osx';
+		case 'win32': return 'win';
+		default: return process.platform;
 	}
 }
+
+function toUri(path: string): string {
+	if (process.platform === 'win32') {
+		return `${path.replace(/\\/g, '/')}`;
+	}
+
+	return `${path}`;
+}
+
+async function setup(): Promise<void> {
+	console.log('*** Test data:', testDataPath);
+	console.log('*** Preparing smoketest setup...');
+
+	const keybindingsUrl = `https://raw.githubusercontent.com/Microsoft/vscode-docs/master/scripts/keybindings/doc.keybindings.${getKeybindingPlatform()}.json`;
+	console.log('*** Fetching keybindings...');
+
+	await new Promise((c, e) => {
+		https.get(keybindingsUrl, res => {
+			const output = fs.createWriteStream(keybindingsPath);
+			res.on('error', e);
+			output.on('error', e);
+			output.on('close', c);
+			res.pipe(output);
+		}).on('error', e);
+	});
+
+	if (!fs.existsSync(workspacePath)) {
+		console.log('*** Creating workspace file...');
+		const workspace = {
+			folders: [
+				{
+					path: toUri(path.join(testRepoLocalDir, 'public'))
+				},
+				{
+					path: toUri(path.join(testRepoLocalDir, 'routes'))
+				},
+				{
+					path: toUri(path.join(testRepoLocalDir, 'views'))
+				}
+			]
+		};
+
+		fs.writeFileSync(workspacePath, JSON.stringify(workspace, null, '\t'));
+	}
+
+	if (!fs.existsSync(testRepoLocalDir)) {
+		console.log('*** Cloning test project repository...');
+		cp.spawnSync('git', ['clone', testRepoUrl, testRepoLocalDir]);
+	} else {
+		console.log('*** Cleaning test project repository...');
+		cp.spawnSync('git', ['fetch'], { cwd: testRepoLocalDir });
+		cp.spawnSync('git', ['reset', '--hard', 'FETCH_HEAD'], { cwd: testRepoLocalDir });
+		cp.spawnSync('git', ['clean', '-xdf'], { cwd: testRepoLocalDir });
+	}
+
+	console.log('*** Running npm install...');
+	cp.execSync('npm install', { cwd: testRepoLocalDir, stdio: 'inherit' });
+
+	console.log('*** Smoketest setup done!\n');
+}
+
+/**
+ * WebDriverIO 4.8.0 outputs all kinds of "deprecation" warnings
+ * for common commands like `keys` and `moveToObject`.
+ * According to https://github.com/Codeception/CodeceptJS/issues/531,
+ * these deprecation warnings are for Firefox, and have no alternative replacements.
+ * Since we can't downgrade WDIO as suggested (it's Spectron's dep, not ours),
+ * we must suppress the warning with a classic monkey-patch.
+ *
+ * @see webdriverio/lib/helpers/depcrecationWarning.js
+ * @see https://github.com/webdriverio/webdriverio/issues/2076
+ */
+// Filter out the following messages:
+const wdioDeprecationWarning = /^WARNING: the "\w+" command will be depcrecated soon./; // [sic]
+// Monkey patch:
+const warn = console.warn;
+console.warn = function suppressWebdriverWarnings(message) {
+	if (wdioDeprecationWarning.test(message)) { return; }
+	warn.apply(console, arguments);
+};
+
+before(async function () {
+	// allow two minutes for setup
+	this.timeout(2 * 60 * 1000);
+	await setup();
+});
+
+after(async () => {
+	await new Promise((c, e) => rimraf(testDataPath, { maxBusyTries: 10 }, err => err ? e(err) : c()));
+});
+
+// import './areas/workbench/data-migration.test';
+import './areas/workbench/data-loss.test';
+import './areas/explorer/explorer.test';
+import './areas/preferences/preferences.test';
+import './areas/search/search.test';
+import './areas/multiroot/multiroot.test';
+import './areas/css/css.test';
+import './areas/editor/editor.test';
+import './areas/debug/debug.test';
+import './areas/git/git.test';
+// import './areas/terminal/terminal.test';
+import './areas/statusbar/statusbar.test';
+import './areas/extensions/extensions.test';
+import './areas/workbench/localization.test';

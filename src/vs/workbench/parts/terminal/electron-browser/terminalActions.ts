@@ -21,6 +21,8 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { ActionBarContributor } from 'vs/workbench/browser/actions';
 import { TerminalEntry } from 'vs/workbench/parts/terminal/browser/terminalQuickOpen';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { PICK_WORKSPACE_FOLDER_COMMAND } from 'vs/workbench/browser/actions/workspaceActions';
 
 export const TERMINAL_PICKER_PREFIX = 'term ';
 
@@ -196,14 +198,12 @@ export class CreateNewTerminalAction extends Action {
 
 	public static ID = 'workbench.action.terminal.new';
 	public static LABEL = nls.localize('workbench.action.terminal.new', "Create New Integrated Terminal");
-	public static PANEL_LABEL = nls.localize('workbench.action.terminal.new.short', "New Terminal");
 
 	constructor(
 		id: string, label: string,
 		@ITerminalService private terminalService: ITerminalService
 	) {
 		super(id, label);
-		this.class = 'terminal-action new';
 	}
 
 	public run(event?: any): TPromise<any> {
@@ -213,6 +213,33 @@ export class CreateNewTerminalAction extends Action {
 		}
 		this.terminalService.setActiveInstance(instance);
 		return this.terminalService.showPanel(true);
+	}
+}
+
+export class CreateNewSelectWorkspaceTerminalAction extends Action {
+
+	public static ID = 'workbench.action.terminal.newSelectWorkspace';
+	public static LABEL = nls.localize('workbench.action.terminal.newSelectWorkspace', "Create New Integrated Terminal (Select Workspace)");
+	public static PANEL_LABEL = nls.localize('workbench.action.terminal.new.short', "New Terminal");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService,
+		@ICommandService private commandService: ICommandService
+	) {
+		super(id, label);
+		this.class = 'terminal-action new';
+	}
+
+	public run(event?: any): TPromise<any> {
+		return this.commandService.executeCommand(PICK_WORKSPACE_FOLDER_COMMAND).then(workspace => {
+			const instance = this.terminalService.createInstance(workspace ? { cwd: workspace.uri.fsPath } : undefined, true);
+			if (!instance) {
+				return TPromise.as(void 0);
+			}
+			this.terminalService.setActiveInstance(instance);
+			return this.terminalService.showPanel(true);
+		});
 	}
 }
 
@@ -253,34 +280,6 @@ export class FocusNextTerminalAction extends Action {
 	public run(event?: any): TPromise<any> {
 		this.terminalService.setActiveInstanceToNext();
 		return this.terminalService.showPanel(true);
-	}
-}
-
-export class FocusTerminalAtIndexAction extends Action {
-	private static ID_PREFIX = 'workbench.action.terminal.focusAtIndex';
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	public run(event?: any): TPromise<any> {
-		this.terminalService.setActiveInstanceByIndex(this.getTerminalNumber() - 1);
-		return this.terminalService.showPanel(true);
-	}
-
-	public static getId(n: number): string {
-		return FocusTerminalAtIndexAction.ID_PREFIX + n;
-	}
-
-	public static getLabel(n: number): string {
-		return nls.localize('workbench.action.terminal.focusAtIndex', 'Focus Terminal {0}', n);
-	}
-
-	private getTerminalNumber(): number {
-		return parseInt(this.id.substr(FocusTerminalAtIndexAction.ID_PREFIX.length));
 	}
 }
 
@@ -696,6 +695,40 @@ export class HideTerminalFindWidgetAction extends Action {
 	}
 }
 
+export class ShowNextFindTermTerminalFindWidgetAction extends Action {
+
+	public static ID = 'workbench.action.terminal.findWidget.history.showNext';
+	public static LABEL = nls.localize('nextTerminalFindTerm', "Show Next Find Term");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return TPromise.as(this.terminalService.showNextFindTermFindWidget());
+	}
+}
+
+export class ShowPreviousFindTermTerminalFindWidgetAction extends Action {
+
+	public static ID = 'workbench.action.terminal.findWidget.history.showPrevious';
+	public static LABEL = nls.localize('previousTerminalFindTerm', "Show Previous Find Term");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return TPromise.as(this.terminalService.showPreviousFindTermFindWidget());
+	}
+}
+
 
 export class QuickOpenActionTermContributor extends ActionBarContributor {
 
@@ -724,7 +757,7 @@ export class QuickOpenActionTermContributor extends ActionBarContributor {
 export class QuickOpenTermAction extends Action {
 
 	public static ID = 'workbench.action.quickOpenTerm';
-	public static LABEL = nls.localize('quickOpenTerm', "Terminal: Switch Active Terminal");
+	public static LABEL = nls.localize('quickOpenTerm', "Switch Active Terminal");
 
 	constructor(
 		id: string,

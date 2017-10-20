@@ -161,6 +161,18 @@ suite('Filters', () => {
 			{ start: 9, end: 10 },
 			{ start: 18, end: 19 }
 		]);
+		filterOk(matchesSubString, 'abc', 'abcabc', [
+			{ start: 0, end: 3 },
+		]);
+		filterOk(matchesSubString, 'abc', 'aaabbbccc', [
+			{ start: 0, end: 1 },
+			{ start: 3, end: 4 },
+			{ start: 6, end: 7 },
+		]);
+	});
+
+	test('matchesSubString performance (#35346)', function () {
+		filterNotOk(matchesSubString, 'aaaaaaaaaaaaaaaaaaaax', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
 	});
 
 	test('WordFilter', function () {

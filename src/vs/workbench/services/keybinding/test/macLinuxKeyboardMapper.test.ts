@@ -19,7 +19,7 @@ const WRITE_FILE_IF_DIFFERENT = false;
 
 function createKeyboardMapper(isUSStandard: boolean, file: string, OS: OperatingSystem): TPromise<MacLinuxKeyboardMapper> {
 	return readRawMapping<IMacLinuxKeyboardMapping>(file).then((rawMappings) => {
-		return new MacLinuxKeyboardMapper(false, isUSStandard, rawMappings, OS);
+		return new MacLinuxKeyboardMapper(isUSStandard, rawMappings, OS);
 	});
 }
 
@@ -1202,7 +1202,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 suite('keyboardMapper', () => {
 
 	test('issue #23706: Linux UK layout: Ctrl + Apostrophe also toggles terminal', () => {
-		let mapper = new MacLinuxKeyboardMapper(false, false, {
+		let mapper = new MacLinuxKeyboardMapper(false, {
 			'Backquote': {
 				'value': '`',
 				'withShift': '¬',
@@ -1234,7 +1234,7 @@ suite('keyboardMapper', () => {
 	});
 
 	test('issue #24064: NumLock/NumPad keys stopped working in 1.11 on Linux', () => {
-		let mapper = new MacLinuxKeyboardMapper(false, false, {}, OperatingSystem.Linux);
+		let mapper = new MacLinuxKeyboardMapper(false, {}, OperatingSystem.Linux);
 
 		function assertNumpadKeyboardEvent(keyCode: KeyCode, code: string, label: string, electronAccelerator: string, userSettingsLabel: string, dispatch: string): void {
 			assertResolveKeyboardEvent(
@@ -1273,7 +1273,7 @@ suite('keyboardMapper', () => {
 	});
 
 	test('issue #24107: Delete, Insert, Home, End, PgUp, PgDn, and arrow keys no longer work editor in 1.11', () => {
-		let mapper = new MacLinuxKeyboardMapper(false, false, {}, OperatingSystem.Linux);
+		let mapper = new MacLinuxKeyboardMapper(false, {}, OperatingSystem.Linux);
 
 		function assertKeyboardEvent(keyCode: KeyCode, code: string, label: string, electronAccelerator: string, userSettingsLabel: string, dispatch: string): void {
 			assertResolveKeyboardEvent(
@@ -1322,66 +1322,6 @@ suite('keyboardMapper', () => {
 		assertKeyboardEvent(KeyCode.DownArrow, 'NumpadEnter', 'DownArrow', 'Down', 'down', '[ArrowDown]');
 		assertKeyboardEvent(KeyCode.UpArrow, 'Lang3', 'UpArrow', 'Up', 'up', '[ArrowUp]');
 	});
-
-	test('issue #24153: ISO Keyboards: Backslash and IntlBackslash "swapped"', () => {
-		let mapper = new MacLinuxKeyboardMapper(true, false, {
-			'Backquote': {
-				'value': '`',
-				'withShift': '~',
-				'withAltGr': '`',
-				'withShiftAltGr': '`'
-			},
-			'IntlBackslash': {
-				'value': '§',
-				'withShift': '°',
-				'withAltGr': '§',
-				'withShiftAltGr': '°'
-			}
-		}, OperatingSystem.Macintosh);
-
-		assertResolveKeyboardEvent(
-			mapper,
-			{
-				ctrlKey: true,
-				shiftKey: false,
-				altKey: false,
-				metaKey: false,
-				keyCode: -1,
-				code: 'Backquote'
-			},
-			{
-				label: '⌃§',
-				ariaLabel: 'Control+§',
-				electronAccelerator: null,
-				userSettingsLabel: 'ctrl+[IntlBackslash]',
-				isWYSIWYG: false,
-				isChord: false,
-				dispatchParts: ['ctrl+[IntlBackslash]', null],
-			}
-		);
-
-		assertResolveKeyboardEvent(
-			mapper,
-			{
-				ctrlKey: true,
-				shiftKey: false,
-				altKey: false,
-				metaKey: false,
-				keyCode: -1,
-				code: 'IntlBackslash'
-			},
-			{
-				label: '⌃`',
-				ariaLabel: 'Control+`',
-				electronAccelerator: null,
-				userSettingsLabel: 'ctrl+`',
-				isWYSIWYG: true,
-				isChord: false,
-				dispatchParts: ['ctrl+[Backquote]', null],
-			}
-		);
-	});
-
 });
 
 suite('keyboardMapper - LINUX ru', () => {

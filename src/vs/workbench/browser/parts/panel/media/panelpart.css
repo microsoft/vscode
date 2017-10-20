@@ -17,6 +17,13 @@
 	border-top-style: solid;
 	padding-right: 0px;
 	height: 35px;
+	display: flex;
+	flex-direction: row;
+	justify-content: space-between;
+}
+
+.monaco-workbench > .part.panel > .composite.title > .title-actions {
+	flex: 0;
 }
 
 .monaco-workbench > .part.panel > .title > .title-actions .monaco-action-bar .action-item .action-label {
@@ -24,6 +31,13 @@
 }
 
 /** Panel Switcher */
+
+.monaco-workbench > .part.panel .composite-bar > .monaco-action-bar .action-label.toggle-more {
+	background: url('ellipsis.svg') center center no-repeat;
+	display: block;
+	height: 35px;
+	min-width: 28px;
+}
 
 .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar {
 	line-height: 35px;
@@ -35,14 +49,26 @@
 
 .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label {
 	text-transform: uppercase;
-	margin-left: 16px;
-	margin-right: 16px;
+	margin-left: 12px;
+	margin-right: 20px;
 	font-size: 11px;
 	padding-bottom: 4px; /* puts the bottom border down */
 }
 
-.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label.checked {
+.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked .action-label {
 	border-bottom: 1px solid;
+}
+
+.monaco-workbench  > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .badge .badge-content {
+	top: 8px;
+	right: 0px;
+	position: absolute;
+	font-size: 11px;
+	min-width: 6px;
+	line-height: 18px;
+	padding: 0 5px;
+	border-radius: 20px;
+	text-align: center;
 }
 
 /** Actions */
@@ -53,6 +79,7 @@
 
 .monaco-workbench .panel .monaco-action-bar .action-item .select-box {
 	cursor: pointer;
+	min-width: 100px;
 }
 
 .monaco-workbench .hide-panel-action {

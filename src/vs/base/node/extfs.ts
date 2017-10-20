@@ -42,7 +42,7 @@ export function readdir(path: string, callback: (error: Error, files: string[]) 
 }
 
 export function mkdirp(path: string, mode: number, callback: (error: Error) => void): void {
-	fs.exists(path, (exists) => {
+	fs.exists(path, exists => {
 		if (exists) {
 			return isDirectory(path, (err: Error, itIs?: boolean) => {
 				if (err) {
@@ -61,7 +61,7 @@ export function mkdirp(path: string, mode: number, callback: (error: Error) => v
 			if (err) { callback(err); return; }
 
 			if (mode) {
-				fs.mkdir(path, mode, (error) => {
+				fs.mkdir(path, mode, error => {
 					if (error) {
 						return callback(error);
 					}
@@ -98,10 +98,10 @@ export function copy(source: string, target: string, callback: (error: Error) =>
 			copiedSources[source] = true; // remember as copied
 		}
 
-		mkdirp(target, stat.mode & 511, (err) => {
+		mkdirp(target, stat.mode & 511, err => {
 			readdir(source, (err, files) => {
-				loop(files, (file: string, clb: (error: Error, _result) => void) => {
-					copy(paths.join(source, file), paths.join(target, file), (error: Error) => clb(error, undefined), copiedSources);
+				loop(files, (file: string, clb: (error: Error, result: string[]) => void) => {
+					copy(paths.join(source, file), paths.join(target, file), (error: Error) => clb(error, void 0), copiedSources);
 				}, callback);
 			});
 		});
@@ -147,7 +147,7 @@ function pipeFs(source: string, target: string, mode: number, callback: (error: 
 // will fail in case any file is used by another process. fs.unlink() in node will not bail if a file unlinked is used by another process.
 // However, the consequences are bad as outlined in all the related bugs from https://github.com/joyent/node/issues/7164
 export function del(path: string, tmpFolder: string, callback: (error: Error) => void, done?: (error: Error) => void): void {
-	fs.exists(path, (exists) => {
+	fs.exists(path, exists => {
 		if (!exists) {
 			return callback(null);
 		}
@@ -173,7 +173,7 @@ export function del(path: string, tmpFolder: string, callback: (error: Error) =>
 				callback(null);
 
 				// do the heavy deletion outside the callers callback
-				rmRecursive(pathInTemp, (error) => {
+				rmRecursive(pathInTemp, error => {
 					if (error) {
 						console.error(error);
 					}
@@ -192,7 +192,7 @@ function rmRecursive(path: string, callback: (error: Error) => void): void {
 		return callback(new Error('Will not delete root!'));
 	}
 
-	fs.exists(path, (exists) => {
+	fs.exists(path, exists => {
 		if (!exists) {
 			callback(null);
 		} else {
@@ -221,7 +221,7 @@ function rmRecursive(path: string, callback: (error: Error) => void): void {
 						} else {
 							let firstError: Error = null;
 							let childrenLeft = children.length;
-							children.forEach((child) => {
+							children.forEach(child => {
 								rmRecursive(paths.join(path, child), (err: Error) => {
 									childrenLeft--;
 									if (err) {
@@ -348,13 +348,13 @@ export function writeFileAndFlush(path: string, data: string | NodeBuffer, optio
 		}
 
 		// It is valid to pass a fd handle to fs.writeFile() and this will keep the handle open!
-		fs.writeFile(fd, data, (writeError) => {
+		fs.writeFile(fd, data, writeError => {
 			if (writeError) {
 				return fs.close(fd, () => callback(writeError)); // still need to close the handle on error!
 			}
 
 			// Flush contents (not metadata) of the file to disk
-			fs.fdatasync(fd, (syncError) => {
+			fs.fdatasync(fd, (syncError: Error) => {
 
 				// In some exotic setups it is well possible that node fails to sync
 				// In that case we disable flushing and warn to the console
@@ -363,7 +363,7 @@ export function writeFileAndFlush(path: string, data: string | NodeBuffer, optio
 					canFlush = false;
 				}
 
-				return fs.close(fd, (closeError) => callback(closeError));
+				return fs.close(fd, closeError => callback(closeError));
 			});
 		});
 	});
@@ -449,4 +449,20 @@ export function realpath(path: string, callback: (error: Error, realpath: string
 
 function normalizePath(path: string): string {
 	return strings.rtrim(paths.normalize(path), paths.sep);
+}
+
+export function watch(path: string, onChange: (type: string, path: string) => void): fs.FSWatcher {
+	const watcher = fs.watch(path);
+	watcher.on('change', (type, raw) => {
+		let file = raw.toString();
+		if (platform.isMacintosh) {
+			// Mac: uses NFD unicode form on disk, but we want NFC
+			// See also https://github.com/nodejs/node/issues/2165
+			file = strings.normalizeNFC(file);
+		}
+
+		onChange(type, file);
+	});
+
+	return watcher;
 }

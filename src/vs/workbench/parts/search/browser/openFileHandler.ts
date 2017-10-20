@@ -27,7 +27,7 @@ import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IQueryOptions, ISearchService, ISearchStats, ISearchQuery } from 'vs/platform/search/common/search';
+import { IQueryOptions, ISearchService, ISearchStats, ISearchQuery, ISearchConfiguration } from 'vs/platform/search/common/search';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IRange } from 'vs/editor/common/core/range';
@@ -122,6 +122,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ISearchService private searchService: ISearchService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super();
@@ -149,7 +150,8 @@ export class OpenFileHandler extends QuickOpenHandler {
 		const query: IQueryOptions = {
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorGroupService, this.contextService),
 			filePattern: searchValue,
-			cacheKey: cacheKey
+			cacheKey: cacheKey,
+			disregardIgnoreFiles: !this.configurationService.getConfiguration<ISearchConfiguration>().search.useIgnoreFilesByDefault,
 		};
 
 		if (typeof maxSortedResults === 'number') {
@@ -162,7 +164,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 			iconClass = 'file'; // only use a generic file icon if we are forced to use an icon and have no icon theme set otherwise
 		}
 
-		const folderResources = this.contextService.hasWorkspace() ? this.contextService.getWorkspace().roots : [];
+		const folderResources = this.contextService.getWorkspace().folders.map(folder => folder.uri);
 		return this.searchService.search(this.queryBuilder.file(folderResources, query)).then((complete) => {
 			const results: QuickOpenEntry[] = [];
 			for (let i = 0; i < complete.results.length; i++) {
@@ -192,13 +194,13 @@ export class OpenFileHandler extends QuickOpenHandler {
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorGroupService, this.contextService),
 			filePattern: '',
 			cacheKey: cacheKey,
+			disregardIgnoreFiles: !this.configurationService.getConfiguration<ISearchConfiguration>().search.useIgnoreFilesByDefault,
 			maxResults: 0,
-			sortByScore: true
+			sortByScore: true,
 		};
 
-		const folderResources = this.contextService.hasWorkspace() ? this.contextService.getWorkspace().roots : [];
+		const folderResources = this.contextService.getWorkspace().folders.map(folder => folder.uri);
 		const query = this.queryBuilder.file(folderResources, options);
-		this.searchService.extendQuery(query);
 
 		return query;
 	}

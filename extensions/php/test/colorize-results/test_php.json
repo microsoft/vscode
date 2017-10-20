@@ -227,18 +227,18 @@
 			"light_plus": "punctuation.section.embedded.begin.php: #800000",
 			"dark_vs": "punctuation.section.embedded.begin.php: #569CD6",
 			"light_vs": "punctuation.section.embedded.begin.php: #800000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "punctuation.section.embedded: #569CD6"
 		}
 	},
 	{
 		"c": "\t",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -256,11 +256,11 @@
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php meta.function.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -269,8 +269,8 @@
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "entity.name.function: #DCDCAA"
 		}
 	},
@@ -278,44 +278,44 @@
 		"c": "(",
 		"t": "text.html.php meta.embedded.block.php source.php meta.function.php punctuation.definition.parameters.begin.bracket.round.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": ")",
 		"t": "text.html.php meta.embedded.block.php source.php meta.function.php punctuation.definition.parameters.end.bracket.round.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "{",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.definition.begin.bracket.curly.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "    ",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.whitespace.comment.leading.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -344,33 +344,33 @@
 		"c": "\t",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "}",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.definition.end.bracket.curly.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "\t",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -432,11 +432,11 @@
 		"c": "\t",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -445,8 +445,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -456,8 +456,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -465,11 +465,11 @@
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -487,11 +487,11 @@
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -500,8 +500,8 @@
 		"r": {
 			"dark_plus": "support.function: #DCDCAA",
 			"light_plus": "support.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "support.function: #DCDCAA"
 		}
 	},
@@ -509,11 +509,11 @@
 		"c": "(",
 		"t": "text.html.php meta.embedded.block.php source.php meta.array.php punctuation.definition.array.begin.bracket.round.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -553,22 +553,22 @@
 		"c": ",",
 		"t": "text.html.php meta.embedded.block.php source.php meta.array.php punctuation.separator.delimiter.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php meta.array.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -608,22 +608,22 @@
 		"c": ",",
 		"t": "text.html.php meta.embedded.block.php source.php meta.array.php punctuation.separator.delimiter.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php meta.array.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -663,22 +663,22 @@
 		"c": ",",
 		"t": "text.html.php meta.embedded.block.php source.php meta.array.php punctuation.separator.delimiter.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php meta.array.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -718,22 +718,22 @@
 		"c": ",",
 		"t": "text.html.php meta.embedded.block.php source.php meta.array.php punctuation.separator.delimiter.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "\t\t",
 		"t": "text.html.php meta.embedded.block.php source.php meta.array.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -773,22 +773,22 @@
 		"c": ",",
 		"t": "text.html.php meta.embedded.block.php source.php meta.array.php punctuation.separator.delimiter.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php meta.array.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -828,22 +828,22 @@
 		"c": ",",
 		"t": "text.html.php meta.embedded.block.php source.php meta.array.php punctuation.separator.delimiter.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php meta.array.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -883,22 +883,22 @@
 		"c": ",",
 		"t": "text.html.php meta.embedded.block.php source.php meta.array.php punctuation.separator.delimiter.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php meta.array.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -938,33 +938,33 @@
 		"c": ")",
 		"t": "text.html.php meta.embedded.block.php source.php meta.array.php punctuation.definition.array.end.bracket.round.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": ";",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.terminator.expression.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "\t",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -973,8 +973,8 @@
 		"r": {
 			"dark_plus": "support.function: #DCDCAA",
 			"light_plus": "support.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "support.function: #DCDCAA"
 		}
 	},
@@ -982,11 +982,11 @@
 		"c": "(",
 		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php punctuation.definition.arguments.begin.bracket.round.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -995,8 +995,8 @@
 		"r": {
 			"dark_plus": "support.function: #DCDCAA",
 			"light_plus": "support.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "support.function: #DCDCAA"
 		}
 	},
@@ -1004,60 +1004,60 @@
 		"c": "(",
 		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php meta.function-call.php punctuation.definition.arguments.begin.bracket.round.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": ")",
 		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php meta.function-call.php punctuation.definition.arguments.end.bracket.round.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": ")",
 		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php punctuation.definition.arguments.end.bracket.round.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": ";",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.terminator.expression.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "\t",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "for",
-		"t": "text.html.php meta.embedded.block.php source.php keyword.control.php",
+		"t": "text.html.php meta.embedded.block.php source.php keyword.control.for.php",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -1070,11 +1070,11 @@
 		"c": "(",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.definition.begin.bracket.round.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -1083,8 +1083,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -1094,8 +1094,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -1103,11 +1103,11 @@
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -1125,16 +1125,16 @@
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "0",
-		"t": "text.html.php meta.embedded.block.php source.php constant.numeric.php",
+		"t": "text.html.php meta.embedded.block.php source.php constant.numeric.decimal.php",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -1147,22 +1147,22 @@
 		"c": ";",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.terminator.expression.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -1171,8 +1171,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -1182,8 +1182,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -1191,11 +1191,11 @@
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -1213,16 +1213,16 @@
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "52",
-		"t": "text.html.php meta.embedded.block.php source.php constant.numeric.php",
+		"t": "text.html.php meta.embedded.block.php source.php constant.numeric.decimal.php",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -1235,22 +1235,22 @@
 		"c": ";",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.terminator.expression.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -1259,8 +1259,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -1270,8 +1270,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -1290,44 +1290,44 @@
 		"c": ")",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.definition.end.bracket.round.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "{",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.definition.begin.bracket.curly.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "\t\t",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -1336,8 +1336,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -1347,8 +1347,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -1356,11 +1356,11 @@
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -1378,11 +1378,11 @@
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -1391,8 +1391,8 @@
 		"r": {
 			"dark_plus": "support.function: #DCDCAA",
 			"light_plus": "support.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "support.function: #DCDCAA"
 		}
 	},
@@ -1400,11 +1400,11 @@
 		"c": "(",
 		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php punctuation.definition.arguments.begin.bracket.round.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -1413,8 +1413,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -1424,8 +1424,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -1433,33 +1433,33 @@
 		"c": ")",
 		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php punctuation.definition.arguments.end.bracket.round.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": ";",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.terminator.expression.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "\t\t",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -1468,8 +1468,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -1479,8 +1479,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -1488,11 +1488,11 @@
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -1510,22 +1510,22 @@
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "(",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.definition.begin.bracket.round.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -1534,8 +1534,8 @@
 		"r": {
 			"dark_plus": "support.function: #DCDCAA",
 			"light_plus": "support.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "support.function: #DCDCAA"
 		}
 	},
@@ -1543,22 +1543,22 @@
 		"c": "(",
 		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php punctuation.definition.arguments.begin.bracket.round.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": ")",
 		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php punctuation.definition.arguments.end.bracket.round.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -1578,8 +1578,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -1589,8 +1589,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -1598,38 +1598,38 @@
 		"c": ")",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.definition.end.bracket.round.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": ";",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.terminator.expression.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "\t\t",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "if",
-		"t": "text.html.php meta.embedded.block.php source.php keyword.control.php",
+		"t": "text.html.php meta.embedded.block.php source.php keyword.control.if.php",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -1642,11 +1642,11 @@
 		"c": "(",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.definition.begin.bracket.round.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -1655,8 +1655,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -1666,8 +1666,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -1675,11 +1675,11 @@
 		"c": "[",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.section.array.begin.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -1688,8 +1688,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -1699,8 +1699,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -1708,22 +1708,22 @@
 		"c": "]",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.section.array.end.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -1741,11 +1741,11 @@
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -1774,44 +1774,44 @@
 		"c": ")",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.definition.end.bracket.round.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "{",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.definition.begin.bracket.curly.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "\t\t\t",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -1820,8 +1820,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -1831,8 +1831,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -1851,49 +1851,49 @@
 		"c": ";",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.terminator.expression.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "\t\t",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "}",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.definition.end.bracket.curly.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "else",
-		"t": "text.html.php meta.embedded.block.php source.php keyword.control.php",
+		"t": "text.html.php meta.embedded.block.php source.php keyword.control.else.php",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -1906,33 +1906,33 @@
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "{",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.definition.begin.bracket.curly.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "\t\t\t",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -1941,8 +1941,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -1952,8 +1952,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -1961,33 +1961,33 @@
 		"c": "[",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.section.array.begin.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "]",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.section.array.end.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -2005,11 +2005,11 @@
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -2018,8 +2018,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -2029,8 +2029,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -2038,11 +2038,11 @@
 		"c": "[",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.section.array.begin.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -2051,8 +2051,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -2062,8 +2062,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -2071,33 +2071,33 @@
 		"c": "]",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.section.array.end.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": ";",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.terminator.expression.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "\t\t\t",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -2106,8 +2106,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -2117,8 +2117,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -2126,11 +2126,11 @@
 		"c": "[",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.section.array.begin.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -2139,8 +2139,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -2150,8 +2150,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -2159,22 +2159,22 @@
 		"c": "]",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.section.array.end.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -2192,11 +2192,11 @@
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -2225,66 +2225,66 @@
 		"c": ";",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.terminator.expression.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "\t\t",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "}",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.definition.end.bracket.curly.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "\t",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "}",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.definition.end.bracket.curly.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "\t",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -2293,8 +2293,8 @@
 		"r": {
 			"dark_plus": "support.function: #DCDCAA",
 			"light_plus": "support.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "support.function: #DCDCAA"
 		}
 	},
@@ -2302,11 +2302,11 @@
 		"c": "(",
 		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php punctuation.definition.arguments.begin.bracket.round.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -2315,8 +2315,8 @@
 		"r": {
 			"dark_plus": "support.function: #DCDCAA",
 			"light_plus": "support.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "support.function: #DCDCAA"
 		}
 	},
@@ -2324,55 +2324,55 @@
 		"c": "(",
 		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php meta.function-call.php punctuation.definition.arguments.begin.bracket.round.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": ")",
 		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php meta.function-call.php punctuation.definition.arguments.end.bracket.round.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": ")",
 		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php punctuation.definition.arguments.end.bracket.round.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": ";",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.terminator.expression.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "\t",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -2381,8 +2381,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -2392,8 +2392,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -2401,11 +2401,11 @@
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -2423,22 +2423,22 @@
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "(",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.definition.begin.bracket.round.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -2447,8 +2447,8 @@
 		"r": {
 			"dark_plus": "support.function: #DCDCAA",
 			"light_plus": "support.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "support.function: #DCDCAA"
 		}
 	},
@@ -2456,22 +2456,22 @@
 		"c": "(",
 		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php punctuation.definition.arguments.begin.bracket.round.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": ")",
 		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php punctuation.definition.arguments.end.bracket.round.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -2487,7 +2487,7 @@
 	},
 	{
 		"c": "51",
-		"t": "text.html.php meta.embedded.block.php source.php constant.numeric.php",
+		"t": "text.html.php meta.embedded.block.php source.php constant.numeric.decimal.php",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -2500,33 +2500,33 @@
 		"c": ")",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.definition.end.bracket.round.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": ";",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.terminator.expression.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "\t",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -2535,8 +2535,8 @@
 		"r": {
 			"dark_plus": "support.function: #DCDCAA",
 			"light_plus": "support.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "support.function: #DCDCAA"
 		}
 	},
@@ -2544,11 +2544,11 @@
 		"c": "(",
 		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php punctuation.definition.arguments.begin.bracket.round.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -2621,33 +2621,33 @@
 		"c": ")",
 		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php punctuation.definition.arguments.end.bracket.round.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": ";",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.terminator.expression.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "\t",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.whitespace.comment.leading.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -2676,16 +2676,16 @@
 		"c": "\t",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "for",
-		"t": "text.html.php meta.embedded.block.php source.php keyword.control.php",
+		"t": "text.html.php meta.embedded.block.php source.php keyword.control.for.php",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -2698,22 +2698,22 @@
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "(",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.definition.begin.bracket.round.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -2722,8 +2722,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -2733,8 +2733,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -2742,11 +2742,11 @@
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -2764,16 +2764,16 @@
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "0",
-		"t": "text.html.php meta.embedded.block.php source.php constant.numeric.php",
+		"t": "text.html.php meta.embedded.block.php source.php constant.numeric.decimal.php",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -2786,22 +2786,22 @@
 		"c": ";",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.terminator.expression.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -2810,8 +2810,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -2821,8 +2821,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -2830,11 +2830,11 @@
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -2852,16 +2852,16 @@
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "52",
-		"t": "text.html.php meta.embedded.block.php source.php constant.numeric.php",
+		"t": "text.html.php meta.embedded.block.php source.php constant.numeric.decimal.php",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -2874,22 +2874,22 @@
 		"c": ";",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.terminator.expression.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -2898,8 +2898,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -2909,8 +2909,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -2929,49 +2929,49 @@
 		"c": ")",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.definition.end.bracket.round.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "{",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.definition.begin.bracket.curly.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "\t\t",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "if",
-		"t": "text.html.php meta.embedded.block.php source.php keyword.control.php",
+		"t": "text.html.php meta.embedded.block.php source.php keyword.control.if.php",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -2984,22 +2984,22 @@
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "(",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.definition.begin.bracket.round.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -3008,8 +3008,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -3019,8 +3019,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -3028,11 +3028,11 @@
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -3050,16 +3050,16 @@
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "52",
-		"t": "text.html.php meta.embedded.block.php source.php constant.numeric.php",
+		"t": "text.html.php meta.embedded.block.php source.php constant.numeric.decimal.php",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -3072,44 +3072,44 @@
 		"c": ")",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.definition.end.bracket.round.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "{",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.definition.begin.bracket.curly.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -3118,8 +3118,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -3129,8 +3129,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -3138,11 +3138,11 @@
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -3160,16 +3160,16 @@
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "0",
-		"t": "text.html.php meta.embedded.block.php source.php constant.numeric.php",
+		"t": "text.html.php meta.embedded.block.php source.php constant.numeric.decimal.php",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -3182,44 +3182,44 @@
 		"c": ";",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.terminator.expression.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "}",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.definition.end.bracket.curly.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "\t\t",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -3228,8 +3228,8 @@
 		"r": {
 			"dark_plus": "support.function: #DCDCAA",
 			"light_plus": "support.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "support.function: #DCDCAA"
 		}
 	},
@@ -3237,11 +3237,11 @@
 		"c": "(",
 		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php punctuation.definition.arguments.begin.bracket.round.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -3358,33 +3358,33 @@
 		"c": ")",
 		"t": "text.html.php meta.embedded.block.php source.php meta.function-call.php punctuation.definition.arguments.end.bracket.round.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": ";",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.terminator.expression.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "\t\t",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -3393,8 +3393,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -3404,8 +3404,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -3424,44 +3424,44 @@
 		"c": ";",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.terminator.expression.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "\t",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "}",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.definition.end.bracket.curly.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "\t",
 		"t": "text.html.php meta.embedded.block.php source.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -3479,11 +3479,11 @@
 		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php meta.function.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -3492,8 +3492,8 @@
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "entity.name.function: #DCDCAA"
 		}
 	},
@@ -3501,44 +3501,44 @@
 		"c": "(",
 		"t": "text.html.php meta.embedded.block.php source.php meta.function.php punctuation.definition.parameters.begin.bracket.round.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": ")",
 		"t": "text.html.php meta.embedded.block.php source.php meta.function.php punctuation.definition.parameters.end.bracket.round.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "{",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.definition.begin.bracket.curly.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "}",
 		"t": "text.html.php meta.embedded.block.php source.php punctuation.definition.end.bracket.curly.php",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -3549,7 +3549,7 @@
 			"light_plus": "punctuation.section.embedded.end.php: #800000",
 			"dark_vs": "punctuation.section.embedded.end.php: #569CD6",
 			"light_vs": "punctuation.section.embedded.end.php: #800000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "punctuation.section.embedded: #569CD6"
 		}
 	},
 	{
@@ -3560,7 +3560,7 @@
 			"light_plus": "punctuation.section.embedded.end.php: #800000",
 			"dark_vs": "punctuation.section.embedded.end.php: #569CD6",
 			"light_vs": "punctuation.section.embedded.end.php: #800000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "punctuation.section.embedded: #569CD6"
 		}
 	},
 	{

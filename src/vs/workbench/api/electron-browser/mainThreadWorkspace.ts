@@ -6,20 +6,16 @@
 
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
-import { ISearchService, QueryType, ISearchQuery } from 'vs/platform/search/common/search';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ISearchService, QueryType, ISearchQuery, IFolderQuery, ISearchConfiguration } from 'vs/platform/search/common/search';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { ICommonCodeEditor, isCommonCodeEditor } from 'vs/editor/common/editorCommon';
-import { bulkEdit, IResourceEdit } from 'vs/editor/common/services/bulkEdit';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { MainThreadWorkspaceShape, ExtHostWorkspaceShape, ExtHostContext, MainContext, IExtHostContext } from '../node/extHost.protocol';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { RemoteFileService, IRemoteFileSystemProvider } from 'vs/workbench/services/files/electron-browser/remoteFileService';
-import { Emitter } from 'vs/base/common/event';
-import { extHostNamedCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
+import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IRelativePattern } from 'vs/base/common/glob';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
@@ -33,12 +29,12 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		@ISearchService private readonly _searchService: ISearchService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
-		@IWorkbenchEditorService private readonly _editorService: IWorkbenchEditorService,
-		@ITextModelService private readonly _textModelResolverService: ITextModelService,
+		@IConfigurationService private _configurationService: IConfigurationService,
 		@IFileService private readonly _fileService: IFileService
 	) {
 		this._proxy = extHostContext.get(ExtHostContext.ExtHostWorkspace);
-		this._contextService.onDidChangeWorkspaceRoots(this._onDidChangeWorkspace, this, this._toDispose);
+		this._contextService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspace, this, this._toDispose);
+		this._contextService.onDidChangeWorkbenchState(this._onDidChangeWorkspace, this, this._toDispose);
 	}
 
 	dispose(): void {
@@ -53,23 +49,36 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 	// --- workspace ---
 
 	private _onDidChangeWorkspace(): void {
-		this._proxy.$acceptWorkspaceData(this._contextService.getWorkspace());
+		this._proxy.$acceptWorkspaceData(this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : this._contextService.getWorkspace());
 	}
 
 	// --- search ---
 
-	$startSearch(include: string, exclude: string, maxResults: number, requestId: number): Thenable<URI[]> {
+	$startSearch(include: string | IRelativePattern, exclude: string | IRelativePattern, maxResults: number, requestId: number): Thenable<URI[]> {
 		const workspace = this._contextService.getWorkspace();
-		if (!workspace) {
+		if (!workspace.folders.length) {
 			return undefined;
 		}
 
+		let folderQueries: IFolderQuery[];
+		if (typeof include === 'string' || !include) {
+			folderQueries = workspace.folders.map(folder => ({ folder: folder.uri })); // absolute pattern: search across all folders
+		} else {
+			folderQueries = [{ folder: URI.file(include.base) }]; // relative pattern: search only in base folder
+		}
+
+		const useRipgrep = folderQueries.every(folderQuery => {
+			const folderConfig = this._configurationService.getConfiguration<ISearchConfiguration>({ resource: folderQuery.folder });
+			return folderConfig.search.useRipgrep;
+		});
+
 		const query: ISearchQuery = {
-			folderQueries: workspace.roots.map(root => ({ folder: root })),
+			folderQueries,
 			type: QueryType.File,
 			maxResults,
-			includePattern: { [include]: true },
-			excludePattern: { [exclude]: true },
+			includePattern: { [typeof include === 'string' ? include : !!include ? include.pattern : undefined]: true },
+			excludePattern: { [typeof exclude === 'string' ? exclude : !!exclude ? exclude.pattern : undefined]: true },
+			useRipgrep
 		};
 		this._searchService.extendQuery(query);
 
@@ -106,47 +115,5 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			return result.results.every(each => each.success === true);
 		});
 	}
-
-	$applyWorkspaceEdit(edits: IResourceEdit[]): TPromise<boolean> {
-
-		let codeEditor: ICommonCodeEditor;
-		let editor = this._editorService.getActiveEditor();
-		if (editor) {
-			let candidate = editor.getControl();
-			if (isCommonCodeEditor(candidate)) {
-				codeEditor = candidate;
-			}
-		}
-
-		return bulkEdit(this._textModelResolverService, codeEditor, edits, this._fileService)
-			.then(() => true);
-	}
-
-	// --- EXPERIMENT: workspace provider
-
-	private _provider = new Map<number, [IRemoteFileSystemProvider, Emitter<URI>]>();
-
-	$registerFileSystemProvider(handle: number, authority: string): void {
-		if (!(this._fileService instanceof RemoteFileService)) {
-			throw new Error();
-		}
-		const emitter = new Emitter<URI>();
-		const provider = {
-			onDidChange: emitter.event,
-			resolve: (resource) => {
-				return this._proxy.$resolveFile(handle, resource);
-			},
-			update: (resource, value) => {
-				return this._proxy.$storeFile(handle, resource, value);
-			}
-		};
-		this._provider.set(handle, [provider, emitter]);
-		this._fileService.registerProvider(authority, provider);
-	}
-
-	$onFileSystemChange(handle: number, resource: URI) {
-		const [, emitter] = this._provider.get(handle);
-		emitter.fire(resource);
-	};
 }
 

@@ -542,7 +542,7 @@ suite('deltaDecorations', () => {
 				endColumn: 1
 			},
 			options: {
-				hoverMessage: 'hello1'
+				hoverMessage: { value: 'hello1' }
 			}
 		}]);
 
@@ -554,13 +554,13 @@ suite('deltaDecorations', () => {
 				endColumn: 1
 			},
 			options: {
-				hoverMessage: 'hello2'
+				hoverMessage: { value: 'hello2' }
 			}
 		}]);
 
 		let actualDecoration = model.getDecorationOptions(ids[0]);
 
-		assert.equal(actualDecoration.hoverMessage, 'hello2');
+		assert.deepEqual(actualDecoration.hoverMessage, { value: 'hello2' });
 
 		model.dispose();
 	});

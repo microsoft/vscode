@@ -153,6 +153,7 @@ export abstract class EditorCommand extends Command {
 export interface IEditorCommandMenuOptions {
 	group?: string;
 	order?: number;
+	when?: ContextKeyExpr;
 }
 export interface IActionOptions extends ICommandOptions {
 	label: string;
@@ -182,7 +183,7 @@ export abstract class EditorAction extends EditorCommand {
 				id: this.id,
 				title: this.label
 			},
-			when: this.precondition,
+			when: ContextKeyExpr.and(this.precondition, this.menuOpts.when),
 			group: this.menuOpts.group,
 			order: this.menuOpts.order
 		};
@@ -194,6 +195,15 @@ export abstract class EditorAction extends EditorCommand {
 	}
 
 	protected reportTelemetry(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor) {
+		/* __GDPR__
+			"editorActionInvoked" : {
+				"name" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"id": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"${include}": [
+					"${EditorTelemetryData}"
+				]
+			}
+		*/
 		accessor.get(ITelemetryService).publicLog('editorActionInvoked', { name: this.label, id: this.id, ...editor.getTelemetryData() });
 	}
 

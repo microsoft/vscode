@@ -7,7 +7,7 @@
 import { LanguageModelCache, getLanguageModelCache } from '../languageModelCache';
 import { TextDocument, Position } from 'vscode-languageserver-types';
 import { getCSSLanguageService, Stylesheet } from 'vscode-css-languageservice';
-import { LanguageMode, Settings } from './languageModes';
+import { LanguageMode, Settings, ColorInformation } from './languageModes';
 import { HTMLDocumentRegions, CSS_STYLE_RULE } from './embeddedSupport';
 
 export function getCSSMode(documentRegions: LanguageModelCache<HTMLDocumentRegions>): LanguageMode {
@@ -50,9 +50,13 @@ export function getCSSMode(documentRegions: LanguageModelCache<HTMLDocumentRegio
 			let embedded = embeddedCSSDocuments.get(document);
 			return cssLanguageService.findReferences(embedded, position, cssStylesheets.get(embedded));
 		},
-		findColorSymbols(document: TextDocument) {
+		findDocumentColors(document: TextDocument) {
 			let embedded = embeddedCSSDocuments.get(document);
-			return cssLanguageService.findColorSymbols(embedded, cssStylesheets.get(embedded));
+			return cssLanguageService.findDocumentColors(embedded, cssStylesheets.get(embedded));
+		},
+		getColorPresentations(document: TextDocument, colorInfo: ColorInformation) {
+			let embedded = embeddedCSSDocuments.get(document);
+			return cssLanguageService.getColorPresentations(embedded, cssStylesheets.get(embedded), colorInfo);
 		},
 		onDocumentRemoved(document: TextDocument) {
 			embeddedCSSDocuments.onDocumentRemoved(document);

@@ -152,7 +152,7 @@ suite('Editor Controller - Cursor', () => {
 
 		thisModel = Model.createFromString(text);
 		thisConfiguration = new TestConfiguration(null);
-		thisViewModel = new ViewModel(0, thisConfiguration, thisModel);
+		thisViewModel = new ViewModel(0, thisConfiguration, thisModel, null);
 
 		thisCursor = new Cursor(thisConfiguration, thisModel, thisViewModel);
 	});
@@ -736,7 +736,7 @@ suite('Editor Controller - Cursor', () => {
 			'var newer = require("gulp-newer");',
 		].join('\n'));
 		const config = new TestConfiguration(null);
-		const viewModel = new ViewModel(0, config, model);
+		const viewModel = new ViewModel(0, config, model, null);
 		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 1, 4, false);
@@ -775,7 +775,7 @@ suite('Editor Controller - Cursor', () => {
 			'<property id="SomeThing" key="SomeKey" value="00X"/>',
 		].join('\n'));
 		const config = new TestConfiguration(null);
-		const viewModel = new ViewModel(0, config, model);
+		const viewModel = new ViewModel(0, config, model, null);
 		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 10, 10, false);
@@ -837,7 +837,7 @@ suite('Editor Controller - Cursor', () => {
 			'<property id="SomeThing" key="SomeKey" value="00X"/>',
 		].join('\n'));
 		const config = new TestConfiguration(null);
-		const viewModel = new ViewModel(0, config, model);
+		const viewModel = new ViewModel(0, config, model, null);
 		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 10, 10, false);
@@ -886,7 +886,7 @@ suite('Editor Controller - Cursor', () => {
 			'var newer = require("gulp-newer");',
 		].join('\n'));
 		const config = new TestConfiguration(null);
-		const viewModel = new ViewModel(0, config, model);
+		const viewModel = new ViewModel(0, config, model, null);
 		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 1, 4, false);
@@ -3118,7 +3118,7 @@ function usingCursor(opts: ICursorOpts, callback: (model: Model, cursor: Cursor)
 	let model = Model.createFromString(opts.text.join('\n'), opts.modelOpts, opts.languageIdentifier);
 	model.forceTokenization(model.getLineCount());
 	let config = new TestConfiguration(opts.editorOpts);
-	let viewModel = new ViewModel(0, config, model);
+	let viewModel = new ViewModel(0, config, model, null);
 	let cursor = new Cursor(config, model, viewModel);
 
 	callback(model, cursor);
@@ -3698,5 +3698,32 @@ suite('autoClosingPairs', () => {
 		});
 		model.dispose();
 		mode.dispose();
+	});
+
+	test('issue #7100: Mouse word selection is strange when non-word character is at the end of line', () => {
+		let model = Model.createFromString(
+			[
+				'before.a',
+				'before',
+				'hello:',
+				'there:',
+				'this is strange:',
+				'here',
+				'it',
+				'is',
+			].join('\n')
+		);
+
+		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+			CoreNavigationCommands.WordSelect.runEditorCommand(null, editor, {
+				position: new Position(3, 7)
+			});
+			assertCursor(cursor, new Selection(3, 7, 3, 7));
+
+			CoreNavigationCommands.WordSelectDrag.runEditorCommand(null, editor, {
+				position: new Position(4, 7)
+			});
+			assertCursor(cursor, new Selection(3, 7, 4, 7));
+		});
 	});
 });

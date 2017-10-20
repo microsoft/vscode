@@ -6,9 +6,10 @@
 import { Position, Range, CompletionItemProvider, CompletionItemKind, TextDocument, CancellationToken, CompletionItem, window, Uri, ProviderResult, TextEditor, SnippetString, workspace } from 'vscode';
 
 import { ITypescriptServiceClient } from '../typescriptService';
-import { FileLocationRequestArgs, DocCommandTemplateResponse } from '../protocol';
+import { DocCommandTemplateResponse } from '../protocol';
 
 import * as nls from 'vscode-nls';
+import { vsPositionToTsFileLocation } from '../utils/convert';
 const localize = nls.loadMessageBundle();
 
 const configurationNamespace = 'jsDocCompletion';
@@ -95,36 +96,30 @@ export class TryCompleteJsDocCommand {
 	 * Try to insert a jsdoc comment, using a template provide by typescript
 	 * if possible, otherwise falling back to a default comment format.
 	 */
-	public tryCompleteJsDoc(resource: Uri, start: Position, shouldGetJSDocFromTSServer: boolean): Thenable<boolean> {
+	public async tryCompleteJsDoc(resource: Uri, start: Position, shouldGetJSDocFromTSServer: boolean): Promise<boolean> {
 		const file = this.lazyClient().normalizePath(resource);
 		if (!file) {
-			return Promise.resolve(false);
+			return false;
 		}
 
 		const editor = window.activeTextEditor;
 		if (!editor || editor.document.uri.fsPath !== resource.fsPath) {
-			return Promise.resolve(false);
+			return false;
 		}
 
 		if (!shouldGetJSDocFromTSServer) {
 			return this.tryInsertDefaultDoc(editor, start);
 		}
 
-		return this.tryInsertJsDocFromTemplate(editor, file, start)
-			.then((didInsertFromTemplate: boolean) => {
-				if (didInsertFromTemplate) {
-					return true;
-				}
-				return this.tryInsertDefaultDoc(editor, start);
-			});
+		const didInsertFromTemplate = await this.tryInsertJsDocFromTemplate(editor, file, start);
+		if (didInsertFromTemplate) {
+			return true;
+		}
+		return this.tryInsertDefaultDoc(editor, start);
 	}
 
 	private tryInsertJsDocFromTemplate(editor: TextEditor, file: string, position: Position): Promise<boolean> {
-		const args: FileLocationRequestArgs = {
-			file: file,
-			line: position.line + 1,
-			offset: position.character + 1
-		};
+		const args = vsPositionToTsFileLocation(file, position);
 		return Promise.race([
 			this.lazyClient().execute('docCommentTemplate', args),
 			new Promise((_, reject) => setTimeout(reject, 250))

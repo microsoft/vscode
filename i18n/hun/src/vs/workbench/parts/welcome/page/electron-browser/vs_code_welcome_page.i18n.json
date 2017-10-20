@@ -10,6 +10,7 @@
 	"welcomePage.newFile": "Új fájl",
 	"welcomePage.openFolder": "Mappa megnyitása...",
 	"welcomePage.cloneGitRepository": "Git forráskódtár klónozása...",
+	"welcomePage.addWorkspaceFolder": "Mappa hozzáadása a munkaterülethez...",
 	"welcomePage.recent": "Legutóbbi",
 	"welcomePage.moreRecent": "Tovább...",
 	"welcomePage.noRecentFolders": "Nincsenek megnyitott mappák",

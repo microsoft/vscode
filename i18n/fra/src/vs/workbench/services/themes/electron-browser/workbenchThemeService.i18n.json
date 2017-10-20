@@ -28,5 +28,14 @@
 	"iconThemeError": "File icon theme is unknown or not installed.",
 	"workbenchColors": "Remplace les couleurs du thème de couleur sélectionné.",
 	"workbenchColors.deprecated": "Le paramètre n'est plus expérimental et a été renommé 'workbench.colorCustomizations'",
-	"workbenchColors.deprecatedDescription": "Utiliser 'workbench.colorCustomizations' à la place"
+	"workbenchColors.deprecatedDescription": "Utiliser 'workbench.colorCustomizations' à la place",
+	"editorColors": "Remplace les couleurs et le style de la police de l’éditeur du thème par la couleur actuellement sélectionnée.",
+	"editorColors.comments": "Définit les couleurs et les styles des commentaires",
+	"editorColors.strings": "Définit les couleurs et les styles des littéraux de chaînes.",
+	"editorColors.keywords": "Définit les couleurs et les styles des mots clés.",
+	"editorColors.numbers": "Définit les couleurs et les styles des littéraux de nombre.",
+	"editorColors.types": "Définit les couleurs et les styles des déclarations et références de type.",
+	"editorColors.functions": "Définit les couleurs et les styles des déclarations et références de fonctions.",
+	"editorColors.variables": "Définit les couleurs et les styles des déclarations et références de variables.",
+	"editorColors.textMateRules": "Définit les couleurs et les styles à l’aide de règles de thème textmate (avancé)."
 }

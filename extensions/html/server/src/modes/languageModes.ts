@@ -10,11 +10,15 @@ import {
 	Hover, DocumentHighlight, CompletionList, Position, FormattingOptions, SymbolInformation
 } from 'vscode-languageserver-types';
 
+import { ColorInformation, ColorPresentation } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
+
 import { getLanguageModelCache, LanguageModelCache } from '../languageModelCache';
 import { getDocumentRegions, HTMLDocumentRegions } from './embeddedSupport';
 import { getCSSMode } from './cssMode';
 import { getJavascriptMode } from './javascriptMode';
 import { getHTMLMode } from './htmlMode';
+
+export { ColorInformation, ColorPresentation };
 
 export interface Settings {
 	css?: any;
@@ -40,7 +44,9 @@ export interface LanguageMode {
 	findDefinition?: (document: TextDocument, position: Position) => Definition;
 	findReferences?: (document: TextDocument, position: Position) => Location[];
 	format?: (document: TextDocument, range: Range, options: FormattingOptions, settings: Settings) => TextEdit[];
-	findColorSymbols?: (document: TextDocument) => Range[];
+	findDocumentColors?: (document: TextDocument) => ColorInformation[];
+	getColorPresentations?: (document: TextDocument, colorInfo: ColorInformation) => ColorPresentation[];
+	doAutoClose?: (document: TextDocument, position: Position) => string;
 	onDocumentRemoved(document: TextDocument): void;
 	dispose(): void;
 }

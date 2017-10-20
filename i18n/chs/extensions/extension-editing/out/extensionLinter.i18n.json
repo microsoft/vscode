@@ -7,5 +7,8 @@
 	"httpsRequired": "图像必须使用 HTTPS 协议。",
 	"svgsNotValid": "SVG 不是有效的图像源。",
 	"embeddedSvgsNotValid": "嵌入的 SVG 不是有效的图像源。",
-	"dataUrlsNotValid": "数据 URL 不是有效的图像源。"
+	"dataUrlsNotValid": "数据 URL 不是有效的图像源。",
+	"relativeUrlRequiresHttpsRepository": "相关 URL 要求在 package.json 中指定使用 HTTPS 协议的存储库。",
+	"relativeIconUrlRequiresHttpsRepository": "图标要求在此 package.json 中指定使用 HTTPS 协议的存储库。",
+	"relativeBadgeUrlRequiresHttpsRepository": "相对徽章 URL 要求在 package.json 中指定使用 HTTPS 协议的存储库。"
 }

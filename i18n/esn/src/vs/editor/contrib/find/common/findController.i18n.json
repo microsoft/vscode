@@ -16,5 +16,6 @@
 	"moveSelectionToPreviousFindMatch": "Mover última selección hasta la anterior coincidencia de búsqueda",
 	"selectAllOccurrencesOfFindMatch": "Seleccionar todas las repeticiones de coincidencia de búsqueda",
 	"changeAll.label": "Cambiar todas las ocurrencias",
-	"showNextFindTermAction": "Mostrar el siguiente término de búsqueda"
+	"showNextFindTermAction": "Mostrar el siguiente término de búsqueda",
+	"showPreviousFindTermAction": "Mostrar término de búsqueda anterior"
 }

@@ -14,7 +14,9 @@ import { IWindowsService, IWindowService, IWindowsConfiguration } from 'vs/platf
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 interface IConfiguration extends IWindowsConfiguration {
 	update: { channel: string; };
@@ -29,9 +31,11 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 	private nativeTabs: boolean;
 	private updateChannel: string;
 	private enableCrashReporter: boolean;
-	private rootCount: number;
-	private workspaceId: string;
-	private firstRootPath: string;
+
+	private firstFolderPath: string;
+	private extensionHostRestarter: RunOnceScheduler;
+
+	private onDidChangeWorkspaceFoldersUnbind: IDisposable;
 
 	constructor(
 		@IWindowsService private windowsService: IWindowsService,
@@ -40,25 +44,22 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IEnvironmentService private envService: IEnvironmentService,
 		@IMessageService private messageService: IMessageService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IExtensionService private extensionService: IExtensionService
 	) {
 		const workspace = this.contextService.getWorkspace();
-		if (workspace) {
-			this.rootCount = workspace.roots.length;
-			this.firstRootPath = workspace.roots.length > 0 ? workspace.roots[0].fsPath : void 0;
-			this.workspaceId = workspace.id;
-		} else {
-			this.rootCount = 0;
-		}
+		this.firstFolderPath = workspace.folders.length > 0 ? workspace.folders[0].uri.fsPath : void 0;
+		this.extensionHostRestarter = new RunOnceScheduler(() => this.extensionService.restartExtensionHost(), 10);
 
 		this.onConfigurationChange(configurationService.getConfiguration<IConfiguration>(), false);
+		this.handleWorkbenchState();
 
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(this.configurationService.getConfiguration<IConfiguration>(), true)));
-		this.toDispose.push(this.contextService.onDidChangeWorkspaceRoots(() => this.onDidChangeWorkspaceRoots()));
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange(this.configurationService.getConfiguration<IConfiguration>(), true)));
+		this.toDispose.push(this.contextService.onDidChangeWorkbenchState(() => setTimeout(() => this.handleWorkbenchState())));
 	}
 
 	private onConfigurationChange(config: IConfiguration, notify: boolean): void {
@@ -99,46 +100,37 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		}
 	}
 
-	private onDidChangeWorkspaceRoots(): void {
+	private handleWorkbenchState(): void {
+
+		// React to folder changes when we are in workspace state
+		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
+			if (!this.onDidChangeWorkspaceFoldersUnbind) {
+				this.onDidChangeWorkspaceFoldersUnbind = this.contextService.onDidChangeWorkspaceFolders(() => this.onDidChangeWorkspaceFolders());
+			}
+		}
+
+		// Ignore the workspace folder changes in EMPTY or FOLDER state
+		else {
+			this.onDidChangeWorkspaceFoldersUnbind = dispose(this.onDidChangeWorkspaceFoldersUnbind);
+		}
+	}
+
+	private onDidChangeWorkspaceFolders(): void {
 		const workspace = this.contextService.getWorkspace();
 
-		const newRootCount = workspace ? workspace.roots.length : 0;
-		const newFirstRootPath = workspace && workspace.roots.length > 0 ? workspace.roots[0].fsPath : void 0;
-		const newWorkspaceId = workspace ? workspace.id : void 0;
+		// Restart extension host if first root folder changed (impact on deprecated workspace.rootPath API)
+		const newFirstFolderPath = workspace.folders.length > 0 ? workspace.folders[0].uri.fsPath : void 0;
+		if (this.firstFolderPath !== newFirstFolderPath) {
+			this.firstFolderPath = newFirstFolderPath;
 
-		let reload = false;
-		if (this.rootCount === 0 && newRootCount > 0) {
-			reload = true; // transition: from 0 folders to 1+
-		} else if (this.rootCount > 0 && newRootCount === 0) {
-			reload = true; // transition: from 1+ folders to 0
-		}
-
-		if (this.firstRootPath !== newFirstRootPath) {
-			reload = true; // first root folder changed
-		}
-
-		if (this.workspaceId !== newWorkspaceId) {
-			reload = true; // workspace id changed
-		}
-
-		this.rootCount = newRootCount;
-		this.firstRootPath = newFirstRootPath;
-		this.workspaceId = newWorkspaceId;
-
-		if (reload) {
-			this.doConfirm(
-				localize('relaunchWorkspaceMessage', "This workspace change requires a reload of our extension system."),
-				void 0,
-				localize('reload', "Reload"),
-				() => this.windowService.reloadWindow()
-			);
+			this.extensionHostRestarter.schedule(); // buffer calls to extension host restart
 		}
 	}
 
 	private doConfirm(message: string, detail: string, primaryButton: string, confirmed: () => void): void {
 		this.windowService.isFocused().then(focused => {
 			if (focused) {
-				const confirm = this.messageService.confirm({
+				const confirm = this.messageService.confirmSync({
 					type: 'info',
 					message,
 					detail,

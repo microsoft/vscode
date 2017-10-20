@@ -13,12 +13,10 @@ export interface ParsedArgs {
 	wait?: boolean;
 	waitMarkerFilePath?: string;
 	diff?: boolean;
+	add?: boolean;
 	goto?: boolean;
 	'new-window'?: boolean;
-	/**
-	 * Always open a new window, except if opening the first window or opening a file or folder as part of the launch.
-	 */
-	'unity-launch'?: boolean;
+	'unity-launch'?: boolean; // Always open a new window, except if opening the first window or opening a file or folder as part of the launch.
 	'reuse-window'?: boolean;
 	locale?: string;
 	'user-data-dir'?: string;
@@ -30,9 +28,11 @@ export interface ParsedArgs {
 	'extensions-dir'?: string;
 	extensionDevelopmentPath?: string;
 	extensionTestsPath?: string;
+	debugPluginHost?: string;
 	debugBrkPluginHost?: string;
 	debugId?: string;
-	debugPluginHost?: string;
+	debugSearch?: string;
+	debugBrkSearch?: string;
 	'list-extensions'?: boolean;
 	'show-versions'?: boolean;
 	'install-extension'?: string | string[];
@@ -40,9 +40,23 @@ export interface ParsedArgs {
 	'enable-proposed-api'?: string | string[];
 	'open-url'?: string | string[];
 	'skip-getting-started'?: boolean;
+	'sticky-quickopen'?: boolean;
+	'disable-telemetry'?: boolean;
+	'export-default-configuration'?: string;
+	'install-source'?: string;
+	'disable-updates'?: string;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
+
+export interface IDebugParams {
+	port: number;
+	break: boolean;
+}
+
+export interface IExtensionHostDebugParams extends IDebugParams {
+	debugId: string;
+}
 
 export interface IEnvironmentService {
 	_serviceBrand: any;
@@ -60,6 +74,7 @@ export interface IEnvironmentService {
 	appSettingsHome: string;
 	appSettingsPath: string;
 	appKeybindingsPath: string;
+	machineUUID: string;
 
 	backupHome: string;
 	backupWorkspacesPath: string;
@@ -72,7 +87,8 @@ export interface IEnvironmentService {
 	extensionDevelopmentPath: string;
 	extensionTestsPath: string;
 
-	debugExtensionHost: { port: number; break: boolean; debugId: string };
+	debugExtensionHost: IExtensionHostDebugParams;
+	debugSearch: IDebugParams;
 
 
 	logExtensionHostCommunication: boolean;
@@ -89,4 +105,7 @@ export interface IEnvironmentService {
 	sharedIPCHandle: string;
 
 	nodeCachedDataDir: string;
+
+	installSource: string;
+	disableUpdates: boolean;
 }

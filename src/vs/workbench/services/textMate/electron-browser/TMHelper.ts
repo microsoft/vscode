@@ -94,8 +94,8 @@ export class ThemeRule {
 			return aParentScopesLen - bParentScopesLen;
 		}
 		for (let i = 0; i < aParentScopesLen; i++) {
-			var aLen = a.parentScopes[i].length;
-			var bLen = b.parentScopes[i].length;
+			const aLen = a.parentScopes[i].length;
+			const bLen = b.parentScopes[i].length;
 			if (aLen !== bLen) {
 				return aLen - bLen;
 			}

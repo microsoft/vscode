@@ -61,7 +61,7 @@ declare module monaco {
 
 		public static as(value: null): Promise<null>;
 		public static as(value: undefined): Promise<undefined>;
-		public static as<T, TPromise extends PromiseLike<T>>(value: TPromise): TPromise;
+		public static as<T, SomePromise extends PromiseLike<T>>(value: SomePromise): SomePromise;
 		public static as<T>(value: T): Promise<T>;
 
 		public static is(value: any): value is PromiseLike<any>;
@@ -109,7 +109,7 @@ declare module monaco {
 	 *
 	 *
 	 */
-	export class Uri {
+	export class Uri implements UriComponents {
 		static isUri(thing: any): thing is Uri;
 		/**
 		 * scheme is the 'http' part of 'http://www.msft.com/some/path?query#fragment'.
@@ -161,8 +161,16 @@ declare module monaco {
 		 * @param skipEncoding Do not encode the result, default is `false`
 		 */
 		toString(skipEncoding?: boolean): string;
-		toJSON(): any;
-		static revive(data: any): Uri;
+		toJSON(): object;
+		static revive(data: UriComponents | any): Uri;
+	}
+
+	export interface UriComponents {
+		scheme: string;
+		authority: string;
+		path: string;
+		query: string;
+		fragment: string;
 	}
 
 	/**
@@ -353,15 +361,10 @@ declare module monaco {
 		static readonly WinCtrl: number;
 		static chord(firstPart: number, secondPart: number): number;
 	}
-	/**
-	 * MarkedString can be used to render human readable text. It is either a markdown string
-	 * or a code-block that provides a language and a code snippet. Note that
-	 * markdown strings will be sanitized - that means html will be escaped.
-	 */
-	export type MarkedString = string | {
-		readonly language: string;
-		readonly value: string;
-	};
+	export interface IMarkdownString {
+		value: string;
+		isTrusted?: boolean;
+	}
 
 	export interface IKeyboardEvent {
 		readonly browserEvent: KeyboardEvent;
@@ -1118,11 +1121,11 @@ declare module monaco.editor {
 		/**
 		 * Message to be rendered when hovering over the glyph margin decoration.
 		 */
-		glyphMarginHoverMessage?: MarkedString | MarkedString[];
+		glyphMarginHoverMessage?: IMarkdownString | IMarkdownString[];
 		/**
-		 * Array of MarkedString to render as the decoration message.
+		 * Array of MarkdownString to render as the decoration message.
 		 */
-		hoverMessage?: MarkedString | MarkedString[];
+		hoverMessage?: IMarkdownString | IMarkdownString[];
 		/**
 		 * Should the decoration expand to encompass a whole line.
 		 */
@@ -1793,6 +1796,11 @@ declare module monaco.editor {
 		 */
 		onDidChangeLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable;
 		/**
+		 * An event emitted when the language configuration associated with the model has changed.
+		 * @event
+		 */
+		onDidChangeLanguageConfiguration(listener: (e: IModelLanguageConfigurationChangedEvent) => void): IDisposable;
+		/**
 		 * An event emitted right before disposing the model.
 		 * @event
 		 */
@@ -1977,6 +1985,11 @@ declare module monaco.editor {
 	 */
 	export type IEditorViewState = ICodeEditorViewState | IDiffEditorViewState;
 
+	export const enum ScrollType {
+		Smooth = 0,
+		Immediate = 1,
+	}
+
 	/**
 	 * An editor.
 	 */
@@ -2048,27 +2061,27 @@ declare module monaco.editor {
 		/**
 		 * Scroll vertically as necessary and reveal a line.
 		 */
-		revealLine(lineNumber: number): void;
+		revealLine(lineNumber: number, scrollType?: ScrollType): void;
 		/**
 		 * Scroll vertically as necessary and reveal a line centered vertically.
 		 */
-		revealLineInCenter(lineNumber: number): void;
+		revealLineInCenter(lineNumber: number, scrollType?: ScrollType): void;
 		/**
 		 * Scroll vertically as necessary and reveal a line centered vertically only if it lies outside the viewport.
 		 */
-		revealLineInCenterIfOutsideViewport(lineNumber: number): void;
+		revealLineInCenterIfOutsideViewport(lineNumber: number, scrollType?: ScrollType): void;
 		/**
 		 * Scroll vertically or horizontally as necessary and reveal a position.
 		 */
-		revealPosition(position: IPosition, revealVerticalInCenter?: boolean, revealHorizontal?: boolean): void;
+		revealPosition(position: IPosition, scrollType?: ScrollType): void;
 		/**
 		 * Scroll vertically or horizontally as necessary and reveal a position centered vertically.
 		 */
-		revealPositionInCenter(position: IPosition): void;
+		revealPositionInCenter(position: IPosition, scrollType?: ScrollType): void;
 		/**
 		 * Scroll vertically or horizontally as necessary and reveal a position centered vertically only if it lies outside the viewport.
 		 */
-		revealPositionInCenterIfOutsideViewport(position: IPosition): void;
+		revealPositionInCenterIfOutsideViewport(position: IPosition, scrollType?: ScrollType): void;
 		/**
 		 * Returns the primary selection of the editor.
 		 */
@@ -2105,31 +2118,31 @@ declare module monaco.editor {
 		/**
 		 * Scroll vertically as necessary and reveal lines.
 		 */
-		revealLines(startLineNumber: number, endLineNumber: number): void;
+		revealLines(startLineNumber: number, endLineNumber: number, scrollType?: ScrollType): void;
 		/**
 		 * Scroll vertically as necessary and reveal lines centered vertically.
 		 */
-		revealLinesInCenter(lineNumber: number, endLineNumber: number): void;
+		revealLinesInCenter(lineNumber: number, endLineNumber: number, scrollType?: ScrollType): void;
 		/**
 		 * Scroll vertically as necessary and reveal lines centered vertically only if it lies outside the viewport.
 		 */
-		revealLinesInCenterIfOutsideViewport(lineNumber: number, endLineNumber: number): void;
+		revealLinesInCenterIfOutsideViewport(lineNumber: number, endLineNumber: number, scrollType?: ScrollType): void;
 		/**
 		 * Scroll vertically or horizontally as necessary and reveal a range.
 		 */
-		revealRange(range: IRange): void;
+		revealRange(range: IRange, scrollType?: ScrollType): void;
 		/**
 		 * Scroll vertically or horizontally as necessary and reveal a range centered vertically.
 		 */
-		revealRangeInCenter(range: IRange): void;
+		revealRangeInCenter(range: IRange, scrollType?: ScrollType): void;
 		/**
 		 * Scroll vertically or horizontally as necessary and reveal a range at the top of the viewport.
 		 */
-		revealRangeAtTop(range: IRange): void;
+		revealRangeAtTop(range: IRange, scrollType?: ScrollType): void;
 		/**
 		 * Scroll vertically or horizontally as necessary and reveal a range centered vertically only if it lies outside the viewport.
 		 */
-		revealRangeInCenterIfOutsideViewport(range: IRange): void;
+		revealRangeInCenterIfOutsideViewport(range: IRange, scrollType?: ScrollType): void;
 		/**
 		 * Directly trigger a handler or an editor action.
 		 * @param source The source of the call.
@@ -2185,6 +2198,11 @@ declare module monaco.editor {
 		 * @event
 		 */
 		onDidChangeModelLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable;
+		/**
+		 * An event emitted when the language configuration of the current model has changed.
+		 * @event
+		 */
+		onDidChangeModelLanguageConfiguration(listener: (e: IModelLanguageConfigurationChangedEvent) => void): IDisposable;
 		/**
 		 * An event emitted when the options of the current model has changed.
 		 * @event
@@ -2417,6 +2435,12 @@ declare module monaco.editor {
 		 * New language
 		 */
 		readonly newLanguage: string;
+	}
+
+	/**
+	 * An event describing that the language configuration associated with a model has changed.
+	 */
+	export interface IModelLanguageConfigurationChangedEvent {
 	}
 
 	export interface IModelContentChange {
@@ -2684,6 +2708,17 @@ declare module monaco.editor {
 	}
 
 	/**
+	 * Configuration options for editor minimap
+	 */
+	export interface IEditorLightbulbOptions {
+		/**
+		 * Enable the lightbulb code action.
+		 * Defaults to true.
+		 */
+		enabled?: boolean;
+	}
+
+	/**
 	 * Configuration options for the editor.
 	 */
 	export interface IEditorOptions {
@@ -2825,6 +2860,11 @@ declare module monaco.editor {
 		 */
 		scrollBeyondLastLine?: boolean;
 		/**
+		 * Enable that the editor animates scrolling to a position.
+		 * Defaults to false.
+		 */
+		smoothScrolling?: boolean;
+		/**
 		 * Enable that the editor will install an interval to check if its container dom node size has changed.
 		 * Enabling this might have a severe performance impact.
 		 * Defaults to false.
@@ -2889,6 +2929,10 @@ declare module monaco.editor {
 		 * Defaults to true.
 		 */
 		links?: boolean;
+		/**
+		 * Enable inline color decorators and color picker rendering.
+		 */
+		colorDecorators?: boolean;
 		/**
 		 * Enable custom contextmenu.
 		 * Defaults to true.
@@ -2966,7 +3010,7 @@ declare module monaco.editor {
 		 * Accept suggestions on ENTER.
 		 * Defaults to 'on'.
 		 */
-		acceptSuggestionOnEnter?: 'on' | 'smart' | 'off';
+		acceptSuggestionOnEnter?: boolean | 'on' | 'smart' | 'off';
 		/**
 		 * Accept suggestions on provider defined characters.
 		 * Defaults to true.
@@ -3009,6 +3053,10 @@ declare module monaco.editor {
 		 * Defaults to true.
 		 */
 		codeLens?: boolean;
+		/**
+		 * Control the behavior and rendering of the code action lightbulb.
+		 */
+		lightbulb?: IEditorLightbulbOptions;
 		/**
 		 * Enable code folding
 		 * Defaults to true in vscode and to false in monaco-editor.
@@ -3245,6 +3293,7 @@ declare module monaco.editor {
 		readonly cursorStyle: TextEditorCursorStyle;
 		readonly hideCursorInOverviewRuler: boolean;
 		readonly scrollBeyondLastLine: boolean;
+		readonly smoothScrolling: boolean;
 		readonly stopRenderingLineAfter: number;
 		readonly renderWhitespace: 'none' | 'boundary' | 'all';
 		readonly renderControlCharacters: boolean;
@@ -3285,6 +3334,8 @@ declare module monaco.editor {
 		readonly showFoldingControls: 'always' | 'mouseover';
 		readonly matchBrackets: boolean;
 		readonly find: InternalEditorFindOptions;
+		readonly colorDecorators: boolean;
+		readonly lightbulbEnabled: boolean;
 	}
 
 	/**
@@ -4034,6 +4085,11 @@ declare module monaco.languages {
 	export function registerCompletionItemProvider(languageId: string, provider: CompletionItemProvider): IDisposable;
 
 	/**
+	 * Register a document color provider (used by Color Picker, Color Decorator).
+	 */
+	export function registerColorProvider(languageId: string, provider: DocumentColorProvider): IDisposable;
+
+	/**
 	 * Contains additional diagnostic information about the context in which
 	 * a [code action](#CodeActionProvider.provideCodeActions) is run.
 	 */
@@ -4125,6 +4181,10 @@ declare module monaco.languages {
 		 */
 		documentation?: string;
 		/**
+		 * A command that should be run upon acceptance of this item.
+		 */
+		command?: Command;
+		/**
 		 * A string that should be used when comparing this item
 		 * with other items. When `falsy` the [label](#CompletionItem.label)
 		 * is used.
@@ -4182,6 +4242,23 @@ declare module monaco.languages {
 	}
 
 	/**
+	 * Contains additional information about the context in which
+	 * [completion provider](#CompletionItemProvider.provideCompletionItems) is triggered.
+	 */
+	export interface CompletionContext {
+		/**
+		 * How the completion was triggered.
+		 */
+		triggerKind: SuggestTriggerKind;
+		/**
+		 * Character that triggered the completion item provider.
+		 *
+		 * `undefined` if provider was not triggered by a character.
+		 */
+		triggerCharacter?: string;
+	}
+
+	/**
 	 * The completion item provider interface defines the contract between extensions and
 	 * the [IntelliSense](https://code.visualstudio.com/docs/editor/intellisense).
 	 *
@@ -4197,7 +4274,7 @@ declare module monaco.languages {
 		/**
 		 * Provide completion items for the given position and document.
 		 */
-		provideCompletionItems(model: editor.IReadOnlyModel, position: Position, token: CancellationToken): CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
+		provideCompletionItems(document: editor.IReadOnlyModel, position: Position, token: CancellationToken, context: CompletionContext): CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
 		/**
 		 * Given a completion item fill in more data, like [doc-comment](#CompletionItem.documentation)
 		 * or [details](#CompletionItem.detail).
@@ -4263,6 +4340,10 @@ declare module monaco.languages {
 		 */
 		surroundingPairs?: IAutoClosingPair[];
 		/**
+		 * The language's folding rules.
+		 */
+		folding?: FoldingRules;
+		/**
 		 * **Deprecated** Do not use.
 		 *
 		 * @deprecated Will be replaced by a better API soon.
@@ -4290,6 +4371,34 @@ declare module monaco.languages {
 		 * If a line matches this pattern, then its indentation should not be changed and it should not be evaluated against the other rules.
 		 */
 		unIndentedLinePattern?: RegExp;
+	}
+
+	/**
+	 * Describes language specific folding markers such as '#region' and '#endregion'.
+	 * The start and end regexes will be tested against the contents of all lines and must be designed efficiently:
+	 * - the regex should start with '^'
+	 * - regexp flags (i, g) are ignored
+	 */
+	export interface FoldingMarkers {
+		start: RegExp;
+		end: RegExp;
+	}
+
+	/**
+	 * Describes folding rules for a language.
+	 */
+	export interface FoldingRules {
+		/**
+		 * Used by the indentation based strategy to decide wheter empty lines belong to the previous or the next block.
+		 * A language adheres to the off-side rule if blocks in that language are expressed by their indentation.
+		 * See [wikipedia](https://en.wikipedia.org/wiki/Off-side_rule) for more information.
+		 * If not set, `false` is used and empty lines belong to the previous block.
+		 */
+		offSide?: boolean;
+		/**
+		 * Region markers used by the language.
+		 */
+		markers?: FoldingMarkers;
 	}
 
 	/**
@@ -4407,7 +4516,7 @@ declare module monaco.languages {
 		/**
 		 * The contents of this hover.
 		 */
-		contents: MarkedString[];
+		contents: IMarkdownString[];
 		/**
 		 * The range to which this hover applies. When missing, the
 		 * editor will use the range at the current position or the
@@ -4430,6 +4539,14 @@ declare module monaco.languages {
 	}
 
 	/**
+	 * How a suggest provider was triggered.
+	 */
+	export enum SuggestTriggerKind {
+		Invoke = 0,
+		TriggerCharacter = 1,
+	}
+
+	/**
 	 * Represents a parameter of a callable-signature. A parameter can
 	 * have a label and a doc-comment.
 	 */
@@ -4443,7 +4560,7 @@ declare module monaco.languages {
 		 * The human-readable doc-comment of this signature. Will be shown
 		 * in the UI but can be omitted.
 		 */
-		documentation?: string;
+		documentation?: string | IMarkdownString;
 	}
 
 	/**
@@ -4461,7 +4578,7 @@ declare module monaco.languages {
 		 * The human-readable doc-comment of this signature. Will be shown
 		 * in the UI but can be omitted.
 		 */
-		documentation?: string;
+		documentation?: string | IMarkdownString;
 		/**
 		 * The parameters of this signature.
 		 */
@@ -4766,6 +4883,78 @@ declare module monaco.languages {
 	export interface LinkProvider {
 		provideLinks(model: editor.IReadOnlyModel, token: CancellationToken): ILink[] | Thenable<ILink[]>;
 		resolveLink?: (link: ILink, token: CancellationToken) => ILink | Thenable<ILink>;
+	}
+
+	/**
+	 * A color in RGBA format.
+	 */
+	export interface IColor {
+		/**
+		 * The red component in the range [0-1].
+		 */
+		readonly red: number;
+		/**
+		 * The green component in the range [0-1].
+		 */
+		readonly green: number;
+		/**
+		 * The blue component in the range [0-1].
+		 */
+		readonly blue: number;
+		/**
+		 * The alpha component in the range [0-1].
+		 */
+		readonly alpha: number;
+	}
+
+	/**
+	 * String representations for a color
+	 */
+	export interface IColorPresentation {
+		/**
+		 * The label of this color presentation. It will be shown on the color
+		 * picker header. By default this is also the text that is inserted when selecting
+		 * this color presentation.
+		 */
+		label: string;
+		/**
+		 * An [edit](#TextEdit) which is applied to a document when selecting
+		 * this presentation for the color.
+		 */
+		textEdit?: TextEdit;
+		/**
+		 * An optional array of additional [text edits](#TextEdit) that are applied when
+		 * selecting this color presentation.
+		 */
+		additionalTextEdits?: TextEdit[];
+	}
+
+	/**
+	 * A color range is a range in a text model which represents a color.
+	 */
+	export interface IColorInformation {
+		/**
+		 * The range within the model.
+		 */
+		range: IRange;
+		/**
+		 * The color represented in this range.
+		 */
+		color: IColor;
+	}
+
+	/**
+	 * A provider of colors for editor models.
+	 */
+	export interface DocumentColorProvider {
+		/**
+		 * Provides the color ranges for a specific model.
+		 */
+		provideDocumentColors(model: editor.IReadOnlyModel, token: CancellationToken): IColorInformation[] | Thenable<IColorInformation[]>;
+		/**
+		 * Provide the string representations for a color.
+		 */
+		provideColorPresentations(model: editor.IReadOnlyModel, colorInfo: IColorInformation, token: CancellationToken): IColorPresentation[] | Thenable<IColorPresentation[]>;
 	}
 
 	export interface IResourceEdit {

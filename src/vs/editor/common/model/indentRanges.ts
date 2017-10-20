@@ -6,17 +6,20 @@
 'use strict';
 
 import { ITextModel } from 'vs/editor/common/editorCommon';
+import { FoldingMarkers } from 'vs/editor/common/modes/languageConfiguration';
 
 export class IndentRange {
 	_indentRangeBrand: void;
 	startLineNumber: number;
 	endLineNumber: number;
 	indent: number;
+	marker: boolean;
 
-	constructor(startLineNumber: number, endLineNumber: number, indent: number) {
+	constructor(startLineNumber: number, endLineNumber: number, indent: number, marker?: boolean) {
 		this.startLineNumber = startLineNumber;
 		this.endLineNumber = endLineNumber;
 		this.indent = indent;
+		this.marker = marker;
 	}
 
 	public static deepCloneArr(indentRanges: IndentRange[]): IndentRange[] {
@@ -29,21 +32,57 @@ export class IndentRange {
 	}
 }
 
-export function computeRanges(model: ITextModel, minimumRangeSize: number = 1): IndentRange[] {
+interface PreviousRegion { indent: number; line: number; marker: boolean; };
+
+export function computeRanges(model: ITextModel, offSide: boolean, markers?: FoldingMarkers, minimumRangeSize: number = 1): IndentRange[] {
 
 	let result: IndentRange[] = [];
 
-	let previousRegions: { indent: number, line: number }[] = [];
-	previousRegions.push({ indent: -1, line: model.getLineCount() + 1 }); // sentinel, to make sure there's at least one entry
+	let pattern = void 0;
+	if (markers) {
+		pattern = new RegExp(`(${markers.start.source})|(?:${markers.end.source})`);
+	}
+
+	let previousRegions: PreviousRegion[] = [];
+	previousRegions.push({ indent: -1, line: model.getLineCount() + 1, marker: false }); // sentinel, to make sure there's at least one entry
 
 	for (let line = model.getLineCount(); line > 0; line--) {
 		let indent = model.getIndentLevel(line);
+		let previous = previousRegions[previousRegions.length - 1];
 		if (indent === -1) {
+			if (offSide && !previous.marker) {
+				// for offSide languages, empty lines are associated to the next block
+				previous.line = line;
+			}
 			continue; // only whitespace
 		}
+		let m;
+		if (pattern && (m = model.getLineContent(line).match(pattern))) {
+			// folding pattern match
+			if (m[1]) { // start pattern match
+				// discard all regions until the folding pattern
+				let i = previousRegions.length - 1;
+				while (i > 0 && !previousRegions[i].marker) {
+					i--;
+				}
+				if (i > 0) {
+					previousRegions.length = i + 1;
+					previous = previousRegions[i];
 
-		let previous = previousRegions[previousRegions.length - 1];
-
+					// new folding range from pattern, includes the end line
+					result.push(new IndentRange(line, previous.line, indent, true));
+					previous.marker = false;
+					previous.indent = indent;
+					previous.line = line;
+					continue;
+				} else {
+					// no end marker found, treat line as a regular line
+				}
+			} else { // end pattern match
+				previousRegions.push({ indent: -2, line, marker: true });
+				continue;
+			}
+		}
 		if (previous.indent > indent) {
 			// discard all regions with larger indent
 			do {
@@ -61,7 +100,7 @@ export function computeRanges(model: ITextModel, minimumRangeSize: number = 1): 
 			previous.line = line;
 		} else { // previous.indent < indent
 			// new region with a bigger indent
-			previousRegions.push({ indent, line });
+			previousRegions.push({ indent, line, marker: false });
 		}
 	}
 

@@ -6,7 +6,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import URI from 'vs/base/common/uri';
+import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 export const IWorkspaceEditingService = createDecorator<IWorkspaceEditingService>('workspaceEditingService');
 
@@ -15,12 +15,29 @@ export interface IWorkspaceEditingService {
 	_serviceBrand: ServiceIdentifier<any>;
 
 	/**
-	 * add roots to the existing workspace
+	 * creates a new workspace with the provided folders and opens it. if path is provided
+	 * the workspace will be saved into that location.
 	 */
-	addRoots(roots: URI[]): TPromise<void>;
+	createAndEnterWorkspace(folderPaths?: string[], path?: string): TPromise<void>;
 
 	/**
-	 * remove roots from the existing workspace
+	 * saves the workspace to the provided path and opens it. requires a workspace to be opened.
 	 */
-	removeRoots(roots: URI[]): TPromise<void>;
+	saveAndEnterWorkspace(path: string): TPromise<void>;
+
+	/**
+	 * copies current workspace settings to the target workspace.
+	 */
+	copyWorkspaceSettings(toWorkspace: IWorkspaceIdentifier): TPromise<void>;
+}
+
+export const IWorkspaceMigrationService = createDecorator<IWorkspaceMigrationService>('workspaceMigrationService');
+
+export interface IWorkspaceMigrationService {
+
+	/**
+	 * Migrate current workspace to given workspace
+	 */
+	migrate(toWokspaceId: IWorkspaceIdentifier): TPromise<void>;
+
 }

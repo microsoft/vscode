@@ -15,5 +15,7 @@
 	"moveSelectionToNextFindMatch": "Переместить последнее выделение в следующее найденное совпадение",
 	"moveSelectionToPreviousFindMatch": "Переместить последний выделенный фрагмент в предыдущее найденное совпадение",
 	"selectAllOccurrencesOfFindMatch": "Выбрать все вхождения найденных совпадений",
-	"changeAll.label": "Изменить все вхождения"
+	"changeAll.label": "Изменить все вхождения",
+	"showNextFindTermAction": "Показать следующий найденный термин",
+	"showPreviousFindTermAction": "Показать предыдущий найденный термин"
 }

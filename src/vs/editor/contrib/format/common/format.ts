@@ -17,12 +17,23 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { asWinJsPromise, sequence } from 'vs/base/common/async';
 import { Position } from 'vs/editor/common/core/position';
 
-export function getDocumentRangeFormattingEdits(model: IReadOnlyModel, range: Range, options: FormattingOptions): TPromise<TextEdit[]> {
+export class NoProviderError extends Error {
+
+	static readonly Name = 'NOPRO';
+
+	constructor(message?: string) {
+		super();
+		this.name = NoProviderError.Name;
+		this.message = message;
+	}
+}
+
+export function getDocumentRangeFormattingEdits(model: IReadOnlyModel, range: Range, options: FormattingOptions): TPromise<TextEdit[], NoProviderError> {
 
 	const providers = DocumentRangeFormattingEditProviderRegistry.ordered(model);
 
 	if (providers.length === 0) {
-		return TPromise.as(undefined);
+		return TPromise.wrapError(new NoProviderError());
 	}
 
 	let result: TextEdit[];

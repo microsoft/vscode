@@ -16,15 +16,15 @@ import { MainThreadTextEditor } from './mainThreadEditor';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Position as EditorPosition, IEditor } from 'vs/platform/editor/common/editor';
-import { extHostCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
-import { MainThreadDocuments } from "vs/workbench/api/electron-browser/mainThreadDocuments";
-import { MainThreadEditors } from "vs/workbench/api/electron-browser/mainThreadEditors";
-import { IModeService } from "vs/editor/common/services/modeService";
-import { IFileService } from "vs/platform/files/common/files";
-import { ITextModelService } from "vs/editor/common/services/resolverService";
-import { IUntitledEditorService } from "vs/workbench/services/untitled/common/untitledEditorService";
-import { IEditorGroupService } from "vs/workbench/services/group/common/groupService";
-import { ITelemetryService } from "vs/platform/telemetry/common/telemetry";
+import { extHostCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
+import { MainThreadDocuments } from 'vs/workbench/api/electron-browser/mainThreadDocuments';
+import { MainThreadEditors } from 'vs/workbench/api/electron-browser/mainThreadEditors';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IFileService } from 'vs/platform/files/common/files';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 namespace cmp {
 	export function compareModels(a: IModel, b: IModel): number {
@@ -250,7 +250,7 @@ export class MainThreadDocumentsAndEditors {
 		const mainThreadDocuments = new MainThreadDocuments(this, extHostContext, this._modelService, modeService, this._textFileService, fileService, textModelResolverService, untitledEditorService);
 		extHostContext.set(MainContext.MainThreadDocuments, mainThreadDocuments);
 
-		const mainThreadEditors = new MainThreadEditors(this, extHostContext, codeEditorService, this._workbenchEditorService, editorGroupService, telemetryService);
+		const mainThreadEditors = new MainThreadEditors(this, extHostContext, codeEditorService, this._workbenchEditorService, editorGroupService, telemetryService, textModelResolverService, fileService, this._modelService);
 		extHostContext.set(MainContext.MainThreadEditors, mainThreadEditors);
 
 		// It is expected that the ctor of the state computer calls our `_onDelta`.

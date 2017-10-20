@@ -10,12 +10,12 @@ import * as path from 'path';
 import { MarkdownEngine } from './markdownEngine';
 
 import * as nls from 'vscode-nls';
-import { Logger } from "./logger";
-import { ContentSecurityPolicyArbiter, MarkdownPreviewSecurityLevel } from "./security";
+import { Logger } from './logger';
+import { ContentSecurityPolicyArbiter, MarkdownPreviewSecurityLevel } from './security';
 const localize = nls.loadMessageBundle();
 
 const previewStrings = {
-	cspAlertMessageText: localize('preview.securityMessage.text', 'Some content has been been disabled in this document'),
+	cspAlertMessageText: localize('preview.securityMessage.text', 'Some content has been disabled in this document'),
 	cspAlertMessageTitle: localize('preview.securityMessage.title', 'Potentially unsafe or insecure content has been disabled in the markdown preview. Change the Markdown preview security setting to allow insecure content or enable scripts'),
 	cspAlertMessageLabel: localize('preview.securityMessage.label', 'Content Disabled Security Warning')
 };
@@ -182,7 +182,7 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 		</style>`;
 	}
 
-	private getStyles(uri: vscode.Uri, nonce: string): string {
+	private getStyles(resource: vscode.Uri, nonce: string): string {
 		const baseStyles = [
 			this.getMediaPath('markdown.css'),
 			this.getMediaPath('tomorrow.css')
@@ -190,13 +190,13 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 
 		return `${baseStyles.map(href => `<link rel="stylesheet" type="text/css" href="${href}">`).join('\n')}
 			${this.getSettingsOverrideStyles(nonce)}
-			${this.computeCustomStyleSheetIncludes(uri)}`;
+			${this.computeCustomStyleSheetIncludes(resource)}`;
 	}
 
 	private getScripts(nonce: string): string {
 		const scripts = [this.getMediaPath('main.js')].concat(this.extraScripts.map(resource => resource.toString()));
 		return scripts
-			.map(source => `<script async src="${source}" nonce="${nonce}"></script>`)
+			.map(source => `<script async src="${source}" nonce="${nonce}" charset="UTF-8"></script>`)
 			.join('\n');
 	}
 
@@ -205,7 +205,7 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 
 		let initialLine: number | undefined = undefined;
 		const editor = vscode.window.activeTextEditor;
-		if (editor && editor.document.uri.fsPath === sourceUri.fsPath) {
+		if (editor && editor.document.uri.toString() === sourceUri.toString()) {
 			initialLine = editor.selection.active.line;
 		}
 
@@ -236,7 +236,7 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 				<meta id="vscode-markdown-preview-data" data-settings="${JSON.stringify(initialData).replace(/"/g, '&quot;')}" data-strings="${JSON.stringify(previewStrings).replace(/"/g, '&quot;')}">
 				<script src="${this.getMediaPath('csp.js')}" nonce="${nonce}"></script>
 				<script src="${this.getMediaPath('loading.js')}" nonce="${nonce}"></script>
-				${this.getStyles(uri, nonce)}
+				${this.getStyles(sourceUri, nonce)}
 				<base href="${document.uri.toString(true)}">
 			</head>
 			<body class="vscode-body ${this.config.scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''} ${this.config.wordWrap ? 'wordWrap' : ''} ${this.config.markEditorSelection ? 'showEditorSelection' : ''}">

@@ -56,7 +56,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		}
 
 		if (this._commands.has(id)) {
-			throw new Error('command with id already exists');
+			throw new Error(`command '${id}' already exists`);
 		}
 
 		this._commands.set(id, { callback, thisArg, description });

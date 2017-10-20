@@ -7,7 +7,7 @@
 import { CancellationToken, Uri, Event } from 'vscode';
 import * as Proto from './protocol';
 import API from './utils/api';
-import { TypeScriptServerPlugin } from "./utils/plugins";
+import { TypeScriptServerPlugin } from './utils/plugins';
 
 export interface ITypescriptServiceClientHost {
 	syntaxDiagnosticsReceived(event: Proto.DiagnosticEvent): void;

@@ -9,6 +9,9 @@ step "Build Debian package" \
 step "Build RPM package" \
 	npm run gulp -- "vscode-linux-$ARCH-build-rpm"
 
+# step "Build snap package" \
+# 	npm run gulp -- "vscode-linux-$ARCH-build-snap"
+
 (cd $BUILD_SOURCESDIRECTORY/build/tfs/common && \
 	step "Install build dependencies" \
 	npm install --unsafe-perm)
@@ -48,6 +51,9 @@ RPM_PATH="$REPO/.build/linux/rpm/$RPM_ARCH/$RPM_FILENAME"
 
 step "Publish RPM package" \
 	node build/tfs/common/publish.js $VSCODE_QUALITY $PLATFORM_RPM package $RPM_FILENAME $VERSION true $RPM_PATH
+
+# SNAP_FILENAME="$(ls $REPO/.build/linux/snap/$ARCH/ | grep .snap)"
+# SNAP_PATH="$REPO/.build/linux/snap/$ARCH/$SNAP_FILENAME"
 
 if [ -z "$VSCODE_QUALITY" ]; then
 	echo "VSCODE_QUALITY is not set, skipping repo package publish"

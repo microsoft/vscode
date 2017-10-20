@@ -31,7 +31,7 @@ import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
 import { ElectronWindow } from 'vs/workbench/electron-browser/window';
 import { resolveWorkbenchCommonProperties, getOrCreateMachineId } from 'vs/platform/telemetry/node/workbenchCommonProperties';
 import { machineIdIpcChannel } from 'vs/platform/telemetry/node/commonProperties';
-import { WorkspaceStats } from 'vs/workbench/services/telemetry/common/workspaceStats';
+import { WorkspaceStats } from 'vs/workbench/services/telemetry/node/workspaceStats';
 import { IWindowsService, IWindowService, IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { WindowService } from 'vs/platform/windows/electron-browser/windowService';
 import { MessageService } from 'vs/workbench/services/message/electron-browser/messageService';
@@ -49,7 +49,7 @@ import { IntegrityServiceImpl } from 'vs/platform/integrity/node/integrityServic
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { ExtensionService } from "vs/workbench/services/extensions/electron-browser/extensionService";
+import { ExtensionService } from 'vs/workbench/services/extensions/electron-browser/extensionService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -63,7 +63,7 @@ import { ChoiceChannel } from 'vs/platform/message/common/messageIpc';
 import { ISearchService } from 'vs/platform/search/common/search';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CommandService } from 'vs/platform/commands/common/commandService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { WorkbenchModeServiceImpl } from 'vs/workbench/services/mode/common/workbenchModeService';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -90,7 +90,9 @@ import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platf
 import { foreground, selectionBackground, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground, inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
 import { TextMateService } from 'vs/workbench/services/textMate/electron-browser/TMSyntax';
 import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
-import { IBroadcastService, BroadcastService } from "vs/platform/broadcast/electron-browser/broadcastService";
+import { IBroadcastService, BroadcastService } from 'vs/platform/broadcast/electron-browser/broadcastService';
+import { HashService } from 'vs/workbench/services/hash/node/hashService';
+import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 
 /**
  * Services that we require for the Shell
@@ -199,13 +201,35 @@ export class WorkbenchShell {
 
 		// Telemetry: workspace info
 		const { filesToOpen, filesToCreate, filesToDiff } = this.configuration;
+		/* __GDPR__
+			"workspaceLoad" : {
+				"userAgent" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"windowSize.innerHeight": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"windowSize.innerWidth": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"windowSize.outerHeight": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"windowSize.outerWidth": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"emptyWorkbench": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"workbench.filesToOpen": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"workbench.filesToCreate": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"workbench.filesToDiff": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"customKeybindingsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"theme": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"language": { "classification": "SystemMetaData", "purpose": "BusinessInsight" },
+				"experiments": { "${inline}": [ "${IExperiments}" ] },
+				"pinnedViewlets": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"restoredViewlet": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"restoredEditors": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"pinnedViewlets": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"startupKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		this.telemetryService.publicLog('workspaceLoad', {
 			userAgent: navigator.userAgent,
 			windowSize: { innerHeight: window.innerHeight, innerWidth: window.innerWidth, outerHeight: window.outerHeight, outerWidth: window.outerWidth },
-			emptyWorkbench: !this.contextService.hasWorkspace(),
-			'workbench.filesToOpen': filesToOpen && filesToOpen.length || void 0,
-			'workbench.filesToCreate': filesToCreate && filesToCreate.length || void 0,
-			'workbench.filesToDiff': filesToDiff && filesToDiff.length || void 0,
+			emptyWorkbench: this.contextService.getWorkbenchState() === WorkbenchState.EMPTY,
+			'workbench.filesToOpen': filesToOpen && filesToOpen.length || 0,
+			'workbench.filesToCreate': filesToCreate && filesToCreate.length || 0,
+			'workbench.filesToDiff': filesToDiff && filesToDiff.length || 0,
 			customKeybindingsCount: info.customKeybindingsCount,
 			theme: this.themeService.getColorTheme().id,
 			language: platform.language,
@@ -221,6 +245,13 @@ export class WorkbenchShell {
 		this.timerService.restoreEditorsDuration = info.restoreEditorsDuration;
 		this.timerService.restoreViewletDuration = info.restoreViewletDuration;
 		this.extensionService.onReady().done(() => {
+			/* __GDPR__
+				"startupTime" : {
+					"${include}": [
+						"${IStartupMetrics}"
+					]
+				}
+			*/
 			this.telemetryService.publicLog('startupTime', this.timerService.startupMetrics);
 		});
 
@@ -264,20 +295,23 @@ export class WorkbenchShell {
 		restoreFontInfo(this.storageService);
 		readFontInfo(BareFontInfo.createFromRawSettings(this.configurationService.getConfiguration('editor'), browser.getZoomLevel()));
 
+		// Hash
+		serviceCollection.set(IHashService, new SyncDescriptor(HashService));
+
 		// Experiments
 		this.experimentService = instantiationService.createInstance(ExperimentService);
 		serviceCollection.set(IExperimentService, this.experimentService);
 
 		// Telemetry
 		this.sendMachineIdToMain(this.storageService);
-		if (this.environmentService.isBuilt && !this.environmentService.isExtensionDevelopment && !!product.enableTelemetry) {
+		if (this.environmentService.isBuilt && !this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
 			const channel = getDelayedChannel<ITelemetryAppenderChannel>(sharedProcess.then(c => c.getChannel('telemetryAppender')));
 			const commit = product.commit;
 			const version = pkg.version;
 
 			const config: ITelemetryServiceConfig = {
 				appender: new TelemetryAppenderClient(channel),
-				commonProperties: resolveWorkbenchCommonProperties(this.storageService, commit, version),
+				commonProperties: resolveWorkbenchCommonProperties(this.storageService, commit, version, this.environmentService.installSource),
 				piiPaths: [this.environmentService.appRoot, this.environmentService.extensionsPath]
 			};
 
@@ -288,6 +322,12 @@ export class WorkbenchShell {
 			const idleMonitor = new IdleMonitor(2 * 60 * 1000); // 2 minutes
 
 			const listener = idleMonitor.onStatusChange(status =>
+				/* __GDPR__
+					"UserIdleStart" : {}
+				*/
+				/* __GDPR__
+					"UserIdleStop" : {}
+				*/
 				this.telemetryService.publicLog(status === UserStatus.Active
 					? TelemetryService.IDLE_STOP_EVENT_NAME
 					: TelemetryService.IDLE_START_EVENT_NAME

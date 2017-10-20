@@ -43,7 +43,7 @@
       },
       {
         "category": "%command.category%",
-        "title": "Accept selection",
+        "title": "%command.accept.selection%",
         "command": "merge-conflict.accept.selection"
       },
       {
@@ -88,6 +88,6 @@
     "vscode-nls": "^2.0.2"
   },
   "devDependencies": {
-    "@types/node": "^7.0.4"
+    "@types/node": "8.0.33"
   }
 }

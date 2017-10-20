@@ -378,7 +378,7 @@ export class WordOperations {
 		let nextWord = WordOperations._findNextWordOnLine(wordSeparators, model, position);
 		let isInNextWord = (nextWord && nextWord.wordType === WordType.Regular && nextWord.start < position.column - 1 && position.column - 1 <= nextWord.end);
 
-		if (!inSelectionMode || !cursor.hasSelection()) {
+		if (!inSelectionMode) {
 			// Entering word selection for the first time
 
 			let startColumn: number;
@@ -439,6 +439,6 @@ export class WordOperations {
 			}
 		}
 
-		return cursor.move(cursor.hasSelection(), lineNumber, column, 0);
+		return cursor.move(true, lineNumber, column, 0);
 	}
 }

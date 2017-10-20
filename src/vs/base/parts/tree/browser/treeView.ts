@@ -847,26 +847,28 @@ export class TreeView extends HeightMap {
 	}
 
 	public get viewHeight() {
-		const scrollState = this.scrollableElement.getScrollState();
-		return scrollState.height;
+		const scrollDimensions = this.scrollableElement.getScrollDimensions();
+		return scrollDimensions.height;
 	}
 
 	public set viewHeight(viewHeight: number) {
-		this.scrollableElement.updateState({
+		this.scrollableElement.setScrollDimensions({
 			height: viewHeight,
 			scrollHeight: this.getTotalHeight()
 		});
 	}
 
 	public get scrollTop(): number {
-		const scrollState = this.scrollableElement.getScrollState();
-		return scrollState.scrollTop;
+		const scrollPosition = this.scrollableElement.getScrollPosition();
+		return scrollPosition.scrollTop;
 	}
 
 	public set scrollTop(scrollTop: number) {
-		this.scrollableElement.updateState({
-			scrollTop: scrollTop,
+		this.scrollableElement.setScrollDimensions({
 			scrollHeight: this.getTotalHeight()
+		});
+		this.scrollableElement.setScrollPosition({
+			scrollTop: scrollTop
 		});
 	}
 

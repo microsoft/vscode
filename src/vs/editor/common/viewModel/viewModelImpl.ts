@@ -21,6 +21,7 @@ import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOption
 import { CharacterHardWrappingLineMapperFactory } from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
 import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';
 import { Color } from 'vs/base/common/color';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -38,7 +39,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 	private _isDisposing: boolean;
 	private _centeredViewLine: number;
 
-	constructor(editorId: number, configuration: editorCommon.IConfiguration, model: editorCommon.IModel) {
+	constructor(editorId: number, configuration: editorCommon.IConfiguration, model: editorCommon.IModel, scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable) {
 		super();
 
 		this.editorId = editorId;
@@ -70,7 +71,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 		this.coordinatesConverter = this.lines.createCoordinatesConverter();
 
-		this.viewLayout = this._register(new ViewLayout(this.configuration, this.getLineCount()));
+		this.viewLayout = this._register(new ViewLayout(this.configuration, this.getLineCount(), scheduleAtNextAnimationFrame));
 
 		this._register(this.viewLayout.onDidScroll((e) => {
 			this._emit([new viewEvents.ViewScrollChangedEvent(e)]);
@@ -125,7 +126,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			this.decorations.onLineMappingChanged();
 			this.viewLayout.onFlushed(this.getLineCount());
 
-			if (this.viewLayout.getScrollTop() !== 0) {
+			if (this.viewLayout.getCurrentScrollTop() !== 0) {
 				// Never change the scroll position from 0 to something else...
 				revealPreviousCenteredModelRange = true;
 			}
@@ -148,7 +149,8 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			eventsCollector.emit(new viewEvents.ViewRevealRangeRequestEvent(
 				newCenteredViewRange,
 				viewEvents.VerticalRevealType.Center,
-				false
+				false,
+				editorCommon.ScrollType.Immediate
 			));
 		}
 	}
@@ -257,6 +259,10 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 				}
 				case textModelEvents.TextModelEventType.ModelLanguageChanged: {
 					// That's ok, a model tokens changed event will follow shortly
+					break;
+				}
+				case textModelEvents.TextModelEventType.ModelLanguageConfigurationChanged: {
+					eventsCollector.emit(new viewEvents.ViewLanguageConfigurationEvent());
 					break;
 				}
 				case textModelEvents.TextModelEventType.ModelContentChanged: {
@@ -457,29 +463,37 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 	}
 
 	public getPlainTextToCopy(ranges: Range[], emptySelectionClipboard: boolean): string {
-		let newLineCharacter = this.model.getEOL();
+		const newLineCharacter = this.model.getEOL();
 
-		if (ranges.length === 1) {
-			let range: Range = ranges[0];
-			if (range.isEmpty()) {
-				if (emptySelectionClipboard) {
-					let modelLineNumber = this.coordinatesConverter.convertViewPositionToModelPosition(new Position(range.startLineNumber, 1)).lineNumber;
-					return this.model.getLineContent(modelLineNumber) + newLineCharacter;
-				} else {
-					return '';
+		ranges = ranges.slice(0);
+		ranges.sort(Range.compareRangesUsingStarts);
+		const nonEmptyRanges = ranges.filter((r) => !r.isEmpty());
+
+		if (nonEmptyRanges.length === 0) {
+			if (!emptySelectionClipboard) {
+				return '';
+			}
+
+			const modelLineNumbers = ranges.map((r) => {
+				const viewLineStart = new Position(r.startLineNumber, 1);
+				return this.coordinatesConverter.convertViewPositionToModelPosition(viewLineStart).lineNumber;
+			});
+
+			let result = '';
+			for (let i = 0; i < modelLineNumbers.length; i++) {
+				if (i > 0 && modelLineNumbers[i - 1] === modelLineNumbers[i]) {
+					continue;
 				}
+				result += this.model.getLineContent(modelLineNumbers[i]) + newLineCharacter;
 			}
-
-			return this.getValueInRange(range, editorCommon.EndOfLinePreference.TextDefined);
-		} else {
-			ranges = ranges.slice(0).sort(Range.compareRangesUsingStarts);
-			let result: string[] = [];
-			for (let i = 0; i < ranges.length; i++) {
-				result.push(this.getValueInRange(ranges[i], editorCommon.EndOfLinePreference.TextDefined));
-			}
-
-			return result.join(newLineCharacter);
+			return result;
 		}
+
+		let result: string[] = [];
+		for (let i = 0; i < nonEmptyRanges.length; i++) {
+			result.push(this.getValueInRange(nonEmptyRanges[i], editorCommon.EndOfLinePreference.TextDefined));
+		}
+		return result.join(newLineCharacter);
 	}
 
 	public getHTMLToCopy(viewRanges: Range[], emptySelectionClipboard: boolean): string {

@@ -10,8 +10,8 @@ import Severity from 'vs/base/common/severity';
 import { Action } from 'vs/base/common/actions';
 import { TPromise as Promise } from 'vs/base/common/winjs.base';
 import { MainThreadMessageServiceShape, MainContext, IExtHostContext, MainThreadMessageOptions } from '../node/extHost.protocol';
-import { extHostNamedCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
-import { IExtensionService } from "vs/platform/extensions/common/extensions";
+import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
+import { IExtensionService, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 @extHostNamedCustomer(MainContext.MainThreadMessageService)
 export class MainThreadMessageService implements MainThreadMessageServiceShape {
@@ -33,11 +33,11 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 		if (options.modal) {
 			return this._showModalMessage(severity, message, commands);
 		} else {
-			return this._showMessage(severity, message, commands, options.extensionId);
+			return this._showMessage(severity, message, commands, options.extension);
 		}
 	}
 
-	private _showMessage(severity: Severity, message: string, commands: { title: string; isCloseAffordance: boolean; handle: number; }[], extensionId: string): Thenable<number> {
+	private _showMessage(severity: Severity, message: string, commands: { title: string; isCloseAffordance: boolean; handle: number; }[], extension: IExtensionDescription): Thenable<number> {
 
 		return new Promise<number>(resolve => {
 
@@ -72,7 +72,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 			messageHide = this._messageService.show(severity, {
 				message,
 				actions,
-				source: extensionId
+				source: extension && `${extension.displayName || extension.name}`
 			});
 		});
 	}

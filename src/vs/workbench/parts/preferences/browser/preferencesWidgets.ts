@@ -20,7 +20,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ISettingsGroup, IPreferencesService, getSettingsTargetName } from 'vs/workbench/parts/preferences/common/preferences';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { attachInputBoxStyler, attachStylerCallback, attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -28,12 +28,14 @@ import { Position } from 'vs/editor/common/core/position';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { buttonBackground, buttonForeground, badgeForeground, badgeBackground, contrastBorder, errorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ISelectBoxStyles, defaultStyles } from "vs/base/browser/ui/selectBox/selectBox";
-import { Separator } from "vs/base/browser/ui/actionbar/actionbar";
-import { Color } from "vs/base/common/color";
+import { ISelectBoxStyles, defaultStyles } from 'vs/base/browser/ui/selectBox/selectBox';
+import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { Color } from 'vs/base/common/color';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { ConfigurationTarget } from "vs/workbench/services/configuration/common/configurationEditing";
-import { IMouseEvent } from "vs/base/browser/mouseEvent";
+import { IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { MarkdownString } from 'vs/base/common/htmlContent';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 
 export class SettingsHeaderWidget extends Widget implements IViewZone {
 
@@ -270,7 +272,7 @@ export class SettingsTargetsWidget extends Widget {
 
 	private borderColor: Color;
 
-	constructor(parent: HTMLElement, private uri: URI, private target: ConfigurationTarget,
+	constructor(parent: HTMLElement, private _uri: URI, private _configuartionTarget: ConfigurationTarget,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
@@ -284,15 +286,19 @@ export class SettingsTargetsWidget extends Widget {
 		}));
 	}
 
-	public setTarget(uri: URI, target: ConfigurationTarget): void {
-		this.uri = uri;
-		this.target = target;
+	get configurationTarget(): ConfigurationTarget {
+		return this._configuartionTarget;
+	}
+
+	public updateTargets(uri: URI, configuartionTarget: ConfigurationTarget): void {
+		this._uri = uri;
+		this._configuartionTarget = configuartionTarget;
 		this.updateLabel();
 	}
 
 	private create(parent: HTMLElement): void {
 		this.settingsTargetsContainer = DOM.append(parent, DOM.$('.settings-targets-widget'));
-		this.settingsTargetsContainer.style.width = this.workspaceContextService.hasMultiFolderWorkspace() ? '200px' : '150px';
+		this.settingsTargetsContainer.style.width = this.workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? '200px' : '150px';
 
 		const targetElement = DOM.append(this.settingsTargetsContainer, DOM.$('.settings-target'));
 		this.targetLabel = DOM.append(targetElement, DOM.$('.settings-target-label'));
@@ -307,16 +313,18 @@ export class SettingsTargetsWidget extends Widget {
 	}
 
 	private updateLabel(): void {
-		this.targetLabel.textContent = getSettingsTargetName(this.target, this.uri, this.workspaceContextService);
-		const details = ConfigurationTarget.FOLDER === this.target ? localize('folderSettingsDetails', "Folder Settings") : '';
+		this.targetLabel.textContent = getSettingsTargetName(this._configuartionTarget, this._uri, this.workspaceContextService);
+		const details = ConfigurationTarget.WORKSPACE_FOLDER === this._configuartionTarget ? localize('folderSettingsDetails', "Folder Settings") : '';
 		this.targetDetails.textContent = details;
 		DOM.toggleClass(this.targetDetails, 'empty', !details);
 	}
 
 	private showContextMenu(event: IMouseEvent): void {
 		const actions = this.getSettingsTargetsActions();
+		let elementPosition = DOM.getDomNodePagePosition(this.settingsTargetsContainer);
+		const anchor = { x: elementPosition.left, y: elementPosition.top + elementPosition.height + 5 };
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => this.settingsTargetsContainer,
+			getAnchor: () => anchor,
 			getActions: () => TPromise.wrap(actions)
 		});
 		event.stopPropagation();
@@ -329,31 +337,32 @@ export class SettingsTargetsWidget extends Widget {
 		actions.push(<IAction>{
 			id: 'userSettingsTarget',
 			label: getSettingsTargetName(ConfigurationTarget.USER, userSettingsResource, this.workspaceContextService),
-			checked: this.uri.fsPath === userSettingsResource.fsPath,
+			checked: this._uri.toString() === userSettingsResource.toString(),
 			enabled: true,
 			run: () => this.onTargetClicked(userSettingsResource)
 		});
 
-		if (this.workspaceContextService.hasWorkspace()) {
+		if (this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
 			const workspaceSettingsResource = this.preferencesService.workspaceSettingsResource;
 			actions.push(<IAction>{
 				id: 'workspaceSettingsTarget',
 				label: getSettingsTargetName(ConfigurationTarget.WORKSPACE, workspaceSettingsResource, this.workspaceContextService),
-				checked: this.uri.fsPath === workspaceSettingsResource.fsPath,
+				checked: this._uri.toString() === workspaceSettingsResource.toString(),
 				enabled: true,
 				run: () => this.onTargetClicked(workspaceSettingsResource)
 			});
 		}
 
-		if (this.workspaceContextService.hasMultiFolderWorkspace()) {
+		const workspaceFolders = this.workspaceContextService.getWorkspace().folders;
+		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE && workspaceFolders.length > 0) {
 			actions.push(new Separator());
-			actions.push(...this.workspaceContextService.getWorkspace().roots.map((root, index) => {
+			actions.push(...workspaceFolders.map((folder, index) => {
 				return <IAction>{
 					id: 'folderSettingsTarget' + index,
-					label: getSettingsTargetName(ConfigurationTarget.FOLDER, root, this.workspaceContextService),
-					checked: this.uri instanceof URI && this.uri.fsPath === root.fsPath,
+					label: getSettingsTargetName(ConfigurationTarget.WORKSPACE_FOLDER, folder.uri, this.workspaceContextService),
+					checked: this._uri.toString() === folder.uri.toString(),
 					enabled: true,
-					run: () => this.onTargetClicked(root)
+					run: () => this.onTargetClicked(folder.uri)
 				};
 			}));
 		}
@@ -362,7 +371,7 @@ export class SettingsTargetsWidget extends Widget {
 	}
 
 	private onTargetClicked(target: URI): void {
-		if (this.uri.fsPath === target.fsPath) {
+		if (this._uri.toString() === target.toString()) {
 			return;
 		}
 		this._onDidTargetChange.fire(target);
@@ -394,9 +403,6 @@ export class SearchWidget extends Widget {
 
 	private _onDidChange: Emitter<string> = this._register(new Emitter<string>());
 	public readonly onDidChange: Event<string> = this._onDidChange.event;
-
-	private _onNavigate: Emitter<boolean> = this._register(new Emitter<boolean>());
-	public readonly onNavigate: Event<boolean> = this._onNavigate.event;
 
 	private _onFocus: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onFocus: Event<void> = this._onFocus.event;
@@ -443,7 +449,6 @@ export class SearchWidget extends Widget {
 		const searchInput = DOM.append(this.searchContainer, DOM.$('div.settings-search-input'));
 		this.inputBox = this._register(this.createInputBox(searchInput));
 		this._register(this.inputBox.onDidChange(value => this._onDidChange.fire(value)));
-		this.onkeydown(this.inputBox.inputElement, (e) => this._onKeyDown(e));
 	}
 
 	protected createInputBox(parent: HTMLElement): InputBox {
@@ -498,24 +503,6 @@ export class SearchWidget extends Widget {
 
 	public setValue(value: string): string {
 		return this.inputBox.value = value;
-	}
-
-	private _onKeyDown(keyboardEvent: IKeyboardEvent): void {
-		let handled = false;
-		switch (keyboardEvent.keyCode) {
-			case KeyCode.Enter:
-				this._onNavigate.fire(keyboardEvent.shiftKey);
-				handled = true;
-				break;
-			case KeyCode.Escape:
-				this.clear();
-				handled = true;
-				break;
-		}
-		if (handled) {
-			keyboardEvent.preventDefault();
-			keyboardEvent.stopPropagation();
-		}
 	}
 
 	public dispose(): void {
@@ -599,7 +586,8 @@ export class EditPreferenceWidget<T> extends Disposable {
 		super();
 		this._editPreferenceDecoration = [];
 		this._register(this.editor.onMouseDown((e: IEditorMouseEvent) => {
-			if (e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN || /* after last line */ e.target.detail || !this.isVisible()) {
+			const data = e.target.detail as IMarginData;
+			if (e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN || data.isAfterLines || !this.isVisible()) {
 				return;
 			}
 			this._onClick.fire(e);
@@ -621,7 +609,7 @@ export class EditPreferenceWidget<T> extends Disposable {
 		newDecoration.push({
 			options: {
 				glyphMarginClassName: EditPreferenceWidget.GLYPH_MARGIN_CLASS_NAME,
-				glyphMarginHoverMessage: hoverMessage,
+				glyphMarginHoverMessage: new MarkdownString().appendText(hoverMessage),
 				stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 			},
 			range: {

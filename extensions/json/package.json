@@ -64,6 +64,7 @@
       "properties": {
         "json.schemas": {
           "type": "array",
+          "scope": "resource",
           "description": "%json.schemas.desc%",
           "items": {
             "type": "object",
@@ -98,11 +99,13 @@
         },
         "json.format.enable": {
           "type": "boolean",
+          "scope": "window",
           "default": true,
           "description": "%json.format.enable.desc%"
         },
         "json.trace.server": {
           "type": "string",
+          "scope": "window",
           "enum": [
             "off",
             "messages",
@@ -113,8 +116,10 @@
         },
         "json.colorDecorators.enable": {
           "type": "boolean",
+          "scope": "window",
           "default": true,
-          "description": "%json.colorDecorators.enable.desc%"
+          "description": "%json.colorDecorators.enable.desc%",
+          "deprecationMessage": "%json.colorDecorators.enable.deprecationMessage%"
         }
       }
     },
@@ -128,10 +133,10 @@
   },
   "dependencies": {
     "vscode-extension-telemetry": "0.0.8",
-    "vscode-languageclient": "3.1.0-alpha.1",
+    "vscode-languageclient": "^3.5.0-next.3",
     "vscode-nls": "2.0.2"
   },
   "devDependencies": {
-    "@types/node": "^6.0.51"
+    "@types/node": "7.0.43"
   }
 }

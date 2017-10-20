@@ -179,7 +179,7 @@ export class MainThreadTextEditor {
 		if (newConfiguration.tabSize === 'auto' || newConfiguration.insertSpaces === 'auto') {
 			// one of the options was set to 'auto' => detect indentation
 
-			let creationOpts = this._modelService.getCreationOptions(this._model.getLanguageIdentifier().language);
+			let creationOpts = this._modelService.getCreationOptions(this._model.getLanguageIdentifier().language, this._model.uri);
 			let insertSpaces = creationOpts.insertSpaces;
 			let tabSize = creationOpts.tabSize;
 
@@ -250,16 +250,16 @@ export class MainThreadTextEditor {
 		}
 		switch (revealType) {
 			case TextEditorRevealType.Default:
-				this._codeEditor.revealRange(range);
+				this._codeEditor.revealRange(range, EditorCommon.ScrollType.Smooth);
 				break;
 			case TextEditorRevealType.InCenter:
-				this._codeEditor.revealRangeInCenter(range);
+				this._codeEditor.revealRangeInCenter(range, EditorCommon.ScrollType.Smooth);
 				break;
 			case TextEditorRevealType.InCenterIfOutsideViewport:
-				this._codeEditor.revealRangeInCenterIfOutsideViewport(range);
+				this._codeEditor.revealRangeInCenterIfOutsideViewport(range, EditorCommon.ScrollType.Smooth);
 				break;
 			case TextEditorRevealType.AtTop:
-				this._codeEditor.revealRangeAtTop(range);
+				this._codeEditor.revealRangeAtTop(range, EditorCommon.ScrollType.Smooth);
 				break;
 			default:
 				console.warn(`Unknown revealType: ${revealType}`);

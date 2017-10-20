@@ -39,11 +39,20 @@
 	white-space: pre; /* enable to show labels that include multiple whitespaces */
 }
 
-.monaco-icon-label > .label-description.empty {
-	margin-left: 0;
-}
-
 .monaco-icon-label.italic > .label-name,
 .monaco-icon-label.italic > .label-description {
 	font-style: italic;
+}
+
+.monaco-icon-label > .label-badge {
+	align-self: center;
+	height: 12px;
+	min-width: 10px;
+	line-height: 125%;
+	font-size: 80%;
+	margin: 1px 15px 1px auto;
+	padding: 2px 3px;
+	border-radius: 5px;
+	font-weight: normal;
+	text-align: center;
 }

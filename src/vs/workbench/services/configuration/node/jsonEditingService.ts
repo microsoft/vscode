@@ -42,7 +42,8 @@ export class JSONEditingService implements IJSONEditingService {
 
 	private doWriteConfiguration(resource: URI, value: IJSONValue, save: boolean): TPromise<void> {
 		return this.resolveAndValidate(resource, save)
-			.then(reference => this.writeToBuffer(reference.object.textEditorModel, value));
+			.then(reference => this.writeToBuffer(reference.object.textEditorModel, value)
+				.then(() => reference.dispose()));
 	}
 
 	private writeToBuffer(model: editorCommon.IModel, value: IJSONValue): TPromise<any> {

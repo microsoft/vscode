@@ -31,6 +31,10 @@ export const KEYBINDING_CONTEXT_TERMINAL_TEXT_NOT_SELECTED: ContextKeyExpr = KEY
 export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('terminalFindWidgetVisible', undefined);
 /**  A context key that is set when the find widget in integrated terminal is not visible. */
 export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_NOT_VISIBLE: ContextKeyExpr = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE.toNegated();
+/**  A context key that is set when the find widget find input in integrated terminal is focused. */
+export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED = new RawContextKey<boolean>('terminalFindWidgetInputFocused', false);
+/**  A context key that is set when the find widget find input in integrated terminal is not focused. */
+export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED.toNegated();
 
 export const IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY = 'terminal.integrated.isWorkspaceShellAllowed';
 export const NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY = 'terminal.integrated.neverSuggestSelectWindowsShell';
@@ -59,7 +63,7 @@ export interface ITerminalConfiguration {
 	cursorBlinking: boolean;
 	cursorStyle: string;
 	fontFamily: string;
-	fontLigatures: boolean;
+	// fontLigatures: boolean;
 	fontSize: number;
 	lineHeight: number;
 	setLocaleVariables: boolean;
@@ -87,10 +91,10 @@ export interface ITerminalConfigHelper {
 
 export interface ITerminalFont {
 	fontFamily: string;
-	fontSize: string;
+	fontSize: number;
 	lineHeight: number;
-	charWidth: number;
-	charHeight: number;
+	charWidth?: number;
+	charHeight?: number;
 }
 
 export interface IShellLaunchConfig {
@@ -160,6 +164,9 @@ export interface ITerminalService {
 	hidePanel(): void;
 	focusFindWidget(): TPromise<void>;
 	hideFindWidget(): void;
+	showNextFindTermFindWidget(): void;
+	showPreviousFindTermFindWidget(): void;
+
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	updateConfig(): void;
 	selectDefaultWindowsShell(): TPromise<string>;
@@ -225,7 +232,7 @@ export interface ITerminalInstance {
 	 * added to the DOM.
 	 * @return The ID of the new matcher, this can be used to deregister.
 	 */
-	registerLinkMatcher(regex: RegExp, handler: (url: string) => void, matchIndex?: number, validationCallback?: (uri: string, element: HTMLElement, callback: (isValid: boolean) => void) => void): number;
+	registerLinkMatcher(regex: RegExp, handler: (url: string) => void, matchIndex?: number, validationCallback?: (uri: string, callback: (isValid: boolean) => void) => void): number;
 
 	/**
 	 * Deregisters a link matcher if it has been registered.

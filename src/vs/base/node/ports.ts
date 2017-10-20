@@ -46,6 +46,10 @@ function doFindFreePort(startPort: number, giveUpAfter: number, clb: (port: numb
 		return doFindFreePort(startPort + 1, giveUpAfter - 1, clb);
 	});
 
+	client.once('data', () => {
+		// this listener is required since node.js 8.x
+	});
+
 	client.once('error', (err: Error & { code?: string }) => {
 		dispose(client);
 

@@ -9,7 +9,7 @@
 	"configuration.typescript": "TypeScript",
 	"typescript.useCodeSnippetsOnMethodSuggest.dec": "Complete las funciones con la signatura de parámetro.",
 	"typescript.tsdk.desc": "Especifica la ruta de acceso de carpeta que contiene los archivos lib*.d.ts y tsserver que se van a usar.",
-	"typescript.disableAutomaticTypeAcquisition": "Deshabilita la adquisición automática de tipos. Requiere TypeScript >= 2.0.6 y es necesario reiniciar después de cambiarlo.",
+	"typescript.disableAutomaticTypeAcquisition": "Desactiva la adquisición automática de tipos. Requiere TypeScript >= 2.0.6.",
 	"typescript.tsserver.log": "votes Habilita los registros del servidor TS a un archivo. Este registro se puede utilizar para diagnosticar problemas en el servidor TS. Este registro puede contener rutas de acceso, código fuente y posiblemente otra información sensitiva acerca del proyecto.",
 	"typescript.tsserver.trace": "Habilita el seguimiento de mensajes al servidor TS. Este seguimiento se puede utilizar para diagnosticar problemas en el servidor TS. Este seguimiento puede contener rutas de acceso, código fuente y posiblemente otra información sensitiva acerca del proyecto.",
 	"typescript.validate.enable": "Habilita o deshabilita la validación de TypeScript.",

@@ -10,6 +10,7 @@
 	"welcomePage.newFile": "Neue Datei",
 	"welcomePage.openFolder": "Ordner öffnen...",
 	"welcomePage.cloneGitRepository": "Git-Repository klonen...",
+	"welcomePage.addWorkspaceFolder": "Arbeitsbereichsordner hinzufügen...",
 	"welcomePage.recent": "Zuletzt verwendet",
 	"welcomePage.moreRecent": "Weitere Informationen...",
 	"welcomePage.noRecentFolders": "Keine kürzlich verwendeten Ordner",

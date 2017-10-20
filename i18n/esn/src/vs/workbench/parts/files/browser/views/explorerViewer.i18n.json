@@ -6,6 +6,10 @@
 {
 	"fileInputAriaLabel": "Escriba el nombre de archivo. Presione ENTRAR para confirmar o Esc para cancelar",
 	"filesExplorerViewerAriaLabel": "{0}, Explorador de archivos",
+	"dropFolders": "¿Quiere agregar las carpetas al área de trabajo?",
+	"dropFolder": "¿Quiere agregar la carpeta al área de trabajo?",
+	"addFolders": "&&Agregar carpetas",
+	"addFolder": "&&Agregar carpeta",
 	"confirmOverwriteMessage": "'{0}' ya existe en la carpeta de destino. ¿Desea reemplazarlo?",
 	"irreversible": "Esta acción es irreversible.",
 	"replaceButtonLabel": "Reemplazar"

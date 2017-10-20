@@ -179,11 +179,11 @@
 										</dict>
 									</array>
 									<key>while</key>
-									<string>^\s*(?!&lt;/(script|style|pre)&gt;)</string>
+									<string>^(?!.*&lt;/(script|style|pre)&gt;)</string>
 								</dict>
 							</array>
 							<key>end</key>
-							<string>(?=&lt;/(script|style|pre)&gt;)</string>
+							<string>(?=.*&lt;/(script|style|pre)&gt;)</string>
 						</dict>
 						<dict>
 							<key>begin</key>
@@ -1175,12 +1175,14 @@
 					<key>match</key>
 					<string>(`+)([^`]|(?!(?&lt;!`)\1(?!`))`)*+(\1)</string>
 					<key>name</key>
-					<string>markup.inline.raw.markdown</string>
+					<string>markup.inline.raw.string.markdown</string>
 				</dict>
 			</dict>
 		</dict>
 		<key>frontMatter</key>
 		<dict>
+			<key>contentName</key>
+			<string>meta.embedded.block.frontmatter</string>
 			<key>begin</key>
 			<string>\A-{3}\s*$</string>
 			<key>while</key>

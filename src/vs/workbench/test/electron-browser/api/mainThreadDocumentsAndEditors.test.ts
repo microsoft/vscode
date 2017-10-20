@@ -15,8 +15,8 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta } from 'vs/workbench/api/node/extHost.protocol';
 import { mockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
-import { mock } from "vs/workbench/test/electron-browser/api/mock";
-import { IEditorGroupService } from "vs/workbench/services/group/common/groupService";
+import { mock } from 'vs/workbench/test/electron-browser/api/mock';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import Event from 'vs/base/common/event';
 
 suite('MainThreadDocumentsAndEditors', () => {
@@ -27,7 +27,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 	let workbenchEditorService: IWorkbenchEditorService;
 	let documentAndEditor: MainThreadDocumentsAndEditors;
 	let deltas: IDocumentsAndEditorsDelta[] = [];
-	const hugeModelString = new Array(2 + (5 * 1024 * 1024)).join('-');
+	const hugeModelString = new Array(2 + (50 * 1024 * 1024)).join('-');
 
 	setup(() => {
 		deltas.length = 0;

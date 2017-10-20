@@ -15,8 +15,8 @@ import Messages from 'vs/workbench/parts/markers/common/messages';
 import { Schemas } from 'vs/base/common/network';
 
 export interface BulkUpdater {
-	add(resource: URI, markers: IMarker[]);
-	done();
+	add(resource: URI, markers: IMarker[]): void;
+	done(): void;
 }
 
 export class Resource {
@@ -58,11 +58,14 @@ export class Marker {
 	}
 
 	public toString(): string {
-		return [`file: '${this.marker.resource}'`,
-		`severity: '${Severity.toString(this.marker.severity)}'`,
-		`message: '${this.marker.message}'`,
-		`at: '${this.marker.startLineNumber},${this.marker.startColumn}'`,
-		`source: '${this.marker.source ? this.marker.source : ''}'`].join('\n');
+		return [
+			`file: '${this.marker.resource}'`,
+			`severity: '${Severity.toString(this.marker.severity)}'`,
+			`message: '${this.marker.message}'`,
+			`at: '${this.marker.startLineNumber},${this.marker.startColumn}'`,
+			`source: '${this.marker.source ? this.marker.source : ''}'`,
+			`code: '${this.marker.code ? this.marker.code : ''}'`
+		].join('\n');
 	}
 
 }
@@ -171,9 +174,9 @@ export class MarkersModel {
 		};
 	}
 
-	public update(filterOptions: FilterOptions);
-	public update(resourceUri: URI, markers: IMarker[]);
-	public update(markers: IMarker[]);
+	public update(filterOptions: FilterOptions): void;
+	public update(resourceUri: URI, markers: IMarker[]): void;
+	public update(markers: IMarker[]): void;
 	public update(arg1?: any, arg2?: any) {
 		if (arg1 instanceof FilterOptions) {
 			this._filterOptions = arg1;

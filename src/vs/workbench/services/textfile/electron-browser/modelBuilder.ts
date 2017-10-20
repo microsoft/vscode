@@ -73,7 +73,7 @@ class ModelLineBasedBuilder {
 		this.BOM = '';
 		this.lines = [];
 		this.currLineIndex = 0;
-		this.buff = Buffer.alloc(2 * PREALLOC_BUFFER_CHARS);
+		this.buff = Buffer.alloc(3/*any UTF16 code unit could expand to up to 3 UTF8 code units*/ * PREALLOC_BUFFER_CHARS);
 	}
 
 	public acceptLines(lines: string[]): void {

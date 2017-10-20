@@ -276,13 +276,18 @@ export class AbstractProblemCollector extends EventEmitter implements IDisposabl
 		}
 	}
 
-	private getDeliveredMarkersPerOwner(owner): Map<string, number> {
+	private getDeliveredMarkersPerOwner(owner: string): Map<string, number> {
 		let result = this.deliveredMarkers.get(owner);
 		if (!result) {
 			result = new Map<string, number>();
 			this.deliveredMarkers.set(owner, result);
 		}
 		return result;
+	}
+
+	protected cleanMarkerCaches(): void {
+		this.markers.clear();
+		this.deliveredMarkers.clear();
 	}
 }
 
@@ -410,6 +415,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 			if (matches) {
 				result = true;
 				this.emit(ProblemCollectorEvents.WatchingBeginDetected, {});
+				this.cleanMarkerCaches();
 				this.resetCurrentResource();
 				let owner = beginMatcher.problemMatcher.owner;
 				let file = matches[beginMatcher.pattern.file];
@@ -435,6 +441,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 				let owner = endMatcher.problemMatcher.owner;
 				this.resetCurrentResource();
 				this.cleanMarkers(owner);
+				this.cleanMarkerCaches();
 			}
 		}
 		return result;

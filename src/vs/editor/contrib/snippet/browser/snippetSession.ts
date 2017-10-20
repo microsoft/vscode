@@ -15,7 +15,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IPosition } from 'vs/editor/common/core/position';
 import { groupBy } from 'vs/base/common/arrays';
 import { dispose } from 'vs/base/common/lifecycle';
-import { EditorSnippetVariableResolver } from "./snippetVariables";
+import { EditorSnippetVariableResolver } from './snippetVariables';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 
 export class OneSnippet {
@@ -177,9 +177,9 @@ export class OneSnippet {
 				// Massage placeholder-indicies of the nested snippet to be
 				// sorted right after the insertion point. This ensures we move
 				// through the placeholders in the correct order
-				for (const nestedPlaceholder of nested._snippet.placeholders) {
+				for (const nestedPlaceholder of nested._snippet.placeholderInfo.all) {
 					if (nestedPlaceholder.isFinalTabstop) {
-						nestedPlaceholder.index = placeholder.index + (nested._snippet.placeholders.length / this._nestingLevel);
+						nestedPlaceholder.index = placeholder.index + ((nested._snippet.placeholderInfo.last.index + 1) / this._nestingLevel);
 					} else {
 						nestedPlaceholder.index = placeholder.index + (nestedPlaceholder.index / this._nestingLevel);
 					}
@@ -229,16 +229,18 @@ export class SnippetSession {
 
 	static adjustSelection(model: IModel, selection: Selection, overwriteBefore: number, overwriteAfter: number): Selection {
 		if (overwriteBefore !== 0 || overwriteAfter !== 0) {
-			let { startLineNumber, startColumn, endLineNumber, endColumn } = selection;
-			startColumn -= overwriteBefore;
-			endColumn += overwriteAfter;
+			// overwrite[Before|After] is compute using the position, not the whole
+			// selection. therefore we adjust the selection around that position
+			const { positionLineNumber, positionColumn } = selection;
+			const positionColumnBefore = positionColumn - overwriteBefore;
+			const positionColumnAfter = positionColumn + overwriteAfter;
 
-			const range = model.validateRange(Range.plusRange(selection, {
-				startLineNumber,
-				startColumn,
-				endLineNumber,
-				endColumn,
-			}));
+			const range = model.validateRange({
+				startLineNumber: positionLineNumber,
+				startColumn: positionColumnBefore,
+				endLineNumber: positionLineNumber,
+				endColumn: positionColumnAfter
+			});
 
 			selection = Selection.createWithDirection(
 				range.startLineNumber, range.startColumn,

@@ -42,5 +42,10 @@
 	"navigateUp": "上のビュー部分に移動",
 	"navigateDown": "下のビュー部分に移動",
 	"increaseViewSize": "現在のビューのサイズの拡大",
-	"decreaseViewSize": "現在のビューのサイズの縮小"
+	"decreaseViewSize": "現在のビューのサイズの縮小",
+	"showPreviousTab": "前のウィンドウ タブを表示",
+	"showNextWindowTab": "次のウィンドウ タブを表示",
+	"moveWindowTabToNewWindow": "ウィンドウ タブを新しいウィンドウに移動",
+	"mergeAllWindowTabs": "すべてのウィンドウを統合",
+	"toggleWindowTabsBar": "ウィンドウ タブ バーの切り替え"
 }

@@ -213,7 +213,7 @@ const editorConfiguration: IConfigurationNode = {
 				'type': 'number'
 			},
 			'default': EDITOR_DEFAULTS.viewInfo.rulers,
-			'description': nls.localize('rulers', "Columns at which to show vertical rulers")
+			'description': nls.localize('rulers', "Render vertical rulers after a certain number of monospace characters. Use multiple values for multiple rulers. No rulers are drawn if array is empty")
 		},
 		'editor.wordSeparators': {
 			'type': 'string',
@@ -248,6 +248,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.viewInfo.scrollBeyondLastLine,
 			'description': nls.localize('scrollBeyondLastLine', "Controls if the editor will scroll beyond the last line")
 		},
+		'editor.smoothScrolling': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.viewInfo.smoothScrolling,
+			'description': nls.localize('smoothScrolling', "Controls if the editor will scroll using an animation")
+		},
 		'editor.minimap.enabled': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.viewInfo.minimap.enabled,
@@ -257,7 +262,7 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'string',
 			'enum': ['always', 'mouseover'],
 			'default': EDITOR_DEFAULTS.viewInfo.minimap.showSlider,
-			'description': nls.localize('minimap.showSlider', "Controls whether the minimap slider is automatically hidden.")
+			'description': nls.localize('minimap.showSlider', "Controls whether the minimap slider is automatically hidden. Possible values are \'always\' and \'mouseover\'")
 		},
 		'editor.minimap.renderCharacters': {
 			'type': 'boolean',
@@ -587,6 +592,16 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.links,
 			'description': nls.localize('links', "Controls whether the editor should detect links and make them clickable")
+		},
+		'editor.colorDecorators': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.contribInfo.colorDecorators,
+			'description': nls.localize('colorDecorators', "Controls whether the editor should render the inline color decorators and color picker.")
+		},
+		'editor.lightbulb.enabled': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.contribInfo.lightbulbEnabled,
+			'description': nls.localize('codeActions', "Enables the code action lightbulb")
 		},
 		'diffEditor.renderSideBySide': {
 			'type': 'boolean',

@@ -10,11 +10,11 @@ import * as objects from 'vs/base/common/objects';
 import types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
-import { IEditor, IEditorViewState, IModel } from 'vs/editor/common/editorCommon';
-import { IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, Position, Verbosity } from 'vs/platform/editor/common/editor';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { IEditor, IEditorViewState, IModel, ScrollType } from 'vs/editor/common/editorCommon';
+import { IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, Position, Verbosity, IEditor as IBaseEditor } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 export const TextCompareEditorVisible = new RawContextKey<boolean>('textCompareEditorVisible', false);
 
@@ -23,19 +23,6 @@ export enum ConfirmResult {
 	DONT_SAVE,
 	CANCEL
 }
-
-export interface IEditorDescriptor {
-
-	getId(): string;
-
-	getName(): string;
-
-	describes(obj: any): boolean;
-}
-
-export const Extensions = {
-	Editors: 'workbench.contributions.editors'
-};
 
 /**
  * Text diff editor id.
@@ -51,34 +38,7 @@ export interface IFileInputFactory {
 	createFileInput(resource: URI, encoding: string, instantiationService: IInstantiationService): IFileEditorInput;
 }
 
-export interface IEditorRegistry {
-
-	/**
-	 * Registers an editor to the platform for the given input type. The second parameter also supports an
-	 * array of input classes to be passed in. If the more than one editor is registered for the same editor
-	 * input, the input itself will be asked which editor it prefers if this method is provided. Otherwise
-	 * the first editor in the list will be returned.
-	 *
-	 * @param editorInputDescriptor a constructor function that returns an instance of EditorInput for which the
-	 * registered editor should be used for.
-	 */
-	registerEditor(descriptor: IEditorDescriptor, editorInputDescriptor: SyncDescriptor<EditorInput>): void;
-	registerEditor(descriptor: IEditorDescriptor, editorInputDescriptor: SyncDescriptor<EditorInput>[]): void;
-
-	/**
-	 * Returns the editor descriptor for the given input or null if none.
-	 */
-	getEditor(input: EditorInput): IEditorDescriptor;
-
-	/**
-	 * Returns the editor descriptor for the given identifier or null if none.
-	 */
-	getEditorById(editorId: string): IEditorDescriptor;
-
-	/**
-	 * Returns an array of registered editors known to the platform.
-	 */
-	getEditors(): IEditorDescriptor[];
+export interface IEditorInputFactoryRegistry {
 
 	/**
 	 * Registers the file input factory to use for file inputs.
@@ -165,6 +125,13 @@ export abstract class EditorInput implements IEditorInput {
 	}
 
 	/**
+	 * Returns the associated resource of this input if any.
+	 */
+	public getResource(): URI {
+		return null;
+	}
+
+	/**
 	 * Returns the name of this input that can be shown to the user. Examples include showing the name of the input
 	 * above the editor area when the input is shown.
 	 */
@@ -176,7 +143,7 @@ export abstract class EditorInput implements IEditorInput {
 	 * Returns the description of this input that can be shown to the user. Examples include showing the description of
 	 * the input above the editor area to the side of the name of the input.
 	 */
-	public getDescription(): string {
+	public getDescription(verbosity?: Verbosity): string {
 		return null;
 	}
 
@@ -207,6 +174,11 @@ export abstract class EditorInput implements IEditorInput {
 	 * Subclasses should extend if they can contribute.
 	 */
 	public getTelemetryDescriptor(): object {
+		/* __GDPR__FRAGMENT__
+			"EditorTelemetryDescriptor" : {
+				"typeId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		return { typeId: this.getTypeId() };
 	}
 
@@ -288,6 +260,48 @@ export abstract class EditorInput implements IEditorInput {
 	}
 }
 
+export interface IEditorOpeningEvent {
+	input: IEditorInput;
+	options?: IEditorOptions;
+	position: Position;
+
+	/**
+	 * Allows to prevent the opening of an editor by providing a callback
+	 * that will be executed instead. By returning another editor promise
+	 * it is possible to override the opening with another editor. It is ok
+	 * to return a promise that resolves to NULL to prevent the opening
+	 * altogether.
+	 */
+	prevent(callback: () => TPromise<IBaseEditor>): void;
+}
+
+export class EditorOpeningEvent {
+	private override: () => TPromise<IBaseEditor>;
+
+	constructor(private _input: IEditorInput, private _options: IEditorOptions, private _position: Position) {
+	}
+
+	public get input(): IEditorInput {
+		return this._input;
+	}
+
+	public get options(): IEditorOptions {
+		return this._options;
+	}
+
+	public get position(): Position {
+		return this._position;
+	}
+
+	public prevent(callback: () => TPromise<IBaseEditor>): void {
+		this.override = callback;
+	}
+
+	public isPrevented(): () => TPromise<IBaseEditor> {
+		return this.override;
+	}
+}
+
 export enum EncodingMode {
 
 	/**
@@ -319,11 +333,6 @@ export interface IEncodingSupport {
  * to register this kind of input to the platform.
  */
 export interface IFileEditorInput extends IEditorInput, IEncodingSupport {
-
-	/**
-	 * Gets the absolute file resource URI this input is about.
-	 */
-	getResource(): URI;
 
 	/**
 	 * Sets the preferred encodingt to use for this input.
@@ -666,13 +675,13 @@ export class TextEditorOptions extends EditorOptions {
 	 *
 	 * @return if something was applied
 	 */
-	public apply(editor: IEditor): boolean {
+	public apply(editor: IEditor, scrollType: ScrollType): boolean {
 
 		// View state
-		return this.applyViewState(editor);
+		return this.applyViewState(editor, scrollType);
 	}
 
-	private applyViewState(editor: IEditor): boolean {
+	private applyViewState(editor: IEditor, scrollType: ScrollType): boolean {
 		let gotApplied = false;
 
 		// First try viewstate
@@ -694,9 +703,9 @@ export class TextEditorOptions extends EditorOptions {
 				};
 				editor.setSelection(range);
 				if (this.revealInCenterIfOutsideViewport) {
-					editor.revealRangeInCenterIfOutsideViewport(range);
+					editor.revealRangeInCenterIfOutsideViewport(range, scrollType);
 				} else {
-					editor.revealRangeInCenter(range);
+					editor.revealRangeInCenter(range, scrollType);
 				}
 			}
 
@@ -708,9 +717,9 @@ export class TextEditorOptions extends EditorOptions {
 				};
 				editor.setPosition(pos);
 				if (this.revealInCenterIfOutsideViewport) {
-					editor.revealPositionInCenterIfOutsideViewport(pos);
+					editor.revealPositionInCenterIfOutsideViewport(pos, scrollType);
 				} else {
-					editor.revealPositionInCenter(pos);
+					editor.revealPositionInCenter(pos, scrollType);
 				}
 			}
 
@@ -796,6 +805,19 @@ export const EditorOpenPositioning = {
 };
 
 export interface IWorkbenchEditorConfiguration {
+	/* __GDPR__FRAGMENT__
+		"IWorkbenchEditorConfiguration" : {
+			"showTabs" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"tabCloseButton": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"showIcons": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"enablePreview": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"enablePreviewFromQuickOpen": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"closeOnFileDelete": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"openPositioning": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"revealIfOpen": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"swipeToNavigate": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		}
+	*/
 	workbench: {
 		editor: {
 			showTabs: boolean;
@@ -806,7 +828,8 @@ export interface IWorkbenchEditorConfiguration {
 			closeOnFileDelete: boolean;
 			openPositioning: 'left' | 'right' | 'first' | 'last';
 			revealIfOpen: boolean;
-			swipeToNavigate: boolean
+			swipeToNavigate: boolean,
+			labelFormat: 'default' | 'short' | 'medium' | 'long';
 		}
 	};
 }
@@ -840,10 +863,6 @@ export interface IResourceOptions {
 	filter?: 'file' | 'untitled' | ['file', 'untitled'] | ['untitled', 'file'];
 }
 
-export function hasResource(editor: IEditorInput, options?: IResourceOptions): boolean {
-	return !!toResource(editor, options);
-}
-
 export function toResource(editor: IEditorInput, options?: IResourceOptions): URI {
 	if (!editor) {
 		return null;
@@ -854,7 +873,7 @@ export function toResource(editor: IEditorInput, options?: IResourceOptions): UR
 		editor = editor.master;
 	}
 
-	const resource = doGetEditorResource(editor);
+	const resource = editor.getResource();
 	if (!options || !options.filter) {
 		return resource; // return early if no filter is specified
 	}
@@ -884,14 +903,54 @@ export function toResource(editor: IEditorInput, options?: IResourceOptions): UR
 	return null;
 }
 
-// TODO@Ben every editor should have an associated resource
-function doGetEditorResource(editor: IEditorInput): URI {
-	if (editor instanceof EditorInput && typeof (<any>editor).getResource === 'function') {
-		const candidate = (<any>editor).getResource();
-		if (candidate instanceof URI) {
-			return candidate;
+class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
+	private instantiationService: IInstantiationService;
+	private fileInputFactory: IFileInputFactory;
+	private editorInputFactoryConstructors: { [editorInputId: string]: IConstructorSignature0<IEditorInputFactory> } = Object.create(null);
+	private editorInputFactoryInstances: { [editorInputId: string]: IEditorInputFactory } = Object.create(null);
+
+	constructor() {
+	}
+
+	public setInstantiationService(service: IInstantiationService): void {
+		this.instantiationService = service;
+
+		for (let key in this.editorInputFactoryConstructors) {
+			const element = this.editorInputFactoryConstructors[key];
+			this.createEditorInputFactory(key, element);
+		}
+
+		this.editorInputFactoryConstructors = {};
+	}
+
+	private createEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>): void {
+		const instance = this.instantiationService.createInstance(ctor);
+		this.editorInputFactoryInstances[editorInputId] = instance;
+	}
+
+	public registerFileInputFactory(factory: IFileInputFactory): void {
+		this.fileInputFactory = factory;
+	}
+
+	public getFileInputFactory(): IFileInputFactory {
+		return this.fileInputFactory;
+	}
+
+	public registerEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>): void {
+		if (!this.instantiationService) {
+			this.editorInputFactoryConstructors[editorInputId] = ctor;
+		} else {
+			this.createEditorInputFactory(editorInputId, ctor);
 		}
 	}
 
-	return null;
+	public getEditorInputFactory(editorInputId: string): IEditorInputFactory {
+		return this.editorInputFactoryInstances[editorInputId];
+	}
 }
+
+export const Extensions = {
+	EditorInputFactories: 'workbench.contributions.editor.inputFactories'
+};
+
+Registry.add(Extensions.EditorInputFactories, new EditorInputFactoryRegistry());

@@ -8,35 +8,36 @@ import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
-import { EditorInput, IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory } from 'vs/workbench/common/editor';
-import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
+import { EditorInput, IEditorInputFactory, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { DefaultPreferencesEditorInput, PreferencesEditor, PreferencesEditorInput } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 import { KeybindingsEditor, KeybindingsEditorInput } from 'vs/workbench/parts/preferences/browser/keybindingsEditor';
-import { OpenGlobalSettingsAction, OpenGlobalKeybindingsAction, OpenGlobalKeybindingsFileAction, OpenWorkspaceSettingsAction, OpenFolderSettingsAction, ConfigureLanguageBasedSettingsAction } from 'vs/workbench/parts/preferences/browser/preferencesActions';
+import { OpenGlobalSettingsAction, OpenGlobalKeybindingsAction, OpenGlobalKeybindingsFileAction, OpenWorkspaceSettingsAction, OpenFolderSettingsAction, ConfigureLanguageBasedSettingsAction, OPEN_FOLDER_SETTINGS_COMMAND } from 'vs/workbench/parts/preferences/browser/preferencesActions';
 import {
 	IPreferencesService, IKeybindingsEditor, CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_SEARCH,
-	KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_SHOW_CONFLICTS, KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS
+	KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_SHOW_CONFLICTS, KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS
 } from 'vs/workbench/parts/preferences/common/preferences';
 import { PreferencesService } from 'vs/workbench/parts/preferences/browser/preferencesService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { PreferencesContentProvider } from 'vs/workbench/parts/preferences/common/preferencesContentProvider';
+import { PreferencesContribution } from 'vs/workbench/parts/preferences/common/preferencesContribution';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 
 registerSingleton(IPreferencesService, PreferencesService);
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new EditorDescriptor(
+		PreferencesEditor,
 		PreferencesEditor.ID,
-		nls.localize('defaultPreferencesEditor', "Default Preferences Editor"),
-		'vs/workbench/parts/preferences/browser/preferencesEditor',
-		'PreferencesEditor'
+		nls.localize('defaultPreferencesEditor', "Default Preferences Editor")
 	),
 	[
 		new SyncDescriptor(PreferencesEditorInput)
@@ -45,10 +46,9 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new EditorDescriptor(
+		KeybindingsEditor,
 		KeybindingsEditor.ID,
-		nls.localize('keybindingsEditor', "Keybindings Editor"),
-		'vs/workbench/parts/preferences/browser/keybindingsEditor',
-		'KeybindingsEditor'
+		nls.localize('keybindingsEditor', "Keybindings Editor")
 	),
 	[
 		new SyncDescriptor(KeybindingsEditorInput)
@@ -73,7 +73,7 @@ class PreferencesEditorInputFactory implements IEditorInputFactory {
 		const input = <PreferencesEditorInput>editorInput;
 
 		if (input.details && input.master) {
-			const registry = Registry.as<IEditorRegistry>(EditorExtensions.Editors);
+			const registry = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories);
 			const detailsInputFactory = registry.getEditorInputFactory(input.details.getTypeId());
 			const masterInputFactory = registry.getEditorInputFactory(input.master.getTypeId());
 
@@ -100,7 +100,7 @@ class PreferencesEditorInputFactory implements IEditorInputFactory {
 	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
 		const deserialized: ISerializedPreferencesEditorInput = JSON.parse(serializedEditorInput);
 
-		const registry = Registry.as<IEditorRegistry>(EditorExtensions.Editors);
+		const registry = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories);
 		const detailsInputFactory = registry.getEditorInputFactory(deserialized.detailsTypeId);
 		const masterInputFactory = registry.getEditorInputFactory(deserialized.masterTypeId);
 
@@ -155,9 +155,9 @@ class DefaultPreferencesEditorInputFactory implements IEditorInputFactory {
 	}
 }
 
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditorInputFactory(PreferencesEditorInput.ID, PreferencesEditorInputFactory);
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditorInputFactory(DefaultPreferencesEditorInput.ID, DefaultPreferencesEditorInputFactory);
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditorInputFactory(KeybindingsEditorInput.ID, KeybindingsEditorInputFactory);
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(PreferencesEditorInput.ID, PreferencesEditorInputFactory);
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(DefaultPreferencesEditorInput.ID, DefaultPreferencesEditorInputFactory);
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(KeybindingsEditorInput.ID, KeybindingsEditorInputFactory);
 
 // Contribute Global Actions
 const category = nls.localize('preferences', "Preferences");
@@ -246,4 +246,20 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(PreferencesContentProvider);
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS,
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS),
+	primary: KeyCode.Escape,
+	handler: (accessor, args: any) => {
+		const editor = accessor.get(IWorkbenchEditorService).getActiveEditor() as IKeybindingsEditor;
+		editor.clearSearchResults();
+	}
+});
+
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(PreferencesContribution);
+
+CommandsRegistry.registerCommand(OPEN_FOLDER_SETTINGS_COMMAND, function (accessor: ServicesAccessor, args?: IWorkspaceFolder) {
+	const preferencesService = accessor.get(IPreferencesService);
+	return preferencesService.openFolderSettings(args.uri);
+});

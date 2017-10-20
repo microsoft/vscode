@@ -694,9 +694,17 @@ export class TypeOperations {
 		}
 
 		if (this._isAutoIndentType(config, model, selections)) {
-			let indentCommand = this._runAutoIndentType(config, model, selections[0], ch);
-			if (indentCommand) {
-				return new EditOperationResult([indentCommand], {
+			let commands: ICommand[] = [];
+			let autoIndentFails = false;
+			for (let i = 0, len = selections.length; i < len; i++) {
+				commands[i] = this._runAutoIndentType(config, model, selections[i], ch);
+				if (!commands[i]) {
+					autoIndentFails = true;
+					break;
+				}
+			}
+			if (!autoIndentFails) {
+				return new EditOperationResult(commands, {
 					shouldPushStackElementBefore: true,
 					shouldPushStackElementAfter: false,
 				});

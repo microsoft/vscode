@@ -11,6 +11,7 @@ import * as paths from 'vs/base/common/paths';
 import * as glob from 'vs/base/common/glob';
 import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export const ID = 'searchService';
 
@@ -24,6 +25,11 @@ export interface ISearchService {
 	search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem>;
 	extendQuery(query: ISearchQuery): void;
 	clearCache(cacheKey: string): TPromise<void>;
+	registerSearchResultProvider(provider: ISearchResultProvider): IDisposable;
+}
+
+export interface ISearchResultProvider {
+	search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem>;
 }
 
 export interface IFolderQuery {
@@ -38,6 +44,12 @@ export interface ICommonQueryOptions {
 	filePattern?: string; // file search only
 	fileEncoding?: string;
 	maxResults?: number;
+	/**
+	 * If true no results will be returned. Instead `limitHit` will indicate if at least one result exists or not.
+	 *
+	 * Currently does not work with queries including a 'siblings clause'.
+	 */
+	exists?: boolean;
 	sortByScore?: boolean;
 	cacheKey?: string;
 	useRipgrep?: boolean;
@@ -64,7 +76,16 @@ export enum QueryType {
 	File = 1,
 	Text = 2
 }
-
+/* __GDPR__FRAGMENT__
+	"IPatternInfo" : {
+		"pattern" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+		"isRegExp": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		"isWordMatch": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		"wordSeparators": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		"isMultiline": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		"isCaseSensitive": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	}
+*/
 export interface IPatternInfo {
 	pattern: string;
 	isRegExp?: boolean;

@@ -11,7 +11,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { TPromise, PPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
-import { values, ResourceMap, TrieMap } from 'vs/base/common/map';
+import { values, ResourceMap, TernarySearchTree } from 'vs/base/common/map';
 import Event, { Emitter, fromPromise, stopwatch, any } from 'vs/base/common/event';
 import { ISearchService, ISearchProgressItem, ISearchComplete, ISearchQuery, IPatternInfo, IFileMatch } from 'vs/platform/search/common/search';
 import { ReplacePattern } from 'vs/platform/search/common/replace';
@@ -24,6 +24,8 @@ import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
 import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { overviewRulerFindMatchForeground } from 'vs/platform/theme/common/colorRegistry';
+import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 
 export class Match {
 
@@ -96,8 +98,8 @@ export class FileMatch extends Disposable {
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'currentFindMatch',
 		overviewRuler: {
-			color: 'rgba(246, 185, 77, 0.7)',
-			darkColor: 'rgba(246, 185, 77, 0.7)',
+			color: themeColorFromId(overviewRulerFindMatchForeground),
+			darkColor: themeColorFromId(overviewRulerFindMatchForeground),
 			position: OverviewRulerLane.Center
 		}
 	});
@@ -106,8 +108,8 @@ export class FileMatch extends Disposable {
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'findMatch',
 		overviewRuler: {
-			color: 'rgba(246, 185, 77, 0.7)',
-			darkColor: 'rgba(246, 185, 77, 0.7)',
+			color: themeColorFromId(overviewRulerFindMatchForeground),
+			darkColor: themeColorFromId(overviewRulerFindMatchForeground),
 			position: OverviewRulerLane.Center
 		}
 	});
@@ -494,7 +496,7 @@ export class SearchResult extends Disposable {
 	public onChange: Event<IChangeEvent> = this._onChange.event;
 
 	private _folderMatches: FolderMatch[] = [];
-	private _folderMatchesMap: TrieMap<FolderMatch> = new TrieMap<FolderMatch>();
+	private _folderMatchesMap: TernarySearchTree<FolderMatch> = TernarySearchTree.forPaths<FolderMatch>();
 	private _query: ISearchQuery = null;
 	private _showHighlights: boolean;
 
@@ -520,7 +522,7 @@ export class SearchResult extends Disposable {
 		});
 		// otherFiles is the fallback for missing values in the TrieMap. So we do not insert it.
 		this._folderMatches.slice(0, this.folderMatches.length - 1)
-			.forEach(fm => this._folderMatchesMap.insert(fm.resource().fsPath, fm));
+			.forEach(fm => this._folderMatchesMap.set(fm.resource().fsPath, fm));
 	}
 
 	public get searchModel(): SearchModel {
@@ -566,6 +568,11 @@ export class SearchResult extends Disposable {
 
 		const promise = this.replaceService.replace(this.matches(), progressRunner);
 		const onDone = stopwatch(fromPromise(promise));
+		/* __GDPR__
+			"replaceAll.started" : {
+				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+			}
+		*/
 		onDone(duration => this.telemetryService.publicLog('replaceAll.started', { duration }));
 
 		return promise.then(() => {
@@ -652,7 +659,7 @@ export class SearchResult extends Disposable {
 	private disposeMatches(): void {
 		this._folderMatches.forEach(folderMatch => folderMatch.dispose());
 		this._folderMatches = [];
-		this._folderMatchesMap = new TrieMap<FolderMatch>();
+		this._folderMatchesMap = TernarySearchTree.forPaths<FolderMatch>();
 		this._rangeHighlightDecorations.removeHighlightRange();
 	}
 
@@ -723,11 +730,21 @@ export class SearchModel extends Disposable {
 		const progressEmitter = new Emitter<void>();
 		const onFirstRender = any(onDone, progressEmitter.event);
 		const onFirstRenderStopwatch = stopwatch(onFirstRender);
+		/* __GDPR__
+			"searchResultsFirstRender" : {
+				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+			}
+		*/
 		onFirstRenderStopwatch(duration => this.telemetryService.publicLog('searchResultsFirstRender', { duration }));
 
 		const onDoneStopwatch = stopwatch(onDone);
 		const start = Date.now();
 
+		/* __GDPR__
+			"searchResultsFinished" : {
+				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+			}
+		*/
 		onDoneStopwatch(duration => this.telemetryService.publicLog('searchResultsFinished', { duration }));
 
 		const currentRequest = this.currentRequest;
@@ -752,6 +769,15 @@ export class SearchModel extends Disposable {
 		}
 		const options: IPatternInfo = objects.assign({}, this._searchQuery.contentPattern);
 		delete options.pattern;
+		/* __GDPR__
+			"searchResultsShown" : {
+				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"fileCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"options": { "${inline}": [ "${IPatternInfo}" ] },
+				"duration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"useRipgrep": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		this.telemetryService.publicLog('searchResultsShown', {
 			count: this._searchResult.count(),
 			fileCount: this._searchResult.fileCount(),

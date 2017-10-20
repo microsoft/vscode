@@ -322,6 +322,33 @@ suite('Strings', () => {
 		assert.equal(strings.getLeadingWhitespace('  ', 0, 1), ' ');
 		assert.equal(strings.getLeadingWhitespace('\t\tfunction foo(){', 0, 1), '\t');
 		assert.equal(strings.getLeadingWhitespace('\t\tfunction foo(){', 0, 2), '\t\t');
+	});
 
+	test('fuzzyContains', function () {
+		assert.ok(!strings.fuzzyContains(void 0, null));
+		assert.ok(strings.fuzzyContains('hello world', 'h'));
+		assert.ok(!strings.fuzzyContains('hello world', 'q'));
+		assert.ok(strings.fuzzyContains('hello world', 'hw'));
+		assert.ok(strings.fuzzyContains('hello world', 'horl'));
+		assert.ok(strings.fuzzyContains('hello world', 'd'));
+		assert.ok(!strings.fuzzyContains('hello world', 'wh'));
+		assert.ok(!strings.fuzzyContains('d', 'dd'));
+	});
+
+	test('startsWithUTF8BOM', () => {
+		assert(strings.startsWithUTF8BOM(strings.UTF8_BOM_CHARACTER));
+		assert(strings.startsWithUTF8BOM(strings.UTF8_BOM_CHARACTER + 'a'));
+		assert(strings.startsWithUTF8BOM(strings.UTF8_BOM_CHARACTER + 'aaaaaaaaaa'));
+		assert(!strings.startsWithUTF8BOM(' ' + strings.UTF8_BOM_CHARACTER));
+		assert(!strings.startsWithUTF8BOM('foo'));
+		assert(!strings.startsWithUTF8BOM(''));
+	});
+
+	test('stripUTF8BOM', () => {
+		assert.equal(strings.stripUTF8BOM(strings.UTF8_BOM_CHARACTER), '');
+		assert.equal(strings.stripUTF8BOM(strings.UTF8_BOM_CHARACTER + 'foobar'), 'foobar');
+		assert.equal(strings.stripUTF8BOM('foobar' + strings.UTF8_BOM_CHARACTER), 'foobar' + strings.UTF8_BOM_CHARACTER);
+		assert.equal(strings.stripUTF8BOM('abc'), 'abc');
+		assert.equal(strings.stripUTF8BOM(''), '');
 	});
 });

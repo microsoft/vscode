@@ -21,7 +21,6 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
-import { IPeekViewService } from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import { ReferencesModel, OneReference } from './referencesModel';
 import { ReferenceWidget, LayoutData } from './referencesWidget';
 import { Range } from 'vs/editor/common/core/range';
@@ -67,7 +66,6 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		@IStorageService private _storageService: IStorageService,
 		@IThemeService private _themeService: IThemeService,
 		@IConfigurationService private _configurationService: IConfigurationService,
-		@optional(IPeekViewService) private _peekViewService: IPeekViewService,
 		@optional(IEnvironmentService) private _environmentService: IEnvironmentService
 	) {
 		this._editor = editor;
@@ -125,7 +123,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 			switch (kind) {
 				case 'open':
 					if (event.source === 'editor'
-						&& this._configurationService.lookup('editor.stablePeek').value) {
+						&& this._configurationService.getValue('editor.stablePeek')) {
 
 						// when stable peek is configured we don't close
 						// the peek window on selecting the editor
@@ -163,6 +161,12 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 			const startTime = Date.now();
 			this._disposables.push({
 				dispose: () => {
+					/* __GDPR__
+						"zoneWidgetShown" : {
+							"mode" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							"elapsedTime": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						}
+					*/
 					this._telemetryService.publicLog('zoneWidgetShown', {
 						mode: 'reference search',
 						elapsedTime: Date.now() - startTime
@@ -193,6 +197,12 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		const onDone = stopwatch(fromPromise(promise));
 		const mode = this._editor.getModel().getLanguageIdentifier().language;
 
+		/* __GDPR__
+			"findReferences" : {
+				"durarion" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"mode": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		onDone(duration => this._telemetryService.publicLog('findReferences', {
 			duration,
 			mode

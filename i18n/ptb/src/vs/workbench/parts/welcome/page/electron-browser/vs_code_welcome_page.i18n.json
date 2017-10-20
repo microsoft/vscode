@@ -10,6 +10,7 @@
 	"welcomePage.newFile": "Novo arquivo",
 	"welcomePage.openFolder": "Abrir pasta...",
 	"welcomePage.cloneGitRepository": "Clonar repositório Git...",
+	"welcomePage.addWorkspaceFolder": "Adicionar pasta do espaço de trabalho...",
 	"welcomePage.recent": "Recente",
 	"welcomePage.moreRecent": "Mais...",
 	"welcomePage.noRecentFolders": "Não há pastas recentes",

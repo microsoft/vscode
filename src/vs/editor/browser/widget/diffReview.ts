@@ -10,7 +10,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { renderViewLine, RenderLineInput } from 'vs/editor/common/viewLayout/viewLineRenderer';
+import { renderViewLine2 as renderViewLine, RenderLineInput } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { Position } from 'vs/editor/common/core/position';
@@ -259,7 +259,7 @@ export class DiffReview extends Disposable {
 
 		if (jumpToLineNumber !== -1) {
 			this._diffEditor.setPosition(new Position(jumpToLineNumber, 1));
-			this._diffEditor.revealPosition(new Position(jumpToLineNumber, 1));
+			this._diffEditor.revealPosition(new Position(jumpToLineNumber, 1), editorCommon.ScrollType.Immediate);
 		}
 	}
 

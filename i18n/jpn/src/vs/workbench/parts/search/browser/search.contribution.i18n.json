@@ -6,6 +6,7 @@
 {
 	"showTriggerActions": "ワークスペース内のシンボルへ移動...",
 	"name": "検索",
+	"search": "検索",
 	"showSearchViewlet": "検索の表示",
 	"view": "表示",
 	"findInFiles": "フォルダーを指定して検索",

@@ -15,7 +15,7 @@ import { ITextSource } from 'vs/editor/common/model/textSource';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { extHostNamedCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
+import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadDocumentContentProviders)
 export class MainThreadDocumentContentProviders implements MainThreadDocumentContentProvidersShape {

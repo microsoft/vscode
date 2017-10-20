@@ -15,5 +15,6 @@
 	"replaceDefaultValue": "Csere a beállításokban",
 	"copyDefaultValue": "Másolás a beállításokba",
 	"unsupportedPHPExecutablePathSetting": "Ez a beállítás csak a felhasználói beállításokban szerepelhet. A PHP munkaterülethez történő konfigurálásához nyisson meg egy PHP-fájlt, majd kattintson a PHP-elérési útra az állapotsoron!",
-	"unsupportedWorkspaceSetting": "Ez a beállítás csak a felhasználói beállításokban szerepelhet."
+	"unsupportedWorkspaceSetting": "Ez a beállítás csak a felhasználói beállításokban szerepelhet.",
+	"unsupportedWorkbenchSetting": "Ez a beállítás jelenleg nem alkalmazható. Akkor van használatban, ha közvetlenül nyitja meg ezt a mappát."
 }

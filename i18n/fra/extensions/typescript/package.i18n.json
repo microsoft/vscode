@@ -9,7 +9,7 @@
 	"configuration.typescript": "TypeScript",
 	"typescript.useCodeSnippetsOnMethodSuggest.dec": "Fonctions complètes avec leur signature de paramètre.",
 	"typescript.tsdk.desc": "Spécifie le chemin de dossier contenant les fichiers tsserver et lib*.d.ts à utiliser.",
-	"typescript.disableAutomaticTypeAcquisition": "Désactive l'acquisition de type automatique. Nécessite TypeScript >= 2.0.6 et un redémarrage, une fois le changement effectué.",
+	"typescript.disableAutomaticTypeAcquisition": "Désactive l'acquisition de type automatique. Nécessite TypeScript >= 2.0.6.",
 	"typescript.tsserver.log": "Active la journalisation du serveur TS dans un fichier. Ce journal peut être utilisé pour diagnostiquer les problèmes du serveur TS. Il peut contenir des chemins de fichier, du code source et d'autres informations potentiellement sensibles de votre projet.",
 	"typescript.tsserver.trace": "Active le traçage des messages envoyés au serveur TS. Cette trace peut être utilisée pour diagnostiquer les problèmes du serveur TS. Elle peut contenir des chemins de fichier, du code source et d'autres informations potentiellement sensibles de votre projet.",
 	"typescript.validate.enable": "Activez/désactivez la validation TypeScript.",

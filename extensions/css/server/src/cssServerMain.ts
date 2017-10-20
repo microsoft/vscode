@@ -5,17 +5,16 @@
 'use strict';
 
 import {
-	createConnection, IConnection, Range,
-	TextDocuments, TextDocument, InitializeParams, InitializeResult, RequestType
+	createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, ServerCapabilities
 } from 'vscode-languageserver';
-import { GetConfigurationRequest } from 'vscode-languageserver/lib/protocol.proposed';
+
+import { TextDocument } from 'vscode-languageserver-types';
+
+import { ConfigurationRequest } from 'vscode-languageserver-protocol/lib/protocol.configuration.proposed';
+import { DocumentColorRequest, ServerCapabilities as CPServerCapabilities, ColorPresentationRequest } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
 
 import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet } from 'vscode-css-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
-
-namespace ColorSymbolRequest {
-	export const type: RequestType<string, Range[], any, any> = new RequestType('css/colorSymbols');
-}
 
 export interface Settings {
 	css: LanguageSettings;
@@ -58,20 +57,20 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	}
 	let snippetSupport = hasClientCapability('textDocument.completion.completionItem.snippetSupport');
 	scopedSettingsSupport = hasClientCapability('workspace.configuration');
-	return {
-		capabilities: {
-			// Tell the client that the server works in FULL text document sync mode
-			textDocumentSync: documents.syncKind,
-			completionProvider: snippetSupport ? { resolveProvider: false } : null,
-			hoverProvider: true,
-			documentSymbolProvider: true,
-			referencesProvider: true,
-			definitionProvider: true,
-			documentHighlightProvider: true,
-			codeActionProvider: true,
-			renameProvider: true
-		}
+	let capabilities: ServerCapabilities & CPServerCapabilities = {
+		// Tell the client that the server works in FULL text document sync mode
+		textDocumentSync: documents.syncKind,
+		completionProvider: snippetSupport ? { resolveProvider: false } : null,
+		hoverProvider: true,
+		documentSymbolProvider: true,
+		referencesProvider: true,
+		definitionProvider: true,
+		documentHighlightProvider: true,
+		codeActionProvider: true,
+		renameProvider: true,
+		colorProvider: true
 	};
+	return { capabilities };
 });
 
 let languageServices: { [id: string]: LanguageService } = {
@@ -90,12 +89,16 @@ function getLanguageService(document: TextDocument) {
 }
 
 let documentSettings: { [key: string]: Thenable<LanguageSettings> } = {};
+// remove document settings on close
+documents.onDidClose(e => {
+	delete documentSettings[e.document.uri];
+});
 function getDocumentSettings(textDocument: TextDocument): Thenable<LanguageSettings> {
 	if (scopedSettingsSupport) {
 		let promise = documentSettings[textDocument.uri];
 		if (!promise) {
 			let configRequestParam = { items: [{ scopeUri: textDocument.uri, section: textDocument.languageId }] };
-			promise = connection.sendRequest(GetConfigurationRequest.type, configRequestParam).then(s => s[0]);
+			promise = connection.sendRequest(ConfigurationRequest.type, configRequestParam).then(s => s[0]);
 			documentSettings[textDocument.uri] = promise;
 		}
 		return promise;
@@ -201,11 +204,20 @@ connection.onCodeAction(codeActionParams => {
 	return getLanguageService(document).doCodeActions(document, codeActionParams.range, codeActionParams.context, stylesheet);
 });
 
-connection.onRequest(ColorSymbolRequest.type, uri => {
-	let document = documents.get(uri);
+connection.onRequest(DocumentColorRequest.type, params => {
+	let document = documents.get(params.textDocument.uri);
 	if (document) {
 		let stylesheet = stylesheets.get(document);
-		return getLanguageService(document).findColorSymbols(document, stylesheet);
+		return getLanguageService(document).findDocumentColors(document, stylesheet);
+	}
+	return [];
+});
+
+connection.onRequest(ColorPresentationRequest.type, params => {
+	let document = documents.get(params.textDocument.uri);
+	if (document) {
+		let stylesheet = stylesheets.get(document);
+		return getLanguageService(document).getColorPresentations(document, stylesheet, params.colorInfo);
 	}
 	return [];
 });

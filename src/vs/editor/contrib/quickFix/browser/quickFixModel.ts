@@ -10,16 +10,15 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { CodeActionProviderRegistry, Command } from 'vs/editor/common/modes';
 import { getCodeActions } from './quickFix';
 import { Position } from 'vs/editor/common/core/position';
 
-
 export class QuickFixOracle {
 
 	private _disposables: IDisposable[] = [];
-	private _currentRange: Range;
 
 	constructor(
 		private _editor: ICommonCodeEditor,
@@ -38,77 +37,88 @@ export class QuickFixOracle {
 	}
 
 	trigger(type: 'manual' | 'auto'): void {
-
-		// get selection from marker or current word
-		// unless the selection is non-empty and manually
-		// requesting code actions
-		let selection = this._editor.getSelection();
-		let range = this._getActiveMarkerOrWordRange();
-		if (type === 'manual' && !selection.isEmpty()) {
-			range = selection;
+		let rangeOrSelection = this._getRangeOfMarker() || this._getRangeOfSelectionUnlessWhitespaceEnclosed();
+		if (!rangeOrSelection && type === 'manual') {
+			rangeOrSelection = this._editor.getSelection();
 		}
-
-		// empty selection somewhere in nowhere
-		if (!range) {
-			range = selection;
-		}
-
-		this._signalChange({
-			type,
-			range,
-			position: this._editor.getPosition(),
-			fixes: range && getCodeActions(this._editor.getModel(), this._editor.getModel().validateRange(range))
-		});
-
+		this._createEventAndSignalChange(type, rangeOrSelection);
 	}
 
 	private _onMarkerChanges(resources: URI[]): void {
 		const { uri } = this._editor.getModel();
 		for (const resource of resources) {
 			if (resource.toString() === uri.toString()) {
-				this._currentRange = undefined;
-				this._onCursorChange();
+				this.trigger('auto');
 				return;
 			}
 		}
 	}
 
 	private _onCursorChange(): void {
-		const range = this._getActiveMarkerOrWordRange();
-		if (!Range.equalsRange(this._currentRange, range)) {
-			this._currentRange = range;
-			this._signalChange({
-				type: 'auto',
-				range,
-				position: this._editor.getPosition(),
-				fixes: range && getCodeActions(this._editor.getModel(), this._editor.getModel().validateRange(range))
-			});
-		}
+		this.trigger('auto');
 	}
 
-	private _getActiveMarkerOrWordRange(): Range {
-
+	private _getRangeOfMarker(): Range {
 		const selection = this._editor.getSelection();
 		const model = this._editor.getModel();
-
-		// (1) return marker that contains a (empty/non-empty) selection
 		for (const marker of this._markerService.read({ resource: model.uri })) {
-			const range = Range.lift(marker);
-			if (range.containsRange(selection)) {
-				return range;
+			if (Range.intersectRanges(marker, selection)) {
+				return Range.lift(marker);
 			}
 		}
-
-		// (2) return range of current word
-		if (selection.isEmpty()) {
-			const pos = selection.getStartPosition();
-			const info = model.getWordAtPosition(pos);
-			if (info) {
-				return new Range(pos.lineNumber, info.startColumn, pos.lineNumber, info.endColumn);
-			}
-		}
-
 		return undefined;
+	}
+
+	private _getRangeOfSelectionUnlessWhitespaceEnclosed(): Selection {
+		const model = this._editor.getModel();
+		const selection = this._editor.getSelection();
+		if (selection.isEmpty()) {
+			const { lineNumber, column } = selection.getPosition();
+			const line = model.getLineContent(lineNumber);
+			if (line.length === 0) {
+				// empty line
+				return undefined;
+			} else if (column === 1) {
+				// look only right
+				if (/\s/.test(line[0])) {
+					return undefined;
+				}
+			} else if (column === model.getLineMaxColumn(lineNumber)) {
+				// look only left
+				if (/\s/.test(line[line.length - 1])) {
+					return undefined;
+				}
+			} else {
+				// look left and right
+				if (/\s/.test(line[column - 2]) && /\s/.test(line[column - 1])) {
+					return undefined;
+				}
+			}
+		}
+		return selection;
+	}
+
+	private _createEventAndSignalChange(type: 'auto' | 'manual', rangeOrSelection: Range | Selection): void {
+		if (!rangeOrSelection) {
+			// cancel
+			this._signalChange({
+				type,
+				range: undefined,
+				position: undefined,
+				fixes: undefined
+			});
+		} else {
+			// actual
+			const model = this._editor.getModel();
+			const range = model.validateRange(rangeOrSelection);
+			const position = rangeOrSelection instanceof Selection ? rangeOrSelection.getPosition() : rangeOrSelection.getStartPosition();
+			this._signalChange({
+				type,
+				range,
+				position,
+				fixes: getCodeActions(model, range)
+			});
+		}
 	}
 }
 

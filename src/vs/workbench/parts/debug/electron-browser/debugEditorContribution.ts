@@ -39,6 +39,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Position } from 'vs/editor/common/core/position';
 import { CoreEditingCommands } from 'vs/editor/common/controller/coreCommands';
 import { first } from 'vs/base/common/arrays';
+import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 
 const HOVER_DELAY = 300;
 const LAUNCH_JSON_REGEX = /launch\.json$/;
@@ -146,7 +147,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	private registerListeners(): void {
 		this.toDispose.push(this.editor.onMouseDown((e: IEditorMouseEvent) => {
-			if (e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN || /* after last line */ e.target.detail || !this.marginFreeFromNonDebugDecorations(e.target.position.lineNumber)) {
+			const data = e.target.detail as IMarginData;
+			if (e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN || data.isAfterLines || !this.marginFreeFromNonDebugDecorations(e.target.position.lineNumber)) {
 				return;
 			}
 			const canSetBreakpoints = this.debugService.getConfigurationManager().canSetBreakpointsIn(this.editor.getModel());
@@ -158,7 +160,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 					return;
 				}
 
-				const anchor = { x: e.event.posx + 1, y: e.event.posy };
+				const anchor = { x: e.event.posx, y: e.event.posy };
 				const breakpoints = this.debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === lineNumber && bp.uri.toString() === uri.toString());
 
 				this.contextMenuService.showContextMenu({
@@ -182,8 +184,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			let showBreakpointHintAtLineNumber = -1;
 			if (e.target.type === MouseTargetType.GUTTER_GLYPH_MARGIN && this.debugService.getConfigurationManager().canSetBreakpointsIn(this.editor.getModel()) &&
 				this.marginFreeFromNonDebugDecorations(e.target.position.lineNumber)) {
-				if (!e.target.detail) {
-					// is not after last line
+				const data = e.target.detail as IMarginData;
+				if (!data.isAfterLines) {
 					showBreakpointHintAtLineNumber = e.target.position.lineNumber;
 				}
 			}
@@ -365,7 +367,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 		// First call stack frame that is available is the frame where exception has been thrown
 		const exceptionSf = first(callStack, sf => sf.source && sf.source.available, undefined);
-		if (!exceptionSf) {
+		if (!exceptionSf || exceptionSf !== focusedSf) {
 			this.closeExceptionWidget();
 			return;
 		}
@@ -411,6 +413,9 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	}
 
 	public addLaunchConfiguration(): TPromise<any> {
+		/* __GDPR__
+			"debug/addLaunchConfiguration" : {}
+		*/
 		this.telemetryService.publicLog('debug/addLaunchConfiguration');
 		let configurationsArrayPosition: Position;
 		const model = this.editor.getModel();

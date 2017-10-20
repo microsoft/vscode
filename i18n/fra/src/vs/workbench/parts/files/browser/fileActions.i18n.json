@@ -40,7 +40,7 @@
 	"pickHistory": "Sélectionnez un fichier ouvert à comparer",
 	"unableToFileToCompare": "Impossible de comparer le fichier sélectionné à '{0}'.",
 	"openFileToCompare": "Ouvrez d'abord un fichier pour le comparer à un autre fichier.",
-	"compareWith": "Comparer à '{0}'",
+	"compareWith": "Comparer '{0}' à '{1}'",
 	"compareFiles": "Comparer des fichiers",
 	"refresh": "Actualiser",
 	"save": "Enregistrer",

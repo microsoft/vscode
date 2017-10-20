@@ -7,7 +7,7 @@
 import { IProgressService2, IProgress, IProgressOptions, IProgressStep } from 'vs/platform/progress/common/progress';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { MainThreadProgressShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
-import { extHostNamedCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
+import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadProgress)
 export class MainThreadProgress implements MainThreadProgressShape {

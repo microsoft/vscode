@@ -74,6 +74,7 @@ export default class Webview {
 		private _styleElement: Element,
 		@IContextViewService private _contextViewService: IContextViewService,
 		private _contextKey: IContextKey<boolean>,
+		private _findInputContextKey: IContextKey<boolean>,
 		private _options: WebviewOptions = {},
 	) {
 		this._webview = <any>document.createElement('webview');
@@ -203,6 +204,10 @@ export default class Webview {
 
 	public notifyFindWidgetFocusChanged(isFocused: boolean) {
 		this._contextKey.set(isFocused || document.activeElement === this._webview);
+	}
+
+	public notifyFindWidgetInputFocusChanged(isFocused: boolean) {
+		this._findInputContextKey.set(isFocused);
 	}
 
 	dispose(): void {
@@ -449,5 +454,13 @@ export default class Webview {
 
 	public hideFind() {
 		this._webviewFindWidget.hide();
+	}
+
+	public showNextFindTerm() {
+		this._webviewFindWidget.showNextFindTerm();
+	}
+
+	public showPreviousFindTerm() {
+		this._webviewFindWidget.showPreviousFindTerm();
 	}
 }

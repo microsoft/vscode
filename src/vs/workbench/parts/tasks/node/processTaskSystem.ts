@@ -31,7 +31,7 @@ import {
 	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TelemetryEvent, Triggers,
 	TaskSystemEvents, TaskEvent, TaskType, TaskTerminateResponse
 } from 'vs/workbench/parts/tasks/common/taskSystem';
-import { Task, CommandOptions, RevealKind, CommandConfiguration, RuntimeType } from 'vs/workbench/parts/tasks/common/tasks';
+import { Task, CustomTask, CommandOptions, RevealKind, CommandConfiguration, RuntimeType } from 'vs/workbench/parts/tasks/common/tasks';
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
@@ -50,7 +50,7 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 
 	private errorsShown: boolean;
 	private childProcess: LineProcess;
-	private activeTask: Task;
+	private activeTask: CustomTask;
 	private activeTaskPromise: TPromise<ITaskSummary>;
 
 	constructor(markerService: IMarkerService, modelService: IModelService, telemetryService: ITelemetryService,
@@ -112,8 +112,8 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 		return true;
 	}
 
-	public terminate(_id: string): TPromise<TaskTerminateResponse> {
-		if (!this.activeTask || this.activeTask._id !== _id) {
+	public terminate(task: Task): TPromise<TaskTerminateResponse> {
+		if (!this.activeTask || Task.getMapKey(this.activeTask) !== Task.getMapKey(task)) {
 			return TPromise.as<TaskTerminateResponse>({ success: false, task: undefined });
 		}
 		return this.terminateAll()[0];
@@ -133,25 +133,50 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 	}
 
 	private executeTask(task: Task, trigger: string = Triggers.command): ITaskExecuteResult {
+		if (!CustomTask.is(task)) {
+			throw new Error('The process task system can only execute custom tasks.');
+		}
 		let telemetryEvent: TelemetryEvent = {
 			trigger: trigger,
 			runner: 'output',
+			taskKind: Task.getTelemetryKind(task),
 			command: 'other',
 			success: true
 		};
 		try {
 			let result = this.doExecuteTask(task, telemetryEvent);
 			result.promise = result.promise.then((success) => {
+				/* __GDPR__
+					"taskService" : {
+						"${include}": [
+							"${TelemetryEvent}"
+						]
+					}
+				*/
 				this.telemetryService.publicLog(ProcessTaskSystem.TelemetryEventName, telemetryEvent);
 				return success;
 			}, (err: any) => {
 				telemetryEvent.success = false;
+				/* __GDPR__
+					"taskService" : {
+						"${include}": [
+							"${TelemetryEvent}"
+						]
+					}
+				*/
 				this.telemetryService.publicLog(ProcessTaskSystem.TelemetryEventName, telemetryEvent);
 				return TPromise.wrapError<ITaskSummary>(err);
 			});
 			return result;
 		} catch (err) {
 			telemetryEvent.success = false;
+			/* __GDPR__
+				"taskService" : {
+					"${include}": [
+						"${TelemetryEvent}"
+					]
+				}
+			*/
 			this.telemetryService.publicLog(ProcessTaskSystem.TelemetryEventName, telemetryEvent);
 			if (err instanceof TaskError) {
 				throw err;
@@ -166,7 +191,7 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 		}
 	}
 
-	private doExecuteTask(task: Task, telemetryEvent: TelemetryEvent): ITaskExecuteResult {
+	private doExecuteTask(task: CustomTask, telemetryEvent: TelemetryEvent): ITaskExecuteResult {
 		let taskSummary: ITaskSummary = {};
 		let commandConfig: CommandConfiguration = task.command;
 		if (!this.errorsShown) {
@@ -177,9 +202,9 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 		}
 
 		let args: string[] = commandConfig.args ? commandConfig.args.slice() : [];
-		args = this.resolveVariables(args);
-		let command: string = this.resolveVariable(commandConfig.name);
-		this.childProcess = new LineProcess(command, args, commandConfig.runtime === RuntimeType.Shell, this.resolveOptions(commandConfig.options));
+		args = this.resolveVariables(task, args);
+		let command: string = this.resolveVariable(task, commandConfig.name);
+		this.childProcess = new LineProcess(command, args, commandConfig.runtime === RuntimeType.Shell, this.resolveOptions(task, commandConfig.options));
 		telemetryEvent.command = this.childProcess.getSanitizedCommand();
 		// we have no problem matchers defined. So show the output log
 		let reveal = task.command.presentation.reveal;
@@ -192,7 +217,7 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 			this.log(`running command${prompt} ${command} ${args.join(' ')}`);
 		}
 		if (task.isBackground) {
-			let watchingProblemMatcher = new WatchingProblemCollector(this.resolveMatchers(task.problemMatchers), this.markerService, this.modelService);
+			let watchingProblemMatcher = new WatchingProblemCollector(this.resolveMatchers(task, task.problemMatchers), this.markerService, this.modelService);
 			let toUnbind: IDisposable[] = [];
 			let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.Watching, group: task.group };
 			let eventCounter: number = 0;
@@ -255,7 +280,7 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 		} else {
 			let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.SingleRun, group: task.group };
 			this.emit(TaskSystemEvents.Active, event);
-			let startStopProblemMatcher = new StartStopProblemCollector(this.resolveMatchers(task.problemMatchers), this.markerService, this.modelService);
+			let startStopProblemMatcher = new StartStopProblemCollector(this.resolveMatchers(task, task.problemMatchers), this.markerService, this.modelService);
 			this.activeTask = task;
 			this.activeTaskPromise = this.childProcess.start().then((success): ITaskSummary => {
 				this.childProcessEnded();
@@ -288,7 +313,7 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 		this.activeTaskPromise = null;
 	}
 
-	private handleError(task: Task, errorData: ErrorData): Promise {
+	private handleError(task: CustomTask, errorData: ErrorData): Promise {
 		let makeVisible = false;
 		if (errorData.error && !errorData.terminated) {
 			let args: string = task.command.args ? task.command.args.join(' ') : '';
@@ -325,14 +350,14 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 		return false;
 	}
 
-	private resolveOptions(options: CommandOptions): CommandOptions {
-		let result: CommandOptions = { cwd: this.resolveVariable(options.cwd) };
+	private resolveOptions(task: CustomTask, options: CommandOptions): CommandOptions {
+		let result: CommandOptions = { cwd: this.resolveVariable(task, options.cwd) };
 		if (options.env) {
 			result.env = Object.create(null);
 			Object.keys(options.env).forEach((key) => {
 				let value: any = options.env[key];
 				if (Types.isString(value)) {
-					result.env[key] = this.resolveVariable(value);
+					result.env[key] = this.resolveVariable(task, value);
 				} else {
 					result.env[key] = value.toString();
 				}
@@ -341,11 +366,11 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 		return result;
 	}
 
-	private resolveVariables(value: string[]): string[] {
-		return value.map(s => this.resolveVariable(s));
+	private resolveVariables(task: CustomTask, value: string[]): string[] {
+		return value.map(s => this.resolveVariable(task, s));
 	}
 
-	private resolveMatchers(values: (string | ProblemMatcher)[]): ProblemMatcher[] {
+	private resolveMatchers(task: CustomTask, values: (string | ProblemMatcher)[]): ProblemMatcher[] {
 		if (values === void 0 || values === null || values.length === 0) {
 			return [];
 		}
@@ -369,16 +394,15 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 				result.push(matcher);
 			} else {
 				let copy = Objects.clone(matcher);
-				copy.filePrefix = this.resolveVariable(copy.filePrefix);
+				copy.filePrefix = this.resolveVariable(task, copy.filePrefix);
 				result.push(copy);
 			}
 		});
 		return result;
 	}
 
-	private resolveVariable(value: string): string {
-		// TODO@Dirk adopt new configuration resolver service https://github.com/Microsoft/vscode/issues/31365
-		return this.configurationResolverService.resolve(this.contextService.getLegacyWorkspace().resource, value);
+	private resolveVariable(task: CustomTask, value: string): string {
+		return this.configurationResolverService.resolve(Task.getWorkspaceFolder(task), value);
 	}
 
 	public log(value: string): void {

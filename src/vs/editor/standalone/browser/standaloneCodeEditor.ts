@@ -26,7 +26,7 @@ import { MenuId, MenuRegistry, IMenuItem } from 'vs/platform/actions/common/acti
 import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import * as aria from 'vs/base/browser/ui/aria/aria';
-import { IMessageService } from "vs/platform/message/common/message";
+import { IMessageService } from 'vs/platform/message/common/message';
 import * as nls from 'vs/nls';
 import * as browser from 'vs/base/browser/browser';
 

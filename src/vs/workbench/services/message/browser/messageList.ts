@@ -304,6 +304,12 @@ export class MessageList {
 
 								DOM.EventHelper.stop(e, true);
 
+								/* __GDPR__
+									"workbenchActionExecuted" : {
+										"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+										"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+									}
+								*/
 								this.telemetryService.publicLog('workbenchActionExecuted', { id: action.id, from: 'message' });
 
 								(action.run() || TPromise.as(null))
@@ -345,7 +351,9 @@ export class MessageList {
 				// Hover title
 				const title = message.source ? `[${message.source}] ${messageContentElement.textContent}` : messageContentElement.textContent;
 
-				$(messageContentElement as HTMLElement).title(title).appendTo(div);
+				sevLabel.title(title);
+
+				$(messageContentElement).title(title).appendTo(div);
 			});
 		});
 	}

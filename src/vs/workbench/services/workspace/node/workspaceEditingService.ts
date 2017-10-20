@@ -7,13 +7,21 @@
 
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import URI from 'vs/base/common/uri';
-import { equals, distinct } from 'vs/base/common/arrays';
-import { TPromise } from "vs/base/common/winjs.base";
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IWindowService, IEnterWorkspaceResult } from 'vs/platform/windows/common/windows';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { IWorkspacesService } from "vs/platform/workspaces/common/workspaces";
+import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
+import { migrateStorageToMultiRootWorkspace } from 'vs/platform/storage/common/migration';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { StorageService } from 'vs/platform/storage/common/storageService';
+import { ConfigurationScope, IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { BackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
 
 export class WorkspaceEditingService implements IWorkspaceEditingService {
 
@@ -21,69 +29,80 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 	constructor(
 		@IJSONEditingService private jsonEditingService: IJSONEditingService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWindowsService private windowsService: IWindowsService,
-		@IWorkspacesService private workspacesService: IWorkspacesService
+		@IWorkspaceContextService private contextService: WorkspaceService,
+		@IWindowService private windowService: IWindowService,
+		@IWorkspaceConfigurationService private workspaceConfigurationService: IWorkspaceConfigurationService,
+		@IStorageService private storageService: IStorageService,
+		@IExtensionService private extensionService: IExtensionService,
+		@IBackupFileService private backupFileService: IBackupFileService
 	) {
 	}
 
-	public addRoots(rootsToAdd: URI[]): TPromise<void> {
-		if (!this.isSupported()) {
-			return TPromise.as(void 0); // we need a workspace to begin with
-		}
-
-		const roots = this.contextService.getWorkspace().roots;
-
-		return this.doSetRoots([...roots, ...rootsToAdd]);
+	public createAndEnterWorkspace(folderPaths?: string[], path?: string): TPromise<void> {
+		return this.doEnterWorkspace(() => this.windowService.createAndEnterWorkspace(folderPaths, path));
 	}
 
-	public removeRoots(rootsToRemove: URI[]): TPromise<void> {
-		if (!this.isSupported()) {
-			return TPromise.as(void 0); // we need a workspace to begin with
-		}
-
-		const roots = this.contextService.getWorkspace().roots;
-		const rootsToRemoveRaw = rootsToRemove.map(root => root.toString());
-
-		return this.doSetRoots(roots.filter(root => rootsToRemoveRaw.indexOf(root.toString()) === -1));
+	public saveAndEnterWorkspace(path: string): TPromise<void> {
+		return this.doEnterWorkspace(() => this.windowService.saveAndEnterWorkspace(path));
 	}
 
-	private isSupported(): boolean {
-		// TODO@Ben multi root
-		return (
-			this.environmentService.appQuality !== 'stable'  // not yet enabled in stable
-			&& this.contextService.hasMultiFolderWorkspace() // we need a multi folder workspace to begin with
-		);
+	private doEnterWorkspace(mainSidePromise: () => TPromise<IEnterWorkspaceResult>): TPromise<void> {
+
+		// Stop the extension host first to give extensions most time to shutdown
+		this.extensionService.stopExtensionHost();
+
+		return mainSidePromise().then(result => {
+			let enterWorkspacePromise: TPromise<void> = TPromise.as(void 0);
+			if (result) {
+
+				// Migrate storage and settings
+				enterWorkspacePromise = this.migrate(result.workspace).then(() => {
+
+					// Reinitialize backup service
+					const backupFileService = this.backupFileService as BackupFileService; // TODO@Ben ugly cast
+					backupFileService.initialize(result.backupPath);
+
+					// Reinitialize configuration service
+					const workspaceImpl = this.contextService as WorkspaceService; // TODO@Ben TODO@Sandeep ugly cast
+					return workspaceImpl.initialize(result.workspace);
+				});
+			}
+
+			// Finally bring the extension host back online
+			return enterWorkspacePromise.then(() => this.extensionService.startExtensionHost());
+		});
 	}
 
-	private doSetRoots(newRoots: URI[]): TPromise<void> {
-		const workspace = this.contextService.getWorkspace();
-		const currentWorkspaceRoots = this.contextService.getWorkspace().roots.map(root => root.fsPath);
-		const newWorkspaceRoots = this.validateRoots(newRoots);
+	private migrate(toWorkspace: IWorkspaceIdentifier): TPromise<void> {
 
-		// See if there are any changes
-		if (equals(currentWorkspaceRoots, newWorkspaceRoots)) {
-			return TPromise.as(void 0);
+		// Storage (UI State) migration
+		this.migrateStorage(toWorkspace);
+
+		// Settings migration (only if we come from a folder workspace)
+		if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
+			return this.copyWorkspaceSettings(toWorkspace);
 		}
 
-		// Apply to config
-		if (newWorkspaceRoots.length) {
-			return this.jsonEditingService.write(workspace.configuration, { key: 'folders', value: newWorkspaceRoots }, true);
-		} else {
-			// TODO: Sandeep - Removing all roots?
-		}
-
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
-	private validateRoots(roots: URI[]): string[] {
-		if (!roots) {
-			return [];
+	private migrateStorage(toWorkspace: IWorkspaceIdentifier): void {
+
+		// TODO@Ben revisit this when we move away from local storage to a file based approach
+		const storageImpl = this.storageService as StorageService;
+		const newWorkspaceId = migrateStorageToMultiRootWorkspace(storageImpl.workspaceId, toWorkspace, storageImpl.workspaceStorage);
+		storageImpl.setWorkspaceId(newWorkspaceId);
+	}
+
+	public copyWorkspaceSettings(toWorkspace: IWorkspaceIdentifier): TPromise<void> {
+		const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
+		const targetWorkspaceConfiguration = {};
+		for (const key of this.workspaceConfigurationService.keys().workspace) {
+			if (configurationProperties[key] && !configurationProperties[key].isFromExtensions && configurationProperties[key].scope === ConfigurationScope.WINDOW) {
+				targetWorkspaceConfiguration[key] = this.workspaceConfigurationService.inspect(key).workspace;
+			}
 		}
 
-		// Prevent duplicates
-		const validatedRoots = distinct(roots.map(root => root.toString(true /* skip encoding */)));
-		return validatedRoots;
+		return this.jsonEditingService.write(URI.file(toWorkspace.configPath), { key: 'settings', value: targetWorkspaceConfiguration }, true);
 	}
 }

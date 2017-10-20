@@ -6,6 +6,9 @@
 {
 	"debugAdapterBinNotFound": "Executável do adaptador de depuração '{0}' não existe.",
 	"debugAdapterCannotDetermineExecutable": "Não é possível determinar o executável para o adaptador de depuração '{0}'.",
+	"launch.config.comment1": "Use o IntelliSense para aprender sobre possíveis atributos.",
+	"launch.config.comment2": "Passe o mouse para ver as descrições dos atributos existentes.",
+	"launch.config.comment3": "Para obter mais informações, visite: {0}",
 	"debugType": "Tipo de configuração.",
 	"debugTypeNotRecognised": "O tipo de depuração não é reconhecido. Certifique-se de que você tem uma extensão de depuração correspondente instalada e que ela está habilitada.",
 	"node2NotSupported": "\"node2\" não é mais suportado, use \"node\" ao invés e defina o atributo \"protocol\" para \"inspector\".",

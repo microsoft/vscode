@@ -8,7 +8,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as marshalling from 'vs/base/common/marshalling';
 import * as errors from 'vs/base/common/errors';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { LazyPromise } from "vs/workbench/services/extensions/node/lazyPromise";
+import { LazyPromise } from 'vs/workbench/services/extensions/node/lazyPromise';
 
 export interface IDispatcher {
 	invoke(proxyId: string, methodName: string, args: any[]): any;
@@ -44,7 +44,8 @@ export class RPCProtocol {
 
 	private _receiveOneMessage(rawmsg: string): void {
 		if (this._isDisposed) {
-			throw new Error(`disposed`);
+			console.warn('Received message after being shutdown: ', rawmsg);
+			return;
 		}
 		let msg = marshalling.parse(rawmsg);
 

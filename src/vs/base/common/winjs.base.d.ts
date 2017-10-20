@@ -13,7 +13,7 @@ export declare class Promise<T = any, TProgress = any> {
 			resolve: (value: T | PromiseLike<T>) => void,
 			reject: (reason: any) => void,
 			progress: (progress: TProgress) => void) => void,
-			oncancel?: () => void);
+		oncancel?: () => void);
 
 	public then<TResult1 = T, TResult2 = never>(
 		onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | null,
@@ -29,7 +29,7 @@ export declare class Promise<T = any, TProgress = any> {
 
 	public static as(value: null): Promise<null>;
 	public static as(value: undefined): Promise<undefined>;
-	public static as<T, TPromise extends PromiseLike<T>>(value: TPromise): TPromise;
+	public static as<T, SomePromise extends PromiseLike<T>>(value: SomePromise): SomePromise;
 	public static as<T>(value: T): Promise<T>;
 
 	public static is(value: any): value is PromiseLike<any>;
@@ -49,7 +49,7 @@ export declare class Promise<T = any, TProgress = any> {
 	/**
 	 * @internal
 	 */
-	public static addEventListener(event: 'error', promiseErrorHandler: (e: IPromiseError) => void);
+	public static addEventListener(event: 'error', promiseErrorHandler: (e: IPromiseError) => void): void;
 }
 
 export type TValueCallback<T = any> = (value: T | PromiseLike<T>) => void;

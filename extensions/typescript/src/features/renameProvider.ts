@@ -3,54 +3,58 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RenameProvider, WorkspaceEdit, TextDocument, Position, Range, CancellationToken } from 'vscode';
+import { RenameProvider, WorkspaceEdit, TextDocument, Position, CancellationToken } from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
+import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/convert';
 
 export default class TypeScriptRenameProvider implements RenameProvider {
 	public constructor(
 		private client: ITypescriptServiceClient) { }
 
-	public provideRenameEdits(document: TextDocument, position: Position, newName: string, token: CancellationToken): Promise<WorkspaceEdit | undefined | null> {
+	public async provideRenameEdits(
+		document: TextDocument,
+		position: Position,
+		newName: string,
+		token: CancellationToken
+	): Promise<WorkspaceEdit | null> {
 		const filepath = this.client.normalizePath(document.uri);
 		if (!filepath) {
-			return Promise.resolve(null);
+			return null;
 		}
+
 		const args: Proto.RenameRequestArgs = {
-			file: filepath,
-			line: position.line + 1,
-			offset: position.character + 1,
+			...vsPositionToTsFileLocation(filepath, position),
 			findInStrings: false,
 			findInComments: false
 		};
 
-		return this.client.execute('rename', args, token).then((response) => {
+		try {
+			const response = await this.client.execute('rename', args, token);
 			const renameResponse = response.body;
 			if (!renameResponse) {
-				return Promise.resolve(null);
+				return null;
 			}
 			const renameInfo = renameResponse.info;
-			const result = new WorkspaceEdit();
 
 			if (!renameInfo.canRename) {
 				return Promise.reject<WorkspaceEdit>(renameInfo.localizedErrorMessage);
 			}
-
-			renameResponse.locs.forEach((spanGroup) => {
+			const result = new WorkspaceEdit();
+			for (const spanGroup of renameResponse.locs) {
 				const resource = this.client.asUrl(spanGroup.file);
 				if (!resource) {
-					return;
+					continue;
 				}
-				spanGroup.locs.forEach((textSpan) => {
-					result.replace(resource,
-						new Range(textSpan.start.line - 1, textSpan.start.offset - 1, textSpan.end.line - 1, textSpan.end.offset - 1),
-						newName);
-				});
-			});
+				for (const textSpan of spanGroup.locs) {
+					result.replace(resource, tsTextSpanToVsRange(textSpan), newName);
+				}
+			}
 			return result;
-		}, () => {
-			return null;
-		});
+		} catch (e) {
+			// noop
+		}
+		return null;
 	}
 }

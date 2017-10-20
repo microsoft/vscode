@@ -25,7 +25,7 @@ suite('Tests for Emmet actions on html tags', () => {
 			height: 42px;
 		}
 		.three {
-			background-image: url(${filePath});
+			background-image: url(https://github.com/Microsoft/vscode/blob/master/resources/linux/code.png);
 			width: 42px;
 		}
 	`;
@@ -43,9 +43,9 @@ suite('Tests for Emmet actions on html tags', () => {
 			height: 32px;
 		}
 		.three {
-			background-image: url(${filePath});
-			height: 1024px;
-			width: 1024px;
+			background-image: url(https://github.com/Microsoft/vscode/blob/master/resources/linux/code.png);
+			height: 32px;
+			width: 32px;
 		}
 	`;
 		return withRandomFileEditor(cssContents, 'css', (editor, doc) => {
@@ -76,7 +76,7 @@ suite('Tests for Emmet actions on html tags', () => {
 					height: 42px;
 				}
 				.three {
-					background-image: url(${filePath});
+					background-image: url(https://github.com/Microsoft/vscode/blob/master/resources/linux/code.png);
 					width: 42px;
 				}
 			</style>
@@ -98,9 +98,9 @@ suite('Tests for Emmet actions on html tags', () => {
 					height: 32px;
 				}
 				.three {
-					background-image: url(${filePath});
-					height: 1024px;
-					width: 1024px;
+					background-image: url(https://github.com/Microsoft/vscode/blob/master/resources/linux/code.png);
+					height: 32px;
+					width: 32px;
 				}
 			</style>
 		</html>
@@ -122,14 +122,14 @@ suite('Tests for Emmet actions on html tags', () => {
 	test('update image size in img tag in html file with multiple cursors', () => {
 		const htmlwithimgtag = `
 		<html>
-			<img id="one" src="${filePath}" />
+			<img id="one" src="https://github.com/Microsoft/vscode/blob/master/resources/linux/code.png" />
 			<img id="two" src="https://github.com/Microsoft/vscode/blob/master/resources/linux/code.png" width="56" />
 			<img id="three" src="https://github.com/Microsoft/vscode/blob/master/resources/linux/code.png" height="56" />
 		</html>
 	`;
 		const expectedContents = `
 		<html>
-			<img id="one" src="${filePath}" width="1024" height="1024" />
+			<img id="one" src="https://github.com/Microsoft/vscode/blob/master/resources/linux/code.png" width="32" height="32" />
 			<img id="two" src="https://github.com/Microsoft/vscode/blob/master/resources/linux/code.png" width="32" height="32" />
 			<img id="three" src="https://github.com/Microsoft/vscode/blob/master/resources/linux/code.png" height="32" width="32" />
 		</html>

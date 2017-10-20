@@ -74,8 +74,7 @@ export interface IColorRegistry {
 
 }
 
-const colorPattern = '^#([0-9A-Fa-f]{3,4}|([0-9A-Fa-f]{2}){3,4})$';
-const colorPatternErrorMessage = nls.localize('invalid.color', 'Invalid color format. Use #RGB, #RGBA, #RRGGBB or #RRGGBBAA');
+
 
 class ColorRegistry implements IColorRegistry {
 	private colorsById: { [key: string]: ColorContribution };
@@ -89,7 +88,7 @@ class ColorRegistry implements IColorRegistry {
 	public registerColor(id: string, defaults: ColorDefaults, description: string): ColorIdentifier {
 		let colorContribution = { id, description, defaults };
 		this.colorsById[id] = colorContribution;
-		this.colorSchema.properties[id] = { type: 'string', description, format: 'color', pattern: colorPattern, patternErrorMessage: colorPatternErrorMessage };
+		this.colorSchema.properties[id] = { type: 'string', description, format: 'color-hex', default: '#ff0000' };
 		this.colorReferenceSchema.enum.push(id);
 		this.colorReferenceSchema.enumDescriptions.push(description);
 		return id;
@@ -296,6 +295,12 @@ export const mergeBorder = registerColor('merge.border', { dark: null, light: nu
 export const overviewRulerCurrentContentForeground = registerColor('editorOverviewRuler.currentContentForeground', { dark: transparent(mergeCurrentHeaderBackground, rulerTransparency), light: transparent(mergeCurrentHeaderBackground, rulerTransparency), hc: mergeBorder }, nls.localize('overviewRulerCurrentContentForeground', 'Current overview ruler foreground for inline merge-conflicts.'));
 export const overviewRulerIncomingContentForeground = registerColor('editorOverviewRuler.incomingContentForeground', { dark: transparent(mergeIncomingHeaderBackground, rulerTransparency), light: transparent(mergeIncomingHeaderBackground, rulerTransparency), hc: mergeBorder }, nls.localize('overviewRulerIncomingContentForeground', 'Incoming overview ruler foreground for inline merge-conflicts.'));
 export const overviewRulerCommonContentForeground = registerColor('editorOverviewRuler.commonContentForeground', { dark: transparent(mergeCommonHeaderBackground, rulerTransparency), light: transparent(mergeCommonHeaderBackground, rulerTransparency), hc: mergeBorder }, nls.localize('overviewRulerCommonContentForeground', 'Common ancestor overview ruler foreground for inline merge-conflicts.'));
+
+const findMatchColorDefault = new Color(new RGBA(246, 185, 77, 0.7));
+export const overviewRulerFindMatchForeground = registerColor('editorOverviewRuler.findMatchForeground', { dark: findMatchColorDefault, light: findMatchColorDefault, hc: findMatchColorDefault }, nls.localize('overviewRulerFindMatchForeground', 'Overview ruler marker color for find matches.'));
+
+export const overviewRulerSelectionHighlightForeground = registerColor('editorOverviewRuler.selectionHighlightForeground', { dark: '#A0A0A0', light: '#A0A0A0', hc: '#A0A0A0' }, nls.localize('overviewRulerSelectionHighlightForeground', 'Overview ruler marker color for selection highlights.'));
+
 
 // ----- color functions
 

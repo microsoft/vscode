@@ -29,6 +29,18 @@ export const TAB_BORDER = registerColor('tab.border', {
 	hc: contrastBorder
 }, nls.localize('tabBorder', "Border to separate tabs from each other. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
+export const TAB_ACTIVE_BORDER = registerColor('tab.activeBorder', {
+	dark: null,
+	light: null,
+	hc: null
+}, nls.localize('tabActiveBorder', "Border to highlight active tabs. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+
+export const TAB_UNFOCUSED_ACTIVE_BORDER = registerColor('tab.unfocusedActiveBorder', {
+	dark: transparent(TAB_ACTIVE_BORDER, 0.5),
+	light: transparent(TAB_ACTIVE_BORDER, 0.7),
+	hc: null
+}, nls.localize('tabActiveUnfocusedBorder', "Border to highlight active tabs in an unfocused group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+
 export const TAB_ACTIVE_FOREGROUND = registerColor('tab.activeForeground', {
 	dark: Color.white,
 	light: '#333333',
@@ -45,13 +57,13 @@ export const TAB_UNFOCUSED_ACTIVE_FOREGROUND = registerColor('tab.unfocusedActiv
 	dark: transparent(TAB_ACTIVE_FOREGROUND, 0.5),
 	light: transparent(TAB_ACTIVE_FOREGROUND, 0.7),
 	hc: Color.white
-}, nls.localize('tabUnfocusedActiveForeground', "Active tab foreground color in an inactive group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+}, nls.localize('tabUnfocusedActiveForeground', "Active tab foreground color in an unfocused group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
 export const TAB_UNFOCUSED_INACTIVE_FOREGROUND = registerColor('tab.unfocusedInactiveForeground', {
 	dark: transparent(TAB_INACTIVE_FOREGROUND, 0.5),
 	light: transparent(TAB_INACTIVE_FOREGROUND, 0.5),
 	hc: Color.white
-}, nls.localize('tabUnfocusedInactiveForeground', "Inactive tab foreground color in an inactive group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+}, nls.localize('tabUnfocusedInactiveForeground', "Inactive tab foreground color in an unfocused group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
 
 // < --- Editors --- >
@@ -96,6 +108,12 @@ export const EDITOR_DRAG_AND_DROP_BACKGROUND = registerColor('editorGroup.dropBa
 
 // < --- Panels --- >
 
+const DRAG_AND_DROP_BACKGROUND = {
+	dark: Color.white.transparent(0.12),
+	light: Color.white.transparent(0.12),
+	hc: Color.white.transparent(0.12),
+};
+
 export const PANEL_BACKGROUND = registerColor('panel.background', {
 	dark: editorBackground,
 	light: editorBackground,
@@ -126,6 +144,7 @@ export const PANEL_ACTIVE_TITLE_BORDER = registerColor('panelTitle.activeBorder'
 	hc: contrastBorder
 }, nls.localize('panelActiveTitleBorder', "Border color for the active panel title. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
+export const PANEL_DRAG_AND_DROP_BACKGROUND = registerColor('panel.dropBackground', DRAG_AND_DROP_BACKGROUND, nls.localize('panelDragAndDropBackground', "Drag and drop feedback color for the panel title items. The color should have transparency so that the panel entries can still shine through. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
 
 // < --- Status --- >
@@ -212,11 +231,8 @@ export const ACTIVITY_BAR_BORDER = registerColor('activityBar.border', {
 	hc: contrastBorder
 }, nls.localize('activityBarBorder', "Activity bar border color separating to the side bar. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
-export const ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND = registerColor('activityBar.dropBackground', {
-	dark: Color.white.transparent(0.12),
-	light: Color.white.transparent(0.12),
-	hc: Color.white.transparent(0.12),
-}, nls.localize('activityBarDragAndDropBackground', "Drag and drop feedback color for the activity bar items. The color should have transparency so that the activity bar entries can still shine through. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+
+export const ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND = registerColor('activityBar.dropBackground', DRAG_AND_DROP_BACKGROUND, nls.localize('activityBarDragAndDropBackground', "Drag and drop feedback color for the activity bar items. The color should have transparency so that the activity bar entries can still shine through. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
 export const ACTIVITY_BAR_BADGE_BACKGROUND = registerColor('activityBarBadge.background', {
 	dark: '#007ACC',
@@ -229,7 +245,6 @@ export const ACTIVITY_BAR_BADGE_FOREGROUND = registerColor('activityBarBadge.for
 	light: Color.white,
 	hc: Color.white
 }, nls.localize('activityBarBadgeForeground', "Activity notification badge foreground color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
-
 
 
 // < --- Side Bar --- >

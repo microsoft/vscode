@@ -13,7 +13,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { MainThreadDocumentsShape } from 'vs/workbench/api/node/extHost.protocol';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IModelChangedEvent } from 'vs/editor/common/model/mirrorModel';
-import { mock } from "vs/workbench/test/electron-browser/api/mock";
+import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 
 
 suite('ExtHostDocumentData', () => {

@@ -107,17 +107,17 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		}
 
 		this._detectVisibleLenses = new RunOnceScheduler(() => {
-			this._onViewportChanged(model.getLanguageIdentifier().language);
+			this._onViewportChanged();
 		}, 500);
 
 		const scheduler = new RunOnceScheduler(() => {
+			const counterValue = ++this._modelChangeCounter;
 			if (this._currentFindCodeLensSymbolsPromise) {
 				this._currentFindCodeLensSymbolsPromise.cancel();
 			}
 
 			this._currentFindCodeLensSymbolsPromise = getCodeLensData(model);
 
-			const counterValue = ++this._modelChangeCounter;
 			this._currentFindCodeLensSymbolsPromise.then((result) => {
 				if (counterValue === this._modelChangeCounter) { // only the last one wins
 					this._renderCodeLensSymbols(result);
@@ -154,7 +154,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			scheduler.schedule();
 		}));
 		this._localToDispose.push(this._editor.onDidScrollChange(e => {
-			if (e.scrollTopChanged) {
+			if (e.scrollTopChanged && this._lenses.length > 0) {
 				this._detectVisibleLenses.schedule();
 			}
 		}));
@@ -254,11 +254,11 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			});
 		});
 		if (shouldRestoreCenteredRange) {
-			this._editor.revealRangeInCenter(centeredRange);
+			this._editor.revealRangeInCenter(centeredRange, editorCommon.ScrollType.Immediate);
 		}
 	}
 
-	private _onViewportChanged(modeId: string): void {
+	private _onViewportChanged(): void {
 		if (this._currentFindOccPromise) {
 			this._currentFindOccPromise.cancel();
 			this._currentFindOccPromise = null;
