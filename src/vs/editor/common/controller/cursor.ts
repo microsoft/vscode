@@ -555,8 +555,8 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 interface IExecContext {
 	readonly model: editorCommon.IModel;
 	readonly selectionsBefore: Selection[];
-	readonly selectionStartMarkers: string[];
-	readonly positionMarkers: string[];
+	readonly trackedRanges: string[];
+	readonly trackedRangesDirection: SelectionDirection[];
 }
 
 interface ICommandData {
@@ -576,15 +576,14 @@ class CommandExecutor {
 		const ctx: IExecContext = {
 			model: model,
 			selectionsBefore: selectionsBefore,
-			selectionStartMarkers: [],
-			positionMarkers: []
+			trackedRanges: [],
+			trackedRangesDirection: []
 		};
 
 		const result = this._innerExecuteCommands(ctx, commands);
 
-		for (let i = 0; i < ctx.selectionStartMarkers.length; i++) {
-			ctx.model._removeMarker(ctx.selectionStartMarkers[i]);
-			ctx.model._removeMarker(ctx.positionMarkers[i]);
+		for (let i = 0, len = ctx.trackedRanges.length; i < len; i++) {
+			ctx.model._setTrackedRange(ctx.trackedRanges[i], null, editorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
 		}
 
 		return result;
@@ -661,9 +660,11 @@ class CommandExecutor {
 
 						getTrackedSelection: (id: string) => {
 							const idx = parseInt(id, 10);
-							const selectionStartMarker = ctx.model._getMarker(ctx.selectionStartMarkers[idx]);
-							const positionMarker = ctx.model._getMarker(ctx.positionMarkers[idx]);
-							return new Selection(selectionStartMarker.lineNumber, selectionStartMarker.column, positionMarker.lineNumber, positionMarker.column);
+							const range = ctx.model._getTrackedRange(ctx.trackedRanges[idx]);
+							if (ctx.trackedRangesDirection[idx] === SelectionDirection.LTR) {
+								return new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
+							}
+							return new Selection(range.endLineNumber, range.endColumn, range.startLineNumber, range.startColumn);
 						}
 					});
 				} else {
@@ -750,37 +751,31 @@ class CommandExecutor {
 		};
 
 		const trackSelection = (selection: Selection, trackPreviousOnEmpty?: boolean) => {
-			let selectionMarkerStickToPreviousCharacter: boolean;
-			let positionMarkerStickToPreviousCharacter: boolean;
-
+			let stickiness: editorCommon.TrackedRangeStickiness;
 			if (selection.isEmpty()) {
-				// Try to lock it with surrounding text
 				if (typeof trackPreviousOnEmpty === 'boolean') {
-					selectionMarkerStickToPreviousCharacter = trackPreviousOnEmpty;
-					positionMarkerStickToPreviousCharacter = trackPreviousOnEmpty;
+					if (trackPreviousOnEmpty) {
+						stickiness = editorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingBefore;
+					} else {
+						stickiness = editorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingAfter;
+					}
 				} else {
+					// Try to lock it with surrounding text
 					const maxLineColumn = ctx.model.getLineMaxColumn(selection.startLineNumber);
 					if (selection.startColumn === maxLineColumn) {
-						selectionMarkerStickToPreviousCharacter = true;
-						positionMarkerStickToPreviousCharacter = true;
+						stickiness = editorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingBefore;
 					} else {
-						selectionMarkerStickToPreviousCharacter = false;
-						positionMarkerStickToPreviousCharacter = false;
+						stickiness = editorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingAfter;
 					}
 				}
 			} else {
-				if (selection.getDirection() === SelectionDirection.LTR) {
-					selectionMarkerStickToPreviousCharacter = false;
-					positionMarkerStickToPreviousCharacter = true;
-				} else {
-					selectionMarkerStickToPreviousCharacter = true;
-					positionMarkerStickToPreviousCharacter = false;
-				}
+				stickiness = editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
 			}
 
-			const l = ctx.selectionStartMarkers.length;
-			ctx.selectionStartMarkers[l] = ctx.model._addMarker(0, selection.selectionStartLineNumber, selection.selectionStartColumn, selectionMarkerStickToPreviousCharacter);
-			ctx.positionMarkers[l] = ctx.model._addMarker(0, selection.positionLineNumber, selection.positionColumn, positionMarkerStickToPreviousCharacter);
+			const l = ctx.trackedRanges.length;
+			const id = ctx.model._setTrackedRange(null, selection, stickiness);
+			ctx.trackedRanges[l] = id;
+			ctx.trackedRangesDirection[l] = selection.getDirection();
 			return l.toString();
 		};
 

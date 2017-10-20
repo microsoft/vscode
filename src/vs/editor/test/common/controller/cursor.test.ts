@@ -1651,7 +1651,8 @@ suite('Editor Controller - Regression tests', () => {
 		});
 	});
 
-	test('issue #23913: Greater than 1000+ multi cursor typing replacement text appears inverted, lines begin to drop off selection', () => {
+	test('issue #23913: Greater than 1000+ multi cursor typing replacement text appears inverted, lines begin to drop off selection', function () {
+		this.timeout(10000);
 		const LINE_CNT = 2000;
 
 		let text = [];

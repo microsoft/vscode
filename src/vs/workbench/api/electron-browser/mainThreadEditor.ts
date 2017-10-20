@@ -244,6 +244,17 @@ export class MainThreadTextEditor {
 		this._codeEditor.setDecorations(key, ranges);
 	}
 
+	public setDecorationsFast(key: string, _ranges: number[]): void {
+		if (!this._codeEditor) {
+			return;
+		}
+		let ranges: Range[] = [];
+		for (let i = 0, len = Math.floor(_ranges.length / 4); i < len; i++) {
+			ranges[i] = new Range(_ranges[4 * i], _ranges[4 * i + 1], _ranges[4 * i + 2], _ranges[4 * i + 3]);
+		}
+		this._codeEditor.setDecorationsFast(key, ranges);
+	}
+
 	public revealRange(range: IRange, revealType: TextEditorRevealType): void {
 		if (!this._codeEditor) {
 			return;

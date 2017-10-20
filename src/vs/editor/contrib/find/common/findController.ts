@@ -1038,6 +1038,23 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 			}
 		}
 
+		// Return early if the find widget shows the exact same matches
+		if (findState.isRevealed) {
+			let findStateSearchString = findState.searchString;
+			if (!caseSensitive) {
+				findStateSearchString = findStateSearchString.toLowerCase();
+			}
+
+			let mySearchString = r.searchText;
+			if (!caseSensitive) {
+				mySearchString = mySearchString.toLowerCase();
+			}
+
+			if (findStateSearchString === mySearchString && r.matchCase === findState.matchCase && r.wholeWord === findState.wholeWord && !findState.isRegex) {
+				return null;
+			}
+		}
+
 		return new SelectionHighlighterState(lastWordUnderCursor, r.searchText, r.matchCase, r.wholeWord ? editor.getConfiguration().wordSeparators : null);
 	}
 

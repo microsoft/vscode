@@ -1196,10 +1196,6 @@ declare module monaco.editor {
 		 * Options associated with this decoration.
 		 */
 		readonly options: IModelDecorationOptions;
-		/**
-		 * A flag describing if this is a problem decoration (e.g. warning/error).
-		 */
-		readonly isForValidation: boolean;
 	}
 
 	/**
@@ -1650,12 +1646,6 @@ declare module monaco.editor {
 	}
 
 	/**
-	 * A model that can track markers.
-	 */
-	export interface ITextModelWithMarkers extends ITextModel {
-	}
-
-	/**
 	 * Describes the behavior of decorations when typing/editing near their edges.
 	 * Note: Please do not edit the values, as they very carefully match `DecorationRangeBehavior`
 	 */
@@ -1725,12 +1715,18 @@ declare module monaco.editor {
 		 * @param filterOutValidation If set, it will ignore decorations specific to validation (i.e. warnings, errors).
 		 */
 		getAllDecorations(ownerId?: number, filterOutValidation?: boolean): IModelDecoration[];
+		/**
+		 * Gets all the decorations that should be rendered in the overview ruler as an array.
+		 * @param ownerId If set, it will ignore decorations belonging to other owners.
+		 * @param filterOutValidation If set, it will ignore decorations specific to validation (i.e. warnings, errors).
+		 */
+		getOverviewRulerDecorations(ownerId?: number, filterOutValidation?: boolean): IModelDecoration[];
 	}
 
 	/**
 	 * An editable text model.
 	 */
-	export interface IEditableTextModel extends ITextModelWithMarkers {
+	export interface IEditableTextModel extends ITextModel {
 		/**
 		 * Normalize a string containing whitespace according to indentation rules (converts to spaces or to tabs).
 		 */
@@ -1774,7 +1770,7 @@ declare module monaco.editor {
 	/**
 	 * A model.
 	 */
-	export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWithMarkers, ITokenizedModel, ITextModelWithDecorations {
+	export interface IModel extends IReadOnlyModel, IEditableTextModel, ITokenizedModel, ITextModelWithDecorations {
 		/**
 		 * An event emitted when the contents of the model have changed.
 		 * @event
@@ -2490,18 +2486,6 @@ declare module monaco.editor {
 	 * An event describing that model decorations have changed.
 	 */
 	export interface IModelDecorationsChangedEvent {
-		/**
-		 * Lists of ids for added decorations.
-		 */
-		readonly addedDecorations: string[];
-		/**
-		 * Lists of ids for changed decorations.
-		 */
-		readonly changedDecorations: string[];
-		/**
-		 * List of ids for removed decorations.
-		 */
-		readonly removedDecorations: string[];
 	}
 
 	/**

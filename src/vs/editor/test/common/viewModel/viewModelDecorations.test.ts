@@ -91,23 +91,23 @@ suite('ViewModelDecorations', () => {
 			let actualDecorations = viewModel.getDecorationsInViewport(
 				new Range(2, viewModel.getLineMinColumn(2), 3, viewModel.getLineMaxColumn(3))
 			).map((dec) => {
-				return dec.source.id;
+				return dec.options.className;
 			});
 
 			assert.deepEqual(actualDecorations, [
-				dec2,
-				dec3,
-				dec4,
-				dec5,
-				dec6,
-				dec7,
-				dec8,
-				dec9,
-				dec10,
-				dec11,
-				dec12,
-				dec13,
-				dec14,
+				'dec2',
+				'dec3',
+				'dec4',
+				'dec5',
+				'dec6',
+				'dec7',
+				'dec8',
+				'dec9',
+				'dec10',
+				'dec11',
+				'dec12',
+				'dec13',
+				'dec14',
 			]);
 
 			let inlineDecorations1 = viewModel.getViewLineRenderingData(
