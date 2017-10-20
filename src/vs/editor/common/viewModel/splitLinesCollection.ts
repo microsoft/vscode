@@ -1187,7 +1187,7 @@ class OverviewRulerDecorations {
 		if (prev) {
 			const prevLane = prev[prev.length - 3];
 			const prevEndLineNumber = prev[prev.length - 1];
-			if (prevLane === lane && prevEndLineNumber >= startLineNumber) {
+			if (prevLane === lane && prevEndLineNumber + 1 >= startLineNumber) {
 				// merge into prev
 				if (endLineNumber > prevEndLineNumber) {
 					prev[prev.length - 1] = endLineNumber;

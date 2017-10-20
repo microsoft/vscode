@@ -341,7 +341,7 @@ export class DecorationsOverviewRuler2 extends ViewPart {
 					y2 = yCenter + halfMinDecorationHeight;
 				}
 
-				if (y1 > prevY2 || lane !== prevLane) {
+				if (y1 > prevY2 + 1 || lane !== prevLane) {
 					// flush prev
 					if (i !== 0) {
 						canvasCtx.fillRect(x[prevLane], prevY1, w[prevLane], prevY2 - prevY1);
@@ -350,7 +350,7 @@ export class DecorationsOverviewRuler2 extends ViewPart {
 					prevY1 = y1;
 					prevY2 = y2;
 				} else {
-					// can merge into prev
+					// merge into prev
 					if (y2 > prevY2) {
 						prevY2 = y2;
 					}
