@@ -104,6 +104,7 @@ export class ConfigurationModel implements IConfigurationModel {
 			}
 		}
 		source._overrides = overrides;
+		source._keys = arrays.distinct([...source._keys, ...target.keys]);
 	}
 
 	private getContentsForOverrideIdentifer(identifier: string): any {
@@ -534,7 +535,7 @@ export class ConfigurationChangeEvent extends AbstractConfigurationChangeEvent i
 	change(arg1: any, arg2?: any): ConfigurationChangeEvent {
 		if (arg1 instanceof ConfigurationChangeEvent) {
 			this._changedConfiguration = this._changedConfiguration.merge(arg1._changedConfiguration);
-			for (const resource of this.changedConfigurationByResource.keys()) {
+			for (const resource of arg1._changedConfigurationByResource.keys()) {
 				let changedConfigurationByResource = this.getOrSetChangedConfigurationForResource(resource);
 				changedConfigurationByResource = changedConfigurationByResource.merge(arg1._changedConfigurationByResource.get(resource));
 				this._changedConfigurationByResource.set(resource, changedConfigurationByResource);
