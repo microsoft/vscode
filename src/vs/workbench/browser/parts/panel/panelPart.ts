@@ -85,7 +85,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			getOnCompositeClickAction: (compositeId: string) => this.instantiationService.createInstance(OpenPanelAction, this.getPanel(compositeId)),
 			getDefaultCompositeId: () => Registry.as<PanelRegistry>(PanelExtensions.Panels).getDefaultPanelId(),
 			hidePart: () => this.partService.setPanelHidden(true),
-			overflowActionSize: 60,
+			overflowActionSize: 28,
 			colors: {
 				backgroundColor: PANEL_BACKGROUND,
 				badgeBackground,
