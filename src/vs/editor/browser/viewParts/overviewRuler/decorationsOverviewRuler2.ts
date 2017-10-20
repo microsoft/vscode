@@ -312,31 +312,51 @@ export class DecorationsOverviewRuler2 extends ViewPart {
 			canvasCtx.fillRect(0, 0, canvasWidth, canvasHeight);
 		}
 
-		const paintQueue = new PaintQueue(canvasCtx, this._settings.x, this._settings.w);
-		for (let i = 0, len = decorations.length; i < len; i++) {
-			const decoration = decorations[i];
-			if (decoration.lane === 0) {
-				continue;
-			}
+		const x = this._settings.x;
+		const w = this._settings.w;
+		for (let color in decorations) {
+			const colorDecorations = decorations[color];
 
-			let y1 = (viewLayout.getVerticalOffsetForLineNumber(decoration.startLineNumber) * heightRatio) | 0;
-			let y2 = ((viewLayout.getVerticalOffsetForLineNumber(decoration.endLineNumber) + lineHeight) * heightRatio) | 0;
-			let height = y2 - y1;
-			if (height < minDecorationHeight) {
-				let yCenter = ((y1 + y2) / 2) | 0;
-				if (yCenter < halfMinDecorationHeight) {
-					yCenter = halfMinDecorationHeight;
-				} else if (yCenter + halfMinDecorationHeight > canvasHeight) {
-					yCenter = canvasHeight - halfMinDecorationHeight;
+			canvasCtx.fillStyle = color;
+
+			let prevLane = 0;
+			let prevY1 = 0;
+			let prevY2 = 0;
+			for (let i = 0, len = colorDecorations.length; i < len; i++) {
+				const lane = colorDecorations[3 * i];
+				const startLineNumber = colorDecorations[3 * i + 1];
+				const endLineNumber = colorDecorations[3 * i + 2];
+
+				let y1 = (viewLayout.getVerticalOffsetForLineNumber(startLineNumber) * heightRatio) | 0;
+				let y2 = ((viewLayout.getVerticalOffsetForLineNumber(endLineNumber) + lineHeight) * heightRatio) | 0;
+				let height = y2 - y1;
+				if (height < minDecorationHeight) {
+					let yCenter = ((y1 + y2) / 2) | 0;
+					if (yCenter < halfMinDecorationHeight) {
+						yCenter = halfMinDecorationHeight;
+					} else if (yCenter + halfMinDecorationHeight > canvasHeight) {
+						yCenter = canvasHeight - halfMinDecorationHeight;
+					}
+					y1 = yCenter - halfMinDecorationHeight;
+					y2 = yCenter + halfMinDecorationHeight;
 				}
-				y1 = yCenter - halfMinDecorationHeight;
-				y2 = yCenter + halfMinDecorationHeight;
-			}
 
-			paintQueueAccept(paintQueue, decoration.color, y1, y2, decoration.lane);
-		}
-		for (let i = 0, len = paintQueue.req.length; i < len; i++) {
-			paintQueueFlush(paintQueue, paintQueue.req[i]);
+				if (y1 > prevY2 || lane !== prevLane) {
+					// flush prev
+					if (i !== 0) {
+						canvasCtx.fillRect(x[prevLane], prevY1, w[prevLane], prevY2 - prevY1);
+					}
+					prevLane = lane;
+					prevY1 = y1;
+					prevY2 = y2;
+				} else {
+					// can merge into prev
+					if (y2 > prevY2) {
+						prevY2 = y2;
+					}
+				}
+			}
+			canvasCtx.fillRect(x[prevLane], prevY1, w[prevLane], prevY2 - prevY1);
 		}
 
 		// Draw cursors
@@ -376,83 +396,3 @@ export class DecorationsOverviewRuler2 extends ViewPart {
 	}
 }
 
-class PaintRequest {
-	public color: string;
-	public y1: number;
-	public y2: number;
-	public lane: number;
-
-	public init(color: string, y1: number, y2: number, lane: number): void {
-		this.color = color;
-		this.y1 = y1;
-		this.y2 = y2;
-		this.lane = lane;
-	}
-}
-
-class PaintQueue {
-	readonly ctx: CanvasRenderingContext2D;
-
-	readonly x: number[];
-	readonly w: number[];
-
-	readonly req: PaintRequest[] = [];
-	readonly pool: PaintRequest[] = [];
-
-	constructor(ctx: CanvasRenderingContext2D, x: number[], w: number[]) {
-		this.ctx = ctx;
-		this.x = x;
-		this.w = w;
-	}
-}
-
-function paintQueueAccept(Q: PaintQueue, color: string, y1: number, y2: number, lane: number): void {
-	let result: PaintRequest = null;
-	for (let i = 0, len = Q.req.length; i < len; i++) {
-		const req = Q.req[i];
-		if (req.y2 < y1) {
-			paintQueueFlush(Q, req);
-
-			if (i + 1 === len) {
-				// last element
-				Q.req.pop();
-				Q.pool.push(req);
-				break;
-			} else {
-				Q.req[i] = Q.req.pop();
-				len--;
-				Q.pool.push(req);
-				i--;
-				continue;
-			}
-		}
-
-		if (req.lane === lane && req.color === color) {
-			result = req;
-			break;
-		}
-	}
-
-	if (result !== null) {
-		// there is already an ongoing request for this color & lane
-		// => simply merge into it
-		if (y2 > result.y2) {
-			result.y2 = y2;
-		}
-		return;
-	}
-
-	if (Q.pool.length > 0) {
-		result = Q.pool.pop();
-	} else {
-		result = new PaintRequest();
-	}
-
-	result.init(color, y1, y2, lane);
-	Q.req.push(result);
-}
-
-function paintQueueFlush(Q: PaintQueue, req: PaintRequest): void {
-	Q.ctx.fillStyle = req.color;
-	Q.ctx.fillRect(Q.x[req.lane], req.y1, Q.w[req.lane], req.y2 - req.y1);
-}

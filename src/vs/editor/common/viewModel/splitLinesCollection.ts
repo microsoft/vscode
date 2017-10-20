@@ -10,7 +10,7 @@ import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { PrefixSumComputerWithCache } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { ViewLineData, ICoordinatesConverter, OverviewRulerDecoration } from 'vs/editor/common/viewModel/viewModel';
+import { ViewLineData, ICoordinatesConverter, IOverviewRulerDecorations } from 'vs/editor/common/viewModel/viewModel';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
 import { ModelDecorationOptions, ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModelWithDecorations';
@@ -86,7 +86,7 @@ export interface IViewModelLinesCollection {
 	getViewLineData(viewLineNumber: number): ViewLineData;
 	getViewLinesData(viewStartLineNumber: number, viewEndLineNumber: number, needed: boolean[]): ViewLineData[];
 
-	getAllOverviewRulerDecorations(ownerId: number, filterOutValidation: boolean, theme: ITheme): OverviewRulerDecoration[];
+	getAllOverviewRulerDecorations(ownerId: number, filterOutValidation: boolean, theme: ITheme): IOverviewRulerDecorations;
 }
 
 export class CoordinatesConverter implements ICoordinatesConverter {
@@ -676,13 +676,16 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		return this.lines[lineIndex].getViewLineNumberOfModelPosition(deltaLineNumber, this.model.getLineMaxColumn(lineIndex + 1));
 	}
 
-	public getAllOverviewRulerDecorations(ownerId: number, filterOutValidation: boolean, theme: ITheme): OverviewRulerDecoration[] {
+	public getAllOverviewRulerDecorations(ownerId: number, filterOutValidation: boolean, theme: ITheme): IOverviewRulerDecorations {
 		const decorations = this.model.getOverviewRulerDecorations(ownerId, filterOutValidation);
 		const result = new OverviewRulerDecorations();
 		for (let i = 0, len = decorations.length; i < len; i++) {
 			const decoration = decorations[i];
 			const opts = <ModelDecorationOverviewRulerOptions>decoration.options.overviewRuler;
 			const lane = opts.position;
+			if (lane === 0) {
+				continue;
+			}
 			const color = resolveColor(opts, theme);
 			const viewStartLineNumber = this._getViewLineNumberForModelPosition(decoration.range.startLineNumber, decoration.range.startColumn);
 			const viewEndLineNumber = this._getViewLineNumberForModelPosition(decoration.range.endLineNumber, decoration.range.endColumn);
@@ -1151,78 +1154,52 @@ export class IdentityLinesCollection implements IViewModelLinesCollection {
 		return result;
 	}
 
-	public getAllOverviewRulerDecorations(ownerId: number, filterOutValidation: boolean, theme: ITheme): OverviewRulerDecoration[] {
+	public getAllOverviewRulerDecorations(ownerId: number, filterOutValidation: boolean, theme: ITheme): IOverviewRulerDecorations {
 		const decorations = this.model.getOverviewRulerDecorations(ownerId, filterOutValidation);
 		const result = new OverviewRulerDecorations();
 		for (let i = 0, len = decorations.length; i < len; i++) {
 			const decoration = decorations[i];
 			const opts = <ModelDecorationOverviewRulerOptions>decoration.options.overviewRuler;
 			const lane = opts.position;
+			if (lane === 0) {
+				continue;
+			}
 			const color = resolveColor(opts, theme);
 			const viewStartLineNumber = decoration.range.startLineNumber;
 			const viewEndLineNumber = decoration.range.endLineNumber;
 
 			result.accept(color, viewStartLineNumber, viewEndLineNumber, lane);
 		}
-		result.flushAll();
 		return result.result;
 	}
 }
 
 class OverviewRulerDecorations {
 
-	readonly req: OverviewRulerDecoration[] = [];
-	readonly result: OverviewRulerDecoration[] = [];
+	readonly result: IOverviewRulerDecorations = Object.create(null);
 
 	constructor() {
 	}
 
 	public accept(color: string, startLineNumber: number, endLineNumber: number, lane: number): void {
-		let result: OverviewRulerDecoration = null;
-		for (let i = 0, len = this.req.length; i < len; i++) {
-			const req = this.req[i];
-			if (req.endLineNumber < startLineNumber) {
-				this._flush(req);
+		let prev = this.result[color];
 
-				if (i + 1 === len) {
-					// last element
-					this.req.pop();
-					break;
-				} else {
-					this.req[i] = this.req.pop();
-					len--;
-					i--;
-					continue;
+		if (prev) {
+			const prevLane = prev[prev.length - 3];
+			const prevEndLineNumber = prev[prev.length - 1];
+			if (prevLane === lane && prevEndLineNumber >= startLineNumber) {
+				// merge into prev
+				if (endLineNumber > prevEndLineNumber) {
+					prev[prev.length - 1] = endLineNumber;
 				}
+				return;
 			}
 
-			if (req.lane === lane && req.color === color) {
-				result = req;
-				break;
-			}
+			// push
+			prev.push(lane, startLineNumber, endLineNumber);
+		} else {
+			this.result[color] = [lane, startLineNumber, endLineNumber];
 		}
-
-		if (result !== null) {
-			// there is already an ongoing request for this color & lane
-			// => simply merge into it
-			if (endLineNumber > result.endLineNumber) {
-				result.endLineNumber = endLineNumber;
-			}
-			return;
-		}
-
-		result = new OverviewRulerDecoration(startLineNumber, endLineNumber, lane, color);
-		this.req.push(result);
-	}
-
-	public flushAll(): void {
-		for (let i = 0, len = this.req.length; i < len; i++) {
-			this._flush(this.req[i]);
-		}
-	}
-
-	private _flush(element: OverviewRulerDecoration): void {
-		this.result.push(element);
 	}
 }
 

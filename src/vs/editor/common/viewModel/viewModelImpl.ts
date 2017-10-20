@@ -12,7 +12,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { TokenizationRegistry, ColorId, LanguageId } from 'vs/editor/common/modes';
 import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
-import { MinimapLinesRenderingData, ViewLineRenderingData, ViewModelDecoration, IViewModel, ICoordinatesConverter, ViewEventsCollector, OverviewRulerDecoration } from 'vs/editor/common/viewModel/viewModel';
+import { MinimapLinesRenderingData, ViewLineRenderingData, ViewModelDecoration, IViewModel, ICoordinatesConverter, ViewEventsCollector, IOverviewRulerDecorations } from 'vs/editor/common/viewModel/viewModel';
 import { SplitLinesCollection, IViewModelLinesCollection, IdentityLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { MinimapTokensColorTracker } from 'vs/editor/common/view/minimapCharRenderer';
@@ -430,7 +430,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		);
 	}
 
-	public getAllOverviewRulerDecorations(theme: ITheme): OverviewRulerDecoration[] {
+	public getAllOverviewRulerDecorations(theme: ITheme): IOverviewRulerDecorations {
 		return this.lines.getAllOverviewRulerDecorations(this.editorId, this.configuration.editor.readOnly, theme);
 	}
 

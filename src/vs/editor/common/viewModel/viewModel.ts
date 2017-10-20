@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { INewScrollPosition, IModelDecoration, EndOfLinePreference, IViewState, OverviewRulerLane } from 'vs/editor/common/editorCommon';
+import { INewScrollPosition, IModelDecoration, EndOfLinePreference, IViewState } from 'vs/editor/common/editorCommon';
 import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -139,7 +139,7 @@ export interface IViewModel {
 	getLineMaxColumn(lineNumber: number): number;
 	getLineFirstNonWhitespaceColumn(lineNumber: number): number;
 	getLineLastNonWhitespaceColumn(lineNumber: number): number;
-	getAllOverviewRulerDecorations(theme: ITheme): OverviewRulerDecoration[];
+	getAllOverviewRulerDecorations(theme: ITheme): IOverviewRulerDecorations;
 	invalidateOverviewRulerColorCache(): void;
 	getValueInRange(range: Range, eol: EndOfLinePreference): string;
 
@@ -278,15 +278,14 @@ export class ViewModelDecoration {
 	}
 }
 
-export class OverviewRulerDecoration {
-	_overviewRulerDecorationBrand: void;
-
-	constructor(
-		public readonly startLineNumber: number,
-		public endLineNumber: number,
-		public readonly lane: OverviewRulerLane,
-		public readonly color: string
-	) { }
+/**
+ * Decorations are encoded in a number array using the following scheme:
+ *  - 3*i = lane
+ *  - 3*i+1 = startLineNumber
+ *  - 3*i+2 = endLineNumber
+ */
+export interface IOverviewRulerDecorations {
+	[color: string]: number[];
 }
 
 export class ViewEventsCollector {
