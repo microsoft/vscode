@@ -1453,9 +1453,9 @@ suite('Editor Controller - Regression tests', () => {
 
 			cursorCommand(cursor, H.Undo);
 			assert.equal(model.getValue(), [
-				'some lines',
-				'and more lines',
-				'just some text',
+				'    some lines',
+				'    and more lines',
+				'    just some text',
 			].join('\n'), '002');
 
 			cursorCommand(cursor, H.Undo);
@@ -1464,6 +1464,13 @@ suite('Editor Controller - Regression tests', () => {
 				'and more lines',
 				'just some text',
 			].join('\n'), '003');
+
+			cursorCommand(cursor, H.Undo);
+			assert.equal(model.getValue(), [
+				'some lines',
+				'and more lines',
+				'just some text',
+			].join('\n'), '004');
 		});
 
 		model.dispose();
@@ -3814,4 +3821,205 @@ suite('autoClosingPairs', () => {
 			assertCursor(cursor, new Selection(3, 7, 4, 7));
 		});
 	});
+});
+
+suite('Undo stops', () => {
+
+	test('there is an undo stop between typing and deleting left', () => {
+		let model = Model.createFromString(
+			[
+				'A  line',
+				'Another line',
+			].join('\n')
+		);
+
+		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+			cursor.setSelections('test', [new Selection(1, 3, 1, 3)]);
+			cursorCommand(cursor, H.Type, { text: 'first' }, 'keyboard');
+			assert.equal(model.getLineContent(1), 'A first line');
+			assertCursor(cursor, new Selection(1, 8, 1, 8));
+
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			assert.equal(model.getLineContent(1), 'A fir line');
+			assertCursor(cursor, new Selection(1, 6, 1, 6));
+
+			cursorCommand(cursor, H.Undo, {});
+			assert.equal(model.getLineContent(1), 'A first line');
+			assertCursor(cursor, new Selection(1, 8, 1, 8));
+
+			cursorCommand(cursor, H.Undo, {});
+			assert.equal(model.getLineContent(1), 'A  line');
+			assertCursor(cursor, new Selection(1, 3, 1, 3));
+		});
+	});
+
+	test('there is an undo stop between typing and deleting right', () => {
+		let model = Model.createFromString(
+			[
+				'A  line',
+				'Another line',
+			].join('\n')
+		);
+
+		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+			cursor.setSelections('test', [new Selection(1, 3, 1, 3)]);
+			cursorCommand(cursor, H.Type, { text: 'first' }, 'keyboard');
+			assert.equal(model.getLineContent(1), 'A first line');
+			assertCursor(cursor, new Selection(1, 8, 1, 8));
+
+			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
+			assert.equal(model.getLineContent(1), 'A firstine');
+			assertCursor(cursor, new Selection(1, 8, 1, 8));
+
+			cursorCommand(cursor, H.Undo, {});
+			assert.equal(model.getLineContent(1), 'A first line');
+			assertCursor(cursor, new Selection(1, 8, 1, 8));
+
+			cursorCommand(cursor, H.Undo, {});
+			assert.equal(model.getLineContent(1), 'A  line');
+			assertCursor(cursor, new Selection(1, 3, 1, 3));
+		});
+	});
+
+	test('there is an undo stop between deleting left and typing', () => {
+		let model = Model.createFromString(
+			[
+				'A  line',
+				'Another line',
+			].join('\n')
+		);
+
+		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+			cursor.setSelections('test', [new Selection(2, 8, 2, 8)]);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			assert.equal(model.getLineContent(2), ' line');
+			assertCursor(cursor, new Selection(2, 1, 2, 1));
+
+			cursorCommand(cursor, H.Type, { text: 'Second' }, 'keyboard');
+			assert.equal(model.getLineContent(2), 'Second line');
+			assertCursor(cursor, new Selection(2, 7, 2, 7));
+
+			cursorCommand(cursor, H.Undo, {});
+			assert.equal(model.getLineContent(2), ' line');
+			assertCursor(cursor, new Selection(2, 1, 2, 1));
+
+			cursorCommand(cursor, H.Undo, {});
+			assert.equal(model.getLineContent(2), 'Another line');
+			assertCursor(cursor, new Selection(2, 8, 2, 8));
+		});
+	});
+
+	test('there is an undo stop between deleting left and deleting right', () => {
+		let model = Model.createFromString(
+			[
+				'A  line',
+				'Another line',
+			].join('\n')
+		);
+
+		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+			cursor.setSelections('test', [new Selection(2, 8, 2, 8)]);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			assert.equal(model.getLineContent(2), ' line');
+			assertCursor(cursor, new Selection(2, 1, 2, 1));
+
+			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
+			assert.equal(model.getLineContent(2), '');
+			assertCursor(cursor, new Selection(2, 1, 2, 1));
+
+			cursorCommand(cursor, H.Undo, {});
+			assert.equal(model.getLineContent(2), ' line');
+			assertCursor(cursor, new Selection(2, 1, 2, 1));
+
+			cursorCommand(cursor, H.Undo, {});
+			assert.equal(model.getLineContent(2), 'Another line');
+			assertCursor(cursor, new Selection(2, 8, 2, 8));
+		});
+	});
+
+	test('there is an undo stop between deleting right and typing', () => {
+		let model = Model.createFromString(
+			[
+				'A  line',
+				'Another line',
+			].join('\n')
+		);
+
+		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+			cursor.setSelections('test', [new Selection(2, 9, 2, 9)]);
+			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
+			assert.equal(model.getLineContent(2), 'Another ');
+			assertCursor(cursor, new Selection(2, 9, 2, 9));
+
+			cursorCommand(cursor, H.Type, { text: 'text' }, 'keyboard');
+			assert.equal(model.getLineContent(2), 'Another text');
+			assertCursor(cursor, new Selection(2, 13, 2, 13));
+
+			cursorCommand(cursor, H.Undo, {});
+			assert.equal(model.getLineContent(2), 'Another ');
+			assertCursor(cursor, new Selection(2, 9, 2, 9));
+
+			cursorCommand(cursor, H.Undo, {});
+			assert.equal(model.getLineContent(2), 'Another line');
+			assertCursor(cursor, new Selection(2, 9, 2, 9));
+		});
+	});
+
+	test('there is an undo stop between deleting right and deleting left', () => {
+		let model = Model.createFromString(
+			[
+				'A  line',
+				'Another line',
+			].join('\n')
+		);
+
+		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+			cursor.setSelections('test', [new Selection(2, 9, 2, 9)]);
+			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
+			assert.equal(model.getLineContent(2), 'Another ');
+			assertCursor(cursor, new Selection(2, 9, 2, 9));
+
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			assert.equal(model.getLineContent(2), 'An');
+			assertCursor(cursor, new Selection(2, 3, 2, 3));
+
+			cursorCommand(cursor, H.Undo, {});
+			assert.equal(model.getLineContent(2), 'Another ');
+			assertCursor(cursor, new Selection(2, 9, 2, 9));
+
+			cursorCommand(cursor, H.Undo, {});
+			assert.equal(model.getLineContent(2), 'Another line');
+			assertCursor(cursor, new Selection(2, 9, 2, 9));
+		});
+	});
+
 });
