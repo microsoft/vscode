@@ -690,10 +690,15 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// mark the save participant as current pending save operation
 		return this.saveSequentializer.setPending(versionId, saveParticipantPromise.then(newVersionId => {
 
-			// the model was not dirty and no save participant changed the contents, so we do not have
-			// to write the contents to disk, as they are already on disk. we still want to trigger
-			// a change on the file though so that external file watchers can be notified
-			if (options.force && !this.dirty && options.reason === SaveReason.EXPLICIT && versionId === newVersionId) {
+			// Under certain conditions a save to the model will not cause the contents to the flushed on
+			// disk because we can assume that the contents are already on disk. Instead, we just touch the
+			// file to still trigger external file watchers for example.
+			// The conditions are all of:
+			// - a forced, explicit save (Ctrl+S)
+			// - the model is not dirty (otherwise we know there are changed which needs to go to the file)
+			// - the model is not in orphan mode (because in that case we know the file does not exist on disk)
+			// - the model version did not change due to save participants running
+			if (options.force && !this.dirty && !this.inOrphanMode && options.reason === SaveReason.EXPLICIT && versionId === newVersionId) {
 				return this.doTouch();
 			}
 
