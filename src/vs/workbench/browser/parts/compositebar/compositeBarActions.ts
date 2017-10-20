@@ -130,7 +130,7 @@ export class ActivityActionItem extends BaseActionItem {
 		const theme = this.themeService.getTheme();
 
 		// Label
-		if (this.$label) {
+		if (this.$label && this.options.icon) {
 			const background = theme.getColor(this.options.colors.backgroundColor);
 
 			this.$label.style('background-color', background ? background.toString() : null);
