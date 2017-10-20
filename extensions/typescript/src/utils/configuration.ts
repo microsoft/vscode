@@ -42,6 +42,7 @@ export namespace TsServerLogLevel {
 }
 
 export class TypeScriptServiceConfiguration {
+	public readonly locale: string | null;
 	public readonly globalTsdk: string | null;
 	public readonly localTsdk: string | null;
 	public readonly npmLocation: string | null;
@@ -56,6 +57,7 @@ export class TypeScriptServiceConfiguration {
 	private constructor() {
 		const configuration = workspace.getConfiguration();
 
+		this.locale = TypeScriptServiceConfiguration.extractLocale(configuration);
 		this.globalTsdk = TypeScriptServiceConfiguration.extractGlobalTsdk(configuration);
 		this.localTsdk = TypeScriptServiceConfiguration.extractLocalTsdk(configuration);
 		this.npmLocation = TypeScriptServiceConfiguration.readNpmLocation(configuration);
@@ -65,7 +67,8 @@ export class TypeScriptServiceConfiguration {
 	}
 
 	public isEqualTo(other: TypeScriptServiceConfiguration): boolean {
-		return this.globalTsdk === other.globalTsdk
+		return this.locale === other.locale
+			&& this.globalTsdk === other.globalTsdk
 			&& this.localTsdk === other.localTsdk
 			&& this.npmLocation === other.npmLocation
 			&& this.tsServerLogLevel === other.tsServerLogLevel
@@ -104,5 +107,9 @@ export class TypeScriptServiceConfiguration {
 
 	private static readDisableAutomaticTypeAcquisition(configuration: WorkspaceConfiguration): boolean {
 		return configuration.get<boolean>('typescript.disableAutomaticTypeAcquisition', false);
+	}
+
+	private static extractLocale(configuration: WorkspaceConfiguration): string | null {
+		return configuration.get<string | null>('typescript.locale', null);
 	}
 }

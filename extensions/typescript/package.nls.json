@@ -42,5 +42,6 @@
 	"typescript.tsc.autoDetect": "Controls auto detection of tsc tasks. 'off' disables this feature. 'build' only creates single run compile tasks. 'watch' only creates compile and watch tasks. 'on' creates both build and watch tasks. Default is 'on'.",
 	"typescript.problemMatchers.tsc.label": "TypeScript problems",
 	"typescript.problemMatchers.tscWatch.label": "TypeScript problems (watch mode)",
-	"typescript.quickSuggestionsForPaths": "Enable/disable quick suggestions when typing out an import path."
+	"typescript.quickSuggestionsForPaths": "Enable/disable quick suggestions when typing out an import path.",
+	"typescript.locale": "Sets the locale used to report TypeScript errors. Requires TypeScript >= 2.6.0. Default of 'null' uses VS Code's locale for TypeScript errors."
 }
