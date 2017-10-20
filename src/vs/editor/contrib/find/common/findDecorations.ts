@@ -16,6 +16,7 @@ export class FindDecorations implements IDisposable {
 
 	private _editor: editorCommon.ICommonCodeEditor;
 	private _decorations: string[];
+	private _overviewRulerApproximateDecorations: string[];
 	private _findScopeDecorationId: string;
 	private _rangeHighlightDecorationId: string;
 	private _highlightedDecorationId: string;
@@ -24,6 +25,7 @@ export class FindDecorations implements IDisposable {
 	constructor(editor: editorCommon.ICommonCodeEditor) {
 		this._editor = editor;
 		this._decorations = [];
+		this._overviewRulerApproximateDecorations = [];
 		this._findScopeDecorationId = null;
 		this._rangeHighlightDecorationId = null;
 		this._highlightedDecorationId = null;
@@ -35,6 +37,7 @@ export class FindDecorations implements IDisposable {
 
 		this._editor = null;
 		this._decorations = [];
+		this._overviewRulerApproximateDecorations = [];
 		this._findScopeDecorationId = null;
 		this._rangeHighlightDecorationId = null;
 		this._highlightedDecorationId = null;
@@ -43,6 +46,7 @@ export class FindDecorations implements IDisposable {
 
 	public reset(): void {
 		this._decorations = [];
+		this._overviewRulerApproximateDecorations = [];
 		this._findScopeDecorationId = null;
 		this._rangeHighlightDecorationId = null;
 		this._highlightedDecorationId = null;
@@ -133,15 +137,58 @@ export class FindDecorations implements IDisposable {
 
 	public set(findMatches: editorCommon.FindMatch[], findScope: Range): void {
 		this._editor.changeDecorations((accessor) => {
+
+			let findMatchesOptions: ModelDecorationOptions = FindDecorations._FIND_MATCH_DECORATION;
+			let newOverviewRulerApproximateDecorations: editorCommon.IModelDeltaDecoration[] = [];
+
+			if (findMatches.length > 1000) {
+				// we go into a mode where the overview ruler gets "approximate" decorations
+				// the reason is that the overview ruler paints all the decorations in the file and we don't want to cause freezes
+				findMatchesOptions = FindDecorations._FIND_MATCH_NO_OVERVIEW_DECORATION;
+
+				// approximate a distance in lines where matches should be merged
+				const lineCount = this._editor.getModel().getLineCount();
+				const height = this._editor.getLayoutInfo().height;
+				const approxPixelsPerLine = height / lineCount;
+				const mergeLinesDelta = Math.max(2, Math.ceil(3 / approxPixelsPerLine));
+
+				// merge decorations as much as possible
+				let prevStartLineNumber = findMatches[0].range.startLineNumber;
+				let prevEndLineNumber = findMatches[0].range.endLineNumber;
+				for (let i = 1, len = findMatches.length; i < len; i++) {
+					const range = findMatches[i].range;
+					if (prevEndLineNumber + mergeLinesDelta >= range.startLineNumber) {
+						if (range.endLineNumber > prevEndLineNumber) {
+							prevEndLineNumber = range.endLineNumber;
+						}
+					} else {
+						newOverviewRulerApproximateDecorations.push({
+							range: new Range(prevStartLineNumber, 1, prevEndLineNumber, 1),
+							options: FindDecorations._FIND_MATCH_ONLY_OVERVIEW_DECORATION
+						});
+						prevStartLineNumber = range.startLineNumber;
+						prevEndLineNumber = range.endLineNumber;
+					}
+				}
+
+				newOverviewRulerApproximateDecorations.push({
+					range: new Range(prevStartLineNumber, 1, prevEndLineNumber, 1),
+					options: FindDecorations._FIND_MATCH_ONLY_OVERVIEW_DECORATION
+				});
+			}
+
 			// Find matches
 			let newFindMatchesDecorations: editorCommon.IModelDeltaDecoration[] = new Array<editorCommon.IModelDeltaDecoration>(findMatches.length);
 			for (let i = 0, len = findMatches.length; i < len; i++) {
 				newFindMatchesDecorations[i] = {
 					range: findMatches[i].range,
-					options: FindDecorations._FIND_MATCH_DECORATION
+					options: findMatchesOptions
 				};
 			}
 			this._decorations = accessor.deltaDecorations(this._decorations, newFindMatchesDecorations);
+
+			// Overview ruler approximate decorations
+			this._overviewRulerApproximateDecorations = accessor.deltaDecorations(this._overviewRulerApproximateDecorations, newOverviewRulerApproximateDecorations);
 
 			// Range highlight
 			if (this._rangeHighlightDecorationId) {
@@ -163,6 +210,7 @@ export class FindDecorations implements IDisposable {
 	private _allDecorations(): string[] {
 		let result: string[] = [];
 		result = result.concat(this._decorations);
+		result = result.concat(this._overviewRulerApproximateDecorations);
 		if (this._findScopeDecorationId) {
 			result.push(this._findScopeDecorationId);
 		}
@@ -187,6 +235,21 @@ export class FindDecorations implements IDisposable {
 		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'findMatch',
 		showIfCollapsed: true,
+		overviewRuler: {
+			color: themeColorFromId(editorFindMatchHighlight),
+			darkColor: themeColorFromId(editorFindMatchHighlight),
+			position: editorCommon.OverviewRulerLane.Center
+		}
+	});
+
+	private static _FIND_MATCH_NO_OVERVIEW_DECORATION = ModelDecorationOptions.register({
+		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		className: 'findMatch',
+		showIfCollapsed: true
+	});
+
+	private static _FIND_MATCH_ONLY_OVERVIEW_DECORATION = ModelDecorationOptions.register({
+		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		overviewRuler: {
 			color: themeColorFromId(editorFindMatchHighlight),
 			darkColor: themeColorFromId(editorFindMatchHighlight),
