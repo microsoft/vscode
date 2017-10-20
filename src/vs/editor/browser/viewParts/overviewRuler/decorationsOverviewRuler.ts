@@ -193,7 +193,7 @@ const enum OverviewRulerLane {
 	Full = 7
 }
 
-export class DecorationsOverviewRuler2 extends ViewPart {
+export class DecorationsOverviewRuler extends ViewPart {
 
 	private readonly _tokensColorTrackerListener: IDisposable;
 	private readonly _domNode: FastDomNode<HTMLCanvasElement>;
