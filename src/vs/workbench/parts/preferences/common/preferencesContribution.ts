@@ -69,6 +69,15 @@ export class PreferencesContribution implements IWorkbenchContribution {
 			return;
 		}
 
+		// If the file resource was already opened before in the group, do not prevent
+		// the opening of that resource. Otherwise we would have the same settings
+		// opened twice (https://github.com/Microsoft/vscode/issues/36447)
+		const stacks = this.editorGroupService.getStacksModel();
+		const group = stacks.groupAt(event.position);
+		if (group && group.contains(event.input)) {
+			return;
+		}
+
 		// Global User Settings File
 		if (resource.fsPath === this.environmentService.appSettingsPath) {
 			return event.prevent(() => this.preferencesService.openGlobalSettings(event.options, event.position));
