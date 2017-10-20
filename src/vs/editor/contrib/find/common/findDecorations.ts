@@ -132,29 +132,32 @@ export class FindDecorations implements IDisposable {
 	}
 
 	public set(findMatches: editorCommon.FindMatch[], findScope: Range): void {
-		let newDecorations: editorCommon.IModelDeltaDecoration[] = new Array<editorCommon.IModelDeltaDecoration>(findMatches.length);
-		for (let i = 0, len = findMatches.length; i < len; i++) {
-			newDecorations[i] = {
-				range: findMatches[i].range,
-				options: FindDecorations._FIND_MATCH_DECORATION
-			};
-		}
-		if (findScope) {
-			newDecorations.unshift({
-				range: findScope,
-				options: FindDecorations._FIND_SCOPE_DECORATION
-			});
-		}
-		let tmpDecorations = this._editor.deltaDecorations(this._allDecorations(), newDecorations);
+		this._editor.changeDecorations((accessor) => {
+			// Find matches
+			let newFindMatchesDecorations: editorCommon.IModelDeltaDecoration[] = new Array<editorCommon.IModelDeltaDecoration>(findMatches.length);
+			for (let i = 0, len = findMatches.length; i < len; i++) {
+				newFindMatchesDecorations[i] = {
+					range: findMatches[i].range,
+					options: FindDecorations._FIND_MATCH_DECORATION
+				};
+			}
+			this._decorations = accessor.deltaDecorations(this._decorations, newFindMatchesDecorations);
 
-		if (findScope) {
-			this._findScopeDecorationId = tmpDecorations.shift();
-		} else {
-			this._findScopeDecorationId = null;
-		}
-		this._decorations = tmpDecorations;
-		this._rangeHighlightDecorationId = null;
-		this._highlightedDecorationId = null;
+			// Range highlight
+			if (this._rangeHighlightDecorationId) {
+				accessor.removeDecoration(this._rangeHighlightDecorationId);
+				this._rangeHighlightDecorationId = null;
+			}
+
+			// Find scope
+			if (this._findScopeDecorationId) {
+				accessor.removeDecoration(this._findScopeDecorationId);
+				this._findScopeDecorationId = null;
+			}
+			if (findScope) {
+				this._findScopeDecorationId = accessor.addDecoration(findScope, FindDecorations._FIND_SCOPE_DECORATION);
+			}
+		});
 	}
 
 	private _allDecorations(): string[] {
