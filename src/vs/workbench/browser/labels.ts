@@ -95,6 +95,7 @@ export class ResourceLabel extends IconLabel {
 		if (!this.options || !this.label || !this.label.resource) {
 			return;
 		}
+
 		if (this.options.fileDecorations && e.affectsResource(this.label.resource)) {
 			this.render(false);
 		}
@@ -164,8 +165,7 @@ export class ResourceLabel extends IconLabel {
 		};
 
 		const resource = this.label.resource;
-		let label = this.label.name;
-
+		const label = this.label.name;
 
 		if (this.options && typeof this.options.title === 'string') {
 			iconLabelOptions.title = this.options.title;
@@ -182,14 +182,16 @@ export class ResourceLabel extends IconLabel {
 			iconLabelOptions.extraClasses.push(...this.options.extraClasses);
 		}
 
-		if (this.options && this.options.fileDecorations) {
+		if (this.options && this.options.fileDecorations && resource) {
 			let deco = this.decorationsService.getDecoration(
 				resource,
 				this.options.fileKind !== FileKind.FILE
 			);
+
 			if (deco && this.options.fileDecorations.colors) {
 				iconLabelOptions.extraClasses.push(deco.labelClassName);
 			}
+
 			if (deco && deco.badgeClassName && this.options.fileDecorations.badges) {
 				iconLabelOptions.badge = {
 					title: deco.title,
@@ -288,7 +290,6 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 	// we always set these base classes even if we do not have a path
 	const classes = fileKind === FileKind.ROOT_FOLDER ? ['rootfolder-icon'] : fileKind === FileKind.FOLDER ? ['folder-icon'] : ['file-icon'];
 
-
 	if (resource) {
 		const name = cssEscape(resources.basenameOrAuthority(resource).toLowerCase());
 
@@ -318,6 +319,7 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 			}
 		}
 	}
+
 	return classes;
 }
 
