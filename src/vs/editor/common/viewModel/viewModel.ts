@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { INewScrollPosition, IModelDecoration, EndOfLinePreference, IViewState } from 'vs/editor/common/editorCommon';
+import { INewScrollPosition, EndOfLinePreference, IViewState, IModelDecorationOptions } from 'vs/editor/common/editorCommon';
 import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -269,12 +269,12 @@ export class InlineDecoration {
 export class ViewModelDecoration {
 	_viewModelDecorationBrand: void;
 
-	public range: Range;
-	public readonly source: IModelDecoration;
+	public readonly range: Range;
+	public readonly options: IModelDecorationOptions;
 
-	constructor(source: IModelDecoration) {
-		this.range = null;
-		this.source = source;
+	constructor(range: Range, options: IModelDecorationOptions) {
+		this.range = range;
+		this.options = options;
 	}
 }
 

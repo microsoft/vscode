@@ -72,21 +72,21 @@ export class ViewModelDecorations implements IDisposable {
 	}
 
 	private _getOrCreateViewModelDecoration(modelDecoration: editorCommon.IModelDecoration): ViewModelDecoration {
-		let id = modelDecoration.id;
+		const id = modelDecoration.id;
 		let r = this._decorationsCache[id];
 		if (!r) {
-			r = new ViewModelDecoration(modelDecoration);
-			this._decorationsCache[id] = r;
-		}
-		if (r.range === null) {
 			const modelRange = modelDecoration.range;
-			if (modelDecoration.options.isWholeLine) {
-				let start = this._coordinatesConverter.convertModelPositionToViewPosition(new Position(modelRange.startLineNumber, 1));
-				let end = this._coordinatesConverter.convertModelPositionToViewPosition(new Position(modelRange.endLineNumber, this.model.getLineMaxColumn(modelRange.endLineNumber)));
-				r.range = new Range(start.lineNumber, start.column, end.lineNumber, end.column);
+			const options = modelDecoration.options;
+			let viewRange: Range;
+			if (options.isWholeLine) {
+				const start = this._coordinatesConverter.convertModelPositionToViewPosition(new Position(modelRange.startLineNumber, 1));
+				const end = this._coordinatesConverter.convertModelPositionToViewPosition(new Position(modelRange.endLineNumber, this.model.getLineMaxColumn(modelRange.endLineNumber)));
+				viewRange = new Range(start.lineNumber, start.column, end.lineNumber, end.column);
 			} else {
-				r.range = this._coordinatesConverter.convertModelRangeToViewRange(modelRange);
+				viewRange = this._coordinatesConverter.convertModelRangeToViewRange(modelRange);
 			}
+			r = new ViewModelDecoration(viewRange, options);
+			this._decorationsCache[id] = r;
 		}
 		return r;
 	}
