@@ -101,7 +101,7 @@ export class FoldingController {
 	 */
 	public saveViewState(): { collapsedRegions?: CollapseState, lineCount?: number } {
 		let model = this.editor.getModel();
-		if (!model) {
+		if (!model || !this._isEnabled) {
 			return {};
 		}
 		return { collapsedRegions: this.foldingModel.getCollapseState(), lineCount: model.getLineCount() };
@@ -112,20 +112,19 @@ export class FoldingController {
 	 */
 	public restoreViewState(state: { collapsedRegions?: CollapseState, lineCount?: number }): void {
 		let model = this.editor.getModel();
-		if (!model) {
-			return;
-		}
-		if (!this._isEnabled) {
+		if (!model || !this._isEnabled) {
 			return;
 		}
 		if (!state || !state.collapsedRegions || state.lineCount !== model.getLineCount()) {
 			return;
 		}
 
-		// set the hidden ranges right way, before waiting for the folding model.
+		// set the hidden ranges right away, before waiting for the folding model.
 		if (this.hiddenRangeModel.applyCollapseState(state.collapsedRegions)) {
 			this.getFoldingModel().then(foldingModel => {
-				foldingModel.applyCollapseState(state.collapsedRegions);
+				if (foldingModel) {
+					foldingModel.applyCollapseState(state.collapsedRegions);
+				}
 			});
 		}
 	}
@@ -146,16 +145,24 @@ export class FoldingController {
 		this.localToDispose.push(this.hiddenRangeModel.onDidChange(hr => this.onHiddenRangesChanges(hr)));
 
 		this.updateScheduler = new Delayer<FoldingModel>(200);
-		this.localToDispose.push({ dispose: () => this.updateScheduler.cancel() });
 
 		this.cursorChangedScheduler = new RunOnceScheduler(() => this.revealCursor(), 200);
 		this.localToDispose.push(this.cursorChangedScheduler);
-		this.localToDispose.push(this.editor.onDidChangeModelLanguageConfiguration(e => this.onModelContentChanged())); // also covers model language changes
+		this.localToDispose.push(this.editor.onDidChangeModelLanguageConfiguration(e => this.onModelContentChanged())); // covers model language changes as well
 		this.localToDispose.push(this.editor.onDidChangeModelContent(e => this.onModelContentChanged()));
 		this.localToDispose.push(this.editor.onDidChangeCursorPosition(e => this.onCursorPositionChanged()));
 		this.localToDispose.push(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
 		this.localToDispose.push(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
-
+		this.localToDispose.push({
+			dispose: () => {
+				this.updateScheduler.cancel();
+				this.updateScheduler = null;
+				this.foldingModel = null;
+				this.foldingModelPromise = null;
+				this.hiddenRangeModel = null;
+				this.cursorChangedScheduler = null;
+			}
+		});
 		this.onModelContentChanged();
 	}
 
@@ -176,7 +183,9 @@ export class FoldingController {
 
 	private onModelContentChanged() {
 		this.foldingModelPromise = this.updateScheduler.trigger(() => {
-			this.foldingModel.update(this.computeRanges());
+			if (this.foldingModel) { // null if editor has been disposed, or folding turned off
+				this.foldingModel.update(this.computeRanges());
+			}
 			return this.foldingModel;
 		});
 	}
@@ -196,16 +205,19 @@ export class FoldingController {
 	}
 
 	private revealCursor() {
-		this.getFoldingModel().then(foldingModel => {
-			let selections = this.editor.getSelections();
-			for (let selection of selections) {
-				let lineNumber = selection.selectionStartLineNumber;
-				if (this.hiddenRangeModel.isHidden(lineNumber)) {
-					let toToggle = foldingModel.getAllRegionsAtLine(lineNumber, r => r.isCollapsed && lineNumber > r.range.startLineNumber);
-					foldingModel.toggleCollapseState(toToggle);
+		this.getFoldingModel().then(foldingModel => { // null is returned if folding got disabled in the meantime
+			if (foldingModel) {
+				let selections = this.editor.getSelections();
+				for (let selection of selections) {
+					let lineNumber = selection.selectionStartLineNumber;
+					if (this.hiddenRangeModel.isHidden(lineNumber)) {
+						let toToggle = foldingModel.getAllRegionsAtLine(lineNumber, r => r.isCollapsed && lineNumber > r.range.startLineNumber);
+						foldingModel.toggleCollapseState(toToggle);
+					}
 				}
 			}
 		});
+
 	}
 
 	private mouseDownInfo: { lineNumber: number, iconClicked: boolean };
@@ -283,13 +295,14 @@ export class FoldingController {
 		}
 
 		this.getFoldingModel().then(foldingModel => {
-			let region = foldingModel.getRegionAtLine(lineNumber);
-			if (region) {
-				if (iconClicked || region.isCollapsed) {
-					foldingModel.toggleCollapseState([region]);
-					this.reveal(lineNumber);
+			if (foldingModel) {
+				let region = foldingModel.getRegionAtLine(lineNumber);
+				if (region) {
+					if (iconClicked || region.isCollapsed) {
+						foldingModel.toggleCollapseState([region]);
+						this.reveal(lineNumber);
+					}
 				}
-				return;
 			}
 		});
 	}
@@ -310,7 +323,9 @@ abstract class FoldingAction<T> extends EditorAction {
 		}
 		this.reportTelemetry(accessor, editor);
 		return foldingController.getFoldingModel().then(foldingModel => {
-			this.invoke(foldingController, foldingModel, editor, args);
+			if (foldingModel) {
+				this.invoke(foldingController, foldingModel, editor, args);
+			}
 		});
 	}
 
