@@ -220,12 +220,14 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	private layoutCompositeBar(): void {
-		let availableWidth = this.dimension.width - 8; // take padding into account
-		if (this.toolBar) {
-			// adjust height for global actions showing
-			availableWidth -= this.toolBar.getContainer().getHTMLElement().offsetWidth;
+		if (this.dimension) {
+			let availableWidth = this.dimension.width - 8; // take padding into account
+			if (this.toolBar) {
+				// adjust height for global actions showing
+				availableWidth -= this.toolBar.getContainer().getHTMLElement().offsetWidth;
+			}
+			this.compositeBar.layout(new Dimension(availableWidth, this.dimension.height));
 		}
-		this.compositeBar.layout(new Dimension(availableWidth, this.dimension.height));
 	}
 
 	public shutdown(): void {
