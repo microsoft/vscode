@@ -96,7 +96,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		this._isViewportWrapping = conf.editor.wrappingInfo.isViewportWrapping;
 		this._revealHorizontalRightPadding = conf.editor.viewInfo.revealHorizontalRightPadding;
 		this._canUseLayerHinting = conf.editor.canUseLayerHinting;
-		this._viewLineOptions = new ViewLineOptions(conf, this._context.theme.type);
+		this._viewLineOptions = new ViewLineOptions(conf, this._context.theme);
 
 		PartFingerprints.write(this.domNode, PartFingerprint.ViewLines);
 		this.domNode.setClassName('view-lines');
@@ -170,7 +170,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 	private _onOptionsMaybeChanged(): boolean {
 		const conf = this._context.configuration;
 
-		let newViewLineOptions = new ViewLineOptions(conf, this._context.theme.type);
+		let newViewLineOptions = new ViewLineOptions(conf, this._context.theme);
 		if (!this._viewLineOptions.equals(newViewLineOptions)) {
 			this._viewLineOptions = newViewLineOptions;
 

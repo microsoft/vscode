@@ -13,8 +13,38 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IDebugService, ILaunch } from 'vs/workbench/parts/debug/common/debug';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import * as errors from 'vs/base/common/errors';
+import { QuickOpenEntry, QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
-class DebugEntry extends Model.QuickOpenEntry {
+class AddConfigEntry extends Model.QuickOpenEntry {
+
+	constructor(private label: string, private launch: ILaunch, private commandService: ICommandService, private contextService: IWorkspaceContextService, highlights: Model.IHighlight[] = []) {
+		super(highlights);
+	}
+
+	public getLabel(): string {
+		return this.label;
+	}
+
+	public getDescription(): string {
+		return this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? this.launch.workspace.name : '';
+	}
+
+	public getAriaLabel(): string {
+		return nls.localize('entryAriaLabel', "{0}, debug", this.getLabel());
+	}
+
+	public run(mode: QuickOpen.Mode, context: Model.IContext): boolean {
+		if (mode === QuickOpen.Mode.PREVIEW) {
+			return false;
+		}
+		this.commandService.executeCommand('debug.addConfiguration', this.launch.workspace.uri.toString()).done(undefined, errors.onUnexpectedError);
+
+		return true;
+	}
+}
+
+class StartDebugEntry extends Model.QuickOpenEntry {
 
 	constructor(private debugService: IDebugService, private contextService: IWorkspaceContextService, private launch: ILaunch, private configurationName: string, highlights: Model.IHighlight[] = []) {
 		super(highlights);
@@ -51,7 +81,8 @@ export class DebugQuickOpenHandler extends Quickopen.QuickOpenHandler {
 	constructor(
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IDebugService private debugService: IDebugService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@ICommandService private commandService: ICommandService
 	) {
 		super();
 	}
@@ -61,13 +92,24 @@ export class DebugQuickOpenHandler extends Quickopen.QuickOpenHandler {
 	}
 
 	public getResults(input: string): TPromise<Model.QuickOpenModel> {
-		const configurations: DebugEntry[] = [];
+		const configurations: QuickOpenEntry[] = [];
 
-		for (let launch of this.debugService.getConfigurationManager().getLaunches()) {
+		const launches = this.debugService.getConfigurationManager().getLaunches();
+		for (let launch of launches) {
 			launch.getConfigurationNames().map(config => ({ config: config, highlights: Filters.matchesContiguousSubString(input, config) }))
 				.filter(({ highlights }) => !!highlights)
-				.forEach(({ config, highlights }) => configurations.push(new DebugEntry(this.debugService, this.contextService, launch, config, highlights)));
+				.forEach(({ config, highlights }) => configurations.push(new StartDebugEntry(this.debugService, this.contextService, launch, config, highlights)));
 		}
+		launches.forEach((l, index) => {
+			const label = launches.length > 1 ? nls.localize("addConfigTo", "Add Config ({0})...", l.workspace.name) : nls.localize('addConfiguration', "Add Configuration...");
+			const entry = new AddConfigEntry(label, l, this.commandService, this.contextService, Filters.matchesContiguousSubString(input, label));
+			if (index === 0) {
+				configurations.push(new QuickOpenEntryGroup(entry, undefined, true));
+			} else {
+				configurations.push(entry);
+			}
+
+		});
 
 		return TPromise.as(new Model.QuickOpenModel(configurations));
 	}

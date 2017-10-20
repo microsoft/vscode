@@ -282,6 +282,9 @@ export class CallStackController extends BaseDebugController {
 
 			return element.source.uri.toString();
 		}
+		if (element instanceof Thread) {
+			return element.threadId;
+		}
 	}
 
 	// user clicked / pressed on 'Load More Stack Frames', get those stack frames and refresh the tree.

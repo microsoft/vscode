@@ -76,3 +76,7 @@ export async function mkdirp(path: string, mode?: number): Promise<boolean> {
 
 	return true;
 }
+
+export function sanitize(name: string): string {
+	return name.replace(/[&*:\/]/g, '');
+}

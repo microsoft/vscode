@@ -50,6 +50,7 @@ suite('MainThreadConfiguration', function () {
 		instantiationService = new TestInstantiationService();
 		instantiationService.stub(IConfigurationService, WorkspaceService);
 		instantiationService.stub(IConfigurationService, 'onDidUpdateConfiguration', sinon.mock());
+		instantiationService.stub(IConfigurationService, 'onDidChangeConfiguration', sinon.mock());
 		instantiationService.stub(IConfigurationService, 'updateValue', target);
 	});
 

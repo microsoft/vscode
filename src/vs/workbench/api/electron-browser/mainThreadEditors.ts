@@ -195,6 +195,14 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 		return TPromise.as(null);
 	}
 
+	$trySetDecorationsFast(id: string, key: string, ranges: string): TPromise<any> {
+		if (!this._documentsAndEditors.getEditor(id)) {
+			return TPromise.wrapError(disposed(`TextEditor(${id})`));
+		}
+		this._documentsAndEditors.getEditor(id).setDecorationsFast(key, /*TODO: marshaller is too slow*/JSON.parse(ranges));
+		return TPromise.as(null);
+	}
+
 	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): TPromise<any> {
 		if (!this._documentsAndEditors.getEditor(id)) {
 			return TPromise.wrapError(disposed(`TextEditor(${id})`));

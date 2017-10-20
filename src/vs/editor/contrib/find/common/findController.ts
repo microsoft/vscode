@@ -25,6 +25,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 import { overviewRulerSelectionHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { Constants } from 'vs/editor/common/core/uint';
 
 export const enum FindStartFocusAction {
 	NoFocusChange,
@@ -801,21 +802,21 @@ export class MoveSelectionToPreviousFindMatchAction extends SelectPreviousFindMa
 
 export abstract class AbstractSelectHighlightsAction extends EditorAction {
 	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
-		let controller = CommonFindController.get(editor);
+		const controller = CommonFindController.get(editor);
 		if (!controller) {
 			return null;
 		}
 
-		let matches: Range[] = null;
+		let matches: editorCommon.FindMatch[] = null;
 
 		const findState = controller.getState();
 		if (findState.isRevealed && findState.isRegex && findState.searchString.length > 0) {
 
-			matches = editor.getModel().findMatches(findState.searchString, true, findState.isRegex, findState.matchCase, findState.wholeWord ? editor.getConfiguration().wordSeparators : null, false).map(m => m.range);
+			matches = editor.getModel().findMatches(findState.searchString, true, findState.isRegex, findState.matchCase, findState.wholeWord ? editor.getConfiguration().wordSeparators : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
 
 		} else {
 
-			let r = multiCursorFind(editor, {
+			const r = multiCursorFind(editor, {
 				changeFindSearchString: true,
 				allowMultiline: true,
 				highlightFindOptions: true
@@ -824,14 +825,14 @@ export abstract class AbstractSelectHighlightsAction extends EditorAction {
 				return;
 			}
 
-			matches = editor.getModel().findMatches(r.searchText, true, false, r.matchCase, r.wholeWord ? editor.getConfiguration().wordSeparators : null, false).map(m => m.range);
+			matches = editor.getModel().findMatches(r.searchText, true, false, r.matchCase, r.wholeWord ? editor.getConfiguration().wordSeparators : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
 		}
 
 		if (matches.length > 0) {
-			let editorSelection = editor.getSelection();
+			const editorSelection = editor.getSelection();
 			for (let i = 0, len = matches.length; i < len; i++) {
-				let match = matches[i];
-				let intersection = match.intersectRanges(editorSelection);
+				const match = matches[i];
+				let intersection = match.range.intersectRanges(editorSelection);
 				if (intersection) {
 					// bingo!
 					matches.splice(i, 1);
@@ -839,7 +840,7 @@ export abstract class AbstractSelectHighlightsAction extends EditorAction {
 					break;
 				}
 			}
-			editor.setSelections(matches.map(m => new Selection(m.startLineNumber, m.startColumn, m.endLineNumber, m.endColumn)));
+			editor.setSelections(matches.map(m => new Selection(m.range.startLineNumber, m.range.startColumn, m.range.endLineNumber, m.range.endColumn)));
 		}
 	}
 }
@@ -1034,6 +1035,23 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 			}
 			if (firstSelectedText !== selectedText) {
 				// not all selections have the same text
+				return null;
+			}
+		}
+
+		// Return early if the find widget shows the exact same matches
+		if (findState.isRevealed) {
+			let findStateSearchString = findState.searchString;
+			if (!caseSensitive) {
+				findStateSearchString = findStateSearchString.toLowerCase();
+			}
+
+			let mySearchString = r.searchText;
+			if (!caseSensitive) {
+				mySearchString = mySearchString.toLowerCase();
+			}
+
+			if (findStateSearchString === mySearchString && r.matchCase === findState.matchCase && r.wholeWord === findState.wholeWord && !findState.isRegex) {
 				return null;
 			}
 		}

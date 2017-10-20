@@ -109,7 +109,7 @@
 }
 
 .monaco-workbench .part.statusbar .debug-statusbar-item .icon {
-	-webkit-mask: url('debug-dark.svg') no-repeat 50% 50%;
+	-webkit-mask: url('continue.svg') no-repeat 50% 50%;
 	-webkit-mask-size: 18px;
 	display: inline-block;
 	padding-right: 2px;

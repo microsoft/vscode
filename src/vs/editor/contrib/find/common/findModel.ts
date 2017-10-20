@@ -67,7 +67,7 @@ export const FIND_IDS = {
 	ShowNextFindTermAction: 'find.history.showNext'
 };
 
-export const MATCHES_LIMIT = 999;
+export const MATCHES_LIMIT = 19999;
 
 export class FindModelBoundToEditorModel {
 
@@ -130,6 +130,10 @@ export class FindModelBoundToEditorModel {
 			// The find model is disposed during a find state changed event
 			return;
 		}
+		if (!this._editor.getModel()) {
+			// The find model will be disposed momentarily
+			return;
+		}
 		if (e.searchString || e.isReplaceRevealed || e.isRegex || e.wholeWord || e.matchCase || e.searchScope) {
 			if (e.searchScope) {
 				this.research(e.moveCursor, this._state.searchScope);
@@ -171,7 +175,7 @@ export class FindModelBoundToEditorModel {
 		}
 
 		let findMatches = this._findMatches(findScope, false, MATCHES_LIMIT);
-		this._decorations.set(findMatches.map(match => match.range), findScope);
+		this._decorations.set(findMatches, findScope);
 
 		this._state.changeMatchInfo(
 			this._decorations.getCurrentMatchesPosition(this._editor.getSelection()),

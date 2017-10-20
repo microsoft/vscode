@@ -572,15 +572,16 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 				this.stack = this.stack.slice(0, this.index + 1);
 			}
 
-			this.setIndex(this.index + 1);
-			this.stack.splice(this.index, 0, entry);
+			this.stack.splice(this.index + 1, 0, entry);
 
 			// Check for limit
 			if (this.stack.length > HistoryService.MAX_STACK_ITEMS) {
 				this.stack.shift(); // remove first and dispose
-				if (this.index > 0) {
-					this.setIndex(this.index - 1);
+				if (this.lastIndex >= 0) {
+					this.lastIndex--;
 				}
+			} else {
+				this.setIndex(this.index + 1);
 			}
 		}
 

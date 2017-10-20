@@ -276,7 +276,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'files.useExperimentalFileWatcher': {
 			'type': 'boolean',
-			'default': false,
+			'default': true,
 			'description': nls.localize('useExperimentalFileWatcher', "Use the new experimental file watcher.")
 		},
 		'files.defaultLanguage': {

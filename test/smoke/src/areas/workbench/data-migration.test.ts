@@ -23,7 +23,6 @@ describe('Data Migration', () => {
 		// Setting up stable version
 		let app = new SpectronApplication(STABLE_PATH);
 		await app.start('Data Migration');
-		app.screenCapturer.testName = 'Untitled is restorted';
 
 		await app.workbench.newUntitledFile();
 		await app.workbench.editor.waitForTypeInEditor('Untitled-1', textToType);
@@ -34,7 +33,6 @@ describe('Data Migration', () => {
 
 		app = new SpectronApplication(LATEST_PATH);
 		await app.start('Data Migration');
-		app.screenCapturer.testName = 'Untitled is restorted';
 
 		assert.ok(await app.workbench.waitForActiveTab('Untitled-1', true), `Untitled-1 tab is not present after migration.`);
 
@@ -50,12 +48,10 @@ describe('Data Migration', () => {
 		let app = new SpectronApplication(STABLE_PATH, fileName);
 		await Util.removeFile(`${fileName}`);
 		await app.start('Data Migration');
-		app.screenCapturer.testName = 'Newly created dirty file is restorted';
 
-		await app.workbench.waitForActiveTab(fileName);
-		await app.client.type(firstTextPart);
+		await app.workbench.editor.waitForTypeInEditor('plainFile', firstTextPart);
 		await app.workbench.saveOpenedFile();
-		await app.client.type(secondTextPart);
+		await app.workbench.editor.waitForTypeInEditor('plainFile', secondTextPart);
 
 		await app.stop();
 		await new Promise(c => setTimeout(c, 1000)); // wait until all resources are released (e.g. locked local storage)
@@ -63,7 +59,6 @@ describe('Data Migration', () => {
 		// Checking latest version for the restored state
 		app = new SpectronApplication(LATEST_PATH);
 		await app.start('Data Migration');
-		app.screenCapturer.testName = 'Newly created dirty file is restorted';
 
 		const filename = fileName.split('/')[1];
 		assert.ok(await app.workbench.waitForActiveTab(filename), `Untitled-1 tab is not present after migration.`);
@@ -76,7 +71,6 @@ describe('Data Migration', () => {
 		const fileName1 = 'app.js', fileName2 = 'jsconfig.json', fileName3 = 'readme.md';
 		let app = new SpectronApplication(STABLE_PATH);
 		await app.start('Data Migration');
-		app.screenCapturer.testName = 'Opened tabs are restored';
 
 		await app.workbench.quickopen.openFile(fileName1);
 		await app.workbench.quickopen.openFile(fileName2);
@@ -85,7 +79,6 @@ describe('Data Migration', () => {
 
 		app = new SpectronApplication(LATEST_PATH);
 		await app.start('Data Migration');
-		app.screenCapturer.testName = 'Opened tabs are restored';
 
 		assert.ok(await app.workbench.waitForTab(fileName1), `${fileName1} tab was not restored after migration.`);
 		assert.ok(await app.workbench.waitForTab(fileName2), `${fileName2} tab was not restored after migration.`);

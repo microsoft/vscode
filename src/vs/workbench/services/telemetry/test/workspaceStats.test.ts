@@ -7,7 +7,7 @@
 
 import * as assert from 'assert';
 import * as crypto from 'crypto';
-import { getDomainsOfRemotes, getRemotes, getHashedRemotes } from 'vs/workbench/services/telemetry/common/workspaceStats';
+import { getDomainsOfRemotes, getRemotes, getHashedRemotes } from 'vs/workbench/services/telemetry/node/workspaceStats';
 
 function hash(value: string): string {
 	return crypto.createHash('sha1').update(value.toString()).digest('hex');

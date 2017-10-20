@@ -16,7 +16,7 @@ import { IRawTextSource, RawTextSource } from 'vs/editor/common/model/textSource
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 
 // The hierarchy is:
-// Model -> EditableTextModel -> TextModelWithDecorations -> TextModelWithTrackedRanges -> TextModelWithMarkers -> TextModelWithTokens -> TextModel
+// Model -> EditableTextModel -> TextModelWithDecorations -> TextModelWithTokens -> TextModel
 
 var MODEL_ID = 0;
 

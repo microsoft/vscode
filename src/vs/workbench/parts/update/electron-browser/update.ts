@@ -17,7 +17,7 @@ import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
 import URI from 'vs/base/common/uri';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IActivityBarService, NumberBadge } from 'vs/workbench/services/activity/common/activityBarService';
+import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ReleaseNotesInput } from 'vs/workbench/parts/update/electron-browser/releaseNotesInput';
 import { IGlobalActivity } from 'vs/workbench/common/activity';
@@ -32,6 +32,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IUpdateService, State as UpdateState } from 'vs/platform/update/common/update';
 import * as semver from 'semver';
 import { OS, isLinux, isWindows } from 'vs/base/common/platform';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 class ApplyUpdateAction extends Action {
 	constructor( @IUpdateService private updateService: IUpdateService) {
@@ -267,8 +268,13 @@ export class Win3264BitContribution implements IWorkbenchContribution {
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMessageService messageService: IMessageService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IEnvironmentService environmentService: IEnvironmentService
 	) {
+		if (environmentService.disableUpdates) {
+			return;
+		}
+
 		const neverShowAgain = new NeverShowAgain(Win3264BitContribution.KEY, storageService);
 
 		if (!neverShowAgain.shouldShow()) {
@@ -323,7 +329,7 @@ export class UpdateContribution implements IGlobalActivity {
 		@IMessageService private messageService: IMessageService,
 		@IUpdateService private updateService: IUpdateService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IActivityBarService private activityBarService: IActivityBarService
+		@IActivityService private activityService: IActivityService
 	) {
 		const onUpdateAvailable = isLinux
 			? mapEvent(updateService.onUpdateAvailable, e => e.version)
@@ -363,7 +369,7 @@ export class UpdateContribution implements IGlobalActivity {
 
 		if (isUpdateAvailable) {
 			const badge = new NumberBadge(1, () => nls.localize('updateIsReady', "New {0} update available.", product.nameShort));
-			this.badgeDisposable = this.activityBarService.showActivity(this.id, badge);
+			this.badgeDisposable = this.activityService.showActivity(this.id, badge);
 		}
 	}
 

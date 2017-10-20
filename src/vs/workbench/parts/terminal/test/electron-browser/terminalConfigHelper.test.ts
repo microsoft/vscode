@@ -23,7 +23,7 @@ class MockConfigurationService implements IConfigurationService {
 	public getValue<T>(key: string, overrides?: IConfigurationOverrides): T { return getConfigurationValue<T>(this.getConfiguration(), key); }
 	public updateValue<T>(): TPromise<void> { return null; }
 	public getConfigurationData(): any { return null; }
-	public onDidUpdateConfiguration() { return { dispose() { } }; }
+	public onDidChangeConfiguration() { return { dispose() { } }; }
 	public reloadConfiguration() { return null; }
 }
 

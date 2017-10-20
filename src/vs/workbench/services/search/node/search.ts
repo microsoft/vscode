@@ -19,6 +19,7 @@ export interface IFolderSearch {
 
 export interface IRawSearch {
 	folderQueries: IFolderSearch[];
+	ignoreSymlinks?: boolean;
 	extraFiles?: string[];
 	filePattern?: string;
 	excludePattern?: IExpression;

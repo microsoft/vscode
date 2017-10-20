@@ -12,7 +12,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { TokenizationRegistry, ColorId, LanguageId } from 'vs/editor/common/modes';
 import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
-import { MinimapLinesRenderingData, ViewLineRenderingData, ViewModelDecoration, IViewModel, ICoordinatesConverter, ViewEventsCollector } from 'vs/editor/common/viewModel/viewModel';
+import { MinimapLinesRenderingData, ViewLineRenderingData, ViewModelDecoration, IViewModel, ICoordinatesConverter, ViewEventsCollector, IOverviewRulerDecorations } from 'vs/editor/common/viewModel/viewModel';
 import { SplitLinesCollection, IViewModelLinesCollection, IdentityLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { MinimapTokensColorTracker } from 'vs/editor/common/view/minimapCharRenderer';
@@ -22,6 +22,8 @@ import { CharacterHardWrappingLineMapperFactory } from 'vs/editor/common/viewMod
 import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';
 import { Color } from 'vs/base/common/color';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { ITheme } from 'vs/platform/theme/common/themeService';
+import { ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModelWithDecorations';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -80,7 +82,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		this._isDisposing = false;
 		this._centeredViewLine = -1;
 
-		this.decorations = new ViewModelDecorations(this.editorId, this.model, this.configuration, this.coordinatesConverter);
+		this.decorations = new ViewModelDecorations(this.editorId, this.model, this.configuration, this.lines, this.coordinatesConverter);
 
 		this._register(this.model.addBulkListener((events: EmitterEvent[]) => {
 			if (this._isDisposing) {
@@ -282,8 +284,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 					break;
 				}
 				case textModelEvents.TextModelEventType.ModelDecorationsChanged: {
-					const e = <textModelEvents.IModelDecorationsChangedEvent>data;
-					this.decorations.onModelDecorationsChanged(e);
+					this.decorations.onModelDecorationsChanged();
 					eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent());
 					break;
 				}
@@ -429,8 +430,17 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		);
 	}
 
-	public getAllOverviewRulerDecorations(): ViewModelDecoration[] {
-		return this.decorations.getAllOverviewRulerDecorations();
+	public getAllOverviewRulerDecorations(theme: ITheme): IOverviewRulerDecorations {
+		return this.lines.getAllOverviewRulerDecorations(this.editorId, this.configuration.editor.readOnly, theme);
+	}
+
+	public invalidateOverviewRulerColorCache(): void {
+		const decorations = this.model.getOverviewRulerDecorations();
+		for (let i = 0, len = decorations.length; i < len; i++) {
+			const decoration = decorations[i];
+			const opts = <ModelDecorationOverviewRulerOptions>decoration.options.overviewRuler;
+			opts._resolvedColor = null;
+		}
 	}
 
 	public getValueInRange(range: Range, eol: editorCommon.EndOfLinePreference): string {

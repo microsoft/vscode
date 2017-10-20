@@ -11,9 +11,9 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { MainThreadConfigurationShape, MainContext, ExtHostContext, IExtHostContext } from '../node/extHost.protocol';
+import { MainThreadConfigurationShape, MainContext, ExtHostContext, IExtHostContext, IWorkspaceConfigurationChangeEventData } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 
 @extHostNamedCustomer(MainContext.MainThreadConfiguration)
 export class MainThreadConfiguration implements MainThreadConfigurationShape {
@@ -27,8 +27,8 @@ export class MainThreadConfiguration implements MainThreadConfigurationShape {
 	) {
 		const proxy = extHostContext.get(ExtHostContext.ExtHostConfiguration);
 
-		this._configurationListener = configurationService.onDidUpdateConfiguration(() => {
-			proxy.$acceptConfigurationChanged(configurationService.getConfigurationData());
+		this._configurationListener = configurationService.onDidChangeConfiguration(e => {
+			proxy.$acceptConfigurationChanged(configurationService.getConfigurationData(), this.toConfigurationChangeEventData(e));
 		});
 	}
 
@@ -57,5 +57,15 @@ export class MainThreadConfiguration implements MainThreadConfigurationShape {
 			}
 		}
 		return ConfigurationTarget.WORKSPACE;
+	}
+
+	private toConfigurationChangeEventData(event: IConfigurationChangeEvent): IWorkspaceConfigurationChangeEventData {
+		return {
+			changedConfiguration: event.changedConfiguration,
+			changedConfigurationByResource: event.changedConfigurationByResource.keys().reduce((result, resource) => {
+				result[resource.toString()] = event.changedConfigurationByResource.get(resource);
+				return result;
+			}, Object.create({}))
+		};
 	}
 }

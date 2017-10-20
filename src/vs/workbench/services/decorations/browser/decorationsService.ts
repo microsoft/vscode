@@ -23,8 +23,8 @@ class DecorationRule {
 		if (Array.isArray(data)) {
 			return data.map(DecorationRule.keyOf).join(',');
 		} else {
-			const { color, opacity, letter } = data;
-			return `${color}/${opacity}/${letter}`;
+			const { color, letter } = data;
+			return `${color}/${letter}`;
 		}
 	}
 
@@ -49,9 +49,9 @@ class DecorationRule {
 	}
 
 	private _appendForOne(data: IDecorationData, element: HTMLStyleElement, theme: ITheme): void {
-		const { color, opacity, letter } = data;
+		const { color, letter } = data;
 		// label
-		createCSSRule(`.${this.labelClassName}`, `color: ${theme.getColor(color) || 'inherit'}; opacity: ${opacity || 1};`, element);
+		createCSSRule(`.${this.labelClassName}`, `color: ${theme.getColor(color) || 'inherit'};`, element);
 		createCSSRule(`.focused .selected .${this.labelClassName}`, `color: inherit; opacity: inherit;`, element);
 		// badge
 		if (letter) {
@@ -62,8 +62,8 @@ class DecorationRule {
 
 	private _appendForMany(data: IDecorationData[], element: HTMLStyleElement, theme: ITheme): void {
 		// label
-		const { color, opacity } = data[0];
-		createCSSRule(`.${this.labelClassName}`, `color: ${theme.getColor(color) || 'inherit'}; opacity: ${opacity || 1};`, element);
+		const { color } = data[0];
+		createCSSRule(`.${this.labelClassName}`, `color: ${theme.getColor(color) || 'inherit'};`, element);
 		createCSSRule(`.focused .selected .${this.labelClassName}`, `color: inherit; opacity: inherit;`, element);
 
 		// badge
@@ -221,12 +221,21 @@ class DecorationProviderWrapper {
 
 	constructor(
 		private readonly _provider: IDecorationsProvider,
-		private readonly _emitter: Emitter<URI | URI[]>
+		private readonly _uriEmitter: Emitter<URI | URI[]>,
+		private readonly _flushEmitter: Emitter<IResourceDecorationChangeEvent>
 	) {
 		this._dispoable = this._provider.onDidChange(uris => {
-			for (const uri of uris) {
-				this.data.delete(uri.toString());
-				this._fetchData(uri);
+			if (!uris) {
+				// flush event -> drop all data, can affect everything
+				this.data.clear();
+				this._flushEmitter.fire({ affectsResource() { return true; } });
+
+			} else {
+				// selective changes -> drop for resource, fetch again, send event
+				for (const uri of uris) {
+					this.data.delete(uri.toString());
+					this._fetchData(uri);
+				}
 			}
 		});
 	}
@@ -249,15 +258,16 @@ class DecorationProviderWrapper {
 			return;
 		}
 
-		if (item === undefined && !includeChildren) {
-			// unknown, a leaf node -> trigger request
+		if (item === undefined) {
+			// unknown -> trigger request
 			item = this._fetchData(uri);
 		}
 
 		if (item) {
-			// leaf node
+			// found something
 			callback(item, false);
 		}
+
 		if (includeChildren) {
 			// (resolved) children
 			const childTree = this.data.findSuperstr(key);
@@ -292,7 +302,7 @@ class DecorationProviderWrapper {
 	private _keepItem(uri: URI, data: IDecorationData): IDecorationData {
 		let deco = data ? data : null;
 		this.data.set(uri.toString(), deco);
-		this._emitter.fire(uri);
+		this._uriEmitter.fire(uri);
 		return deco;
 	}
 }
@@ -344,9 +354,16 @@ export class FileDecorationsService implements IDecorationsService {
 
 		const wrapper = new DecorationProviderWrapper(
 			provider,
-			this._onDidChangeDecorationsDelayed
+			this._onDidChangeDecorationsDelayed,
+			this._onDidChangeDecorations
 		);
 		const remove = this._data.push(wrapper);
+
+		this._onDidChangeDecorations.fire({
+			// everything might have changed
+			affectsResource() { return true; }
+		});
+
 		return {
 			dispose: () => {
 				// fire event that says 'yes' for any resource
@@ -363,9 +380,10 @@ export class FileDecorationsService implements IDecorationsService {
 		let onlyChildren = true;
 		for (let iter = this._data.iterator(), next = iter.next(); !next.done; next = iter.next()) {
 			next.value.getOrRetrieve(uri, includeChildren, (deco, isChild) => {
-				// top = FileDecorationsService._pickBest(top, candidate);
-				data.push(deco);
-				onlyChildren = onlyChildren && isChild;
+				if (!isChild || deco.bubble) {
+					data.push(deco);
+					onlyChildren = onlyChildren && isChild;
+				}
 			});
 		}
 

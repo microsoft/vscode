@@ -595,6 +595,22 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 		});
 	}
 
+	public getWidth(index: number): number {
+		if (index >= 0 && index < this.actionsList.children.length) {
+			return this.actionsList.children.item(index).clientWidth;
+		}
+
+		return 0;
+	}
+
+	public getHeight(index: number): number {
+		if (index >= 0 && index < this.actionsList.children.length) {
+			return this.actionsList.children.item(index).clientHeight;
+		}
+
+		return 0;
+	}
+
 	public pull(index: number): void {
 		if (index >= 0 && index < this.items.length) {
 			this.items.splice(index, 1);

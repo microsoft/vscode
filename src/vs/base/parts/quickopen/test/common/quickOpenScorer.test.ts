@@ -44,7 +44,7 @@ class NullAccessorClass implements scorer.IItemAccessor<URI> {
 }
 
 function _doScore(target: string, query: string, fuzzy: boolean): scorer.Score {
-	return scorer._doScore(target, query, query.toLowerCase(), fuzzy);
+	return scorer.score(target, query, query.toLowerCase(), fuzzy);
 }
 
 function scoreItem<T>(item: T, query: string, fuzzy: boolean, accessor: scorer.IItemAccessor<T>, cache: scorer.ScorerCache): scorer.IItemScore {
@@ -207,6 +207,18 @@ suite('Quick Open Scorer', () => {
 		assert.equal(pathRes.descriptionMatch.length, 1);
 		assert.equal(pathRes.descriptionMatch[0].start, 23);
 		assert.equal(pathRes.descriptionMatch[0].end, 26);
+	});
+
+	test('scoreItem - avoid match scattering (bug #36119)', function () {
+		const resource = URI.file('projects/ui/cula/ats/target.mk');;
+
+		const pathRes = scoreItem(resource, 'tcltarget.mk', true, ResourceAccessor, cache);
+		assert.ok(pathRes.score);
+		assert.ok(pathRes.descriptionMatch);
+		assert.ok(pathRes.labelMatch);
+		assert.equal(pathRes.labelMatch.length, 1);
+		assert.equal(pathRes.labelMatch[0].start, 0);
+		assert.equal(pathRes.labelMatch[0].end, 9);
 	});
 
 	test('scoreItem - prefers more compact matches', function () {
@@ -541,13 +553,19 @@ suite('Quick Open Scorer', () => {
 		let res = [resourceA, resourceB, resourceC, resourceD].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceC);
 
+		res = [resourceC, resourceB, resourceA, resourceD].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceC);
+
 		query = isWindows ? 'un1\\index.js' : 'un1/index.js';
 
 		res = [resourceA, resourceB, resourceC, resourceD].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceB);
+
+		res = [resourceC, resourceB, resourceA, resourceD].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
 	});
 
-	test('compareFilesByScore - avoid match scattering (bug #21019)', function () {
+	test('compareFilesByScore - avoid match scattering (bug #21019 1.)', function () {
 		const resourceA = URI.file('app/containers/Services/NetworkData/ServiceDetails/ServiceLoad/index.js');
 		const resourceB = URI.file('app/containers/Services/NetworkData/ServiceDetails/ServiceDistribution/index.js');
 		const resourceC = URI.file('app/containers/Services/NetworkData/ServiceDetailTabs/ServiceTabs/StatVideo/index.js');
@@ -556,6 +574,22 @@ suite('Quick Open Scorer', () => {
 
 		let res = [resourceA, resourceB, resourceC].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceC);
+
+		res = [resourceC, resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceC);
+	});
+
+	test('compareFilesByScore - avoid match scattering (bug #21019 2.)', function () {
+		const resourceA = URI.file('src/build-helper/store/redux.ts');
+		const resourceB = URI.file('src/repository/store/redux.ts');
+
+		let query = 'reproreduxts';
+
+		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+
+		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
 	});
 
 	test('compareFilesByScore - avoid match scattering (bug #26649)', function () {
@@ -567,6 +601,9 @@ suite('Quick Open Scorer', () => {
 
 		let res = [resourceA, resourceB, resourceC].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceC);
+
+		res = [resourceC, resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceC);
 	});
 
 	test('compareFilesByScore - avoid match scattering (bug #33247)', function () {
@@ -576,6 +613,9 @@ suite('Quick Open Scorer', () => {
 		let query = isWindows ? 'ui\\icons' : 'ui/icons';
 
 		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+
+		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceB);
 	});
 
@@ -587,6 +627,40 @@ suite('Quick Open Scorer', () => {
 
 		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceB);
+
+		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+	});
+
+	test('compareFilesByScore - avoid match scattering (bug #36166)', function () {
+		const resourceA = URI.file('django/contrib/sites/locale/ga/LC_MESSAGES/django.mo');
+		const resourceB = URI.file('django/core/signals.py');
+
+		let query = 'djancosig';
+
+		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+
+		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+	});
+
+	test('compareFilesByScore - avoid match scattering (bug #32918)', function () {
+		const resourceA = URI.file('adsys/protected/config.php');
+		const resourceB = URI.file('adsys/protected/framework/smarty/sysplugins/smarty_internal_config.php');
+		const resourceC = URI.file('duowanVideo/wap/protected/config.php');
+
+		let query = 'protectedconfig.php';
+
+		let res = [resourceA, resourceB, resourceC].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceA);
+		assert.equal(res[1], resourceC);
+		assert.equal(res[2], resourceB);
+
+		res = [resourceC, resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceA);
+		assert.equal(res[1], resourceC);
+		assert.equal(res[2], resourceB);
 	});
 
 	test('compareFilesByScore - prefer shorter hit (bug #20546)', function () {
@@ -596,6 +670,23 @@ suite('Quick Open Scorer', () => {
 		let query = 'listview';
 
 		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+
+		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+	});
+
+	test('compareFilesByScore - avoid match scattering (bug #12095)', function () {
+		const resourceA = URI.file('src/vs/workbench/parts/files/common/explorerViewModel.ts');
+		const resourceB = URI.file('src/vs/workbench/parts/files/browser/views/explorerView.ts');
+		const resourceC = URI.file('src/vs/workbench/parts/files/browser/views/explorerViewer.ts');
+
+		let query = 'filesexplorerview.ts';
+
+		let res = [resourceA, resourceB, resourceC].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+
+		res = [resourceA, resourceC, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceB);
 	});
 

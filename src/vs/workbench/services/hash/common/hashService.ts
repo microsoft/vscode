@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SpectronApplication } from '../spectron/application';
+'use strict';
 
-export class Window {
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
-	constructor(private spectron: SpectronApplication) {
+export const IHashService = createDecorator<IHashService>('hashService');
 
-	}
+export interface IHashService {
+	_serviceBrand: any;
 
-	public async getTitle(): Promise<string> {
-		return this.spectron.client.getTitle();
-	}
-
+	/**
+	 * Produce a SHA1 hash of the provided content.
+	 */
+	createSHA1(content: string): string;
 }

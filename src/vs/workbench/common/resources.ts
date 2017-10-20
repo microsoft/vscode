@@ -95,7 +95,7 @@ export class ResourceGlobMatcher {
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(() => this.updateExcludes(true)));
+		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(() => this.updateExcludes(true)));
 		this.toUnbind.push(this.contextService.onDidChangeWorkspaceFolders(() => this.updateExcludes(true)));
 	}
 

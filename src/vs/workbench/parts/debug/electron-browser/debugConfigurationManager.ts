@@ -323,8 +323,10 @@ export class ConfigurationManager implements IConfigurationManager {
 			this.initLaunches();
 			this.selectConfiguration();
 		}));
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(() => {
-			this.selectConfiguration();
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('launch')) {
+				this.selectConfiguration();
+			}
 		}));
 
 		this.toDispose.push(lifecycleService.onShutdown(this.store, this));

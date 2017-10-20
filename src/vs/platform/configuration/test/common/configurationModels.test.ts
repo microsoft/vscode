@@ -198,47 +198,44 @@ suite('ConfigurationModel', () => {
 	});
 
 	test('simple merge', () => {
-		let base = new ConfigurationModel({ 'a': 1, 'b': 2 });
-		let add = new ConfigurationModel({ 'a': 3, 'c': 4 });
+		let base = new ConfigurationModel({ 'a': 1, 'b': 2 }, ['a', 'b']);
+		let add = new ConfigurationModel({ 'a': 3, 'c': 4 }, ['a', 'c']);
 		let result = base.merge(add);
 
 		assert.deepEqual(result.contents, { 'a': 3, 'b': 2, 'c': 4 });
+		assert.deepEqual(result.keys, ['a', 'b', 'c']);
 	});
 
 	test('recursive merge', () => {
-		let base = new ConfigurationModel({ 'a': { 'b': 1 } });
-		let add = new ConfigurationModel({ 'a': { 'b': 2 } });
+		let base = new ConfigurationModel({ 'a': { 'b': 1 } }, ['a.b']);
+		let add = new ConfigurationModel({ 'a': { 'b': 2 } }, ['a.b']);
 		let result = base.merge(add);
 
 		assert.deepEqual(result.contents, { 'a': { 'b': 2 } });
 		assert.deepEqual(result.getSectionContents('a'), { 'b': 2 });
+		assert.deepEqual(result.keys, ['a.b']);
 	});
 
 	test('simple merge overrides', () => {
-		let base = new ConfigurationModel({ 'a': { 'b': 1 } }, [], [{ identifiers: ['c'], contents: { 'a': 2 } }]);
-		let add = new ConfigurationModel({ 'a': { 'b': 2 } }, [], [{ identifiers: ['c'], contents: { 'b': 2 } }]);
+		let base = new ConfigurationModel({ 'a': { 'b': 1 } }, ['a.b'], [{ identifiers: ['c'], contents: { 'a': 2 } }]);
+		let add = new ConfigurationModel({ 'a': { 'b': 2 } }, ['a.b'], [{ identifiers: ['c'], contents: { 'b': 2 } }]);
 		let result = base.merge(add);
 
 		assert.deepEqual(result.contents, { 'a': { 'b': 2 } });
 		assert.deepEqual(result.overrides, [{ identifiers: ['c'], contents: { 'a': 2, 'b': 2 } }]);
 		assert.deepEqual(result.override('c').contents, { 'a': 2, 'b': 2 });
+		assert.deepEqual(result.keys, ['a.b']);
 	});
 
 	test('recursive merge overrides', () => {
-		let base = new ConfigurationModel({ 'a': { 'b': 1 }, 'f': 1 }, [], [{ identifiers: ['c'], contents: { 'a': { 'd': 1 } } }]);
-		let add = new ConfigurationModel({ 'a': { 'b': 2 } }, [], [{ identifiers: ['c'], contents: { 'a': { 'e': 2 } } }]);
+		let base = new ConfigurationModel({ 'a': { 'b': 1 }, 'f': 1 }, ['a.b', 'f'], [{ identifiers: ['c'], contents: { 'a': { 'd': 1 } } }]);
+		let add = new ConfigurationModel({ 'a': { 'b': 2 } }, ['a.b'], [{ identifiers: ['c'], contents: { 'a': { 'e': 2 } } }]);
 		let result = base.merge(add);
 
 		assert.deepEqual(result.contents, { 'a': { 'b': 2 }, 'f': 1 });
 		assert.deepEqual(result.overrides, [{ identifiers: ['c'], contents: { 'a': { 'd': 1, 'e': 2 } } }]);
 		assert.deepEqual(result.override('c').contents, { 'a': { 'b': 2, 'd': 1, 'e': 2 }, 'f': 1 });
-	});
-
-	test('merge ignore keys', () => {
-		let base = new ConfigurationModel({ 'a': 1, 'b': 2 });
-		let add = new ConfigurationModel({ 'a': 3, 'c': 4 });
-		let result = base.merge(add);
-		assert.deepEqual(result.keys, []);
+		assert.deepEqual(result.keys, ['a.b', 'f']);
 	});
 
 	test('Test contents while getting an existing property', () => {
@@ -464,6 +461,35 @@ suite('ConfigurationChangeEvent', () => {
 		assert.ok(!testObject.affectsConfiguration('files'));
 		assert.ok(!testObject.affectsConfiguration('files', URI.file('file1')));
 		assert.ok(!testObject.affectsConfiguration('files', URI.file('file2')));
+	});
+
+	test('merging change events', () => {
+		let event1 = new ConfigurationChangeEvent().change(['window.zoomLevel', 'files']);
+		let event2 = new ConfigurationChangeEvent().change(['window.title'], URI.file('file1')).change(['[markdown]']);
+
+		let actual = event1.change(event2);
+
+		assert.deepEqual(actual.affectedKeys, ['window.zoomLevel', 'files', '[markdown]', 'window.title']);
+
+		assert.ok(actual.affectsConfiguration('window.zoomLevel'));
+		assert.ok(actual.affectsConfiguration('window.zoomLevel', URI.file('file1')));
+		assert.ok(actual.affectsConfiguration('window.zoomLevel', URI.file('file2')));
+
+		assert.ok(actual.affectsConfiguration('window'));
+		assert.ok(actual.affectsConfiguration('window', URI.file('file1')));
+		assert.ok(actual.affectsConfiguration('window', URI.file('file2')));
+
+		assert.ok(actual.affectsConfiguration('files'));
+		assert.ok(actual.affectsConfiguration('files', URI.file('file1')));
+		assert.ok(actual.affectsConfiguration('files', URI.file('file2')));
+
+		assert.ok(actual.affectsConfiguration('window.title'));
+		assert.ok(actual.affectsConfiguration('window.title', URI.file('file1')));
+		assert.ok(!actual.affectsConfiguration('window.title', URI.file('file2')));
+
+		assert.ok(actual.affectsConfiguration('[markdown]'));
+		assert.ok(actual.affectsConfiguration('[markdown]', URI.file('file1')));
+		assert.ok(actual.affectsConfiguration('[markdown]', URI.file('file2')));
 	});
 
 });

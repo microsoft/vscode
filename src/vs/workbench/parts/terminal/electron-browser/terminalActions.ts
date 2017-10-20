@@ -233,7 +233,7 @@ export class CreateNewSelectWorkspaceTerminalAction extends Action {
 
 	public run(event?: any): TPromise<any> {
 		return this.commandService.executeCommand(PICK_WORKSPACE_FOLDER_COMMAND).then(workspace => {
-			const instance = this.terminalService.createInstance({ cwd: workspace.uri.fsPath }, true);
+			const instance = this.terminalService.createInstance(workspace ? { cwd: workspace.uri.fsPath } : undefined, true);
 			if (!instance) {
 				return TPromise.as(void 0);
 			}

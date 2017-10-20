@@ -16,6 +16,7 @@
     },
     "activationEvents": [
         "onCommand:type",
+        "onCommand:emmet.expandAbbreviation",
         "onLanguage:html",
         "onLanguage:css",
         "onLanguage:scss",

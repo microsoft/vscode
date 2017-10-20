@@ -26,7 +26,7 @@ import { TextModelResolverService } from 'vs/workbench/services/textmodelResolve
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IEditorInput, IEditorOptions, Position, Direction, IEditor, IResourceInput } from 'vs/platform/editor/common/editor';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { IMessageService, IConfirmation, IConfirmationResult } from 'vs/platform/message/common/message';
+import { IMessageService, IConfirmation, IConfirmationResult, IChoiceService } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService, IWorkspace as IWorkbenchWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { ILifecycleService, ShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { EditorStacksModel } from 'vs/workbench/common/editor/editorStacksModel';
@@ -59,6 +59,7 @@ import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IPosition } from 'vs/editor/common/core/position';
 import { ICommandAction } from 'vs/platform/actions/common/actions';
+import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -102,17 +103,27 @@ export class TestContextService implements IWorkspaceContextService {
 	}
 
 	public getWorkbenchState(): WorkbenchState {
-		if (this.workspace) {
-			if (this.workspace.configuration) {
-				return WorkbenchState.WORKSPACE;
-			}
+		if (this.workspace.configuration) {
+			return WorkbenchState.WORKSPACE;
+		}
+
+		if (this.workspace.folders.length) {
 			return WorkbenchState.FOLDER;
 		}
+
 		return WorkbenchState.EMPTY;
 	}
 
 	public getWorkspace(): IWorkbenchWorkspace {
 		return this.workspace;
+	}
+
+	public addFolders(foldersToAdd: URI[]): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	public removeFolders(foldersToRemove: URI[]): TPromise<void> {
+		return TPromise.as(void 0);
 	}
 
 	public getWorkspaceFolder(resource: URI): IWorkspaceFolder {
@@ -257,6 +268,12 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
 	instantiationService.stub(IEnvironmentService, TestEnvironmentService);
 	instantiationService.stub(IThemeService, new TestThemeService());
+	instantiationService.stub(IHashService, new TestHashService());
+	instantiationService.stub(IChoiceService, {
+		choose: (severity, message, options, cancelId): TPromise<number> => {
+			return TPromise.as(cancelId);
+		}
+	});
 
 	return instantiationService;
 }
@@ -1211,7 +1228,7 @@ export class TestTextResourceConfigurationService implements ITextResourceConfig
 	constructor(private configurationService = new TestConfigurationService()) {
 	}
 
-	public onDidUpdateConfiguration() {
+	public onDidChangeConfiguration() {
 		return { dispose() { } };
 	}
 
@@ -1221,4 +1238,16 @@ export class TestTextResourceConfigurationService implements ITextResourceConfig
 	public getConfiguration(resource: any, position?: any, section?: any): any {
 		return this.configurationService.getConfiguration(section, { resource });
 	}
+}
+
+export class TestHashService implements IHashService {
+	_serviceBrand: any;
+
+	createSHA1(content: string): string {
+		return content;
+	}
+}
+
+export function getRandomTestPath(tmpdir: string, ...segments: string[]): string {
+	return paths.join(tmpdir, ...segments, generateUuid());
 }

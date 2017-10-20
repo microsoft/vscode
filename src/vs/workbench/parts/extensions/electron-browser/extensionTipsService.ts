@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import * as paths from 'vs/base/common/paths';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { forEach } from 'vs/base/common/collections';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { match } from 'vs/base/common/glob';
 import * as json from 'vs/base/common/json';
 import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, LocalExtensionType, EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -19,7 +19,7 @@ import { IChoiceService, IMessageService } from 'vs/platform/message/common/mess
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import Severity from 'vs/base/common/severity';
-import { IWorkspaceContextService, IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspaceFolder, IWorkspace, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { Schemas } from 'vs/base/common/network';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IExtensionsConfiguration, ConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
@@ -36,7 +36,7 @@ interface IExtensionsContent {
 const empty: { [key: string]: any; } = Object.create(null);
 const milliSecondsInADay = 1000 * 60 * 60 * 24;
 
-export class ExtensionTipsService implements IExtensionTipsService {
+export class ExtensionTipsService extends Disposable implements IExtensionTipsService {
 
 	_serviceBrand: any;
 
@@ -47,6 +47,8 @@ export class ExtensionTipsService implements IExtensionTipsService {
 	private importantRecommendationsIgnoreList: string[];
 	private _allRecommendations: string[];
 	private _disposables: IDisposable[] = [];
+
+	private _suggestedWorkspaceRecommendedExtensions: string[] = [];
 
 	constructor(
 		@IExtensionGalleryService private _galleryService: IExtensionGalleryService,
@@ -61,9 +63,12 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		@IMessageService private messageService: IMessageService,
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
+		super();
+
 		if (!this._galleryService.isEnabled()) {
 			return;
 		}
+
 
 		this._suggestTips();
 		this._suggestWorkspaceRecommendations();
@@ -71,6 +76,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		// Executable based recommendations carry out a lot of file stats, so run them after 10 secs
 		// So that the startup is not affected
 		setTimeout(() => this._suggestBasedOnExecutables(this._exeBasedRecommendations), 10000);
+		this._register(this.contextService.onDidChangeWorkspaceFolders(e => this.onWorkspaceFoldersChanged(e)));
 	}
 
 	getWorkspaceRecommendations(): TPromise<string[]> {
@@ -100,6 +106,19 @@ export class ExtensionTipsService implements IExtensionTipsService {
 			});
 		}
 		return [];
+	}
+
+	private onWorkspaceFoldersChanged(event: IWorkspaceFoldersChangeEvent): void {
+		if (event.added.length) {
+			TPromise.join(event.added.map(workspaceFolder => this.resolveWorkspaceFolderRecommendations(workspaceFolder)))
+				.then(result => {
+					const newRecommendations = flatten(result);
+					// Suggest only if atleast one of the newly added recommendtations was not suggested before
+					if (newRecommendations.some(e => this._suggestedWorkspaceRecommendedExtensions.indexOf(e) === -1)) {
+						this._suggestWorkspaceRecommendations();
+					}
+				});
+		}
 	}
 
 	getRecommendations(installedExtensions: string[], searchText: string): string[] {
@@ -360,6 +379,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 								}
 							*/
+							this._suggestedWorkspaceRecommendedExtensions = allRecommendations;
 							this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'show' });
 							return action.run();
 						case 1:

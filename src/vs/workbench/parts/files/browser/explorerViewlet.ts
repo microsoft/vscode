@@ -13,7 +13,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { Builder } from 'vs/base/browser/builder';
 import { VIEWLET_ID, ExplorerViewletVisibleContext, IFilesConfiguration, OpenEditorsVisibleContext, OpenEditorsVisibleCondition } from 'vs/workbench/parts/files/common/files';
 import { PersistentViewsViewlet, ViewsViewletPanel, IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { ActionRunner, FileViewletState } from 'vs/workbench/parts/files/browser/views/explorerViewer';
 import { ExplorerView, IExplorerViewOptions } from 'vs/workbench/parts/files/browser/views/explorerView';
 import { EmptyView } from 'vs/workbench/parts/files/browser/views/emptyView';
@@ -61,8 +61,9 @@ export class ExplorerViewlet extends PersistentViewsViewlet {
 		this.openEditorsVisibleContextKey = OpenEditorsVisibleContext.bindTo(contextKeyService);
 
 		this.registerViews();
-		this.onConfigurationUpdated();
-		this._register(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated()));
+		this.updateOpenEditorsVisibility();
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
 		this._register(this.contextService.onDidChangeWorkspaceName(e => this.updateTitleArea()));
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.registerViews()));
 		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.registerViews()));
@@ -149,8 +150,14 @@ export class ExplorerViewlet extends PersistentViewsViewlet {
 		};
 	}
 
-	private onConfigurationUpdated(): void {
-		this.openEditorsVisibleContextKey.set(this.contextService.getWorkbenchState() === WorkbenchState.EMPTY || (<IFilesConfiguration>this.configurationService.getConfiguration()).explorer.openEditors.visible !== 0);
+	private onConfigurationUpdated(e: IConfigurationChangeEvent): void {
+		if (e.affectsConfiguration('explorer.openEditors.visible')) {
+			this.updateOpenEditorsVisibility();
+		}
+	}
+
+	private updateOpenEditorsVisibility(): void {
+		this.openEditorsVisibleContextKey.set(this.contextService.getWorkbenchState() === WorkbenchState.EMPTY || this.configurationService.getValue('explorer.openEditors.visible') !== 0);
 	}
 
 	protected createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): ViewsViewletPanel {

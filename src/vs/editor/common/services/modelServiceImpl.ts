@@ -26,7 +26,7 @@ import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
 import { IRawTextSource, TextSource, RawTextSource, ITextSource } from 'vs/editor/common/model/textSource';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
-import { ClassName } from 'vs/editor/common/model/textModelWithDecorations';
+import { ClassName } from 'vs/editor/common/model/intervalTree';
 import { ISequence, LcsDiff } from 'vs/base/common/diff/diff';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { themeColorFromId, ThemeColor } from 'vs/platform/theme/common/themeService';
@@ -224,7 +224,7 @@ export class ModelServiceImpl implements IModelService {
 			this._markerServiceSubscription = this._markerService.onMarkerChanged(this._handleMarkerChange, this);
 		}
 
-		this._configurationServiceSubscription = this._configurationService.onDidUpdateConfiguration(e => this._updateModelOptions());
+		this._configurationServiceSubscription = this._configurationService.onDidChangeConfiguration(e => this._updateModelOptions());
 		this._updateModelOptions();
 	}
 

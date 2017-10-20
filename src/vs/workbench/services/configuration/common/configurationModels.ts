@@ -5,7 +5,7 @@
 'use strict';
 
 import { clone, equals } from 'vs/base/common/objects';
-import { compare, toValuesTree, IConfigurationChangeEvent, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { compare, toValuesTree, IConfigurationChangeEvent, ConfigurationTarget, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationModel, Configuration as BaseConfiguration, CustomConfigurationModel, ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, IConfigurationPropertySchema, Extensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
@@ -14,6 +14,7 @@ import { IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces
 import { Workspace } from 'vs/platform/workspace/common/workspace';
 import { StrictResourceMap } from 'vs/base/common/map';
 import URI from 'vs/base/common/uri';
+import { distinct } from 'vs/base/common/arrays';
 
 export class WorkspaceConfigurationModel extends CustomConfigurationModel {
 
@@ -266,11 +267,46 @@ export class Configuration extends BaseConfiguration {
 	getFolderConfigurationModel(folder: URI): FolderConfigurationModel {
 		return <FolderConfigurationModel>this.folders.get(folder);
 	}
+
+	compare(other: Configuration): string[] {
+		let from = other.allKeys();
+		let to = this.allKeys();
+
+		const added = to.filter(key => from.indexOf(key) === -1);
+		const removed = from.filter(key => to.indexOf(key) === -1);
+		const updated = [];
+
+		for (const key of from) {
+			const value1 = this.getValue(key);
+			const value2 = other.getValue(key);
+			if (!equals(value1, value2)) {
+				updated.push(key);
+			}
+		}
+
+		return [...added, ...removed, ...updated];
+	}
+
+	allKeys(): string[] {
+		let keys = this.keys();
+		let all = [...keys.default, ...keys.user, ...keys.workspace];
+		for (const resource of this.folders.keys()) {
+			all.push(...this.folders.get(resource).keys);
+		}
+		return distinct(all);
+	}
 }
 
 export class WorkspaceConfigurationChangeEvent implements IConfigurationChangeEvent {
 
-	constructor(private configurationChangeEvent: ConfigurationChangeEvent, private workspace: Workspace) {
+	constructor(private configurationChangeEvent: IConfigurationChangeEvent, private workspace: Workspace) { }
+
+	get changedConfiguration(): IConfigurationModel {
+		return this.configurationChangeEvent.changedConfiguration;
+	}
+
+	get changedConfigurationByResource(): StrictResourceMap<IConfigurationModel> {
+		return this.configurationChangeEvent.changedConfigurationByResource;
 	}
 
 	get affectedKeys(): string[] {
@@ -290,7 +326,7 @@ export class WorkspaceConfigurationChangeEvent implements IConfigurationChangeEv
 			return true;
 		}
 
-		if (resource) {
+		if (resource && this.workspace) {
 			let workspaceFolder = this.workspace.getFolder(resource);
 			if (workspaceFolder) {
 				return this.configurationChangeEvent.affectsConfiguration(config, workspaceFolder.uri);

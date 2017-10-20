@@ -5796,12 +5796,6 @@ declare module 'vscode' {
 		readonly tooltip?: string;
 
 		/**
-		 * A color for a specific
-		 * [source control resource state](#SourceControlResourceState).
-		 */
-		readonly color?: ThemeColor;
-
-		/**
 		 * The light theme decorations.
 		 */
 		readonly light?: SourceControlResourceThemableDecorations;

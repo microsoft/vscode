@@ -52,7 +52,7 @@ export class TestConfigurationService extends EventEmitter implements IConfigura
 		return TPromise.as(null);
 	}
 
-	public onDidUpdateConfiguration() {
+	public onDidChangeConfiguration() {
 		return { dispose() { } };
 	}
 

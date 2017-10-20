@@ -25,7 +25,7 @@ export class PreferencesSearchProvider {
 	public onRemoteSearchEnablementChanged: Event<boolean> = this._onRemoteSearchEnablementChanged.event;
 
 	constructor( @IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService) {
-		configurationService.onDidUpdateConfiguration(() => this._onRemoteSearchEnablementChanged.fire(this.remoteSearchEnabled));
+		configurationService.onDidChangeConfiguration(() => this._onRemoteSearchEnablementChanged.fire(this.remoteSearchEnabled));
 	}
 
 	get remoteSearchEnabled(): boolean {

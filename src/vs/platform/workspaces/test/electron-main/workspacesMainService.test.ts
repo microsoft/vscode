@@ -17,9 +17,10 @@ import { WorkspacesMainService, IStoredWorkspace } from 'vs/platform/workspaces/
 import { WORKSPACE_EXTENSION, IWorkspaceSavedEvent, IWorkspaceIdentifier, IRawFileWorkspaceFolder, IRawUriWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { LogMainService } from 'vs/platform/log/common/log';
 import URI from 'vs/base/common/uri';
+import { getRandomTestPath } from 'vs/workbench/test/workbenchTestServices';
 
 suite('WorkspacesMainService', () => {
-	const parentDir = path.join(os.tmpdir(), 'vsctests', 'service');
+	const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'workspacesservice');
 	const workspacesHome = path.join(parentDir, 'Workspaces');
 
 	class TestEnvironmentService extends EnvironmentService {
@@ -359,14 +360,16 @@ suite('WorkspacesMainService', () => {
 			assert.equal(1, untitled.length);
 			assert.equal(untitledOne.id, untitled[0].id);
 
-			return service.createWorkspace([process.cwd(), os.tmpdir()]).then(untitledTwo => {
+			return service.createWorkspace([os.tmpdir(), process.cwd()]).then(untitledTwo => {
 				untitled = service.getUntitledWorkspacesSync();
 
 				assert.equal(2, untitled.length);
 
 				service.deleteUntitledWorkspaceSync(untitledOne);
-				service.deleteUntitledWorkspaceSync(untitledTwo);
+				untitled = service.getUntitledWorkspacesSync();
+				assert.equal(1, untitled.length);
 
+				service.deleteUntitledWorkspaceSync(untitledTwo);
 				untitled = service.getUntitledWorkspacesSync();
 				assert.equal(0, untitled.length);
 

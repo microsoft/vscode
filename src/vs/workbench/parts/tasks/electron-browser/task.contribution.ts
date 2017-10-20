@@ -620,7 +620,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		this._taskSystemListeners = [];
 		this._outputChannel = this.outputService.getChannel(TaskService.OutputChannelId);
 		this._providers = new Map<number, ITaskProvider>();
-		this.configurationService.onDidUpdateConfiguration(() => {
+		this.configurationService.onDidChangeConfiguration(() => {
 			if (!this._taskSystem && !this._workspaceTasksPromise) {
 				return;
 			}

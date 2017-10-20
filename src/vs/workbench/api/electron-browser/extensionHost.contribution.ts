@@ -19,6 +19,7 @@ import './mainThreadCommands';
 import './mainThreadConfiguration';
 import './mainThreadCredentials';
 import './mainThreadDebugService';
+import './mainThreadDecorations';
 import './mainThreadDiagnostics';
 import './mainThreadDialogs';
 import './mainThreadDocumentContentProviders';

@@ -119,7 +119,7 @@ export class AddRootFolderAction extends BaseWorkspacesAction {
 				return TPromise.as(null);
 			}
 
-			addFoldersPromise = this.workspaceEditingService.addFolders(folders.map(folder => URI.file(folder)));
+			addFoldersPromise = this.contextService.addFolders(folders.map(folder => URI.file(folder)));
 		}
 
 		// Empty or Folder
@@ -163,7 +163,7 @@ export class GlobalRemoveRootFolderAction extends BaseWorkspacesAction {
 					}
 
 					// Workspace: remove folder
-					return this.workspaceEditingService.removeFolders([folder.uri]).then(() => true);
+					return this.contextService.removeFolders([folder.uri]).then(() => true);
 				}
 
 				return true;
@@ -216,13 +216,13 @@ export class RemoveRootFolderAction extends Action {
 		private rootUri: URI,
 		id: string,
 		label: string,
-		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<any> {
-		return this.workspaceEditingService.removeFolders([this.rootUri]);
+		return this.contextService.removeFolders([this.rootUri]);
 	}
 }
 
