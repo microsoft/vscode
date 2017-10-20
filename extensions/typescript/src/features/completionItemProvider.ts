@@ -46,10 +46,6 @@ class MyCompletionItem extends CompletionItem {
 				}
 			}
 		}
-
-		if (entry.hasAction) {
-
-		}
 	}
 
 	private static convertKind(kind: string): CompletionItemKind {
