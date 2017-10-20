@@ -3,17 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, TextEdit, Range, SnippetString, workspace, ProviderResult, CompletionContext } from 'vscode';
+import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, TextEdit, Range, SnippetString, workspace, ProviderResult, CompletionContext, commands } from 'vscode';
 
 import { ITypescriptServiceClient } from '../typescriptService';
 import TypingsStatus from '../utils/typingsStatus';
 
 import * as PConst from '../protocol.const';
-import { CompletionEntry, CompletionsRequestArgs, CompletionDetailsRequestArgs, CompletionEntryDetails } from '../protocol';
+import { CompletionEntry, CompletionsRequestArgs, CompletionDetailsRequestArgs, CompletionEntryDetails, CodeAction } from '../protocol';
 import * as Previewer from './previewer';
-import { tsTextSpanToVsRange, vsPositionToTsFileLocation, tsLocationToVsPosition } from '../utils/convert';
+import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/convert';
 
 import * as nls from 'vscode-nls';
+import { applyCodeAction } from '../utils/codeAction';
 let localize = nls.loadMessageBundle();
 
 class MyCompletionItem extends CompletionItem {
@@ -132,6 +133,7 @@ namespace Configuration {
 }
 
 export default class TypeScriptCompletionItemProvider implements CompletionItemProvider {
+	private readonly commandId: string;
 
 	private config: Configuration = {
 		useCodeSnippetsOnMethodSuggest: false,
@@ -141,8 +143,12 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 
 	constructor(
 		private client: ITypescriptServiceClient,
+		mode: string,
 		private typingsStatus: TypingsStatus
-	) { }
+	) {
+		this.commandId = `_typescript.applyCompletionCodeAction.${mode}`;
+		commands.registerCommand(this.commandId, this.applyCompletionCodeAction, this);
+	}
 
 	public updateConfiguration(): void {
 		// Use shared setting for js and ts
@@ -280,20 +286,11 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 			item.documentation = Previewer.markdownDocumentation(detail.documentation, detail.tags);
 
 			if (detail.codeActions && detail.codeActions.length) {
-				const additionalEdits: TextEdit[] = [];
-				for (const action of detail.codeActions) {
-					for (const change of action.changes) {
-						if (change.fileName !== filepath) {
-							continue;
-						}
-						for (const edit of change.textChanges) {
-							additionalEdits.push(new TextEdit(
-								new Range(tsLocationToVsPosition(edit.start), tsLocationToVsPosition(edit.end)),
-								edit.newText));
-						}
-					}
-				}
-				item.additionalTextEdits = additionalEdits;
+				item.command = {
+					title: '',
+					command: this.commandId,
+					arguments: [filepath, detail.codeActions]
+				};
 			}
 
 			if (detail && this.config.useCodeSnippetsOnMethodSuggest && (item.kind === CompletionItemKind.Function || item.kind === CompletionItemKind.Method)) {
@@ -356,5 +353,14 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 		}
 
 		return new SnippetString(codeSnippet);
+	}
+
+	private async applyCompletionCodeAction(file: string, codeActions: CodeAction[]): Promise<boolean> {
+		for (const action of codeActions) {
+			if (!(await applyCodeAction(this.client, action, file))) {
+				return false;
+			}
+		}
+		return true;
 	}
 }

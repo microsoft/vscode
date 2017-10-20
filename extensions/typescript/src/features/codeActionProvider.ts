@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CodeActionProvider, TextDocument, Range, CancellationToken, CodeActionContext, Command, commands, workspace, WorkspaceEdit } from 'vscode';
+import { CodeActionProvider, TextDocument, Range, CancellationToken, CodeActionContext, Command, commands } from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
-import { tsTextSpanToVsRange, vsRangeToTsFileRange } from '../utils/convert';
+import { vsRangeToTsFileRange } from '../utils/convert';
 import FormattingConfigurationManager from './formattingConfigurationManager';
+import { applyCodeAction } from '../utils/codeAction';
 
 interface NumberSet {
 	[key: number]: boolean;
@@ -87,30 +88,7 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 		};
 	}
 
-	private async onCodeAction(action: Proto.CodeAction, file: string): Promise<boolean> {
-		if (action.changes && action.changes.length) {
-			const workspaceEdit = new WorkspaceEdit();
-			for (const change of action.changes) {
-				for (const textChange of change.textChanges) {
-					workspaceEdit.replace(this.client.asUrl(change.fileName),
-						tsTextSpanToVsRange(textChange),
-						textChange.newText);
-				}
-			}
-
-			if (!(await workspace.applyEdit(workspaceEdit))) {
-				return false;
-			}
-		}
-
-		if (action.commands && action.commands.length) {
-			for (const command of action.commands) {
-				const response = await this.client.execute('applyCodeActionCommand', { file, command });
-				if (!response || !response.body) {
-					return false;
-				}
-			}
-		}
-		return true;
+	private onCodeAction(action: Proto.CodeAction, file: string): Promise<boolean> {
+		return applyCodeAction(this.client, action, file);
 	}
 }
