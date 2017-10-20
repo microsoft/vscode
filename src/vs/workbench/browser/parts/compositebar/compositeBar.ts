@@ -424,6 +424,11 @@ export class CompositeBar implements ICompositeBar {
 
 	public layout(dimension: Dimension): void {
 		this.dimension = dimension;
+		if (dimension.height === 0 || dimension.width === 0) {
+			// Do not layout if not visible. Otherwise the size measurment would be computed wrongly
+			return;
+		}
+
 		if (this.compositeSizeInBar.size === 0) {
 			// Compute size of each composite by getting the size from the css renderer
 			// Size is later used for overflow computation
