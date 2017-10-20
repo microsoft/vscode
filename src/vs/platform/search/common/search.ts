@@ -55,6 +55,7 @@ export interface ICommonQueryOptions {
 	useRipgrep?: boolean;
 	disregardIgnoreFiles?: boolean;
 	disregardExcludeSettings?: boolean;
+	ignoreSymlinks?: boolean;
 }
 
 export interface IQueryOptions extends ICommonQueryOptions {
@@ -173,6 +174,7 @@ export interface ISearchConfiguration extends IFilesConfiguration {
 		exclude: glob.IExpression;
 		useRipgrep: boolean;
 		useIgnoreFilesByDefault: boolean;
+		followSymlinks: boolean;
 	};
 	editor: {
 		wordSeparators: string;
