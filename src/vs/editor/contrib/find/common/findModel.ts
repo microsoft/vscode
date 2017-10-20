@@ -130,6 +130,10 @@ export class FindModelBoundToEditorModel {
 			// The find model is disposed during a find state changed event
 			return;
 		}
+		if (!this._editor.getModel()) {
+			// The find model will be disposed momentarily
+			return;
+		}
 		if (e.searchString || e.isReplaceRevealed || e.isRegex || e.wholeWord || e.matchCase || e.searchScope) {
 			if (e.searchScope) {
 				this.research(e.moveCursor, this._state.searchScope);
