@@ -369,9 +369,12 @@ export class DecorationsOverviewRuler extends ViewPart {
 		if (!this._settings.hideCursor) {
 			const cursorHeight = (2 * this._settings.pixelRatio) | 0;
 			const halfCursorHeight = (cursorHeight / 2) | 0;
-			const x = this._settings.x[OverviewRulerLane.Full];
-			const w = this._settings.w[OverviewRulerLane.Full];
+			const cursorX = this._settings.x[OverviewRulerLane.Full];
+			const cursorW = this._settings.w[OverviewRulerLane.Full];
 			canvasCtx.fillStyle = this._settings.cursorColor;
+
+			let prevY1 = -100;
+			let prevY2 = -100;
 			for (let i = 0, len = this._cursorPositions.length; i < len; i++) {
 				const cursor = this._cursorPositions[i];
 
@@ -382,9 +385,23 @@ export class DecorationsOverviewRuler extends ViewPart {
 					yCenter = canvasHeight - halfCursorHeight;
 				}
 				const y1 = yCenter - halfCursorHeight;
+				const y2 = y1 + cursorHeight;
 
-				canvasCtx.fillRect(x, y1, w, cursorHeight);
+				if (y1 > prevY2 + 1) {
+					// flush prev
+					if (i !== 0) {
+						canvasCtx.fillRect(cursorX, prevY1, cursorW, prevY2 - prevY1);
+					}
+					prevY1 = y1;
+					prevY2 = y2;
+				} else {
+					// merge into prev
+					if (y2 > prevY2) {
+						prevY2 = y2;
+					}
+				}
 			}
+			canvasCtx.fillRect(cursorX, prevY1, cursorW, prevY2 - prevY1);
 		}
 
 		if (this._settings.renderBorder && this._settings.borderColor && this._settings.overviewRulerLanes > 0) {
