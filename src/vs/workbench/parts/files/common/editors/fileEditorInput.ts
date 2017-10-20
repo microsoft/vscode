@@ -24,7 +24,6 @@ import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUt
 import { Verbosity } from 'vs/platform/editor/common/editor';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 
 /**
  * A file editor input is the input type for the file editor of file system resources.
@@ -48,8 +47,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@ITextModelService private textModelResolverService: ITextModelService,
-		@IHashService private hashService: IHashService
+		@ITextModelService private textModelResolverService: ITextModelService
 	) {
 		super();
 
@@ -276,7 +274,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	public getTelemetryDescriptor(): object {
 		const descriptor = super.getTelemetryDescriptor();
-		descriptor['resource'] = telemetryURIDescriptor(this.getResource(), path => this.hashService.createSHA1(path));
+		descriptor['resource'] = telemetryURIDescriptor(this.getResource());
 
 		/* __GDPR__FRAGMENT__
 			"EditorTelemetryDescriptor" : {
