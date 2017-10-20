@@ -3106,6 +3106,93 @@ suite('Editor Controller - Indentation Rules', () => {
 			assert.equal(model.getLineContent(3), '}');
 		});
 	});
+
+	test('issue #36090: JS: editor.autoIndent seems to be broken', () => {
+		class JSMode extends MockMode {
+			private static _id = new LanguageIdentifier('indentRulesMode', 4);
+			constructor() {
+				super(JSMode._id);
+				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+					brackets: [
+						['{', '}'],
+						['[', ']'],
+						['(', ')']
+					],
+					indentationRules: {
+						// ^(.*\*/)?\s*\}.*$
+						decreaseIndentPattern: /^((?!.*?\/\*).*\*\/)?\s*[\}\]\)].*$/,
+						// ^.*\{[^}"']*$
+						increaseIndentPattern: /^((?!\/\/).)*(\{[^}"'`]*|\([^)"'`]*|\[[^\]"'`]*)$/
+					},
+					onEnterRules: [
+						{
+							// e.g. /** | */
+							beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
+							afterText: /^\s*\*\/$/,
+							action: { indentAction: IndentAction.IndentOutdent, appendText: ' * ' }
+						}, {
+							// e.g. /** ...|
+							beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
+							action: { indentAction: IndentAction.None, appendText: ' * ' }
+						}, {
+							// e.g.  * ...|
+							beforeText: /^(\t|(\ \ ))*\ \*(\ ([^\*]|\*(?!\/))*)?$/,
+							action: { indentAction: IndentAction.None, appendText: '* ' }
+						}, {
+							// e.g.  */|
+							beforeText: /^(\t|(\ \ ))*\ \*\/\s*$/,
+							action: { indentAction: IndentAction.None, removeText: 1 }
+						},
+						{
+							// e.g.  *-----*/|
+							beforeText: /^(\t|(\ \ ))*\ \*[^/]*\*\/\s*$/,
+							action: { indentAction: IndentAction.None, removeText: 1 }
+						}
+					]
+				}));
+			}
+		}
+
+		let mode = new JSMode();
+		let model = Model.createFromString(
+			[
+				'class ItemCtrl {',
+				'    getPropertiesByItemId(id) {',
+				'        return this.fetchItem(id)',
+				'            .then(item => {',
+				'                return this.getPropertiesOfItem(item);',
+				'            });',
+				'    }',
+				'}',
+			].join('\n'),
+			undefined,
+			mode.getLanguageIdentifier()
+		);
+
+		withMockCodeEditor(null, { model: model, autoIndent: false }, (editor, cursor) => {
+			moveTo(cursor, 7, 6, false);
+			assertCursor(cursor, new Selection(7, 6, 7, 6));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assert.equal(model.getValue(),
+				[
+					'class ItemCtrl {',
+					'    getPropertiesByItemId(id) {',
+					'        return this.fetchItem(id)',
+					'            .then(item => {',
+					'                return this.getPropertiesOfItem(item);',
+					'            });',
+					'    }',
+					'    ',
+					'}',
+				].join('\n')
+			);
+			assertCursor(cursor, new Selection(8, 5, 8, 5));
+		});
+
+		model.dispose();
+		mode.dispose();
+	});
 });
 
 interface ICursorOpts {

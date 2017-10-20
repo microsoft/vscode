@@ -324,6 +324,13 @@ export class TypeOperations {
 		}
 
 		// no enter rules applied, we should check indentation rules then.
+		if (!config.autoIndent) {
+			// Nothing special
+			let lineText = model.getLineContent(range.startLineNumber);
+			let indentation = strings.getLeadingWhitespace(lineText).substring(0, range.startColumn - 1);
+			return TypeOperations._typeCommand(range, '\n' + config.normalizeIndentation(indentation), keepPosition);
+		}
+
 		let ir = LanguageConfigurationRegistry.getIndentForEnter(model, range, {
 			unshiftIndent: (indent) => {
 				return TypeOperations.unshiftIndent(config, indent);
