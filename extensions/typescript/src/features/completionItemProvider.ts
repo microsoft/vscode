@@ -11,7 +11,7 @@ import TypingsStatus from '../utils/typingsStatus';
 import * as PConst from '../protocol.const';
 import { CompletionEntry, CompletionsRequestArgs, CompletionDetailsRequestArgs, CompletionEntryDetails } from '../protocol';
 import * as Previewer from './previewer';
-import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/convert';
+import { tsTextSpanToVsRange, vsPositionToTsFileLocation, tsLocationToVsPosition } from '../utils/convert';
 
 import * as nls from 'vscode-nls';
 let localize = nls.loadMessageBundle();
@@ -45,6 +45,10 @@ class MyCompletionItem extends CompletionItem {
 					break;
 				}
 			}
+		}
+
+		if (entry.hasAction) {
+
 		}
 	}
 
@@ -277,8 +281,24 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 			}
 			const detail = details[0];
 			item.detail = Previewer.plain(detail.displayParts);
-
 			item.documentation = Previewer.markdownDocumentation(detail.documentation, detail.tags);
+
+			if (detail.codeActions && detail.codeActions.length) {
+				const additionalEdits: TextEdit[] = [];
+				for (const action of detail.codeActions) {
+					for (const change of action.changes) {
+						if (change.fileName !== filepath) {
+							continue;
+						}
+						for (const edit of change.textChanges) {
+							additionalEdits.push(new TextEdit(
+								new Range(tsLocationToVsPosition(edit.start), tsLocationToVsPosition(edit.end)),
+								edit.newText));
+						}
+					}
+				}
+				item.additionalTextEdits = additionalEdits;
+			}
 
 			if (detail && this.config.useCodeSnippetsOnMethodSuggest && (item.kind === CompletionItemKind.Function || item.kind === CompletionItemKind.Method)) {
 				return this.isValidFunctionCompletionContext(filepath, item.position).then(shouldCompleteFunction => {
