@@ -4040,4 +4040,32 @@ suite('Undo stops', () => {
 		});
 	});
 
+	test('inserts undo stop when typing space', () => {
+		let model = Model.createFromString(
+			[
+				'A  line',
+				'Another line',
+			].join('\n')
+		);
+
+		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+			cursor.setSelections('test', [new Selection(1, 3, 1, 3)]);
+			cursorCommand(cursor, H.Type, { text: 'first and interesting' }, 'keyboard');
+			assert.equal(model.getLineContent(1), 'A first and interesting line');
+			assertCursor(cursor, new Selection(1, 24, 1, 24));
+
+			cursorCommand(cursor, H.Undo, {});
+			assert.equal(model.getLineContent(1), 'A first and line');
+			assertCursor(cursor, new Selection(1, 12, 1, 12));
+
+			cursorCommand(cursor, H.Undo, {});
+			assert.equal(model.getLineContent(1), 'A first line');
+			assertCursor(cursor, new Selection(1, 8, 1, 8));
+
+			cursorCommand(cursor, H.Undo, {});
+			assert.equal(model.getLineContent(1), 'A  line');
+			assertCursor(cursor, new Selection(1, 3, 1, 3));
+		});
+	});
+
 });

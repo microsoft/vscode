@@ -739,7 +739,19 @@ export class TypeOperations {
 			}
 		}
 
-		return this.typeWithoutInterceptors(prevEditOperationType, config, model, selections, ch);
+		// A simple character type
+		let commands: ICommand[] = [];
+		for (let i = 0, len = selections.length; i < len; i++) {
+			commands[i] = new ReplaceCommand(selections[i], ch);
+		}
+		let shouldPushStackElementBefore = (prevEditOperationType !== EditOperationType.Typing);
+		if (ch === ' ') {
+			shouldPushStackElementBefore = true;
+		}
+		return new EditOperationResult(EditOperationType.Typing, commands, {
+			shouldPushStackElementBefore: shouldPushStackElementBefore,
+			shouldPushStackElementAfter: false
+		});
 	}
 
 	public static typeWithoutInterceptors(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITokenizedModel, selections: Selection[], str: string): EditOperationResult {
