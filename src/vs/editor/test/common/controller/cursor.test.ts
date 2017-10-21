@@ -1629,6 +1629,24 @@ suite('Editor Controller - Regression tests', () => {
 		});
 	});
 
+	test('issue #33788: Wrong cursor position when double click to select a word', () => {
+		let model = Model.createFromString(
+			[
+				'Just some text'
+			].join('\n')
+		);
+
+		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+			CoreNavigationCommands.WordSelect.runCoreEditorCommand(cursor, { position: new Position(1, 8) });
+			assert.deepEqual(cursor.getSelection(), new Selection(1, 6, 1, 10));
+
+			CoreNavigationCommands.WordSelectDrag.runCoreEditorCommand(cursor, { position: new Position(1, 8) });
+			assert.deepEqual(cursor.getSelection(), new Selection(1, 6, 1, 10));
+		});
+
+		model.dispose();
+	});
+
 	test('issue #9675: Undo/Redo adds a stop in between CHN Characters', () => {
 		usingCursor({
 			text: [
