@@ -45,10 +45,10 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	private _availableRecommendations: { [pattern: string]: string[] } = Object.create(null);
 	private importantRecommendations: { [id: string]: { name: string; pattern: string; } } = Object.create(null);
 	private importantRecommendationsIgnoreList: string[];
-	private _allRecommendations: string[];
+	private _allRecommendations: string[] = [];
 	private _disposables: IDisposable[] = [];
 
-	private _suggestedWorkspaceRecommendedExtensions: string[] = [];
+	private _allWorkspaceRecommendedExtensions: string[] = [];
 
 	constructor(
 		@IExtensionGalleryService private _galleryService: IExtensionGalleryService,
@@ -82,7 +82,10 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	getWorkspaceRecommendations(): TPromise<string[]> {
 		const workspace = this.contextService.getWorkspace();
 		return TPromise.join([this.resolveWorkspaceRecommendations(workspace), ...workspace.folders.map(workspaceFolder => this.resolveWorkspaceFolderRecommendations(workspaceFolder))])
-			.then(recommendations => distinct(flatten(recommendations)));
+			.then(recommendations => {
+				this._allWorkspaceRecommendedExtensions = distinct(flatten(recommendations));
+				return this._allWorkspaceRecommendedExtensions;
+			});
 	}
 
 	private resolveWorkspaceRecommendations(workspace: IWorkspace): TPromise<string[]> {
@@ -114,7 +117,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				.then(result => {
 					const newRecommendations = flatten(result);
 					// Suggest only if atleast one of the newly added recommendtations was not suggested before
-					if (newRecommendations.some(e => this._suggestedWorkspaceRecommendedExtensions.indexOf(e) === -1)) {
+					if (newRecommendations.some(e => this._allWorkspaceRecommendedExtensions.indexOf(e) === -1)) {
 						this._suggestWorkspaceRecommendations();
 					}
 				});
@@ -372,7 +375,6 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 								}
 							*/
-							this._suggestedWorkspaceRecommendedExtensions = allRecommendations;
 							this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'show' });
 							return action.run();
 						case 1:
