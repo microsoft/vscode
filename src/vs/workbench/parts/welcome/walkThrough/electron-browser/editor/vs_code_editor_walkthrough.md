@@ -11,6 +11,7 @@ The core editor in VS Code is packed with features.  This page highlights a numb
 * [Errors and Warnings](#errors-and-warnings) - see errors and warning as you type.
 * [Snippets](#snippets) - spend less time typing with snippets.
 * [Emmet](#emmet) - integrated Emmet support takes HTML and CSS editing to the next level.
+* [JavaScript Type Checking](#javascript-type-checking) - perform type checking on your JavaScript file using TypeScript with zero configuration.
 
 
 
@@ -168,6 +169,19 @@ ul>li.item$*5
 
 >**Tip:** The [Emmet cheat sheet](http://docs.emmet.io/cheat-sheet/) is a great source of Emmet syntax suggestions. To expand Emmet abbreviations and snippets using the `tab` key use the `emmet.triggerExpansionOnTab` [setting](command:workbench.action.openGlobalSettings). Check out the docs on [Emmet in VS Code](https://code.visualstudio.com/docs/editor/emmet) to learn more.
 
+
+
+### JavaScript Type Checking
+Sometimes type checking your JavaScript code can help you spot mistakes you might have not caught otherwise. You can run the TypeScript type checker against your existing JavaScript code by simply adding a `// @ts-check` comment to the top of your file.
+
+```js
+// @ts-nocheck
+
+let easy = true;
+easy = 42;
+```
+
+>**Tip:** You can also enable the checks workspace or application wide by adding `"javascript.implicitProjectConfig.checkJs": true` to your workspace or user settings and explicitly ignoring files or lines using `// @ts-nocheck` and `// @ts-ignore`. Check out the docs on [JavaScript in VS Code](https://code.visualstudio.com/docs/languages/javascript) to learn more.
 
 
 ## Thanks!
