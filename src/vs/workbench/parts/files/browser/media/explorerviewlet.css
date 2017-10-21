@@ -53,9 +53,12 @@
 	visibility: hidden;
 }
 
-.explorer-viewlet .header .monaco-count-badge.hidden {
+.explorer-viewlet .panel-header .count {
+	min-width: fit-content;
+}
+
+.explorer-viewlet .panel-header .monaco-count-badge.hidden {
 	display: none;
-	visibility: hidden;
 }
 
 .explorer-folders-view .monaco-tree-row .content {
@@ -103,6 +106,10 @@
 	background-image: url("collapsed-hc.svg");
 }
 
+.explorer-folders-view.hide-arrows .monaco-tree-row .content::before {
+	display: none;
+}
+
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row:hover > .content .monaco-action-bar,
 .explorer-viewlet .explorer-open-editors .monaco-tree.focused .monaco-tree-row.focused > .content .monaco-action-bar,
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content.dirty > .monaco-action-bar {
@@ -140,6 +147,10 @@
 
 .explorer-viewlet .explorer-empty-view {
 	padding: 0 20px 0 20px;
+}
+
+.explorer-viewlet .explorer-item.nonexistent-root {
+	opacity: 0.5;
 }
 
 .explorer-viewlet .explorer-item .monaco-inputbox {

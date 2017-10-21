@@ -12,6 +12,7 @@ import { Emitter } from 'vs/base/common/event';
 import { fromEventEmitter } from 'vs/base/node/event';
 import { createQueuedSender } from 'vs/base/node/processes';
 import { ChannelServer as IPCServer, ChannelClient as IPCClient, IChannelClient, IChannel } from 'vs/base/parts/ipc/common/ipc';
+import { isRemoteConsoleLog, log } from 'vs/base/node/console';
 
 export class Server extends IPCServer {
 	constructor() {
@@ -59,8 +60,8 @@ export interface IIPCOptions {
 	/**
 	 * See https://github.com/Microsoft/vscode/issues/27665
 	 * Allows to pass in fresh execArgv to the forked process such that it doesn't inherit them from `process.execArgv`.
-	 * e.g. Launching the extension host process with `--debug-brk=xxx` and then forking a process from the extension host
-	 * results in the forked process inheriting `--debug-brk=xxx`.
+	 * e.g. Launching the extension host process with `--inspect-brk=xxx` and then forking a process from the extension host
+	 * results in the forked process inheriting `--inspect-brk=xxx`.
 	 */
 	freshExecArgv?: boolean;
 
@@ -89,7 +90,7 @@ export class Client implements IChannelClient, IDisposable {
 	}
 
 	getChannel<T extends IChannel>(channelName: string): T {
-		const call = (command, arg) => this.request(channelName, command, arg);
+		const call = (command: string, arg: any) => this.request(channelName, command, arg);
 		return { call } as T;
 	}
 
@@ -138,11 +139,11 @@ export class Client implements IChannelClient, IDisposable {
 			}
 
 			if (this.options && typeof this.options.debug === 'number') {
-				forkOpts.execArgv = ['--nolazy', '--debug=' + this.options.debug];
+				forkOpts.execArgv = ['--nolazy', '--inspect=' + this.options.debug];
 			}
 
 			if (this.options && typeof this.options.debugBrk === 'number') {
-				forkOpts.execArgv = ['--nolazy', '--debug-brk=' + this.options.debugBrk];
+				forkOpts.execArgv = ['--nolazy', '--inspect-brk=' + this.options.debugBrk];
 			}
 
 			this.child = fork(this.modulePath, args, forkOpts);
@@ -151,24 +152,15 @@ export class Client implements IChannelClient, IDisposable {
 			const onRawMessage = fromEventEmitter(this.child, 'message', msg => msg);
 
 			onRawMessage(msg => {
-				// Handle console logs specially
-				if (msg && msg.type === '__$console') {
-					let args = ['%c[IPC Library: ' + this.options.serverName + ']', 'color: darkgreen'];
-					try {
-						const parsed = JSON.parse(msg.arguments);
-						args = args.concat(Object.getOwnPropertyNames(parsed).map(o => parsed[o]));
-					} catch (error) {
-						args.push(msg.arguments);
-					}
 
-					console[msg.severity].apply(console, args);
+				// Handle remote console logs specially
+				if (isRemoteConsoleLog(msg)) {
+					log(msg, `IPC Library: ${this.options.serverName}`);
 					return null;
 				}
 
 				// Anything else goes to the outside
-				else {
-					onMessageEmitter.fire(msg);
-				}
+				onMessageEmitter.fire(msg);
 			});
 
 			const sender = this.options.useQueue ? createQueuedSender(this.child) : this.child;

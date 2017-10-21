@@ -40,7 +40,7 @@
 	"pickHistory": "比較対象として、以前に開いたファイルを選択する",
 	"unableToFileToCompare": "選択されたファイルを '{0}' と比較できません。",
 	"openFileToCompare": "まずファイルを開いてから別のファイルと比較してください",
-	"compareWith": "'{0}' と比較",
+	"compareWith": "'{0}' と '{1}' を比較",
 	"compareFiles": "ファイルの比較",
 	"refresh": "最新の情報に更新",
 	"save": "保存",

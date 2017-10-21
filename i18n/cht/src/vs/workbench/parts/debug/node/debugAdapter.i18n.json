@@ -6,6 +6,9 @@
 {
 	"debugAdapterBinNotFound": "偵錯配接器可執行檔 '{0}' 不存在。",
 	"debugAdapterCannotDetermineExecutable": "無法判斷偵錯配接器 '{0}' 的可執行檔。",
+	"launch.config.comment1": "使用 IntelliSense 以得知可用的屬性。",
+	"launch.config.comment2": "暫留以檢視現有屬性的描述。",
+	"launch.config.comment3": "如需詳細資訊，請瀏覽: {0}",
 	"debugType": "組態的類型。",
 	"debugTypeNotRecognised": "無法辨識此偵錯類型.請確認已有安裝並啟用相對應的偵錯擴充功能.",
 	"node2NotSupported": "\"node2\" 已不再支援，請改用 \"node\"，並將 \"protocol\" 屬性設為 \"inspector\"。",

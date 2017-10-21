@@ -22,7 +22,7 @@ export class MergeConflictParser {
 
 	static scanDocument(document: vscode.TextDocument): interfaces.IDocumentMergeConflict[] {
 
-		// Scan each line in the document, we already know there is atleast a <<<<<<< and
+		// Scan each line in the document, we already know there is at least a <<<<<<< and
 		// >>>>>> marker within the document, we need to group these into conflict ranges.
 		// We initially build a scan match, that references the lines of the header, splitter
 		// and footer. This is then converted into a full descriptor containing all required
@@ -61,7 +61,7 @@ export class MergeConflictParser {
 			else if (currentConflict && !currentConflict.splitter && line.text.startsWith(splitterMarker)) {
 				currentConflict.splitter = line;
 			}
-			// Are we withon a conflict block and is this a footer? >>>>>>>
+			// Are we within a conflict block and is this a footer? >>>>>>>
 			else if (currentConflict && line.text.startsWith(endFooterMarker)) {
 				currentConflict.endFooter = line;
 
@@ -92,9 +92,9 @@ export class MergeConflictParser {
 
 		let tokenAfterCurrentBlock: vscode.TextLine = scanned.commonAncestors[0] || scanned.splitter;
 
-		// Assume that descriptor.current.header, descriptor.incoming.header and descriptor.spliiter
+		// Assume that descriptor.current.header, descriptor.incoming.header and descriptor.splitter
 		// have valid ranges, fill in content and total ranges from these parts.
-		// NOTE: We need to shift the decortator range back one character so the splitter does not end up with
+		// NOTE: We need to shift the decorator range back one character so the splitter does not end up with
 		// two decoration colors (current and splitter), if we take the new line from the content into account
 		// the decorator will wrap to the next line.
 		return {

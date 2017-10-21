@@ -18,6 +18,7 @@ export const TextModelEventType = {
 	ModelContentChanged: 'contentChanged',
 	ModelRawContentChanged2: 'rawContentChanged2',
 	ModelDecorationsChanged: 'decorationsChanged',
+	ModelLanguageConfigurationChanged: 'modelLanguageConfigurationChanged'
 };
 
 /**
@@ -32,6 +33,12 @@ export interface IModelLanguageChangedEvent {
 	 * New language
 	 */
 	readonly newLanguage: string;
+}
+
+/**
+ * An event describing that the language configuration associated with a model has changed.
+ */
+export interface IModelLanguageConfigurationChangedEvent {
 }
 
 export interface IModelContentChange {
@@ -81,18 +88,6 @@ export interface IModelContentChangedEvent {
  * An event describing that model decorations have changed.
  */
 export interface IModelDecorationsChangedEvent {
-	/**
-	 * Lists of ids for added decorations.
-	 */
-	readonly addedDecorations: string[];
-	/**
-	 * Lists of ids for changed decorations.
-	 */
-	readonly changedDecorations: string[];
-	/**
-	 * List of ids for removed decorations.
-	 */
-	readonly removedDecorations: string[];
 }
 
 /**

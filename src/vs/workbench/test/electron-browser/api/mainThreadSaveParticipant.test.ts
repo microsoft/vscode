@@ -7,7 +7,7 @@
 
 import * as assert from 'assert';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { FinalNewLineParticipant } from 'vs/workbench/api/electron-browser/mainThreadSaveParticipant';
+import { FinalNewLineParticipant, TrimFinalNewLinesParticipant } from 'vs/workbench/api/electron-browser/mainThreadSaveParticipant';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { workbenchInstantiationService, TestTextFileService } from 'vs/workbench/test/workbenchTestServices';
 import { toResource } from 'vs/base/test/common/utils';
@@ -68,6 +68,46 @@ suite('MainThreadSaveParticipant', function () {
 			model.textEditorModel.setValue(lineContent);
 			participant.participate(model, { reason: SaveReason.EXPLICIT });
 			assert.equal(model.getValue(), `${lineContent}${model.textEditorModel.getEOL()}`);
+
+			done();
+		});
+	});
+
+	test('trim final new lines', function (done) {
+		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/trim_final_new_line.txt'), 'utf8');
+
+		model.load().then(() => {
+			const configService = new TestConfigurationService();
+			configService.setUserConfiguration('files', { 'trimFinalNewlines': true });
+
+			const participant = new TrimFinalNewLinesParticipant(configService, undefined);
+
+			const textContent = 'Trim New Line';
+			const eol = `${model.textEditorModel.getEOL()}`;
+
+			// No new line removal if last line is not new line
+			let lineContent = `${textContent}`;
+			model.textEditorModel.setValue(lineContent);
+			participant.participate(model, { reason: SaveReason.EXPLICIT });
+			assert.equal(model.getValue(), lineContent);
+
+			// No new line removal if last line is single new line
+			lineContent = `${textContent}${eol}`;
+			model.textEditorModel.setValue(lineContent);
+			participant.participate(model, { reason: SaveReason.EXPLICIT });
+			assert.equal(model.getValue(), lineContent);
+
+			// Remove new line (single line with two new lines)
+			lineContent = `${textContent}${eol}${eol}`;
+			model.textEditorModel.setValue(lineContent);
+			participant.participate(model, { reason: SaveReason.EXPLICIT });
+			assert.equal(model.getValue(), `${textContent}${eol}`);
+
+			// Remove new lines (multiple lines with multiple new lines)
+			lineContent = `${textContent}${eol}${textContent}${eol}${eol}${eol}`;
+			model.textEditorModel.setValue(lineContent);
+			participant.participate(model, { reason: SaveReason.EXPLICIT });
+			assert.equal(model.getValue(), `${textContent}${eol}${textContent}${eol}`);
 
 			done();
 		});

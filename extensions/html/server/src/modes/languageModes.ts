@@ -10,17 +10,31 @@ import {
 	Hover, DocumentHighlight, CompletionList, Position, FormattingOptions, SymbolInformation
 } from 'vscode-languageserver-types';
 
+import { ColorInformation, ColorPresentation } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
+
 import { getLanguageModelCache, LanguageModelCache } from '../languageModelCache';
 import { getDocumentRegions, HTMLDocumentRegions } from './embeddedSupport';
 import { getCSSMode } from './cssMode';
 import { getJavascriptMode } from './javascriptMode';
 import { getHTMLMode } from './htmlMode';
 
+export { ColorInformation, ColorPresentation };
+
+export interface Settings {
+	css?: any;
+	html?: any;
+	javascript?: any;
+}
+
+export interface SettingProvider {
+	getDocumentSettings(textDocument: TextDocument): Thenable<Settings>;
+}
+
 export interface LanguageMode {
 	getId();
-	configure?: (options: any) => void;
-	doValidation?: (document: TextDocument) => Diagnostic[];
-	doComplete?: (document: TextDocument, position: Position) => CompletionList;
+	configure?: (options: Settings) => void;
+	doValidation?: (document: TextDocument, settings?: Settings) => Diagnostic[];
+	doComplete?: (document: TextDocument, position: Position, settings?: Settings) => CompletionList;
 	doResolve?: (document: TextDocument, item: CompletionItem) => CompletionItem;
 	doHover?: (document: TextDocument, position: Position) => Hover;
 	doSignatureHelp?: (document: TextDocument, position: Position) => SignatureHelp;
@@ -29,8 +43,10 @@ export interface LanguageMode {
 	findDocumentLinks?: (document: TextDocument, documentContext: DocumentContext) => DocumentLink[];
 	findDefinition?: (document: TextDocument, position: Position) => Definition;
 	findReferences?: (document: TextDocument, position: Position) => Location[];
-	format?: (document: TextDocument, range: Range, options: FormattingOptions) => TextEdit[];
-	findColorSymbols?: (document: TextDocument) => Range[];
+	format?: (document: TextDocument, range: Range, options: FormattingOptions, settings: Settings) => TextEdit[];
+	findDocumentColors?: (document: TextDocument) => ColorInformation[];
+	getColorPresentations?: (document: TextDocument, colorInfo: ColorInformation) => ColorPresentation[];
+	doAutoClose?: (document: TextDocument, position: Position) => string;
 	onDocumentRemoved(document: TextDocument): void;
 	dispose(): void;
 }

@@ -6,5 +6,4 @@
 'use strict';
 
 import './actions/expandAbbreviation';
-import './actions/wrapWithAbbreviation';
 

@@ -21,6 +21,7 @@ export class EditorSnippetVariableResolver implements VariableResolver {
 		'TM_LINE_INDEX': true,
 		'TM_LINE_NUMBER': true,
 		'TM_FILENAME': true,
+		'TM_FILENAME_BASE': true,
 		'TM_DIRECTORY': true,
 		'TM_FILEPATH': true,
 	});
@@ -84,6 +85,15 @@ export class EditorSnippetVariableResolver implements VariableResolver {
 
 		} else if (name === 'TM_FILENAME') {
 			return basename(this._model.uri.fsPath);
+
+		} else if (name === 'TM_FILENAME_BASE') {
+			const name = basename(this._model.uri.fsPath);
+			const idx = name.lastIndexOf('.');
+			if (idx <= 0) {
+				return name;
+			} else {
+				return name.slice(0, idx);
+			}
 
 		} else if (name === 'TM_DIRECTORY') {
 			const dir = dirname(this._model.uri.fsPath);

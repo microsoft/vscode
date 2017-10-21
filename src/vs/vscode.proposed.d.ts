@@ -7,17 +7,131 @@
 
 declare module 'vscode' {
 
+	// export enum FileErrorCodes {
+	// 	/**
+	// 	 * Not owner.
+	// 	 */
+	// 	EPERM = 1,
+	// 	/**
+	// 	 * No such file or directory.
+	// 	 */
+	// 	ENOENT = 2,
+	// 	/**
+	// 	 * I/O error.
+	// 	 */
+	// 	EIO = 5,
+	// 	/**
+	// 	 * Permission denied.
+	// 	 */
+	// 	EACCES = 13,
+	// 	/**
+	// 	 * File exists.
+	// 	 */
+	// 	EEXIST = 17,
+	// 	/**
+	// 	 * Not a directory.
+	// 	 */
+	// 	ENOTDIR = 20,
+	// 	/**
+	// 	 * Is a directory.
+	// 	 */
+	// 	EISDIR = 21,
+	// 	/**
+	// 	 *  File too large.
+	// 	 */
+	// 	EFBIG = 27,
+	// 	/**
+	// 	 * No space left on device.
+	// 	 */
+	// 	ENOSPC = 28,
+	// 	/**
+	// 	 * Directory is not empty.
+	// 	 */
+	// 	ENOTEMPTY = 66,
+	// 	/**
+	// 	 * Invalid file handle.
+	// 	 */
+	// 	ESTALE = 70,
+	// 	/**
+	// 	 * Illegal NFS file handle.
+	// 	 */
+	// 	EBADHANDLE = 10001,
+	// }
+
+	export enum FileChangeType {
+		Updated = 0,
+		Added = 1,
+		Deleted = 2
+	}
+
+	export interface FileChange {
+		type: FileChangeType;
+		resource: Uri;
+	}
+
+	export enum FileType {
+		File = 0,
+		Dir = 1,
+		Symlink = 2
+	}
+
+	export interface FileStat {
+		id: number | string;
+		mtime: number;
+		// atime: number;
+		size: number;
+		type: FileType;
+	}
+
 	// todo@joh discover files etc
 	export interface FileSystemProvider {
-		// todo@joh -> added, deleted, renamed, changed
-		onDidChange: Event<Uri>;
 
-		resolveContents(resource: Uri): string | Thenable<string>;
-		writeContents(resource: Uri, contents: string): void | Thenable<void>;
+		onDidChange?: Event<FileChange[]>;
+
+		root: Uri;
+
+		// more...
+		//
+		utimes(resource: Uri, mtime: number, atime: number): Thenable<FileStat>;
+
+		stat(resource: Uri): Thenable<FileStat>;
+
+		read(resource: Uri, offset: number, length: number, progress: Progress<Uint8Array>): Thenable<number>;
+
+		// todo@remote
+		// offset - byte offset to start
+		// count - number of bytes to write
+		// Thenable<number> - number of bytes actually written
+		write(resource: Uri, content: Uint8Array): Thenable<void>;
+
+		// todo@remote
+		// Thenable<FileStat>
+		move(resource: Uri, target: Uri): Thenable<FileStat>;
+
+		// todo@remote
+		// helps with performance bigly
+		// copy?(from: Uri, to: Uri): Thenable<void>;
+
+		// todo@remote
+		// Thenable<FileStat>
+		mkdir(resource: Uri): Thenable<FileStat>;
+
+		readdir(resource: Uri): Thenable<[Uri, FileStat][]>;
+
+		// todo@remote
+		// ? merge both
+		// ? recursive del
+		rmdir(resource: Uri): Thenable<void>;
+		unlink(resource: Uri): Thenable<void>;
+
+		// todo@remote
+		// create(resource: Uri): Thenable<FileStat>;
+
+		// find files by names
+		findFiles?(query: string, progress: Progress<Uri>, token: CancellationToken): Thenable<void>;
 	}
 
 	export namespace workspace {
-
 		export function registerFileSystemProvider(authority: string, provider: FileSystemProvider): Disposable;
 	}
 
@@ -55,72 +169,25 @@ declare module 'vscode' {
 		export function registerDiffInformationCommand(command: string, callback: (diff: LineChange[], ...args: any[]) => any, thisArg?: any): Disposable;
 	}
 
-	/**
-	 * Namespace for handling credentials.
-	 */
-	export namespace credentials {
+	//#region decorations
 
-		/**
-		 * Read a previously stored secret from the credential store.
-		 *
-		 * @param service The service of the credential.
-		 * @param account The account of the credential.
-		 * @return A promise for the secret of the credential.
-		 */
-		export function readSecret(service: string, account: string): Thenable<string | undefined>;
-
-		/**
-		 * Write a secret to the credential store.
-		 *
-		 * @param service The service of the credential.
-		 * @param account The account of the credential.
-		 * @param secret The secret of the credential to write to the credential store.
-		 * @return A promise indicating completion of the operation.
-		 */
-		export function writeSecret(service: string, account: string, secret: string): Thenable<void>;
-
-		/**
-		 * Delete a previously stored secret from the credential store.
-		 *
-		 * @param service The service of the credential.
-		 * @param account The account of the credential.
-		 * @return A promise resolving to true if there was a secret for that service and account.
-		 */
-		export function deleteSecret(service: string, account: string): Thenable<boolean>;
+	//todo@joh -> make class
+	export interface DecorationData {
+		priority?: number;
+		title?: string;
+		bubble?: boolean;
+		abbreviation?: string;
+		color?: ThemeColor;
 	}
 
-	export class Color {
-		readonly red: number;
-		readonly green: number;
-		readonly blue: number;
-		readonly alpha?: number;
-
-		constructor(red: number, green: number, blue: number, alpha?: number);
-
-		static fromHSLA(hue: number, saturation: number, luminosity: number, alpha?: number): Color;
-		static fromHex(hex: string): Color;
+	export interface DecorationProvider {
+		onDidChangeDecorations: Event<undefined | Uri | Uri[]>;
+		provideDecoration(uri: Uri, token: CancellationToken): ProviderResult<DecorationData>;
 	}
 
-	export type ColorFormat = string | { opaque: string, transparent: string };
-
-	// TODO@Michel
-	export class ColorInfo {
-		range: Range;
-
-		color: Color;
-
-		format: ColorFormat;
-
-		availableFormats: ColorFormat[];
-
-		constructor(range: Range, color: Color, format: ColorFormat, availableFormats: ColorFormat[]);
+	export namespace window {
+		export function registerDecorationProvider(provider: DecorationProvider): Disposable;
 	}
 
-	export interface DocumentColorProvider {
-		provideDocumentColors(document: TextDocument, token: CancellationToken): ProviderResult<ColorInfo[]>;
-	}
-
-	export namespace languages {
-		export function registerColorProvider(selector: DocumentSelector, provider: DocumentColorProvider): Disposable;
-	}
+	//#endregion
 }

@@ -7,6 +7,7 @@
 import { CancellationToken, Uri, Event } from 'vscode';
 import * as Proto from './protocol';
 import API from './utils/api';
+import { TypeScriptServerPlugin } from './utils/plugins';
 
 export interface ITypescriptServiceClientHost {
 	syntaxDiagnosticsReceived(event: Proto.DiagnosticEvent): void;
@@ -33,6 +34,8 @@ export interface ITypescriptServiceClient {
 	logTelemetry(eventName: string, properties?: { [prop: string]: string }): void;
 
 	apiVersion: API;
+
+	plugins: TypeScriptServerPlugin[];
 
 	execute(command: 'configure', args: Proto.ConfigureRequestArguments, token?: CancellationToken): Promise<Proto.ConfigureResponse>;
 	execute(command: 'open', args: Proto.OpenRequestArgs, expectedResult: boolean, token?: CancellationToken): Promise<any>;
@@ -63,6 +66,7 @@ export interface ITypescriptServiceClient {
 	execute(command: 'docCommentTemplate', args: Proto.FileLocationRequestArgs, token?: CancellationToken): Promise<Proto.DocCommandTemplateResponse>;
 	execute(command: 'getApplicableRefactors', args: Proto.GetApplicableRefactorsRequestArgs, token?: CancellationToken): Promise<Proto.GetApplicableRefactorsResponse>;
 	execute(command: 'getEditsForRefactor', args: Proto.GetEditsForRefactorRequestArgs, token?: CancellationToken): Promise<Proto.GetEditsForRefactorResponse>;
+	execute(command: 'applyCodeActionCommand', args: Proto.ApplyCodeActionCommandRequestArgs, token?: CancellationToken): Promise<Proto.ApplyCodeActionCommandResponse>;
 	// execute(command: 'compileOnSaveAffectedFileList', args: Proto.CompileOnSaveEmitFileRequestArgs, token?: CancellationToken): Promise<Proto.CompileOnSaveAffectedFileListResponse>;
 	// execute(command: 'compileOnSaveEmitFile', args: Proto.CompileOnSaveEmitFileRequestArgs, token?: CancellationToken): Promise<any>;
 	execute(command: string, args: any, expectedResult: boolean | CancellationToken, token?: CancellationToken): Promise<any>;

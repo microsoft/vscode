@@ -16,7 +16,7 @@ import { IRawTextSource, RawTextSource } from 'vs/editor/common/model/textSource
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 
 // The hierarchy is:
-// Model -> EditableTextModel -> TextModelWithDecorations -> TextModelWithTrackedRanges -> TextModelWithMarkers -> TextModelWithTokens -> TextModel
+// Model -> EditableTextModel -> TextModelWithDecorations -> TextModelWithTokens -> TextModel
 
 var MODEL_ID = 0;
 
@@ -34,7 +34,9 @@ export class Model extends EditableTextModel implements IModel {
 	public onDidChangeLanguage(listener: (e: textModelEvents.IModelLanguageChangedEvent) => void): IDisposable {
 		return this._eventEmitter.addListener(textModelEvents.TextModelEventType.ModelLanguageChanged, listener);
 	}
-
+	public onDidChangeLanguageConfiguration(listener: (e: textModelEvents.IModelLanguageConfigurationChangedEvent) => void): IDisposable {
+		return this._eventEmitter.addListener(textModelEvents.TextModelEventType.ModelLanguageConfigurationChanged, listener);
+	}
 	public static createFromString(text: string, options: ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS, languageIdentifier: LanguageIdentifier = null, uri: URI = null): Model {
 		return new Model(RawTextSource.fromString(text), options, languageIdentifier, uri);
 	}

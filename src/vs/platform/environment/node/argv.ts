@@ -19,17 +19,22 @@ const options: minimist.Opts = {
 		'extensionTestsPath',
 		'install-extension',
 		'uninstall-extension',
-		'debugBrkPluginHost',
 		'debugId',
 		'debugPluginHost',
+		'debugBrkPluginHost',
+		'debugSearch',
+		'debugBrkSearch',
 		'open-url',
-		'enable-proposed-api'
+		'enable-proposed-api',
+		'export-default-configuration',
+		'install-source'
 	],
 	boolean: [
 		'help',
 		'version',
 		'wait',
 		'diff',
+		'add',
 		'goto',
 		'new-window',
 		'unity-launch',
@@ -42,9 +47,13 @@ const options: minimist.Opts = {
 		'list-extensions',
 		'show-versions',
 		'nolazy',
-		'skip-getting-started'
+		'skip-getting-started',
+		'sticky-quickopen',
+		'disable-telemetry',
+		'disable-updates'
 	],
 	alias: {
+		add: 'a',
 		help: 'h',
 		version: 'v',
 		wait: 'w',
@@ -54,7 +63,11 @@ const options: minimist.Opts = {
 		'reuse-window': 'r',
 		performance: 'p',
 		'disable-extensions': 'disableExtensions',
-		'extensions-dir': 'extensionHomePath'
+		'extensions-dir': 'extensionHomePath',
+		'debugPluginHost': 'inspect-extensions',
+		'debugBrkPluginHost': 'inspect-brk-extensions',
+		'debugSearch': 'inspect-search',
+		'debugBrkSearch': 'inspect-brk-search',
 	}
 };
 
@@ -110,8 +123,9 @@ export function parseArgs(args: string[]): ParsedArgs {
 }
 
 export const optionsHelp: { [name: string]: string; } = {
-	'-d, --diff': localize('diff', "Open a diff editor. Requires to pass two file paths as arguments."),
-	'-g, --goto': localize('goto', "Open the file at path at the line and character (add :line[:character] to path)."),
+	'-d, --diff <file> <file>': localize('diff', "Compare two files with each other."),
+	'-a, --add <dir>': localize('add', "Add folder(s) to the last active window."),
+	'-g, --goto <file:line[:character]>': localize('goto', "Open a file at the path on the specified line and character position."),
 	'--locale <locale>': localize('locale', "The locale to use (e.g. en-US or zh-TW)."),
 	'-n, --new-window': localize('newWindow', "Force a new instance of Code."),
 	'-p, --performance': localize('performance', "Start with the 'Developer: Startup Performance' command enabled."),
@@ -119,13 +133,13 @@ export const optionsHelp: { [name: string]: string; } = {
 	'-r, --reuse-window': localize('reuseWindow', "Force opening a file or folder in the last active window."),
 	'--user-data-dir <dir>': localize('userDataDir', "Specifies the directory that user data is kept in, useful when running as root."),
 	'--verbose': localize('verbose', "Print verbose output (implies --wait)."),
-	'-w, --wait': localize('wait', "Wait for the window to be closed before returning."),
+	'-w, --wait': localize('wait', "Wait for the files to be closed before returning."),
 	'--extensions-dir <dir>': localize('extensionHomePath', "Set the root path for extensions."),
 	'--list-extensions': localize('listExtensions', "List the installed extensions."),
 	'--show-versions': localize('showVersions', "Show versions of installed extensions, when using --list-extension."),
-	'--install-extension <ext>': localize('installExtension', "Installs an extension."),
-	'--uninstall-extension <ext>': localize('uninstallExtension', "Uninstalls an extension."),
-	'--enable-proposed-api <ext>': localize('experimentalApis', "Enables proposed api features for an extension."),
+	'--install-extension (<extension-id> | <extension-vsix-path>)': localize('installExtension', "Installs an extension."),
+	'--uninstall-extension <extension-id>': localize('uninstallExtension', "Uninstalls an extension."),
+	'--enable-proposed-api <extension-id>': localize('experimentalApis', "Enables proposed api features for an extension."),
 	'--disable-extensions': localize('disableExtensions', "Disable all installed extensions."),
 	'--disable-gpu': localize('disableGPU', "Disable GPU hardware acceleration."),
 	'-v, --version': localize('version', "Print version."),

@@ -12,7 +12,7 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ServicesAccessor } from "vs/platform/instantiation/common/instantiation";
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 export const inQuickOpenContext = ContextKeyExpr.has('inQuickOpen');
 export const defaultQuickOpenContextKey = 'inFilesPicker';
@@ -25,6 +25,15 @@ CommandsRegistry.registerCommand(QUICKOPEN_ACTION_ID, function (accessor: Servic
 	const quickOpenService = accessor.get(IQuickOpenService);
 
 	return quickOpenService.show(typeof prefix === 'string' ? prefix : null).then(() => {
+		return void 0;
+	});
+});
+
+export const QUICKOPEN_FOCUS_SECONDARY_ACTION_ID = 'workbench.action.quickOpenPreviousEditor';
+CommandsRegistry.registerCommand(QUICKOPEN_FOCUS_SECONDARY_ACTION_ID, function (accessor: ServicesAccessor, prefix: string = null) {
+	const quickOpenService = accessor.get(IQuickOpenService);
+
+	return quickOpenService.show(null, { autoFocus: { autoFocusSecondEntry: true } }).then(() => {
 		return void 0;
 	});
 });

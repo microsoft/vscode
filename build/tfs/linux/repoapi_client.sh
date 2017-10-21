@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # This is a VERY basic script for Create/Delete operations on repos and packages
-# 
+#
 cmd=$1
 urls=urls.txt
 defaultPackageFile=new_package.json
@@ -53,7 +53,7 @@ function ParseConfigFile {
     fi
     BailIfFileMissing "$configFile"
     secretContents=$(cat "$configFile")
-    
+
     server=$(ParseFromJson .server)
     protocol=$(ParseFromJson .protocol)
     port=$(ParseFromJson .port)
@@ -135,14 +135,14 @@ function AddPackageByUrl
         rm -f $tmpFile $tmpOut
         Bail "File is not a valid deb/rpm package $url"
     fi
-    
+
     rm -f $tmpFile $tmpOut
     if [ -z "$pkgName" ]; then
         Bail "Unable to parse package name for $url"
     elif [ -z "$pkgVer" ]; then
         Bail "Unable to parse package version number for $url"
     fi
-    
+
     # Create Package .json file
     escapedUrl=$(echo "$url" | sed 's/\//\\\//g' | sed 's/\&/\\\&/g')
     cp $defaultPackageFile.template $defaultPackageFile
@@ -153,7 +153,7 @@ function AddPackageByUrl
     # Perform Upload
     AddPackage $defaultPackageFile
     # Cleanup
-    rm -f $defaultPackageFile 
+    rm -f $defaultPackageFile
 }
 
 # Upload multiple packages by reading urls line-by-line from the specified file

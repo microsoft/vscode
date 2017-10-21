@@ -78,7 +78,7 @@ export class ExtHostDocumentData extends MirrorModel {
 				getText(range?) { return range ? data._getTextInRange(range) : data.getText(); },
 				get eol() { return data._eol === '\n' ? EndOfLine.LF : EndOfLine.CRLF; },
 				get lineCount() { return data._lines.length; },
-				lineAt(lineOrPos) { return data._lineAt(lineOrPos); },
+				lineAt(lineOrPos: number | vscode.Position) { return data._lineAt(lineOrPos); },
 				offsetAt(pos) { return data._offsetAt(pos); },
 				positionAt(offset) { return data._positionAt(offset); },
 				validateRange(ran) { return data._validateRange(ran); },

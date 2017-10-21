@@ -4,23 +4,35 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
+import { TPromise } from 'vs/base/common/winjs.base';
 import uri from 'vs/base/common/uri';
+import * as paths from 'vs/base/common/paths';
 import { DEBUG_SCHEME } from 'vs/workbench/parts/debug/common/debug';
+import { IRange } from 'vs/editor/common/core/range';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const UNKNOWN_SOURCE_LABEL = nls.localize('unknownSource', "Unknown Source");
 
 export class Source {
 
-	public uri: uri;
+	public readonly uri: uri;
 	public available: boolean;
 
-	constructor(public raw: DebugProtocol.Source) {
+	constructor(public readonly raw: DebugProtocol.Source, sessionId: string) {
 		if (!raw) {
 			this.raw = { name: UNKNOWN_SOURCE_LABEL };
 		}
-		const path = this.raw.path || this.raw.name;
 		this.available = this.raw.name !== UNKNOWN_SOURCE_LABEL;
-		this.uri = this.raw.sourceReference > 0 ? uri.parse(`${DEBUG_SCHEME}:${path}`) : uri.file(path);
+		const path = this.raw.path || this.raw.name;
+		if (this.raw.sourceReference > 0) {
+			this.uri = uri.parse(`${DEBUG_SCHEME}:${encodeURIComponent(path)}?session=${encodeURIComponent(sessionId)}&ref=${this.raw.sourceReference}`);
+		} else {
+			if (paths.isAbsolute(path)) {
+				this.uri = uri.file(path); // path should better be absolute!
+			} else {
+				this.uri = uri.parse(path);
+			}
+		}
 	}
 
 	public get name() {
@@ -40,6 +52,20 @@ export class Source {
 	}
 
 	public get inMemory() {
-		return this.uri.toString().indexOf(`${DEBUG_SCHEME}:`) === 0;
+		return this.uri.scheme === DEBUG_SCHEME;
+	}
+
+	public openInEditor(editorService: IWorkbenchEditorService, selection: IRange, preserveFocus?: boolean, sideBySide?: boolean): TPromise<any> {
+		return !this.available ? TPromise.as(null) : editorService.openEditor({
+			resource: this.uri,
+			description: this.origin,
+			options: {
+				preserveFocus,
+				selection,
+				revealIfVisible: true,
+				revealInCenterIfOutsideViewport: true,
+				pinned: !preserveFocus && !this.inMemory
+			}
+		}, sideBySide);
 	}
 }

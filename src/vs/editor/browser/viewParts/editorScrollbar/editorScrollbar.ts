@@ -6,7 +6,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { ScrollableElementCreationOptions, ScrollableElementChangeOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
-import { IOverviewRulerLayoutInfo, ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { IOverviewRulerLayoutInfo, SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { INewScrollPosition } from 'vs/editor/common/editorCommon';
 import { ViewPart, PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
@@ -19,7 +19,7 @@ import { ISimplifiedMouseEvent } from 'vs/base/browser/ui/scrollbar/abstractScro
 
 export class EditorScrollbar extends ViewPart {
 
-	private scrollbar: ScrollableElement;
+	private scrollbar: SmoothScrollableElement;
 	private scrollbarDomNode: FastDomNode<HTMLElement>;
 
 	constructor(
@@ -52,7 +52,7 @@ export class EditorScrollbar extends ViewPart {
 			mouseWheelScrollSensitivity: configScrollbarOpts.mouseWheelScrollSensitivity,
 		};
 
-		this.scrollbar = this._register(new ScrollableElement(linesContent.domNode, scrollbarOptions, this._context.viewLayout.scrollable));
+		this.scrollbar = this._register(new SmoothScrollableElement(linesContent.domNode, scrollbarOptions, this._context.viewLayout.scrollable));
 		PartFingerprints.write(this.scrollbar.getDomNode(), PartFingerprint.ScrollableElement);
 
 		this.scrollbarDomNode = createFastDomNode(this.scrollbar.getDomNode());
@@ -69,7 +69,7 @@ export class EditorScrollbar extends ViewPart {
 			if (lookAtScrollTop) {
 				let deltaTop = domNode.scrollTop;
 				if (deltaTop) {
-					newScrollPosition.scrollTop = this._context.viewLayout.getScrollTop() + deltaTop;
+					newScrollPosition.scrollTop = this._context.viewLayout.getCurrentScrollTop() + deltaTop;
 					domNode.scrollTop = 0;
 				}
 			}
@@ -77,12 +77,12 @@ export class EditorScrollbar extends ViewPart {
 			if (lookAtScrollLeft) {
 				let deltaLeft = domNode.scrollLeft;
 				if (deltaLeft) {
-					newScrollPosition.scrollLeft = this._context.viewLayout.getScrollLeft() + deltaLeft;
+					newScrollPosition.scrollLeft = this._context.viewLayout.getCurrentScrollLeft() + deltaLeft;
 					domNode.scrollLeft = 0;
 				}
 			}
 
-			this._context.viewLayout.setScrollPosition(newScrollPosition);
+			this._context.viewLayout.setScrollPositionNow(newScrollPosition);
 		};
 
 		// I've seen this happen both on the view dom node & on the lines content dom node.

@@ -6,6 +6,7 @@
 {
 	"showTriggerActions": "Vai al simbolo nell'area di lavoro...",
 	"name": "Cerca",
+	"search": "Cerca",
 	"showSearchViewlet": "Mostra Cerca",
 	"view": "Visualizza",
 	"findInFiles": "Cerca nei file",

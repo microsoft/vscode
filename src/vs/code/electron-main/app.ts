@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { app, ipcMain as ipc, BrowserWindow } from 'electron';
+import { app, ipcMain as ipc, BrowserWindow, dialog } from 'electron';
 import * as platform from 'vs/base/common/platform';
 import { WindowsManager } from 'vs/code/electron-main/windows';
 import { IWindowsService, OpenContext } from 'vs/platform/windows/common/windows';
@@ -43,19 +43,24 @@ import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
 import { ProxyAuthHandler } from './auth';
-import { IDisposable, dispose } from "vs/base/common/lifecycle";
-import { ConfigurationService } from "vs/platform/configuration/node/configurationService";
-import { TPromise } from "vs/base/common/winjs.base";
-import { IWindowsMainService } from "vs/platform/windows/electron-main/windows";
-import { IHistoryMainService } from "vs/platform/history/common/history";
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
+import { IHistoryMainService } from 'vs/platform/history/common/history';
 import { isUndefinedOrNull } from 'vs/base/common/types';
-import { CodeWindow } from "vs/code/electron-main/window";
-import { KeyboardLayoutMonitor } from "vs/code/electron-main/keyboard";
+import { CodeWindow } from 'vs/code/electron-main/window';
+import { KeyboardLayoutMonitor } from 'vs/code/electron-main/keyboard';
 import URI from 'vs/base/common/uri';
-import { WorkspacesChannel } from "vs/platform/workspaces/common/workspacesIpc";
-import { IWorkspacesMainService } from "vs/platform/workspaces/common/workspaces";
+import { WorkspacesChannel } from 'vs/platform/workspaces/common/workspacesIpc';
+import { IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
+import { dirname, join } from 'path';
+import { touch } from 'vs/base/node/pfs';
 
 export class CodeApplication {
+
+	private static APP_ICON_REFRESH_KEY = 'macOSAppIconRefresh2';
+
 	private toDispose: IDisposable[];
 	private windowsMainService: IWindowsMainService;
 
@@ -71,7 +76,7 @@ export class CodeApplication {
 		@ILogService private logService: ILogService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IConfigurationService private configurationService: ConfigurationService<any>,
+		@IConfigurationService private configurationService: ConfigurationService,
 		@IStorageService private storageService: IStorageService,
 		@IHistoryMainService private historyService: IHistoryMainService
 	) {
@@ -129,7 +134,7 @@ export class CodeApplication {
 			!source || (URI.parse(source.toLowerCase()).toString() as any).startsWith(URI.file(this.environmentService.appRoot.toLowerCase()).toString());
 
 		app.on('web-contents-created', (event, contents) => {
-			contents.on('will-attach-webview', (event, webPreferences, params) => {
+			contents.on('will-attach-webview', (event: Electron.Event, webPreferences, params) => {
 				delete webPreferences.preload;
 				webPreferences.nodeIntegration = false;
 
@@ -179,6 +184,10 @@ export class CodeApplication {
 			}, 100);
 		});
 
+		app.on('new-window-for-tab', () => {
+			this.windowsMainService.openNewWindow(OpenContext.DESKTOP); //macOS native tab "+" button
+		});
+
 		ipc.on('vscode:exit', (event, code: number) => {
 			this.logService.log('IPC#vscode:exit', code);
 
@@ -219,9 +228,9 @@ export class CodeApplication {
 		});
 
 		// Keyboard layout changes
-		KeyboardLayoutMonitor.INSTANCE.onDidChangeKeyboardLayout(isISOKeyboard => {
+		KeyboardLayoutMonitor.INSTANCE.onDidChangeKeyboardLayout(() => {
 			if (this.windowsMainService) {
-				this.windowsMainService.sendToAll('vscode:keyboardLayoutChanged', isISOKeyboard);
+				this.windowsMainService.sendToAll('vscode:keyboardLayoutChanged', false);
 			}
 		});
 	}
@@ -282,10 +291,11 @@ export class CodeApplication {
 		services.set(ICredentialsService, new SyncDescriptor(CredentialsService));
 
 		// Telemtry
-		if (this.environmentService.isBuilt && !this.environmentService.isExtensionDevelopment && !!product.enableTelemetry) {
+		if (this.environmentService.isBuilt && !this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
 			const channel = getDelayedChannel<ITelemetryAppenderChannel>(this.sharedProcessClient.then(c => c.getChannel('telemetryAppender')));
 			const appender = new TelemetryAppenderClient(channel);
-			const commonProperties = resolveCommonProperties(product.commit, pkg.version)
+			const commonProperties = resolveCommonProperties(product.commit, pkg.version, this.environmentService.installSource)
+				// __GDPR__COMMON__ "common.machineId" : { "classification": "EndUserPseudonymizedInformation", "purpose": "FeatureInsight" }
 				.then(result => Object.defineProperty(result, 'common.machineId', {
 					get: () => this.storageService.getItem(machineIdStorageKey),
 					enumerable: true
@@ -369,7 +379,23 @@ export class CodeApplication {
 				windowsMutex = new Mutex(product.win32MutexName);
 				this.toDispose.push({ dispose: () => windowsMutex.release() });
 			} catch (e) {
-				// noop
+				if (!this.environmentService.isBuilt) {
+					dialog.showMessageBox({
+						message: 'Failed to load windows-mutex',
+						detail: e.toString()
+					});
+				}
+			}
+
+			try {
+				<any>require.__$__nodeRequire('windows-foreground-love');
+			} catch (e) {
+				if (!this.environmentService.isBuilt) {
+					dialog.showMessageBox({
+						message: 'Failed to load windows-foreground-love',
+						detail: e.toString()
+					});
+				}
 			}
 		}
 
@@ -382,6 +408,20 @@ export class CodeApplication {
 
 		// Start shared process here
 		this.sharedProcess.spawn();
+
+		// Helps application icon refresh after an update with new icon is installed (macOS)
+		// TODO@Ben remove after a couple of releases
+		if (platform.isMacintosh) {
+			if (!this.storageService.getItem(CodeApplication.APP_ICON_REFRESH_KEY)) {
+				this.storageService.setItem(CodeApplication.APP_ICON_REFRESH_KEY, true);
+
+				// 'exe' => /Applications/Visual Studio Code - Insiders.app/Contents/MacOS/Electron
+				const appPath = dirname(dirname(dirname(app.getPath('exe'))));
+				const infoPlistPath = join(appPath, 'Contents', 'Info.plist');
+				touch(appPath).done(null, error => { /* ignore */ });
+				touch(infoPlistPath).done(null, error => { /* ignore */ });
+			}
+		}
 	}
 
 	private dispose(): void {

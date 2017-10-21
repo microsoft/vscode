@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { DefaultCompletionItemProvider } from './defaultCompletionProvider';
-import { expandAbbreviation, wrapWithAbbreviation } from './abbreviationActions';
+import { expandEmmetAbbreviation, wrapWithAbbreviation, wrapIndividualLinesWithAbbreviation } from './abbreviationActions';
 import { removeTag } from './removeTag';
 import { updateTag } from './updateTag';
 import { matchTag } from './matchTag';
@@ -25,14 +25,18 @@ import { reflectCssValue } from './reflectCssValue';
 import * as path from 'path';
 
 export function activate(context: vscode.ExtensionContext) {
-	registerCompletionProviders(context, true);
+	registerCompletionProviders(context);
 
-	context.subscriptions.push(vscode.commands.registerCommand('emmet.wrapWithAbbreviation', (args) => {
+	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.wrapWithAbbreviation', (args) => {
 		wrapWithAbbreviation(args);
 	}));
 
+	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.wrapIndividualLinesWithAbbreviation', (args) => {
+		wrapIndividualLinesWithAbbreviation(args);
+	}));
+
 	context.subscriptions.push(vscode.commands.registerCommand('emmet.expandAbbreviation', (args) => {
-		expandAbbreviation(args);
+		expandEmmetAbbreviation(args);
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.removeTag', () => {
@@ -132,14 +136,14 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 		if (currentExtensionsPath !== extensionsPath) {
 			currentExtensionsPath = extensionsPath;
-			updateExtensionsPath(currentExtensionsPath);
+			updateExtensionsPath(currentExtensionsPath).then(null, err => vscode.window.showErrorMessage(err));
 		}
 	};
 
 	resolveUpdateExtensionsPath();
 
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(() => {
-		registerCompletionProviders(context, false);
+		registerCompletionProviders(context);
 		resolveUpdateExtensionsPath();
 	}));
 }
@@ -147,26 +151,39 @@ export function activate(context: vscode.ExtensionContext) {
 /**
  * Holds any registered completion providers by their language strings
  */
-const registeredCompletionProviders: string[] = [];
+const languageMappingForCompletionProviders: Map<string, string> = new Map<string, string>();
+const completionProvidersMapping: Map<string, vscode.Disposable> = new Map<string, vscode.Disposable>();
 
-function registerCompletionProviders(context: vscode.ExtensionContext, isFirstStart: boolean) {
+function registerCompletionProviders(context: vscode.ExtensionContext) {
 	let completionProvider = new DefaultCompletionItemProvider();
-
-	if (isFirstStart) {
-		Object.keys(LANGUAGE_MODES).forEach(language => {
-			const provider = vscode.languages.registerCompletionItemProvider(language, completionProvider, ...LANGUAGE_MODES[language]);
-			context.subscriptions.push(provider);
-		});
-	}
-
 	let includedLanguages = getMappingForIncludedLanguages();
+
 	Object.keys(includedLanguages).forEach(language => {
-		if (registeredCompletionProviders.includes(language)) {
+		if (languageMappingForCompletionProviders.has(language) && languageMappingForCompletionProviders.get(language) === includedLanguages[language]) {
 			return;
 		}
+
+		if (languageMappingForCompletionProviders.has(language)) {
+			completionProvidersMapping.get(language).dispose();
+			languageMappingForCompletionProviders.delete(language);
+			completionProvidersMapping.delete(language);
+		}
+
 		const provider = vscode.languages.registerCompletionItemProvider(language, completionProvider, ...LANGUAGE_MODES[includedLanguages[language]]);
 		context.subscriptions.push(provider);
-		registeredCompletionProviders.push(language);
+
+		languageMappingForCompletionProviders.set(language, includedLanguages[language]);
+		completionProvidersMapping.set(language, provider);
+	});
+
+	Object.keys(LANGUAGE_MODES).forEach(language => {
+		if (!languageMappingForCompletionProviders.has(language)) {
+			const provider = vscode.languages.registerCompletionItemProvider(language, completionProvider, ...LANGUAGE_MODES[language]);
+			context.subscriptions.push(provider);
+
+			languageMappingForCompletionProviders.set(language, language);
+			completionProvidersMapping.set(language, provider);
+		}
 	});
 }
 

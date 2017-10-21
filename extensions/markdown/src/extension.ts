@@ -11,12 +11,12 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import { MarkdownEngine } from './markdownEngine';
-import DocumentLinkProvider from './documentLinkProvider';
+import LinkProvider from './documentLinkProvider';
 import MDDocumentSymbolProvider from './documentSymbolProvider';
 import { ExtensionContentSecurityPolicyArbiter, PreviewSecuritySelector } from './security';
 import { MDDocumentContentProvider, getMarkdownUri, isMarkdownFile } from './previewContentProvider';
 import { TableOfContentsProvider } from './tableOfContentsProvider';
-import { Logger } from "./logger";
+import { Logger } from './logger';
 
 interface IPackageInfo {
 	name: string;
@@ -96,18 +96,28 @@ export function activate(context: vscode.ExtensionContext) {
 	const symbolsProviderRegistration = vscode.languages.registerDocumentSymbolProvider({ language: 'markdown' }, symbolsProvider);
 	context.subscriptions.push(contentProviderRegistration, symbolsProviderRegistration);
 
-	context.subscriptions.push(vscode.languages.registerDocumentLinkProvider('markdown', new DocumentLinkProvider()));
+	context.subscriptions.push(vscode.languages.registerDocumentLinkProvider('markdown', new LinkProvider()));
 
 	context.subscriptions.push(vscode.commands.registerCommand('markdown.showPreview', (uri) => showPreview(cspArbiter, uri, false)));
 	context.subscriptions.push(vscode.commands.registerCommand('markdown.showPreviewToSide', uri => showPreview(cspArbiter, uri, true)));
 	context.subscriptions.push(vscode.commands.registerCommand('markdown.showSource', showSource));
+
+	context.subscriptions.push(vscode.commands.registerCommand('_markdown.moveCursorToPosition', (line: number, character: number) => {
+		if (!vscode.window.activeTextEditor) {
+			return;
+		}
+		const position = new vscode.Position(line, character);
+		const selection = new vscode.Selection(position, position);
+		vscode.window.activeTextEditor.revealRange(selection);
+		vscode.window.activeTextEditor.selection = selection;
+	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('_markdown.revealLine', (uri, line) => {
 		const sourceUri = vscode.Uri.parse(decodeURIComponent(uri));
 		logger.log('revealLine', { uri, sourceUri: sourceUri.toString(), line });
 
 		vscode.window.visibleTextEditors
-			.filter(editor => isMarkdownFile(editor.document) && editor.document.uri.fsPath === sourceUri.fsPath)
+			.filter(editor => isMarkdownFile(editor.document) && editor.document.uri.toString() === sourceUri.toString())
 			.forEach(editor => {
 				const sourceLine = Math.floor(line);
 				const fraction = line - sourceLine;
@@ -164,6 +174,22 @@ export function activate(context: vscode.ExtensionContext) {
 		} else {
 			if (vscode.window.activeTextEditor && vscode.window.activeTextEditor.document.languageId === 'markdown') {
 				previewSecuritySelector.showSecutitySelectorForResource(vscode.window.activeTextEditor.document.uri);
+			}
+		}
+	}));
+
+	context.subscriptions.push(vscode.commands.registerCommand('markdown.refreshPreview', (resource: string | undefined) => {
+		if (resource) {
+			const source = vscode.Uri.parse(resource);
+			contentProvider.update(source);
+		} else if (vscode.window.activeTextEditor && isMarkdownFile(vscode.window.activeTextEditor.document)) {
+			contentProvider.update(getMarkdownUri(vscode.window.activeTextEditor.document.uri));
+		} else {
+			// update all generated md documents
+			for (const document of vscode.workspace.textDocuments) {
+				if (document.uri.scheme === 'markdown') {
+					contentProvider.update(document.uri);
+				}
 			}
 		}
 	}));
@@ -227,13 +253,19 @@ function showPreview(cspArbiter: ExtensionContentSecurityPolicyArbiter, uri?: vs
 	const thenable = vscode.commands.executeCommand('vscode.previewHtml',
 		getMarkdownUri(resource),
 		getViewColumn(sideBySide),
-		`Preview '${path.basename(resource.fsPath)}'`,
+		localize('previewTitle', 'Preview {0}', path.basename(resource.fsPath)),
 		{
 			allowScripts: true,
 			allowSvgs: cspArbiter.shouldAllowSvgsForResource(resource)
 		});
 
 	if (telemetryReporter) {
+		/* __GDPR__
+			"openPreview" : {
+				"where" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"how": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		telemetryReporter.sendTelemetryEvent('openPreview', {
 			where: sideBySide ? 'sideBySide' : 'inPlace',
 			how: (uri instanceof vscode.Uri) ? 'action' : 'pallete'
@@ -270,7 +302,7 @@ function showSource(mdUri: vscode.Uri) {
 
 	const docUri = vscode.Uri.parse(mdUri.query);
 	for (const editor of vscode.window.visibleTextEditors) {
-		if (editor.document.uri.scheme === docUri.scheme && editor.document.uri.fsPath === docUri.fsPath) {
+		if (editor.document.uri.scheme === docUri.scheme && editor.document.uri.toString() === docUri.toString()) {
 			return vscode.window.showTextDocument(editor.document, editor.viewColumn);
 		}
 	}

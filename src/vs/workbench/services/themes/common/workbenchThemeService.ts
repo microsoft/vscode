@@ -7,9 +7,9 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event from 'vs/base/common/event';
-import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { Color } from 'vs/base/common/color';
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
 export const IWorkbenchThemeService = createDecorator<IWorkbenchThemeService>('themeService');
 
@@ -20,7 +20,6 @@ export const VS_HC_THEME = 'hc-black';
 export const COLOR_THEME_SETTING = 'workbench.colorTheme';
 export const ICON_THEME_SETTING = 'workbench.iconTheme';
 export const CUSTOM_WORKBENCH_COLORS_SETTING = 'workbench.colorCustomizations';
-export const DEPRECATED_CUSTOM_COLORS_SETTING = 'workbench.experimental.colorCustomizations';
 export const CUSTOM_EDITOR_COLORS_SETTING = 'editor.tokenColorCustomizations';
 export const CUSTOM_EDITOR_SCOPE_COLORS_SETTING = 'textMateRules';
 
@@ -31,7 +30,7 @@ export interface IColorTheme extends ITheme {
 	readonly extensionData: ExtensionData;
 	readonly description?: string;
 	readonly isLoaded: boolean;
-	readonly tokenColors?: ITokenColorizationRule[];
+	readonly tokenColors: ITokenColorizationRule[];
 }
 
 export interface IColorMap {
@@ -48,6 +47,7 @@ export interface IFileIconTheme {
 	readonly isLoaded: boolean;
 	readonly hasFileIcons?: boolean;
 	readonly hasFolderIcons?: boolean;
+	readonly hidesExplorerArrows?: boolean;
 }
 
 export interface IWorkbenchThemeService extends IThemeService {

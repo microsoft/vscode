@@ -28,7 +28,9 @@ import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { AccessibilitySupport } from 'vs/base/common/platform';
-import { editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder } from 'vs/editor/common/view/editorColorRegistry';
+import { editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder, editorInfoForeground, editorInfoBorder } from 'vs/editor/common/view/editorColorRegistry';
+import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 
 class MarkerModel {
 
@@ -177,7 +179,7 @@ class MarkerModel {
 		this.withoutWatchingEditorPosition(() => {
 			const pos = new Position(this._markers[this._nextIdx].startLineNumber, this._markers[this._nextIdx].startColumn);
 			this._editor.setPosition(pos);
-			this._editor.revealPositionInCenter(pos);
+			this._editor.revealPositionInCenter(pos, editorCommon.ScrollType.Smooth);
 		});
 	}
 
@@ -188,27 +190,68 @@ class MarkerModel {
 
 class MessageWidget {
 
-	domNode: HTMLDivElement;
 	lines: number = 0;
+	longestLineLength: number = 0;
 
-	constructor(container: HTMLElement) {
-		this.domNode = document.createElement('div');
-		this.domNode.className = 'block descriptioncontainer';
-		this.domNode.setAttribute('aria-live', 'assertive');
-		this.domNode.setAttribute('role', 'alert');
-		container.appendChild(this.domNode);
+	private readonly _editor: ICodeEditor;
+	private readonly _domNode: HTMLElement;
+	private readonly _scrollable: ScrollableElement;
+	private readonly _disposables: IDisposable[] = [];
+
+	constructor(parent: HTMLElement, editor: ICodeEditor) {
+		this._editor = editor;
+
+		this._domNode = document.createElement('span');
+		this._domNode.className = 'descriptioncontainer';
+		this._domNode.setAttribute('aria-live', 'assertive');
+		this._domNode.setAttribute('role', 'alert');
+
+		this._scrollable = new ScrollableElement(this._domNode, {
+			horizontal: ScrollbarVisibility.Auto,
+			vertical: ScrollbarVisibility.Hidden,
+			useShadows: false,
+			horizontalScrollbarSize: 3
+		});
+		dom.addClass(this._scrollable.getDomNode(), 'block');
+		parent.appendChild(this._scrollable.getDomNode());
+		this._disposables.push(this._scrollable.onScroll(e => this._domNode.style.left = `-${e.scrollLeft}px`));
+		this._disposables.push(this._scrollable);
+	}
+
+	dispose(): void {
+		dispose(this._disposables);
 	}
 
 	update({ source, message }: IMarker): void {
-		this.lines = 1;
+
 		if (source) {
+			this.lines = 0;
+			this.longestLineLength = 0;
 			const indent = new Array(source.length + 3 + 1).join(' ');
-			message = `[${source}] ` + message.replace(/\r\n|\r|\n/g, () => {
+			const lines = message.split(/\r\n|\r|\n/g);
+			for (let i = 0; i < lines.length; i++) {
+				let line = lines[i];
 				this.lines += 1;
-				return '\n' + indent;
-			});
+				this.longestLineLength = Math.max(line.length, this.longestLineLength);
+				if (i === 0) {
+					message = `[${source}] ${line}`;
+				} else {
+					message += `\n${indent}${line}`;
+				}
+			}
+		} else {
+			this.lines = 1;
+			this.longestLineLength = message.length;
 		}
-		this.domNode.innerText = message;
+
+		this._domNode.innerText = message;
+		this._editor.applyFontInfo(this._domNode);
+		const width = Math.floor(this._editor.getConfiguration().fontInfo.typicalFullwidthCharacterWidth * this.longestLineLength);
+		this._scrollable.setScrollDimensions({ scrollWidth: width });
+	}
+
+	layout(height: number, width: number): void {
+		this._scrollable.setScrollDimensions({ width });
 	}
 }
 
@@ -222,7 +265,11 @@ class MarkerNavigationWidget extends ZoneWidget {
 	private _severity: Severity;
 	private _backgroundColor: Color;
 
-	constructor(editor: ICodeEditor, private _model: MarkerModel, private _themeService: IThemeService) {
+	constructor(
+		editor: ICodeEditor,
+		private _model: MarkerModel,
+		private _themeService: IThemeService
+	) {
 		super(editor, { showArrow: true, showFrame: true, isAccessible: true });
 		this._severity = Severity.Warning;
 		this._backgroundColor = Color.white;
@@ -236,7 +283,13 @@ class MarkerNavigationWidget extends ZoneWidget {
 
 	private _applyTheme(theme: ITheme) {
 		this._backgroundColor = theme.getColor(editorMarkerNavigationBackground);
-		let frameColor = theme.getColor(this._severity === Severity.Error ? editorMarkerNavigationError : editorMarkerNavigationWarning);
+		let colorId = editorMarkerNavigationError;
+		if (this._severity === Severity.Warning) {
+			colorId = editorMarkerNavigationWarning;
+		} else if (this._severity === Severity.Info) {
+			colorId = editorMarkerNavigationInfo;
+		}
+		let frameColor = theme.getColor(colorId);
 		this.style({
 			arrowColor: frameColor,
 			frameColor: frameColor
@@ -272,11 +325,11 @@ class MarkerNavigationWidget extends ZoneWidget {
 		this._title.className = 'block title';
 		this._container.appendChild(this._title);
 
-		this._message = new MessageWidget(this._container);
-		this.editor.applyFontInfo(this._message.domNode);
+		this._message = new MessageWidget(this._container, this.editor);
+		this._disposables.push(this._message);
 	}
 
-	public show(where: Position, heightInLines: number): void {
+	show(where: Position, heightInLines: number): void {
 		super.show(where, heightInLines);
 		if (this.editor.getConfiguration().accessibilitySupport !== AccessibilitySupport.Disabled) {
 			this.focus();
@@ -322,6 +375,10 @@ class MarkerNavigationWidget extends ZoneWidget {
 		this._relayout();
 	}
 
+	protected _doLayout(heightInPixel: number, widthInPixel: number): void {
+		this._message.layout(heightInPixel, widthInPixel);
+	}
+
 	protected _relayout(): void {
 		super._relayout(this.computeRequiredHeight());
 	}
@@ -349,6 +406,14 @@ class MarkerNavigationAction extends EditorAction {
 		}
 
 		let model = controller.getOrCreateModel();
+		/* __GDPR__
+			"zoneWidgetShown" : {
+				"mode" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"${include}": [
+					"${EditorTelemetryData}"
+				]
+			}
+		*/
 		telemetryService.publicLog('zoneWidgetShown', { mode: 'go to error', ...editor.getTelemetryData() });
 		if (model) {
 			if (this._isNext) {
@@ -490,7 +555,9 @@ CommonEditorRegistry.registerEditorCommand(new MarkerCommand({
 
 let errorDefault = oneOf(editorErrorForeground, editorErrorBorder);
 let warningDefault = oneOf(editorWarningForeground, editorWarningBorder);
+let infoDefault = oneOf(editorInfoForeground, editorInfoBorder);
 
 export const editorMarkerNavigationError = registerColor('editorMarkerNavigationError.background', { dark: errorDefault, light: errorDefault, hc: errorDefault }, nls.localize('editorMarkerNavigationError', 'Editor marker navigation widget error color.'));
 export const editorMarkerNavigationWarning = registerColor('editorMarkerNavigationWarning.background', { dark: warningDefault, light: warningDefault, hc: warningDefault }, nls.localize('editorMarkerNavigationWarning', 'Editor marker navigation widget warning color.'));
+export const editorMarkerNavigationInfo = registerColor('editorMarkerNavigationInfo.background', { dark: infoDefault, light: infoDefault, hc: infoDefault }, nls.localize('editorMarkerNavigationInfo', 'Editor marker navigation widget info color.'));
 export const editorMarkerNavigationBackground = registerColor('editorMarkerNavigation.background', { dark: '#2D2D30', light: Color.white, hc: '#0C141F' }, nls.localize('editorMarkerNavigationBackground', 'Editor marker navigation widget background.'));

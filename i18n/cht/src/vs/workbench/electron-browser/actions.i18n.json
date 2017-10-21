@@ -24,6 +24,9 @@
 	"quickSwitchWindow": "快速切換視窗...",
 	"workspaces": "工作區",
 	"files": "檔案",
+	"openRecentPlaceHolderMac": "選取以開啟 (按住 Cmd 鍵以在新視窗中開啟)",
+	"openRecentPlaceHolder": "選取以開啟 (按住 Ctrl 鍵以在新視窗中開啟)",
+	"remove": "從最近開啟的檔案中移除",
 	"openRecent": "開啟最近使用的檔案...",
 	"quickOpenRecent": "快速開啟最近使用的檔案...",
 	"closeMessages": "關閉通知訊息",
@@ -39,5 +42,10 @@
 	"navigateUp": "導覽至 [檢視上方]",
 	"navigateDown": "導覽至 [檢視下方]",
 	"increaseViewSize": "增加目前的檢視大小",
-	"decreaseViewSize": "縮小目前的檢視大小"
+	"decreaseViewSize": "縮小目前的檢視大小",
+	"showPreviousTab": "顯示前一個視窗索引標籤",
+	"showNextWindowTab": "顯示下一個視窗索引標籤",
+	"moveWindowTabToNewWindow": "將視窗索引標籤移至新的視窗",
+	"mergeAllWindowTabs": "合併所有視窗",
+	"toggleWindowTabsBar": "切換視窗索引標籤列"
 }

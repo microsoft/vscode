@@ -8,10 +8,10 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IWorkspacesService, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import URI from 'vs/base/common/uri';
 
 export interface IWorkspacesChannel extends IChannel {
-	call(command: 'createWorkspace', arg: [string[]]): TPromise<string>;
-	call(command: 'saveWorkspace', arg: [IWorkspaceIdentifier, string]): TPromise<IWorkspaceIdentifier>;
+	call(command: 'createWorkspace', arg: [(string | URI)[]]): TPromise<string>;
 	call(command: string, arg?: any): TPromise<any>;
 }
 
@@ -19,10 +19,22 @@ export class WorkspacesChannel implements IWorkspacesChannel {
 
 	constructor(private service: IWorkspacesService) { }
 
-	call(command: string, arg?: any): TPromise<any> {
+	public call(command: string, arg?: any): TPromise<any> {
 		switch (command) {
-			case 'createWorkspace': return this.service.createWorkspace(arg);
-			case 'saveWorkspace': return this.service.saveWorkspace(arg[0], arg[1]);
+			case 'createWorkspace': {
+				let folders: any[];
+				if (Array.isArray(arg)) {
+					folders = arg.map(folder => {
+						if (typeof folder === 'string') {
+							return folder;
+						}
+
+						return URI.revive(folder);
+					});
+				}
+
+				return this.service.createWorkspace(folders);
+			};
 		}
 
 		return void 0;
@@ -35,11 +47,9 @@ export class WorkspacesChannelClient implements IWorkspacesService {
 
 	constructor(private channel: IWorkspacesChannel) { }
 
-	createWorkspace(folders?: string[]): TPromise<IWorkspaceIdentifier> {
-		return this.channel.call('createWorkspace', folders);
-	}
-
-	saveWorkspace(workspace: IWorkspaceIdentifier, target: string): TPromise<IWorkspaceIdentifier> {
-		return this.channel.call('saveWorkspace', [workspace, target]);
+	public createWorkspace(folderPaths?: string[]): TPromise<IWorkspaceIdentifier>;
+	public createWorkspace(folderResources?: URI[]): TPromise<IWorkspaceIdentifier>;
+	public createWorkspace(arg1?: any[]): TPromise<IWorkspaceIdentifier> {
+		return this.channel.call('createWorkspace', arg1);
 	}
 }

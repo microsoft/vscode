@@ -19,6 +19,7 @@ OutputBaseFilename=VSCodeSetup
 Compression=lzma
 SolidCompression=yes
 AppMutex={#AppMutex}
+SetupMutex={#AppMutex}setup
 WizardImageFile={#RepoDir}\resources\win32\inno-big.bmp
 WizardSmallImageFile={#RepoDir}\resources\win32\inno-small.bmp
 SetupIconFile={#RepoDir}\resources\win32\code.ico
@@ -821,7 +822,7 @@ begin
     end;
 
     if not Result then begin
-      MsgBox('Please uninstall {#NameShort} ' + AltArch + 'bits before installing this ' + ThisArch + 'bits version.', mbInformation, MB_OK);
+      MsgBox('Please uninstall the ' + AltArch + '-bit version of {#NameShort} before installing this ' + ThisArch + '-bit version.', mbInformation, MB_OK);
     end;
   end;
 end;

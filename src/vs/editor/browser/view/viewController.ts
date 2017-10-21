@@ -6,6 +6,7 @@
 
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Position } from 'vs/editor/common/core/position';
+import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -91,6 +92,13 @@ export class ViewController {
 
 	public cut(source: string): void {
 		this.commandService.executeCommand(editorCommon.Handler.Cut, {});
+	}
+
+	public setSelection(source: string, modelSelection: Selection): void {
+		this._execCoreEditorCommandFunc(CoreNavigationCommands.SetSelection, {
+			source: source,
+			selection: modelSelection
+		});
 	}
 
 	private _validateViewColumn(viewPosition: Position): Position {

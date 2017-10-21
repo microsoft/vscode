@@ -9,6 +9,9 @@
 import 'vs/base/common/strings';
 import 'vs/base/common/errors';
 
+// Configuration
+import 'vs/workbench/services/configuration/common/configurationExtensionPoint';
+
 // Editor
 import 'vs/editor/editor.all';
 
@@ -16,7 +19,7 @@ import 'vs/editor/editor.all';
 import 'vs/platform/actions/electron-browser/menusExtensionPoint';
 
 // Views
-import 'vs/workbench/parts/views/browser/viewsExtensionPoint';
+import 'vs/workbench/api/browser/viewsExtensionPoint';
 
 // Workbench
 import 'vs/workbench/browser/actions/toggleActivityBarVisibility';
@@ -27,7 +30,6 @@ import 'vs/workbench/browser/actions/toggleEditorLayout';
 import 'vs/workbench/browser/actions/toggleZenMode';
 import 'vs/workbench/parts/preferences/browser/preferences.contribution';
 import 'vs/workbench/parts/preferences/browser/keybindingsEditorContribution';
-import 'vs/workbench/browser/actions/configureLocale';
 
 import 'vs/workbench/browser/parts/quickopen/quickopen.contribution';
 import 'vs/workbench/parts/quickopen/browser/quickopen.contribution';
@@ -73,6 +75,7 @@ import 'vs/workbench/parts/terminal/browser/terminalQuickOpen';
 import 'vs/workbench/parts/terminal/electron-browser/terminalPanel'; // can be packaged separately
 
 import 'vs/workbench/electron-browser/workbench';
+import 'vs/workbench/electron-browser/configureLocale';
 
 import 'vs/workbench/parts/trust/electron-browser/unsupportedWorkspaceSettings.contribution';
 
@@ -89,6 +92,9 @@ import 'vs/workbench/parts/codeEditor/codeEditor.contribution';
 import 'vs/workbench/parts/execution/electron-browser/execution.contribution';
 
 import 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
+import 'vs/workbench/parts/snippets/electron-browser/snippetsService';
+import 'vs/workbench/parts/snippets/electron-browser/insertSnippet';
+import 'vs/workbench/parts/snippets/electron-browser/tabCompletion';
 
 import 'vs/workbench/parts/themes/electron-browser/themes.contribution';
 

@@ -28,5 +28,14 @@
 	"iconThemeError": "File icon theme is unknown or not installed.",
 	"workbenchColors": "依目前選擇的彩色佈景主題覆寫顏色",
 	"workbenchColors.deprecated": "此設定不再為實驗性，且已被重新命名為 'workbench.colorCustomizations'",
-	"workbenchColors.deprecatedDescription": "改用'workbench.colorCustomizations'"
+	"workbenchColors.deprecatedDescription": "改用'workbench.colorCustomizations'",
+	"editorColors": "依目前選取的色彩佈景主題覆寫編輯器色彩與字型樣式。",
+	"editorColors.comments": "設定註解的色彩與樣式",
+	"editorColors.strings": "設定字串常值的色彩與樣式。",
+	"editorColors.keywords": "設定關鍵字的色彩與樣式。",
+	"editorColors.numbers": "設定數字常值的色彩與樣式。",
+	"editorColors.types": "設定型別宣告與參考的色彩與樣式。",
+	"editorColors.functions": "設定函式宣告與參考的色彩與樣式。",
+	"editorColors.variables": "設定變數宣告與參考的色彩與樣式。",
+	"editorColors.textMateRules": "使用 TextMate 佈景主題規則設定色彩與樣式 (進階)。"
 }

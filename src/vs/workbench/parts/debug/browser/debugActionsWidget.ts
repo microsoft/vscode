@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!vs/workbench/parts/debug/browser/media/debugActionsWidget';
-import * as lifecycle from 'vs/base/common/lifecycle';
 import * as errors from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
 import * as browser from 'vs/base/browser/browser';
@@ -22,7 +21,7 @@ import { IDebugConfiguration, IDebugService, State } from 'vs/workbench/parts/de
 import { AbstractDebugAction, PauseAction, ContinueAction, StepBackAction, ReverseContinueAction, StopAction, DisconnectAction, StepOverAction, StepIntoAction, StepOutAction, RestartAction, FocusProcessAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { FocusProcessActionItem } from 'vs/workbench/parts/debug/browser/debugActionItems';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -45,7 +44,6 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 
 	private $el: builder.Builder;
 	private dragArea: builder.Builder;
-	private toDispose: lifecycle.IDisposable[];
 	private actionBar: ActionBar;
 	private allActions: AbstractDebugAction[];
 	private activeActions: AbstractDebugAction[];
@@ -72,7 +70,6 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 		const actionBarContainter = $().div().addClass('.action-bar-container');
 		this.$el.append(actionBarContainter);
 
-		this.toDispose = [];
 		this.activeActions = [];
 		this.actionBar = new ActionBar(actionBarContainter, {
 			orientation: ActionsOrientation.HORIZONTAL,
@@ -87,7 +84,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 
 		this.updateStyles();
 
-		this.toDispose.push(this.actionBar);
+		this.toUnbind.push(this.actionBar);
 		this.registerListeners();
 
 		this.hide();
@@ -95,9 +92,9 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.debugService.onDidChangeState(state => this.update(state)));
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(() => this.update(this.debugService.state)));
-		this.toDispose.push(this.actionBar.actionRunner.addListener(EventType.RUN, (e: any) => {
+		this.toUnbind.push(this.debugService.onDidChangeState(state => this.update(state)));
+		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => this.onDidConfigurationChange(e)));
+		this.toUnbind.push(this.actionBar.actionRunner.addListener(EventType.RUN, (e: any) => {
 			// check for error
 			if (e.error && !errors.isPromiseCanceledError(e.error)) {
 				this.messageService.show(severity.Error, e.error);
@@ -105,10 +102,16 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 
 			// log in telemetry
 			if (this.telemetryService) {
+				/* __GDPR__
+					"workbenchActionExecuted" : {
+						"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
 				this.telemetryService.publicLog('workbenchActionExecuted', { id: e.action.id, from: 'debugActionsWidget' });
 			}
 		}));
-		$(window).on(dom.EventType.RESIZE, () => this.setXCoordinate(), this.toDispose);
+		$(window).on(dom.EventType.RESIZE, () => this.setXCoordinate(), this.toUnbind);
 
 		this.dragArea.on(dom.EventType.MOUSE_UP, (event: MouseEvent) => {
 			const mouseClickEvent = new StandardMouseEvent(event);
@@ -137,13 +140,18 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 			});
 		});
 
-		this.toDispose.push(this.partService.onTitleBarVisibilityChange(() => this.positionDebugWidget()));
-		this.toDispose.push(browser.onDidChangeZoomLevel(() => this.positionDebugWidget()));
+		this.toUnbind.push(this.partService.onTitleBarVisibilityChange(() => this.positionDebugWidget()));
+		this.toUnbind.push(browser.onDidChangeZoomLevel(() => this.positionDebugWidget()));
 	}
 
 	private storePosition(): void {
 		const position = parseFloat(this.$el.getComputedStyle().left) / window.innerWidth;
 		this.storageService.store(DEBUG_ACTIONS_WIDGET_POSITION_KEY, position, StorageScope.WORKSPACE);
+		/* __GDPR__
+			"debug.actionswidgetposition" : {
+				"position" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		this.telemetryService.publicLog(DEBUG_ACTIONS_WIDGET_POSITION_KEY, { position });
 	}
 
@@ -187,8 +195,14 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 		return DebugActionsWidget.ID;
 	}
 
+	private onDidConfigurationChange(event: IConfigurationChangeEvent): void {
+		if (event.affectsConfiguration('debug.hideActionBar')) {
+			this.update(this.debugService.state);
+		}
+	}
+
 	private update(state: State): void {
-		if (state === State.Inactive || this.configurationService.getConfiguration<IDebugConfiguration>('debug').hideActionBar) {
+		if (state === State.Inactive || state === State.Initializing || this.configurationService.getConfiguration<IDebugConfiguration>('debug').hideActionBar) {
 			return this.hide();
 		}
 
@@ -235,7 +249,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 			this.allActions.push(this.instantiationService.createInstance(ReverseContinueAction, ReverseContinueAction.ID, ReverseContinueAction.LABEL));
 			this.allActions.push(this.instantiationService.createInstance(FocusProcessAction, FocusProcessAction.ID, FocusProcessAction.LABEL));
 			this.allActions.forEach(a => {
-				this.toDispose.push(a);
+				this.toUnbind.push(a);
 			});
 		}
 
@@ -271,7 +285,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 	}
 
 	public dispose(): void {
-		this.toDispose = lifecycle.dispose(this.toDispose);
+		super.dispose();
 
 		if (this.$el) {
 			this.$el.destroy();

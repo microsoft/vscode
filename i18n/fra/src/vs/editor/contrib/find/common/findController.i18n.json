@@ -15,5 +15,7 @@
 	"moveSelectionToNextFindMatch": "Déplacer la dernière sélection vers la correspondance de recherche suivante",
 	"moveSelectionToPreviousFindMatch": "Déplacer la dernière sélection à la correspondance de recherche précédente",
 	"selectAllOccurrencesOfFindMatch": "Sélectionner toutes les occurrences des correspondances de la recherche",
-	"changeAll.label": "Modifier toutes les occurrences"
+	"changeAll.label": "Modifier toutes les occurrences",
+	"showNextFindTermAction": "Afficher le terme de recherche suivant",
+	"showPreviousFindTermAction": "Afficher le terme de recherche précédent"
 }

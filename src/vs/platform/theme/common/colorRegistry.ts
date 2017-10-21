@@ -63,18 +63,23 @@ export interface IColorRegistry {
 	resolveDefaultColor(id: ColorIdentifier, theme: ITheme): Color;
 
 	/**
-	 * JSON schema of all colors
+	 * JSON schema for an object to assign color values to one of the color contrbutions.
 	 */
 	getColorSchema(): IJSONSchema;
 
+	/**
+	 * JSON schema to for a reference to a color contrbution.
+	 */
+	getColorReferenceSchema(): IJSONSchema;
+
 }
 
-const colorPattern = '^#([0-9A-Fa-f]{3,4}|([0-9A-Fa-f]{2}){3,4})$';
-const colorPatternErrorMessage = nls.localize('invalid.color', 'Invalid color format. Use #RGB, #RGBA, #RRGGBB or #RRGGBBAA');
+
 
 class ColorRegistry implements IColorRegistry {
 	private colorsById: { [key: string]: ColorContribution };
 	private colorSchema: IJSONSchema = { type: 'object', description: nls.localize('schema.colors', "Colors used in the workbench."), properties: {}, additionalProperties: false };
+	private colorReferenceSchema: IJSONSchema = { type: 'string', enum: [], enumDescriptions: [] };
 
 	constructor() {
 		this.colorsById = {};
@@ -83,7 +88,9 @@ class ColorRegistry implements IColorRegistry {
 	public registerColor(id: string, defaults: ColorDefaults, description: string): ColorIdentifier {
 		let colorContribution = { id, description, defaults };
 		this.colorsById[id] = colorContribution;
-		this.colorSchema.properties[id] = { type: 'string', description, format: 'color', pattern: colorPattern, patternErrorMessage: colorPatternErrorMessage };
+		this.colorSchema.properties[id] = { type: 'string', description, format: 'color-hex', default: '#ff0000' };
+		this.colorReferenceSchema.enum.push(id);
+		this.colorReferenceSchema.enumDescriptions.push(description);
 		return id;
 	}
 
@@ -102,6 +109,10 @@ class ColorRegistry implements IColorRegistry {
 
 	public getColorSchema(): IJSONSchema {
 		return this.colorSchema;
+	}
+
+	public getColorReferenceSchema(): IJSONSchema {
+		return this.colorReferenceSchema;
 	}
 
 	public toString() {
@@ -124,6 +135,10 @@ platform.Registry.add(Extensions.ColorContribution, colorRegistry);
 
 export function registerColor(id: string, defaults: ColorDefaults, description: string): ColorIdentifier {
 	return colorRegistry.registerColor(id, defaults, description);
+}
+
+export function getColorRegistry(): IColorRegistry {
+	return colorRegistry;
 }
 
 // ----- base colors
@@ -248,8 +263,8 @@ export const editorActiveLinkForeground = registerColor('editorLink.activeForegr
 /**
  * Diff Editor Colors
  */
-export const defaultInsertColor = Color.fromRGBA(new RGBA(155, 185, 85, 255 * 0.2));
-export const defaultRemoveColor = Color.fromRGBA(new RGBA(255, 0, 0, 255 * 0.2));
+export const defaultInsertColor = new Color(new RGBA(155, 185, 85, 0.2));
+export const defaultRemoveColor = new Color(new RGBA(255, 0, 0, 0.2));
 
 export const diffInserted = registerColor('diffEditor.insertedTextBackground', { dark: defaultInsertColor, light: defaultInsertColor, hc: null }, nls.localize('diffEditorInserted', 'Background color for text that got inserted.'));
 export const diffRemoved = registerColor('diffEditor.removedTextBackground', { dark: defaultRemoveColor, light: defaultRemoveColor, hc: null }, nls.localize('diffEditorRemoved', 'Background color for text that got removed.'));
@@ -280,6 +295,12 @@ export const mergeBorder = registerColor('merge.border', { dark: null, light: nu
 export const overviewRulerCurrentContentForeground = registerColor('editorOverviewRuler.currentContentForeground', { dark: transparent(mergeCurrentHeaderBackground, rulerTransparency), light: transparent(mergeCurrentHeaderBackground, rulerTransparency), hc: mergeBorder }, nls.localize('overviewRulerCurrentContentForeground', 'Current overview ruler foreground for inline merge-conflicts.'));
 export const overviewRulerIncomingContentForeground = registerColor('editorOverviewRuler.incomingContentForeground', { dark: transparent(mergeIncomingHeaderBackground, rulerTransparency), light: transparent(mergeIncomingHeaderBackground, rulerTransparency), hc: mergeBorder }, nls.localize('overviewRulerIncomingContentForeground', 'Incoming overview ruler foreground for inline merge-conflicts.'));
 export const overviewRulerCommonContentForeground = registerColor('editorOverviewRuler.commonContentForeground', { dark: transparent(mergeCommonHeaderBackground, rulerTransparency), light: transparent(mergeCommonHeaderBackground, rulerTransparency), hc: mergeBorder }, nls.localize('overviewRulerCommonContentForeground', 'Common ancestor overview ruler foreground for inline merge-conflicts.'));
+
+const findMatchColorDefault = new Color(new RGBA(246, 185, 77, 0.7));
+export const overviewRulerFindMatchForeground = registerColor('editorOverviewRuler.findMatchForeground', { dark: findMatchColorDefault, light: findMatchColorDefault, hc: findMatchColorDefault }, nls.localize('overviewRulerFindMatchForeground', 'Overview ruler marker color for find matches.'));
+
+export const overviewRulerSelectionHighlightForeground = registerColor('editorOverviewRuler.selectionHighlightForeground', { dark: '#A0A0A0', light: '#A0A0A0', hc: '#A0A0A0' }, nls.localize('overviewRulerSelectionHighlightForeground', 'Overview ruler marker color for selection highlights.'));
+
 
 // ----- color functions
 

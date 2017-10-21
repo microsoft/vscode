@@ -179,7 +179,13 @@ export class InputBox extends Widget {
 			});
 		}
 
-		setTimeout(() => this.updateMirror(), 0);
+		setTimeout(() => {
+			if (!this.input) {
+				return;
+			}
+
+			this.updateMirror();
+		}, 0);
 
 		// Support actions
 		if (this.options.actions) {
@@ -385,9 +391,9 @@ export class InputBox extends Widget {
 					className: 'monaco-inputbox-message'
 				};
 
-				let spanElement: HTMLElement = (this.message.formatContent
+				const spanElement = (this.message.formatContent
 					? renderFormattedText(this.message.content, renderOptions)
-					: renderText(this.message.content, renderOptions)) as any;
+					: renderText(this.message.content, renderOptions));
 				dom.addClass(spanElement, this.classForType(this.message.type));
 
 				const styles = this.stylesForType(this.message.type);

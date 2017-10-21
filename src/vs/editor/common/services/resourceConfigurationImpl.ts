@@ -6,7 +6,7 @@
 import Event, { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -16,8 +16,8 @@ export class TextResourceConfigurationService extends Disposable implements ITex
 
 	public _serviceBrand: any;
 
-	private readonly _onDidUpdateConfiguration: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onDidUpdateConfiguration: Event<void> = this._onDidUpdateConfiguration.event;
+	private readonly _onDidChangeConfiguration: Emitter<IConfigurationChangeEvent> = this._register(new Emitter<IConfigurationChangeEvent>());
+	public readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent> = this._onDidChangeConfiguration.event;
 
 	constructor(
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -25,7 +25,7 @@ export class TextResourceConfigurationService extends Disposable implements ITex
 		@IModeService private modeService: IModeService,
 	) {
 		super();
-		this._register(this.configurationService.onDidUpdateConfiguration(() => this._onDidUpdateConfiguration.fire()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => this._onDidChangeConfiguration.fire(e)));
 	}
 
 	getConfiguration<T>(resource: URI, section?: string): T

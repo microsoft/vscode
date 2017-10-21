@@ -86,10 +86,10 @@ export class FilePreview implements IDisposable {
 			return undefined;
 		}
 
-		const { startLineNumber, startColumn, endColumn } = range;
+		const { startLineNumber, startColumn, endLineNumber, endColumn } = range;
 		const word = model.getWordUntilPosition({ lineNumber: startLineNumber, column: startColumn - n });
 		const beforeRange = new Range(startLineNumber, word.startColumn, startLineNumber, startColumn);
-		const afterRange = new Range(startLineNumber, endColumn, startLineNumber, Number.MAX_VALUE);
+		const afterRange = new Range(endLineNumber, endColumn, endLineNumber, Number.MAX_VALUE);
 
 		const ret = {
 			before: model.getValueInRange(beforeRange).replace(/^\s+/, strings.empty),

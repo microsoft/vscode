@@ -8,24 +8,24 @@ const localize = nls.loadMessageBundle();
 import * as path from 'path';
 import * as fs from 'fs';
 
-import { workspace, window } from "vscode";
+import { workspace, window } from 'vscode';
 
-import { TypeScriptServiceConfiguration } from "./configuration";
+import { TypeScriptServiceConfiguration } from './configuration';
 import API from './api';
 
 
 export class TypeScriptVersion {
-	public readonly label: string;
-
 	constructor(
 		public readonly path: string,
-		label?: string
-	) {
-		this.label = label || path;
-	}
+		private readonly _pathLabel?: string
+	) { }
 
 	public get tsServerPath(): string {
 		return path.join(this.path, 'tsserver.js');
+	}
+
+	public get pathLabel(): string {
+		return typeof this._pathLabel === 'undefined' ? this.path : this._pathLabel;
 	}
 
 	public get isValid(): boolean {
@@ -41,7 +41,7 @@ export class TypeScriptVersion {
 		// Allow TS developers to provide custom version
 		const tsdkVersion = workspace.getConfiguration().get<string | undefined>('typescript.tsdk_version', undefined);
 		if (tsdkVersion) {
-			return new API(tsdkVersion);
+			return API.fromVersionString(tsdkVersion);
 		}
 
 		return undefined;
@@ -49,7 +49,8 @@ export class TypeScriptVersion {
 
 	public get versionString(): string {
 		const version = this.version;
-		return version ? version.versionString : this.path;
+		return version ? version.versionString : localize(
+			'couldNotLoadTsVersion', 'Could not load the TypeScript version at this path');
 	}
 
 	private getTypeScriptVersion(serverPath: string): API | undefined {
@@ -57,17 +58,24 @@ export class TypeScriptVersion {
 			return undefined;
 		}
 
-		let p = serverPath.split(path.sep);
+		const p = serverPath.split(path.sep);
 		if (p.length <= 2) {
 			return undefined;
 		}
-		let p2 = p.slice(0, -2);
-		let modulePath = p2.join(path.sep);
+		const p2 = p.slice(0, -2);
+		const modulePath = p2.join(path.sep);
 		let fileName = path.join(modulePath, 'package.json');
+		if (!fs.existsSync(fileName)) {
+			// Special case for ts dev versions
+			if (path.basename(modulePath) === 'built') {
+				fileName = path.join(modulePath, '..', 'package.json');
+			}
+		}
 		if (!fs.existsSync(fileName)) {
 			return undefined;
 		}
-		let contents = fs.readFileSync(fileName).toString();
+
+		const contents = fs.readFileSync(fileName).toString();
 		let desc: any = null;
 		try {
 			desc = JSON.parse(contents);
@@ -77,7 +85,7 @@ export class TypeScriptVersion {
 		if (!desc || !desc.version) {
 			return undefined;
 		}
-		return desc.version ? new API(desc.version) : undefined;
+		return desc.version ? API.fromVersionString(desc.version) : undefined;
 	}
 }
 
@@ -119,13 +127,9 @@ export class TypeScriptVersionProvider {
 	}
 
 	public get localVersions(): TypeScriptVersion[] {
-		const tsdkVersions = this.localTsdkVersions;
-		if (tsdkVersions && tsdkVersions.length) {
-			return [tsdkVersions[0]];
-		}
-
+		const allVersions = this.localTsdkVersions.concat(this.localNodeModulesVersions);
 		const paths = new Set<string>();
-		return this.localNodeModulesVersions.filter(x => {
+		return allVersions.filter(x => {
 			if (paths.has(x.path)) {
 				return false;
 			}
@@ -136,7 +140,9 @@ export class TypeScriptVersionProvider {
 
 	public get bundledVersion(): TypeScriptVersion {
 		try {
-			const bundledVersion = new TypeScriptVersion(path.dirname(require.resolve('typescript/lib/tsserver.js')));
+			const bundledVersion = new TypeScriptVersion(
+				path.dirname(require.resolve('typescript/lib/tsserver.js')),
+				'');
 			if (bundledVersion.isValid) {
 				return bundledVersion;
 			}
@@ -145,7 +151,7 @@ export class TypeScriptVersionProvider {
 		}
 		window.showErrorMessage(localize(
 			'noBundledServerFound',
-			'VSCode\'s tsserver was deleted by another application such as a misbehaving virus detection tool. Please reinstall VS Code.'));
+			'VS Code\'s tsserver was deleted by another application such as a misbehaving virus detection tool. Please reinstall VS Code.'));
 		throw new Error('Could not find bundled tsserver.js');
 	}
 

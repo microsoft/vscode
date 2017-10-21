@@ -6,5 +6,8 @@
 {
 	"editorGutterModifiedBackground": "Colore di sfondo della barra di navigazione dell'editor per le righe che sono state modificate.",
 	"editorGutterAddedBackground": "Colore di sfondo della barra di navigazione dell'editor per le righe che sono state aggiunte.",
-	"editorGutterDeletedBackground": "Colore di sfondo della barra di navigazione dell'editor per le righe che sono state cancellate."
+	"editorGutterDeletedBackground": "Colore di sfondo della barra di navigazione dell'editor per le righe che sono state cancellate.",
+	"overviewRulerModifiedForeground": "Colore del marcatore del righello delle annotazioni per il contenuto modificato.",
+	"overviewRulerAddedForeground": "Colore del marcatore del righello delle annotazioni per il contenuto aggiunto.",
+	"overviewRulerDeletedForeground": "Colore del marcatore del righello delle annotazioni per il contenuto eliminato."
 }

@@ -6,17 +6,26 @@
 
 import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { MainThreadStatusBarShape } from '../node/extHost.protocol';
+import { MainThreadStatusBarShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 
-export class MainThreadStatusBar extends MainThreadStatusBarShape {
-	private mapIdToDisposable: { [id: number]: IDisposable };
+@extHostNamedCustomer(MainContext.MainThreadStatusBar)
+export class MainThreadStatusBar implements MainThreadStatusBarShape {
+
+	private readonly _entries: { [id: number]: IDisposable };
 
 	constructor(
-		@IStatusbarService private statusbarService: IStatusbarService
+		extHostContext: IExtHostContext,
+		@IStatusbarService private readonly _statusbarService: IStatusbarService
 	) {
-		super();
-		this.mapIdToDisposable = Object.create(null);
+		this._entries = Object.create(null);
+	}
+
+	dispose(): void {
+		for (const key in this._entries) {
+			this._entries[key].dispose();
+		}
 	}
 
 	$setEntry(id: number, extensionId: string, text: string, tooltip: string, command: string, color: string | ThemeColor, alignment: MainThreadStatusBarAlignment, priority: number): void {
@@ -25,16 +34,16 @@ export class MainThreadStatusBar extends MainThreadStatusBarShape {
 		this.$dispose(id);
 
 		// Add new
-		let disposeable = this.statusbarService.addEntry({ text, tooltip, command, color, extensionId }, alignment, priority);
-		this.mapIdToDisposable[id] = disposeable;
+		let entry = this._statusbarService.addEntry({ text, tooltip, command, color, extensionId }, alignment, priority);
+		this._entries[id] = entry;
 	}
 
 	$dispose(id: number) {
-		let disposeable = this.mapIdToDisposable[id];
+		let disposeable = this._entries[id];
 		if (disposeable) {
 			disposeable.dispose();
 		}
 
-		delete this.mapIdToDisposable[id];
+		delete this._entries[id];
 	}
 }

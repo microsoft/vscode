@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/textmate/ruby.tmbundle/commit/4e14bd0a8ffa98a242dc365fb1e26f14e8c5974c",
+	"version": "https://github.com/textmate/ruby.tmbundle/commit/74713556df10fbc7b1f9e99013ab1e34cd836f56",
 	"comment": "\n\tTODO: unresolved issues\n\n\ttext:\n\t\"p <<end\n\tprint me!\n\tend\"\n\tsymptoms:\n\tnot recognized as a heredoc\n\tsolution:\n\tthere is no way to distinguish perfectly between the << operator and the start\n\tof a heredoc. Currently, we require assignment to recognize a heredoc. More\n\trefinement is possible.\n\t• Heredocs with indented terminators (<<-) are always distinguishable, however.\n\t• Nested heredocs are not really supportable at present\n\n\ttext:\n\tprint <<-'THERE' \n\tThis is single quoted. \n\tThe above used #{Time.now} \n\tTHERE \n\tsymtoms:\n\tFrom Programming Ruby p306; should be a non-interpolated heredoc.\n\t\n    text:\n    val?(a):p(b)\n    val?'a':'b'\n    symptoms:\n    ':p' is recognized as a symbol.. its 2 things ':' and 'p'.\n    :'b' has same problem.\n    solution:\n    ternary operator rule, precedence stuff, symbol rule.\n    but also consider 'a.b?(:c)' ??\n",
 	"fileTypes": [
 		"rb",
@@ -158,7 +158,7 @@
 		},
 		{
 			"comment": " everything being a method but having a special function is a..",
-			"match": "\\b(initialize|new|loop|include|extend|prepend|fail|raise|attr_reader|attr_writer|attr_accessor|attr|catch|throw|private|private_class_method|module_function|public|protected|refine|using)\\b(?![?!])",
+			"match": "\\b(initialize|new|loop|include|extend|prepend|fail|raise|attr_reader|attr_writer|attr_accessor|attr|catch|throw|private|private_class_method|module_function|public|public_class_method|protected|refine|using)\\b(?![?!])",
 			"name": "keyword.other.special-method.ruby"
 		},
 		{
@@ -283,26 +283,69 @@
 							"match": "\\G([&*]?)(?:([_a-zA-Z]\\w*(:))|([_a-zA-Z]\\w*))"
 						},
 						{
-							"begin": "\\(",
-							"captures": {
-								"0": {
-									"name": "punctuation.section.function.ruby"
-								}
-							},
-							"comment": "Prevent end pattern of parent rule from ending prematurely.",
-							"end": "\\)",
-							"patterns": [
-								{
-									"include": "$self"
-								}
-							]
+							"include": "#parens"
+						},
+						{
+							"include": "#braces"
 						},
 						{
 							"include": "$self"
 						}
 					]
 				}
-			]
+			],
+			"repository": {
+				"braces": {
+					"begin": "\\{",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.section.function.begin.ruby"
+						}
+					},
+					"end": "\\}",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.section.function.end.ruby"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#parens"
+						},
+						{
+							"include": "#braces"
+						},
+						{
+							"include": "$self"
+						}
+					]
+				},
+				"parens": {
+					"begin": "\\(",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.section.function.begin.ruby"
+						}
+					},
+					"end": "\\)",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.section.function.end.ruby"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#parens"
+						},
+						{
+							"include": "#braces"
+						},
+						{
+							"include": "$self"
+						}
+					]
+				}
+			}
 		},
 		{
 			"begin": "(?x)\n\t\t\t         (?=def\\b)                                                      # an optimization to help Oniguruma fail fast\n\t\t\t         (?<=^|\\s)(def)\\s+                                              # the def keyword\n\t\t\t         ( (?>[a-zA-Z_]\\w*(?>\\.|::))?                                   # a method name prefix\n\t\t\t           (?>[a-zA-Z_]\\w*(?>[?!]|=(?!>))?                              # the method name\n\t\t\t           |===?|!=|!~|>[>=]?|<=>|<[<=]?|[%&`/\\|^]|\\*\\*?|=?~|[-+]@?|\\[\\]=?) )  # …or an operator method\n\t\t\t         [ \\t]                                                          # the space separating the arguments\n\t\t\t         (?=[ \\t]*[^\\s#;])                                              # make sure arguments and not a comment follow\n\t\t\t        ",
@@ -365,7 +408,7 @@
 			"name": "constant.numeric.float.ruby"
 		},
 		{
-			"match": "\\b(0[dD]\\d|[1-9])(?>_?\\d)*r?i?\\b",
+			"match": "\\b(0|(0[dD]\\d|[1-9])(?>_?\\d)*)r?i?\\b",
 			"name": "constant.numeric.integer.ruby"
 		},
 		{

@@ -6,6 +6,8 @@
 {
 	"closeActiveEditor": "Chiudi editor",
 	"closeWindow": "Chiudi finestra",
+	"closeWorkspace": "Chiudi area di lavoro",
+	"noWorkspaceOpened": "In questa istanza non ci sono attualmente aree di lavoro aperte da chiudere.",
 	"newWindow": "Nuova finestra",
 	"toggleFullScreen": "Attiva/Disattiva schermo intero",
 	"toggleMenuBar": "Attiva/Disattiva barra dei menu",
@@ -20,7 +22,11 @@
 	"close": "Chiudi finestra",
 	"switchWindow": "Cambia finestra...",
 	"quickSwitchWindow": "Cambio rapido finestra...",
+	"workspaces": "aree di lavoro",
 	"files": "file",
+	"openRecentPlaceHolderMac": "Selezionare per aprirlo (tenere premuto CMD per aprire l'elemento in una nuova finestra)",
+	"openRecentPlaceHolder": "Selezionare per aprirlo (tenere premuto CTRL per aprire l'elemento in una nuova finestra)",
+	"remove": "Rimuovi dagli elementi aperti di recente",
 	"openRecent": "Apri recenti...",
 	"quickOpenRecent": "Apertura rapida recenti...",
 	"closeMessages": "Chiudi messaggi di notifica",
@@ -36,5 +42,10 @@
 	"navigateUp": "Passa alla visualizzazione in alto",
 	"navigateDown": "Passa alla visualizzazione in basso",
 	"increaseViewSize": "Aumenta la dimensione della visualizzazione corrente",
-	"decreaseViewSize": "Diminuisce la dimensione della visualizzazione corrente"
+	"decreaseViewSize": "Diminuisce la dimensione della visualizzazione corrente",
+	"showPreviousTab": "Visualizza scheda della finestra precedente",
+	"showNextWindowTab": "Visualizza scheda della finestra successiva",
+	"moveWindowTabToNewWindow": "Sposta scheda della finestra in una nuova finestra",
+	"mergeAllWindowTabs": "Unisci tutte le finestre",
+	"toggleWindowTabsBar": "Attiva/Disattiva barra delle schede delle finestre"
 }

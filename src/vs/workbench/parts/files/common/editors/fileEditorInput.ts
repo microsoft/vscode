@@ -6,7 +6,9 @@
 
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { memoize } from 'vs/base/common/decorators';
 import paths = require('vs/base/common/paths');
+import resources = require('vs/base/common/resources');
 import labels = require('vs/base/common/labels');
 import URI from 'vs/base/common/uri';
 import { EncodingMode, ConfirmResult, EditorInput, IFileEditorInput, ITextEditorModel } from 'vs/workbench/common/editor';
@@ -32,11 +34,6 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 	private textModelReference: TPromise<IReference<ITextEditorModel>>;
 
 	private name: string;
-	private description: string;
-
-	private shortTitle: string;
-	private mediumTitle: string;
-	private longTitle: string;
 
 	private toUnbind: IDisposable[];
 
@@ -121,31 +118,71 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	public getName(): string {
 		if (!this.name) {
-			this.name = paths.basename(this.resource.fsPath);
+			this.name = resources.basenameOrAuthority(this.resource);
 		}
 
 		return this.decorateOrphanedFiles(this.name);
 	}
 
-	public getDescription(): string {
-		if (!this.description) {
-			this.description = labels.getPathLabel(paths.dirname(this.resource.fsPath), this.contextService, this.environmentService);
+	@memoize
+	private get shortDescription(): string {
+		return paths.basename(labels.getPathLabel(resources.dirname(this.resource), void 0, this.environmentService));
+	}
+
+	@memoize
+	private get mediumDescription(): string {
+		return labels.getPathLabel(resources.dirname(this.resource), this.contextService, this.environmentService);
+	}
+
+	@memoize
+	private get longDescription(): string {
+		return labels.getPathLabel(resources.dirname(this.resource), void 0, this.environmentService);
+	}
+
+	public getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string {
+		let description: string;
+		switch (verbosity) {
+			case Verbosity.SHORT:
+				description = this.shortDescription;
+				break;
+			case Verbosity.LONG:
+				description = this.longDescription;
+				break;
+			case Verbosity.MEDIUM:
+			default:
+				description = this.mediumDescription;
+				break;
 		}
 
-		return this.description;
+		return description;
+	}
+
+	@memoize
+	private get shortTitle(): string {
+		return this.getName();
+	}
+
+	@memoize
+	private get mediumTitle(): string {
+		return labels.getPathLabel(this.resource, this.contextService, this.environmentService);
+	}
+
+	@memoize
+	private get longTitle(): string {
+		return labels.getPathLabel(this.resource, void 0, this.environmentService);
 	}
 
 	public getTitle(verbosity: Verbosity): string {
 		let title: string;
 		switch (verbosity) {
 			case Verbosity.SHORT:
-				title = this.shortTitle ? this.shortTitle : (this.shortTitle = this.getName());
+				title = this.shortTitle;
 				break;
 			case Verbosity.MEDIUM:
-				title = this.mediumTitle ? this.mediumTitle : (this.mediumTitle = labels.getPathLabel(this.resource, this.contextService, this.environmentService));
+				title = this.mediumTitle;
 				break;
 			case Verbosity.LONG:
-				title = this.longTitle ? this.longTitle : (this.longTitle = labels.getPathLabel(this.resource, void 0, this.environmentService));
+				title = this.longTitle;
 				break;
 		}
 
@@ -221,7 +258,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 			}
 
 			// Bubble any other error up
-			return TPromise.wrapError<TextFileEditorModel>(error);
+			return TPromise.wrapError(error);
 		});
 	}
 
@@ -239,6 +276,11 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		const descriptor = super.getTelemetryDescriptor();
 		descriptor['resource'] = telemetryURIDescriptor(this.getResource());
 
+		/* __GDPR__FRAGMENT__
+			"EditorTelemetryDescriptor" : {
+				"resource": { "${inline}": [ "${URIDescriptor}" ] }
+			}
+		*/
 		return descriptor;
 	}
 

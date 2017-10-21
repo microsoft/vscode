@@ -7,7 +7,7 @@
 
 import * as nls from 'vs/nls';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { MarkedString } from 'vs/base/common/htmlContent';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 import { KeyCode, KeyMod, KeyChord, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -27,6 +27,8 @@ import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybinding
 import { ScanCodeBinding } from 'vs/workbench/services/keybinding/common/scanCode';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { WindowsNativeResolvedKeybinding } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
+import { themeColorFromId, ThemeColor } from 'vs/platform/theme/common/themeService';
+import { overviewRulerInfo, overviewRulerError } from 'vs/editor/common/view/editorColorRegistry';
 
 const NLS_LAUNCH_MESSAGE = nls.localize('defineKeybinding.start', "Define Keybinding");
 const NLS_KB_LAYOUT_ERROR_MESSAGE = nls.localize('defineKeybinding.kbLayoutErrorMessage', "You won't be able to produce this key combination under your current keyboard layout.");
@@ -289,21 +291,21 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 	}
 
 	private _createDecoration(isError: boolean, uiLabel: string, usLabel: string, model: editorCommon.IModel, keyNode: Node): editorCommon.IModelDeltaDecoration {
-		let msg: MarkedString[];
+		let msg: MarkdownString;
 		let className: string;
 		let beforeContentClassName: string;
-		let overviewRulerColor: string;
+		let overviewRulerColor: ThemeColor;
 
 		if (isError) {
 			// this is the error case
-			msg = [NLS_KB_LAYOUT_ERROR_MESSAGE];
+			msg = new MarkdownString().appendText(NLS_KB_LAYOUT_ERROR_MESSAGE);
 			className = 'keybindingError';
 			beforeContentClassName = 'inlineKeybindingError';
-			overviewRulerColor = 'rgba(250, 100, 100, 0.6)';
+			overviewRulerColor = themeColorFromId(overviewRulerError);
 		} else {
 			// this is the info case
 			if (usLabel && uiLabel !== usLabel) {
-				msg = [
+				msg = new MarkdownString(
 					nls.localize({
 						key: 'defineKeybinding.kbLayoutLocalAndUSMessage',
 						comment: [
@@ -311,9 +313,9 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 							'The placeholders will contain a keyboard combination e.g. Ctrl+Shift+/'
 						]
 					}, "**{0}** for your current keyboard layout (**{1}** for US standard).", uiLabel, usLabel)
-				];
+				);
 			} else {
-				msg = [
+				msg = new MarkdownString(
 					nls.localize({
 						key: 'defineKeybinding.kbLayoutLocalMessage',
 						comment: [
@@ -321,11 +323,11 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 							'The placeholder will contain a keyboard combination e.g. Ctrl+Shift+/'
 						]
 					}, "**{0}** for your current keyboard layout.", uiLabel)
-				];
+				);
 			}
 			className = 'keybindingInfo';
 			beforeContentClassName = 'inlineKeybindingInfo';
-			overviewRulerColor = 'rgba(100, 100, 250, 0.6)';
+			overviewRulerColor = themeColorFromId(overviewRulerInfo);
 		}
 
 		const startPosition = model.getPositionAt(keyNode.offset);

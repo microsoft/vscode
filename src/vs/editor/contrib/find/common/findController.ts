@@ -23,6 +23,9 @@ import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/comm
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { overviewRulerSelectionHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
+import { themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { Constants } from 'vs/editor/common/core/uint';
 
 export const enum FindStartFocusAction {
 	NoFocusChange,
@@ -39,7 +42,8 @@ export interface IFindStartOptions {
 
 export const CONTEXT_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('findWidgetVisible', false);
 export const CONTEXT_FIND_WIDGET_NOT_VISIBLE: ContextKeyExpr = CONTEXT_FIND_WIDGET_VISIBLE.toNegated();
-export const CONTEXT_FIND_INPUT_FOCUSSED = new RawContextKey<boolean>('findInputFocussed', false);
+// Keep ContextKey use of 'Focussed' to not break when clauses
+export const CONTEXT_FIND_INPUT_FOCUSED = new RawContextKey<boolean>('findInputFocussed', false);
 
 export class CommonFindController extends Disposable implements editorCommon.IEditorContribution {
 
@@ -713,7 +717,7 @@ export class AddSelectionToNextFindMatchAction extends SelectNextFindMatchAction
 		}
 
 		editor.setSelections(allSelections.concat(nextMatch));
-		editor.revealRangeInCenterIfOutsideViewport(nextMatch);
+		editor.revealRangeInCenterIfOutsideViewport(nextMatch, editorCommon.ScrollType.Smooth);
 	}
 }
 
@@ -738,7 +742,7 @@ export class AddSelectionToPreviousFindMatchAction extends SelectPreviousFindMat
 
 		let allSelections = editor.getSelections();
 		editor.setSelections(allSelections.concat(previousMatch));
-		editor.revealRangeInCenterIfOutsideViewport(previousMatch);
+		editor.revealRangeInCenterIfOutsideViewport(previousMatch, editorCommon.ScrollType.Smooth);
 	}
 }
 
@@ -767,7 +771,7 @@ export class MoveSelectionToNextFindMatchAction extends SelectNextFindMatchActio
 
 		let allSelections = editor.getSelections();
 		editor.setSelections(allSelections.slice(0, allSelections.length - 1).concat(nextMatch));
-		editor.revealRangeInCenterIfOutsideViewport(nextMatch);
+		editor.revealRangeInCenterIfOutsideViewport(nextMatch, editorCommon.ScrollType.Smooth);
 	}
 }
 
@@ -792,27 +796,27 @@ export class MoveSelectionToPreviousFindMatchAction extends SelectPreviousFindMa
 
 		let allSelections = editor.getSelections();
 		editor.setSelections(allSelections.slice(0, allSelections.length - 1).concat(previousMatch));
-		editor.revealRangeInCenterIfOutsideViewport(previousMatch);
+		editor.revealRangeInCenterIfOutsideViewport(previousMatch, editorCommon.ScrollType.Smooth);
 	}
 }
 
 export abstract class AbstractSelectHighlightsAction extends EditorAction {
 	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
-		let controller = CommonFindController.get(editor);
+		const controller = CommonFindController.get(editor);
 		if (!controller) {
 			return null;
 		}
 
-		let matches: Range[] = null;
+		let matches: editorCommon.FindMatch[] = null;
 
 		const findState = controller.getState();
 		if (findState.isRevealed && findState.isRegex && findState.searchString.length > 0) {
 
-			matches = editor.getModel().findMatches(findState.searchString, true, findState.isRegex, findState.matchCase, findState.wholeWord ? editor.getConfiguration().wordSeparators : null, false).map(m => m.range);
+			matches = editor.getModel().findMatches(findState.searchString, true, findState.isRegex, findState.matchCase, findState.wholeWord ? editor.getConfiguration().wordSeparators : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
 
 		} else {
 
-			let r = multiCursorFind(editor, {
+			const r = multiCursorFind(editor, {
 				changeFindSearchString: true,
 				allowMultiline: true,
 				highlightFindOptions: true
@@ -821,14 +825,14 @@ export abstract class AbstractSelectHighlightsAction extends EditorAction {
 				return;
 			}
 
-			matches = editor.getModel().findMatches(r.searchText, true, false, r.matchCase, r.wholeWord ? editor.getConfiguration().wordSeparators : null, false).map(m => m.range);
+			matches = editor.getModel().findMatches(r.searchText, true, false, r.matchCase, r.wholeWord ? editor.getConfiguration().wordSeparators : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
 		}
 
 		if (matches.length > 0) {
-			let editorSelection = editor.getSelection();
+			const editorSelection = editor.getSelection();
 			for (let i = 0, len = matches.length; i < len; i++) {
-				let match = matches[i];
-				let intersection = match.intersectRanges(editorSelection);
+				const match = matches[i];
+				let intersection = match.range.intersectRanges(editorSelection);
 				if (intersection) {
 					// bingo!
 					matches.splice(i, 1);
@@ -836,7 +840,7 @@ export abstract class AbstractSelectHighlightsAction extends EditorAction {
 					break;
 				}
 			}
-			editor.setSelections(matches.map(m => new Selection(m.startLineNumber, m.startColumn, m.endLineNumber, m.endColumn)));
+			editor.setSelections(matches.map(m => new Selection(m.range.startLineNumber, m.range.startColumn, m.range.endLineNumber, m.range.endColumn)));
 		}
 	}
 }
@@ -1035,6 +1039,23 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 			}
 		}
 
+		// Return early if the find widget shows the exact same matches
+		if (findState.isRevealed) {
+			let findStateSearchString = findState.searchString;
+			if (!caseSensitive) {
+				findStateSearchString = findStateSearchString.toLowerCase();
+			}
+
+			let mySearchString = r.searchText;
+			if (!caseSensitive) {
+				mySearchString = mySearchString.toLowerCase();
+			}
+
+			if (findStateSearchString === mySearchString && r.matchCase === findState.matchCase && r.wholeWord === findState.wholeWord && !findState.isRegex) {
+				return null;
+			}
+		}
+
 		return new SelectionHighlighterState(lastWordUnderCursor, r.searchText, r.matchCase, r.wholeWord ? editor.getConfiguration().wordSeparators : null);
 	}
 
@@ -1103,8 +1124,8 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'selectionHighlight',
 		overviewRuler: {
-			color: '#A0A0A0',
-			darkColor: '#A0A0A0',
+			color: themeColorFromId(overviewRulerSelectionHighlightForeground),
+			darkColor: themeColorFromId(overviewRulerSelectionHighlightForeground),
 			position: editorCommon.OverviewRulerLane.Center
 		}
 	});
@@ -1131,7 +1152,7 @@ export class ShowNextFindTermAction extends MatchFindAction {
 			precondition: CONTEXT_FIND_WIDGET_VISIBLE,
 			kbOpts: {
 				weight: CommonEditorRegistry.commandWeight(5),
-				kbExpr: ContextKeyExpr.and(CONTEXT_FIND_INPUT_FOCUSSED, EditorContextKeys.focus),
+				kbExpr: ContextKeyExpr.and(CONTEXT_FIND_INPUT_FOCUSED, EditorContextKeys.focus),
 				primary: ShowNextFindTermKeybinding.primary,
 				mac: ShowNextFindTermKeybinding.mac,
 				win: ShowNextFindTermKeybinding.win,
@@ -1156,7 +1177,7 @@ export class ShpwPreviousFindTermAction extends MatchFindAction {
 			precondition: CONTEXT_FIND_WIDGET_VISIBLE,
 			kbOpts: {
 				weight: CommonEditorRegistry.commandWeight(5),
-				kbExpr: ContextKeyExpr.and(CONTEXT_FIND_INPUT_FOCUSSED, EditorContextKeys.focus),
+				kbExpr: ContextKeyExpr.and(CONTEXT_FIND_INPUT_FOCUSED, EditorContextKeys.focus),
 				primary: ShowPreviousFindTermKeybinding.primary,
 				mac: ShowPreviousFindTermKeybinding.mac,
 				win: ShowPreviousFindTermKeybinding.win,

@@ -34,7 +34,7 @@ export class Protocol implements IMessagePassingProtocol {
 
 	constructor(private _socket: Socket) {
 
-		let chunks = [];
+		let chunks: Buffer[] = [];
 		let totalLength = 0;
 
 		const state = {

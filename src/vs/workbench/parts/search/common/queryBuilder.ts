@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-// import nls = require('vs/nls');
+import nls = require('vs/nls');
 import * as arrays from 'vs/base/common/arrays';
 import * as objects from 'vs/base/common/objects';
 import * as collections from 'vs/base/common/collections';
@@ -12,8 +12,8 @@ import * as glob from 'vs/base/common/glob';
 import * as paths from 'vs/base/common/paths';
 import * as strings from 'vs/base/common/strings';
 import uri from 'vs/base/common/uri';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IPatternInfo, IQueryOptions, IFolderQuery, ISearchQuery, QueryType, ISearchConfiguration, getExcludes } from 'vs/platform/search/common/search';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IPatternInfo, IQueryOptions, IFolderQuery, ISearchQuery, QueryType, ISearchConfiguration, getExcludes, pathIncludedInQuery } from 'vs/platform/search/common/search';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface ISearchPathPattern {
@@ -56,39 +56,17 @@ export class QueryBuilder {
 		}
 
 		const useRipgrep = !folderResources || folderResources.every(folder => {
-			const folderConfig = this.configurationService.getConfiguration<ISearchConfiguration>(undefined, { resource: folder });
+			const folderConfig = this.configurationService.getConfiguration<ISearchConfiguration>({ resource: folder });
 			return folderConfig.search.useRipgrep;
 		});
 
-		// Filter extraFileResources against global include/exclude patterns - they are already expected to not belong to a workspace
-		let extraFileResources = options.extraFileResources && options.extraFileResources.filter(extraFile => {
-			if (excludePattern && glob.match(excludePattern, extraFile.fsPath)) {
-				return false;
-			}
+		const ignoreSymlinks = !this.configurationService.getConfiguration<ISearchConfiguration>().search.followSymlinks;
 
-			if (includePattern && !glob.match(includePattern, extraFile.fsPath)) {
-				return false;
-			}
-
-			// If searchPaths are being used, the extra file must be in a subfolder and match the pattern, if present
-			if (searchPaths) {
-				return searchPaths.every(searchPath => {
-					if (paths.isEqualOrParent(extraFile.fsPath, searchPath.searchPath.fsPath)) {
-						return !searchPath.pattern || glob.match(searchPath.pattern, extraFile.fsPath);
-					} else {
-						return false;
-					}
-				});
-			}
-
-			return true;
-		});
-		extraFileResources = extraFileResources && extraFileResources.length ? extraFileResources : undefined;
-
-		return {
+		const query = <ISearchQuery>{
 			type,
 			folderQueries,
-			extraFileResources,
+			usingSearchPaths: !!(searchPaths && searchPaths.length),
+			extraFileResources: options.extraFileResources,
 			filePattern: options.filePattern,
 			excludePattern,
 			includePattern,
@@ -98,8 +76,15 @@ export class QueryBuilder {
 			contentPattern: contentPattern,
 			useRipgrep,
 			disregardIgnoreFiles: options.disregardIgnoreFiles,
-			disregardExcludeSettings: options.disregardExcludeSettings
+			disregardExcludeSettings: options.disregardExcludeSettings,
+			ignoreSymlinks
 		};
+
+		// Filter extraFileResources against global include/exclude patterns - they are already expected to not belong to a workspace
+		let extraFileResources = options.extraFileResources && options.extraFileResources.filter(extraFile => pathIncludedInQuery(query, extraFile.fsPath));
+		query.extraFileResources = extraFileResources && extraFileResources.length ? extraFileResources : undefined;
+
+		return query;
 	}
 
 	/**
@@ -111,21 +96,22 @@ export class QueryBuilder {
 	public parseSearchPaths(pattern: string): ISearchPathsResult {
 		const isSearchPath = (segment: string) => {
 			// A segment is a search path if it is an absolute path or starts with ./
-			return paths.isAbsolute(segment) || strings.startsWith(segment, './');
+			return paths.isAbsolute(segment) || strings.startsWith(segment, './') || strings.startsWith(segment, '.\\');
 		};
 
 		const segments = splitGlobPattern(pattern);
 		const groups = collections.groupBy(segments,
 			segment => isSearchPath(segment) ? 'searchPaths' : 'exprSegments');
 
-		const exprSegments = (groups.exprSegments || [])
+		const expandedExprSegments = (groups.exprSegments || [])
 			.map(p => {
 				if (p[0] === '.') {
 					p = '*' + p; // convert ".js" to "*.js"
 				}
 
-				return strings.format('{**/{0}/**,**/{0}}', p); // convert foo to {foo/**,**/foo} to cover files and folders
+				return expandGlobalGlob(p);
 			});
+		const exprSegments = arrays.flatten(expandedExprSegments);
 
 		const result: ISearchPathsResult = {};
 		const searchPaths = this.expandSearchPathPatterns(groups.searchPaths);
@@ -201,7 +187,7 @@ export class QueryBuilder {
 	 * Split search paths (./ or absolute paths in the includePatterns) into absolute paths and globs applied to those paths
 	 */
 	private expandSearchPathPatterns(searchPaths: string[]): ISearchPathPattern[] {
-		if (!this.workspaceContextService.hasWorkspace() || !searchPaths || !searchPaths.length) {
+		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY || !searchPaths || !searchPaths.length) {
 			// No workspace => ignore search paths
 			return [];
 		}
@@ -212,7 +198,7 @@ export class QueryBuilder {
 			const pathPortions = this.expandAbsoluteSearchPaths(pathPortion);
 			return pathPortions.map(searchPath => {
 				return <ISearchPathPattern>{
-					searchPath: uri.file(searchPath),
+					searchPath,
 					pattern: globPortion
 				};
 			});
@@ -224,30 +210,32 @@ export class QueryBuilder {
 	/**
 	 * Takes a searchPath like `./a/foo` and expands it to absolute paths for all the workspaces it matches.
 	 */
-	private expandAbsoluteSearchPaths(searchPath: string): string[] {
+	private expandAbsoluteSearchPaths(searchPath: string): uri[] {
 		if (paths.isAbsolute(searchPath)) {
-			return [paths.normalize(searchPath)];
+			// Currently only local resources can be searched for with absolute search paths
+			return [uri.file(paths.normalize(searchPath))];
 		}
 
-		const workspace = this.workspaceContextService.getWorkspace();
-		if (this.workspaceContextService.hasFolderWorkspace()) {
-			return [paths.normalize(
-				paths.join(workspace.roots[0].fsPath, searchPath))];
+		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.FOLDER) { // TODO: @Sandy Try checking workspace folders length instead.
+			const workspaceUri = this.workspaceContextService.getWorkspace().folders[0].uri;
+			return [workspaceUri.with({ path: paths.normalize(paths.join(workspaceUri.path, searchPath)) })];
 		} else if (searchPath === './') {
 			return []; // ./ or ./**/foo makes sense for single-folder but not multi-folder workspaces
 		} else {
-			const relativeSearchPathMatch = searchPath.match(/\.\/([^\/]+)(\/.+)?/);
+			const relativeSearchPathMatch = searchPath.match(/\.[\/\\]([^\/\\]+)([\/\\].+)?/);
 			if (relativeSearchPathMatch) {
 				const searchPathRoot = relativeSearchPathMatch[1];
-				const matchingRoots = workspace.roots.filter(root => paths.basename(root.fsPath) === searchPathRoot);
+				const matchingRoots = this.workspaceContextService.getWorkspace().folders.filter(folder => paths.basename(folder.uri.fsPath) === searchPathRoot);
 				if (matchingRoots.length) {
 					return matchingRoots.map(root => {
 						return relativeSearchPathMatch[2] ?
-							paths.normalize(paths.join(root.fsPath, relativeSearchPathMatch[2])) :
-							root.fsPath;
+							root.uri.with({ path: paths.normalize(paths.join(root.uri.path, relativeSearchPathMatch[2])) }) :
+							root.uri;
 					});
 				} else {
-					// No root folder with name, ignore
+					// No root folder with name
+					const searchPathNotFoundError = nls.localize('search.noWorkspaceWithName', "No folder in workspace with name: {0}", searchPathRoot);
+					throw new Error(searchPathNotFoundError);
 				}
 			} else {
 				// Malformed ./ search path, ignore
@@ -259,7 +247,7 @@ export class QueryBuilder {
 
 	private getFolderQueryForSearchPath(searchPath: ISearchPathPattern): IFolderQuery {
 		const folder = searchPath.searchPath;
-		const folderConfig = this.configurationService.getConfiguration<ISearchConfiguration>(undefined, { resource: folder });
+		const folderConfig = this.configurationService.getConfiguration<ISearchConfiguration>({ resource: folder });
 		return <IFolderQuery>{
 			folder,
 			includePattern: searchPath.pattern && patternListToIExpression([searchPath.pattern]),
@@ -268,7 +256,7 @@ export class QueryBuilder {
 	}
 
 	private getFolderQueryForRoot(folder: uri, options?: IQueryOptions): IFolderQuery {
-		const folderConfig = this.configurationService.getConfiguration<ISearchConfiguration>(undefined, { resource: folder });
+		const folderConfig = this.configurationService.getConfiguration<ISearchConfiguration>({ resource: folder });
 		return <IFolderQuery>{
 			folder,
 			excludePattern: this.getExcludesForFolder(folderConfig, options),
@@ -312,4 +300,14 @@ function splitGlobPattern(pattern: string): string[] {
 	return glob.splitGlobAware(pattern, ',')
 		.map(s => s.trim())
 		.filter(s => !!s.length);
+}
+
+/**
+ * Note - we used {} here previously but ripgrep can't handle nested {} patterns. See https://github.com/Microsoft/vscode/issues/32761
+ */
+function expandGlobalGlob(pattern: string): string[] {
+	return [
+		`**/${pattern}/**`,
+		`**/${pattern}`
+	];
 }

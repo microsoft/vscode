@@ -6,7 +6,7 @@
 'use strict';
 
 import Event, { Emitter, once } from 'vs/base/common/event';
-import { IEditorRegistry, Extensions, EditorInput, toResource, IEditorStacksModel, IEditorGroup, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, EditorOpenPositioning, SideBySideEditorInput } from 'vs/workbench/common/editor';
+import { Extensions, IEditorInputFactoryRegistry, EditorInput, toResource, IEditorStacksModel, IEditorGroup, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, EditorOpenPositioning, SideBySideEditorInput } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -110,7 +110,7 @@ export class EditorGroup implements IEditorGroup {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>())));
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>())));
 	}
 
 	private onConfigurationUpdated(config: IWorkbenchEditorConfiguration): void {
@@ -637,7 +637,7 @@ export class EditorGroup implements IEditorGroup {
 	}
 
 	public serialize(): ISerializedEditorGroup {
-		const registry = Registry.as<IEditorRegistry>(Extensions.Editors);
+		const registry = Registry.as<IEditorInputFactoryRegistry>(Extensions.EditorInputFactories);
 
 		// Serialize all editor inputs so that we can store them.
 		// Editors that cannot be serialized need to be ignored
@@ -671,7 +671,7 @@ export class EditorGroup implements IEditorGroup {
 	}
 
 	private deserialize(data: ISerializedEditorGroup): void {
-		const registry = Registry.as<IEditorRegistry>(Extensions.Editors);
+		const registry = Registry.as<IEditorInputFactoryRegistry>(Extensions.EditorInputFactories);
 
 		this._label = data.label;
 		this.editors = data.editors.map(e => {
@@ -755,7 +755,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 		this._onWillCloseEditor = new Emitter<EditorCloseEvent>();
 		this._onEditorClosed = new Emitter<EditorCloseEvent>();
 
-		this.toDispose.push(this._onGroupOpened, this._onGroupClosed, this._onGroupActivated, this._onGroupDeactivated, this._onGroupMoved, this._onGroupRenamed, this._onModelChanged, this._onEditorDisposed, this._onEditorDirty, this._onEditorLabelChange, this._onEditorClosed, this._onWillCloseEditor);
+		this.toDispose.push(this._onGroupOpened, this._onGroupClosed, this._onGroupActivated, this._onGroupDeactivated, this._onGroupMoved, this._onGroupRenamed, this._onModelChanged, this._onEditorDisposed, this._onEditorDirty, this._onEditorLabelChange, this._onEditorOpened, this._onEditorClosed, this._onWillCloseEditor);
 
 		this.registerListeners();
 	}
@@ -1215,7 +1215,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 		// Close the editor when it is no longer open in any group including diff editors
 		editorsToClose.forEach(editorToClose => {
-			const resource = toResource(editorToClose); // prefer resource to not close right-hand side editors of a diff editor
+			const resource = editorToClose ? editorToClose.getResource() : void 0; // prefer resource to not close right-hand side editors of a diff editor
 			if (!this.isOpen(resource || editorToClose)) {
 				editorToClose.close();
 			}

@@ -17,10 +17,10 @@ export interface ILabelProvider {
 	getLabel(element: any): string;
 }
 
-export interface IRootProvider {
-	getRoot(resource: URI): URI;
+export interface IWorkspaceFolderProvider {
+	getWorkspaceFolder(resource: URI): { uri: URI };
 	getWorkspace(): {
-		roots: URI[];
+		folders: { uri: URI }[];
 	};
 }
 
@@ -28,7 +28,7 @@ export interface IUserHomeProvider {
 	userHome: string;
 }
 
-export function getPathLabel(resource: URI | string, rootProvider?: IRootProvider, userHomeProvider?: IUserHomeProvider): string {
+export function getPathLabel(resource: URI | string, rootProvider?: IWorkspaceFolderProvider, userHomeProvider?: IUserHomeProvider): string {
 	if (!resource) {
 		return null;
 	}
@@ -36,21 +36,24 @@ export function getPathLabel(resource: URI | string, rootProvider?: IRootProvide
 	if (typeof resource === 'string') {
 		resource = URI.file(resource);
 	}
+	if (resource.scheme !== 'file' && resource.scheme !== 'untitled') {
+		return resource.authority + resource.path;
+	}
 
 	// return early if we can resolve a relative path label from the root
-	const baseResource = rootProvider ? rootProvider.getRoot(resource) : null;
+	const baseResource = rootProvider ? rootProvider.getWorkspaceFolder(resource) : null;
 	if (baseResource) {
-		const hasMultipleRoots = rootProvider.getWorkspace().roots.length > 1;
+		const hasMultipleRoots = rootProvider.getWorkspace().folders.length > 1;
 
 		let pathLabel: string;
-		if (isEqual(baseResource.fsPath, resource.fsPath, !platform.isLinux /* ignorecase */)) {
+		if (isEqual(baseResource.uri.fsPath, resource.fsPath, !platform.isLinux /* ignorecase */)) {
 			pathLabel = ''; // no label if pathes are identical
 		} else {
-			pathLabel = normalize(ltrim(resource.fsPath.substr(baseResource.fsPath.length), nativeSep), true);
+			pathLabel = normalize(ltrim(resource.fsPath.substr(baseResource.uri.fsPath.length), nativeSep), true);
 		}
 
 		if (hasMultipleRoots) {
-			const rootName = basename(baseResource.fsPath);
+			const rootName = basename(baseResource.uri.fsPath);
 			pathLabel = pathLabel ? join(rootName, pathLabel) : rootName; // always show root basename if there are multiple
 		}
 
@@ -58,8 +61,8 @@ export function getPathLabel(resource: URI | string, rootProvider?: IRootProvide
 	}
 
 	// convert c:\something => C:\something
-	if (platform.isWindows && resource.fsPath && resource.fsPath[1] === ':') {
-		return normalize(resource.fsPath.charAt(0).toUpperCase() + resource.fsPath.slice(1), true);
+	if (hasDriveLetter(resource.fsPath)) {
+		return normalize(normalizeDriveLetter(resource.fsPath), true);
 	}
 
 	// normalize and tildify (macOS, Linux only)
@@ -69,6 +72,18 @@ export function getPathLabel(resource: URI | string, rootProvider?: IRootProvide
 	}
 
 	return res;
+}
+
+function hasDriveLetter(path: string): boolean {
+	return platform.isWindows && path && path[1] === ':';
+}
+
+export function normalizeDriveLetter(path: string): string {
+	if (hasDriveLetter(path)) {
+		return path.charAt(0).toUpperCase() + path.slice(1);
+	}
+
+	return path;
 }
 
 export function tildify(path: string, userHome: string): string {
@@ -110,6 +125,7 @@ export function tildify(path: string, userHome: string): string {
  */
 const ellipsis = '\u2026';
 const unc = '\\\\';
+const home = '~';
 export function shorten(paths: string[]): string[] {
 	const shortenedPaths: string[] = new Array(paths.length);
 
@@ -130,7 +146,7 @@ export function shorten(paths: string[]): string[] {
 
 		match = true;
 
-		// trim for now and concatenate unc path (e.g. \\network) or root path (/etc) later
+		// trim for now and concatenate unc path (e.g. \\network) or root path (/etc, ~/etc) later
 		let prefix = '';
 		if (path.indexOf(unc) === 0) {
 			prefix = path.substr(0, path.indexOf(unc) + unc.length);
@@ -138,6 +154,9 @@ export function shorten(paths: string[]): string[] {
 		} else if (path.indexOf(nativeSep) === 0) {
 			prefix = path.substr(0, path.indexOf(nativeSep) + nativeSep.length);
 			path = path.substr(path.indexOf(nativeSep) + nativeSep.length);
+		} else if (path.indexOf(home) === 0) {
+			prefix = path.substr(0, path.indexOf(home) + home.length);
+			path = path.substr(path.indexOf(home) + home.length);
 		}
 
 		// pick the first shortest subpath found
@@ -297,10 +316,34 @@ export function template(template: string, values: { [key: string]: string | ISe
 	}).map(segment => segment.value).join('');
 }
 
-export function mnemonicButtonLabel(label: string): string {
-	if (!platform.isWindows) {
-		return label.replace(/\(&&\w\)|&&/g, ''); // no mnemonic support on mac/linux
+/**
+ * Handles mnemonics for menu items. Depending on OS:
+ * - Windows: Supported via & character (replace && with &)
+ * -   Linux: Supported via & character (replace && with &)
+ * -   macOS: Unsupported (replace && with empty string)
+ */
+export function mnemonicMenuLabel(label: string, forceDisableMnemonics?: boolean): string {
+	if (platform.isMacintosh || forceDisableMnemonics) {
+		return label.replace(/\(&&\w\)|&&/g, '');
 	}
 
 	return label.replace(/&&/g, '&');
+}
+
+/**
+ * Handles mnemonics for buttons. Depending on OS:
+ * - Windows: Supported via & character (replace && with &)
+ * -   Linux: Supported via _ character (replace && with _)
+ * -   macOS: Unsupported (replace && with empty string)
+ */
+export function mnemonicButtonLabel(label: string): string {
+	if (platform.isMacintosh) {
+		return label.replace(/\(&&\w\)|&&/g, '');
+	}
+
+	return label.replace(/&&/g, platform.isWindows ? '&' : '_');
+}
+
+export function unmnemonicLabel(label: string): string {
+	return label.replace(/&/g, '&&');
 }

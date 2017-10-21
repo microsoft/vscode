@@ -7,13 +7,15 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { isParent } from "vs/platform/files/common/files";
-import { localize } from "vs/nls";
-import { basename, dirname, join } from "vs/base/common/paths";
-import { isLinux } from "vs/base/common/platform";
-import { IEnvironmentService } from "vs/platform/environment/common/environment";
+import { isParent } from 'vs/platform/files/common/files';
+import { localize } from 'vs/nls';
+import { basename, dirname, join } from 'vs/base/common/paths';
+import { isLinux } from 'vs/base/common/platform';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import Event from 'vs/base/common/event';
-import { tildify, getPathLabel } from "vs/base/common/labels";
+import { tildify, getPathLabel } from 'vs/base/common/labels';
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import URI from 'vs/base/common/uri';
 
 export const IWorkspacesMainService = createDecorator<IWorkspacesMainService>('workspacesMainService');
 export const IWorkspacesService = createDecorator<IWorkspacesService>('workspacesService');
@@ -32,9 +34,42 @@ export interface IWorkspaceIdentifier {
 	configPath: string;
 }
 
+export function isStoredWorkspaceFolder(thing: any): thing is IStoredWorkspaceFolder {
+	return isRawFileWorkspaceFolder(thing) || isRawUriWorkspaceFolder(thing);
+}
+
+export function isRawFileWorkspaceFolder(thing: any): thing is IRawFileWorkspaceFolder {
+	return thing
+		&& typeof thing === 'object'
+		&& typeof thing.path === 'string'
+		&& (!thing.name || typeof thing.name === 'string');
+}
+
+export function isRawUriWorkspaceFolder(thing: any): thing is IRawUriWorkspaceFolder {
+	return thing
+		&& typeof thing === 'object'
+		&& typeof thing.uri === 'string'
+		&& (!thing.name || typeof thing.name === 'string');
+}
+
+export interface IRawFileWorkspaceFolder {
+	path: string;
+	name?: string;
+}
+
+export interface IRawUriWorkspaceFolder {
+	uri: string;
+	name?: string;
+}
+
+export type IStoredWorkspaceFolder = IRawFileWorkspaceFolder | IRawUriWorkspaceFolder;
+
+export interface IResolvedWorkspace extends IWorkspaceIdentifier {
+	folders: IWorkspaceFolder[];
+}
+
 export interface IStoredWorkspace {
-	id: string;
-	folders: string[];
+	folders: IStoredWorkspaceFolder[];
 }
 
 export interface IWorkspaceSavedEvent {
@@ -46,21 +81,30 @@ export interface IWorkspacesMainService extends IWorkspacesService {
 	_serviceBrand: any;
 
 	onWorkspaceSaved: Event<IWorkspaceSavedEvent>;
-	onWorkspaceDeleted: Event<IWorkspaceIdentifier>;
+	onUntitledWorkspaceDeleted: Event<IWorkspaceIdentifier>;
 
-	resolveWorkspaceSync(path: string): IStoredWorkspace;
+	saveWorkspace(workspace: IWorkspaceIdentifier, target: string): TPromise<IWorkspaceIdentifier>;
+
+	createWorkspaceSync(folderPaths?: string[]): IWorkspaceIdentifier;
+	createWorkspaceSync(folderResources?: URI[]): IWorkspaceIdentifier;
+
+	resolveWorkspace(path: string): TPromise<IResolvedWorkspace>;
+	resolveWorkspaceSync(path: string): IResolvedWorkspace;
+
 	isUntitledWorkspace(workspace: IWorkspaceIdentifier): boolean;
 
 	deleteUntitledWorkspaceSync(workspace: IWorkspaceIdentifier): void;
 
 	getUntitledWorkspacesSync(): IWorkspaceIdentifier[];
+
+	getWorkspaceId(workspacePath: string): string;
 }
 
 export interface IWorkspacesService {
 	_serviceBrand: any;
 
-	createWorkspace(folders?: string[]): TPromise<IWorkspaceIdentifier>;
-	saveWorkspace(workspace: IWorkspaceIdentifier, target: string): TPromise<IWorkspaceIdentifier>;
+	createWorkspace(folderPaths?: string[]): TPromise<IWorkspaceIdentifier>;
+	createWorkspace(folderResources?: URI[]): TPromise<IWorkspaceIdentifier>;
 }
 
 export function getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier), environmentService: IEnvironmentService, options?: { verbose: boolean }): string {
@@ -87,4 +131,10 @@ export function getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFold
 
 export function isSingleFolderWorkspaceIdentifier(obj: any): obj is ISingleFolderWorkspaceIdentifier {
 	return typeof obj === 'string';
+}
+
+export function isWorkspaceIdentifier(obj: any): obj is IWorkspaceIdentifier {
+	const workspaceIdentifier = obj as IWorkspaceIdentifier;
+
+	return workspaceIdentifier && typeof workspaceIdentifier.id === 'string' && typeof workspaceIdentifier.configPath === 'string';
 }

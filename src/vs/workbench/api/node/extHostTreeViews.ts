@@ -12,14 +12,14 @@ import { debounceEvent } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ExtHostTreeViewsShape, MainThreadTreeViewsShape } from './extHost.protocol';
-import { ITreeItem, TreeViewItemHandleArg } from 'vs/workbench/parts/views/common/views';
+import { ITreeItem, TreeViewItemHandleArg } from 'vs/workbench/common/views';
 import { TreeItemCollapsibleState } from './extHostTypes';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
 import { asWinJsPromise } from 'vs/base/common/async';
 
 type TreeItemHandle = number;
 
-export class ExtHostTreeViews extends ExtHostTreeViewsShape {
+export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 
 	private treeViews: Map<string, ExtHostTreeView<any>> = new Map<string, ExtHostTreeView<any>>();
 
@@ -27,7 +27,6 @@ export class ExtHostTreeViews extends ExtHostTreeViewsShape {
 		private _proxy: MainThreadTreeViewsShape,
 		private commands: ExtHostCommands
 	) {
-		super();
 		commands.registerArgumentProcessor({
 			processArgument: arg => {
 				if (arg && arg.$treeViewId && arg.$treeItemHandle) {
@@ -176,7 +175,7 @@ class ExtHostTreeView<T> extends Disposable {
 		};
 	}
 
-	private getLightIconPath(extensionTreeItem: vscode.TreeItem) {
+	private getLightIconPath(extensionTreeItem: vscode.TreeItem): string {
 		if (extensionTreeItem.iconPath) {
 			if (typeof extensionTreeItem.iconPath === 'string' || extensionTreeItem.iconPath instanceof URI) {
 				return this.getIconPath(extensionTreeItem.iconPath);
@@ -186,7 +185,7 @@ class ExtHostTreeView<T> extends Disposable {
 		return void 0;
 	}
 
-	private getDarkIconPath(extensionTreeItem: vscode.TreeItem) {
+	private getDarkIconPath(extensionTreeItem: vscode.TreeItem): string {
 		if (extensionTreeItem.iconPath && extensionTreeItem.iconPath['dark']) {
 			return this.getIconPath(extensionTreeItem.iconPath['dark']);
 		}

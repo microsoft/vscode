@@ -7,6 +7,7 @@ import { localize } from 'vs/nls';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
 import * as path from 'path';
+import * as fs from 'fs';
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { sequence } from 'vs/base/common/async';
@@ -16,7 +17,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
-import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { EnvironmentService, getInstallSourcePath } from 'vs/platform/environment/node/environmentService';
 import { IExtensionManagementService, IExtensionGalleryService, IExtensionManifest, IGalleryExtension, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
@@ -33,8 +34,8 @@ import { mkdirp } from 'vs/base/node/pfs';
 import { IChoiceService } from 'vs/platform/message/common/message';
 import { ChoiceCliService } from 'vs/platform/message/node/messageCli';
 
-const notFound = id => localize('notFound', "Extension '{0}' not found.", id);
-const notInstalled = id => localize('notInstalled', "Extension '{0}' is not installed.", id);
+const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);
+const notInstalled = (id: string) => localize('notInstalled', "Extension '{0}' is not installed.", id);
 const useId = localize('useId', "Make sure you use the full extension ID, including the publisher, eg: {0}", 'ms-vscode.csharp');
 
 function getId(manifest: IExtensionManifest, withVersion?: boolean): string {
@@ -50,6 +51,7 @@ type Task = { (): TPromise<void> };
 class Main {
 
 	constructor(
+		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
 		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService
 	) { }
@@ -57,7 +59,9 @@ class Main {
 	run(argv: ParsedArgs): TPromise<any> {
 		// TODO@joao - make this contributable
 
-		if (argv['list-extensions']) {
+		if (argv['install-source']) {
+			return this.setInstallSource(argv['install-source']);
+		} else if (argv['list-extensions']) {
 			return this.listExtensions(argv['show-versions']);
 		} else if (argv['install-extension']) {
 			const arg = argv['install-extension'];
@@ -69,6 +73,13 @@ class Main {
 			return this.uninstallExtension(ids);
 		}
 		return undefined;
+	}
+
+	private setInstallSource(installSource: string): TPromise<any> {
+		return new TPromise<void>((c, e) => {
+			const path = getInstallSourcePath(this.environmentService.userDataPath);
+			fs.writeFile(path, installSource.slice(0, 30), 'utf8', err => err ? e(err) : c(null));
+		});
 	}
 
 	private listExtensions(showVersions: boolean): TPromise<any> {
@@ -99,7 +110,7 @@ class Main {
 						return TPromise.as(null);
 					}
 
-					return this.extensionGalleryService.query({ names: [id] })
+					return this.extensionGalleryService.query({ names: [id], source: 'cli' })
 						.then<IPager<IGalleryExtension>>(null, err => {
 							if (err.responseText) {
 								try {
@@ -122,7 +133,7 @@ class Main {
 							console.log(localize('foundExtension', "Found '{0}' in the marketplace.", id));
 							console.log(localize('installing', "Installing..."));
 
-							return this.extensionManagementService.installFromGallery(extension, false)
+							return this.extensionManagementService.installFromGallery(extension)
 								.then(() => console.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed!", id, extension.version)));
 						});
 				});
@@ -161,7 +172,7 @@ export function main(argv: ParsedArgs): TPromise<void> {
 		const envService = accessor.get(IEnvironmentService);
 
 		return TPromise.join([envService.appSettingsHome, envService.extensionsPath].map(p => mkdirp(p))).then(() => {
-			const { appRoot, extensionsPath, extensionDevelopmentPath, isBuilt } = envService;
+			const { appRoot, extensionsPath, extensionDevelopmentPath, isBuilt, installSource } = envService;
 
 			const services = new ServiceCollection();
 			services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
@@ -170,7 +181,7 @@ export function main(argv: ParsedArgs): TPromise<void> {
 			services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
 			services.set(IChoiceService, new SyncDescriptor(ChoiceCliService));
 
-			if (isBuilt && !extensionDevelopmentPath && product.enableTelemetry) {
+			if (isBuilt && !extensionDevelopmentPath && !envService.args['disable-telemetry'] && product.enableTelemetry) {
 				const appenders: AppInsightsAppender[] = [];
 
 				if (product.aiConfig && product.aiConfig.asimovKey) {
@@ -183,7 +194,7 @@ export function main(argv: ParsedArgs): TPromise<void> {
 
 				const config: ITelemetryServiceConfig = {
 					appender: combinedAppender(...appenders),
-					commonProperties: resolveCommonProperties(product.commit, pkg.version),
+					commonProperties: resolveCommonProperties(product.commit, pkg.version, installSource),
 					piiPaths: [appRoot, extensionsPath]
 				};
 

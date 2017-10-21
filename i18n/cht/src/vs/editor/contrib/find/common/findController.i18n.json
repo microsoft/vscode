@@ -15,5 +15,7 @@
 	"moveSelectionToNextFindMatch": "將最後一個選擇項目移至下一個找到的相符項",
 	"moveSelectionToPreviousFindMatch": "將最後一個選擇項目移至前一個找到的相符項",
 	"selectAllOccurrencesOfFindMatch": "選取所有找到的相符項目",
-	"changeAll.label": "變更所有發生次數"
+	"changeAll.label": "變更所有發生次數",
+	"showNextFindTermAction": "顯示下一個尋找字詞",
+	"showPreviousFindTermAction": "顯示上一個尋找字詞"
 }

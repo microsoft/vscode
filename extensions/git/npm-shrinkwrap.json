@@ -7,13 +7,18 @@
       "from": "applicationinsights@0.18.0",
       "resolved": "https://registry.npmjs.org/applicationinsights/-/applicationinsights-0.18.0.tgz"
     },
+    "byline": {
+      "version": "5.0.0",
+      "from": "byline@latest",
+      "resolved": "https://registry.npmjs.org/byline/-/byline-5.0.0.tgz"
+    },
     "iconv-lite": {
       "version": "0.4.15",
       "from": "iconv-lite@0.4.15",
       "resolved": "https://registry.npmjs.org/iconv-lite/-/iconv-lite-0.4.15.tgz"
     },
     "vscode-extension-telemetry": {
-      "version": "0.0.7",
+      "version": "0.0.8",
       "from": "vscode-extension-telemetry@>=0.0.8 <0.0.9",
       "resolved": "https://registry.npmjs.org/vscode-extension-telemetry/-/vscode-extension-telemetry-0.0.8.tgz"
     },

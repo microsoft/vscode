@@ -53,7 +53,7 @@ export function extractResources(e: DragEvent, externalOnly?: boolean): IDragged
 
 		// Check for in-app DND
 		if (!externalOnly) {
-			const rawData = e.dataTransfer.getData(e.dataTransfer.types[0]);
+			const rawData = e.dataTransfer.getData('URL');
 			if (rawData) {
 				try {
 					resources.push({ resource: URI.parse(rawData), isExternal: false });

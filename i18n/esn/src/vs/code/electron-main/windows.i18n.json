@@ -14,6 +14,17 @@
 	"appStalledDetail": "Puede volver a abrir la ventana, cerrarla o seguir esperando.",
 	"appCrashed": "La ventana se bloqueó",
 	"appCrashedDetail": "Sentimos las molestias. Puede volver a abrir la ventana para continuar donde se detuvo.",
+	"open": "Abrir",
+	"openFolder": "Abrir carpeta",
 	"openFile": "Abrir archivo",
-	"openFolder": "Abrir carpeta"
+	"workspaceOpenedMessage": "No se puede guardar el espacio de trabajo '{0}'",
+	"workspaceOpenedDetail": "El espacio de trabajo ya está abierto en otra ventana. Por favor, cierre primero la ventana y vuelta a intentarlo de nuevo.",
+	"openWorkspace": "&&Abrir...",
+	"openWorkspaceTitle": "Abrir área de trabajo",
+	"save": "&&Guardar",
+	"doNotSave": "&&No guardar",
+	"cancel": "Cancelar",
+	"saveWorkspaceMessage": "¿Quiere guardar la configuración del área de trabajo como un archivo?",
+	"saveWorkspaceDetail": "Guarde el área de trabajo si tiene pensado volverla a abrir.",
+	"saveWorkspace": "Guardar área de trabajo"
 }

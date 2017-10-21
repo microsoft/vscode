@@ -27,12 +27,3 @@
 .monaco-workbench.windows .monaco-action-bar .select-box {
 	margin-top: 7px; /* Center the select box */
 }
-
-#monaco-workbench-drop-overlay {
-	position: absolute;
-	top: 0;
-	left: 0;
-	height: 100%;
-	width: 100%;
-	z-index: 10000;
-}

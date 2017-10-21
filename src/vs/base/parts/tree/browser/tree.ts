@@ -104,7 +104,7 @@ export interface ITree extends Events.IEventEmitter {
 	/**
 	 * Toggles an element's expansion state.
 	 */
-	toggleExpansion(element: any): WinJS.Promise;
+	toggleExpansion(element: any, recursive?: boolean): WinJS.Promise;
 
 	/**
 	 * Toggles several element's expansion state.
@@ -670,6 +670,7 @@ export interface ITreeOptions extends ITreeStyles {
 	paddingOnRow?: boolean;
 	ariaLabel?: string;
 	keyboardSupport?: boolean;
+	preventRootFocus?: boolean;
 }
 
 export interface ITreeStyles {

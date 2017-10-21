@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vscode-nls';
-import { TypeScriptVersionProvider, TypeScriptVersion } from "./versionProvider";
-import { Memento, commands, Uri, window, QuickPickItem, workspace } from "vscode";
+import { TypeScriptVersionProvider, TypeScriptVersion } from './versionProvider';
+import { Memento, commands, Uri, window, QuickPickItem, workspace } from 'vscode';
 
 const localize = nls.loadMessageBundle();
 
@@ -31,12 +31,16 @@ export class TypeScriptVersionPicker {
 	) {
 		this._currentVersion = this.versionProvider.defaultVersion;
 
-		if (workspaceState.get<boolean>(useWorkspaceTsdkStorageKey, false)) {
+		if (this.useWorkspaceTsdkSetting) {
 			const localVersion = this.versionProvider.localVersion;
 			if (localVersion) {
 				this._currentVersion = localVersion;
 			}
 		}
+	}
+
+	public get useWorkspaceTsdkSetting(): boolean {
+		return this.workspaceState.get<boolean>(useWorkspaceTsdkStorageKey, false);
 	}
 
 	public get currentVersion(): TypeScriptVersion {
@@ -52,21 +56,21 @@ export class TypeScriptVersionPicker {
 
 		const shippedVersion = this.versionProvider.defaultVersion;
 		pickOptions.push({
-			label: (this.currentVersion.path === shippedVersion.path
+			label: (!this.useWorkspaceTsdkSetting
 				? '• '
-				: '') + localize('useVSCodeVersionOption', 'Use VSCode\'s Version'),
+				: '') + localize('useVSCodeVersionOption', 'Use VS Code\'s Version'),
 			description: shippedVersion.versionString,
-			detail: shippedVersion.label,
+			detail: shippedVersion.pathLabel,
 			id: MessageAction.useBundled
 		});
 
 		for (const version of this.versionProvider.localVersions) {
 			pickOptions.push({
-				label: (this.currentVersion.path === version.path
+				label: (this.useWorkspaceTsdkSetting && this.currentVersion.path === version.path
 					? '• '
 					: '') + localize('useWorkspaceVersionOption', 'Use Workspace Version'),
 				description: version.versionString,
-				detail: version.label,
+				detail: version.pathLabel,
 				id: MessageAction.useLocal,
 				version: version
 			});
@@ -94,7 +98,7 @@ export class TypeScriptVersionPicker {
 				await this.workspaceState.update(useWorkspaceTsdkStorageKey, true);
 				if (selected.version) {
 					const tsConfig = workspace.getConfiguration('typescript');
-					await tsConfig.update('tsdk', selected.version.label, false);
+					await tsConfig.update('tsdk', selected.version.pathLabel, false);
 
 					const previousVersion = this.currentVersion;
 					this._currentVersion = selected.version;

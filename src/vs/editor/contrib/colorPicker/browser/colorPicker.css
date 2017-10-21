@@ -27,20 +27,21 @@
 .colorpicker-header .picked-color {
 	width: 216px;
 	text-align: center;
-	text-shadow: 0.5px 0.5px 0.5px black;
-	line-height: 20px;
+	line-height: 24px;
 	cursor: pointer;
-}
-
-.colorpicker-header .picked-color {
+	color: white;
 	flex: 1;
 	text-align: center;
-	color: rgba(255, 255, 255, 1);
+}
+
+.colorpicker-header .picked-color.light {
+	color: black;
 }
 
 .colorpicker-header .original-color {
 	width: 74px;
 	z-index: inherit;
+	cursor: pointer;
 }
 
 
@@ -71,7 +72,7 @@
 	margin: -5px 0 0 -5px;
 	border: 1px solid rgb(255, 255, 255);
 	border-radius: 100%;
-	box-shadow: inset 0 0 1px rgba(0, 0, 0, 0.3);
+	box-shadow: 0px 0px 2px rgba(0, 0, 0, 0.8);
 	position: absolute;
 }
 
@@ -96,15 +97,22 @@
 	image-rendering: pixelated;
 }
 
+.colorpicker-body .strip.grabbing {
+	cursor: -webkit-grabbing;
+}
+
 .colorpicker-body .slider {
 	position: absolute;
 	top: 0;
-	width: 100%;
-	background: rgba(100, 100, 100, 0.7);
-	height: 5px;
+	left: -2px;
+	width: calc(100% + 4px);
+	height: 4px;
+	box-sizing: border-box;
+	border: 1px solid rgba(255, 255, 255, 0.71);
+	box-shadow: 0px 0px 1px rgba(0, 0, 0, 0.85);
 }
 
-.colorpicker-body .opacity-strip .opacity-overlay {
+.colorpicker-body .strip .overlay {
 	height: 150px;
 	pointer-events: none;
 }

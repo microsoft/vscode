@@ -4,7 +4,7 @@
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
 	"scripts": {
-		"update-grammar": "node ../../build/npm/update-grammar.js textmate/make.tmbundle Syntaxes/Makefile.plist ./syntaxes/Makefile.json"
+		"update-grammar": "node ../../build/npm/update-grammar.js fadeevab/make.tmbundle Syntaxes/Makefile.plist ./syntaxes/Makefile.json"
 	},
 	"contributes": {
 

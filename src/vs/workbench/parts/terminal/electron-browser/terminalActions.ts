@@ -8,7 +8,7 @@ import * as os from 'os';
 import { Action, IAction } from 'vs/base/common/actions';
 import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
-import { ITerminalService, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalService, TERMINAL_PANEL_ID, ITerminalInstance } from 'vs/workbench/parts/terminal/common/terminal';
 import { SelectActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
@@ -21,6 +21,9 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { ActionBarContributor } from 'vs/workbench/browser/actions';
 import { TerminalEntry } from 'vs/workbench/parts/terminal/browser/terminalQuickOpen';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { PICK_WORKSPACE_FOLDER_COMMAND } from 'vs/workbench/browser/actions/workspaceActions';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 export const TERMINAL_PICKER_PREFIX = 'term ';
 
@@ -71,6 +74,34 @@ export class KillTerminalAction extends Action {
 			}
 		}
 		return TPromise.as(void 0);
+	}
+}
+
+export class QuickKillTerminalAction extends Action {
+
+	public static ID = 'workbench.action.terminal.quickKill';
+	public static LABEL = nls.localize('workbench.action.terminal.quickKill', "Kill Terminal Instance");
+
+	constructor(
+		id: string, label: string,
+		private terminalEntry: TerminalEntry,
+		@ITerminalService private terminalService: ITerminalService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService
+	) {
+		super(id, label);
+		this.class = 'terminal-action kill';
+	}
+
+	public run(event?: any): TPromise<any> {
+		const terminalIndex = parseInt(this.terminalEntry.getLabel().split(':')[0]) - 1;
+		const terminal = this.terminalService.getInstanceFromIndex(terminalIndex);
+		if (terminal) {
+			terminal.dispose();
+		}
+		if (this.terminalService.terminalInstances.length > 0 && this.terminalService.activeTerminalInstanceIndex !== terminalIndex) {
+			this.terminalService.setActiveInstanceByIndex(Math.min(terminalIndex, this.terminalService.terminalInstances.length - 1));
+		}
+		return TPromise.timeout(50).then(result => this.quickOpenService.show(TERMINAL_PICKER_PREFIX, null));
 	}
 }
 
@@ -172,19 +203,39 @@ export class CreateNewTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
+		@ITerminalService private terminalService: ITerminalService,
+		@ICommandService private commandService: ICommandService,
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService
 	) {
 		super(id, label);
 		this.class = 'terminal-action new';
 	}
 
 	public run(event?: any): TPromise<any> {
-		const instance = this.terminalService.createInstance(undefined, true);
-		if (!instance) {
-			return TPromise.as(void 0);
+		const folders = this.workspaceContextService.getWorkspace().folders;
+
+		let instancePromise: TPromise<ITerminalInstance>;
+		if (folders.length <= 1) {
+			// Allow terminal service to handle the path when there is only a
+			// single root
+			instancePromise = TPromise.as(this.terminalService.createInstance(undefined, true));
+		} else {
+			instancePromise = this.commandService.executeCommand(PICK_WORKSPACE_FOLDER_COMMAND).then(workspace => {
+				if (!workspace) {
+					// Don't create the instance if the workspace picker was canceled
+					return null;
+				}
+				return this.terminalService.createInstance({ cwd: workspace.uri.fsPath }, true);
+			});
 		}
-		this.terminalService.setActiveInstance(instance);
-		return this.terminalService.showPanel(true);
+
+		return instancePromise.then(instance => {
+			if (!instance) {
+				return TPromise.as(void 0);
+			}
+			this.terminalService.setActiveInstance(instance);
+			return this.terminalService.showPanel(true);
+		});
 	}
 }
 
@@ -225,34 +276,6 @@ export class FocusNextTerminalAction extends Action {
 	public run(event?: any): TPromise<any> {
 		this.terminalService.setActiveInstanceToNext();
 		return this.terminalService.showPanel(true);
-	}
-}
-
-export class FocusTerminalAtIndexAction extends Action {
-	private static ID_PREFIX = 'workbench.action.terminal.focusAtIndex';
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	public run(event?: any): TPromise<any> {
-		this.terminalService.setActiveInstanceByIndex(this.getTerminalNumber() - 1);
-		return this.terminalService.showPanel(true);
-	}
-
-	public static getId(n: number): string {
-		return FocusTerminalAtIndexAction.ID_PREFIX + n;
-	}
-
-	public static getLabel(n: number): string {
-		return nls.localize('workbench.action.terminal.focusAtIndex', 'Focus Terminal {0}', n);
-	}
-
-	private getTerminalNumber(): number {
-		return parseInt(this.id.substr(FocusTerminalAtIndexAction.ID_PREFIX.length));
 	}
 }
 
@@ -619,11 +642,12 @@ export class RenameTerminalAction extends Action {
 	}
 
 	public run(terminal?: TerminalEntry): TPromise<any> {
-		const terminalInstance = terminal ? this.terminalService.getInstanceFromId(parseInt(terminal.getLabel().split(':')[0], 10)) : this.terminalService.getActiveInstance();
+		const terminalInstance = terminal ? this.terminalService.getInstanceFromIndex(parseInt(terminal.getLabel().split(':')[0], 10) - 1) : this.terminalService.getActiveInstance();
 		if (!terminalInstance) {
 			return TPromise.as(void 0);
 		}
 		return this.quickOpenService.input({
+			value: terminalInstance.title,
 			prompt: nls.localize('workbench.action.terminal.rename.prompt', "Enter terminal name"),
 		}).then(name => {
 			if (name) {
@@ -667,6 +691,40 @@ export class HideTerminalFindWidgetAction extends Action {
 	}
 }
 
+export class ShowNextFindTermTerminalFindWidgetAction extends Action {
+
+	public static ID = 'workbench.action.terminal.findWidget.history.showNext';
+	public static LABEL = nls.localize('nextTerminalFindTerm', "Show Next Find Term");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return TPromise.as(this.terminalService.showNextFindTermFindWidget());
+	}
+}
+
+export class ShowPreviousFindTermTerminalFindWidgetAction extends Action {
+
+	public static ID = 'workbench.action.terminal.findWidget.history.showPrevious';
+	public static LABEL = nls.localize('previousTerminalFindTerm', "Show Previous Find Term");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return TPromise.as(this.terminalService.showPreviousFindTermFindWidget());
+	}
+}
+
 
 export class QuickOpenActionTermContributor extends ActionBarContributor {
 
@@ -682,6 +740,7 @@ export class QuickOpenActionTermContributor extends ActionBarContributor {
 		let actions: Action[] = [];
 		if (context.element instanceof TerminalEntry) {
 			actions.push(this.instantiationService.createInstance(RenameTerminalQuickOpenAction, RenameTerminalQuickOpenAction.ID, RenameTerminalQuickOpenAction.LABEL, context.element));
+			actions.push(this.instantiationService.createInstance(QuickKillTerminalAction, QuickKillTerminalAction.ID, QuickKillTerminalAction.LABEL, context.element));
 		}
 		return actions;
 	}
@@ -694,7 +753,7 @@ export class QuickOpenActionTermContributor extends ActionBarContributor {
 export class QuickOpenTermAction extends Action {
 
 	public static ID = 'workbench.action.quickOpenTerm';
-	public static LABEL = nls.localize('quickOpenTerm', "Terminal: Switch Active Terminal");
+	public static LABEL = nls.localize('quickOpenTerm', "Switch Active Terminal");
 
 	constructor(
 		id: string,

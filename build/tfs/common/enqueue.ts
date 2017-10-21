@@ -52,20 +52,20 @@ function isBuildSigned(quality: string, commit: string): Promise<boolean> {
 	});
 }
 
-async function waitForSignedBuild(quality: string, commit: string): Promise<void> {
-	let retries = 0;
+// async function waitForSignedBuild(quality: string, commit: string): Promise<void> {
+// 	let retries = 0;
 
-	while (retries < 180) {
-		if (await isBuildSigned(quality, commit)) {
-			return;
-		}
+// 	while (retries < 180) {
+// 		if (await isBuildSigned(quality, commit)) {
+// 			return;
+// 		}
 
-		await new Promise<void>(c => setTimeout(c, 10000));
-		retries++;
-	}
+// 		await new Promise<void>(c => setTimeout(c, 10000));
+// 		retries++;
+// 	}
 
-	throw new Error('Timed out waiting for signed build');
-}
+// 	throw new Error('Timed out waiting for signed build');
+// }
 
 async function main(quality: string): Promise<void> {
 	const commit = execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim();
@@ -73,10 +73,10 @@ async function main(quality: string): Promise<void> {
 	console.log(`Queueing signing request for '${quality}/${commit}'...`);
 	await queueSigningRequest(quality, commit);
 
-	console.log('Waiting on signed build...');
-	await waitForSignedBuild(quality, commit);
+	// console.log('Waiting on signed build...');
+	// await waitForSignedBuild(quality, commit);
 
-	console.log('Found signed build!');
+	// console.log('Found signed build!');
 }
 
 main(process.argv[2]).catch(err => {

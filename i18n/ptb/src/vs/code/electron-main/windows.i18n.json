@@ -14,6 +14,17 @@
 	"appStalledDetail": "Você pode reabrir, fechar a janela ou continuar esperando.",
 	"appCrashed": "A janela foi fechada inesperadamente",
 	"appCrashedDetail": "Pedimos desculpas pelo inconveniente! Você pode reabrir a janela para continuar de onde parou.",
+	"open": "Abrir",
+	"openFolder": "Abrir Pasta",
 	"openFile": "Abrir Arquivo",
-	"openFolder": "Abrir Pasta"
+	"workspaceOpenedMessage": "Não é possível salvar espaço de trabalho '{0}'",
+	"workspaceOpenedDetail": "O espaço de trabalho já está aberto em outra janela. Por favor, feche a janela primeiro e tente novamente.",
+	"openWorkspace": "&&Abrir",
+	"openWorkspaceTitle": "Abrir o Espaço de Trabalho",
+	"save": "&&Salvar",
+	"doNotSave": "&&Não Salvar",
+	"cancel": "Cancelar",
+	"saveWorkspaceMessage": "Você quer salvar a sua configuração de área de trabalho como um arquivo?",
+	"saveWorkspaceDetail": "Salve seu espaço de trabalho se pretende abri-lo novamente.",
+	"saveWorkspace": "Salvar o espaço de trabalho"
 }

@@ -4,6 +4,13 @@
 	"include": "./light_defaults.json",
 	"tokenColors": [
 		{
+			"scope": ["meta.embedded", "source.groovy.embedded"],
+			"settings": {
+				"foreground": "#000000ff",
+				"background":"#ffffffff"
+			}
+		},
+		{
 			"scope": "emphasis",
 			"settings": {
 				"fontStyle": "italic"
@@ -237,13 +244,11 @@
 			}
 		},
 		{
-			"name": "JavaScript string interpolation ${}",
+			"name": "String interpolation",
 			"scope": [
-				"punctuation.definition.template-expression.begin.js",
-				"punctuation.definition.template-expression.begin.ts",
-				"punctuation.definition.template-expression.end.ts",
-				"punctuation.definition.template-expression.end.js",
-				"punctuation.section.embedded.coffee"
+				"punctuation.definition.template-expression.begin",
+				"punctuation.definition.template-expression.end",
+				"punctuation.section.embedded"
 			],
 			"settings": {
 				"foreground": "#0000ff"
@@ -252,8 +257,7 @@
 		{
 			"name": "Reset JavaScript string interpolation expression",
 			"scope": [
-				"meta.template.expression.js",
-				"meta.template.expression.ts"
+				"meta.template.expression"
 			],
 			"settings": {
 				"foreground": "#000000"

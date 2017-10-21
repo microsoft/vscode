@@ -12,7 +12,6 @@ import { first } from 'vs/base/common/arrays';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import * as objects from 'vs/base/common/objects';
 import uri from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
 import * as paths from 'vs/base/common/paths';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { IModel, isCommonCodeEditor } from 'vs/editor/common/editorCommon';
@@ -21,14 +20,15 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import * as extensionsRegistry from 'vs/platform/extensions/common/extensionsRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IRawAdapter, ICompound, IDebugConfiguration, DEBUG_SCHEME, IConfig, IEnvConfig, IGlobalConfig, IConfigurationManager, ILaunch } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugConfigurationProvider, IRawAdapter, ICompound, IDebugConfiguration, IConfig, IEnvConfig, IGlobalConfig, IConfigurationManager, ILaunch } from 'vs/workbench/parts/debug/common/debug';
 import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
@@ -81,10 +81,6 @@ export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerE
 			},
 			adapterExecutableCommand: {
 				description: nls.localize('vscode.extension.contributes.debuggers.adapterExecutableCommand', "If specified VS Code will call this command to determine the executable path of the debug adapter and the arguments to pass."),
-				type: 'string'
-			},
-			startSessionCommand: {
-				description: nls.localize('vscode.extension.contributes.debuggers.startSessionCommand', "If specified VS Code will call this command for the \"debug\" or \"run\" actions targeted for this extension."),
 				type: 'string'
 			},
 			configurationSnippets: {
@@ -208,18 +204,16 @@ const jsonRegistry = <IJSONContributionRegistry>Registry.as(JSONExtensions.JSONC
 jsonRegistry.registerSchema(schemaId, schema);
 const DEBUG_SELECTED_CONFIG_NAME_KEY = 'debug.selectedconfigname';
 const DEBUG_SELECTED_ROOT = 'debug.selectedroot';
-const DEBUG_CONFIG_MRU = 'debug.configmru';
-const MRU_SIZE = 5;
 
 export class ConfigurationManager implements IConfigurationManager {
 	private adapters: Adapter[];
 	private breakpointModeIdsSet = new Set<string>();
-	private launches: Launch[];
+	private launches: ILaunch[];
 	private _selectedName: string;
 	private _selectedLaunch: ILaunch;
 	private toDispose: IDisposable[];
 	private _onDidSelectConfigurationName = new Emitter<void>();
-	private _mru: { launch: ILaunch, name: string }[];
+	private providers: IDebugConfigurationProvider[];
 
 	constructor(
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
@@ -232,34 +226,53 @@ export class ConfigurationManager implements IConfigurationManager {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ICommandService private commandService: ICommandService,
 		@IStorageService private storageService: IStorageService,
-		@ILifecycleService lifecycleService: ILifecycleService,
+		@ILifecycleService lifecycleService: ILifecycleService
 	) {
+		this.providers = [];
 		this.adapters = [];
 		this.toDispose = [];
 		this.registerListeners(lifecycleService);
 		this.initLaunches();
 		const previousSelectedRoot = this.storageService.get(DEBUG_SELECTED_ROOT, StorageScope.WORKSPACE);
-		const filtered = this.launches.filter(l => l.workspaceUri.toString() === previousSelectedRoot);
-		const launchToSelect = filtered.length ? filtered[0] : this.launches.length ? this.launches[0] : undefined;
-		this.selectConfiguration(launchToSelect, this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE));
+		const filtered = this.launches.filter(l => l.workspace.uri.toString() === previousSelectedRoot);
+		this.selectConfiguration(filtered.length ? filtered[0] : undefined, this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE));
+	}
 
-		this._mru = [];
-		const mruRaw: { name: string, uriStr: string }[] = JSON.parse(this.storageService.get(DEBUG_CONFIG_MRU, StorageScope.WORKSPACE, '[]'));
-		mruRaw.forEach(raw => {
-			const launch = this.launches.filter(l => l.workspaceUri.toString() === raw.uriStr).pop();
-			if (launch) {
-				this._mru.push({ name, launch });
-			}
-		});
-		if (this._mru.length < MRU_SIZE) {
-			this.launches.forEach(launch => {
-				launch.getConfigurationNames().forEach(name => {
-					if (this._mru.length < MRU_SIZE && this._mru.indexOf({ name, launch }) === -1) {
-						this._mru.push({ name, launch });
-					}
-				});
-			});
+	public registerDebugConfigurationProvider(handle: number, debugConfigurationProvider: IDebugConfigurationProvider): void {
+		if (!debugConfigurationProvider) {
+			return;
 		}
+
+		debugConfigurationProvider.handle = handle;
+		this.providers = this.providers.filter(p => p.handle !== handle);
+		this.providers.push(debugConfigurationProvider);
+		const adapter = this.getAdapter(debugConfigurationProvider.type);
+		// Check if the provider contributes provideDebugConfigurations method
+		if (adapter && debugConfigurationProvider.provideDebugConfigurations) {
+			adapter.hasConfigurationProvider = true;
+		}
+	}
+
+	public unregisterDebugConfigurationProvider(handle: number): void {
+		this.providers = this.providers.filter(p => p.handle !== handle);
+	}
+
+	public resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: IConfig): TPromise<IConfig> {
+		// pipe the config through the promises sequentially
+		return this.providers.filter(p => p.type === type && p.resolveDebugConfiguration).reduce((promise, provider) => {
+			return promise.then(config => {
+				if (config) {
+					return provider.resolveDebugConfiguration(folderUri, config);
+				} else {
+					return Promise.resolve(config);
+				}
+			});
+		}, TPromise.as(debugConfiguration));
+	}
+
+	public provideDebugConfigurations(folderUri: uri | undefined, type: string): TPromise<any[]> {
+		return TPromise.join(this.providers.filter(p => p.type === type && p.provideDebugConfigurations).map(p => p.provideDebugConfigurations(folderUri)))
+			.then(results => results.reduce((first, second) => first.concat(second), []));
 	}
 
 	private registerListeners(lifecycleService: ILifecycleService): void {
@@ -306,21 +319,24 @@ export class ConfigurationManager implements IConfigurationManager {
 			});
 		});
 
-		this.toDispose.push(this.contextService.onDidChangeWorkspaceRoots(() => {
+		this.toDispose.push(this.contextService.onDidChangeWorkspaceFolders(() => {
 			this.initLaunches();
+			this.selectConfiguration();
 		}));
-
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration((event) => {
-			const toSelect = this.selectedLaunch && this.selectedLaunch.getConfigurationNames().length ? this.selectedLaunch : first(this.launches, l => !!l.getConfigurationNames().length, this.selectedLaunch);
-			this.selectConfiguration(toSelect);
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('launch')) {
+				this.selectConfiguration();
+			}
 		}));
 
 		this.toDispose.push(lifecycleService.onShutdown(this.store, this));
 	}
 
 	private initLaunches(): void {
-		const workspace = this.contextService.getWorkspace();
-		this.launches = workspace ? workspace.roots.map(root => this.instantiationService.createInstance(Launch, this, root)) : [];
+		this.launches = this.contextService.getWorkspace().folders.map(folder => this.instantiationService.createInstance(Launch, this, folder));
+		if (this.launches.indexOf(this._selectedLaunch) === -1) {
+			this._selectedLaunch = undefined;
+		}
 	}
 
 	public getLaunches(): ILaunch[] {
@@ -339,13 +355,13 @@ export class ConfigurationManager implements IConfigurationManager {
 		return this._onDidSelectConfigurationName.event;
 	}
 
-	public get mruConfigs(): { name: string, launch: ILaunch }[] {
-		return this._mru;
-	}
-
-	public selectConfiguration(launch: ILaunch, name?: string, debugStarted?: boolean): void {
+	public selectConfiguration(launch?: ILaunch, name?: string, debugStarted?: boolean): void {
 		const previousLaunch = this._selectedLaunch;
 		const previousName = this._selectedName;
+
+		if (!launch) {
+			launch = this.selectedLaunch && this.selectedLaunch.getConfigurationNames().length ? this.selectedLaunch : first(this.launches, l => !!l.getConfigurationNames().length, this.launches.length ? this.launches[0] : undefined);
+		}
 
 		this._selectedLaunch = launch;
 		const names = launch ? launch.getConfigurationNames() : [];
@@ -356,29 +372,20 @@ export class ConfigurationManager implements IConfigurationManager {
 			this._selectedName = names.length ? names[0] : undefined;
 		}
 
-		if (debugStarted && this._selectedLaunch && this._selectedName) {
-			this._mru = this._mru.filter(entry => entry.launch.workspaceUri !== launch.workspaceUri || entry.name !== name);
-			this._mru.unshift({ launch, name });
-
-			if (this._mru.length > MRU_SIZE) {
-				this._mru.pop();
-			}
-		}
-
 		if (this.selectedLaunch !== previousLaunch || this.selectedName !== previousName) {
 			this._onDidSelectConfigurationName.fire();
 		}
 	}
 
 	public canSetBreakpointsIn(model: IModel): boolean {
-		if (model.uri.scheme !== Schemas.file && model.uri.scheme !== DEBUG_SCHEME) {
+		const modeId = model ? model.getLanguageIdentifier().language : null;
+		if (!modeId || modeId === 'json') {
+			// do not allow breakpoints in our settings files
 			return false;
 		}
 		if (this.configurationService.getConfiguration<IDebugConfiguration>('debug').allowBreakpointsEverywhere) {
 			return true;
 		}
-
-		const modeId = model ? model.getLanguageIdentifier().language : null;
 
 		return this.breakpointModeIdsSet.has(modeId);
 	}
@@ -406,7 +413,7 @@ export class ConfigurationManager implements IConfigurationManager {
 			}
 		}
 
-		return this.quickOpenService.pick([...this.adapters.filter(a => a.hasInitialConfiguration()), { label: 'More...', separator: { border: true } }], { placeHolder: nls.localize('selectDebug', "Select Environment") })
+		return this.quickOpenService.pick([...this.adapters.filter(a => a.hasInitialConfiguration() || a.hasConfigurationProvider), { label: 'More...', separator: { border: true } }], { placeHolder: nls.localize('selectDebug', "Select Environment") })
 			.then(picked => {
 				if (picked instanceof Adapter) {
 					return picked;
@@ -418,23 +425,10 @@ export class ConfigurationManager implements IConfigurationManager {
 			});
 	}
 
-	public getStartSessionCommand(type?: string): TPromise<{ command: string, type: string }> {
-		return this.guessAdapter(type).then(adapter => {
-			if (adapter) {
-				return {
-					command: adapter.startSessionCommand,
-					type: adapter.type
-				};
-			}
-			return undefined;
-		});
-	}
-
 	private store(): void {
-		this.storageService.store(DEBUG_CONFIG_MRU, JSON.stringify(this._mru.map(entry => ({ name: entry.name, uri: entry.launch.uri }))), StorageScope.WORKSPACE);
 		this.storageService.store(DEBUG_SELECTED_CONFIG_NAME_KEY, this.selectedName, StorageScope.WORKSPACE);
 		if (this._selectedLaunch) {
-			this.storageService.store(DEBUG_SELECTED_ROOT, this._selectedLaunch.workspaceUri.toString(), StorageScope.WORKSPACE);
+			this.storageService.store(DEBUG_SELECTED_ROOT, this._selectedLaunch.workspace.uri.toString(), StorageScope.WORKSPACE);
 		}
 	}
 
@@ -445,21 +439,20 @@ export class ConfigurationManager implements IConfigurationManager {
 
 class Launch implements ILaunch {
 
-	public name: string;
-
 	constructor(
 		private configurationManager: ConfigurationManager,
-		public workspaceUri: uri,
+		public workspace: IWorkspaceFolder,
 		@IFileService private fileService: IFileService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService,
+		@IExtensionService private extensionService: IExtensionService
 	) {
-		this.name = paths.basename(this.workspaceUri.fsPath);
+		// noop
 	}
 
 	public getCompound(name: string): ICompound {
-		const config = this.configurationService.getConfiguration<IGlobalConfig>('launch', { resource: this.workspaceUri });
+		const config = this.configurationService.getConfiguration<IGlobalConfig>('launch', { resource: this.workspace.uri });
 		if (!config || !config.compounds) {
 			return null;
 		}
@@ -468,8 +461,8 @@ class Launch implements ILaunch {
 	}
 
 	public getConfigurationNames(): string[] {
-		const config = this.configurationService.getConfiguration<IGlobalConfig>('launch', { resource: this.workspaceUri });
-		if (!config || !config.configurations) {
+		const config = this.configurationService.getConfiguration<IGlobalConfig>('launch', { resource: this.workspace.uri });
+		if (!config || !config.configurations || !Array.isArray(config.configurations)) {
 			return [];
 		} else {
 			const names = config.configurations.filter(cfg => cfg && typeof cfg.name === 'string').map(cfg => cfg.name);
@@ -485,7 +478,7 @@ class Launch implements ILaunch {
 	}
 
 	public getConfiguration(name: string): IConfig {
-		const config = this.configurationService.getConfiguration<IGlobalConfig>('launch', { resource: this.workspaceUri });
+		const config = this.configurationService.getConfiguration<IGlobalConfig>('launch', { resource: this.workspace.uri });
 		if (!config || !config.configurations) {
 			return null;
 		}
@@ -494,7 +487,7 @@ class Launch implements ILaunch {
 	}
 
 	public resolveConfiguration(config: IConfig): TPromise<IConfig> {
-		const result = objects.deepClone(config) as IConfig;
+		const result = objects.clone(config) as IConfig;
 		// Set operating system specific properties #1873
 		const setOSProperties = (flag: boolean, osConfig: IEnvConfig) => {
 			if (flag && osConfig) {
@@ -509,7 +502,7 @@ class Launch implements ILaunch {
 
 		// massage configuration attributes - append workspace path to relatvie paths, substitute variables in paths.
 		Object.keys(result).forEach(key => {
-			result[key] = this.configurationResolverService.resolveAny(this.workspaceUri, result[key]);
+			result[key] = this.configurationResolverService.resolveAny(this.workspace, result[key]);
 		});
 
 		const adapter = this.configurationManager.getAdapter(result.type);
@@ -517,32 +510,56 @@ class Launch implements ILaunch {
 	}
 
 	public get uri(): uri {
-		return uri.file(paths.join(this.workspaceUri.fsPath, '/.vscode/launch.json'));
+		return this.workspace.uri.with({ path: paths.join(this.workspace.uri.path, '/.vscode/launch.json') });
 	}
 
 	public openConfigFile(sideBySide: boolean, type?: string): TPromise<IEditor> {
-		const resource = this.uri;
-		let configFileCreated = false;
+		return this.extensionService.activateByEvent('onDebug').then(() => {
+			const resource = this.uri;
+			let configFileCreated = false;
 
-		return this.fileService.resolveContent(resource).then(content => true, err =>
-			this.configurationManager.guessAdapter(type).then(adapter => adapter ? adapter.getInitialConfigurationContent(this.workspaceUri) : undefined)
-				.then(content => {
+			return this.fileService.resolveContent(resource).then(content => content, err => {
+
+				// launch.json not found: create one by collecting launch configs from debugConfigProviders
+
+				return this.configurationManager.guessAdapter(type).then(adapter => {
+					if (adapter) {
+						return this.configurationManager.provideDebugConfigurations(this.workspace.uri, adapter.type).then(initialConfigs => {
+							return adapter.getInitialConfigurationContent(initialConfigs);
+						});
+					} else {
+						return undefined;
+					}
+				}).then(content => {
+
 					if (!content) {
-						return false;
+						return undefined;
 					}
 
 					configFileCreated = true;
-					return this.fileService.updateContent(resource, content).then(() => true);
-				}))
-			.then(errorFree => {
-				if (!errorFree) {
+					return this.fileService.updateContent(resource, content).then(() => {
+						// convert string into IContent; see #32135
+						return { value: content };
+					});
+				});
+			}).then(content => {
+				if (!content) {
 					return undefined;
 				}
+				const index = content.value.indexOf(`"${this.configurationManager.selectedName}"`);
+				let startLineNumber = 1;
+				for (let i = 0; i < index; i++) {
+					if (content.value.charAt(i) === '\n') {
+						startLineNumber++;
+					}
+				}
+				const selection = startLineNumber > 1 ? { startLineNumber, startColumn: 4 } : undefined;
 
 				return this.editorService.openEditor({
 					resource: resource,
 					options: {
 						forceOpen: true,
+						selection,
 						pinned: configFileCreated, // pin only if config file is created #8727
 						revealIfVisible: true
 					},
@@ -550,5 +567,6 @@ class Launch implements ILaunch {
 			}, (error) => {
 				throw new Error(nls.localize('DebugConfig.failed', "Unable to create 'launch.json' file inside the '.vscode' folder ({0}).", error));
 			});
+		});
 	}
 }

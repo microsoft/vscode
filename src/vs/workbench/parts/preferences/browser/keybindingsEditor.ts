@@ -251,6 +251,10 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.searchWidget.focus();
 	}
 
+	clearSearchResults(): void {
+		this.searchWidget.clear();
+	}
+
 	showConflicts(keybindingEntry: IKeybindingItemEntry): TPromise<any> {
 		const value = `"${keybindingEntry.keybindingItem.keybinding.getAriaLabel()}"`;
 		if (value !== this.searchWidget.getValue()) {
@@ -517,6 +521,12 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 				emptyFilters: this.getLatestEmptyFiltersForTelemetry()
 			};
 			this.latestEmptyFilters = [];
+			/* __GDPR__
+				"keybindings.filter" : {
+					"filter": { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+					"emptyFilters" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
 			this.telemetryService.publicLog('keybindings.filter', data);
 		}
 	}
@@ -531,6 +541,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	}
 
 	private reportKeybindingAction(action: string, command: string, keybinding: ResolvedKeybinding | string): void {
+		// __GDPR__TODO__ Need to move off dynamic event names and properties as they cannot be registered statically
 		this.telemetryService.publicLog(action, { command, keybinding: keybinding ? (typeof keybinding === 'string' ? keybinding : keybinding.getUserSettingsLabel()) : '' });
 	}
 

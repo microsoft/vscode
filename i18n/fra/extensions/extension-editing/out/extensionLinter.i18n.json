@@ -7,5 +7,8 @@
 	"httpsRequired": "Les images doivent utiliser le protocole HTTPS.",
 	"svgsNotValid": "Les SVG ne sont pas une source d'images valide.",
 	"embeddedSvgsNotValid": "Les SVG incorporés ne sont pas une source d'images valide.",
-	"dataUrlsNotValid": "Les URL de données ne sont pas une source d'images valide."
+	"dataUrlsNotValid": "Les URL de données ne sont pas une source d'images valide.",
+	"relativeUrlRequiresHttpsRepository": "Les URL d'image relatives nécessitent un dépôt avec le protocole HTTPS dans package.json.",
+	"relativeIconUrlRequiresHttpsRepository": "Une icône nécessite un référentiel avec le protocole HTTPS spécifié dans ce package.json.",
+	"relativeBadgeUrlRequiresHttpsRepository": "Les URL d'image relatives nécessitent un dépôt avec le protocole HTTPS dans package.json."
 }

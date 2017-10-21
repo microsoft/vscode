@@ -18,14 +18,14 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITerminalService, ITerminalFont, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { TerminalFindWidget } from './terminalFindWidget';
-import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR } from './terminalColorRegistry';
-import { ColorIdentifier, editorHoverBackground, editorHoverBorder, editorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
-import { KillTerminalAction, CreateNewTerminalAction, SwitchTerminalInstanceAction, SwitchTerminalInstanceActionItem, CopyTerminalSelectionAction, TerminalPasteAction, ClearTerminalAction, SelectAllTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
+import { editorHoverBackground, editorHoverBorder, editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { KillTerminalAction, SwitchTerminalInstanceAction, SwitchTerminalInstanceActionItem, CopyTerminalSelectionAction, TerminalPasteAction, ClearTerminalAction, SelectAllTerminalAction, CreateNewTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { Panel } from 'vs/workbench/browser/panel';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
+import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
+import { TERMINAL_BACKGROUND_COLOR } from 'vs/workbench/parts/terminal/electron-browser/terminalColorRegistry';
 
 export class TerminalPanel extends Panel {
 
@@ -74,7 +74,7 @@ export class TerminalPanel extends Panel {
 		this._terminalService.setContainers(this.getContainer().getHTMLElement(), this._terminalContainer);
 
 		this._register(this.themeService.onThemeChange(theme => this._updateTheme(theme)));
-		this._register(this._configurationService.onDidUpdateConfiguration(() => this._updateFont()));
+		this._register(this._configurationService.onDidChangeConfiguration(() => this._updateFont()));
 		this._updateFont();
 		this._updateTheme();
 
@@ -129,7 +129,7 @@ export class TerminalPanel extends Panel {
 		if (!this._contextMenuActions) {
 			this._copyContextMenuAction = this._instantiationService.createInstance(CopyTerminalSelectionAction, CopyTerminalSelectionAction.ID, nls.localize('copy', "Copy"));
 			this._contextMenuActions = [
-				this._instantiationService.createInstance(CreateNewTerminalAction, CreateNewTerminalAction.ID, nls.localize('createNewTerminal', "New Terminal")),
+				this._instantiationService.createInstance(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.PANEL_LABEL),
 				new Separator(),
 				this._copyContextMenuAction,
 				this._instantiationService.createInstance(TerminalPasteAction, TerminalPasteAction.ID, nls.localize('paste', "Paste")),
@@ -163,7 +163,7 @@ export class TerminalPanel extends Panel {
 
 	public focusFindWidget() {
 		const activeInstance = this._terminalService.getActiveInstance();
-		if (activeInstance && activeInstance.hasSelection()) {
+		if (activeInstance && activeInstance.hasSelection() && activeInstance.selection.indexOf('\n') === -1) {
 			this._findWidget.reveal(activeInstance.selection);
 		} else {
 			this._findWidget.reveal();
@@ -172,6 +172,14 @@ export class TerminalPanel extends Panel {
 
 	public hideFindWidget() {
 		this._findWidget.hide();
+	}
+
+	public showNextFindTermFindWidget(): void {
+		this._findWidget.showNextFindTerm();
+	}
+
+	public showPreviousFindTermFindWidget(): void {
+		this._findWidget.showPreviousFindTerm();
 	}
 
 	private _attachEventListeners(): void {
@@ -246,7 +254,7 @@ export class TerminalPanel extends Panel {
 					uri = URI.parse(uri).path;
 				} else if (e.dataTransfer.files.length > 0) {
 					// Check if the file was dragged from the filesystem
-					uri = URI.file(e.dataTransfer.files[0].path).path;
+					uri = URI.file(e.dataTransfer.files[0].path).fsPath;
 				}
 
 				if (!uri) {
@@ -265,44 +273,10 @@ export class TerminalPanel extends Panel {
 		}
 
 		let css = '';
-		ansiColorIdentifiers.forEach((colorId: ColorIdentifier, index: number) => {
-			if (colorId) { // should not happen, all indices should have a color defined.
-				let color = theme.getColor(colorId);
-				css += `.monaco-workbench .panel.integrated-terminal .xterm .xterm-color-${index} { color: ${color}; }` +
-					`.monaco-workbench .panel.integrated-terminal .xterm .xterm-bg-color-${index} { background-color: ${color}; }`;
-			}
-		});
-		const bgColor = theme.getColor(TERMINAL_BACKGROUND_COLOR);
-		if (bgColor) {
-			css += `.monaco-workbench .panel.integrated-terminal .terminal-outer-container { background-color: ${bgColor}; }`;
-		}
-		const fgColor = theme.getColor(TERMINAL_FOREGROUND_COLOR);
-		if (fgColor) {
-			css += `.monaco-workbench .panel.integrated-terminal .xterm { color: ${fgColor}; }`;
-		}
 
-		const cursorFgColor = theme.getColor(TERMINAL_CURSOR_FOREGROUND_COLOR) || fgColor;
-		if (cursorFgColor) {
-			css += `.monaco-workbench .panel.integrated-terminal .xterm:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar).focus .terminal-cursor,` +
-				`.monaco-workbench .panel.integrated-terminal .xterm:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar):focus .terminal-cursor { background-color: ${cursorFgColor} }` +
-				`.monaco-workbench .panel.integrated-terminal .xterm:not(.focus):not(:focus) .terminal-cursor { outline-color: ${cursorFgColor}; }` +
-				`.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-bar .terminal-cursor::before,` +
-				`.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-underline .terminal-cursor::before { background-color: ${cursorFgColor}; }` +
-				`.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-bar.focus.xterm-cursor-blink .terminal-cursor::before,` +
-				`.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-underline.focus.xterm-cursor-blink .terminal-cursor::before { background-color: ${cursorFgColor}; }`;
-		}
+		const backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || theme.getColor(PANEL_BACKGROUND);
+		this._terminalContainer.style.backgroundColor = backgroundColor ? backgroundColor.toString() : '';
 
-		const cursorBgColor = theme.getColor(TERMINAL_CURSOR_BACKGROUND_COLOR) || bgColor || theme.getColor(PANEL_BACKGROUND);
-		if (cursorBgColor) {
-			css += `.monaco-workbench .panel.integrated-terminal .xterm:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar).focus .terminal-cursor,` +
-				`.monaco-workbench .panel.integrated-terminal .xterm:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar):focus .terminal-cursor { color: ${cursorBgColor} }`;
-		}
-
-		// TODO: Reinstate, see #28397
-		// const selectionColor = theme.getColor(TERMINAL_SELECTION_BACKGROUND_COLOR);
-		// if (selectionColor) {
-		// 	css += `.monaco-workbench .panel.integrated-terminal .xterm .xterm-selection div { background-color: ${selectionColor}; }`;
-		// }
 		// Borrow the editor's hover background for now
 		let hoverBackground = theme.getColor(editorHoverBackground);
 		if (hoverBackground) {
@@ -325,26 +299,10 @@ export class TerminalPanel extends Panel {
 		if (this._terminalService.terminalInstances.length === 0) {
 			return;
 		}
-		let newFont = this._terminalService.configHelper.getFont();
-		dom.toggleClass(this._parentDomElement, 'enable-ligatures', this._terminalService.configHelper.config.fontLigatures);
-		dom.toggleClass(this._parentDomElement, 'disable-bold', !this._terminalService.configHelper.config.enableBold);
-		if (!this._font || this._fontsDiffer(this._font, newFont)) {
-			this._fontStyleElement.innerHTML = '.monaco-workbench .panel.integrated-terminal .xterm {' +
-				`font-family: ${newFont.fontFamily};` +
-				`font-size: ${newFont.fontSize};` +
-				`line-height: ${newFont.lineHeight};` +
-				'}';
-			this._font = newFont;
-		}
+		this._font = this._terminalService.configHelper.getFont();
+		// TODO: Can we support ligatures?
+		// dom.toggleClass(this._parentDomElement, 'enable-ligatures', this._terminalService.configHelper.config.fontLigatures);
 		this.layout(new Dimension(this._parentDomElement.offsetWidth, this._parentDomElement.offsetHeight));
-	}
-
-	private _fontsDiffer(a: ITerminalFont, b: ITerminalFont): boolean {
-		return a.charHeight !== b.charHeight ||
-			a.charWidth !== b.charWidth ||
-			a.fontFamily !== b.fontFamily ||
-			a.fontSize !== b.fontSize ||
-			a.lineHeight !== b.lineHeight;
 	}
 
 	/**

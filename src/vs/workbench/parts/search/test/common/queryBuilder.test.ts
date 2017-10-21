@@ -7,10 +7,11 @@
 import * as assert from 'assert';
 import { IExpression } from 'vs/base/common/glob';
 import * as paths from 'vs/base/common/paths';
+import * as arrays from 'vs/base/common/arrays';
 import uri from 'vs/base/common/uri';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkspaceContextService, Workspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { QueryBuilder, ISearchPathsResult } from 'vs/workbench/parts/search/common/queryBuilder';
 import { TestContextService } from 'vs/workbench/test/workbenchTestServices';
@@ -36,7 +37,7 @@ suite('QueryBuilder', () => {
 		instantiationService.stub(IConfigurationService, mockConfigService);
 
 		mockContextService = new TestContextService();
-		mockWorkspace = new Workspace('workspace', 'workspace', [ROOT_1_URI]);
+		mockWorkspace = new Workspace('workspace', 'workspace', toWorkspaceFolders([{ path: ROOT_1_URI.fsPath }]));
 		mockContextService.setWorkspace(mockWorkspace);
 		instantiationService.stub(IWorkspaceContextService, mockContextService);
 
@@ -106,6 +107,21 @@ suite('QueryBuilder', () => {
 				type: QueryType.Text,
 				useRipgrep: true
 			});
+
+		assertEqualQueries(
+			queryBuilder.text(
+				PATTERN_INFO,
+				[ROOT_1_URI],
+				{ includePattern: '.\\bar' }
+			),
+			<ISearchQuery>{
+				contentPattern: PATTERN_INFO,
+				folderQueries: [{
+					folder: getUri(fixPath(paths.join(ROOT_1, 'bar')))
+				}],
+				type: QueryType.Text,
+				useRipgrep: true
+			});
 	});
 
 	test('exclude setting and searchPath', () => {
@@ -138,7 +154,7 @@ suite('QueryBuilder', () => {
 		const ROOT_2_URI = getUri(ROOT_2);
 		const ROOT_3 = fixPath('/project/root3');
 		const ROOT_3_URI = getUri(ROOT_3);
-		mockWorkspace.roots = [ROOT_1_URI, ROOT_2_URI, ROOT_3_URI];
+		mockWorkspace.folders = toWorkspaceFolders([{ path: ROOT_1_URI.fsPath }, { path: ROOT_2_URI.fsPath }, { path: ROOT_3_URI.fsPath }]);
 		mockWorkspace.configuration = uri.file(fixPath('/config'));
 
 		mockConfigService.setUserConfiguration('search', {
@@ -201,7 +217,7 @@ suite('QueryBuilder', () => {
 					folder: ROOT_1_URI
 				}],
 				type: QueryType.Text,
-				excludePattern: patternsToIExpression(globalGlob('foo')),
+				excludePattern: patternsToIExpression(...globalGlob('foo')),
 				useRipgrep: true
 			});
 	});
@@ -238,6 +254,22 @@ suite('QueryBuilder', () => {
 				type: QueryType.Text,
 				useRipgrep: true
 			});
+
+		assertEqualQueries(
+			queryBuilder.text(
+				PATTERN_INFO,
+				[ROOT_1_URI],
+				{ excludePattern: '.\\bar\\**\\*.ts' }
+			),
+			<ISearchQuery>{
+				contentPattern: PATTERN_INFO,
+				folderQueries: [{
+					folder: ROOT_1_URI
+				}],
+				excludePattern: patternsToIExpression(fixPath(paths.join(ROOT_1, 'bar/**/*.ts'))),
+				type: QueryType.Text,
+				useRipgrep: true
+			});
 	});
 
 	test('extraFileResources', () => {
@@ -263,7 +295,7 @@ suite('QueryBuilder', () => {
 				[ROOT_1_URI],
 				{
 					extraFileResources: [getUri('/foo/bar.js')],
-					excludePattern: '**/*.js'
+					excludePattern: '*.js'
 				}
 			),
 			<ISearchQuery>{
@@ -271,7 +303,7 @@ suite('QueryBuilder', () => {
 				folderQueries: [{
 					folder: ROOT_1_URI
 				}],
-				excludePattern: patternsToIExpression(globalGlob('**/*.js')),
+				excludePattern: patternsToIExpression(...globalGlob('*.js')),
 				type: QueryType.Text,
 				useRipgrep: true
 			});
@@ -282,7 +314,7 @@ suite('QueryBuilder', () => {
 				[ROOT_1_URI],
 				{
 					extraFileResources: [getUri('/foo/bar.js')],
-					includePattern: '**/*.txt'
+					includePattern: '*.txt'
 				}
 			),
 			<ISearchQuery>{
@@ -290,7 +322,7 @@ suite('QueryBuilder', () => {
 				folderQueries: [{
 					folder: ROOT_1_URI
 				}],
-				includePattern: patternsToIExpression(globalGlob('**/*.txt')),
+				includePattern: patternsToIExpression(...globalGlob('*.txt')),
 				type: QueryType.Text,
 				useRipgrep: true
 			});
@@ -302,7 +334,7 @@ suite('QueryBuilder', () => {
 				assert.deepEqual(
 					queryBuilder.parseSearchPaths(includePattern),
 					<ISearchPathsResult>{
-						pattern: patternsToIExpression(...expectedPatterns.map(globalGlob))
+						pattern: patternsToIExpression(...arrays.flatten(expectedPatterns.map(globalGlob)))
 					},
 					includePattern);
 			}
@@ -340,7 +372,7 @@ suite('QueryBuilder', () => {
 					fixPath('/foo/bar') + ',' + 'a',
 					<ISearchPathsResult>{
 						searchPaths: [{ searchPath: getUri('/foo/bar') }],
-						pattern: patternsToIExpression(globalGlob('a'))
+						pattern: patternsToIExpression(...globalGlob('a'))
 					}
 				],
 				[
@@ -441,7 +473,7 @@ suite('QueryBuilder', () => {
 
 		test('relative includes w/two root folders', () => {
 			const ROOT_2 = '/project/root2';
-			mockWorkspace.roots = [ROOT_1_URI, getUri(ROOT_2)];
+			mockWorkspace.folders = toWorkspaceFolders([{ path: ROOT_1_URI.fsPath }, { path: getUri(ROOT_2).fsPath }]);
 			mockWorkspace.configuration = uri.file(fixPath('config'));
 
 			[
@@ -481,7 +513,7 @@ suite('QueryBuilder', () => {
 		test('relative includes w/multiple ambiguous root folders', () => {
 			const ROOT_2 = '/project/rootB';
 			const ROOT_3 = '/otherproject/rootB';
-			mockWorkspace.roots = [ROOT_1_URI, getUri(ROOT_2), getUri(ROOT_3)];
+			mockWorkspace.folders = toWorkspaceFolders([{ path: ROOT_1_URI.fsPath }, { path: getUri(ROOT_2).fsPath }, { path: getUri(ROOT_3).fsPath }]);
 			mockWorkspace.configuration = uri.file(fixPath('/config'));
 
 			[
@@ -562,6 +594,8 @@ function assertEqualQueries(actual: ISearchQuery, expected: ISearchQuery): void 
 		};
 	};
 
+	delete actual.ignoreSymlinks;
+
 	// Avoid comparing URI objects, not a good idea
 	if (expected.folderQueries) {
 		assert.deepEqual(actual.folderQueries.map(folderQueryToCompareObject), expected.folderQueries.map(folderQueryToCompareObject));
@@ -575,6 +609,7 @@ function assertEqualQueries(actual: ISearchQuery, expected: ISearchQuery): void 
 		delete actual.extraFileResources;
 	}
 
+	delete actual.usingSearchPaths;
 	actual.includePattern = normalizeExpression(actual.includePattern);
 	actual.excludePattern = normalizeExpression(actual.excludePattern);
 	cleanUndefinedQueryValues(actual);
@@ -612,8 +647,11 @@ function cleanUndefinedQueryValues(q: any): void {
 	return q;
 }
 
-function globalGlob(str: string): string {
-	return `{**/${str}/**,**/${str}}`;
+function globalGlob(pattern: string): string[] {
+	return [
+		`**/${pattern}/**`,
+		`**/${pattern}`
+	];
 }
 
 function patternsToIExpression(...patterns: string[]): IExpression {

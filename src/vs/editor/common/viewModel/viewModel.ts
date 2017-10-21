@@ -4,16 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { INewScrollPosition, IModelDecoration, EndOfLinePreference, IViewState } from 'vs/editor/common/editorCommon';
+import { INewScrollPosition, EndOfLinePreference, IViewState, IModelDecorationOptions } from 'vs/editor/common/editorCommon';
 import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ViewEvent, IViewEventListener } from 'vs/editor/common/view/viewEvents';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { Scrollable } from 'vs/base/common/scrollable';
+import { Scrollable, IScrollPosition } from 'vs/base/common/scrollable';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
+import { ITheme } from 'vs/platform/theme/common/themeService';
 
 export interface IViewWhitespaceViewportData {
 	readonly id: number;
@@ -44,12 +45,19 @@ export interface IViewLayout {
 
 	onMaxLineWidthChanged(width: number): void;
 
-	getScrollLeft(): number;
 	getScrollWidth(): number;
 	getScrollHeight(): number;
-	getScrollTop(): number;
+
+	getCurrentScrollLeft(): number;
+	getCurrentScrollTop(): number;
 	getCurrentViewport(): Viewport;
-	setScrollPosition(position: INewScrollPosition): void;
+
+	getFutureViewport(): Viewport;
+
+	validateScrollPosition(scrollPosition: INewScrollPosition): IScrollPosition;
+	setScrollPositionNow(position: INewScrollPosition): void;
+	setScrollPositionSmooth(position: INewScrollPosition): void;
+	deltaScrollNow(deltaScrollLeft: number, deltaScrollTop: number): void;
 
 	getLinesViewportData(): IPartialViewLinesViewportData;
 	getLinesViewportDataAtScrollTop(scrollTop: number): IPartialViewLinesViewportData;
@@ -131,12 +139,14 @@ export interface IViewModel {
 	getLineMaxColumn(lineNumber: number): number;
 	getLineFirstNonWhitespaceColumn(lineNumber: number): number;
 	getLineLastNonWhitespaceColumn(lineNumber: number): number;
-	getAllOverviewRulerDecorations(): ViewModelDecoration[];
+	getAllOverviewRulerDecorations(theme: ITheme): IOverviewRulerDecorations;
+	invalidateOverviewRulerColorCache(): void;
 	getValueInRange(range: Range, eol: EndOfLinePreference): string;
 
 	getModelLineMaxColumn(modelLineNumber: number): number;
 	validateModelPosition(modelPosition: IPosition): Position;
 
+	deduceModelPositionRelativeToViewPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position;
 	getPlainTextToCopy(ranges: Range[], emptySelectionClipboard: boolean): string;
 	getHTMLToCopy(ranges: Range[], emptySelectionClipboard: boolean): string;
 }
@@ -259,13 +269,23 @@ export class InlineDecoration {
 export class ViewModelDecoration {
 	_viewModelDecorationBrand: void;
 
-	public range: Range;
-	public readonly source: IModelDecoration;
+	public readonly range: Range;
+	public readonly options: IModelDecorationOptions;
 
-	constructor(source: IModelDecoration) {
-		this.range = null;
-		this.source = source;
+	constructor(range: Range, options: IModelDecorationOptions) {
+		this.range = range;
+		this.options = options;
 	}
+}
+
+/**
+ * Decorations are encoded in a number array using the following scheme:
+ *  - 3*i = lane
+ *  - 3*i+1 = startLineNumber
+ *  - 3*i+2 = endLineNumber
+ */
+export interface IOverviewRulerDecorations {
+	[color: string]: number[];
 }
 
 export class ViewEventsCollector {

@@ -74,6 +74,7 @@ export default class Webview {
 		private _styleElement: Element,
 		@IContextViewService private _contextViewService: IContextViewService,
 		private _contextKey: IContextKey<boolean>,
+		private _findInputContextKey: IContextKey<boolean>,
 		private _options: WebviewOptions = {},
 	) {
 		this._webview = <any>document.createElement('webview');
@@ -85,10 +86,10 @@ export default class Webview {
 		this._webview.setAttribute('disableguestresize', '');
 		this._webview.setAttribute('webpreferences', 'contextIsolation=yes');
 
-		this._webview.style.width = '100%';
-		this._webview.style.height = '100%';
+		this._webview.style.flex = '0 1';
+		this._webview.style.width = '0';
+		this._webview.style.height = '0';
 		this._webview.style.outline = '0';
-		this._webview.style.opacity = '0';
 
 		this._webview.preload = require.toUrl('./webview-pre.js');
 		this._webview.src = require.toUrl('./webview.html');
@@ -163,7 +164,9 @@ export default class Webview {
 				}
 
 				if (event.channel === 'did-set-content') {
-					this._webview.style.opacity = '';
+					this._webview.style.flex = '';
+					this._webview.style.width = '100%';
+					this._webview.style.height = '100%';
 					this.layout();
 					return;
 				}
@@ -201,6 +204,10 @@ export default class Webview {
 
 	public notifyFindWidgetFocusChanged(isFocused: boolean) {
 		this._contextKey.set(isFocused || document.activeElement === this._webview);
+	}
+
+	public notifyFindWidgetInputFocusChanged(isFocused: boolean) {
+		this._findInputContextKey.set(isFocused);
 	}
 
 	dispose(): void {
@@ -356,7 +363,7 @@ export default class Webview {
 
 	public layout(): void {
 		const contents = (this._webview as any).getWebContents();
-		if (!contents) {
+		if (!contents || contents.isDestroyed()) {
 			return;
 		}
 		const window = contents.getOwnerBrowserWindow();
@@ -447,5 +454,13 @@ export default class Webview {
 
 	public hideFind() {
 		this._webviewFindWidget.hide();
+	}
+
+	public showNextFindTerm() {
+		this._webviewFindWidget.showNextFindTerm();
+	}
+
+	public showPreviousFindTerm() {
+		this._webviewFindWidget.showPreviousFindTerm();
 	}
 }

@@ -7,9 +7,11 @@
 import { PPromise, TPromise } from 'vs/base/common/winjs.base';
 import uri from 'vs/base/common/uri';
 import * as objects from 'vs/base/common/objects';
-import { IExpression } from 'vs/base/common/glob';
+import * as paths from 'vs/base/common/paths';
+import * as glob from 'vs/base/common/glob';
 import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export const ID = 'searchService';
 
@@ -23,12 +25,17 @@ export interface ISearchService {
 	search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem>;
 	extendQuery(query: ISearchQuery): void;
 	clearCache(cacheKey: string): TPromise<void>;
+	registerSearchResultProvider(provider: ISearchResultProvider): IDisposable;
+}
+
+export interface ISearchResultProvider {
+	search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem>;
 }
 
 export interface IFolderQuery {
 	folder: uri;
-	excludePattern?: IExpression;
-	includePattern?: IExpression;
+	excludePattern?: glob.IExpression;
+	includePattern?: glob.IExpression;
 	fileEncoding?: string;
 }
 
@@ -37,11 +44,18 @@ export interface ICommonQueryOptions {
 	filePattern?: string; // file search only
 	fileEncoding?: string;
 	maxResults?: number;
+	/**
+	 * If true no results will be returned. Instead `limitHit` will indicate if at least one result exists or not.
+	 *
+	 * Currently does not work with queries including a 'siblings clause'.
+	 */
+	exists?: boolean;
 	sortByScore?: boolean;
 	cacheKey?: string;
 	useRipgrep?: boolean;
 	disregardIgnoreFiles?: boolean;
 	disregardExcludeSettings?: boolean;
+	ignoreSymlinks?: boolean;
 }
 
 export interface IQueryOptions extends ICommonQueryOptions {
@@ -52,17 +66,27 @@ export interface IQueryOptions extends ICommonQueryOptions {
 export interface ISearchQuery extends ICommonQueryOptions {
 	type: QueryType;
 
-	excludePattern?: IExpression;
-	includePattern?: IExpression;
+	excludePattern?: glob.IExpression;
+	includePattern?: glob.IExpression;
 	contentPattern?: IPatternInfo;
 	folderQueries?: IFolderQuery[];
+	usingSearchPaths?: boolean;
 }
 
 export enum QueryType {
 	File = 1,
 	Text = 2
 }
-
+/* __GDPR__FRAGMENT__
+	"IPatternInfo" : {
+		"pattern" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+		"isRegExp": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		"isWordMatch": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		"wordSeparators": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		"isMultiline": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		"isCaseSensitive": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	}
+*/
 export interface IPatternInfo {
 	pattern: string;
 	isRegExp?: boolean;
@@ -147,16 +171,17 @@ export class LineMatch implements ILineMatch {
 
 export interface ISearchConfiguration extends IFilesConfiguration {
 	search: {
-		exclude: IExpression;
+		exclude: glob.IExpression;
 		useRipgrep: boolean;
 		useIgnoreFilesByDefault: boolean;
+		followSymlinks: boolean;
 	};
 	editor: {
 		wordSeparators: string;
 	};
 }
 
-export function getExcludes(configuration: ISearchConfiguration): IExpression {
+export function getExcludes(configuration: ISearchConfiguration): glob.IExpression {
 	const fileExcludes = configuration && configuration.files && configuration.files.exclude;
 	const searchExcludes = configuration && configuration.search && configuration.search.exclude;
 
@@ -168,9 +193,33 @@ export function getExcludes(configuration: ISearchConfiguration): IExpression {
 		return fileExcludes || searchExcludes;
 	}
 
-	let allExcludes: IExpression = Object.create(null);
+	let allExcludes: glob.IExpression = Object.create(null);
 	allExcludes = objects.mixin(allExcludes, fileExcludes);
 	allExcludes = objects.mixin(allExcludes, searchExcludes, true);
 
 	return allExcludes;
+}
+
+export function pathIncludedInQuery(query: ISearchQuery, fsPath: string): boolean {
+	if (query.excludePattern && glob.match(query.excludePattern, fsPath)) {
+		return false;
+	}
+
+	if (query.includePattern && !glob.match(query.includePattern, fsPath)) {
+		return false;
+	}
+
+	// If searchPaths are being used, the extra file must be in a subfolder and match the pattern, if present
+	if (query.usingSearchPaths) {
+		return query.folderQueries.every(fq => {
+			const searchPath = fq.folder.fsPath;
+			if (paths.isEqualOrParent(fsPath, searchPath)) {
+				return !fq.includePattern || !!glob.match(fq.includePattern, fsPath);
+			} else {
+				return false;
+			}
+		});
+	}
+
+	return true;
 }

@@ -158,6 +158,8 @@ function main() {
 	const rootUrl = uriFromPath(configuration.appRoot) + '/out';
 
 	function onLoader() {
+		window.nodeRequire = require.__$__nodeRequire;
+
 		define('fs', ['original-fs'], function (originalFS) { return originalFS; }); // replace the patched electron fs with the original node fs for all AMD code
 		loaderTimer.stop();
 

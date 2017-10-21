@@ -6,13 +6,10 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
-import * as keytarType from 'keytar';
 
 export class CredentialsService implements ICredentialsService {
 
 	_serviceBrand: any;
-
-	private keytarPromise: TPromise<typeof keytarType>;
 
 	readSecret(service: string, account: string): TPromise<string | undefined> {
 		return this.getKeytar()
@@ -30,12 +27,8 @@ export class CredentialsService implements ICredentialsService {
 			.then(keytar => TPromise.wrap(keytar.deletePassword(service, account)));
 	}
 
-	private getKeytar(): TPromise<typeof keytarType> {
-		if (!this.keytarPromise) {
-			this.keytarPromise = new TPromise<typeof keytarType>((c, e) => {
-				require(['keytar'], c, e);
-			});
-		}
-		return this.keytarPromise;
+	private getKeytar() {
+		// Avoids https://github.com/Microsoft/vscode/issues/33998
+		return TPromise.wrap(import('keytar'));
 	}
 }

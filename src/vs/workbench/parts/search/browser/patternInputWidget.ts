@@ -131,6 +131,13 @@ export class PatternInputWidget extends Widget {
 		this.history = new HistoryNavigator<string>(history);
 	}
 
+	public onSearchSubmit(): void {
+		const value = this.getValue();
+		if (value) {
+			this.history.addIfNotPresent(value);
+		}
+	}
+
 	public showNextTerm() {
 		let next = this.history.next();
 		if (next) {
@@ -234,6 +241,9 @@ export class ExcludePatternInputWidget extends PatternInputWidget {
 			title: nls.localize('useIgnoreFilesDescription', "Use Ignore Files"),
 			isChecked: false,
 			onChange: (viaKeyboard) => {
+				/* __GDPR__
+					"search.useIgnoreFiles.toggled" : {}
+				*/
 				this.telemetryService.publicLog('search.useIgnoreFiles.toggled');
 				this.onOptionChange(null);
 				if (!viaKeyboard) {
@@ -248,6 +258,9 @@ export class ExcludePatternInputWidget extends PatternInputWidget {
 			title: nls.localize('useExcludeSettingsDescription', "Use Exclude Settings"),
 			isChecked: false,
 			onChange: (viaKeyboard) => {
+				/* __GDPR__
+					"search.useExcludeSettings.toggled" : {}
+				*/
 				this.telemetryService.publicLog('search.useExcludeSettings.toggled');
 				this.onOptionChange(null);
 				if (!viaKeyboard) {

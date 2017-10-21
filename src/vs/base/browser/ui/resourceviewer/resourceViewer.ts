@@ -33,6 +33,7 @@ const mapExtToMediaMimes: MapExtToMediaMimes = {
 	'.ico': 'image/x-icon',
 	'.tga': 'image/x-tga',
 	'.psd': 'image/vnd.adobe.photoshop',
+	'.webp': 'image/webp',
 	'.mid': 'audio/midi',
 	'.midi': 'audio/midi',
 	'.mp4a': 'audio/mp4',
@@ -115,7 +116,7 @@ export class ResourceViewer {
 		descriptor: IResourceDescriptor,
 		container: Builder,
 		scrollbar: DomScrollableElement,
-		openExternal: (URI) => void,
+		openExternal: (uri: URI) => void,
 		metadataClb?: (meta: string) => void
 	): void {
 		// Ensure CSS class

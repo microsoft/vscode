@@ -5,7 +5,7 @@
 'use strict';
 
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorInput, ITextEditorOptions, IResourceInput } from 'vs/platform/editor/common/editor';
+import { IEditorInput, IResourceInput } from 'vs/platform/editor/common/editor';
 import URI from 'vs/base/common/uri';
 
 export const IHistoryService = createDecorator<IHistoryService>('historyService');
@@ -18,11 +18,6 @@ export interface IHistoryService {
 	 * Re-opens the last closed editor if any.
 	 */
 	reopenLastClosedEditor(): void;
-
-	/**
-	 * Add an entry to the navigation stack of the history.
-	 */
-	add(input: IEditorInput, options?: ITextEditorOptions): void;
 
 	/**
 	 * Navigate forwards in history.
@@ -39,6 +34,11 @@ export interface IHistoryService {
 	 * are only within the same document.
 	 */
 	back(acrossEditors?: boolean): void;
+
+	/**
+	 * Navigate forward or backwards to previous entry in history.
+	 */
+	last(): void;
 
 	/**
 	 * Removes an entry from history.

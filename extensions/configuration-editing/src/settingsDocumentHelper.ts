@@ -43,13 +43,13 @@ export class SettingsDocument {
 	private provideWindowTitleCompletionItems(location: Location, range: vscode.Range): vscode.ProviderResult<vscode.CompletionItem[]> {
 		const completions: vscode.CompletionItem[] = [];
 
-		completions.push(this.newSimpleCompletionItem('${activeEditorShort}', range, localize('activeEditorShort', "e.g. myFile.txt")));
-		completions.push(this.newSimpleCompletionItem('${activeEditorMedium}', range, localize('activeEditorMedium', "e.g. myFolder/myFile.txt")));
-		completions.push(this.newSimpleCompletionItem('${activeEditorLong}', range, localize('activeEditorLong', "e.g. /Users/Development/myProject/myFolder/myFile.txt")));
-		completions.push(this.newSimpleCompletionItem('${rootName}', range, localize('rootName', "e.g. myFolder1, myFolder2, myFolder3")));
-		completions.push(this.newSimpleCompletionItem('${rootPath}', range, localize('rootPath', "e.g. /Users/Development/myProject")));
-		completions.push(this.newSimpleCompletionItem('${folderName}', range, localize('folderName', "e.g. myFolder")));
-		completions.push(this.newSimpleCompletionItem('${folderPath}', range, localize('folderPath', "e.g. /Users/Development/myFolder")));
+		completions.push(this.newSimpleCompletionItem('${activeEditorShort}', range, localize('activeEditorShort', "the file name (e.g. myFile.txt)")));
+		completions.push(this.newSimpleCompletionItem('${activeEditorMedium}', range, localize('activeEditorMedium', "the path of the file relative to the workspace folder (e.g. myFolder/myFile.txt)")));
+		completions.push(this.newSimpleCompletionItem('${activeEditorLong}', range, localize('activeEditorLong', "the full path of the file (e.g. /Users/Development/myProject/myFolder/myFile.txt)")));
+		completions.push(this.newSimpleCompletionItem('${rootName}', range, localize('rootName', "name of the workspace (e.g. myFolder or myWorkspace)")));
+		completions.push(this.newSimpleCompletionItem('${rootPath}', range, localize('rootPath', "file path of the workspace (e.g. /Users/Development/myWorkspace)")));
+		completions.push(this.newSimpleCompletionItem('${folderName}', range, localize('folderName', "name of the workspace folder the file is contained in (e.g. myFolder)")));
+		completions.push(this.newSimpleCompletionItem('${folderPath}', range, localize('folderPath', "file path of the workspace folder the file is contained in (e.g. /Users/Development/myFolder)")));
 		completions.push(this.newSimpleCompletionItem('${appName}', range, localize('appName', "e.g. VS Code")));
 		completions.push(this.newSimpleCompletionItem('${dirty}', range, localize('dirty', "a dirty indicator if the active editor is dirty")));
 		completions.push(this.newSimpleCompletionItem('${separator}', range, localize('separator', "a conditional separator (' - ') that only shows when surrounded by variables with values")));

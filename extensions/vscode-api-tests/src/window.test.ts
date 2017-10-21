@@ -138,6 +138,26 @@ suite('window namespace tests', () => {
 		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.One);
 	});
 
+	test('issue #27408 - showTextDocument & vscode.diff always default to ViewColumn.One', async () => {
+		const [docA, docB, docC] = await Promise.all([
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile())
+		]);
+
+		await window.showTextDocument(docA, ViewColumn.One);
+		await window.showTextDocument(docB, ViewColumn.Two);
+
+		assert.ok(window.activeTextEditor);
+		assert.ok(window.activeTextEditor!.document === docB);
+		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.Two);
+
+		await window.showTextDocument(docC, ViewColumn.Active);
+
+		assert.ok(window.activeTextEditor!.document === docC);
+		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.Two);
+	});
+
 	test('issue #5362 - Incorrect TextEditor passed by onDidChangeTextEditorSelection', (done) => {
 		const file10Path = join(workspace.rootPath || '', './10linefile.ts');
 		const file30Path = join(workspace.rootPath || '', './30linefile.ts');
@@ -328,6 +348,35 @@ suite('window namespace tests', () => {
 		const b = commands.executeCommand('workbench.action.closeQuickOpen');
 		return Promise.all([a, b]);
 	});
+
+	test('showWorkspaceFolderPick', function () {
+		const p = (<any>window).showWorkspaceFolderPick(undefined);
+
+		return commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem').then(() => {
+			return p.then(workspace => {
+				assert.ok(true);
+			}, error => {
+				assert.ok(false);
+			});
+		});
+	});
+
+	test('Default value for showInput Box accepted even if fails validateInput, #33691', function () {
+		const result = window.showInputBox({
+			validateInput: (value: string) => {
+				if (!value || value.trim().length === 0) {
+					return 'Cannot set empty description';
+				}
+				return null;
+			}
+		}).then(value => {
+			assert.equal(value, undefined);
+		});
+
+		const exec = commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		return Promise.all([result, exec]);
+	});
+
 
 	test('editor, selection change kind', () => {
 		return workspace.openTextDocument(join(workspace.rootPath || '', './far.js')).then(doc => window.showTextDocument(doc)).then(editor => {

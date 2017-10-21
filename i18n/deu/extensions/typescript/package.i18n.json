@@ -9,7 +9,7 @@
 	"configuration.typescript": "TypeScript",
 	"typescript.useCodeSnippetsOnMethodSuggest.dec": "Vervollständigen Sie Funktionen mit deren Parametersignatur.",
 	"typescript.tsdk.desc": "Gibt den Ordnerpfad mit den zu verwendenden tsserver- und lib*.d.ts-Dateien an.",
-	"typescript.disableAutomaticTypeAcquisition": "Deaktiviert die automatische Typerfassung. Erfordert TypeScript >= 2.0.6 und einen Neustart nach der Änderung.",
+	"typescript.disableAutomaticTypeAcquisition": "Deaktiviert die automatische Typerfassung. Erfordert TypeScript >= 2.0.6.",
 	"typescript.tsserver.log": "Aktiviert die Protokollierung des TS-Servers in eine Datei. Mithilfe der Protokolldatei lassen sich Probleme beim TS-Server diagnostizieren. Die Protokolldatei kann Dateipfade, Quellcode und weitere potenziell sensible Informationen aus Ihrem Projekt enthalten.",
 	"typescript.tsserver.trace": "Aktiviert die Ablaufverfolgung von an den TS-Server gesendeten Nachrichten. Mithilfe der Ablaufverfolgung lassen sich Probleme beim TS-Server diagnostizieren. Die Ablaufverfolgung kann Dateipfade, Quellcode und weitere potenziell sensible Informationen aus Ihrem Projekt enthalten.",
 	"typescript.validate.enable": "TypeScript-Überprüfung aktivieren/deaktivieren.",

@@ -5,9 +5,9 @@
 
 'use strict';
 
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, ServiceIdentifier, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Position, IEditorInput } from 'vs/platform/editor/common/editor';
-import { IEditorStacksModel, IEditorGroup } from 'vs/workbench/common/editor';
+import { IEditorStacksModel, IEditorGroup, IEditorOpeningEvent } from 'vs/workbench/common/editor';
 import Event from 'vs/base/common/event';
 
 export enum GroupArrangement {
@@ -19,11 +19,12 @@ export type GroupOrientation = 'vertical' | 'horizontal';
 
 export const IEditorGroupService = createDecorator<IEditorGroupService>('editorGroupService');
 
-export interface ITabOptions {
+export interface IEditorTabOptions {
 	showTabs?: boolean;
 	tabCloseButton?: 'left' | 'right' | 'off';
 	showIcons?: boolean;
 	previewEditors?: boolean;
+	labelFormat?: 'default' | 'short' | 'medium' | 'long';
 }
 
 export interface IMoveOptions {
@@ -45,6 +46,11 @@ export interface IEditorGroupService {
 	onEditorsChanged: Event<void>;
 
 	/**
+	 * Emitted when an editor is opening. Allows to prevent/replace the opening via the event method.
+	 */
+	onEditorOpening: Event<IEditorOpeningEvent>;
+
+	/**
 	 * Emitted when opening an editor fails.
 	 */
 	onEditorOpenFail: Event<IEditorInput>;
@@ -62,7 +68,7 @@ export interface IEditorGroupService {
 	/**
 	 * Emitted when tab options changed.
 	 */
-	onTabOptionsChanged: Event<ITabOptions>;
+	onTabOptionsChanged: Event<IEditorTabOptions>;
 
 	/**
 	 * Keyboard focus the editor group at the provided position.
@@ -130,5 +136,10 @@ export interface IEditorGroupService {
 	/**
 	 * Returns tab options.
 	 */
-	getTabOptions(): ITabOptions;
+	getTabOptions(): IEditorTabOptions;
+
+	/**
+	 * Invoke a function in the context of the active editor.
+	 */
+	invokeWithinEditorContext<T>(fn: (accessor: ServicesAccessor) => T): T;
 }

@@ -23,11 +23,13 @@ export class ResourceContextKey implements IContextKey<URI> {
 	static Filename = new RawContextKey<string>('resourceFilename', undefined);
 	static LangId = new RawContextKey<string>('resourceLangId', undefined);
 	static Resource = new RawContextKey<URI>('resource', undefined);
+	static Extension = new RawContextKey<string>('resourceExtname', undefined);
 
 	private _resourceKey: IContextKey<URI>;
 	private _schemeKey: IContextKey<string>;
 	private _filenameKey: IContextKey<string>;
 	private _langIdKey: IContextKey<string>;
+	private _extensionKey: IContextKey<string>;
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -37,6 +39,7 @@ export class ResourceContextKey implements IContextKey<URI> {
 		this._filenameKey = ResourceContextKey.Filename.bindTo(contextKeyService);
 		this._langIdKey = ResourceContextKey.LangId.bindTo(contextKeyService);
 		this._resourceKey = ResourceContextKey.Resource.bindTo(contextKeyService);
+		this._extensionKey = ResourceContextKey.Extension.bindTo(contextKeyService);
 	}
 
 	set(value: URI) {
@@ -44,12 +47,14 @@ export class ResourceContextKey implements IContextKey<URI> {
 		this._schemeKey.set(value && value.scheme);
 		this._filenameKey.set(value && basename(value.fsPath));
 		this._langIdKey.set(value && this._modeService.getModeIdByFilenameOrFirstLine(value.fsPath));
+		this._extensionKey.set(value && paths.extname(value.fsPath));
 	}
 
 	reset(): void {
 		this._schemeKey.reset();
 		this._langIdKey.reset();
 		this._resourceKey.reset();
+		this._extensionKey.reset();
 	}
 
 	public get(): URI {
@@ -59,7 +64,7 @@ export class ResourceContextKey implements IContextKey<URI> {
 
 export class ResourceGlobMatcher {
 
-	private static readonly NO_ROOT = null;
+	private static readonly NO_ROOT: string = null;
 
 	private _onExpressionChange: Emitter<void>;
 	private toUnbind: IDisposable[];
@@ -90,33 +95,23 @@ export class ResourceGlobMatcher {
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(() => this.onConfigurationChanged()));
-		this.toUnbind.push(this.contextService.onDidChangeWorkspaceRoots(() => this.onDidChangeWorkspaceRoots()));
-	}
-
-	private onConfigurationChanged(): void {
-		this.updateExcludes(true);
-	}
-
-	private onDidChangeWorkspaceRoots(): void {
-		this.updateExcludes(true);
+		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(() => this.updateExcludes(true)));
+		this.toUnbind.push(this.contextService.onDidChangeWorkspaceFolders(() => this.updateExcludes(true)));
 	}
 
 	private updateExcludes(fromEvent: boolean): void {
 		let changed = false;
 
 		// Add excludes per workspaces that got added
-		if (this.contextService.hasWorkspace()) {
-			this.contextService.getWorkspace().roots.forEach(root => {
-				const rootExcludes = this.globFn(root);
-				if (!this.mapRootToExpressionConfig.has(root.toString()) || !objects.equals(this.mapRootToExpressionConfig.get(root.toString()), rootExcludes)) {
-					changed = true;
+		this.contextService.getWorkspace().folders.forEach(folder => {
+			const rootExcludes = this.globFn(folder.uri);
+			if (!this.mapRootToExpressionConfig.has(folder.uri.toString()) || !objects.equals(this.mapRootToExpressionConfig.get(folder.uri.toString()), rootExcludes)) {
+				changed = true;
 
-					this.mapRootToParsedExpression.set(root.toString(), this.parseFn(rootExcludes));
-					this.mapRootToExpressionConfig.set(root.toString(), objects.clone(rootExcludes));
-				}
-			});
-		}
+				this.mapRootToParsedExpression.set(folder.uri.toString(), this.parseFn(rootExcludes));
+				this.mapRootToExpressionConfig.set(folder.uri.toString(), objects.clone(rootExcludes));
+			}
+		});
 
 		// Remove excludes per workspace no longer present
 		this.mapRootToExpressionConfig.forEach((value, root) => {
@@ -124,7 +119,7 @@ export class ResourceGlobMatcher {
 				return; // always keep this one
 			}
 
-			if (!this.contextService.getRoot(URI.parse(root))) {
+			if (!this.contextService.getWorkspaceFolder(URI.parse(root))) {
 				this.mapRootToParsedExpression.delete(root);
 				this.mapRootToExpressionConfig.delete(root);
 
@@ -147,11 +142,11 @@ export class ResourceGlobMatcher {
 	}
 
 	public matches(resource: URI): boolean {
-		const root = this.contextService.getRoot(resource);
+		const folder = this.contextService.getWorkspaceFolder(resource);
 
 		let expressionForRoot: ParsedExpression;
-		if (root && this.mapRootToParsedExpression.has(root.toString())) {
-			expressionForRoot = this.mapRootToParsedExpression.get(root.toString());
+		if (folder && this.mapRootToParsedExpression.has(folder.uri.toString())) {
+			expressionForRoot = this.mapRootToParsedExpression.get(folder.uri.toString());
 		} else {
 			expressionForRoot = this.mapRootToParsedExpression.get(ResourceGlobMatcher.NO_ROOT);
 		}
@@ -161,8 +156,8 @@ export class ResourceGlobMatcher {
 		// a glob pattern of "src/**" will not match on an absolute path "/folder/src/file.txt"
 		// but can match on "src/file.txt"
 		let resourcePathToMatch: string;
-		if (root) {
-			resourcePathToMatch = paths.normalize(paths.relative(root.fsPath, resource.fsPath));
+		if (folder) {
+			resourcePathToMatch = paths.normalize(paths.relative(folder.uri.fsPath, resource.fsPath));
 		} else {
 			resourcePathToMatch = resource.fsPath;
 		}

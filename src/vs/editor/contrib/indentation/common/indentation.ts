@@ -224,7 +224,7 @@ export class ChangeIndentationSizeAction extends EditorAction {
 			return undefined;
 		}
 
-		let creationOpts = modelService.getCreationOptions(model.getLanguageIdentifier().language);
+		let creationOpts = modelService.getCreationOptions(model.getLanguageIdentifier().language, model.uri);
 		const picks = [1, 2, 3, 4, 5, 6, 7, 8].map(n => ({
 			id: n.toString(),
 			label: n.toString(),
@@ -300,7 +300,7 @@ export class DetectIndentation extends EditorAction {
 			return;
 		}
 
-		let creationOpts = modelService.getCreationOptions(model.getLanguageIdentifier().language);
+		let creationOpts = modelService.getCreationOptions(model.getLanguageIdentifier().language, model.uri);
 		model.detectIndentation(creationOpts.insertSpaces, creationOpts.tabSize);
 	}
 }
@@ -323,7 +323,9 @@ export class ReindentLinesAction extends EditorAction {
 		}
 		let edits = getReindentEditOperations(model, 1, model.getLineCount());
 		if (edits) {
+			editor.pushUndoStop();
 			editor.executeEdits(this.id, edits);
+			editor.pushUndoStop();
 		}
 	}
 }
@@ -423,12 +425,15 @@ export class AutoIndentOnPaste implements IEditorContribution {
 		}
 
 		const model = this.editor.getModel();
+		if (!model.isCheapToTokenize(range.getStartPosition().lineNumber)) {
+			return;
+		}
 		const { tabSize, insertSpaces } = model.getOptions();
 		this.editor.pushUndoStop();
 		let textEdits: TextEdit[] = [];
 
 		let indentConverter = {
-			shiftIndent: (indentation) => {
+			shiftIndent: (indentation: string) => {
 				let desiredIndentCount = ShiftCommand.shiftIndentCount(indentation, indentation.length + 1, tabSize);
 				let newIndentation = '';
 				for (let i = 0; i < desiredIndentCount; i++) {
@@ -437,7 +442,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 
 				return newIndentation;
 			},
-			unshiftIndent: (indentation) => {
+			unshiftIndent: (indentation: string) => {
 				let desiredIndentCount = ShiftCommand.unshiftIndentCount(indentation, indentation.length + 1, tabSize);
 				let newIndentation = '';
 				for (let i = 0; i < desiredIndentCount; i++) {
@@ -493,7 +498,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 				getLanguageIdAtPosition: (lineNumber: number, column: number) => {
 					return model.getLanguageIdAtPosition(lineNumber, column);
 				},
-				getLineContent: (lineNumber) => {
+				getLineContent: (lineNumber: number) => {
 					if (lineNumber === startLineNumber) {
 						return firstLineText;
 					} else {

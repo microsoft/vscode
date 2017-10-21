@@ -11,7 +11,7 @@
 	"endOfLineLineFeed": "LF",
 	"endOfLineCarriageReturnLineFeed": "CRLF",
 	"tabFocusModeEnabled": "Tab fókuszt vált",
-	"screenReaderDetected": "Képernyőolvasó érzékelve",
+	"screenReaderDetected": "Képernyőolvasóra optimalizálva",
 	"screenReaderDetectedExtra": "Ha nem használ képernyőolvasót, állítsa az `editor.accessibilitySupport` értékét \"off\"-ra.",
 	"disableTabMode": "Kisegítő mód letiltása",
 	"gotoLine": "Sor megkeresése",
@@ -47,5 +47,11 @@
 	"reopenWithEncoding": "Újranyitás adott kódolással",
 	"guessedEncoding": "Kitalálva a tartalomból",
 	"pickEncodingForReopen": "Válassza ki a kódolást a fájl újranyitásához",
-	"pickEncodingForSave": "Válassza ki a mentéshez használandó kódolást"
+	"pickEncodingForSave": "Válassza ki a mentéshez használandó kódolást",
+	"screenReaderDetectedExplanation.title": "Képernyőolvasóra optimalizálva",
+	"screenReaderDetectedExplanation.question": "Képernyőolvasót használ a VS Code vezérléséhez?",
+	"screenReaderDetectedExplanation.answerYes": "Igen",
+	"screenReaderDetectedExplanation.answerNo": "Nem",
+	"screenReaderDetectedExplanation.body1": "A VS Code most már optimalizálva van képernyőolvasóval való használathoz.",
+	"screenReaderDetectedExplanation.body2": "Néhány funkció másképp működik. Például a sortörés, kódrészletek bezárása, automatikus záró zárójelek beszúrása stb."
 }

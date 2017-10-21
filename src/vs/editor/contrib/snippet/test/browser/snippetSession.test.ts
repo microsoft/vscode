@@ -234,9 +234,9 @@ suite('SnippetSession', function () {
 		assertSelections(editor, new Selection(1, 10, 1, 10), new Selection(2, 14, 2, 14));
 
 		session.prev();
-		assertSelections(editor, new Selection(1, 7, 1, 7), new Selection(2, 11, 2, 11));
+		assertSelections(editor, new Selection(1, 7, 1, 10), new Selection(2, 11, 2, 14));
 		session.prev();
-		assertSelections(editor, new Selection(1, 4, 1, 4), new Selection(2, 8, 2, 8));
+		assertSelections(editor, new Selection(1, 4, 1, 7), new Selection(2, 8, 2, 11));
 		session.prev();
 		assertSelections(editor, new Selection(1, 1, 1, 4), new Selection(2, 5, 2, 8));
 	});
@@ -509,6 +509,21 @@ suite('SnippetSession', function () {
 		].join('\n');
 
 		assert.equal(editor.getModel().getValue(), expected);
+	});
+
+	test('Selecting text from left to right, and choosing item messes up code, #31199', function () {
+		const model = editor.getModel();
+		model.setValue('console.log');
+
+		let actual = SnippetSession.adjustSelection(model, new Selection(1, 12, 1, 9), 3, 0);
+		assert.ok(actual.equalsSelection(new Selection(1, 9, 1, 6)));
+
+		actual = SnippetSession.adjustSelection(model, new Selection(1, 9, 1, 12), 3, 0);
+		assert.ok(actual.equalsSelection(new Selection(1, 9, 1, 12)));
+
+		editor.setSelections([new Selection(1, 9, 1, 12)]);
+		new SnippetSession(editor, 'far', 3, 0).insert();
+		assert.equal(model.getValue(), 'console.far');
 	});
 });
 

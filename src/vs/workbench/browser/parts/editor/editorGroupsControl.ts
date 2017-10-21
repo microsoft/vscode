@@ -20,14 +20,14 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Position, POSITIONS } from 'vs/platform/editor/common/editor';
-import { IEditorGroupService, ITabOptions, GroupArrangement, GroupOrientation } from 'vs/workbench/services/group/common/groupService';
+import { IEditorGroupService, IEditorTabOptions, GroupArrangement, GroupOrientation } from 'vs/workbench/services/group/common/groupService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { TabsTitleControl } from 'vs/workbench/browser/parts/editor/tabsTitleControl';
-import { TitleControl, ITitleAreaControl } from 'vs/workbench/browser/parts/editor/titleControl';
+import { TitleControl, ITitleAreaControl, handleWorkspaceExternalDrop } from 'vs/workbench/browser/parts/editor/titleControl';
 import { NoTabsTitleControl } from 'vs/workbench/browser/parts/editor/noTabsTitleControl';
 import { IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup, EditorOptions, TextEditorOptions, IEditorIdentifier } from 'vs/workbench/common/editor';
 import { extractResources } from 'vs/base/browser/dnd';
@@ -37,6 +37,9 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { Themable, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, EDITOR_GROUP_BACKGROUND, EDITOR_GROUP_HEADER_TABS_BORDER } from 'vs/workbench/common/theme';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
+import { IMessageService } from 'vs/platform/message/common/message';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 
 export enum Rochade {
 	NONE,
@@ -70,6 +73,7 @@ export interface IEditorGroupsControl {
 	getInstantiationService(position: Position): IInstantiationService;
 	getProgressBar(position: Position): ProgressBar;
 	updateProgress(position: Position, state: ProgressState): void;
+	updateTitleAreas(refreshActive?: boolean): void;
 
 	layout(dimension: Dimension): void;
 	layout(position: Position): void;
@@ -112,7 +116,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 	private layoutVertically: boolean;
 
-	private tabOptions: ITabOptions;
+	private tabOptions: IEditorTabOptions;
 
 	private silos: Builder[];
 	private silosSize: number[];
@@ -148,7 +152,10 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWindowService private windowService: IWindowService,
 		@IWindowsService private windowsService: IWindowsService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IFileService private fileService: IFileService,
+		@IMessageService private messageService: IMessageService,
+		@IWorkspacesService private workspacesService: IWorkspacesService
 	) {
 		super(themeService);
 
@@ -219,7 +226,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		this.extensionService.onReady().then(() => this.onExtensionsReady());
 	}
 
-	private updateTabOptions(tabOptions: ITabOptions, refresh?: boolean): void {
+	private updateTabOptions(tabOptions: IEditorTabOptions, refresh?: boolean): void {
 		const tabCloseButton = this.tabOptions ? this.tabOptions.tabCloseButton : 'right';
 		this.tabOptions = tabOptions;
 
@@ -437,6 +444,9 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 				// Log this fact in telemetry
 				if (this.telemetryService) {
+					/* __GDPR__
+						"workbenchEditorMaximized" : {}
+					*/
 					this.telemetryService.publicLog('workbenchEditorMaximized');
 				}
 
@@ -451,7 +461,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 					}
 				});
 
-				// Grow focussed position if there is more size to spend
+				// Grow focused position if there is more size to spend
 				if (remainingSize > this.minSize) {
 					this.silosSize[this.lastActivePosition] = remainingSize;
 
@@ -482,7 +492,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 	private focusNextNonMinimized(): void {
 
-		// If the current focussed editor is minimized, try to focus the next largest editor
+		// If the current focused editor is minimized, try to focus the next largest editor
 		if (!types.isUndefinedOrNull(this.lastActivePosition) && this.silosMinimized[this.lastActivePosition]) {
 			let candidate: Position = null;
 			let currentSize = this.minSize;
@@ -1114,24 +1124,33 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			else {
 				const droppedResources = extractResources(e).filter(r => r.resource.scheme === 'file' || r.resource.scheme === 'untitled');
 				if (droppedResources.length) {
+					handleWorkspaceExternalDrop(droppedResources, $this.fileService, $this.messageService, $this.windowsService, $this.windowService, $this.workspacesService).then(handled => {
+						if (handled) {
+							return;
+						}
 
-					// Add external ones to recently open list
-					const externalResources = droppedResources.filter(d => d.isExternal).map(d => d.resource);
-					if (externalResources.length) {
-						$this.windowsService.addRecentlyOpened(externalResources.map(resource => resource.fsPath));
-					}
+						// Add external ones to recently open list
+						const externalResources = droppedResources.filter(d => d.isExternal).map(d => d.resource);
+						if (externalResources.length) {
+							$this.windowsService.addRecentlyOpened(externalResources.map(resource => resource.fsPath));
+						}
 
-					// Open in Editor
-					$this.windowService.focusWindow()
-						.then(() => editorService.openEditors(droppedResources.map(d => { return { input: { resource: d.resource, options: { pinned: true } }, position: splitEditor ? freeGroup : position }; })))
-						.then(() => {
-							if (splitEditor && splitTo !== freeGroup) {
-								groupService.moveGroup(freeGroup, splitTo);
-							}
+						// Open in Editor
+						$this.windowService.focusWindow()
+							.then(() => editorService.openEditors(droppedResources.map(d => {
+								return {
+									input: { resource: d.resource, options: { pinned: true } },
+									position: splitEditor ? freeGroup : position
+								};
+							}))).then(() => {
+								if (splitEditor && splitTo !== freeGroup) {
+									groupService.moveGroup(freeGroup, splitTo);
+								}
 
-							groupService.focusGroup(splitEditor ? splitTo : position);
-						})
-						.done(null, errors.onUnexpectedError);
+								groupService.focusGroup(splitEditor ? splitTo : position);
+							})
+							.done(null, errors.onUnexpectedError);
+					});
 				}
 			}
 		}
@@ -1242,6 +1261,13 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 						});
 
 						overlay.on(DOM.EventType.DRAG_OVER, (e: DragEvent) => {
+
+							// update the dropEffect, otherwise it would look like a "move" operation. but only if we are
+							// not dragging a tab actually because there we support both moving as well as copying
+							if (!TabsTitleControl.getDraggedEditor()) {
+								e.dataTransfer.dropEffect = 'copy';
+							}
+
 							positionOverlay(e, containers.length, index);
 						});
 
@@ -2053,6 +2079,32 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		const silo = this.silos[position];
 
 		return silo ? silo.child().getProperty(key) : void 0;
+	}
+
+	public updateTitleAreas(refreshActive?: boolean): void {
+		POSITIONS.forEach(position => {
+			const group = this.stacks.groupAt(position);
+			if (!group) {
+				return;
+			}
+
+			const titleControl = this.getTitleAreaControl(position);
+			if (!titleControl) {
+				return;
+			}
+
+			// Make sure the active group is shown in the title
+			// and refresh it if we are instructed to refresh it
+			if (refreshActive && group.isActive) {
+				titleControl.setContext(group);
+				titleControl.refresh(true);
+			}
+
+			// Otherwise, just refresh the toolbar
+			else {
+				titleControl.updateEditorActionsToolbar();
+			}
+		});
 	}
 
 	public updateProgress(position: Position, state: ProgressState): void {

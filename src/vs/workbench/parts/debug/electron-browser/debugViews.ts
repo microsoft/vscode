@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as paths from 'vs/base/common/paths';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import * as resources from 'vs/base/common/resources';
+import { RunOnceScheduler, sequence } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
 import * as builder from 'vs/base/browser/builder';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -15,9 +15,8 @@ import { IAction } from 'vs/base/common/actions';
 import { prepareActions } from 'vs/workbench/browser/actions';
 import { IHighlightEvent, ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
-import { CollapsibleState, ViewSizing } from 'vs/base/browser/ui/splitview/splitview';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
-import { CollapsibleView, IViewletViewOptions, IViewOptions } from 'vs/workbench/parts/views/browser/views';
+import { ViewsViewletPanel, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDebugService, State, IBreakpoint, IExpression, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED } from 'vs/workbench/parts/debug/common/debug';
 import { Expression, Variable, ExceptionBreakpoint, FunctionBreakpoint, Thread, StackFrame, Breakpoint, ThreadAndProcessIds } from 'vs/workbench/parts/debug/common/debugModel';
 import * as viewer from 'vs/workbench/parts/debug/electron-browser/debugViewer';
@@ -42,7 +41,7 @@ function renderViewTree(container: HTMLElement): HTMLElement {
 const $ = builder.$;
 const twistiePixels = 20;
 
-export class VariablesView extends CollapsibleView {
+export class VariablesView extends ViewsViewletPanel {
 
 	private static MEMENTO = 'variablesview.memento';
 	private onFocusStackFrameScheduler: RunOnceScheduler;
@@ -60,7 +59,7 @@ export class VariablesView extends CollapsibleView {
 		@IListService private listService: IListService,
 		@IThemeService private themeService: IThemeService
 	) {
-		super({ ...(options as IViewOptions), sizing: ViewSizing.Flexible, ariaHeaderLabel: nls.localize('variablesSection', "Variables Section") }, keybindingService, contextMenuService);
+		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('variablesSection', "Variables Section") }, keybindingService, contextMenuService);
 
 		this.settings = options.viewletSettings;
 		this.variablesFocusedContext = CONTEXT_VARIABLES_FOCUSED.bindTo(contextKeyService);
@@ -68,26 +67,23 @@ export class VariablesView extends CollapsibleView {
 		this.onFocusStackFrameScheduler = new RunOnceScheduler(() => {
 			// Always clear tree highlight to avoid ending up in a broken state #12203
 			this.tree.clearHighlight();
+			const expanded = this.tree.getExpandedElements();
 			this.tree.refresh().then(() => {
 				const stackFrame = this.debugService.getViewModel().focusedStackFrame;
-				if (stackFrame) {
-					return stackFrame.getScopes().then(scopes => {
-						if (scopes.length > 0 && !scopes[0].expensive) {
-							return this.tree.expand(scopes[0]);
-						}
-						return undefined;
-					});
-				}
-				return undefined;
+				return sequence(expanded.map(e => () => this.tree.expand(e))).then(() => {
+					// If there is no preserved expansion state simply expand the first scope
+					if (stackFrame && this.tree.getExpandedElements().length === 0) {
+						return stackFrame.getScopes().then(scopes => {
+							if (scopes.length > 0 && !scopes[0].expensive) {
+								return this.tree.expand(scopes[0]);
+							}
+							return undefined;
+						});
+					}
+					return undefined;
+				});
 			}).done(null, errors.onUnexpectedError);
 		}, 400);
-	}
-
-	public renderHeader(container: HTMLElement): void {
-		const titleDiv = $('div.title').appendTo(container);
-		$('span').text(this.options.name).appendTo(titleDiv);
-
-		super.renderHeader(container);
 	}
 
 	public renderBody(container: HTMLElement): void {
@@ -105,17 +101,17 @@ export class VariablesView extends CollapsibleView {
 				keyboardSupport: false
 			});
 
-		this.toDispose.push(attachListStyler(this.tree, this.themeService));
-		this.toDispose.push(this.listService.register(this.tree, [this.variablesFocusedContext]));
+		this.disposables.push(attachListStyler(this.tree, this.themeService));
+		this.disposables.push(this.listService.register(this.tree, [this.variablesFocusedContext]));
 
 		const viewModel = this.debugService.getViewModel();
 
 		this.tree.setInput(viewModel);
 
 		const collapseAction = this.instantiationService.createInstance(CollapseAction, this.tree, false, 'explorer-action collapse-explorer');
-		this.toolBar.setActions(prepareActions([collapseAction]))();
+		this.toolbar.setActions(prepareActions([collapseAction]))();
 
-		this.toDispose.push(viewModel.onDidFocusStackFrame(sf => {
+		this.disposables.push(viewModel.onDidFocusStackFrame(sf => {
 			// Refresh the tree immediately if it is not visible.
 			// Otherwise postpone the refresh until user stops stepping.
 			if (!this.tree.getContentHeight() || sf.explicit) {
@@ -124,11 +120,11 @@ export class VariablesView extends CollapsibleView {
 				this.onFocusStackFrameScheduler.schedule();
 			}
 		}));
-		this.toDispose.push(this.debugService.onDidChangeState(state => {
+		this.disposables.push(this.debugService.onDidChangeState(state => {
 			collapseAction.enabled = state === State.Running || state === State.Stopped;
 		}));
 
-		this.toDispose.push(this.debugService.getViewModel().onDidSelectExpression(expression => {
+		this.disposables.push(this.debugService.getViewModel().onDidSelectExpression(expression => {
 			if (!expression || !(expression instanceof Variable)) {
 				return;
 			}
@@ -145,12 +141,12 @@ export class VariablesView extends CollapsibleView {
 	}
 
 	public shutdown(): void {
-		this.settings[VariablesView.MEMENTO] = (this.state === CollapsibleState.COLLAPSED);
+		this.settings[VariablesView.MEMENTO] = !this.isExpanded();
 		super.shutdown();
 	}
 }
 
-export class WatchExpressionsView extends CollapsibleView {
+export class WatchExpressionsView extends ViewsViewletPanel {
 
 	private static MEMENTO = 'watchexpressionsview.memento';
 	private onWatchExpressionsUpdatedScheduler: RunOnceScheduler;
@@ -168,13 +164,13 @@ export class WatchExpressionsView extends CollapsibleView {
 		@IListService private listService: IListService,
 		@IThemeService private themeService: IThemeService
 	) {
-		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('expressionsSection', "Expressions Section"), sizing: ViewSizing.Flexible }, keybindingService, contextMenuService);
+		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('expressionsSection', "Expressions Section") }, keybindingService, contextMenuService);
 		this.settings = options.viewletSettings;
 
-		this.toDispose.push(this.debugService.getModel().onDidChangeWatchExpressions(we => {
+		this.disposables.push(this.debugService.getModel().onDidChangeWatchExpressions(we => {
 			// only expand when a new watch expression is added.
 			if (we instanceof Expression) {
-				this.expand();
+				this.setExpanded(true);
 			}
 		}));
 		this.watchExpressionsFocusedContext = CONTEXT_WATCH_EXPRESSIONS_FOCUSED.bindTo(contextKeyService);
@@ -184,13 +180,6 @@ export class WatchExpressionsView extends CollapsibleView {
 				return this.toReveal instanceof Expression ? this.tree.reveal(this.toReveal) : TPromise.as(true);
 			}, errors.onUnexpectedError);
 		}, 50);
-	}
-
-	public renderHeader(container: HTMLElement): void {
-		const titleDiv = $('div.title').appendTo(container);
-		$('span').text(this.options.name).appendTo(titleDiv);
-
-		super.renderHeader(container);
 	}
 
 	public renderBody(container: HTMLElement): void {
@@ -210,24 +199,24 @@ export class WatchExpressionsView extends CollapsibleView {
 				keyboardSupport: false
 			});
 
-		this.toDispose.push(attachListStyler(this.tree, this.themeService));
-		this.toDispose.push(this.listService.register(this.tree, [this.watchExpressionsFocusedContext]));
+		this.disposables.push(attachListStyler(this.tree, this.themeService));
+		this.disposables.push(this.listService.register(this.tree, [this.watchExpressionsFocusedContext]));
 
 		this.tree.setInput(this.debugService.getModel());
 
 		const addWatchExpressionAction = this.instantiationService.createInstance(AddWatchExpressionAction, AddWatchExpressionAction.ID, AddWatchExpressionAction.LABEL);
 		const collapseAction = this.instantiationService.createInstance(CollapseAction, this.tree, true, 'explorer-action collapse-explorer');
 		const removeAllWatchExpressionsAction = this.instantiationService.createInstance(RemoveAllWatchExpressionsAction, RemoveAllWatchExpressionsAction.ID, RemoveAllWatchExpressionsAction.LABEL);
-		this.toolBar.setActions(prepareActions([addWatchExpressionAction, collapseAction, removeAllWatchExpressionsAction]))();
+		this.toolbar.setActions(prepareActions([addWatchExpressionAction, collapseAction, removeAllWatchExpressionsAction]))();
 
-		this.toDispose.push(this.debugService.getModel().onDidChangeWatchExpressions(we => {
+		this.disposables.push(this.debugService.getModel().onDidChangeWatchExpressions(we => {
 			if (!this.onWatchExpressionsUpdatedScheduler.isScheduled()) {
 				this.onWatchExpressionsUpdatedScheduler.schedule();
 			}
 			this.toReveal = we;
 		}));
 
-		this.toDispose.push(this.debugService.getViewModel().onDidSelectExpression(expression => {
+		this.disposables.push(this.debugService.getViewModel().onDidSelectExpression(expression => {
 			if (!expression || !(expression instanceof Expression)) {
 				return;
 			}
@@ -244,12 +233,12 @@ export class WatchExpressionsView extends CollapsibleView {
 	}
 
 	public shutdown(): void {
-		this.settings[WatchExpressionsView.MEMENTO] = (this.state === CollapsibleState.COLLAPSED);
+		this.settings[WatchExpressionsView.MEMENTO] = !this.isExpanded();
 		super.shutdown();
 	}
 }
 
-export class CallStackView extends CollapsibleView {
+export class CallStackView extends ViewsViewletPanel {
 
 	private static MEMENTO = 'callstackview.memento';
 	private pauseMessage: builder.Builder;
@@ -267,7 +256,7 @@ export class CallStackView extends CollapsibleView {
 		@IListService private listService: IListService,
 		@IThemeService private themeService: IThemeService
 	) {
-		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('callstackSection', "Call Stack Section"), sizing: ViewSizing.Flexible }, keybindingService, contextMenuService);
+		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('callstackSection', "Call Stack Section") }, keybindingService, contextMenuService);
 		this.settings = options.viewletSettings;
 
 		// Create scheduler to prevent unnecessary flashing of tree when reacting to changes
@@ -298,14 +287,12 @@ export class CallStackView extends CollapsibleView {
 		}, 50);
 	}
 
-	public renderHeader(container: HTMLElement): void {
-		const title = $('div.debug-call-stack-title').appendTo(container);
-		$('span.title').text(this.options.name).appendTo(title);
+	protected renderHeaderTitle(container: HTMLElement): void {
+		const title = $('.title.debug-call-stack-title').appendTo(container);
+		$('span').text(this.options.name).appendTo(title);
 		this.pauseMessage = $('span.pause-message').appendTo(title);
 		this.pauseMessage.hide();
 		this.pauseMessageLabel = $('span.label').appendTo(this.pauseMessage);
-
-		super.renderHeader(container);
 	}
 
 	public renderBody(container: HTMLElement): void {
@@ -325,10 +312,10 @@ export class CallStackView extends CollapsibleView {
 				keyboardSupport: false
 			});
 
-		this.toDispose.push(attachListStyler(this.tree, this.themeService));
-		this.toDispose.push(this.listService.register(this.tree));
+		this.disposables.push(attachListStyler(this.tree, this.themeService));
+		this.disposables.push(this.listService.register(this.tree));
 
-		this.toDispose.push(this.tree.addListener('selection', event => {
+		this.disposables.push(this.tree.addListener('selection', event => {
 			if (event && event.payload && event.payload.origin === 'keyboard') {
 				const element = this.tree.getFocus();
 				if (element instanceof ThreadAndProcessIds) {
@@ -339,12 +326,12 @@ export class CallStackView extends CollapsibleView {
 			}
 		}));
 
-		this.toDispose.push(this.debugService.getModel().onDidChangeCallStack(() => {
+		this.disposables.push(this.debugService.getModel().onDidChangeCallStack(() => {
 			if (!this.onCallStackChangeScheduler.isScheduled()) {
 				this.onCallStackChangeScheduler.schedule();
 			}
 		}));
-		this.toDispose.push(this.debugService.getViewModel().onDidFocusStackFrame(() =>
+		this.disposables.push(this.debugService.getViewModel().onDidFocusStackFrame(() =>
 			this.updateTreeSelection().done(undefined, errors.onUnexpectedError)));
 
 		// Schedule the update of the call stack tree if the viewlet is opened after a session started #14684
@@ -383,12 +370,12 @@ export class CallStackView extends CollapsibleView {
 	}
 
 	public shutdown(): void {
-		this.settings[CallStackView.MEMENTO] = (this.state === CollapsibleState.COLLAPSED);
+		this.settings[CallStackView.MEMENTO] = !this.isExpanded();
 		super.shutdown();
 	}
 }
 
-export class BreakpointsView extends CollapsibleView {
+export class BreakpointsView extends ViewsViewletPanel {
 
 	private static MAX_VISIBLE_FILES = 9;
 	private static MEMENTO = 'breakopintsview.memento';
@@ -407,21 +394,13 @@ export class BreakpointsView extends CollapsibleView {
 	) {
 		super({
 			...(options as IViewOptions),
-			ariaHeaderLabel: nls.localize('breakpointsSection', "Breakpoints Section"),
-			sizing: ViewSizing.Fixed, initialBodySize: BreakpointsView.getExpandedBodySize(
-				debugService.getModel().getBreakpoints().length + debugService.getModel().getFunctionBreakpoints().length + debugService.getModel().getExceptionBreakpoints().length)
+			ariaHeaderLabel: nls.localize('breakpointsSection', "Breakpoints Section")
 		}, keybindingService, contextMenuService);
 
+		this.minimumBodySize = this.maximumBodySize = this.getExpandedBodySize();
 		this.settings = options.viewletSettings;
 		this.breakpointsFocusedContext = CONTEXT_BREAKPOINTS_FOCUSED.bindTo(contextKeyService);
-		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.onBreakpointsChange()));
-	}
-
-	public renderHeader(container: HTMLElement): void {
-		const titleDiv = $('div.title').appendTo(container);
-		$('span').text(this.options.name).appendTo(titleDiv);
-
-		super.renderHeader(container);
+		this.disposables.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.onBreakpointsChange()));
 	}
 
 	public renderBody(container: HTMLElement): void {
@@ -453,7 +432,7 @@ export class BreakpointsView extends CollapsibleView {
 					}
 
 					if (first.uri.toString() !== second.uri.toString()) {
-						return paths.basename(first.uri.fsPath).localeCompare(paths.basename(second.uri.fsPath));
+						return resources.basenameOrAuthority(first.uri).localeCompare(resources.basenameOrAuthority(second.uri));
 					}
 					if (first.lineNumber === second.lineNumber) {
 						return first.column - second.column;
@@ -468,10 +447,10 @@ export class BreakpointsView extends CollapsibleView {
 				keyboardSupport: false
 			});
 
-		this.toDispose.push(attachListStyler(this.tree, this.themeService));
-		this.toDispose.push(this.listService.register(this.tree, [this.breakpointsFocusedContext]));
+		this.disposables.push(attachListStyler(this.tree, this.themeService));
+		this.disposables.push(this.listService.register(this.tree, [this.breakpointsFocusedContext]));
 
-		this.toDispose.push(this.tree.addListener('selection', event => {
+		this.disposables.push(this.tree.addListener('selection', event => {
 			if (event && event.payload && event.payload.origin === 'keyboard') {
 				const element = this.tree.getFocus();
 				if (element instanceof Breakpoint) {
@@ -484,7 +463,7 @@ export class BreakpointsView extends CollapsibleView {
 
 		this.tree.setInput(debugModel);
 
-		this.toDispose.push(this.debugService.getViewModel().onDidSelectFunctionBreakpoint(fbp => {
+		this.disposables.push(this.debugService.getViewModel().onDidSelectFunctionBreakpoint(fbp => {
 			if (!fbp || !(fbp instanceof FunctionBreakpoint)) {
 				return;
 			}
@@ -509,21 +488,20 @@ export class BreakpointsView extends CollapsibleView {
 	}
 
 	private onBreakpointsChange(): void {
-		const model = this.debugService.getModel();
-		this.setBodySize(BreakpointsView.getExpandedBodySize(
-			model.getBreakpoints().length + model.getExceptionBreakpoints().length + model.getFunctionBreakpoints().length));
-
+		this.minimumBodySize = this.maximumBodySize = this.getExpandedBodySize();
 		if (this.tree) {
 			this.tree.refresh();
 		}
 	}
 
-	private static getExpandedBodySize(length: number): number {
+	private getExpandedBodySize(): number {
+		const model = this.debugService.getModel();
+		const length = model.getBreakpoints().length + model.getExceptionBreakpoints().length + model.getFunctionBreakpoints().length;
 		return Math.min(BreakpointsView.MAX_VISIBLE_FILES, length) * 22;
 	}
 
 	public shutdown(): void {
-		this.settings[BreakpointsView.MEMENTO] = (this.state === CollapsibleState.COLLAPSED);
+		this.settings[BreakpointsView.MEMENTO] = !this.isExpanded();
 		super.shutdown();
 	}
 }

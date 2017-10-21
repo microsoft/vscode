@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
 import * as uuid from 'vs/base/common/uuid';
 import { networkInterfaces } from 'os';
-import { TrieMap } from 'vs/base/common/map';
+import { TernarySearchTree } from 'vs/base/common/map';
 
 // http://www.techrepublic.com/blog/data-center/mac-address-scorecard-for-common-virtual-machine-platforms/
 // VMware ESX 3, Server, Workstation, Player	00-50-56, 00-0C-29, 00-05-69
@@ -23,21 +23,30 @@ import { TrieMap } from 'vs/base/common/map';
 // Sun xVM VirtualBox	08-00-27
 export const virtualMachineHint: { value(): number } = new class {
 
-	private _virtualMachineOUIs: TrieMap<boolean>;
+	private _virtualMachineOUIs: TernarySearchTree<boolean>;
 	private _value: number;
 
 	private _isVirtualMachineMacAdress(mac: string): boolean {
 		if (!this._virtualMachineOUIs) {
-			this._virtualMachineOUIs = new TrieMap<boolean>(s => s.split(/[-:]/));
-			// this._virtualMachineOUIs.insert('00-00-00', true);
-			this._virtualMachineOUIs.insert('00-50-56', true);
-			this._virtualMachineOUIs.insert('00-0C-29', true);
-			this._virtualMachineOUIs.insert('00-05-69', true);
-			this._virtualMachineOUIs.insert('00-03-FF', true);
-			this._virtualMachineOUIs.insert('00-1C-42', true);
-			this._virtualMachineOUIs.insert('00-16-3E', true);
-			this._virtualMachineOUIs.insert('08-00-27', true);
+			this._virtualMachineOUIs = TernarySearchTree.forStrings<boolean>();
 
+			// dash-separated
+			this._virtualMachineOUIs.set('00-50-56', true);
+			this._virtualMachineOUIs.set('00-0C-29', true);
+			this._virtualMachineOUIs.set('00-05-69', true);
+			this._virtualMachineOUIs.set('00-03-FF', true);
+			this._virtualMachineOUIs.set('00-1C-42', true);
+			this._virtualMachineOUIs.set('00-16-3E', true);
+			this._virtualMachineOUIs.set('08-00-27', true);
+
+			// colon-separated
+			this._virtualMachineOUIs.set('00:50:56', true);
+			this._virtualMachineOUIs.set('00:0C:29', true);
+			this._virtualMachineOUIs.set('00:05:69', true);
+			this._virtualMachineOUIs.set('00:03:FF', true);
+			this._virtualMachineOUIs.set('00:1C:42', true);
+			this._virtualMachineOUIs.set('00:16:3E', true);
+			this._virtualMachineOUIs.set('08:00:27', true);
 		}
 		return this._virtualMachineOUIs.findSubstr(mac);
 	}

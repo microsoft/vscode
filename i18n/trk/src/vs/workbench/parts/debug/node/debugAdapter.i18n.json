@@ -6,6 +6,9 @@
 {
 	"debugAdapterBinNotFound": "Hata ayıklama bağdaştırıcısı yürütülebilir dosyası '{0}', mevcut değil.",
 	"debugAdapterCannotDetermineExecutable": "Hata ayıklama bağdaştırıcısı yürütülebilir dosyası '{0}' belirlenemedi.",
+	"launch.config.comment1": "Olası öznitelikler hakkında bilgi edinmek için IntelliSense kullanın.",
+	"launch.config.comment2": "Mevcut özniteliklerin açıklamalarını görmek için fare ile üzerine gelin.",
+	"launch.config.comment3": "Daha fazla bilgi için ziyaret edin: {0}",
 	"debugType": "Yapılandırma türü.",
 	"debugTypeNotRecognised": "Hata ayıklama türü tanınmıyor. Karşılık gelen hata ayıklama uzantısı yüklemiş olduğunuzdan ve etkinleştirildiğinden emin olun.",
 	"node2NotSupported": "\"node2\" artık desteklenmiyor, bunun yerine \"node\" kullanın ve \"protocol\" özniteliğini \"inspector\" olarak ayarlayın.",

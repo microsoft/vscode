@@ -18,7 +18,7 @@
     "vscode-nls": "^2.0.2"
   },
   "devDependencies": {
-    "@types/node": "^7.0.12"
+    "@types/node": "7.0.43"
   },
   "main": "./out/main",
   "activationEvents": [
@@ -31,6 +31,7 @@
       "title": "Grunt",
       "properties": {
         "grunt.autoDetect": {
+          "scope": "resource",
           "type": "string",
           "enum": [
             "off",

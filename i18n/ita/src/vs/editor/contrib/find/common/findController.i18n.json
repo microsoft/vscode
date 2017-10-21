@@ -15,5 +15,7 @@
 	"moveSelectionToNextFindMatch": "Sposta ultima selezione a risultato ricerca successivo",
 	"moveSelectionToPreviousFindMatch": "Sposta ultima selezione a risultato ricerca precedente",
 	"selectAllOccurrencesOfFindMatch": "Seleziona tutte le occorrenze del risultato ricerca",
-	"changeAll.label": "Cambia tutte le occorrenze"
+	"changeAll.label": "Cambia tutte le occorrenze",
+	"showNextFindTermAction": "Mostra il termine di ricerca successivo",
+	"showPreviousFindTermAction": "Mostra il termine di ricerca precedente"
 }

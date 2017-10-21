@@ -8,5 +8,6 @@
 	"workbench.startupEditor.none": "启动(不带编辑器)。",
 	"workbench.startupEditor.welcomePage": "打开欢迎页面（默认）。",
 	"workbench.startupEditor.newUntitledFile": "打开新的无标题文档",
+	"workbench.startupEditor": "在未能恢复上一会话信息的情况下，控制启动时显示的编辑器。选择 \"none\" 表示启动时不打开编辑器，\"welcomePage\" 表示打开欢迎页面(默认)，\"newUntitledFile\" 表示打开新的无标题文档(仅打开一个空工作区)。",
 	"help": "帮助"
 }

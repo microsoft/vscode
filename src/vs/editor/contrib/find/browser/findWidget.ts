@@ -25,11 +25,11 @@ import { FIND_IDS, MATCHES_LIMIT } from 'vs/editor/contrib/find/common/findModel
 import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contrib/find/common/findState';
 import { Range } from 'vs/editor/common/core/range';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { CONTEXT_FIND_INPUT_FOCUSSED } from 'vs/editor/contrib/find/common/findController';
+import { CONTEXT_FIND_INPUT_FOCUSED } from 'vs/editor/contrib/find/common/findController';
 import { ITheme, registerThemingParticipant, IThemeService } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
-import { editorFindRangeHighlight, editorFindMatch, editorFindMatchHighlight, activeContrastBorder, contrastBorder, inputBackground, editorWidgetBackground, inputActiveOptionBorder, widgetShadow, inputForeground, inputBorder, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationErrorBackground, inputValidationErrorBorder, errorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorFindRangeHighlight, editorFindMatch, editorFindMatchHighlight, activeContrastBorder, contrastBorder, inputBackground, editorWidgetBackground, inputActiveOptionBorder, widgetShadow, inputForeground, inputBorder, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationErrorBackground, inputValidationErrorBorder, errorForeground, editorWidgetBorder } from 'vs/platform/theme/common/colorRegistry';
 
 
 export interface IFindController {
@@ -48,7 +48,7 @@ const NLS_REPLACE_INPUT_PLACEHOLDER = nls.localize('placeholder.replace', "Repla
 const NLS_REPLACE_BTN_LABEL = nls.localize('label.replaceButton', "Replace");
 const NLS_REPLACE_ALL_BTN_LABEL = nls.localize('label.replaceAllButton', "Replace All");
 const NLS_TOGGLE_REPLACE_MODE_BTN_LABEL = nls.localize('label.toggleReplaceButton', "Toggle Replace mode");
-const NLS_MATCHES_COUNT_LIMIT_TITLE = nls.localize('title.matchesCountLimit', "Only the first 999 results are highlighted, but all find operations work on the entire text.");
+const NLS_MATCHES_COUNT_LIMIT_TITLE = nls.localize('title.matchesCountLimit', "Only the first {0} results are highlighted, but all find operations work on the entire text.", MATCHES_LIMIT);
 const NLS_MATCHES_LOCATION = nls.localize('label.matchesLocation', "{0} of {1}");
 const NLS_NO_RESULTS = nls.localize('label.noResults', "No Results");
 
@@ -105,7 +105,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 	private _isReplaceVisible: boolean;
 
 	private _focusTracker: dom.IFocusTracker;
-	private _findInputFocussed: IContextKey<boolean>;
+	private _findInputFocused: IContextKey<boolean>;
 	private _viewZone: FindWidgetViewZone;
 	private _viewZoneId: number;
 
@@ -192,10 +192,10 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				this._updateToggleSelectionFindButton();
 			}
 		}));
-		this._findInputFocussed = CONTEXT_FIND_INPUT_FOCUSSED.bindTo(contextKeyService);
+		this._findInputFocused = CONTEXT_FIND_INPUT_FOCUSED.bindTo(contextKeyService);
 		this._focusTracker = this._register(dom.trackFocus(this._findInput.inputBox.inputElement));
 		this._focusTracker.addFocusListener(() => {
-			this._findInputFocussed.set(true);
+			this._findInputFocused.set(true);
 
 			if (this._toggleSelectionFind.checked) {
 				let selection = this._codeEditor.getSelection();
@@ -212,7 +212,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			}
 		});
 		this._focusTracker.addBlurListener(() => {
-			this._findInputFocussed.set(false);
+			this._findInputFocused.set(false);
 		});
 
 		this._codeEditor.addOverlayWidget(this);
@@ -1071,7 +1071,7 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-editor .find-widget.no-results .matchesCount { color: ${error}; }`);
 	}
 
-	let border = theme.getColor('panel.border');
+	let border = theme.getColor(editorWidgetBorder);
 	if (border) {
 		collector.addRule(`.monaco-editor .find-widget .monaco-sash { background-color: ${border}; width: 3px !important; margin-left: -4px;}`);
 	}

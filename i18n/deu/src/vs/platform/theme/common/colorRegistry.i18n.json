@@ -53,6 +53,9 @@
 	"badgeBackground": "Badge - Hintergrundfarbe. Badges sind kurze Info-Texte, z. B. für Anzahl Suchergebnisse.",
 	"badgeForeground": "Badge - Vordergrundfarbe. Badges sind kurze Info-Texte, z. B. für Anzahl Suchergebnisse.",
 	"scrollbarShadow": "Schatten der Scrollleiste, um anzuzeigen, dass die Ansicht gescrollt wird.",
+	"scrollbarSliderBackground": "Hintergrundfarbe vom Scrollbar-Schieber",
+	"scrollbarSliderHoverBackground": "Hintergrundfarbe des Schiebereglers, wenn darauf gezeigt wird.",
+	"scrollbarSliderActiveBackground": "Hintergrundfarbe des Schiebereglers, wenn dieser aktiv ist.",
 	"progressBarBackground": "Hintergrundfarbe des Fortschrittbalkens, der für lang ausgeführte Vorgänge angezeigt werden kann.",
 	"editorBackground": "Hintergrundfarbe des Editors.",
 	"editorForeground": "Standardvordergrundfarbe des Editors.",
@@ -82,5 +85,7 @@
 	"mergeBorder": "Rahmenfarbe für Kopfzeilen und die Aufteilung in Inline-Mergingkonflikten.",
 	"overviewRulerCurrentContentForeground": "Aktueller Übersichtslineal-Vordergrund für Inline-Mergingkonflikte.",
 	"overviewRulerIncomingContentForeground": "Eingehender Übersichtslineal-Vordergrund für Inline-Mergingkonflikte. ",
-	"overviewRulerCommonContentForeground": "Hintergrund des Übersichtslineals des gemeinsamen übergeordneten Elements bei Inlinezusammenführungskonflikten."
+	"overviewRulerCommonContentForeground": "Hintergrund des Übersichtslineals des gemeinsamen übergeordneten Elements bei Inlinezusammenführungskonflikten.",
+	"overviewRulerFindMatchForeground": "Übersichtslineal-Markierungsfarbe für Suchübereinstimmungen.",
+	"overviewRulerSelectionHighlightForeground": "Übersichtslineal-Markierungsfarbe für Auswahlhervorhebungen."
 }

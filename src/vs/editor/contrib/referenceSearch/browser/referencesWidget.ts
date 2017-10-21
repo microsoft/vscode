@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/css!./referencesWidget';
+import 'vs/css!./media/referencesWidget';
 import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { getPathLabel } from 'vs/base/common/labels';
@@ -26,20 +26,18 @@ import * as tree from 'vs/base/parts/tree/browser/tree';
 import { DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
-import { PeekViewWidget, IPeekViewService } from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
+import { PeekViewWidget } from './peekViewWidget';
 import { FileReferences, OneReference, ReferencesModel } from './referencesModel';
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { registerColor, activeContrastBorder, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant, ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachListStyler, attachBadgeStyler } from 'vs/platform/theme/common/styler';
-import { IModelDecorationsChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
@@ -82,7 +80,7 @@ class DecorationsManager implements IDisposable {
 	}
 
 	private _addDecorations(reference: FileReferences): void {
-		this._callOnModelChange.push(this._editor.getModel().onDidChangeDecorations((event) => this._onDecorationChanged(event)));
+		this._callOnModelChange.push(this._editor.getModel().onDidChangeDecorations((event) => this._onDecorationChanged()));
 
 		this._editor.changeDecorations(accessor => {
 
@@ -108,21 +106,20 @@ class DecorationsManager implements IDisposable {
 		});
 	}
 
-	private _onDecorationChanged(event: IModelDecorationsChangedEvent): void {
-		const changedDecorations = event.changedDecorations,
-			toRemove: string[] = [];
+	private _onDecorationChanged(): void {
+		const toRemove: string[] = [];
 
-		for (let i = 0, len = changedDecorations.length; i < len; i++) {
-			let reference = this._decorations.get(changedDecorations[i]);
-			if (!reference) {
-				continue;
+		this._decorations.forEach((reference, decorationId) => {
+			const newRange = this._editor.getModel().getDecorationRange(decorationId);
+
+			if (!newRange) {
+				return;
 			}
 
-			const newRange = this._editor.getModel().getDecorationRange(changedDecorations[i]);
 			let ignore = false;
 
 			if (Range.equalsRange(newRange, reference.range)) {
-				continue;
+				return;
 
 			} else if (Range.spansMultipleLines(newRange)) {
 				ignore = true;
@@ -138,11 +135,11 @@ class DecorationsManager implements IDisposable {
 
 			if (ignore) {
 				this._decorationIgnoreSet.add(reference.id);
-				toRemove.push(changedDecorations[i]);
+				toRemove.push(decorationId);
 			} else {
 				reference.range = newRange;
 			}
-		}
+		});
 
 		this._editor.changeDecorations((accessor) => {
 			for (let i = 0, len = toRemove.length; i < len; i++) {
@@ -584,8 +581,6 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		this._applyTheme(_themeService.getTheme());
 		this._callOnDispose.push(_themeService.onThemeChange(this._applyTheme.bind(this)));
-
-		this._instantiationService = this._instantiationService.createChild(new ServiceCollection([IPeekViewService, this]));
 		this.create();
 	}
 
@@ -612,7 +607,7 @@ export class ReferenceWidget extends PeekViewWidget {
 	}
 
 	show(where: IRange) {
-		this.editor.revealRangeInCenterIfOutsideViewport(where);
+		this.editor.revealRangeInCenterIfOutsideViewport(where, editorCommon.ScrollType.Smooth);
 		super.show(where, this.layoutData.heightInLines || 18);
 	}
 
@@ -834,10 +829,11 @@ export class ReferenceWidget extends PeekViewWidget {
 			const model = ref.object;
 			if (model) {
 				this._previewModelReference = ref;
+				let isSameModel = (this._preview.getModel() === model.textEditorModel);
 				this._preview.setModel(model.textEditorModel);
 				var sel = Range.lift(reference.range).collapseToStart();
 				this._preview.setSelection(sel);
-				this._preview.revealRangeInCenter(sel);
+				this._preview.revealRangeInCenter(sel, isSameModel ? editorCommon.ScrollType.Smooth : editorCommon.ScrollType.Immediate);
 			} else {
 				this._preview.setModel(this._previewNotAvailableMessage);
 				ref.dispose();
