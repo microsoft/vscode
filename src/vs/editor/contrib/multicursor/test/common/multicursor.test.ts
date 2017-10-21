@@ -12,8 +12,7 @@ import { InsertCursorAbove, InsertCursorBelow, MultiCursorSelectionController, S
 import { Handler, EndOfLineSequence } from 'vs/editor/common/editorCommon';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { TestFindController } from 'vs/editor/contrib/find/test/common/findController.test';
-
+import { CommonFindController } from 'vs/editor/contrib/find/common/findController';
 
 suite('Multicursor', () => {
 
@@ -67,7 +66,7 @@ suite('Multicursor selection', () => {
 			'var z = (3 * 5)',
 		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 
-			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let findController = editor.registerAndInstantiateContribution<CommonFindController>(CommonFindController);
 			let multiCursorSelectController = editor.registerAndInstantiateContribution<MultiCursorSelectionController>(MultiCursorSelectionController);
 			let selectHighlightsAction = new SelectHighlightsAction();
 
@@ -97,7 +96,7 @@ suite('Multicursor selection', () => {
 			'nothing'
 		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 
-			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let findController = editor.registerAndInstantiateContribution<CommonFindController>(CommonFindController);
 			let selectHighlightsAction = new SelectHighlightsAction();
 
 			editor.setSelection(new Selection(1, 1, 1, 1));
@@ -129,7 +128,7 @@ suite('Multicursor selection', () => {
 			'rty'
 		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 
-			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let findController = editor.registerAndInstantiateContribution<CommonFindController>(CommonFindController);
 			let multiCursorSelectController = editor.registerAndInstantiateContribution<MultiCursorSelectionController>(MultiCursorSelectionController);
 			let addSelectionToNextFindMatch = new AddSelectionToNextFindMatchAction();
 
@@ -157,7 +156,7 @@ suite('Multicursor selection', () => {
 			'abcabc',
 		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 
-			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let findController = editor.registerAndInstantiateContribution<CommonFindController>(CommonFindController);
 			let multiCursorSelectController = editor.registerAndInstantiateContribution<MultiCursorSelectionController>(MultiCursorSelectionController);
 			let addSelectionToNextFindMatch = new AddSelectionToNextFindMatchAction();
 
@@ -214,7 +213,7 @@ suite('Multicursor selection', () => {
 
 			editor.getModel().setEOL(EndOfLineSequence.CRLF);
 
-			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let findController = editor.registerAndInstantiateContribution<CommonFindController>(CommonFindController);
 			let multiCursorSelectController = editor.registerAndInstantiateContribution<MultiCursorSelectionController>(MultiCursorSelectionController);
 			let addSelectionToNextFindMatch = new AddSelectionToNextFindMatchAction();
 
@@ -235,10 +234,10 @@ suite('Multicursor selection', () => {
 		});
 	});
 
-	function testAddSelectionToNextFindMatchAction(text: string[], callback: (editor: MockCodeEditor, action: AddSelectionToNextFindMatchAction, findController: TestFindController) => void): void {
+	function testAddSelectionToNextFindMatchAction(text: string[], callback: (editor: MockCodeEditor, action: AddSelectionToNextFindMatchAction, findController: CommonFindController) => void): void {
 		withMockCodeEditor(text, { serviceCollection: serviceCollection }, (editor, cursor) => {
 
-			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let findController = editor.registerAndInstantiateContribution<CommonFindController>(CommonFindController);
 			let multiCursorSelectController = editor.registerAndInstantiateContribution<MultiCursorSelectionController>(MultiCursorSelectionController);
 
 			let action = new AddSelectionToNextFindMatchAction();

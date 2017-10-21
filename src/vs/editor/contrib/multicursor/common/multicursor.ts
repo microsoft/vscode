@@ -243,19 +243,9 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 			currentMatch: currentMatch
 		};
 	}
-}
 
-function multiCursorFind(editor: ICommonCodeEditor, input: IMultiCursorFindInput): IMultiCursorFindResult {
-	let controller = MultiCursorSelectionController.get(editor);
-	if (!controller) {
-		return null;
-	}
-	return controller.multiCursorFind(input);
-}
-
-export abstract class SelectNextFindMatchAction extends EditorAction {
-	protected _getNextMatch(editor: ICommonCodeEditor): Selection {
-		let r = multiCursorFind(editor, {
+	private _getNextMatch(): Selection {
+		let r = this.multiCursorFind({
 			changeFindSearchString: true,
 			allowMultiline: true,
 			highlightFindOptions: true
@@ -267,10 +257,10 @@ export abstract class SelectNextFindMatchAction extends EditorAction {
 			return r.currentMatch;
 		}
 
-		let allSelections = editor.getSelections();
+		let allSelections = this._editor.getSelections();
 		let lastAddedSelection = allSelections[allSelections.length - 1];
 
-		let nextMatch = editor.getModel().findNextMatch(r.searchText, lastAddedSelection.getEndPosition(), false, r.matchCase, r.wholeWord ? editor.getConfiguration().wordSeparators : null, false);
+		let nextMatch = this._editor.getModel().findNextMatch(r.searchText, lastAddedSelection.getEndPosition(), false, r.matchCase, r.wholeWord ? this._editor.getConfiguration().wordSeparators : null, false);
 
 		if (!nextMatch) {
 			return null;
@@ -278,11 +268,9 @@ export abstract class SelectNextFindMatchAction extends EditorAction {
 
 		return new Selection(nextMatch.range.startLineNumber, nextMatch.range.startColumn, nextMatch.range.endLineNumber, nextMatch.range.endColumn);
 	}
-}
 
-export abstract class SelectPreviousFindMatchAction extends EditorAction {
-	protected _getPreviousMatch(editor: ICommonCodeEditor): Selection {
-		let r = multiCursorFind(editor, {
+	private _getPreviousMatch(): Selection {
+		let r = this.multiCursorFind({
 			changeFindSearchString: true,
 			allowMultiline: true,
 			highlightFindOptions: true
@@ -294,10 +282,10 @@ export abstract class SelectPreviousFindMatchAction extends EditorAction {
 			return r.currentMatch;
 		}
 
-		let allSelections = editor.getSelections();
+		let allSelections = this._editor.getSelections();
 		let lastAddedSelection = allSelections[allSelections.length - 1];
 
-		let previousMatch = editor.getModel().findPreviousMatch(r.searchText, lastAddedSelection.getStartPosition(), false, r.matchCase, r.wholeWord ? editor.getConfiguration().wordSeparators : null, false);
+		let previousMatch = this._editor.getModel().findPreviousMatch(r.searchText, lastAddedSelection.getStartPosition(), false, r.matchCase, r.wholeWord ? this._editor.getConfiguration().wordSeparators : null, false);
 
 		if (!previousMatch) {
 			return null;
@@ -305,31 +293,14 @@ export abstract class SelectPreviousFindMatchAction extends EditorAction {
 
 		return new Selection(previousMatch.range.startLineNumber, previousMatch.range.startColumn, previousMatch.range.endLineNumber, previousMatch.range.endColumn);
 	}
-}
 
-@editorAction
-export class AddSelectionToNextFindMatchAction extends SelectNextFindMatchAction {
-
-	constructor() {
-		super({
-			id: 'editor.action.addSelectionToNextFindMatch',
-			label: nls.localize('addSelectionToNextFindMatch', "Add Selection To Next Find Match"),
-			alias: 'Add Selection To Next Find Match',
-			precondition: null,
-			kbOpts: {
-				kbExpr: EditorContextKeys.focus,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_D
-			}
-		});
-	}
-
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
-		const allSelections = editor.getSelections();
+	public addSelectionToNextFindMatch(): void {
+		const allSelections = this._editor.getSelections();
 
 		// If there are mulitple cursors, handle the case where they do not all select the same text.
 		if (allSelections.length > 1) {
-			const model = editor.getModel();
-			const controller = CommonFindController.get(editor);
+			const model = this._editor.getModel();
+			const controller = CommonFindController.get(this._editor);
 			if (!controller) {
 				return;
 			}
@@ -364,7 +335,7 @@ export class AddSelectionToNextFindMatchAction extends SelectNextFindMatchAction
 				for (let i = 0, len = allSelections.length; i < len; i++) {
 					let selection = allSelections[i];
 					if (selection.isEmpty()) {
-						let word = editor.getModel().getWordAtPosition(selection.getStartPosition());
+						let word = this._editor.getModel().getWordAtPosition(selection.getStartPosition());
 						if (word) {
 							resultingSelections[i] = new Selection(selection.startLineNumber, word.startColumn, selection.startLineNumber, word.endColumn);
 							continue;
@@ -372,24 +343,102 @@ export class AddSelectionToNextFindMatchAction extends SelectNextFindMatchAction
 					}
 					resultingSelections[i] = selection;
 				}
-				editor.setSelections(resultingSelections);
+				this._editor.setSelections(resultingSelections);
 				return;
 			}
 		}
 
-		let nextMatch = this._getNextMatch(editor);
+		let nextMatch = this._getNextMatch();
 
 		if (!nextMatch) {
 			return;
 		}
 
-		editor.setSelections(allSelections.concat(nextMatch));
-		editor.revealRangeInCenterIfOutsideViewport(nextMatch, ScrollType.Smooth);
+		this._editor.setSelections(allSelections.concat(nextMatch));
+		this._editor.revealRangeInCenterIfOutsideViewport(nextMatch, ScrollType.Smooth);
+	}
+
+	public addSelectionToPreviousFindMatch(): void {
+		let previousMatch = this._getPreviousMatch();
+
+		if (!previousMatch) {
+			return;
+		}
+
+		let allSelections = this._editor.getSelections();
+		this._editor.setSelections(allSelections.concat(previousMatch));
+		this._editor.revealRangeInCenterIfOutsideViewport(previousMatch, ScrollType.Smooth);
+	}
+
+	public moveSelectionToNextFindMatch(): void {
+		let nextMatch = this._getNextMatch();
+
+		if (!nextMatch) {
+			return;
+		}
+
+		let allSelections = this._editor.getSelections();
+		this._editor.setSelections(allSelections.slice(0, allSelections.length - 1).concat(nextMatch));
+		this._editor.revealRangeInCenterIfOutsideViewport(nextMatch, ScrollType.Smooth);
+	}
+
+	public moveSelectionToPreviousFindMatch(): void {
+		let previousMatch = this._getPreviousMatch();
+
+		if (!previousMatch) {
+			return;
+		}
+
+		let allSelections = this._editor.getSelections();
+		this._editor.setSelections(allSelections.slice(0, allSelections.length - 1).concat(previousMatch));
+		this._editor.revealRangeInCenterIfOutsideViewport(previousMatch, ScrollType.Smooth);
+	}
+}
+
+export abstract class MultiCursorSelectionControllerAction extends EditorAction {
+
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+		const controller = MultiCursorSelectionController.get(editor);
+		if (!controller) {
+			return;
+		}
+		this._run(controller);
+	}
+
+	protected abstract _run(controller: MultiCursorSelectionController): void;
+}
+
+function multiCursorFind(editor: ICommonCodeEditor, input: IMultiCursorFindInput): IMultiCursorFindResult {
+	let controller = MultiCursorSelectionController.get(editor);
+	if (!controller) {
+		return null;
+	}
+	return controller.multiCursorFind(input);
+}
+
+@editorAction
+export class AddSelectionToNextFindMatchAction extends MultiCursorSelectionControllerAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.addSelectionToNextFindMatch',
+			label: nls.localize('addSelectionToNextFindMatch', "Add Selection To Next Find Match"),
+			alias: 'Add Selection To Next Find Match',
+			precondition: null,
+			kbOpts: {
+				kbExpr: EditorContextKeys.focus,
+				primary: KeyMod.CtrlCmd | KeyCode.KEY_D
+			}
+		});
+	}
+
+	protected _run(controller: MultiCursorSelectionController): void {
+		controller.addSelectionToNextFindMatch();
 	}
 }
 
 @editorAction
-export class AddSelectionToPreviousFindMatchAction extends SelectPreviousFindMatchAction {
+export class AddSelectionToPreviousFindMatchAction extends MultiCursorSelectionControllerAction {
 
 	constructor() {
 		super({
@@ -400,21 +449,13 @@ export class AddSelectionToPreviousFindMatchAction extends SelectPreviousFindMat
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
-		let previousMatch = this._getPreviousMatch(editor);
-
-		if (!previousMatch) {
-			return;
-		}
-
-		let allSelections = editor.getSelections();
-		editor.setSelections(allSelections.concat(previousMatch));
-		editor.revealRangeInCenterIfOutsideViewport(previousMatch, ScrollType.Smooth);
+	protected _run(controller: MultiCursorSelectionController): void {
+		controller.addSelectionToPreviousFindMatch();
 	}
 }
 
 @editorAction
-export class MoveSelectionToNextFindMatchAction extends SelectNextFindMatchAction {
+export class MoveSelectionToNextFindMatchAction extends MultiCursorSelectionControllerAction {
 
 	constructor() {
 		super({
@@ -429,21 +470,13 @@ export class MoveSelectionToNextFindMatchAction extends SelectNextFindMatchActio
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
-		let nextMatch = this._getNextMatch(editor);
-
-		if (!nextMatch) {
-			return;
-		}
-
-		let allSelections = editor.getSelections();
-		editor.setSelections(allSelections.slice(0, allSelections.length - 1).concat(nextMatch));
-		editor.revealRangeInCenterIfOutsideViewport(nextMatch, ScrollType.Smooth);
+	protected _run(controller: MultiCursorSelectionController): void {
+		controller.moveSelectionToNextFindMatch();
 	}
 }
 
 @editorAction
-export class MoveSelectionToPreviousFindMatchAction extends SelectPreviousFindMatchAction {
+export class MoveSelectionToPreviousFindMatchAction extends MultiCursorSelectionControllerAction {
 
 	constructor() {
 		super({
@@ -454,16 +487,8 @@ export class MoveSelectionToPreviousFindMatchAction extends SelectPreviousFindMa
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
-		let previousMatch = this._getPreviousMatch(editor);
-
-		if (!previousMatch) {
-			return;
-		}
-
-		let allSelections = editor.getSelections();
-		editor.setSelections(allSelections.slice(0, allSelections.length - 1).concat(previousMatch));
-		editor.revealRangeInCenterIfOutsideViewport(previousMatch, ScrollType.Smooth);
+	protected _run(controller: MultiCursorSelectionController): void {
+		controller.moveSelectionToPreviousFindMatch();
 	}
 }
 
