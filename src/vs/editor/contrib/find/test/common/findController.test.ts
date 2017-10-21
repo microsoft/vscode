@@ -15,7 +15,8 @@ import { EndOfLineSequence, ICommonCodeEditor, Handler } from 'vs/editor/common/
 import {
 	CommonFindController, FindStartFocusAction, IFindStartOptions,
 	NextMatchFindAction, StartFindAction, SelectHighlightsAction,
-	AddSelectionToNextFindMatchAction
+	AddSelectionToNextFindMatchAction,
+	MultiCursorSelectionController
 } from 'vs/editor/contrib/find/common/findController';
 import { MockCodeEditor, withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
 import { HistoryNavigator } from 'vs/base/common/history';
@@ -196,6 +197,7 @@ suite('FindController', () => {
 		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let multiCursorSelectController = editor.registerAndInstantiateContribution<MultiCursorSelectionController>(MultiCursorSelectionController);
 			let selectHighlightsAction = new SelectHighlightsAction();
 
 			editor.setSelection(new Selection(2, 9, 2, 16));
@@ -211,6 +213,7 @@ suite('FindController', () => {
 
 			assert.deepEqual(fromRange(editor.getSelection()), [2, 9, 2, 16]);
 
+			multiCursorSelectController.dispose();
 			findController.dispose();
 		});
 	});
@@ -394,6 +397,7 @@ suite('FindController', () => {
 		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let multiCursorSelectController = editor.registerAndInstantiateContribution<MultiCursorSelectionController>(MultiCursorSelectionController);
 			let addSelectionToNextFindMatch = new AddSelectionToNextFindMatchAction();
 
 			editor.setSelection(new Selection(2, 1, 3, 4));
@@ -408,6 +412,7 @@ suite('FindController', () => {
 
 			assert.deepEqual(fromRange(editor.getSelection()), [2, 1, 3, 4]);
 
+			multiCursorSelectController.dispose();
 			findController.dispose();
 		});
 	});
@@ -420,6 +425,7 @@ suite('FindController', () => {
 		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let multiCursorSelectController = editor.registerAndInstantiateContribution<MultiCursorSelectionController>(MultiCursorSelectionController);
 			let addSelectionToNextFindMatch = new AddSelectionToNextFindMatchAction();
 
 			editor.setSelection(new Selection(1, 1, 1, 4));
@@ -455,6 +461,7 @@ suite('FindController', () => {
 				'zz',
 			].join('\n'));
 
+			multiCursorSelectController.dispose();
 			findController.dispose();
 		});
 	});
@@ -475,6 +482,7 @@ suite('FindController', () => {
 			editor.getModel().setEOL(EndOfLineSequence.CRLF);
 
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let multiCursorSelectController = editor.registerAndInstantiateContribution<MultiCursorSelectionController>(MultiCursorSelectionController);
 			let addSelectionToNextFindMatch = new AddSelectionToNextFindMatchAction();
 
 			editor.setSelection(new Selection(2, 1, 3, 4));
@@ -489,6 +497,7 @@ suite('FindController', () => {
 
 			assert.deepEqual(fromRange(editor.getSelection()), [2, 1, 3, 4]);
 
+			multiCursorSelectController.dispose();
 			findController.dispose();
 		});
 	});
@@ -560,11 +569,13 @@ suite('FindController', () => {
 		withMockCodeEditor(text, { serviceCollection: serviceCollection }, (editor, cursor) => {
 
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let multiCursorSelectController = editor.registerAndInstantiateContribution<MultiCursorSelectionController>(MultiCursorSelectionController);
 
 			let action = new AddSelectionToNextFindMatchAction();
 
 			callback(editor, action, findController);
 
+			multiCursorSelectController.dispose();
 			findController.dispose();
 		});
 	}

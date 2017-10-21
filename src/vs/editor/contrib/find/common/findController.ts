@@ -529,61 +529,94 @@ export interface IMultiCursorFindResult {
 	currentMatch: Selection;
 }
 
+@commonEditorContribution
+export class MultiCursorSelectionController extends Disposable implements editorCommon.IEditorContribution {
+
+	private static ID = 'editor.contrib.multiCursorController';
+
+	private readonly _editor: editorCommon.ICommonCodeEditor;
+
+	public static get(editor: editorCommon.ICommonCodeEditor): MultiCursorSelectionController {
+		return editor.getContribution<MultiCursorSelectionController>(MultiCursorSelectionController.ID);
+	}
+
+	constructor(editor: editorCommon.ICommonCodeEditor) {
+		super();
+		this._editor = editor;
+	}
+
+	public dispose(): void {
+		super.dispose();
+	}
+
+	public getId(): string {
+		return MultiCursorSelectionController.ID;
+	}
+
+	public multiCursorFind(input: IMultiCursorFindInput): IMultiCursorFindResult {
+		let controller = CommonFindController.get(this._editor);
+		if (!controller) {
+			return null;
+		}
+		let state = controller.getState();
+		let searchText: string;
+		let currentMatch: Selection;
+
+		// In any case, if the find widget was ever opened, the options are taken from it
+		let wholeWord = state.wholeWord;
+		let matchCase = state.matchCase;
+
+		// Find widget owns what we search for if:
+		//  - focus is not in the editor (i.e. it is in the find widget)
+		//  - and the search widget is visible
+		//  - and the search string is non-empty
+		if (!this._editor.isFocused() && state.isRevealed && state.searchString.length > 0) {
+			// Find widget owns what is searched for
+			searchText = state.searchString;
+		} else {
+			// Selection owns what is searched for
+			let s = this._editor.getSelection();
+
+			if (s.startLineNumber !== s.endLineNumber && !input.allowMultiline) {
+				// multiline forbidden
+				return null;
+			}
+
+			if (s.isEmpty()) {
+				// selection is empty => expand to current word
+				let word = this._editor.getModel().getWordAtPosition(s.getStartPosition());
+				if (!word) {
+					return null;
+				}
+				searchText = word.word;
+				currentMatch = new Selection(s.startLineNumber, word.startColumn, s.startLineNumber, word.endColumn);
+			} else {
+				searchText = this._editor.getModel().getValueInRange(s).replace(/\r\n/g, '\n');
+			}
+			if (input.changeFindSearchString) {
+				controller.setSearchString(searchText);
+			}
+		}
+
+		if (input.highlightFindOptions) {
+			controller.highlightFindOptions();
+		}
+
+		return {
+			searchText: searchText,
+			matchCase: matchCase,
+			wholeWord: wholeWord,
+			currentMatch: currentMatch
+		};
+	}
+}
+
 function multiCursorFind(editor: editorCommon.ICommonCodeEditor, input: IMultiCursorFindInput): IMultiCursorFindResult {
-	let controller = CommonFindController.get(editor);
+	let controller = MultiCursorSelectionController.get(editor);
 	if (!controller) {
 		return null;
 	}
-	let state = controller.getState();
-	let searchText: string;
-	let currentMatch: Selection;
-
-	// In any case, if the find widget was ever opened, the options are taken from it
-	let wholeWord = state.wholeWord;
-	let matchCase = state.matchCase;
-
-	// Find widget owns what we search for if:
-	//  - focus is not in the editor (i.e. it is in the find widget)
-	//  - and the search widget is visible
-	//  - and the search string is non-empty
-	if (!editor.isFocused() && state.isRevealed && state.searchString.length > 0) {
-		// Find widget owns what is searched for
-		searchText = state.searchString;
-	} else {
-		// Selection owns what is searched for
-		let s = editor.getSelection();
-
-		if (s.startLineNumber !== s.endLineNumber && !input.allowMultiline) {
-			// multiline forbidden
-			return null;
-		}
-
-		if (s.isEmpty()) {
-			// selection is empty => expand to current word
-			let word = editor.getModel().getWordAtPosition(s.getStartPosition());
-			if (!word) {
-				return null;
-			}
-			searchText = word.word;
-			currentMatch = new Selection(s.startLineNumber, word.startColumn, s.startLineNumber, word.endColumn);
-		} else {
-			searchText = editor.getModel().getValueInRange(s).replace(/\r\n/g, '\n');
-		}
-		if (input.changeFindSearchString) {
-			controller.setSearchString(searchText);
-		}
-	}
-
-	if (input.highlightFindOptions) {
-		controller.highlightFindOptions();
-	}
-
-	return {
-		searchText: searchText,
-		matchCase: matchCase,
-		wholeWord: wholeWord,
-		currentMatch: currentMatch
-	};
+	return controller.multiCursorFind(input);
 }
 
 export abstract class SelectNextFindMatchAction extends EditorAction {
