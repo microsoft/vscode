@@ -199,28 +199,6 @@ export class CreateNewTerminalAction extends Action {
 
 	public static ID = 'workbench.action.terminal.new';
 	public static LABEL = nls.localize('workbench.action.terminal.new', "Create New Integrated Terminal");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	public run(event?: any): TPromise<any> {
-		const instance = this.terminalService.createInstance(undefined, true);
-		if (!instance) {
-			return TPromise.as(void 0);
-		}
-		this.terminalService.setActiveInstance(instance);
-		return this.terminalService.showPanel(true);
-	}
-}
-
-export class CreateNewSelectWorkspaceTerminalAction extends Action {
-
-	public static ID = 'workbench.action.terminal.newSelectWorkspace';
-	public static LABEL = nls.localize('workbench.action.terminal.newSelectWorkspace', "Create New Integrated Terminal (Select Workspace)");
 	public static PANEL_LABEL = nls.localize('workbench.action.terminal.new.short', "New Terminal");
 
 	constructor(
