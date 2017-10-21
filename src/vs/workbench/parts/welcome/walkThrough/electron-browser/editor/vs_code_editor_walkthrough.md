@@ -28,7 +28,7 @@ That is the tip of the iceberg for multi-cursor editing have a look at the `sele
 #p3 {background-color: #0000ff;}   /* blue */
 ```
 
-> **CSS Tip:** you may have noticed in the example above for CSS we also provide color swatches inline, additionally if you hover over an element such as `#p1` we will show how this is represented in HTML.  A simple example of some language specific editor features.
+> **CSS Tip:** you may have noticed in the example above for CSS we also provide color swatches inline, additionally if you hover over an element such as `#p1` we will show how this is represented in HTML.  These swatches also act as color pickers that allow you to easily change a color value.  A simple example of some language specific editor features.
 
 ### IntelliSense
 
