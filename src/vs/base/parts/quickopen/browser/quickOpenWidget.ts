@@ -32,6 +32,7 @@ export interface IQuickOpenCallbacks {
 	onOk: () => void;
 	onCancel: () => void;
 	onType: (value: string) => void;
+	onKeyDown?: (e: KeyboardEvent, value: string) => string;
 	onShow?: () => void;
 	onHide?: (reason: HideReason) => void;
 	onFocusLost?: () => boolean /* veto close */;
@@ -223,6 +224,9 @@ export class QuickOpenWidget implements IModelProvider {
 					}
 				});
 
+				DOM.addDisposableListener(this.inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+					this.onKeyDown(e);
+				});
 				DOM.addDisposableListener(this.inputBox.inputElement, DOM.EventType.INPUT, (e: Event) => {
 					this.onType();
 				});
@@ -403,6 +407,12 @@ export class QuickOpenWidget implements IModelProvider {
 		return this.inputBox.inputElement.selectionEnd === this.inputBox.value.length;
 	}
 
+	private onKeyDown(e: KeyboardEvent): void {
+		const value = this.inputBox.value;
+		if (this.callbacks.onKeyDown) {
+			this.inputBox.value = this.callbacks.onKeyDown(e, value);
+		}
+	}
 	private onType(): void {
 		const value = this.inputBox.value;
 

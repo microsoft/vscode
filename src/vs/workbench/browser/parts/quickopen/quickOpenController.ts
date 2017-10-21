@@ -71,6 +71,7 @@ interface IInternalPickOptions {
 	ignoreFocusLost?: boolean;
 	quickNavigateConfiguration?: IQuickNavigateConfiguration;
 	onDidType?: (value: string) => any;
+	onKeyDown?: (e: KeyboardEvent, value: string) => string;
 }
 
 export class QuickOpenController extends Component implements IQuickOpenService {
@@ -163,7 +164,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		if (this.pickOpenWidget && this.pickOpenWidget.isVisible()) {
 			this.pickOpenWidget.hide(HideReason.CANCELED);
 		}
-
+		// options.handleKeyDown = (e, value) => {console.log(e, value); return value.trim();};
 		const defaultMessage = options.prompt
 			? nls.localize('inputModeEntryDescription', "{0} (Press 'Enter' to confirm or 'Escape' to cancel)", options.prompt)
 			: nls.localize('inputModeEntry', "Press 'Enter' to confirm your input or 'Escape' to cancel");
@@ -209,7 +210,8 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 							// ignore
 						});
 					}
-				}
+				},
+				onKeyDown: options.handleKeyDown
 			}, token).then(resolve, reject);
 		};
 
@@ -286,7 +288,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 				{
 					onOk: () => { /* ignore, handle later */ },
 					onCancel: () => { /* ignore, handle later */ },
-					onType: (value: string) => { /* ignore, handle later */ },
+					onType: (value: string) => { /* ignore, handle later*/ },
 					onShow: () => this.handleOnShow(true),
 					onHide: (reason) => this.handleOnHide(true, reason)
 				}, {
@@ -334,7 +336,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 			this.pickOpenWidget.setCallbacks({
 				onCancel: () => { complete(void 0); },
 				onOk: () => { /* ignore, handle later */ },
-				onType: (value: string) => { /* ignore, handle later */ },
+				onType: (value: string) => { /* ignore, handle later */ }
 			});
 
 			// hide widget when being cancelled
@@ -443,6 +445,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 
 						this.pickOpenWidget.refresh(model, value ? { autoFocusFirstEntry: true } : autoFocus);
 					},
+					onKeyDown: (e: KeyboardEvent, value: string) => options.onKeyDown(e, value),
 					onShow: () => this.handleOnShow(true),
 					onHide: (reason: HideReason) => this.handleOnHide(true, reason)
 				};
