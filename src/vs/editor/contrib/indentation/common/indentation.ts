@@ -323,7 +323,9 @@ export class ReindentLinesAction extends EditorAction {
 		}
 		let edits = getReindentEditOperations(model, 1, model.getLineCount());
 		if (edits) {
+			editor.pushUndoStop();
 			editor.executeEdits(this.id, edits);
+			editor.pushUndoStop();
 		}
 	}
 }
