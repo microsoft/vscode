@@ -126,6 +126,7 @@ export class EnvironmentService implements IEnvironmentService {
 	get nodeCachedDataDir(): string { return this.isBuilt ? path.join(this.userDataPath, 'CachedData', product.commit || new Array(41).join('0')) : undefined; }
 
 	get disableUpdates(): boolean { return !!this._args['disable-updates']; }
+	get disableCrashReporter(): boolean { return !!this._args['disable-crash-reporter']; }
 
 	readonly machineUUID: string;
 

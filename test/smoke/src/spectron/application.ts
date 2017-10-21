@@ -143,6 +143,11 @@ export class SpectronApplication {
 		// Disable updates
 		args.push('--disable-updates');
 
+		// Disable crash reporter
+		// This seems to be the fix for the strange hangups in which Code stays unresponsive
+		// and tests finish badly with timeouts, leaving Code running in the background forever
+		args.push('--disable-crash-reporter');
+
 		// Ensure that running over custom extensions directory, rather than picking up the one that was used by a tester previously
 		args.push(`--extensions-dir=${EXTENSIONS_DIR}`);
 

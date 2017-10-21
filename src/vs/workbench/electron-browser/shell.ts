@@ -342,7 +342,7 @@ export class WorkbenchShell {
 		disposables.push(configurationTelemetry(this.telemetryService, this.configurationService));
 
 		let crashReporterService = NullCrashReporterService;
-		if (product.crashReporter && product.hockeyApp) {
+		if (!this.environmentService.disableCrashReporter && product.crashReporter && product.hockeyApp) {
 			crashReporterService = instantiationService.createInstance(CrashReporterService);
 		}
 		serviceCollection.set(ICrashReporterService, crashReporterService);
