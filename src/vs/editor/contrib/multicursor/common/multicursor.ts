@@ -223,11 +223,10 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 		this._disconnectDispose = dispose(this._disconnectDispose);
 	}
 
-	private _setSelections(selections: Selection[], revealRange: Range, scrollType: ScrollType): void {
+	private _setSelections(selections: Selection[]): void {
 		this._ignoreSelectionChange = true;
 		this._editor.setSelections(selections);
 		this._ignoreSelectionChange = false;
-		this._editor.revealRangeInCenterIfOutsideViewport(revealRange, scrollType);
 	}
 
 	private _getSearchSettings(findController: CommonFindController): SearchSettings {
@@ -406,7 +405,8 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 			this._beginFindControllerDisconnect();
 		}
 
-		this._setSelections(allSelections.concat(nextMatch), nextMatch, ScrollType.Smooth);
+		this._setSelections(allSelections.concat(nextMatch));
+		this._editor.revealRangeInCenterIfOutsideViewport(nextMatch, ScrollType.Smooth);
 	}
 
 	public addSelectionToPreviousFindMatch(findController: CommonFindController): void {
@@ -417,7 +417,8 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 		}
 
 		let allSelections = this._editor.getSelections();
-		this._setSelections(allSelections.concat(previousMatch), previousMatch, ScrollType.Smooth);
+		this._setSelections(allSelections.concat(previousMatch));
+		this._editor.revealRangeInCenterIfOutsideViewport(previousMatch, ScrollType.Smooth);
 	}
 
 	public moveSelectionToNextFindMatch(findController: CommonFindController): void {
@@ -428,7 +429,8 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 		}
 
 		let allSelections = this._editor.getSelections();
-		this._setSelections(allSelections.slice(0, allSelections.length - 1).concat(nextMatch), nextMatch, ScrollType.Smooth);
+		this._setSelections(allSelections.slice(0, allSelections.length - 1).concat(nextMatch));
+		this._editor.revealRangeInCenterIfOutsideViewport(nextMatch, ScrollType.Smooth);
 	}
 
 	public moveSelectionToPreviousFindMatch(findController: CommonFindController): void {
@@ -439,7 +441,54 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 		}
 
 		let allSelections = this._editor.getSelections();
-		this._setSelections(allSelections.slice(0, allSelections.length - 1).concat(previousMatch), previousMatch, ScrollType.Smooth);
+		this._setSelections(allSelections.slice(0, allSelections.length - 1).concat(previousMatch));
+		this._editor.revealRangeInCenterIfOutsideViewport(previousMatch, ScrollType.Smooth);
+	}
+
+	public selectAll(findController: CommonFindController): void {
+		let matches: FindMatch[] = null;
+
+		const findState = findController.getState();
+		if (findState.isRevealed && findState.searchString.length > 0 && findState.isRegex) {
+
+			matches = this._editor.getModel().findMatches(findState.searchString, true, findState.isRegex, findState.matchCase, findState.wholeWord ? this._editor.getConfiguration().wordSeparators : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
+
+		} else {
+
+			const r = this.multiCursorFind(findController, {
+				changeFindSearchString: true,
+				allowMultiline: true,
+				highlightFindOptions: true
+			});
+			if (!r) {
+				return;
+			}
+
+			matches = this._editor.getModel().findMatches(r.searchText, true, false, r.matchCase, r.wholeWord ? this._editor.getConfiguration().wordSeparators : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
+		}
+
+		if (matches.length > 0) {
+			const editorSelection = this._editor.getSelection();
+			// Have the primary cursor remain the one where the action was invoked
+			for (let i = 0, len = matches.length; i < len; i++) {
+				const match = matches[i];
+				const intersection = match.range.intersectRanges(editorSelection);
+				if (intersection) {
+					// bingo!
+					matches[i] = matches[0];
+					matches[0] = match;
+					break;
+				}
+			}
+
+			const allSelections = this._editor.getSelections();
+			if (allSelections.length === 1 && allSelections[0].isEmpty()) {
+				// Enter find state disassociation
+				this._beginFindControllerDisconnect();
+			}
+
+			this._setSelections(matches.map(m => new Selection(m.range.startLineNumber, m.range.startColumn, m.range.endLineNumber, m.range.endColumn)));
+		}
 	}
 }
 
@@ -474,7 +523,6 @@ function multiCursorFind(editor: ICommonCodeEditor, input: IMultiCursorFindInput
 
 @editorAction
 export class AddSelectionToNextFindMatchAction extends MultiCursorSelectionControllerAction {
-
 	constructor() {
 		super({
 			id: 'editor.action.addSelectionToNextFindMatch',
@@ -487,7 +535,6 @@ export class AddSelectionToNextFindMatchAction extends MultiCursorSelectionContr
 			}
 		});
 	}
-
 	protected _run(multiCursorController: MultiCursorSelectionController, findController: CommonFindController): void {
 		multiCursorController.addSelectionToNextFindMatch(findController);
 	}
@@ -495,7 +542,6 @@ export class AddSelectionToNextFindMatchAction extends MultiCursorSelectionContr
 
 @editorAction
 export class AddSelectionToPreviousFindMatchAction extends MultiCursorSelectionControllerAction {
-
 	constructor() {
 		super({
 			id: 'editor.action.addSelectionToPreviousFindMatch',
@@ -504,7 +550,6 @@ export class AddSelectionToPreviousFindMatchAction extends MultiCursorSelectionC
 			precondition: null
 		});
 	}
-
 	protected _run(multiCursorController: MultiCursorSelectionController, findController: CommonFindController): void {
 		multiCursorController.addSelectionToPreviousFindMatch(findController);
 	}
@@ -512,7 +557,6 @@ export class AddSelectionToPreviousFindMatchAction extends MultiCursorSelectionC
 
 @editorAction
 export class MoveSelectionToNextFindMatchAction extends MultiCursorSelectionControllerAction {
-
 	constructor() {
 		super({
 			id: 'editor.action.moveSelectionToNextFindMatch',
@@ -525,7 +569,6 @@ export class MoveSelectionToNextFindMatchAction extends MultiCursorSelectionCont
 			}
 		});
 	}
-
 	protected _run(multiCursorController: MultiCursorSelectionController, findController: CommonFindController): void {
 		multiCursorController.moveSelectionToNextFindMatch(findController);
 	}
@@ -533,7 +576,6 @@ export class MoveSelectionToNextFindMatchAction extends MultiCursorSelectionCont
 
 @editorAction
 export class MoveSelectionToPreviousFindMatchAction extends MultiCursorSelectionControllerAction {
-
 	constructor() {
 		super({
 			id: 'editor.action.moveSelectionToPreviousFindMatch',
@@ -542,59 +584,13 @@ export class MoveSelectionToPreviousFindMatchAction extends MultiCursorSelection
 			precondition: null
 		});
 	}
-
 	protected _run(multiCursorController: MultiCursorSelectionController, findController: CommonFindController): void {
 		multiCursorController.moveSelectionToPreviousFindMatch(findController);
 	}
 }
 
-export abstract class AbstractSelectHighlightsAction extends EditorAction {
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
-		const controller = CommonFindController.get(editor);
-		if (!controller) {
-			return null;
-		}
-
-		let matches: FindMatch[] = null;
-
-		const findState = controller.getState();
-		if (findState.isRevealed && findState.isRegex && findState.searchString.length > 0) {
-
-			matches = editor.getModel().findMatches(findState.searchString, true, findState.isRegex, findState.matchCase, findState.wholeWord ? editor.getConfiguration().wordSeparators : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
-
-		} else {
-
-			const r = multiCursorFind(editor, {
-				changeFindSearchString: true,
-				allowMultiline: true,
-				highlightFindOptions: true
-			});
-			if (!r) {
-				return;
-			}
-
-			matches = editor.getModel().findMatches(r.searchText, true, false, r.matchCase, r.wholeWord ? editor.getConfiguration().wordSeparators : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
-		}
-
-		if (matches.length > 0) {
-			const editorSelection = editor.getSelection();
-			for (let i = 0, len = matches.length; i < len; i++) {
-				const match = matches[i];
-				let intersection = match.range.intersectRanges(editorSelection);
-				if (intersection) {
-					// bingo!
-					matches.splice(i, 1);
-					matches.unshift(match);
-					break;
-				}
-			}
-			editor.setSelections(matches.map(m => new Selection(m.range.startLineNumber, m.range.startColumn, m.range.endLineNumber, m.range.endColumn)));
-		}
-	}
-}
-
 @editorAction
-export class SelectHighlightsAction extends AbstractSelectHighlightsAction {
+export class SelectHighlightsAction extends MultiCursorSelectionControllerAction {
 	constructor() {
 		super({
 			id: 'editor.action.selectHighlights',
@@ -607,10 +603,13 @@ export class SelectHighlightsAction extends AbstractSelectHighlightsAction {
 			}
 		});
 	}
+	protected _run(multiCursorController: MultiCursorSelectionController, findController: CommonFindController): void {
+		multiCursorController.selectAll(findController);
+	}
 }
 
 @editorAction
-export class CompatChangeAll extends AbstractSelectHighlightsAction {
+export class CompatChangeAll extends MultiCursorSelectionControllerAction {
 	constructor() {
 		super({
 			id: 'editor.action.changeAll',
@@ -626,6 +625,9 @@ export class CompatChangeAll extends AbstractSelectHighlightsAction {
 				order: 1.2
 			}
 		});
+	}
+	protected _run(multiCursorController: MultiCursorSelectionController, findController: CommonFindController): void {
+		multiCursorController.selectAll(findController);
 	}
 }
 

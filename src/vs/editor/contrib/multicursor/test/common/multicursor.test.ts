@@ -97,6 +97,7 @@ suite('Multicursor selection', () => {
 		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 
 			let findController = editor.registerAndInstantiateContribution<CommonFindController>(CommonFindController);
+			let multiCursorSelectController = editor.registerAndInstantiateContribution<MultiCursorSelectionController>(MultiCursorSelectionController);
 			let selectHighlightsAction = new SelectHighlightsAction();
 
 			editor.setSelection(new Selection(1, 1, 1, 1));
@@ -111,6 +112,7 @@ suite('Multicursor selection', () => {
 
 			assert.equal(findController.getState().searchString, 'some+thing');
 
+			multiCursorSelectController.dispose();
 			findController.dispose();
 		});
 	});
@@ -234,18 +236,22 @@ suite('Multicursor selection', () => {
 		});
 	});
 
-	function testAddSelectionToNextFindMatchAction(text: string[], callback: (editor: MockCodeEditor, action: AddSelectionToNextFindMatchAction, findController: CommonFindController) => void): void {
+	function testMulticursor(text: string[], callback: (editor: MockCodeEditor, findController: CommonFindController) => void): void {
 		withMockCodeEditor(text, { serviceCollection: serviceCollection }, (editor, cursor) => {
-
 			let findController = editor.registerAndInstantiateContribution<CommonFindController>(CommonFindController);
 			let multiCursorSelectController = editor.registerAndInstantiateContribution<MultiCursorSelectionController>(MultiCursorSelectionController);
 
-			let action = new AddSelectionToNextFindMatchAction();
-
-			callback(editor, action, findController);
+			callback(editor, findController);
 
 			multiCursorSelectController.dispose();
 			findController.dispose();
+		});
+	}
+
+	function testAddSelectionToNextFindMatchAction(text: string[], callback: (editor: MockCodeEditor, action: AddSelectionToNextFindMatchAction, findController: CommonFindController) => void): void {
+		testMulticursor(text, (editor, findController) => {
+			let action = new AddSelectionToNextFindMatchAction();
+			callback(editor, action, findController);
 		});
 	}
 
@@ -530,6 +536,29 @@ suite('Multicursor selection', () => {
 				assert.deepEqual(editor.getSelections(), [
 					new Selection(1, 1, 1, 4),
 					new Selection(2, 1, 2, 4),
+				]);
+			});
+		});
+
+		test('Select Highlights respects mode ', () => {
+			testMulticursor(text, (editor, findController) => {
+				let action = new SelectHighlightsAction();
+				editor.setSelections([
+					new Selection(1, 2, 1, 2),
+				]);
+
+				action.run(null, editor);
+				assert.deepEqual(editor.getSelections(), [
+					new Selection(1, 1, 1, 4),
+					new Selection(4, 1, 4, 4),
+					new Selection(6, 2, 6, 5),
+				]);
+
+				action.run(null, editor);
+				assert.deepEqual(editor.getSelections(), [
+					new Selection(1, 1, 1, 4),
+					new Selection(4, 1, 4, 4),
+					new Selection(6, 2, 6, 5),
 				]);
 			});
 		});
