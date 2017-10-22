@@ -466,4 +466,73 @@ suite('Multicursor selection', () => {
 			]);
 		});
 	});
+
+	suite('Find state disassociation', () => {
+
+		const text = [
+			'app',
+			'apples',
+			'whatsapp',
+			'app',
+			'App',
+			' app'
+		];
+
+		test('enters mode', () => {
+			testAddSelectionToNextFindMatchAction(text, (editor, action, findController) => {
+				editor.setSelections([
+					new Selection(1, 2, 1, 2),
+				]);
+
+				action.run(null, editor);
+				assert.deepEqual(editor.getSelections(), [
+					new Selection(1, 1, 1, 4),
+				]);
+
+				action.run(null, editor);
+				assert.deepEqual(editor.getSelections(), [
+					new Selection(1, 1, 1, 4),
+					new Selection(4, 1, 4, 4),
+				]);
+
+				action.run(null, editor);
+				assert.deepEqual(editor.getSelections(), [
+					new Selection(1, 1, 1, 4),
+					new Selection(4, 1, 4, 4),
+					new Selection(6, 2, 6, 5),
+				]);
+			});
+		});
+
+		test('leaves mode when selection changes', () => {
+			testAddSelectionToNextFindMatchAction(text, (editor, action, findController) => {
+				editor.setSelections([
+					new Selection(1, 2, 1, 2),
+				]);
+
+				action.run(null, editor);
+				assert.deepEqual(editor.getSelections(), [
+					new Selection(1, 1, 1, 4),
+				]);
+
+				action.run(null, editor);
+				assert.deepEqual(editor.getSelections(), [
+					new Selection(1, 1, 1, 4),
+					new Selection(4, 1, 4, 4),
+				]);
+
+				// change selection
+				editor.setSelections([
+					new Selection(1, 1, 1, 4),
+				]);
+
+				action.run(null, editor);
+				assert.deepEqual(editor.getSelections(), [
+					new Selection(1, 1, 1, 4),
+					new Selection(2, 1, 2, 4),
+				]);
+			});
+		});
+
+	});
 });

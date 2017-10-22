@@ -5,10 +5,10 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { ICommonCodeEditor, ScrollType, IEditorContribution, FindMatch, TrackedRangeStickiness, OverviewRulerLane } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, ScrollType, IEditorContribution, FindMatch, TrackedRangeStickiness, OverviewRulerLane, IModel } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { editorAction, commonEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { Range } from 'vs/editor/common/core/range';
@@ -163,12 +163,22 @@ export interface IMultiCursorFindResult {
 	currentMatch: Selection;
 }
 
+class SearchSettings {
+	constructor(
+		public readonly wholeWord: boolean,
+		public readonly matchCase: boolean,
+	) { }
+}
+
 @commonEditorContribution
 export class MultiCursorSelectionController extends Disposable implements IEditorContribution {
 
 	private static ID = 'editor.contrib.multiCursorController';
 
 	private readonly _editor: ICommonCodeEditor;
+	private _isDisconnectedFromFindController: boolean;
+	private _ignoreSelectionChange: boolean;
+	private _disconnectDispose: IDisposable[];
 
 	public static get(editor: ICommonCodeEditor): MultiCursorSelectionController {
 		return editor.getContribution<MultiCursorSelectionController>(MultiCursorSelectionController.ID);
@@ -177,6 +187,9 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 	constructor(editor: ICommonCodeEditor) {
 		super();
 		this._editor = editor;
+		this._isDisconnectedFromFindController = false;
+		this._ignoreSelectionChange = false;
+		this._disconnectDispose = [];
 	}
 
 	public dispose(): void {
@@ -187,29 +200,67 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 		return MultiCursorSelectionController.ID;
 	}
 
-	public multiCursorFind(input: IMultiCursorFindInput): IMultiCursorFindResult {
-		let controller = CommonFindController.get(this._editor);
-		if (!controller) {
-			return null;
+	private _beginFindControllerDisconnect(): void {
+		if (this._isDisconnectedFromFindController) {
+			return;
 		}
-		let state = controller.getState();
+		this._isDisconnectedFromFindController = true;
+		this._disconnectDispose = [
+			this._editor.onDidChangeCursorSelection((e) => {
+				if (this._ignoreSelectionChange) {
+					return;
+				}
+				this._endFindControllerDisconnect();
+			})
+		];
+	}
+
+	private _endFindControllerDisconnect(): void {
+		if (!this._isDisconnectedFromFindController) {
+			return;
+		}
+		this._isDisconnectedFromFindController = false;
+		this._disconnectDispose = dispose(this._disconnectDispose);
+	}
+
+	private _setSelections(selections: Selection[], revealRange: Range, scrollType: ScrollType): void {
+		this._ignoreSelectionChange = true;
+		this._editor.setSelections(selections);
+		this._ignoreSelectionChange = false;
+		this._editor.revealRangeInCenterIfOutsideViewport(revealRange, scrollType);
+	}
+
+	private _getSearchSettings(findController: CommonFindController): SearchSettings {
+		if (this._isDisconnectedFromFindController) {
+			// find state disassociation
+			return new SearchSettings(true, true);
+		}
+		const selections = this._editor.getSelections();
+		if (selections.length === 1 && selections[0].isEmpty()) {
+			// find state disassociation
+			return new SearchSettings(true, true);
+		}
+		const findState = findController.getState();
+		return new SearchSettings(findState.wholeWord, findState.matchCase);
+	}
+
+	public multiCursorFind(findController: CommonFindController, input: IMultiCursorFindInput): IMultiCursorFindResult {
+		const findState = findController.getState();
 		let searchText: string;
 		let currentMatch: Selection;
 
-		// In any case, if the find widget was ever opened, the options are taken from it
-		let wholeWord = state.wholeWord;
-		let matchCase = state.matchCase;
+		const { wholeWord, matchCase } = this._getSearchSettings(findController);
 
 		// Find widget owns what we search for if:
 		//  - focus is not in the editor (i.e. it is in the find widget)
 		//  - and the search widget is visible
 		//  - and the search string is non-empty
-		if (!this._editor.isFocused() && state.isRevealed && state.searchString.length > 0) {
+		if (!this._editor.isFocused() && findState.isRevealed && findState.searchString.length > 0) {
 			// Find widget owns what is searched for
-			searchText = state.searchString;
+			searchText = findState.searchString;
 		} else {
 			// Selection owns what is searched for
-			let s = this._editor.getSelection();
+			const s = this._editor.getSelection();
 
 			if (s.startLineNumber !== s.endLineNumber && !input.allowMultiline) {
 				// multiline forbidden
@@ -218,7 +269,7 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 
 			if (s.isEmpty()) {
 				// selection is empty => expand to current word
-				let word = this._editor.getModel().getWordAtPosition(s.getStartPosition());
+				const word = this._editor.getModel().getWordAtPosition(s.getStartPosition());
 				if (!word) {
 					return null;
 				}
@@ -228,12 +279,12 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 				searchText = this._editor.getModel().getValueInRange(s).replace(/\r\n/g, '\n');
 			}
 			if (input.changeFindSearchString) {
-				controller.setSearchString(searchText);
+				findController.setSearchString(searchText);
 			}
 		}
 
 		if (input.highlightFindOptions) {
-			controller.highlightFindOptions();
+			findController.highlightFindOptions();
 		}
 
 		return {
@@ -244,8 +295,8 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 		};
 	}
 
-	private _getNextMatch(): Selection {
-		let r = this.multiCursorFind({
+	private _getNextMatch(findController: CommonFindController): Selection {
+		let r = this.multiCursorFind(findController, {
 			changeFindSearchString: true,
 			allowMultiline: true,
 			highlightFindOptions: true
@@ -269,8 +320,8 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 		return new Selection(nextMatch.range.startLineNumber, nextMatch.range.startColumn, nextMatch.range.endLineNumber, nextMatch.range.endColumn);
 	}
 
-	private _getPreviousMatch(): Selection {
-		let r = this.multiCursorFind({
+	private _getPreviousMatch(findController: CommonFindController): Selection {
+		let r = this.multiCursorFind(findController, {
 			changeFindSearchString: true,
 			allowMultiline: true,
 			highlightFindOptions: true
@@ -294,126 +345,131 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 		return new Selection(previousMatch.range.startLineNumber, previousMatch.range.startColumn, previousMatch.range.endLineNumber, previousMatch.range.endColumn);
 	}
 
-	public addSelectionToNextFindMatch(): void {
+	private _getValueInRange(model: IModel, range: Range, toLowerCase: boolean): string {
+		const text = model.getValueInRange(range);
+		return (toLowerCase ? text.toLowerCase() : text);
+	}
+
+	private _rangesContainSameText(ranges: Range[], matchCase: boolean): boolean {
+		const model = this._editor.getModel();
+		const selectedText = this._getValueInRange(model, ranges[0], !matchCase);
+		for (let i = 1, len = ranges.length; i < len; i++) {
+			const range = ranges[i];
+			if (range.isEmpty()) {
+				return false;
+			}
+			const thisSelectedText = this._getValueInRange(model, range, !matchCase);
+			if (selectedText !== thisSelectedText) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	private _expandEmptyToWord(model: IModel, selection: Selection): Selection {
+		if (!selection.isEmpty()) {
+			return selection;
+		}
+		const word = model.getWordAtPosition(selection.getStartPosition());
+		if (!word) {
+			return selection;
+		}
+		return new Selection(selection.startLineNumber, word.startColumn, selection.startLineNumber, word.endColumn);
+	}
+
+	public addSelectionToNextFindMatch(findController: CommonFindController): void {
 		const allSelections = this._editor.getSelections();
 
-		// If there are mulitple cursors, handle the case where they do not all select the same text.
+		// If there are multiple cursors, handle the case where they do not all select the same text.
 		if (allSelections.length > 1) {
-			const model = this._editor.getModel();
-			const controller = CommonFindController.get(this._editor);
-			if (!controller) {
-				return;
-			}
-			const findState = controller.getState();
-			const caseSensitive = findState.matchCase;
-
-			let selectionsContainSameText = true;
-
-			let selectedText = model.getValueInRange(allSelections[0]);
-			if (!caseSensitive) {
-				selectedText = selectedText.toLowerCase();
-			}
-			for (let i = 1, len = allSelections.length; i < len; i++) {
-				let selection = allSelections[i];
-				if (selection.isEmpty()) {
-					selectionsContainSameText = false;
-					break;
-				}
-
-				let thisSelectedText = model.getValueInRange(selection);
-				if (!caseSensitive) {
-					thisSelectedText = thisSelectedText.toLowerCase();
-				}
-				if (selectedText !== thisSelectedText) {
-					selectionsContainSameText = false;
-					break;
-				}
-			}
-
+			const matchCase = this._getSearchSettings(findController).matchCase;
+			const selectionsContainSameText = this._rangesContainSameText(allSelections, matchCase);
 			if (!selectionsContainSameText) {
+				const model = this._editor.getModel();
 				let resultingSelections: Selection[] = [];
 				for (let i = 0, len = allSelections.length; i < len; i++) {
-					let selection = allSelections[i];
-					if (selection.isEmpty()) {
-						let word = this._editor.getModel().getWordAtPosition(selection.getStartPosition());
-						if (word) {
-							resultingSelections[i] = new Selection(selection.startLineNumber, word.startColumn, selection.startLineNumber, word.endColumn);
-							continue;
-						}
-					}
-					resultingSelections[i] = selection;
+					resultingSelections[i] = this._expandEmptyToWord(model, allSelections[i]);
 				}
 				this._editor.setSelections(resultingSelections);
 				return;
 			}
 		}
 
-		let nextMatch = this._getNextMatch();
+		let nextMatch = this._getNextMatch(findController);
 
 		if (!nextMatch) {
 			return;
 		}
 
-		this._editor.setSelections(allSelections.concat(nextMatch));
-		this._editor.revealRangeInCenterIfOutsideViewport(nextMatch, ScrollType.Smooth);
+		if (allSelections.length === 1 && allSelections[0].isEmpty()) {
+			// Enter find state disassociation
+			this._beginFindControllerDisconnect();
+		}
+
+		this._setSelections(allSelections.concat(nextMatch), nextMatch, ScrollType.Smooth);
 	}
 
-	public addSelectionToPreviousFindMatch(): void {
-		let previousMatch = this._getPreviousMatch();
+	public addSelectionToPreviousFindMatch(findController: CommonFindController): void {
+		let previousMatch = this._getPreviousMatch(findController);
 
 		if (!previousMatch) {
 			return;
 		}
 
 		let allSelections = this._editor.getSelections();
-		this._editor.setSelections(allSelections.concat(previousMatch));
-		this._editor.revealRangeInCenterIfOutsideViewport(previousMatch, ScrollType.Smooth);
+		this._setSelections(allSelections.concat(previousMatch), previousMatch, ScrollType.Smooth);
 	}
 
-	public moveSelectionToNextFindMatch(): void {
-		let nextMatch = this._getNextMatch();
+	public moveSelectionToNextFindMatch(findController: CommonFindController): void {
+		let nextMatch = this._getNextMatch(findController);
 
 		if (!nextMatch) {
 			return;
 		}
 
 		let allSelections = this._editor.getSelections();
-		this._editor.setSelections(allSelections.slice(0, allSelections.length - 1).concat(nextMatch));
-		this._editor.revealRangeInCenterIfOutsideViewport(nextMatch, ScrollType.Smooth);
+		this._setSelections(allSelections.slice(0, allSelections.length - 1).concat(nextMatch), nextMatch, ScrollType.Smooth);
 	}
 
-	public moveSelectionToPreviousFindMatch(): void {
-		let previousMatch = this._getPreviousMatch();
+	public moveSelectionToPreviousFindMatch(findController: CommonFindController): void {
+		let previousMatch = this._getPreviousMatch(findController);
 
 		if (!previousMatch) {
 			return;
 		}
 
 		let allSelections = this._editor.getSelections();
-		this._editor.setSelections(allSelections.slice(0, allSelections.length - 1).concat(previousMatch));
-		this._editor.revealRangeInCenterIfOutsideViewport(previousMatch, ScrollType.Smooth);
+		this._setSelections(allSelections.slice(0, allSelections.length - 1).concat(previousMatch), previousMatch, ScrollType.Smooth);
 	}
 }
 
 export abstract class MultiCursorSelectionControllerAction extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
-		const controller = MultiCursorSelectionController.get(editor);
-		if (!controller) {
+		const multiCursorController = MultiCursorSelectionController.get(editor);
+		if (!multiCursorController) {
 			return;
 		}
-		this._run(controller);
+		const findController = CommonFindController.get(editor);
+		if (!findController) {
+			return null;
+		}
+		this._run(multiCursorController, findController);
 	}
 
-	protected abstract _run(controller: MultiCursorSelectionController): void;
+	protected abstract _run(multiCursorController: MultiCursorSelectionController, findController: CommonFindController): void;
 }
 
 function multiCursorFind(editor: ICommonCodeEditor, input: IMultiCursorFindInput): IMultiCursorFindResult {
-	let controller = MultiCursorSelectionController.get(editor);
-	if (!controller) {
+	const multiCursorController = MultiCursorSelectionController.get(editor);
+	if (!multiCursorController) {
 		return null;
 	}
-	return controller.multiCursorFind(input);
+	const findController = CommonFindController.get(editor);
+	if (!findController) {
+		return null;
+	}
+	return multiCursorController.multiCursorFind(findController, input);
 }
 
 @editorAction
@@ -432,8 +488,8 @@ export class AddSelectionToNextFindMatchAction extends MultiCursorSelectionContr
 		});
 	}
 
-	protected _run(controller: MultiCursorSelectionController): void {
-		controller.addSelectionToNextFindMatch();
+	protected _run(multiCursorController: MultiCursorSelectionController, findController: CommonFindController): void {
+		multiCursorController.addSelectionToNextFindMatch(findController);
 	}
 }
 
@@ -449,8 +505,8 @@ export class AddSelectionToPreviousFindMatchAction extends MultiCursorSelectionC
 		});
 	}
 
-	protected _run(controller: MultiCursorSelectionController): void {
-		controller.addSelectionToPreviousFindMatch();
+	protected _run(multiCursorController: MultiCursorSelectionController, findController: CommonFindController): void {
+		multiCursorController.addSelectionToPreviousFindMatch(findController);
 	}
 }
 
@@ -470,8 +526,8 @@ export class MoveSelectionToNextFindMatchAction extends MultiCursorSelectionCont
 		});
 	}
 
-	protected _run(controller: MultiCursorSelectionController): void {
-		controller.moveSelectionToNextFindMatch();
+	protected _run(multiCursorController: MultiCursorSelectionController, findController: CommonFindController): void {
+		multiCursorController.moveSelectionToNextFindMatch(findController);
 	}
 }
 
@@ -487,8 +543,8 @@ export class MoveSelectionToPreviousFindMatchAction extends MultiCursorSelection
 		});
 	}
 
-	protected _run(controller: MultiCursorSelectionController): void {
-		controller.moveSelectionToPreviousFindMatch();
+	protected _run(multiCursorController: MultiCursorSelectionController, findController: CommonFindController): void {
+		multiCursorController.moveSelectionToPreviousFindMatch(findController);
 	}
 }
 
