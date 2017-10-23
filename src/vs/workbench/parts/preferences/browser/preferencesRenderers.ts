@@ -6,6 +6,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import { Delayer } from 'vs/base/common/async';
+import { tail } from 'vs/base/common/arrays';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
@@ -380,6 +381,7 @@ export class StaticContentHidingRenderer extends Disposable implements HiddenAre
 		const model = this.editor.getModel();
 
 		// Hide extra chars for "search results" and "commonly used" groups
+		const lastGroup = tail(this.settingsGroups);
 		return [
 			{
 				startLineNumber: 1,
@@ -390,14 +392,14 @@ export class StaticContentHidingRenderer extends Disposable implements HiddenAre
 			{
 				startLineNumber: this.settingsGroups[0].range.endLineNumber + 1,
 				startColumn: model.getLineMinColumn(this.settingsGroups[0].range.endLineNumber + 1),
-				endLineNumber: this.settingsGroups[0].range.endLineNumber + 3,
-				endColumn: model.getLineMaxColumn(this.settingsGroups[0].range.endLineNumber + 3)
+				endLineNumber: this.settingsGroups[0].range.endLineNumber + 4,
+				endColumn: model.getLineMaxColumn(this.settingsGroups[0].range.endLineNumber + 4)
 			},
 			{
-				startLineNumber: this.settingsGroups[1].range.endLineNumber + 1,
-				startColumn: model.getLineMinColumn(this.settingsGroups[1].range.endLineNumber + 1),
-				endLineNumber: this.settingsGroups[1].range.endLineNumber + 4,
-				endColumn: model.getLineMaxColumn(this.settingsGroups[1].range.endLineNumber + 4)
+				startLineNumber: lastGroup.range.endLineNumber + 1,
+				startColumn: model.getLineMinColumn(lastGroup.range.endLineNumber + 1),
+				endLineNumber: Math.min(model.getLineCount(), lastGroup.range.endLineNumber + 4),
+				endColumn: model.getLineMaxColumn(Math.min(model.getLineCount(), lastGroup.range.endLineNumber + 4))
 			},
 			{
 				startLineNumber: model.getLineCount() - 1,

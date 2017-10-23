@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { assign } from 'vs/base/common/objects';
-import * as strings from 'vs/base/common/strings';
+import { tail } from 'vs/base/common/arrays';
 import URI from 'vs/base/common/uri';
 import { IReference } from 'vs/base/common/lifecycle';
 import Event from 'vs/base/common/event';
@@ -639,13 +639,6 @@ export class DefaultSettingsModel {
 	private toContent(mostCommonlyUsed: ISettingsGroup, settingsGroups: ISettingsGroup[]): string {
 		const builder = new SettingsContentBuilder();
 		builder.pushLine('[');
-		/*
-		builder.pushLine('{');
-		const mostRelevantSectionContent = arrays.fill(DefaultSettingsEditorModel.MOST_RELEVANT_SECTION_LENGTH - 3, () => '');
-		builder.pushGroup(mostRelevant, false, mostRelevantSectionContent); // Empty at this point
-		builder.pushLine('}');
-		builder.pushLine(',');
-		*/
 		builder.pushGroups([mostCommonlyUsed]);
 		builder.pushLine(',');
 		builder.pushGroups(settingsGroups);
@@ -657,13 +650,9 @@ export class DefaultSettingsModel {
 
 export class DefaultSettingsEditorModel extends AbstractSettingsModel implements ISettingsEditorModel {
 
-	public static MOST_RELEVANT_SECTION_LENGTH = 100;
-	public static MOST_RELEVANT_START_LINE = 4;
-	public static MOST_RELEVANT_END_LINE = DefaultSettingsEditorModel.MOST_RELEVANT_SECTION_LENGTH - 1;
-	public static MOST_RELEVANT_CONTENT_LENGTH = DefaultSettingsEditorModel.MOST_RELEVANT_END_LINE - DefaultSettingsEditorModel.MOST_RELEVANT_START_LINE + 1;
-
-	private model: IModel;
+	private _model: IModel;
 	private _settingsByName: Map<string, ISetting>;
+	private _mostRelevantLineOffset: number;
 
 	constructor(
 		private _uri: URI,
@@ -672,10 +661,11 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		readonly settingsGroups: ISettingsGroup[]
 	) {
 		super();
-		this.model = reference.object.textEditorModel;
+		this._model = reference.object.textEditorModel;
 		this._register(this.onDispose(() => reference.dispose()));
 
 		this.initAllSettingsMap();
+		this._mostRelevantLineOffset = tail(this.settingsGroups).range.endLineNumber + 2;
 	}
 
 	public get uri(): URI {
@@ -684,40 +674,27 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 
 	public filterSettings(filter: string, groupFilter: IGroupFilter, settingFilter: ISettingFilter, mostRelevantSettings?: string[]): IFilterResult {
 		if (mostRelevantSettings) {
-			const group = this.getMostRelevantSettings(mostRelevantSettings);
-			const builder = new SettingsContentBuilder(DefaultSettingsEditorModel.MOST_RELEVANT_START_LINE - 1);
-			builder.pushGroup(group, false);
+			const builder = new SettingsContentBuilder(this._mostRelevantLineOffset - 1);
+			builder.pushLine(',');
+			const mostRelevantGroup = this.getMostRelevantSettings(mostRelevantSettings);
+			builder.pushGroups([mostRelevantGroup]);
+			builder.pushLine('');
 
-			const lines = builder.getTrimmedLines(DefaultSettingsEditorModel.MOST_RELEVANT_CONTENT_LENGTH);
-			if (!lines.length) {
-				lines.push('');
-			}
-
-			const mostRelevantContent = lines.join('\n');
-			const settingsTextEndLine = DefaultSettingsEditorModel.MOST_RELEVANT_START_LINE + lines.length - 1;
-			this.model.applyEdits([
+			// note- 1-indexed line numbers here
+			const mostRelevantContent = builder.getContent();
+			const mostRelevantEndLine = this._model.getLineCount();
+			this._model.applyEdits([
 				{
 					text: mostRelevantContent,
 					forceMoveMarkers: false,
-					range: new Range(DefaultSettingsEditorModel.MOST_RELEVANT_START_LINE, 0, settingsTextEndLine, 0),
+					range: new Range(this._mostRelevantLineOffset, 1, mostRelevantEndLine, 1),
 					identifier: { major: 1, minor: 0 }
 				}
 			]);
 
-			if (settingsTextEndLine < DefaultSettingsEditorModel.MOST_RELEVANT_END_LINE) {
-				this.model.applyEdits([
-					{
-						text: strings.repeat('\n', DefaultSettingsEditorModel.MOST_RELEVANT_END_LINE - settingsTextEndLine),
-						forceMoveMarkers: false,
-						range: new Range(settingsTextEndLine + 1, 0, DefaultSettingsEditorModel.MOST_RELEVANT_END_LINE + 1, 0),
-						identifier: { major: 1, minor: 0 }
-					}
-				]);
-			}
-
 			return {
-				allGroups: this.settingsGroups,
-				filteredGroups: group.sections[0].settings.length ? [group] : [],
+				allGroups: [...this.settingsGroups, mostRelevantGroup],
+				filteredGroups: mostRelevantGroup.sections[0].settings.length ? [mostRelevantGroup] : [],
 				matches: [],
 				query: filter
 			};
@@ -808,6 +785,10 @@ class SettingsContentBuilder {
 		this._contentByLines = [];
 	}
 
+	private offsetIndexToIndex(offsetIdx: number): number {
+		return offsetIdx - this._rangeOffset;
+	}
+
 	pushLine(...lineText: string[]): void {
 		this._contentByLines.push(...lineText);
 	}
@@ -821,13 +802,15 @@ class SettingsContentBuilder {
 			lastSetting = this.pushGroup(group);
 		}
 		if (lastSetting) {
-			const content = this._contentByLines[lastSetting.range.endLineNumber - 2];
-			this._contentByLines[lastSetting.range.endLineNumber - 2] = content.substring(0, content.length - 1);
+			// Strip the comma from the last setting
+			const lineIdx = this.offsetIndexToIndex(lastSetting.range.endLineNumber);
+			const content = this._contentByLines[lineIdx - 2];
+			this._contentByLines[lineIdx - 2] = content.substring(0, content.length - 1);
 		}
 		this._contentByLines.push('}');
 	}
 
-	pushGroup(group: ISettingsGroup, showEmptyGroupMessage = true, alternateContentLines?: string[]): ISetting {
+	private pushGroup(group: ISettingsGroup, showEmptyGroupMessage = true): ISetting {
 		const indent = '  ';
 		let lastSetting: ISetting = null;
 		let groupStart = this.lineCountWithOffset + 1;
@@ -838,9 +821,7 @@ class SettingsContentBuilder {
 				section.titleRange = { startLineNumber: sectionTitleStart, startColumn: 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length };
 			}
 
-			if (alternateContentLines) {
-				this.pushLine(...alternateContentLines);
-			} else if (section.settings.length) {
+			if (section.settings.length) {
 				for (const setting of section.settings) {
 					this.pushSetting(setting, indent);
 					lastSetting = setting;
