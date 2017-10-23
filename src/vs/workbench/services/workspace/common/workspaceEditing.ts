@@ -7,12 +7,23 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import URI from 'vs/base/common/uri';
 
 export const IWorkspaceEditingService = createDecorator<IWorkspaceEditingService>('workspaceEditingService');
 
 export interface IWorkspaceEditingService {
 
 	_serviceBrand: ServiceIdentifier<any>;
+
+	/**
+	 * Add folders to the existing workspace
+	 */
+	addFolders(folders: URI[]): TPromise<void>;
+
+	/**
+	 * Remove folders from the existing workspace
+	 */
+	removeFolders(folders: URI[]): TPromise<void>;
 
 	/**
 	 * creates a new workspace with the provided folders and opens it. if path is provided

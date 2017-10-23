@@ -425,7 +425,9 @@ export class WordOperations {
 
 		let lineNumber = position.lineNumber;
 		let column: number;
-		if (position.isBeforeOrEqual(cursor.selectionStart.getStartPosition())) {
+		if (cursor.selectionStart.containsPosition(position)) {
+			column = cursor.selectionStart.endColumn;
+		} else if (position.isBeforeOrEqual(cursor.selectionStart.getStartPosition())) {
 			column = startColumn;
 			let possiblePosition = new Position(lineNumber, column);
 			if (cursor.selectionStart.containsPosition(possiblePosition)) {

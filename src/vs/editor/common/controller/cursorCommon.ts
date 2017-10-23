@@ -31,6 +31,17 @@ export const enum RevealTarget {
 	BottomMost = 2
 }
 
+/**
+ * This is an operation type that will be recorded for undo/redo purposes.
+ * The goal is to introduce an undo stop when the controller switches between different operation types.
+ */
+export const enum EditOperationType {
+	Other = 0,
+	Typing = 1,
+	DeletingLeft = 2,
+	DeletingRight = 3
+}
+
 export interface ICursors {
 	readonly context: CursorContext;
 	getPrimaryCursor(): CursorState;
@@ -45,6 +56,9 @@ export interface ICursors {
 	revealRange(revealHorizontal: boolean, viewRange: Range, verticalType: VerticalRevealType, scrollType: ScrollType): void;
 
 	scrollTo(desiredScrollTop: number): void;
+
+	getPrevEditOperationType(): EditOperationType;
+	setPrevEditOperationType(type: EditOperationType): void;
 }
 
 export interface CharacterMap {
@@ -422,17 +436,20 @@ export class CursorState {
 export class EditOperationResult {
 	_editOperationResultBrand: void;
 
+	readonly type: EditOperationType;
 	readonly commands: ICommand[];
 	readonly shouldPushStackElementBefore: boolean;
 	readonly shouldPushStackElementAfter: boolean;
 
 	constructor(
+		type: EditOperationType,
 		commands: ICommand[],
 		opts: {
 			shouldPushStackElementBefore: boolean;
 			shouldPushStackElementAfter: boolean;
 		}
 	) {
+		this.type = type;
 		this.commands = commands;
 		this.shouldPushStackElementBefore = opts.shouldPushStackElementBefore;
 		this.shouldPushStackElementAfter = opts.shouldPushStackElementAfter;

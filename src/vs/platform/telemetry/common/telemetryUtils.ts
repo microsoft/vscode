@@ -39,22 +39,22 @@ export function combinedAppender(...appenders: ITelemetryAppender[]): ITelemetry
 
 export const NullAppender: ITelemetryAppender = { log: () => null };
 
+// --- util
+
 /* __GDPR__FRAGMENT__
 	"URIDescriptor" : {
 		"mimeType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"path": { "classification": "CustomerContent", "purpose": "FeatureInsight" }
+		"ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	}
 */
 export interface URIDescriptor {
 	mimeType?: string;
 	ext?: string;
-	path?: string;
 }
 
-export function telemetryURIDescriptor(uri: URI, hashPath: (path: string) => string): URIDescriptor {
+export function telemetryURIDescriptor(uri: URI): URIDescriptor {
 	const fsPath = uri && uri.fsPath;
-	return fsPath ? { mimeType: guessMimeTypes(fsPath).join(', '), ext: paths.extname(fsPath), path: hashPath(fsPath) } : {};
+	return fsPath ? { mimeType: guessMimeTypes(fsPath).join(', '), ext: paths.extname(fsPath) } : {};
 }
 
 /**
