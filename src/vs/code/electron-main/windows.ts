@@ -1339,8 +1339,8 @@ export class WindowsManager implements IWindowsMainService {
 		return result;
 	}
 
-	public openWorkspace(win?: CodeWindow): void {
-		this.workspacesManager.openWorkspace(win);
+	public openWorkspace(win?: CodeWindow, options?: { forceNewWindow?: boolean }): void {
+		this.workspacesManager.openWorkspace(win, options);
 	}
 
 	private onBeforeWindowUnload(e: IWindowUnloadEvent): void {
@@ -1618,7 +1618,7 @@ class FileDialog {
 		});
 	}
 
-	public getFileOrFolderPaths(options: IInternalNativeOpenDialogOptions, clb: (paths: string[]) => void): void {
+	private getFileOrFolderPaths(options: IInternalNativeOpenDialogOptions, clb: (paths: string[]) => void): void {
 
 		// Ensure dialog options
 		if (!options.dialogOptions) {
@@ -1755,7 +1755,7 @@ class WorkspacesManager {
 		});
 	}
 
-	public openWorkspace(window = this.windowsMainService.getLastActiveWindow()): void {
+	public openWorkspace(window = this.windowsMainService.getLastActiveWindow(), options?: { forceNewWindow?: boolean }): void {
 		let defaultPath: string;
 		if (window && window.openedWorkspace && !this.workspacesService.isUntitledWorkspace(window.openedWorkspace)) {
 			defaultPath = dirname(window.openedWorkspace.configPath);
@@ -1771,7 +1771,8 @@ class WorkspacesManager {
 				filters: WORKSPACE_FILTER,
 				properties: ['openFile'],
 				defaultPath
-			}
+			},
+			forceNewWindow: options && options.forceNewWindow
 		});
 	}
 
