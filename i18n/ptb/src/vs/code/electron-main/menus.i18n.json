@@ -184,6 +184,6 @@
 	"miDownloadingUpdate": "Baixando Atualização...",
 	"miInstallingUpdate": "Instalando Atualização...",
 	"miCheckForUpdates": "Verificar Atualizações...",
-	"aboutDetail": "\nVersão {0}\nConfirmação {1}\nData {2}\nShell {3}\nRenderizador {4}\nNó {5}\nArquitetura {6}",
+	"aboutDetail": "\nVersão {0}\nConfirmação {1}\nData {2}\nShell {3}\nRenderizador {4}\nNode {5}\nArquitetura {6}",
 	"okButton": "OK"
 }
