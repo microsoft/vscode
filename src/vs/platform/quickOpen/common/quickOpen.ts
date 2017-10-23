@@ -120,7 +120,7 @@ export interface IInputOptions {
 	validateInput?: (input: string) => TPromise<string>;
 
 	/**
-	 * An optional function that allows the input box to be interactive.
+	 * An optional function that can modify the input box in response to input.
 	 */
 	handleKeyDown?: (e: KeyboardEvent, value: string) => string;
 }

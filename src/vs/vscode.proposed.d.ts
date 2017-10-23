@@ -131,6 +131,60 @@ declare module 'vscode' {
 		findFiles?(query: string, progress: Progress<Uri>, token: CancellationToken): Thenable<void>;
 	}
 
+	/**
+	 * Options to configure the behavior of the input box UI.
+	 */
+	export interface InputBoxOptions {
+
+		/**
+		 * The value to prefill in the input box.
+		 */
+		value?: string;
+
+		/**
+		 * Selection of the prefilled [`value`](#InputBoxOptions.value). Defined as tuple of two number where the
+		 * first is the inclusive start index and the second the exclusive end index. When `undefined` the whole
+		 * word will be selected, when empty (start equals end) only the cursor will be set,
+		 * otherwise the defined range will be selected.
+		 */
+		valueSelection?: [number, number];
+
+		/**
+		 * The text to display underneath the input box.
+		 */
+		prompt?: string;
+
+		/**
+		 * An optional string to show as place holder in the input box to guide the user what to type.
+		 */
+		placeHolder?: string;
+
+		/**
+		 * Set to `true` to show a password prompt that will not show the typed value.
+		 */
+		password?: boolean;
+
+		/**
+		 * Set to `true` to keep the input box open when focus moves to another part of the editor or to another window.
+		 */
+		ignoreFocusOut?: boolean;
+
+		/**
+		 * An optional function that will be called to validate input and to give a hint
+		 * to the user.
+		 *
+		 * @param value The current value of the input box.
+		 * @return A human readable string which is presented as diagnostic message.
+		 * Return `undefined`, `null`, or the empty string when 'value' is valid.
+		 */
+		validateInput?(value: string): string | undefined | null | Thenable<string | undefined | null>;
+
+		/**
+		 * An optional function that can modify the input box in response to input.
+		 */
+		handleKeyDown?: (e: KeyboardEvent, value: string) => string;
+	}
+
 	export namespace workspace {
 		export function registerFileSystemProvider(authority: string, provider: FileSystemProvider): Disposable;
 	}
