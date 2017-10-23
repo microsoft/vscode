@@ -33,5 +33,6 @@
 	"schema.fontSize": "Wenn eine Schriftart verwendet wird: der Schriftgrad als Prozentsatz der Textschriftart. Wenn diese Angabe nicht festgelegt wird, wird standardmäßig die Größe in der Schriftartdefinition verwendet.",
 	"schema.fontId": "Bei Verwendung einer Schriftart: die ID der Schriftart. Wenn diese Angabe nicht festgelegt wird, wird standardmäßig die erste Schriftartdefinition verwendet.",
 	"schema.light": "Optionale Zuordnungen für Dateisymbole in hellen Farbdesigns.",
-	"schema.highContrast": "Optionale Zuordnungen für Dateisymbole in Farbdesigns mit hohem Kontrast."
+	"schema.highContrast": "Optionale Zuordnungen für Dateisymbole in Farbdesigns mit hohem Kontrast.",
+	"schema.hidesExplorerArrows": "Konfiguriert, ob die Datei-Explorer Pfeile ausgeblendet werden sollen, wenn dieses Motiv aktiv ist."
 }

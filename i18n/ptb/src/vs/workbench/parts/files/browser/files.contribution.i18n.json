@@ -40,10 +40,14 @@
 	"dynamicHeight": "Controla se a altura da seção de editores abertos deve adaptar-se dinamicamente para o número de elementos ou não.",
 	"autoReveal": "Controla se o explorador deve automaticamente revelar e selecionar arquivos ao abri-los.",
 	"enableDragAndDrop": "Controla se o explorador deve permitir mover arquivos e pastas através de arrastar e soltar.",
+	"confirmDragAndDrop": "Controla se o explorer deve pedir a confirmação ao mover arquivos ou pastas através de arrastar e soltar.",
+	"confirmDelete": "Controla se o explorador deve pedir a confirmação ao excluir um arquivo por meio do lixo.",
 	"sortOrder.default": "Arquivos e pastas são classificadas por seus nomes, em ordem alfabética. Pastas são exibidas acima dos arquivos.",
 	"sortOrder.mixed": "Arquivos e pastas são classificadas por seus nomes, em ordem alfabética. Arquivos são misturados com pastas.",
 	"sortOrder.filesFirst": "Arquivos e pastas são classificadas por seus nomes, em ordem alfabética. Os arquivos são exibidos acima das pastas.",
 	"sortOrder.type": "Arquivos e pastas são classificadas de acordo com suas extensões, em ordem alfabética. Pastas são exibidas acima dos arquivos.",
 	"sortOrder.modified": "Arquivos e pastas são classificados de acordo com a data da última modificação, em ordem decrescente. Pastas são exibidas acima dos arquivos.",
-	"sortOrder": "Controla a ordem de classificação dos arquivos e pastas no explorador. Além da classificação padrão, você pode definir a ordem para 'mixed' (arquivos e pastas misturados), 'type' (por tipo de arquivo), 'modified' (pela data da última modificação) ou 'filesFirst' (exibe os arquivos acima das pastas)."
+	"sortOrder": "Controla a ordem de classificação dos arquivos e pastas no explorador. Além da classificação padrão, você pode definir a ordem para 'mixed' (arquivos e pastas misturados), 'type' (por tipo de arquivo), 'modified' (pela data da última modificação) ou 'filesFirst' (exibe os arquivos acima das pastas).",
+	"explorer.decorations.colors": "Controles se as decorações de arquivo devem usar cores.",
+	"explorer.decorations.badges": "Controles se as decorações de arquivo devem usar identificações."
 }

@@ -66,6 +66,7 @@ export interface ITypescriptServiceClient {
 	execute(command: 'docCommentTemplate', args: Proto.FileLocationRequestArgs, token?: CancellationToken): Promise<Proto.DocCommandTemplateResponse>;
 	execute(command: 'getApplicableRefactors', args: Proto.GetApplicableRefactorsRequestArgs, token?: CancellationToken): Promise<Proto.GetApplicableRefactorsResponse>;
 	execute(command: 'getEditsForRefactor', args: Proto.GetEditsForRefactorRequestArgs, token?: CancellationToken): Promise<Proto.GetEditsForRefactorResponse>;
+	execute(command: 'applyCodeActionCommand', args: Proto.ApplyCodeActionCommandRequestArgs, token?: CancellationToken): Promise<Proto.ApplyCodeActionCommandResponse>;
 	// execute(command: 'compileOnSaveAffectedFileList', args: Proto.CompileOnSaveEmitFileRequestArgs, token?: CancellationToken): Promise<Proto.CompileOnSaveAffectedFileListResponse>;
 	// execute(command: 'compileOnSaveEmitFile', args: Proto.CompileOnSaveEmitFileRequestArgs, token?: CancellationToken): Promise<any>;
 	execute(command: string, args: any, expectedResult: boolean | CancellationToken, token?: CancellationToken): Promise<any>;

@@ -13,10 +13,12 @@ import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { Verbosity } from 'vs/platform/editor/common/editor';
 import { TAB_ACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
+import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
 
 export class NoTabsTitleControl extends TitleControl {
 	private titleContainer: HTMLElement;
 	private editorLabel: ResourceLabel;
+	private titleTouchSupport: Gesture;
 
 	public setContext(group: IEditorGroup): void {
 		super.setContext(group);
@@ -29,11 +31,17 @@ export class NoTabsTitleControl extends TitleControl {
 
 		this.titleContainer = parent;
 
+		// Gesture Support
+		this.titleTouchSupport = new Gesture(this.titleContainer);
+
 		// Pin on double click
 		this.toUnbind.push(DOM.addDisposableListener(this.titleContainer, DOM.EventType.DBLCLICK, (e: MouseEvent) => this.onTitleDoubleClick(e)));
 
 		// Detect mouse click
 		this.toUnbind.push(DOM.addDisposableListener(this.titleContainer, DOM.EventType.CLICK, (e: MouseEvent) => this.onTitleClick(e)));
+
+		// Detect touch
+		this.toUnbind.push(DOM.addDisposableListener(this.titleContainer, TouchEventType.Tap, (e: GestureEvent) => this.onTitleClick(e)));
 
 		// Editor Label
 		this.editorLabel = this.instantiationService.createInstance(ResourceLabel, this.titleContainer, void 0);
@@ -50,6 +58,7 @@ export class NoTabsTitleControl extends TitleControl {
 
 		// Context Menu
 		this.toUnbind.push(DOM.addDisposableListener(this.titleContainer, DOM.EventType.CONTEXT_MENU, (e: Event) => this.onContextMenu({ group: this.context, editor: this.context.activeEditor }, e, this.titleContainer)));
+		this.toUnbind.push(DOM.addDisposableListener(this.titleContainer, TouchEventType.Contextmenu, (e: Event) => this.onContextMenu({ group: this.context, editor: this.context.activeEditor }, e, this.titleContainer)));
 	}
 
 	private onTitleLabelClick(e: MouseEvent): void {
@@ -70,7 +79,7 @@ export class NoTabsTitleControl extends TitleControl {
 		this.editorGroupService.pinEditor(group, group.activeEditor);
 	}
 
-	private onTitleClick(e: MouseEvent): void {
+	private onTitleClick(e: MouseEvent | GestureEvent): void {
 		if (!this.context) {
 			return;
 		}
@@ -78,7 +87,7 @@ export class NoTabsTitleControl extends TitleControl {
 		const group = this.context;
 
 		// Close editor on middle mouse click
-		if (e.button === 1 /* Middle Button */) {
+		if (e instanceof MouseEvent && e.button === 1 /* Middle Button */) {
 			this.closeEditorAction.run({ group, editor: group.activeEditor }).done(null, errors.onUnexpectedError);
 		}
 
@@ -149,5 +158,11 @@ export class NoTabsTitleControl extends TitleControl {
 			case 'long': return Verbosity.LONG;
 			default: return Verbosity.MEDIUM;
 		}
+	}
+
+	public dispose(): void {
+		super.dispose();
+
+		this.titleTouchSupport.dispose();
 	}
 }

@@ -493,7 +493,9 @@ function getRgArgs(config: IRawSearch): IRgGlobResult {
 	}
 
 	// Follow symlinks
-	args.push('--follow');
+	if (!config.ignoreSymlinks) {
+		args.push('--follow');
+	}
 
 	// Set default encoding if only one folder is opened
 	if (config.folderQueries.length === 1 && config.folderQueries[0].fileEncoding && config.folderQueries[0].fileEncoding !== 'utf8') {

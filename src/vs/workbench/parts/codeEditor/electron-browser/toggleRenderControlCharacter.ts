@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
-import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
 @editorAction
 export class ToggleRenderControlCharacterAction extends EditorAction {
@@ -22,10 +22,10 @@ export class ToggleRenderControlCharacterAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
-		const configurationEditingService = accessor.get(IConfigurationEditingService);
+		const configurationService = accessor.get(IConfigurationService);
 
 		let newRenderControlCharacters = !editor.getConfiguration().viewInfo.renderControlCharacters;
 
-		configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: 'editor.renderControlCharacters', value: newRenderControlCharacters });
+		configurationService.updateValue('editor.renderControlCharacters', newRenderControlCharacters, ConfigurationTarget.USER);
 	}
 }

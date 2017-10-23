@@ -44,7 +44,6 @@
 	"typescript.npm": "指定用於自動類型取得的 NPM 可執行檔路徑。TypeScript 必須 >= 2.3.4.",
 	"typescript.check.npmIsInstalled": "檢查是否已安裝NPM用以取得自動類型擷取.",
 	"javascript.nameSuggestions": "從JavaScript推薦表檔案中啟用/停用包含唯一檔名",
-	"typescript.tsc.autoDetect": "控制 tsc 工作的自動偵測為開啟或關閉。",
 	"typescript.problemMatchers.tsc.label": "TypeScript 問題",
 	"typescript.problemMatchers.tscWatch.label": " TypeScript 問題 (監看模式)"
 }

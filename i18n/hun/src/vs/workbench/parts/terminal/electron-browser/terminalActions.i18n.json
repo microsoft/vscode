@@ -16,7 +16,6 @@
 	"workbench.action.terminal.new.short": "Új terminál",
 	"workbench.action.terminal.focus": "Váltás a terminálra",
 	"workbench.action.terminal.focusNext": "Váltás a következő terminálra",
-	"workbench.action.terminal.focusAtIndex": "Váltás a(z) {0}. terminálra",
 	"workbench.action.terminal.focusPrevious": "Váltás az előző terminálra",
 	"workbench.action.terminal.paste": "Beillesztés az aktív terminálba",
 	"workbench.action.terminal.DefaultShell": "Alapértelmezett shell kiválasztása",

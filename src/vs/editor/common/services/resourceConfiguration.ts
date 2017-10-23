@@ -7,6 +7,7 @@ import Event from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IPosition } from 'vs/editor/common/core/position';
+import { IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 
 export const ITextResourceConfigurationService = createDecorator<ITextResourceConfigurationService>('textResourceConfigurationService');
 
@@ -17,7 +18,7 @@ export interface ITextResourceConfigurationService {
 	/**
 	 * Event that fires when the configuration changes.
 	 */
-	onDidUpdateConfiguration: Event<void>;
+	onDidChangeConfiguration: Event<IConfigurationChangeEvent>;
 
 	/**
 	 * Fetches the appropriate section of the for the given resource with appropriate overrides (e.g. language).

@@ -35,6 +35,8 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 		this._editor = editor;
 		this._editor.addContentWidget(this);
 
+		this._disposables.push(this._editor.onDidChangeModel(_ => this._futureFixes.cancel()));
+		this._disposables.push(this._editor.onDidChangeModelLanguage(_ => this._futureFixes.cancel()));
 		this._disposables.push(dom.addStandardDisposableListener(this._domNode, 'click', e => {
 			// a bit of extra work to make sure the menu
 			// doesn't cover the line-text

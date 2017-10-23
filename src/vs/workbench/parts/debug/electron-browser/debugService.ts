@@ -651,7 +651,7 @@ export class DebugService implements debug.IDebugService {
 	public startDebugging(root: IWorkspaceFolder, configOrName?: debug.IConfig | string, noDebug = false, topCompoundName?: string): TPromise<any> {
 
 		// make sure to save all files and that the configuration is up to date
-		return this.extensionService.activateByEvent('onDebug').then(() => this.textFileService.saveAll().then(() => this.configurationService.reloadConfiguration().then(() =>
+		return this.extensionService.activateByEvent('onDebug').then(() => this.textFileService.saveAll().then(() => this.configurationService.reloadConfiguration(root).then(() =>
 			this.extensionService.onReady().then(() => {
 				if (this.model.getProcesses().length === 0) {
 					this.removeReplExpressions();
@@ -703,6 +703,12 @@ export class DebugService implements debug.IDebugService {
 
 				const sessionId = generateUuid();
 				this.updateStateAndEmit(sessionId, debug.State.Initializing);
+				const wrapUpState = () => {
+					if (this.sessionStates.get(sessionId) === debug.State.Initializing) {
+						this.updateStateAndEmit(sessionId, debug.State.Inactive);
+					}
+				};
+
 				return (type ? TPromise.as(null) : this.configurationManager.guessAdapter().then(a => type = a && a.type)).then(() =>
 					this.configurationManager.resolveConfigurationByProviders(launch ? launch.workspace.uri : undefined, type, config).then(config => {
 						// a falsy config indicates an aborted launch
@@ -710,10 +716,12 @@ export class DebugService implements debug.IDebugService {
 							return this.createProcess(root, config, sessionId);
 						}
 
-						this.updateStateAndEmit(sessionId, debug.State.Inactive);
 						return <any>launch.openConfigFile(false, type); // cast to ignore weird compile error
 					})
-				);
+				).then(() => wrapUpState(), (err) => {
+					wrapUpState();
+					return err;
+				});
 			})
 		)));
 	}
@@ -727,7 +735,7 @@ export class DebugService implements debug.IDebugService {
 		return null;
 	}
 
-	public createProcess(root: IWorkspaceFolder, config: debug.IConfig, sessionId?: string): TPromise<debug.IProcess> {
+	private createProcess(root: IWorkspaceFolder, config: debug.IConfig, sessionId: string): TPromise<debug.IProcess> {
 		return this.textFileService.saveAll().then(() =>
 			(this.configurationManager.selectedLaunch ? this.configurationManager.selectedLaunch.resolveConfiguration(config) : TPromise.as(config)).then(resolvedConfig => {
 				if (!resolvedConfig) {
@@ -747,11 +755,6 @@ export class DebugService implements debug.IDebugService {
 					}
 
 					return TPromise.wrapError(errors.create(message, { actions: [this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL), CloseAction] }));
-				}
-
-				if (!sessionId) {
-					sessionId = generateUuid();
-					this.updateStateAndEmit(sessionId, debug.State.Initializing);
 				}
 
 				return this.runPreLaunchTask(root, resolvedConfig.preLaunchTask).then((taskSummary: ITaskSummary) => {
@@ -777,7 +780,6 @@ export class DebugService implements debug.IDebugService {
 					});
 					return undefined;
 				}, (err: TaskError) => {
-					this.updateStateAndEmit(sessionId, debug.State.Inactive);
 					this.messageService.show(err.severity, {
 						message: err.message,
 						actions: [
@@ -788,7 +790,6 @@ export class DebugService implements debug.IDebugService {
 					});
 				});
 			}, err => {
-				this.updateStateAndEmit(sessionId, debug.State.Inactive);
 				if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 					this.messageService.show(severity.Error, nls.localize('noFolderWorkspaceDebugError', "The active file can not be debugged. Make sure it is saved on disk and that you have a debug extension installed for that file type."));
 					return undefined;
@@ -1003,7 +1004,7 @@ export class DebugService implements debug.IDebugService {
 						config.noDebug = process.configuration.noDebug;
 					}
 					config.__restart = restartData;
-					this.createProcess(process.session.root, config).then(() => c(null), err => e(err));
+					this.createProcess(process.session.root, config, process.getId()).then(() => c(null), err => e(err));
 				}, 300);
 			});
 		}).then(() => {

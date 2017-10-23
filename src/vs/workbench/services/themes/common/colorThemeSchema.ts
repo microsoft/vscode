@@ -121,8 +121,12 @@ export const tokenColorizationSettingSchema: IJSONSchema = {
 		foreground: {
 			type: 'string',
 			description: nls.localize('schema.token.foreground', 'Foreground color for the token.'),
-			format: 'color',
-			defaultSnippets: [{ body: '${1:#FF0000}' }]
+			format: 'color-hex',
+			default: '#ff0000'
+		},
+		background: {
+			type: 'string',
+			deprecationMessage: nls.localize('schema.token.background.warning', 'Token background colors are currently not supported.')
 		},
 		fontStyle: {
 			type: 'string',

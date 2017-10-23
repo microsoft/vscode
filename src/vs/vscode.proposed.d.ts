@@ -169,107 +169,25 @@ declare module 'vscode' {
 		export function registerDiffInformationCommand(command: string, callback: (diff: LineChange[], ...args: any[]) => any, thisArg?: any): Disposable;
 	}
 
-	/**
-	 * Represents a color in RGBA space.
-	 */
-	export class Color {
+	//#region decorations
 
-		/**
-		 * The red component of this color in the range [0-1].
-		 */
-		readonly red: number;
-
-		/**
-		 * The green component of this color in the range [0-1].
-		 */
-		readonly green: number;
-
-		/**
-		 * The blue component of this color in the range [0-1].
-		 */
-		readonly blue: number;
-
-		/**
-		 * The alpha component of this color in the range [0-1].
-		 */
-		readonly alpha: number;
-
-		constructor(red: number, green: number, blue: number, alpha: number);
+	//todo@joh -> make class
+	export interface DecorationData {
+		priority?: number;
+		title?: string;
+		bubble?: boolean;
+		abbreviation?: string;
+		color?: ThemeColor;
 	}
 
-	/**
-	 * Represents a color range from a document.
-	 */
-	export class ColorInformation {
-
-		/**
-		 * The range in the document where this color appers.
-		 */
-		range: Range;
-
-		/**
-		 * The actual color value for this color range.
-		 */
-		color: Color;
-
-		/**
-		 * Creates a new color range.
-		 *
-		 * @param range The range the color appears in. Must not be empty.
-		 * @param color The value of the color.
-		 * @param format The format in which this color is currently formatted.
-		 */
-		constructor(range: Range, color: Color);
+	export interface DecorationProvider {
+		onDidChangeDecorations: Event<undefined | Uri | Uri[]>;
+		provideDecoration(uri: Uri, token: CancellationToken): ProviderResult<DecorationData>;
 	}
 
-	export class ColorPresentation {
-		/**
-		 * The label of this color presentation. It will be shown on the color
-		 * picker header. By default this is also the text that is inserted when selecting
-		 * this color presentation.
-		 */
-		label: string;
-		/**
-		 * An [edit](#TextEdit) which is applied to a document when selecting
-		 * this presentation for the color.  When `falsy` the [label](#ColorPresentation.label)
-		 * is used.
-		 */
-		textEdit?: TextEdit;
-		/**
-		 * An optional array of additional [text edits](#TextEdit) that are applied when
-		 * selecting this color presentation. Edits must not overlap with the main [edit](#ColorPresentation.textEdit) nor with themselves.
-		 */
-		additionalTextEdits?: TextEdit[];
-
-		/**
-		 * Creates a new color presentation.
-		 *
-		 * @param label The label of this color presentation.
-		 */
-		constructor(label: string);
+	export namespace window {
+		export function registerDecorationProvider(provider: DecorationProvider): Disposable;
 	}
 
-	/**
-	 * The document color provider defines the contract between extensions and feature of
-	 * picking and modifying colors in the editor.
-	 */
-	export interface DocumentColorProvider {
-		/**
-		 * Provide colors for the given document.
-		 *
-		 * @param document The document in which the command was invoked.
-		 * @param token A cancellation token.
-		 * @return An array of [color informations](#ColorInformation) or a thenable that resolves to such. The lack of a result
-		 * can be signaled by returning `undefined`, `null`, or an empty array.
-		 */
-		provideDocumentColors(document: TextDocument, token: CancellationToken): ProviderResult<ColorInformation[]>;
-		/**
-		 * Provide representations for a color.
-		 */
-		provideColorPresentations(document: TextDocument, colorInfo: ColorInformation, token: CancellationToken): ProviderResult<ColorPresentation[]>;
-	}
-
-	export namespace languages {
-		export function registerColorProvider(selector: DocumentSelector, provider: DocumentColorProvider): Disposable;
-	}
+	//#endregion
 }

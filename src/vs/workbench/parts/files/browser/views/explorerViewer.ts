@@ -37,7 +37,7 @@ import { DragMouseEvent, IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -57,7 +57,6 @@ import { distinct } from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { getPathLabel } from 'vs/base/common/labels';
 import { extractResources } from 'vs/base/browser/dnd';
-import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 
 export class FileDataSource implements IDataSource {
 	constructor(
@@ -563,17 +562,17 @@ export class FileSorter implements ISorter {
 	) {
 		this.toDispose = [];
 
-		this.onConfigurationUpdated(configurationService.getConfiguration<IFilesConfiguration>());
+		this.updateSortOrder();
 
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IFilesConfiguration>())));
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => this.updateSortOrder()));
 	}
 
-	private onConfigurationUpdated(configuration: IFilesConfiguration): void {
-		this.sortOrder = configuration && configuration.explorer && configuration.explorer.sortOrder || 'default';
+	private updateSortOrder(): void {
+		this.sortOrder = this.configurationService.getValue('explorer.sortOrder') || 'default';
 	}
 
 	public compare(tree: ITree, statA: FileStat, statB: FileStat): number {
@@ -689,7 +688,7 @@ export class FileFilter implements IFilter {
 	public updateConfiguration(): boolean {
 		let needsRefresh = false;
 		this.contextService.getWorkspace().folders.forEach(folder => {
-			const configuration = this.configurationService.getConfiguration<IFilesConfiguration>(undefined, { resource: folder.uri });
+			const configuration = this.configurationService.getConfiguration<IFilesConfiguration>({ resource: folder.uri });
 			const excludesConfig = (configuration && configuration.files && configuration.files.exclude) || Object.create(null);
 			needsRefresh = needsRefresh || !objects.equals(this.hiddenExpressionPerRoot.get(folder.uri.toString()), excludesConfig);
 			this.hiddenExpressionPerRoot.set(folder.uri.toString(), objects.clone(excludesConfig)); // do not keep the config, as it gets mutated under our hoods
@@ -746,14 +745,13 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		@IBackupFileService private backupFileService: IBackupFileService,
 		@IWindowService private windowService: IWindowService,
 		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super(stat => this.statToResource(stat));
 
 		this.toDispose = [];
 
-		this.onConfigurationUpdated(configurationService.getConfiguration<IFilesConfiguration>());
+		this.updateDropEnablement();
 
 		this.registerListeners();
 	}
@@ -771,11 +769,11 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IFilesConfiguration>())));
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => this.updateDropEnablement()));
 	}
 
-	private onConfigurationUpdated(config: IFilesConfiguration): void {
-		this.dropEnabled = config && config.explorer && config.explorer.enableDragAndDrop;
+	private updateDropEnablement(): void {
+		this.dropEnabled = this.configurationService.getValue('explorer.enableDragAndDrop');
 	}
 
 	public onDragStart(tree: ITree, data: IDragAndDropData, originalEvent: DragMouseEvent): void {
@@ -949,7 +947,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		let confirmPromise: TPromise<IConfirmationResult>;
 
 		// Handle confirm setting
-		const confirmDragAndDrop = !isCopy && this.configurationService.lookup<boolean>(FileDragAndDrop.CONFIRM_DND_SETTING_KEY).value;
+		const confirmDragAndDrop = !isCopy && this.configurationService.getValue<boolean>(FileDragAndDrop.CONFIRM_DND_SETTING_KEY);
 		if (confirmDragAndDrop) {
 			confirmPromise = this.messageService.confirm({
 				message: nls.localize('confirmMove', "Are you sure you want to move '{0}'?", source.name),
@@ -967,7 +965,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 			// Check for confirmation checkbox
 			let updateConfirmSettingsPromise: TPromise<void> = TPromise.as(void 0);
 			if (confirmation.checkboxChecked === true) {
-				updateConfirmSettingsPromise = this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: FileDragAndDrop.CONFIRM_DND_SETTING_KEY, value: false });
+				updateConfirmSettingsPromise = this.configurationService.updateValue(FileDragAndDrop.CONFIRM_DND_SETTING_KEY, false, ConfigurationTarget.USER);
 			}
 
 			return updateConfirmSettingsPromise.then(() => {

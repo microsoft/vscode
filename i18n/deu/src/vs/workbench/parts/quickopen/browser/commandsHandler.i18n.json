@@ -13,7 +13,6 @@
 	"actionNotEnabled": "Der Befehl \"{0}\" ist im aktuellen Kontext nicht aktiviert.",
 	"recentlyUsed": "zuletzt verwendet",
 	"morecCommands": "andere Befehle",
-	"commandLabel": "{0}: {1}",
 	"cat.title": "{0}: {1}",
 	"noCommandsMatching": "Keine übereinstimmenden Befehle."
 }

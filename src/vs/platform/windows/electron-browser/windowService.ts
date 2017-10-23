@@ -140,31 +140,37 @@ export class WindowService implements IWindowService {
 	}
 
 	showSaveDialog(options: Electron.SaveDialogOptions, callback?: (fileName: string) => void): string {
+
+		function normalizePath(path: string): string {
+			if (path && isMacintosh) {
+				path = normalizeNFC(path); // normalize paths returned from the OS
+			}
+
+			return path;
+		}
+
 		if (callback) {
-			return remote.dialog.showSaveDialog(remote.getCurrentWindow(), options, callback);
+			return remote.dialog.showSaveDialog(remote.getCurrentWindow(), options, path => callback(normalizePath(path)));
 		}
 
-		let path = remote.dialog.showSaveDialog(remote.getCurrentWindow(), options); // https://github.com/electron/electron/issues/4936
-
-		if (path && isMacintosh) {
-			path = normalizeNFC(path); // normalize paths returned from the OS
-		}
-
-		return path;
+		return normalizePath(remote.dialog.showSaveDialog(remote.getCurrentWindow(), options)); // https://github.com/electron/electron/issues/4936
 	}
 
 	showOpenDialog(options: Electron.OpenDialogOptions, callback?: (fileNames: string[]) => void): string[] {
+
+		function normalizePaths(paths: string[]): string[] {
+			if (paths && paths.length > 0 && isMacintosh) {
+				paths = paths.map(path => normalizeNFC(path)); // normalize paths returned from the OS
+			}
+
+			return paths;
+		}
+
 		if (callback) {
-			return remote.dialog.showOpenDialog(remote.getCurrentWindow(), options, callback);
+			return remote.dialog.showOpenDialog(remote.getCurrentWindow(), options, paths => callback(normalizePaths(paths)));
 		}
 
-		let paths = remote.dialog.showOpenDialog(remote.getCurrentWindow(), options); // https://github.com/electron/electron/issues/4936
-
-		if (paths && paths.length > 0 && isMacintosh) {
-			paths = paths.map(path => normalizeNFC(path)); // normalize paths returned from the OS
-		}
-
-		return paths;
+		return normalizePaths(remote.dialog.showOpenDialog(remote.getCurrentWindow(), options)); // https://github.com/electron/electron/issues/4936
 	}
 
 	updateTouchBar(items: ICommandAction[][]): TPromise<void> {

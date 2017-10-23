@@ -48,7 +48,7 @@ const NLS_REPLACE_INPUT_PLACEHOLDER = nls.localize('placeholder.replace', "Repla
 const NLS_REPLACE_BTN_LABEL = nls.localize('label.replaceButton', "Replace");
 const NLS_REPLACE_ALL_BTN_LABEL = nls.localize('label.replaceAllButton', "Replace All");
 const NLS_TOGGLE_REPLACE_MODE_BTN_LABEL = nls.localize('label.toggleReplaceButton', "Toggle Replace mode");
-const NLS_MATCHES_COUNT_LIMIT_TITLE = nls.localize('title.matchesCountLimit', "Only the first 999 results are highlighted, but all find operations work on the entire text.");
+const NLS_MATCHES_COUNT_LIMIT_TITLE = nls.localize('title.matchesCountLimit', "Only the first {0} results are highlighted, but all find operations work on the entire text.", MATCHES_LIMIT);
 const NLS_MATCHES_LOCATION = nls.localize('label.matchesLocation', "{0} of {1}");
 const NLS_NO_RESULTS = nls.localize('label.noResults', "No Results");
 
@@ -921,7 +921,7 @@ class SimpleCheckbox extends Widget {
 
 		this._label = document.createElement('label');
 		this._label.className = 'label';
-		// Connect the label and the checkbox. Checkbox will get checked when the label recieves a click.
+		// Connect the label and the checkbox. Checkbox will get checked when the label receives a click.
 		this._label.htmlFor = this._checkbox.id;
 		this._label.tabIndex = -1;
 

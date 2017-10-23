@@ -13,7 +13,6 @@
 	"actionNotEnabled": "Ebben a kontextusban nem engedélyezett a(z) {0} parancs futtatása.",
 	"recentlyUsed": "legutóbb használt",
 	"morecCommands": "további parancsok",
-	"commandLabel": "{0}: {1}",
 	"cat.title": "{0}: {1}",
 	"noCommandsMatching": "Parancs nem található"
 }

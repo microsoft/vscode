@@ -5,8 +5,8 @@
 
 'use strict';
 
-import { Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, ThemeColor } from 'vscode';
-import { Repository as BaseRepository, Ref, Branch, Remote, Commit, GitErrorCodes, Stash, RefType } from './git';
+import { Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, ThemeColor, DecorationData } from 'vscode';
+import { Repository as BaseRepository, Ref, Branch, Remote, Commit, GitErrorCodes, Stash, RefType, GitError } from './git';
 import { anyEvent, filterEvent, eventToPromise, dispose, find } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import { toGitUri } from './uri';
@@ -170,27 +170,27 @@ export class Resource implements SourceControlResourceState {
 		// return this.resourceUri.fsPath.substr(0, workspaceRootPath.length) !== workspaceRootPath;
 	}
 
-	private get color(): ThemeColor | undefined {
-		switch (this.type) {
-			case Status.INDEX_MODIFIED:
-			case Status.MODIFIED:
-				return new ThemeColor('git.color.modified');
-			case Status.UNTRACKED:
-				return new ThemeColor('git.color.untracked');
-			default:
-				return undefined;
-		}
-	}
-
 	get decorations(): SourceControlResourceDecorations {
 		const light = { iconPath: this.getIconPath('light') };
 		const dark = { iconPath: this.getIconPath('dark') };
 		const tooltip = this.tooltip;
 		const strikeThrough = this.strikeThrough;
 		const faded = this.faded;
-		const color = this.color;
 
-		return { strikeThrough, faded, tooltip, light, dark, color };
+		return { strikeThrough, faded, tooltip, light, dark };
+	}
+
+	get resourceDecoration(): DecorationData | undefined {
+		const title = this.tooltip;
+		switch (this.type) {
+			case Status.UNTRACKED:
+				return { priority: 1, title, abbreviation: localize('untracked, short', "U"), bubble: true, color: new ThemeColor('git.color.untracked') };
+			case Status.INDEX_MODIFIED:
+			case Status.MODIFIED:
+				return { priority: 2, title, abbreviation: localize('modified, short', "M"), bubble: true, color: new ThemeColor('git.color.modified') };
+			default:
+				return undefined;
+		}
 	}
 
 	constructor(
@@ -221,7 +221,8 @@ export enum Operation {
 	Merge = 1 << 16,
 	Ignore = 1 << 17,
 	Tag = 1 << 18,
-	Stash = 1 << 19
+	Stash = 1 << 19,
+	CheckIgnore = 1 << 20
 }
 
 // function getOperationName(operation: Operation): string {
@@ -250,6 +251,7 @@ function isReadOnly(operation: Operation): boolean {
 	switch (operation) {
 		case Operation.Show:
 		case Operation.GetCommitTemplate:
+		case Operation.CheckIgnore:
 			return true;
 		default:
 			return false;
@@ -641,6 +643,49 @@ export class Repository implements Disposable {
 
 			edit.insert(document.uri, lastLine.range.end, text);
 			workspace.applyEdit(edit);
+		});
+	}
+
+	checkIgnore(filePaths: string[]): Promise<Set<string>> {
+		return this.run(Operation.CheckIgnore, () => {
+			return new Promise<Set<string>>((resolve, reject) => {
+
+				filePaths = filePaths.filter(filePath => !path.relative(this.root, filePath).startsWith('..'));
+
+				if (filePaths.length === 0) {
+					// nothing left
+					return Promise.resolve(new Set<string>());
+				}
+
+				const child = this.repository.stream(['check-ignore', ...filePaths]);
+
+				const onExit = exitCode => {
+					if (exitCode === 1) {
+						// nothing ignored
+						resolve(new Set<string>());
+					} else if (exitCode === 0) {
+						// each line is something ignored
+						resolve(new Set<string>(data.split('\n')));
+					} else {
+						reject(new GitError({ stdout: data, stderr, exitCode }));
+					}
+				};
+
+				let data = '';
+				const onStdoutData = (raw: string) => {
+					data += raw;
+				};
+
+				child.stdout.setEncoding('utf8');
+				child.stdout.on('data', onStdoutData);
+
+				let stderr: string = '';
+				child.stderr.setEncoding('utf8');
+				child.stderr.on('data', raw => stderr += raw);
+
+				child.on('error', reject);
+				child.on('exit', onExit);
+			});
 		});
 	}
 

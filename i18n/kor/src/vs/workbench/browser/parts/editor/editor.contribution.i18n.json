@@ -12,5 +12,6 @@
 	"groupTwoPicker": "두 번째 그룹에 편집기 표시",
 	"groupThreePicker": "세 번째 그룹에 편집기 표시",
 	"allEditorsPicker": "열려 있는 모든 편집기 표시",
-	"view": "보기"
+	"view": "보기",
+	"file": "파일"
 }

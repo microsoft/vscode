@@ -80,22 +80,6 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 		});
 	}
 
-	public $startDebugSession(folderUri: uri | undefined, configuration: IConfig): TPromise<DebugSessionUUID> {
-		if (configuration.request !== 'launch' && configuration.request !== 'attach') {
-			return TPromise.wrapError(new Error(`only 'launch' or 'attach' allowed for 'request' attribute`));
-		}
-
-		const folder = folderUri ? this.contextService.getWorkspace().folders.filter(wf => wf.uri.toString() === folderUri.toString()).pop() : undefined;
-		return this.debugService.createProcess(folder, configuration).then(process => {
-			if (process) {
-				return <DebugSessionUUID>process.getId();
-			}
-			return TPromise.wrapError<DebugSessionUUID>(new Error('cannot create debug session'));
-		}, err => {
-			return TPromise.wrapError(err && err.message ? err.message : 'cannot start debug session');
-		});
-	}
-
 	public $customDebugAdapterRequest(sessionId: DebugSessionUUID, request: string, args: any): TPromise<any> {
 		const process = this.debugService.findProcessByUUID(sessionId);
 		if (process) {

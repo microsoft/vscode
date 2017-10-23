@@ -28,6 +28,8 @@ interface IFullTerminalConfiguration {
 
 const DEFAULT_LINE_HEIGHT = 1.0;
 
+const MINIMUM_FONT_SIZE = 6;
+
 /**
  * Encapsulates terminal configuration logic, the primary purpose of this file is so that platform
  * specific test cases can be written.
@@ -99,10 +101,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 			}
 		}
 
-		let fontSize = this._toInteger(terminalConfig.fontSize, 0);
-		if (fontSize <= 0) {
-			fontSize = EDITOR_FONT_DEFAULTS.fontSize;
-		}
+		let fontSize = this._toInteger(terminalConfig.fontSize, MINIMUM_FONT_SIZE, EDITOR_FONT_DEFAULTS.fontSize);
 		const lineHeight = terminalConfig.lineHeight ? Math.max(terminalConfig.lineHeight, 1) : DEFAULT_LINE_HEIGHT;
 
 		if (excludeDimensions) {
@@ -123,8 +122,8 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	public mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig): void {
 		// Check whether there is a workspace setting
 		const platformKey = platform.isWindows ? 'windows' : platform.isMacintosh ? 'osx' : 'linux';
-		const shellConfigValue = this._workspaceConfigurationService.lookup<string>(`terminal.integrated.shell.${platformKey}`);
-		const shellArgsConfigValue = this._workspaceConfigurationService.lookup<string[]>(`terminal.integrated.shellArgs.${platformKey}`);
+		const shellConfigValue = this._workspaceConfigurationService.inspect<string>(`terminal.integrated.shell.${platformKey}`);
+		const shellArgsConfigValue = this._workspaceConfigurationService.inspect<string[]>(`terminal.integrated.shellArgs.${platformKey}`);
 
 		// Check if workspace setting exists and whether it's whitelisted
 		let isWorkspaceShellAllowed = false;
@@ -180,10 +179,10 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		}
 	}
 
-	private _toInteger(source: any, minimum?: number): number {
+	private _toInteger(source: any, minimum: number, fallback: number): number {
 		let r = parseInt(source, 10);
 		if (isNaN(r)) {
-			r = 0;
+			return fallback;
 		}
 		if (typeof minimum === 'number') {
 			r = Math.max(minimum, r);

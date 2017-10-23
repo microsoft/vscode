@@ -14,12 +14,12 @@ import { IItemCollapseEvent } from 'vs/base/parts/tree/browser/treeModel';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup } from 'vs/workbench/common/editor';
 import { SaveAllAction } from 'vs/workbench/parts/files/browser/fileActions';
 import { ViewsViewletPanel, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IFilesConfiguration, VIEWLET_ID, OpenEditorsFocusedContext, ExplorerFocusedContext } from 'vs/workbench/parts/files/common/files';
+import { VIEWLET_ID, OpenEditorsFocusedContext, ExplorerFocusedContext } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
@@ -42,9 +42,6 @@ export class OpenEditorsView extends ViewsViewletPanel {
 	private static DEFAULT_DYNAMIC_HEIGHT = true;
 	static ID = 'workbench.explorer.openEditorsView';
 	static NAME = nls.localize({ key: 'openEditors', comment: ['Open is an adjective'] }, "Open Editors");
-
-	private visibleOpenEditors: number;
-	private dynamicHeight: boolean;
 
 	private model: IEditorStacksModel;
 	private dirtyCountElement: HTMLElement;
@@ -168,8 +165,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 	public create(): TPromise<void> {
 
 		// Load Config
-		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
-		this.onConfigurationUpdated(configuration);
+		this.updateSize();
 
 		// listeners
 		this.registerListeners();
@@ -183,7 +179,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		this.disposables.push(this.model.onModelChanged(e => this.onEditorStacksModelChanged(e)));
 
 		// Also handle configuration updates
-		this.disposables.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IFilesConfiguration>())));
+		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange(e)));
 
 		// Handle dirty counter
 		this.disposables.push(this.untitledEditorService.onDidChangeDirty(e => this.updateDirtyIndicator()));
@@ -259,25 +255,22 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		}
 	}
 
-	private onConfigurationUpdated(configuration: IFilesConfiguration): void {
+	private onConfigurationChange(event: IConfigurationChangeEvent): void {
 		if (this.isDisposed) {
 			return; // guard against possible race condition when config change causes recreate of views
 		}
 
-		let visibleOpenEditors = configuration && configuration.explorer && configuration.explorer.openEditors && configuration.explorer.openEditors.visible;
-		if (typeof visibleOpenEditors === 'number') {
-			this.visibleOpenEditors = visibleOpenEditors;
-		} else {
-			this.visibleOpenEditors = OpenEditorsView.DEFAULT_VISIBLE_OPEN_EDITORS;
+		if (event.affectsConfiguration('explorer.openEditors')) {
+			this.updateSize();
 		}
 
-		let dynamicHeight = configuration && configuration.explorer && configuration.explorer.openEditors && configuration.explorer.openEditors.dynamicHeight;
-		if (typeof dynamicHeight === 'boolean') {
-			this.dynamicHeight = dynamicHeight;
-		} else {
-			this.dynamicHeight = OpenEditorsView.DEFAULT_DYNAMIC_HEIGHT;
+		// Trigger a 'repaint' when decoration settings change
+		if (event.affectsConfiguration('explorer.decorations')) {
+			this.tree.refresh();
 		}
+	}
 
+	private updateSize(): void {
 		// Adjust expanded body size
 		this.minimumBodySize = this.maximumBodySize = this.getExpandedBodySize(this.model);
 	}
@@ -294,7 +287,16 @@ export class OpenEditorsView extends ViewsViewletPanel {
 	}
 
 	private getExpandedBodySize(model: IEditorStacksModel): number {
-		return OpenEditorsView.computeExpandedBodySize(model, this.visibleOpenEditors, this.dynamicHeight);
+		let visibleOpenEditors = this.configurationService.getValue<number>('explorer.openEditors.visible');
+		if (typeof visibleOpenEditors !== 'number') {
+			visibleOpenEditors = OpenEditorsView.DEFAULT_VISIBLE_OPEN_EDITORS;
+		}
+
+		let dynamicHeight = this.configurationService.getValue<boolean>('explorer.openEditors.dynamicHeight');
+		if (typeof dynamicHeight !== 'boolean') {
+			dynamicHeight = OpenEditorsView.DEFAULT_DYNAMIC_HEIGHT;
+		}
+		return OpenEditorsView.computeExpandedBodySize(model, visibleOpenEditors, dynamicHeight);
 	}
 
 	private static computeExpandedBodySize(model: IEditorStacksModel, visibleOpenEditors = OpenEditorsView.DEFAULT_VISIBLE_OPEN_EDITORS, dynamicHeight = OpenEditorsView.DEFAULT_DYNAMIC_HEIGHT): number {

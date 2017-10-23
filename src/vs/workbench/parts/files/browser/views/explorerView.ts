@@ -19,7 +19,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, SortOrderConfiguration, SortOrder } from 'vs/workbench/parts/files/common/files';
-import { FileOperation, FileOperationEvent, IResolveFileOptions, FileChangeType, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationEvent, IResolveFileOptions, FileChangeType, FileChangesEvent, IFileService, FILES_EXCLUDE_CONFIG } from 'vs/platform/files/common/files';
 import { RefreshViewExplorerAction, NewFolderAction, NewFileAction } from 'vs/workbench/parts/files/browser/fileActions';
 import { FileDragAndDrop, FileFilter, FileSorter, FileController, FileRenderer, FileDataSource, FileViewletState, FileAccessibilityProvider } from 'vs/workbench/parts/files/browser/views/explorerViewer';
 import { toResource } from 'vs/workbench/common/editor';
@@ -33,7 +33,7 @@ import { IListService } from 'vs/platform/list/browser/listService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressService } from 'vs/platform/progress/common/progress';
@@ -115,12 +115,16 @@ export class ExplorerView extends ViewsViewletPanel {
 		this.filesExplorerFocusedContext = FilesExplorerFocusedContext.bindTo(contextKeyService);
 		this.explorerFocusedContext = ExplorerFocusedContext.bindTo(contextKeyService);
 
-		this.fileEventsFilter = instantiationService.createInstance(ResourceGlobMatcher, (root: URI) => this.getFileEventsExcludes(root), (expression: glob.IExpression) => glob.parse(expression));
+		this.fileEventsFilter = instantiationService.createInstance(
+			ResourceGlobMatcher,
+			(root: URI) => this.getFileEventsExcludes(root),
+			(event: IConfigurationChangeEvent) => event.affectsConfiguration(FILES_EXCLUDE_CONFIG)
+		);
 	}
 
 	private getFileEventsExcludes(root?: URI): glob.IExpression {
 		const scope = root ? { resource: root } : void 0;
-		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>(undefined, scope);
+		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>(scope);
 
 		return (configuration && configuration.files && configuration.files.exclude) || Object.create(null);
 	}
@@ -142,6 +146,14 @@ export class ExplorerView extends ViewsViewletPanel {
 
 	public get name(): string {
 		return this.contextService.getWorkspace().name;
+	}
+
+	public get title(): string {
+		return this.name;
+	}
+
+	public set title(value: string) {
+		// noop
 	}
 
 	public set name(value) {
@@ -204,7 +216,7 @@ export class ExplorerView extends ViewsViewletPanel {
 			this.disposables.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
 
 			// Also handle configuration updates
-			this.disposables.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IFilesConfiguration>(), true)));
+			this.disposables.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IFilesConfiguration>(), e)));
 		});
 	}
 
@@ -251,7 +263,7 @@ export class ExplorerView extends ViewsViewletPanel {
 		}
 	}
 
-	private onConfigurationUpdated(configuration: IFilesConfiguration, refresh?: boolean): void {
+	private onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): void {
 		if (this.isDisposed) {
 			return; // guard against possible race condition when config change causes recreate of views
 		}
@@ -270,8 +282,13 @@ export class ExplorerView extends ViewsViewletPanel {
 			needsRefresh = true;
 		}
 
-		// Refresh viewer as needed
-		if (refresh && needsRefresh) {
+		if (event && !needsRefresh) {
+			needsRefresh = event.affectsConfiguration('explorer.decorations.colors')
+				|| event.affectsConfiguration('explorer.decorations.badges');
+		}
+
+		// Refresh viewer as needed if this originates from a config event
+		if (event && needsRefresh) {
 			this.doRefresh().done(null, errors.onUnexpectedError);
 		}
 	}

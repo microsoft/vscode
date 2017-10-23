@@ -57,7 +57,7 @@ export class Workbench {
 			// ignore if there is no dirty file
 			return Promise.resolve();
 		}
-		await this.spectron.command('workbench.action.files.save');
+		await this.spectron.runCommand('workbench.action.files.save');
 		return this.spectron.client.waitForElement('.tabs-container div.tab.active.dirty', element => !element);
 	}
 
@@ -71,8 +71,8 @@ export class Workbench {
 		await this.editor.waitForActiveEditor(fileName);
 	}
 
-	public async waitForActiveTab(fileName: string, isDirty: boolean = false): Promise<boolean> {
-		return this.spectron.client.waitForElement(`.tabs-container div.tab.active${isDirty ? '.dirty' : ''}[aria-selected="true"][aria-label="${fileName}, tab"]`).then(() => true);
+	public async waitForActiveTab(fileName: string, isDirty: boolean = false): Promise<any> {
+		return this.spectron.client.waitForElement(`.tabs-container div.tab.active${isDirty ? '.dirty' : ''}[aria-selected="true"][aria-label="${fileName}, tab"]`);
 	}
 
 	public async waitForTab(fileName: string, isDirty: boolean = false): Promise<boolean> {
@@ -80,7 +80,7 @@ export class Workbench {
 	}
 
 	public async newUntitledFile(): Promise<void> {
-		await this.spectron.command('workbench.action.files.newUntitledFile');
+		await this.spectron.runCommand('workbench.action.files.newUntitledFile');
 		await this.waitForEditorFocus('Untitled-1', true);
 	}
 }

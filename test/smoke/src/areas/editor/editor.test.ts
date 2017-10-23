@@ -3,15 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-
 import { SpectronApplication } from '../../spectron/application';
 
 describe('Editor', () => {
 	let app: SpectronApplication;
 	before(() => { app = new SpectronApplication(); return app.start('Editor'); });
 	after(() => app.stop());
-	beforeEach(function () { app.screenCapturer.testName = this.currentTest.title; });
 
 	it('shows correct quick outline', async function () {
 		await app.workbench.quickopen.openFile('www');
@@ -32,31 +29,26 @@ describe('Editor', () => {
 
 	it(`renames local 'app' variable`, async function () {
 		await app.workbench.quickopen.openFile('www');
-
-		const selector = await app.workbench.editor.getSelector('app', 7);
-		const rename = await app.workbench.editor.rename('app', 7);
-		await rename.rename('newApp');
-
-		const actual = await app.client.waitForText(selector, 'newApp');
+		await app.workbench.editor.rename('www', 7, 'app', 'newApp');
+		await app.workbench.editor.waitForEditorContents('www', contents => contents.indexOf('newApp') > -1);
 		await app.screenCapturer.capture('Rename result');
-		assert.equal(actual, 'newApp');
 	});
 
-	it('folds/unfolds the code correctly', async function () {
-		await app.workbench.quickopen.openFile('www');
+	// it('folds/unfolds the code correctly', async function () {
+	// 	await app.workbench.quickopen.openFile('www');
 
-		// Fold
-		await app.workbench.editor.foldAtLine(3);
-		await app.workbench.editor.waitUntilShown(3);
-		await app.workbench.editor.waitUntilHidden(4);
-		await app.workbench.editor.waitUntilHidden(5);
+	// 	// Fold
+	// 	await app.workbench.editor.foldAtLine(3);
+	// 	await app.workbench.editor.waitUntilShown(3);
+	// 	await app.workbench.editor.waitUntilHidden(4);
+	// 	await app.workbench.editor.waitUntilHidden(5);
 
-		// Unfold
-		await app.workbench.editor.unfoldAtLine(3);
-		await app.workbench.editor.waitUntilShown(3);
-		await app.workbench.editor.waitUntilShown(4);
-		await app.workbench.editor.waitUntilShown(5);
-	});
+	// 	// Unfold
+	// 	await app.workbench.editor.unfoldAtLine(3);
+	// 	await app.workbench.editor.waitUntilShown(3);
+	// 	await app.workbench.editor.waitUntilShown(4);
+	// 	await app.workbench.editor.waitUntilShown(5);
+	// });
 
 	it(`verifies that 'Go To Definition' works`, async function () {
 		await app.workbench.quickopen.openFile('app.js');

@@ -132,9 +132,9 @@ let workbenchProperties: { [path: string]: IJSONSchema; } = {
 		'type': 'string',
 		'enum': ['default', 'short', 'medium', 'long'],
 		'enumDescriptions': [
-			nls.localize('workbench.editor.labelFormat.default', "Show the name of the file. When tabs are enabled and two files have the same name in one group the distinguinshing sections of each file's path are added. When tabs are disabled, the path relative to workspace root is shown if the editor is active."),
+			nls.localize('workbench.editor.labelFormat.default', "Show the name of the file. When tabs are enabled and two files have the same name in one group the distinguinshing sections of each file's path are added. When tabs are disabled, the path relative to the workspace folder is shown if the editor is active."),
 			nls.localize('workbench.editor.labelFormat.short', "Show the name of the file followed by it's directory name."),
-			nls.localize('workbench.editor.labelFormat.medium', "Show the name of the file followed by it's path relative to the workspace root."),
+			nls.localize('workbench.editor.labelFormat.medium', "Show the name of the file followed by it's path relative to the workspace folder."),
 			nls.localize('workbench.editor.labelFormat.long', "Show the name of the file followed by it's absolute path.")
 		],
 		'default': 'default',
@@ -170,7 +170,7 @@ let workbenchProperties: { [path: string]: IJSONSchema; } = {
 		'type': 'string',
 		'enum': ['left', 'right', 'first', 'last'],
 		'default': 'right',
-		'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'editorOpenPositioning' }, "Controls where editors open. Select 'left' or 'right' to open editors to the left or right of the current active one. Select 'first' or 'last' to open editors independently from the currently active one.")
+		'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'editorOpenPositioning' }, "Controls where editors open. Select 'left' or 'right' to open editors to the left or right of the currently active one. Select 'first' or 'last' to open editors independently from the currently active one.")
 	},
 	'workbench.editor.revealIfOpen': {
 		'type': 'boolean',

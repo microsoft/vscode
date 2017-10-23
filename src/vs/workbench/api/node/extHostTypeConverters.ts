@@ -139,7 +139,7 @@ function isDecorationOptions(something: any): something is vscode.DecorationOpti
 	return (typeof something.range !== 'undefined');
 }
 
-function isDecorationOptionsArr(something: vscode.Range[] | vscode.DecorationOptions[]): something is vscode.DecorationOptions[] {
+export function isDecorationOptionsArr(something: vscode.Range[] | vscode.DecorationOptions[]): something is vscode.DecorationOptions[] {
 	if (something.length === 0) {
 		return true;
 	}

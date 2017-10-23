@@ -44,7 +44,6 @@
 	"typescript.npm": "Otomatik Tür Kazanımı için kullanılacak NPM yürütülebilir dosyasının yolunu belirtir. TypeScript >= 2.3.4 gerektirir.",
 	"typescript.check.npmIsInstalled": "Otomatik Tür Kazanımı için NPM'in yüklü olup olmadığını kontrol et.",
 	"javascript.nameSuggestions": "JavaScript öneri listelerindeki dosyadan benzersiz adları eklemeyi etkinleştir veya devre dışı bırak.",
-	"typescript.tsc.autoDetect": "Tsc görevlerinin otomatik olarak algılanıp algılanmayacağını denetler. Varsayılan olarak açıktır.",
 	"typescript.problemMatchers.tsc.label": "TypeScript sorunları",
 	"typescript.problemMatchers.tscWatch.label": "TypeScript sorunları (izleme modu)"
 }

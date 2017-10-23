@@ -13,7 +13,6 @@
 	"actionNotEnabled": "'{0}' komutu geçerli bağlamda etkin değil.",
 	"recentlyUsed": "yakınlarda kullanıldı",
 	"morecCommands": "diğer komutlar",
-	"commandLabel": "{0}: {1}",
 	"cat.title": "{0}: {1}",
 	"noCommandsMatching": "Eşleşen komut yok"
 }

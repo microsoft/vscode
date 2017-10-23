@@ -23,9 +23,10 @@ import { LogMainService } from 'vs/platform/log/common/log';
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { createHash } from 'crypto';
 import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
+import { getRandomTestPath } from 'vs/workbench/test/workbenchTestServices';
 
 suite('BackupMainService', () => {
-	const parentDir = path.join(os.tmpdir(), 'vsctests', 'service');
+	const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backupservice');
 	const backupHome = path.join(parentDir, 'Backups');
 	const backupWorkspacesPath = path.join(backupHome, 'workspaces.json');
 

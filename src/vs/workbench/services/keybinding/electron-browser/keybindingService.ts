@@ -268,7 +268,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		super(contextKeyService, commandService, telemetryService, messageService, statusBarService);
 
 		let dispatchConfig = getDispatchConfig(configurationService);
-		configurationService.onDidUpdateConfiguration((e) => {
+		configurationService.onDidChangeConfiguration((e) => {
 			let newDispatchConfig = getDispatchConfig(configurationService);
 			if (dispatchConfig === newDispatchConfig) {
 				return;

@@ -77,7 +77,7 @@ export class FileStat implements IFileStat {
 	public name: string;
 	public mtime: number;
 	public etag: string;
-	public isDirectory: boolean;
+	private _isDirectory: boolean;
 	public hasChildren: boolean;
 	public children: FileStat[];
 	public parent: FileStat;
@@ -92,15 +92,27 @@ export class FileStat implements IFileStat {
 		this.etag = etag;
 		this.mtime = mtime;
 
-		// Prepare child stat array
-		if (this.isDirectory) {
-			this.children = [];
-		}
 		if (!this.root) {
 			this.root = this;
 		}
 
 		this.isDirectoryResolved = false;
+	}
+
+	public get isDirectory(): boolean {
+		return this._isDirectory;
+	}
+
+	public set isDirectory(value: boolean) {
+		if (value !== this._isDirectory) {
+			this._isDirectory = value;
+			if (this._isDirectory) {
+				this.children = [];
+			} else {
+				this.children = undefined;
+			}
+		}
+
 	}
 
 	public get nonexistentRoot(): boolean {

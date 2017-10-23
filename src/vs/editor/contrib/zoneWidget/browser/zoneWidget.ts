@@ -395,7 +395,11 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 
 		// Reveal the line above or below the zone widget, to get the zone widget in the viewport
 		const revealLineNumber = Math.min(this.editor.getModel().getLineCount(), Math.max(1, where.endLineNumber + 1));
-		this.editor.revealLineInCenterIfOutsideViewport(revealLineNumber, ScrollType.Smooth);
+		this.revealLine(revealLineNumber);
+	}
+
+	protected revealLine(lineNumber: number) {
+		this.editor.revealLine(lineNumber, ScrollType.Smooth);
 	}
 
 	protected setCssClass(className: string, classToReplace?: string): void {

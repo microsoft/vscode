@@ -285,7 +285,7 @@ export class WalkThroughPart extends BaseEditor {
 	}
 
 	private getArrowScrollHeight() {
-		let fontSize = this.configurationService.lookup<number>('editor.fontSize').value;
+		let fontSize = this.configurationService.getValue<number>('editor.fontSize');
 		if (typeof fontSize !== 'number' || fontSize < 1) {
 			fontSize = 12;
 		}
@@ -401,7 +401,7 @@ export class WalkThroughPart extends BaseEditor {
 						}
 					}));
 
-					this.contentDisposables.push(this.configurationService.onDidUpdateConfiguration(() => {
+					this.contentDisposables.push(this.configurationService.onDidChangeConfiguration(() => {
 						if (snippet.textEditorModel) {
 							editor.updateOptions(this.getEditorOptions(snippet.textEditorModel.getModeId()));
 						}
@@ -452,7 +452,11 @@ export class WalkThroughPart extends BaseEditor {
 				});
 				this.updateSizeClasses();
 				this.multiCursorModifier();
-				this.contentDisposables.push(this.configurationService.onDidUpdateConfiguration(() => this.multiCursorModifier()));
+				this.contentDisposables.push(this.configurationService.onDidChangeConfiguration(e => {
+					if (e.affectsConfiguration('editor.multiCursorModifier')) {
+						this.multiCursorModifier();
+					}
+				}));
 				if (input.onReady) {
 					input.onReady(innerContent);
 				}
@@ -510,8 +514,8 @@ export class WalkThroughPart extends BaseEditor {
 
 	private multiCursorModifier() {
 		const labels = UILabelProvider.modifierLabels[OS];
-		const setting = this.configurationService.lookup<string>('editor.multiCursorModifier');
-		const modifier = labels[setting.value === 'ctrlCmd' ? (OS === OperatingSystem.Macintosh ? 'metaKey' : 'ctrlKey') : 'altKey'];
+		const value = this.configurationService.getValue<string>('editor.multiCursorModifier');
+		const modifier = labels[value === 'ctrlCmd' ? (OS === OperatingSystem.Macintosh ? 'metaKey' : 'ctrlKey') : 'altKey'];
 		const keys = this.content.querySelectorAll('.multi-cursor-modifier');
 		Array.prototype.forEach.call(keys, (key: Element) => {
 			while (key.firstChild) {

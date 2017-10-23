@@ -6,6 +6,7 @@
 {
 	"schema.token.settings": "Couleurs et styles du jeton.",
 	"schema.token.foreground": "Couleur de premier plan du jeton.",
+	"schema.token.background.warning": "Les couleurs d’arrière-plan des tokens ne sont actuellement pas pris en charge.",
 	"schema.token.fontStyle": "Style de police de la règle : 'italique', 'gras' ou 'souligné', ou une combinaison de ces styles",
 	"schema.fontStyle.error": "Le style de police doit être une combinaison de 'italic', 'bold' et 'underline'",
 	"schema.properties.name": "Description de la règle.",

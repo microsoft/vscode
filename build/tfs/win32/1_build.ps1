@@ -52,4 +52,11 @@ step "Run unit tests" {
 #   exec { & .\scripts\test-integration.bat }
 # }
 
+# step "Run smoke test" {
+# 	$Artifacts = "$env:AGENT_BUILDDIRECTORY\smoketest-artifacts"
+# 	Remove-Item -Recurse -Force -ErrorAction Ignore $Artifacts
+
+# 	exec { & npm run smoketest -- --build "$env:AGENT_BUILDDIRECTORY\VSCode-win32-$global:arch" --log "$Artifacts" }
+# }
+
 done

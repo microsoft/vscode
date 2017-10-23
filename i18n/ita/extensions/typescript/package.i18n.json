@@ -44,7 +44,8 @@
 	"typescript.npm": "Specifica il percorso dell'eseguibile NPM utilizzato per l'acquisizione automatica delle definizioni di tipi. Richiede TypeScript >= 2.3.4.",
 	"typescript.check.npmIsInstalled": "Controlla se NPM è installato per l'acquisizione automatica delle definizioni di tipi",
 	"javascript.nameSuggestions": "Abilita/disabilita l'inclusione di nomi univoci dal file negli elenchi di suggerimento di JavaScript.",
-	"typescript.tsc.autoDetect": "Controlla se la rilevazione automatica di attività tsc è on/off.",
+	"typescript.tsc.autoDetect": "Controlla l'auto-rilevazione di attività di tsc. 'off' disabilita questa funzionalità. 'build' crea solo attività di singola compilazione esecuzione. 'watch' crea solo attività di compilazione e controllo. 'on' crea attività  sia di tipo 'build' che 'watch'. Il valore predefinito è 'on'.",
 	"typescript.problemMatchers.tsc.label": "Problemi TypeScript",
-	"typescript.problemMatchers.tscWatch.label": "Problemi TypeScript (modalità espressione di controllo)"
+	"typescript.problemMatchers.tscWatch.label": "Problemi TypeScript (modalità espressione di controllo)",
+	"typescript.quickSuggestionsForPaths": "Attiva/Disattiva suggerimenti rapidi quando si digita un percorso di importazione."
 }

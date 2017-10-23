@@ -8,6 +8,7 @@ import { OrderGuaranteeEventEmitter, BulkListenerCallback } from 'vs/base/common
 import * as strings from 'vs/base/common/strings';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range, IRange } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ModelLine, IModelLine, MinimalModelLine } from 'vs/editor/common/model/modelLine';
 import { guessIndentation } from 'vs/editor/common/model/indentationGuesser';
@@ -17,8 +18,6 @@ import { TextModelSearch, SearchParams } from 'vs/editor/common/model/textModelS
 import { TextSource, ITextSource, IRawTextSource, RawTextSource } from 'vs/editor/common/model/textSource';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
-
-const USE_MIMINAL_MODEL_LINE = true;
 
 const LIMIT_FIND_COUNT = 999;
 export const LONG_LINE_BOUNDARY = 10000;
@@ -123,7 +122,7 @@ export class TextModel implements editorCommon.ITextModel {
 	}
 
 	protected _createModelLine(text: string, tabSize: number): IModelLine {
-		if (USE_MIMINAL_MODEL_LINE && this._isTooLargeForTokenization) {
+		if (this._isTooLargeForTokenization) {
 			return new MinimalModelLine(text, tabSize);
 		}
 		return new ModelLine(text, tabSize);
@@ -261,22 +260,9 @@ export class TextModel implements editorCommon.ITextModel {
 		return this._alternativeVersionId;
 	}
 
-	private _ensureLineStarts(): void {
-		if (!this._lineStarts) {
-			const eolLength = this._EOL.length;
-			const linesLength = this._lines.length;
-			const lineStartValues = new Uint32Array(linesLength);
-			for (let i = 0; i < linesLength; i++) {
-				lineStartValues[i] = this._lines[i].text.length + eolLength;
-			}
-			this._lineStarts = new PrefixSumComputer(lineStartValues);
-		}
-	}
-
 	public getOffsetAt(rawPosition: IPosition): number {
 		this._assertNotDisposed();
 		let position = this._validatePosition(rawPosition.lineNumber, rawPosition.column, false);
-		this._ensureLineStarts();
 		return this._lineStarts.getAccumulatedValue(position.lineNumber - 2) + position.column - 1;
 	}
 
@@ -285,7 +271,6 @@ export class TextModel implements editorCommon.ITextModel {
 		offset = Math.floor(offset);
 		offset = Math.max(0, offset);
 
-		this._ensureLineStarts();
 		let out = this._lineStarts.getIndexOf(offset);
 
 		let lineLength = this._lines[out.index].text.length;
@@ -525,6 +510,12 @@ export class TextModel implements editorCommon.ITextModel {
 		return this._EOL;
 	}
 
+	protected _onBeforeEOLChange(): void {
+	}
+
+	protected _onAfterEOLChange(): void {
+	}
+
 	public setEOL(eol: editorCommon.EndOfLineSequence): void {
 		this._assertNotDisposed();
 		const newEOL = (eol === editorCommon.EndOfLineSequence.CRLF ? '\r\n' : '\n');
@@ -538,9 +529,11 @@ export class TextModel implements editorCommon.ITextModel {
 		const endLineNumber = this.getLineCount();
 		const endColumn = this.getLineMaxColumn(endLineNumber);
 
+		this._onBeforeEOLChange();
 		this._EOL = newEOL;
-		this._lineStarts = null;
+		this._constructLineStarts();
 		this._increaseVersionId();
+		this._onAfterEOLChange();
 
 		this._emitModelRawContentChangedEvent(
 			new textModelEvents.ModelRawContentChangedEvent(
@@ -605,6 +598,77 @@ export class TextModel implements editorCommon.ITextModel {
 			lineNumber = this._lines.length;
 		}
 		return lineNumber;
+	}
+
+	/**
+	 * Validates `range` is within buffer bounds, but allows it to sit in between surrogate pairs, etc.
+	 * Will try to not allocate if possible.
+	 */
+	protected _validateRangeRelaxedNoAllocations(range: IRange): Range {
+		const linesCount = this._lines.length;
+
+		const initialStartLineNumber = range.startLineNumber;
+		const initialStartColumn = range.startColumn;
+		let startLineNumber: number;
+		let startColumn: number;
+
+		if (initialStartLineNumber < 1) {
+			startLineNumber = 1;
+			startColumn = 1;
+		} else if (initialStartLineNumber > linesCount) {
+			startLineNumber = linesCount;
+			startColumn = this.getLineMaxColumn(startLineNumber);
+		} else {
+			startLineNumber = initialStartLineNumber | 0;
+			if (initialStartColumn <= 1) {
+				startColumn = 1;
+			} else {
+				const maxColumn = this.getLineMaxColumn(startLineNumber);
+				if (initialStartColumn >= maxColumn) {
+					startColumn = maxColumn;
+				} else {
+					startColumn = initialStartColumn | 0;
+				}
+			}
+		}
+
+		const initialEndLineNumber = range.endLineNumber;
+		const initialEndColumn = range.endColumn;
+		let endLineNumber: number;
+		let endColumn: number;
+
+		if (initialEndLineNumber < 1) {
+			endLineNumber = 1;
+			endColumn = 1;
+		} else if (initialEndLineNumber > linesCount) {
+			endLineNumber = linesCount;
+			endColumn = this.getLineMaxColumn(endLineNumber);
+		} else {
+			endLineNumber = initialEndLineNumber | 0;
+			if (initialEndColumn <= 1) {
+				endColumn = 1;
+			} else {
+				const maxColumn = this.getLineMaxColumn(endLineNumber);
+				if (initialEndColumn >= maxColumn) {
+					endColumn = maxColumn;
+				} else {
+					endColumn = initialEndColumn | 0;
+				}
+			}
+		}
+
+		if (
+			initialStartLineNumber === startLineNumber
+			&& initialStartColumn === startColumn
+			&& initialEndLineNumber === endLineNumber
+			&& initialEndColumn === endColumn
+			&& range instanceof Range
+			&& !(range instanceof Selection)
+		) {
+			return range;
+		}
+
+		return new Range(startLineNumber, startColumn, endLineNumber, endColumn);
 	}
 
 	/**
@@ -723,7 +787,17 @@ export class TextModel implements editorCommon.ITextModel {
 		this._mightContainNonBasicASCII = !textSource.isBasicASCII;
 		this._EOL = textSource.EOL;
 		this._lines = modelLines;
-		this._lineStarts = null;
+		this._constructLineStarts();
+	}
+
+	private _constructLineStarts(): void {
+		const eolLength = this._EOL.length;
+		const linesLength = this._lines.length;
+		const lineStartValues = new Uint32Array(linesLength);
+		for (let i = 0; i < linesLength; i++) {
+			lineStartValues[i] = this._lines[i].text.length + eolLength;
+		}
+		this._lineStarts = new PrefixSumComputer(lineStartValues);
 	}
 
 	private _getEndOfLine(eol: editorCommon.EndOfLinePreference): string {

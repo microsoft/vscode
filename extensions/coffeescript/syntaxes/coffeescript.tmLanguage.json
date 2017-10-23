@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-coffee-script/commit/da81e3f537ccbbb70e542fa5af79583eb58ec50b",
+	"version": "https://github.com/atom/language-coffee-script/commit/8873cbc4e2f3b790603cbe7102d60f41fc82f726",
 	"scopeName": "source.coffee",
 	"name": "CoffeeScript",
 	"fileTypes": [
@@ -535,18 +535,28 @@
 		"arguments": {
 			"patterns": [
 				{
-					"begin": "(?=(@|@?[\\w$]+|[=-]>|\\-\\d|\\[|{|\"|'))|\\(",
+					"begin": "\\(",
 					"beginCaptures": {
 						"0": {
 							"name": "punctuation.definition.arguments.begin.bracket.round.coffee"
 						}
 					},
-					"end": "\\)|(?=\\s*(?<![\\w$])(of|in|then|is|isnt|and|or|for|else|when|if|unless|by|instanceof)(?![\\w$]))|(?=\\s*(}|#|$))",
+					"end": "\\)",
 					"endCaptures": {
 						"0": {
 							"name": "punctuation.definition.arguments.end.bracket.round.coffee"
 						}
 					},
+					"name": "meta.arguments.coffee",
+					"patterns": [
+						{
+							"include": "$self"
+						}
+					]
+				},
+				{
+					"begin": "(?=(@|@?[\\w$]+|[=-]>|\\-\\d|\\[|{|\"|'))",
+					"end": "(?=\\s*(?<![\\w$])(of|in|then|is|isnt|and|or|for|else|when|if|unless|by|instanceof)(?![\\w$]))|(?=\\s*(}|\\)|#|$))",
 					"name": "meta.arguments.coffee",
 					"patterns": [
 						{
@@ -592,7 +602,7 @@
 		"function_calls": {
 			"patterns": [
 				{
-					"begin": "(?x)\n(@)?([\\w$]+)\n\\s*\n(?=\\s+(?!(?<![\\w$])(of|in|then|is|isnt|and|or|for|else|when|if|unless|by|instanceof)(?![\\w$]))(?=(@?[\\w$]+|[=-]>|\\-\\d|\\[|\\{|\"|'))|(?=\\())",
+					"begin": "(@)?([\\w$]+)(?=\\()",
 					"beginCaptures": {
 						"1": {
 							"name": "variable.other.readwrite.instance.coffee"
@@ -600,27 +610,56 @@
 						"2": {
 							"patterns": [
 								{
-									"match": "(?x)\n\\b(isNaN|isFinite|eval|uneval|parseInt|parseFloat|decodeURI|\ndecodeURIComponent|encodeURI|encodeURIComponent|escape|unescape|\nrequire|set(Interval|Timeout)|clear(Interval|Timeout))\\b",
-									"name": "support.function.coffee"
-								},
-								{
-									"match": "[a-zA-Z_$][\\w$]*",
-									"name": "entity.name.function.coffee"
-								},
-								{
-									"match": "\\d[\\w$]*",
-									"name": "invalid.illegal.identifier.coffee"
+									"include": "#function_names"
 								}
 							]
 						}
 					},
-					"end": "(?<=\\))|(?=\\s*(?<![\\w$])(of|in|then|is|isnt|and|or|for|else|when|if|unless|by|instanceof)(?![\\w$]))|(?=\\s*(}|#|$))",
+					"end": "(?<=\\))",
 					"name": "meta.function-call.coffee",
 					"patterns": [
 						{
 							"include": "#arguments"
 						}
 					]
+				},
+				{
+					"begin": "(?x)\n(@)?([\\w$]+)\n\\s*\n(?=\\s+(?!(?<![\\w$])(of|in|then|is|isnt|and|or|for|else|when|if|unless|by|instanceof)(?![\\w$]))(?=(@?[\\w$]+|[=-]>|\\-\\d|\\[|{|\"|')))",
+					"beginCaptures": {
+						"1": {
+							"name": "variable.other.readwrite.instance.coffee"
+						},
+						"2": {
+							"patterns": [
+								{
+									"include": "#function_names"
+								}
+							]
+						}
+					},
+					"end": "(?=\\s*(?<![\\w$])(of|in|then|is|isnt|and|or|for|else|when|if|unless|by|instanceof)(?![\\w$]))|(?=\\s*(}|\\)|#|$))",
+					"name": "meta.function-call.coffee",
+					"patterns": [
+						{
+							"include": "#arguments"
+						}
+					]
+				}
+			]
+		},
+		"function_names": {
+			"patterns": [
+				{
+					"match": "(?x)\n\\b(isNaN|isFinite|eval|uneval|parseInt|parseFloat|decodeURI|\ndecodeURIComponent|encodeURI|encodeURIComponent|escape|unescape|\nrequire|set(Interval|Timeout)|clear(Interval|Timeout))\\b",
+					"name": "support.function.coffee"
+				},
+				{
+					"match": "[a-zA-Z_$][\\w$]*",
+					"name": "entity.name.function.coffee"
+				},
+				{
+					"match": "\\d[\\w$]*",
+					"name": "invalid.illegal.identifier.coffee"
 				}
 			]
 		},
@@ -713,7 +752,7 @@
 		"method_calls": {
 			"patterns": [
 				{
-					"begin": "(?:(\\.)|(::))\\s*([\\w$]+)\\s*(?=\\s+(?!(?<![\\w$])(of|in|then|is|isnt|and|or|for|else|when|if|unless|by|instanceof)(?![\\w$]))(?=(@|@?[\\w$]+|[=-]>|\\-\\d|\\[|\\{|\"|'))|(?=\\())",
+					"begin": "(?:(\\.)|(::))\\s*([\\w$]+)\\s*(?=\\()",
 					"beginCaptures": {
 						"1": {
 							"name": "punctuation.separator.method.period.coffee"
@@ -724,35 +763,67 @@
 						"3": {
 							"patterns": [
 								{
-									"match": "(?x)\n\\bon(Rowsinserted|Rowsdelete|Rowenter|Rowexit|Resize|Resizestart|Resizeend|Reset|\nReadystatechange|Mouseout|Mouseover|Mousedown|Mouseup|Mousemove|\nBefore(cut|deactivate|unload|update|paste|print|editfocus|activate)|\nBlur|Scrolltop|Submit|Select|Selectstart|Selectionchange|Hover|Help|\nChange|Contextmenu|Controlselect|Cut|Cellchange|Clock|Close|Deactivate|\nDatasetchanged|Datasetcomplete|Dataavailable|Drop|Drag|Dragstart|Dragover|\nDragdrop|Dragenter|Dragend|Dragleave|Dblclick|Unload|Paste|Propertychange|Error|\nErrorupdate|Keydown|Keyup|Keypress|Focus|Load|Activate|Afterupdate|Afterprint|Abort)\\b",
-									"name": "support.function.event-handler.coffee"
-								},
-								{
-									"match": "(?x)\n\\b(shift|showModelessDialog|showModalDialog|showHelp|scroll|scrollX|scrollByPages|\nscrollByLines|scrollY|scrollTo|stop|strike|sizeToContent|sidebar|signText|sort|\nsup|sub|substr|substring|splice|split|send|set(Milliseconds|Seconds|Minutes|Hours|\nMonth|Year|FullYear|Date|UTC(Milliseconds|Seconds|Minutes|Hours|Month|FullYear|Date)|\nTime|Hotkeys|Cursor|ZOptions|Active|Resizable|RequestHeader)|search|slice|\nsavePreferences|small|home|handleEvent|navigate|char|charCodeAt|charAt|concat|\ncontextual|confirm|compile|clear|captureEvents|call|createStyleSheet|createPopup|\ncreateEventObject|to(GMTString|UTCString|String|Source|UpperCase|LowerCase|LocaleString)|\ntest|taint|taintEnabled|indexOf|italics|disableExternalCapture|dump|detachEvent|unshift|\nuntaint|unwatch|updateCommands|join|javaEnabled|pop|push|plugins.refresh|paddings|parse|\nprint|prompt|preference|enableExternalCapture|exec|execScript|valueOf|UTC|find|file|\nfileModifiedDate|fileSize|fileCreatedDate|fileUpdatedDate|fixed|fontsize|fontcolor|\nforward|fromCharCode|watch|link|load|lastIndexOf|anchor|attachEvent|atob|apply|alert|\nabort|routeEvents|resize|resizeBy|resizeTo|recalc|returnValue|replace|reverse|reload|\nreleaseCapture|releaseEvents|go|get(Milliseconds|Seconds|Minutes|Hours|Month|Day|Year|FullYear|\nTime|Date|TimezoneOffset|UTC(Milliseconds|Seconds|Minutes|Hours|Day|Month|FullYear|Date)|\nAttention|Selection|ResponseHeader|AllResponseHeaders)|moveBy|moveBelow|moveTo|\nmoveToAbsolute|moveAbove|mergeAttributes|match|margins|btoa|big|bold|borderWidths|blink|back)\\b",
-									"name": "support.function.coffee"
-								},
-								{
-									"match": "(?x)\n\\b(acceptNode|add|addEventListener|addTextTrack|adoptNode|after|animate|append|\nappendChild|appendData|before|blur|canPlayType|captureStream|\ncaretPositionFromPoint|caretRangeFromPoint|checkValidity|clear|click|\ncloneContents|cloneNode|cloneRange|close|closest|collapse|\ncompareBoundaryPoints|compareDocumentPosition|comparePoint|contains|\nconvertPointFromNode|convertQuadFromNode|convertRectFromNode|createAttribute|\ncreateAttributeNS|createCaption|createCDATASection|createComment|\ncreateContextualFragment|createDocument|createDocumentFragment|\ncreateDocumentType|createElement|createElementNS|createEntityReference|\ncreateEvent|createExpression|createHTMLDocument|createNodeIterator|\ncreateNSResolver|createProcessingInstruction|createRange|createShadowRoot|\ncreateTBody|createTextNode|createTFoot|createTHead|createTreeWalker|delete|\ndeleteCaption|deleteCell|deleteContents|deleteData|deleteRow|deleteTFoot|\ndeleteTHead|detach|disconnect|dispatchEvent|elementFromPoint|elementsFromPoint|\nenableStyleSheetsForSet|entries|evaluate|execCommand|exitFullscreen|\nexitPointerLock|expand|extractContents|fastSeek|firstChild|focus|forEach|get|\ngetAll|getAnimations|getAttribute|getAttributeNames|getAttributeNode|\ngetAttributeNodeNS|getAttributeNS|getBoundingClientRect|getBoxQuads|\ngetClientRects|getContext|getDestinationInsertionPoints|getElementById|\ngetElementsByClassName|getElementsByName|getElementsByTagName|\ngetElementsByTagNameNS|getItem|getNamedItem|getSelection|getStartDate|\ngetVideoPlaybackQuality|has|hasAttribute|hasAttributeNS|hasAttributes|\nhasChildNodes|hasFeature|hasFocus|importNode|initEvent|insertAdjacentElement|\ninsertAdjacentHTML|insertAdjacentText|insertBefore|insertCell|insertData|\ninsertNode|insertRow|intersectsNode|isDefaultNamespace|isEqualNode|\nisPointInRange|isSameNode|item|key|keys|lastChild|load|lookupNamespaceURI|\nlookupPrefix|matches|move|moveAttribute|moveAttributeNode|moveChild|\nmoveNamedItem|namedItem|nextNode|nextSibling|normalize|observe|open|\nparentNode|pause|play|postMessage|prepend|preventDefault|previousNode|\npreviousSibling|probablySupportsContext|queryCommandEnabled|\nqueryCommandIndeterm|queryCommandState|queryCommandSupported|queryCommandValue|\nquerySelector|querySelectorAll|registerContentHandler|registerElement|\nregisterProtocolHandler|releaseCapture|releaseEvents|remove|removeAttribute|\nremoveAttributeNode|removeAttributeNS|removeChild|removeEventListener|\nremoveItem|replace|replaceChild|replaceData|replaceWith|reportValidity|\nrequestFullscreen|requestPointerLock|reset|scroll|scrollBy|scrollIntoView|\nscrollTo|seekToNextFrame|select|selectNode|selectNodeContents|set|setAttribute|\nsetAttributeNode|setAttributeNodeNS|setAttributeNS|setCapture|\nsetCustomValidity|setEnd|setEndAfter|setEndBefore|setItem|setNamedItem|\nsetRangeText|setSelectionRange|setSinkId|setStart|setStartAfter|setStartBefore|\nslice|splitText|stepDown|stepUp|stopImmediatePropagation|stopPropagation|\nsubmit|substringData|supports|surroundContents|takeRecords|terminate|toBlob|\ntoDataURL|toggle|toString|values|write|writeln)\\b",
-									"name": "support.function.dom.coffee"
-								},
-								{
-									"match": "[a-zA-Z_$][\\w$]*",
-									"name": "entity.name.function.coffee"
-								},
-								{
-									"match": "\\d[\\w$]*",
-									"name": "invalid.illegal.identifier.coffee"
+									"include": "#method_names"
 								}
 							]
 						}
 					},
-					"end": "(?<=\\))|(?=\\s*(?<![\\w$])(of|in|then|is|isnt|and|or|for|else|when|if|unless|by|instanceof)(?![\\w$]))|(?=\\s*(}|#|$))",
+					"end": "(?<=\\))",
 					"name": "meta.method-call.coffee",
 					"patterns": [
 						{
 							"include": "#arguments"
 						}
 					]
+				},
+				{
+					"begin": "(?:(\\.)|(::))\\s*([\\w$]+)\\s*(?=\\s+(?!(?<![\\w$])(of|in|then|is|isnt|and|or|for|else|when|if|unless|by|instanceof)(?![\\w$]))(?=(@|@?[\\w$]+|[=-]>|\\-\\d|\\[|{|\"|')))",
+					"beginCaptures": {
+						"1": {
+							"name": "punctuation.separator.method.period.coffee"
+						},
+						"2": {
+							"name": "keyword.operator.prototype.coffee"
+						},
+						"3": {
+							"patterns": [
+								{
+									"include": "#method_names"
+								}
+							]
+						}
+					},
+					"end": "(?=\\s*(?<![\\w$])(of|in|then|is|isnt|and|or|for|else|when|if|unless|by|instanceof)(?![\\w$]))|(?=\\s*(}|\\)|#|$))",
+					"name": "meta.method-call.coffee",
+					"patterns": [
+						{
+							"include": "#arguments"
+						}
+					]
+				}
+			]
+		},
+		"method_names": {
+			"patterns": [
+				{
+					"match": "(?x)\n\\bon(Rowsinserted|Rowsdelete|Rowenter|Rowexit|Resize|Resizestart|Resizeend|Reset|\nReadystatechange|Mouseout|Mouseover|Mousedown|Mouseup|Mousemove|\nBefore(cut|deactivate|unload|update|paste|print|editfocus|activate)|\nBlur|Scrolltop|Submit|Select|Selectstart|Selectionchange|Hover|Help|\nChange|Contextmenu|Controlselect|Cut|Cellchange|Clock|Close|Deactivate|\nDatasetchanged|Datasetcomplete|Dataavailable|Drop|Drag|Dragstart|Dragover|\nDragdrop|Dragenter|Dragend|Dragleave|Dblclick|Unload|Paste|Propertychange|Error|\nErrorupdate|Keydown|Keyup|Keypress|Focus|Load|Activate|Afterupdate|Afterprint|Abort)\\b",
+					"name": "support.function.event-handler.coffee"
+				},
+				{
+					"match": "(?x)\n\\b(shift|showModelessDialog|showModalDialog|showHelp|scroll|scrollX|scrollByPages|\nscrollByLines|scrollY|scrollTo|stop|strike|sizeToContent|sidebar|signText|sort|\nsup|sub|substr|substring|splice|split|send|set(Milliseconds|Seconds|Minutes|Hours|\nMonth|Year|FullYear|Date|UTC(Milliseconds|Seconds|Minutes|Hours|Month|FullYear|Date)|\nTime|Hotkeys|Cursor|ZOptions|Active|Resizable|RequestHeader)|search|slice|\nsavePreferences|small|home|handleEvent|navigate|char|charCodeAt|charAt|concat|\ncontextual|confirm|compile|clear|captureEvents|call|createStyleSheet|createPopup|\ncreateEventObject|to(GMTString|UTCString|String|Source|UpperCase|LowerCase|LocaleString)|\ntest|taint|taintEnabled|indexOf|italics|disableExternalCapture|dump|detachEvent|unshift|\nuntaint|unwatch|updateCommands|join|javaEnabled|pop|push|plugins.refresh|paddings|parse|\nprint|prompt|preference|enableExternalCapture|exec|execScript|valueOf|UTC|find|file|\nfileModifiedDate|fileSize|fileCreatedDate|fileUpdatedDate|fixed|fontsize|fontcolor|\nforward|fromCharCode|watch|link|load|lastIndexOf|anchor|attachEvent|atob|apply|alert|\nabort|routeEvents|resize|resizeBy|resizeTo|recalc|returnValue|replace|reverse|reload|\nreleaseCapture|releaseEvents|go|get(Milliseconds|Seconds|Minutes|Hours|Month|Day|Year|FullYear|\nTime|Date|TimezoneOffset|UTC(Milliseconds|Seconds|Minutes|Hours|Day|Month|FullYear|Date)|\nAttention|Selection|ResponseHeader|AllResponseHeaders)|moveBy|moveBelow|moveTo|\nmoveToAbsolute|moveAbove|mergeAttributes|match|margins|btoa|big|bold|borderWidths|blink|back)\\b",
+					"name": "support.function.coffee"
+				},
+				{
+					"match": "(?x)\n\\b(acceptNode|add|addEventListener|addTextTrack|adoptNode|after|animate|append|\nappendChild|appendData|before|blur|canPlayType|captureStream|\ncaretPositionFromPoint|caretRangeFromPoint|checkValidity|clear|click|\ncloneContents|cloneNode|cloneRange|close|closest|collapse|\ncompareBoundaryPoints|compareDocumentPosition|comparePoint|contains|\nconvertPointFromNode|convertQuadFromNode|convertRectFromNode|createAttribute|\ncreateAttributeNS|createCaption|createCDATASection|createComment|\ncreateContextualFragment|createDocument|createDocumentFragment|\ncreateDocumentType|createElement|createElementNS|createEntityReference|\ncreateEvent|createExpression|createHTMLDocument|createNodeIterator|\ncreateNSResolver|createProcessingInstruction|createRange|createShadowRoot|\ncreateTBody|createTextNode|createTFoot|createTHead|createTreeWalker|delete|\ndeleteCaption|deleteCell|deleteContents|deleteData|deleteRow|deleteTFoot|\ndeleteTHead|detach|disconnect|dispatchEvent|elementFromPoint|elementsFromPoint|\nenableStyleSheetsForSet|entries|evaluate|execCommand|exitFullscreen|\nexitPointerLock|expand|extractContents|fastSeek|firstChild|focus|forEach|get|\ngetAll|getAnimations|getAttribute|getAttributeNames|getAttributeNode|\ngetAttributeNodeNS|getAttributeNS|getBoundingClientRect|getBoxQuads|\ngetClientRects|getContext|getDestinationInsertionPoints|getElementById|\ngetElementsByClassName|getElementsByName|getElementsByTagName|\ngetElementsByTagNameNS|getItem|getNamedItem|getSelection|getStartDate|\ngetVideoPlaybackQuality|has|hasAttribute|hasAttributeNS|hasAttributes|\nhasChildNodes|hasFeature|hasFocus|importNode|initEvent|insertAdjacentElement|\ninsertAdjacentHTML|insertAdjacentText|insertBefore|insertCell|insertData|\ninsertNode|insertRow|intersectsNode|isDefaultNamespace|isEqualNode|\nisPointInRange|isSameNode|item|key|keys|lastChild|load|lookupNamespaceURI|\nlookupPrefix|matches|move|moveAttribute|moveAttributeNode|moveChild|\nmoveNamedItem|namedItem|nextNode|nextSibling|normalize|observe|open|\nparentNode|pause|play|postMessage|prepend|preventDefault|previousNode|\npreviousSibling|probablySupportsContext|queryCommandEnabled|\nqueryCommandIndeterm|queryCommandState|queryCommandSupported|queryCommandValue|\nquerySelector|querySelectorAll|registerContentHandler|registerElement|\nregisterProtocolHandler|releaseCapture|releaseEvents|remove|removeAttribute|\nremoveAttributeNode|removeAttributeNS|removeChild|removeEventListener|\nremoveItem|replace|replaceChild|replaceData|replaceWith|reportValidity|\nrequestFullscreen|requestPointerLock|reset|scroll|scrollBy|scrollIntoView|\nscrollTo|seekToNextFrame|select|selectNode|selectNodeContents|set|setAttribute|\nsetAttributeNode|setAttributeNodeNS|setAttributeNS|setCapture|\nsetCustomValidity|setEnd|setEndAfter|setEndBefore|setItem|setNamedItem|\nsetRangeText|setSelectionRange|setSinkId|setStart|setStartAfter|setStartBefore|\nslice|splitText|stepDown|stepUp|stopImmediatePropagation|stopPropagation|\nsubmit|substringData|supports|surroundContents|takeRecords|terminate|toBlob|\ntoDataURL|toggle|toString|values|write|writeln)\\b",
+					"name": "support.function.dom.coffee"
+				},
+				{
+					"match": "[a-zA-Z_$][\\w$]*",
+					"name": "entity.name.function.coffee"
+				},
+				{
+					"match": "\\d[\\w$]*",
+					"name": "invalid.illegal.identifier.coffee"
 				}
 			]
 		},
@@ -813,7 +884,18 @@
 		"operators": {
 			"patterns": [
 				{
-					"match": "([a-zA-Z$_][\\w$]*)?\\s*(%=|\\+=|-=|\\*=|and=|or=|&&=|\\|\\|=|\\?=|(?<!\\()/=)",
+					"match": "(?:([a-zA-Z$_][\\w$]*)?\\s+|(?<![\\w$]))(and=|or=)",
+					"captures": {
+						"1": {
+							"name": "variable.assignment.coffee"
+						},
+						"2": {
+							"name": "keyword.operator.assignment.compound.coffee"
+						}
+					}
+				},
+				{
+					"match": "([a-zA-Z$_][\\w$]*)?\\s*(%=|\\+=|-=|\\*=|&&=|\\|\\|=|\\?=|(?<!\\()/=)",
 					"captures": {
 						"1": {
 							"name": "variable.assignment.coffee"

@@ -15,7 +15,7 @@ import * as json from 'vs/base/common/json';
 import { ActionItem, IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet } from 'vs/workbench/parts/extensions/common/extensions';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet, AutoUpdateConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/parts/extensions/common/extensionsFileTemplate';
 import { LocalExtensionType, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -704,20 +704,19 @@ export class ToggleAutoUpdateAction extends Action {
 		id: string,
 		label: string,
 		private autoUpdateValue: boolean,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(id, label, '', true);
 		this.updateEnablement();
-		configurationService.onDidUpdateConfiguration(() => this.updateEnablement());
+		configurationService.onDidChangeConfiguration(() => this.updateEnablement());
 	}
 
 	private updateEnablement(): void {
-		this.enabled = this.extensionsWorkbenchService.isAutoUpdateEnabled !== this.autoUpdateValue;
+		this.enabled = this.configurationService.getValue(AutoUpdateConfigurationKey) !== this.autoUpdateValue;
 	}
 
 	run(): TPromise<any> {
-		return this.extensionsWorkbenchService.setAutoUpdate(this.autoUpdateValue);
+		return this.configurationService.updateValue(AutoUpdateConfigurationKey, this.autoUpdateValue);
 	}
 }
 
@@ -729,10 +728,9 @@ export class EnableAutoUpdateAction extends ToggleAutoUpdateAction {
 	constructor(
 		id = EnableAutoUpdateAction.ID,
 		label = EnableAutoUpdateAction.LABEL,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(id, label, true, configurationService, extensionsWorkbenchService);
+		super(id, label, true, configurationService);
 	}
 }
 
@@ -744,10 +742,9 @@ export class DisableAutoUpdateAction extends ToggleAutoUpdateAction {
 	constructor(
 		id = EnableAutoUpdateAction.ID,
 		label = EnableAutoUpdateAction.LABEL,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(id, label, false, configurationService, extensionsWorkbenchService);
+		super(id, label, false, configurationService);
 	}
 }
 

@@ -78,6 +78,7 @@
         "embeddedLanguages": {
           "meta.tag.tsx": "jsx-tags",
           "meta.tag.without-attributes.tsx": "jsx-tags",
+          "meta.tag.attributes.tsx": "typescriptreact",
           "meta.embedded.expression.tsx": "typescriptreact"
         }
       }
@@ -392,6 +393,21 @@
           ],
           "description": "%typescript.tsc.autoDetect%",
           "scope": "resource"
+        },
+        "typescript.quickSuggestionsForPaths": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.quickSuggestionsForPaths%",
+          "scope": "resource"
+        },
+        "typescript.locale": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "%typescript.locale%",
+          "scope": "window"
         }
       }
     },

@@ -5,9 +5,9 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import URI from 'vs/base/common/uri';
 
 export const IWorkspaceEditingService = createDecorator<IWorkspaceEditingService>('workspaceEditingService');
 
@@ -16,12 +16,12 @@ export interface IWorkspaceEditingService {
 	_serviceBrand: ServiceIdentifier<any>;
 
 	/**
-	 * add folders to the existing workspace
+	 * Add folders to the existing workspace
 	 */
 	addFolders(folders: URI[]): TPromise<void>;
 
 	/**
-	 * remove folders from the existing workspace
+	 * Remove folders from the existing workspace
 	 */
 	removeFolders(folders: URI[]): TPromise<void>;
 

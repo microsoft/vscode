@@ -39,7 +39,6 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { VSash } from 'vs/base/browser/ui/sash/sash';
 import { Widget } from 'vs/base/browser/ui/widget';
@@ -50,7 +49,7 @@ import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
 import { FindController } from 'vs/editor/contrib/find/browser/find';
-import { SelectionHighlighter } from 'vs/editor/contrib/find/common/findController';
+import { SelectionHighlighter } from 'vs/editor/contrib/multicursor/common/multicursor';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
@@ -58,6 +57,8 @@ import { scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import Event, { Emitter } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { MessageController } from 'vs/editor/contrib/message/messageController';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
 export class PreferencesEditorInput extends SideBySideEditorInput {
 	public static ID: string = 'workbench.editorinputs.preferencesEditorInput';
@@ -247,7 +248,7 @@ export class PreferencesEditor extends BaseEditor {
 		}
 
 		if (this.workspaceContextService.getWorkspaceFolder(resource)) {
-			return ConfigurationTarget.FOLDER;
+			return ConfigurationTarget.WORKSPACE_FOLDER;
 		}
 
 		return null;
@@ -722,7 +723,19 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 	}
 
 	public createEditorControl(parent: Builder, configuration: IEditorOptions): editorCommon.IEditor {
-		return this.instantiationService.createInstance(DefaultPreferencesCodeEditor, parent.getHTMLElement(), configuration);
+		const editor = this.instantiationService.createInstance(DefaultPreferencesCodeEditor, parent.getHTMLElement(), configuration);
+
+		// Inform user about editor being readonly if user starts type
+		this.toUnbind.push(editor.onDidType(() => this.onDidType(editor)));
+
+		return editor;
+	}
+
+	private onDidType(editor: editorCommon.ICommonCodeEditor): void {
+		const messageController = MessageController.get(editor);
+		if (!messageController.isVisible()) {
+			messageController.showMessage(nls.localize('defaultEditorReadonly', "Edit in the right hand side editor to override defaults."), editor.getSelection().getPosition());
+		}
 	}
 
 	protected getConfigurationOverrides(): IEditorOptions {
@@ -905,7 +918,7 @@ class SettingsEditorContribution extends AbstractSettingsEditorContribution impl
 								return this.instantiationService.createInstance(UserSettingsRenderer, this.editor, settingsModel, defaultSettingsModel);
 							case ConfigurationTarget.WORKSPACE:
 								return this.instantiationService.createInstance(WorkspaceSettingsRenderer, this.editor, settingsModel, defaultSettingsModel);
-							case ConfigurationTarget.FOLDER:
+							case ConfigurationTarget.WORKSPACE_FOLDER:
 								return this.instantiationService.createInstance(FolderSettingsRenderer, this.editor, settingsModel, defaultSettingsModel);
 						}
 					}

@@ -33,5 +33,6 @@
 	"schema.fontSize": "Quand une police est utilisée : taille de police en pourcentage par rapport à la police du texte. En l'absence de définition, la taille de la définition de police est utilisée par défaut.",
 	"schema.fontId": "Quand une police est employée : ID de la police. En l'absence de définition, la première définition de police est utilisée par défaut.",
 	"schema.light": "Associations facultatives des icônes de fichiers dans les thèmes de couleur claire.",
-	"schema.highContrast": "Associations facultatives des icônes de fichiers dans les thèmes de couleur à contraste élevé."
+	"schema.highContrast": "Associations facultatives des icônes de fichiers dans les thèmes de couleur à contraste élevé.",
+	"schema.hidesExplorerArrows": "Détermine si les flèches de l’Explorateur de fichier doivent être masquées lorsque ce thème est actif."
 }

@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/panelpart';
-import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IAction } from 'vs/base/common/actions';
+import { IAction, Action } from 'vs/base/common/actions';
 import Event from 'vs/base/common/event';
-import { Builder, $ } from 'vs/base/browser/builder';
+import { Builder, Dimension } from 'vs/base/browser/builder';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Scope } from 'vs/workbench/browser/actions';
 import { IPanel } from 'vs/workbench/common/panel';
 import { CompositePart, ICompositeTitleLabel } from 'vs/workbench/browser/parts/compositePart';
@@ -22,22 +22,26 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ClosePanelAction, OpenPanelAction, ToggleMaximizedPanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
+import { ClosePanelAction, ToggleMaximizedPanelAction, PanelActivityAction, OpenPanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER } from 'vs/workbench/common/theme';
-import { activeContrastBorder, focusBorder, contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
+import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
+import { activeContrastBorder, focusBorder, contrastBorder, editorBackground, badgeBackground, badgeForeground } from 'vs/platform/theme/common/colorRegistry';
+import { CompositeBar } from 'vs/workbench/browser/parts/compositebar/compositeBar';
+import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositebar/compositeBarActions';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { IBadge } from 'vs/workbench/services/activity/common/activity';
 
 export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	public static activePanelSettingsKey = 'workbench.panelpart.activepanelid';
+	private static readonly PINNED_PANELS = 'workbench.panel.pinnedPanels';
 
 	public _serviceBrand: any;
 
 	private blockOpeningPanel: boolean;
-	private panelSwitcherBar: ActionBar;
-
-	private panelIdToActions: { [panelId: string]: OpenPanelAction; };
+	private compositeBar: CompositeBar;
+	private dimension: Dimension;
 
 	constructor(
 		id: string,
@@ -48,7 +52,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		@IPartService partService: IPartService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
 	) {
 		super(
 			messageService,
@@ -70,7 +74,26 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			{ hasTitle: true }
 		);
 
-		this.panelIdToActions = Object.create(null);
+		this.compositeBar = this.instantiationService.createInstance(CompositeBar, {
+			icon: false,
+			storageId: PanelPart.PINNED_PANELS,
+			orientation: ActionsOrientation.HORIZONTAL,
+			composites: this.getPanels(),
+			openComposite: (compositeId: string) => this.openPanel(compositeId, true),
+			getActivityAction: (compositeId: string) => this.instantiationService.createInstance(PanelActivityAction, this.getPanel(compositeId)),
+			getCompositePinnedAction: (compositeId: string) => new ToggleCompositePinnedAction(this.getPanel(compositeId), this.compositeBar),
+			getOnCompositeClickAction: (compositeId: string) => this.instantiationService.createInstance(OpenPanelAction, this.getPanel(compositeId)),
+			getDefaultCompositeId: () => Registry.as<PanelRegistry>(PanelExtensions.Panels).getDefaultPanelId(),
+			hidePart: () => this.partService.setPanelHidden(true),
+			overflowActionSize: 28,
+			colors: {
+				backgroundColor: PANEL_BACKGROUND,
+				badgeBackground,
+				badgeForeground,
+				dragAndDropBackground: PANEL_DRAG_AND_DROP_BACKGROUND
+			}
+		});
+		this.toUnbind.push(this.compositeBar);
 
 		this.registerListeners();
 	}
@@ -78,16 +101,15 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	private registerListeners(): void {
 
 		// Activate panel action on opening of a panel
-		this.toUnbind.push(this.onDidPanelOpen(panel => this.updatePanelActions(panel.getId(), true)));
+		this.toUnbind.push(this.onDidPanelOpen(panel => {
+			this.compositeBar.activateComposite(panel.getId());
+			// Need to relayout composite bar since different panels have different action bar width
+			this.layoutCompositeBar();
+		}));
 
 		// Deactivate panel action on close
-		this.toUnbind.push(this.onDidPanelClose(panel => this.updatePanelActions(panel.getId(), false)));
-	}
-
-	private updatePanelActions(id: string, didOpen: boolean): void {
-		if (this.panelIdToActions[id]) {
-			didOpen ? this.panelIdToActions[id].activate() : this.panelIdToActions[id].deactivate();
-		}
+		this.toUnbind.push(this.onDidPanelClose(panel => this.compositeBar.deactivateComposite(panel.getId())));
+		this.toUnbind.push(this.compositeBar.onDidContextMenu(e => this.showContextMenu(e)));
 	}
 
 	public get onDidPanelOpen(): Event<IPanel> {
@@ -127,6 +149,25 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		return promise.then(() => this.openComposite(id, focus));
 	}
 
+	public showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable {
+		return this.compositeBar.showActivity(panelId, badge, clazz);
+	}
+
+	private getPanel(panelId: string): IPanelIdentifier {
+		return Registry.as<PanelRegistry>(PanelExtensions.Panels).getPanels().filter(p => p.id === panelId).pop();
+	}
+
+	private showContextMenu(e: MouseEvent): void {
+		const event = new StandardMouseEvent(e);
+		const actions: Action[] = this.getPanels().map(panel => this.instantiationService.createInstance(ToggleCompositePinnedAction, panel, this.compositeBar));
+
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => { return { x: event.posx, y: event.posy }; },
+			getActions: () => TPromise.as(actions),
+			onHide: () => dispose(actions)
+		});
+	}
+
 	public getPanels(): IPanelIdentifier[] {
 		return Registry.as<PanelRegistry>(PanelExtensions.Panels).getPanels()
 			.sort((v1, v2) => v1.order - v2.order);
@@ -152,23 +193,12 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	protected createTitleLabel(parent: Builder): ICompositeTitleLabel {
-		let titleArea = $(parent).div({
-			'class': ['panel-switcher-container']
-		});
-
-		// Show a panel switcher
-		this.panelSwitcherBar = new ActionBar(titleArea, {
-			orientation: ActionsOrientation.HORIZONTAL,
-			ariaLabel: nls.localize('panelSwitcherBarAriaLabel', "Active Panel Switcher"),
-			animated: false
-		});
-		this.toUnbind.push(this.panelSwitcherBar);
-
-		this.fillPanelSwitcher();
+		const titleArea = this.compositeBar.create(parent.getHTMLElement());
+		titleArea.classList.add('panel-switcher-container');
 
 		return {
 			updateTitle: (id, title, keybinding) => {
-				const action = this.panelIdToActions[id];
+				const action = this.compositeBar.getAction(id);
 				if (action) {
 					action.label = title;
 				}
@@ -179,17 +209,33 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		};
 	}
 
-	private fillPanelSwitcher(): void {
-		const panels = this.getPanels();
+	public layout(dimension: Dimension): Dimension[] {
 
-		this.panelSwitcherBar.push(panels.map(panel => {
-			const action = this.instantiationService.createInstance(OpenPanelAction, panel);
+		// Pass to super
+		const sizes = super.layout(dimension);
+		this.dimension = dimension;
+		this.layoutCompositeBar();
 
-			this.panelIdToActions[panel.id] = action;
-			this.toUnbind.push(action);
+		return sizes;
+	}
 
-			return action;
-		}));
+	private layoutCompositeBar(): void {
+		if (this.dimension) {
+			let availableWidth = this.dimension.width - 8; // take padding into account
+			if (this.toolBar) {
+				// adjust height for global actions showing
+				availableWidth -= this.toolBar.getContainer().getHTMLElement().offsetWidth;
+			}
+			this.compositeBar.layout(new Dimension(availableWidth, this.dimension.height));
+		}
+	}
+
+	public shutdown(): void {
+		// Persist Hidden State
+		this.compositeBar.store();
+
+		// Pass to super
+		super.shutdown();
 	}
 }
 
@@ -215,7 +261,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (titleActive || titleActiveBorder) {
 		collector.addRule(`
 			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label,
-			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label.checked {
+			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked .action-label {
 				color: ${titleActive};
 				border-bottom-color: ${titleActiveBorder};
 			}
@@ -236,7 +282,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const focusBorderColor = theme.getColor(focusBorder);
 	if (focusBorderColor) {
 		collector.addRule(`
-			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:focus {
+			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus {
 				color: ${titleActive};
 				border-bottom-color: ${focusBorderColor} !important;
 				border-bottom: 1px solid;
@@ -251,7 +297,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		const outline = theme.getColor(activeContrastBorder);
 
 		collector.addRule(`
-			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label.checked,
+			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked .action-label,
 			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:hover {
 				outline-color: ${outline};
 				outline-width: 1px;
@@ -261,7 +307,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 				outline-offset: 3px;
 			}
 
-			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:hover:not(.checked) {
+			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:not(.checked) .action-label:hover {
 				outline-style: dashed;
 			}
 		`);

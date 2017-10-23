@@ -32,9 +32,10 @@ import { ISelectBoxStyles, defaultStyles } from 'vs/base/browser/ui/selectBox/se
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Color } from 'vs/base/common/color';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { MarkdownString } from 'vs/base/common/htmlContent';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 
 export class SettingsHeaderWidget extends Widget implements IViewZone {
 
@@ -313,7 +314,7 @@ export class SettingsTargetsWidget extends Widget {
 
 	private updateLabel(): void {
 		this.targetLabel.textContent = getSettingsTargetName(this._configuartionTarget, this._uri, this.workspaceContextService);
-		const details = ConfigurationTarget.FOLDER === this._configuartionTarget ? localize('folderSettingsDetails', "Folder Settings") : '';
+		const details = ConfigurationTarget.WORKSPACE_FOLDER === this._configuartionTarget ? localize('folderSettingsDetails', "Folder Settings") : '';
 		this.targetDetails.textContent = details;
 		DOM.toggleClass(this.targetDetails, 'empty', !details);
 	}
@@ -358,7 +359,7 @@ export class SettingsTargetsWidget extends Widget {
 			actions.push(...workspaceFolders.map((folder, index) => {
 				return <IAction>{
 					id: 'folderSettingsTarget' + index,
-					label: getSettingsTargetName(ConfigurationTarget.FOLDER, folder.uri, this.workspaceContextService),
+					label: getSettingsTargetName(ConfigurationTarget.WORKSPACE_FOLDER, folder.uri, this.workspaceContextService),
 					checked: this._uri.toString() === folder.uri.toString(),
 					enabled: true,
 					run: () => this.onTargetClicked(folder.uri)
@@ -585,7 +586,8 @@ export class EditPreferenceWidget<T> extends Disposable {
 		super();
 		this._editPreferenceDecoration = [];
 		this._register(this.editor.onMouseDown((e: IEditorMouseEvent) => {
-			if (e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN || /* after last line */ e.target.detail || !this.isVisible()) {
+			const data = e.target.detail as IMarginData;
+			if (e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN || data.isAfterLines || !this.isVisible()) {
 				return;
 			}
 			this._onClick.fire(e);

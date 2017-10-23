@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 /**
- * xterm.js: xterm, in the browser
- * Copyright (c) 2014-2016, SourceLair Private Company (www.sourcelair.com (MIT License)
+ * Copyright (c) 2014 The xterm.js authors. All rights reserved.
  * Copyright (c) 2012-2013, Christopher Jeffrey (MIT License)
  * https://github.com/chjj/term.js
+ * @license MIT
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -39,7 +39,7 @@
  *  Default styles for xterm.js
  */
 
-.terminal {
+.xterm {
 	font-family: courier-new, courier, monospace;
 	font-feature-settings: "liga" 0;
 	position: relative;
@@ -48,12 +48,12 @@
 	-webkit-user-select: none;
 }
 
-.terminal.focus,
-.terminal:focus {
+.xterm.focus,
+.xterm:focus {
 	outline: none;
 }
 
-.terminal .xterm-helpers {
+.xterm .xterm-helpers {
 	position: absolute;
 	top: 0;
 	/**
@@ -63,7 +63,7 @@
 	z-index: 10;
 }
 
-.terminal .xterm-helper-textarea {
+.xterm .xterm-helper-textarea {
 	/*
 	 * HACK: to fix IE's blinking cursor
 	 * Move textarea out of the screen to the far left, so that the cursor is not visible.
@@ -81,7 +81,7 @@
 	resize: none;
 }
 
-.terminal .composition-view {
+.xterm .composition-view {
 	/* TODO: Composition position got messed up somewhere */
 	background: #000;
 	color: #FFF;
@@ -91,38 +91,38 @@
 	z-index: 1;
 }
 
-.terminal .composition-view.active {
+.xterm .composition-view.active {
 	display: block;
 }
 
-.terminal .xterm-viewport {
+.xterm .xterm-viewport {
 	/* On OS X this is required in order for the scroll bar to appear fully opaque */
 	background-color: #000;
 	overflow-y: scroll;
 }
 
-.terminal canvas {
+.xterm canvas {
 	position: absolute;
 	left: 0;
 	top: 0;
 }
 
-.terminal .xterm-scroll-area {
+.xterm .xterm-scroll-area {
 	visibility: hidden;
 }
 
-.terminal .xterm-char-measure-element {
+.xterm .xterm-char-measure-element {
 	display: inline-block;
 	visibility: hidden;
 	position: absolute;
 	left: -9999em;
 }
 
-.terminal.enable-mouse-events {
+.xterm.enable-mouse-events {
 	/* When mouse events are enabled (eg. tmux), revert to the standard pointer cursor */
 	cursor: default;
 }
 
-.terminal:not(.enable-mouse-events) {
-	cursor:  text;
+.xterm:not(.enable-mouse-events) {
+	cursor: text;
 }

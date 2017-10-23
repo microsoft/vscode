@@ -17,10 +17,11 @@ import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { Position, IEditorInput, Verbosity, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
 import { IEditorGroup, toResource } from 'vs/workbench/common/editor';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IWorkbenchEditorService, DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -37,7 +38,6 @@ import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElemen
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { extractResources } from 'vs/base/browser/dnd';
 import { getOrSet } from 'vs/base/common/map';
-import { DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER } from 'vs/workbench/common/theme';
@@ -504,6 +504,9 @@ export class TabsTitleControl extends TitleControl {
 		tabContainer.setAttribute('role', 'presentation'); // cannot use role "tab" here due to https://github.com/Microsoft/vscode/issues/8659
 		DOM.addClass(tabContainer, 'tab');
 
+		// Gesture Support
+		const gestureSupport = new Gesture(tabContainer);
+
 		// Tab Editor Label
 		const editorLabel = this.instantiationService.createInstance(ResourceLabel, tabContainer, void 0);
 		this.editorLabels.push(editorLabel);
@@ -519,7 +522,7 @@ export class TabsTitleControl extends TitleControl {
 		// Eventing
 		const disposable = this.hookTabListeners(tabContainer, index);
 
-		this.tabDisposeables.push(combinedDisposable([disposable, bar, editorLabel]));
+		this.tabDisposeables.push(combinedDisposable([disposable, bar, editorLabel, gestureSupport]));
 
 		return tabContainer;
 	}
@@ -569,15 +572,32 @@ export class TabsTitleControl extends TitleControl {
 	private hookTabListeners(tab: HTMLElement, index: number): IDisposable {
 		const disposables: IDisposable[] = [];
 
-		// Open on Click
-		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
+		const handleClickOrTouch = (e: MouseEvent | GestureEvent) => {
 			tab.blur();
 
+			if (e instanceof MouseEvent && e.button !== 0) {
+				return; // only for left mouse click
+			}
+
 			const { editor, position } = this.toTabContext(index);
-			if (e.button === 0 /* Left Button */ && !this.isTabActionBar((e.target || e.srcElement) as HTMLElement)) {
+			if (!this.isTabActionBar((e.target || e.srcElement) as HTMLElement)) {
 				setTimeout(() => this.editorService.openEditor(editor, null, position).done(null, errors.onUnexpectedError)); // timeout to keep focus in editor after mouse up
 			}
-		}));
+		};
+
+		const showContextMenu = (e: Event) => {
+			DOM.EventHelper.stop(e);
+
+			const { group, editor } = this.toTabContext(index);
+
+			this.onContextMenu({ group, editor }, e, tab);
+		};
+
+		// Open on Click
+		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => handleClickOrTouch(e)));
+
+		// Open on Touch
+		disposables.push(DOM.addDisposableListener(tab, TouchEventType.Tap, (e: GestureEvent) => handleClickOrTouch(e)));
 
 		// Close on mouse middle click
 		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.MOUSE_UP, (e: MouseEvent) => {
@@ -593,12 +613,13 @@ export class TabsTitleControl extends TitleControl {
 		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.shiftKey && event.keyCode === KeyCode.F10) {
-				DOM.EventHelper.stop(e);
-
-				const { group, editor } = this.toTabContext(index);
-
-				this.onContextMenu({ group, editor }, e, tab);
+				showContextMenu(e);
 			}
+		}));
+
+		// Context menu on touch context menu gesture
+		disposables.push(DOM.addDisposableListener(tab, TouchEventType.Contextmenu, (e: GestureEvent) => {
+			showContextMenu(e);
 		}));
 
 		// Keyboard accessibility

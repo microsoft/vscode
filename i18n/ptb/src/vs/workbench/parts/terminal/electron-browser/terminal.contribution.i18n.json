@@ -17,6 +17,7 @@
 	"terminal.integrated.fontFamily": "Controla a família de fontes do terminal, este padrão é o valor do editor.fontFamily.",
 	"terminal.integrated.fontSize": "Controla o tamanho da fonte em pixels do terminal.",
 	"terminal.integrated.lineHeight": "Controles a altura da linha do terminal, este número é multiplicada pelo tamanho da fonte terminal para obter a altura real da linha em pixels.",
+	"terminal.integrated.enableBold": "Se deseja habilitar o texto em negrito dentro do terminal, note que isso requer o apoio do shell do terminal.",
 	"terminal.integrated.cursorBlinking": "Controla se o cursor do terminal pisca.",
 	"terminal.integrated.cursorStyle": "Controla o estilo do cursor do terminal.",
 	"terminal.integrated.scrollback": "Controla a quantidade máxima de linhas que o terminal mantém em seu buffer.",

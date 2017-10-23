@@ -13,7 +13,6 @@
 	"actionNotEnabled": "La commande '{0}' n'est pas activée dans le contexte actuel.",
 	"recentlyUsed": "récemment utilisées",
 	"morecCommands": "autres commandes",
-	"commandLabel": "{0} : {1}",
 	"cat.title": "{0} : {1}",
 	"noCommandsMatching": "Aucune commande correspondante"
 }
