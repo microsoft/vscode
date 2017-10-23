@@ -144,6 +144,14 @@ export class ExplorerView extends ViewsViewletPanel {
 		return this.contextService.getWorkspace().name;
 	}
 
+	public get title(): string {
+		return this.name;
+	}
+
+	public set title(value: string) {
+		// noop
+	}
+
 	public set name(value) {
 		// noop
 	}
