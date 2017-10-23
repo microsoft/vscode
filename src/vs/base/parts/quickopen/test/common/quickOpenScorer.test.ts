@@ -715,6 +715,19 @@ suite('Quick Open Scorer', () => {
 		assert.equal(res[0], resourceB);
 	});
 
+	test('compareFilesByScore - avoid match scattering (bug #35572)', function () {
+		const resourceA = URI.file('static/app/source/angluar/-admin/-organization/-settings/layout/layout.js');
+		const resourceB = URI.file('static/app/source/angular/-admin/-project/-settings/_settings/settings.js');
+
+		let query = 'partisettings';
+
+		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+
+		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+	});
+
 	test('compareFilesByScore - prefer shorter hit (bug #20546)', function () {
 		const resourceA = URI.file('editor/core/components/tests/list-view-spec.js');
 		const resourceB = URI.file('editor/core/components/list-view.js');

@@ -6,10 +6,11 @@
 'use strict';
 
 import { compareAnything } from 'vs/base/common/comparers';
-import { matchesPrefix, IMatch, createMatches, matchesCamelCase, isSeparatorAtPos, isUpper } from 'vs/base/common/filters';
+import { matchesPrefix, IMatch, createMatches, matchesCamelCase, isUpper } from 'vs/base/common/filters';
 import { isEqual, nativeSep } from 'vs/base/common/paths';
 import { isWindows } from 'vs/base/common/platform';
 import { stripWildcards } from 'vs/base/common/strings';
+import { CharCode } from 'vs/base/common/charCode';
 
 export type Score = [number /* score */, number[] /* match positions */];
 export type ScorerCache = { [key: string]: IItemScore };
@@ -189,22 +190,26 @@ function computeCharScore(query: string, queryLower: string, queryIndex: number,
 		// }
 	}
 
-	// After separator bonus
-	else if (isSeparatorAtPos(target, targetIndex - 1)) {
-		score += 4;
+	else {
 
-		// if (DEBUG) {
-		// 	console.log('After separtor bonus: +4');
-		// }
-	}
+		// After separator bonus
+		const separatorBonus = scoreSeparatorAtPos(target.charCodeAt(targetIndex - 1));
+		if (separatorBonus) {
+			score += separatorBonus;
 
-	// Inside word upper case bonus
-	else if (isUpper(target.charCodeAt(targetIndex))) {
-		score += 1;
+			// if (DEBUG) {
+			// 	console.log('After separtor bonus: +4');
+			// }
+		}
 
-		// if (DEBUG) {
-		// 	console.log('Inside word upper case bonus: +1');
-		// }
+		// Inside word upper case bonus (camel case)
+		else if (isUpper(target.charCodeAt(targetIndex))) {
+			score += 1;
+
+			// if (DEBUG) {
+			// 	console.log('Inside word upper case bonus: +1');
+			// }
+		}
 	}
 
 	// if (DEBUG) {
@@ -212,6 +217,24 @@ function computeCharScore(query: string, queryLower: string, queryIndex: number,
 	// }
 
 	return score;
+}
+
+function scoreSeparatorAtPos(charCode: number): number {
+	switch (charCode) {
+		case CharCode.Slash:
+		case CharCode.Backslash:
+			return 5; // prefer path separators...
+		case CharCode.Underline:
+		case CharCode.Dash:
+		case CharCode.Period:
+		case CharCode.Space:
+		case CharCode.SingleQuote:
+		case CharCode.DoubleQuote:
+		case CharCode.Colon:
+			return 4; // ...over other separators
+		default:
+			return 0;
+	}
 }
 
 // function printMatrix(query: string, target: string, matches: number[], scores: number[]): void {
