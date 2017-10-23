@@ -419,7 +419,7 @@
 	},
 	{
 		"c": "foo",
-		"t": "source.rust entity.name.function.rust",
+		"t": "source.rust meta.definition.function.rust",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -529,7 +529,7 @@
 	},
 	{
 		"c": "foo",
-		"t": "source.rust entity.name.function.rust",
+		"t": "source.rust meta.definition.function.rust",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -628,7 +628,7 @@
 	},
 	{
 		"c": "Foo",
-		"t": "source.rust entity.name.type.rust",
+		"t": "source.rust meta.definition.type.rust",
 		"r": {
 			"dark_plus": "entity.name.type: #4EC9B0",
 			"light_plus": "entity.name.type: #267F99",
@@ -716,7 +716,7 @@
 	},
 	{
 		"c": "Foo",
-		"t": "source.rust entity.name.type.rust",
+		"t": "source.rust meta.definition.type.rust",
 		"r": {
 			"dark_plus": "entity.name.type: #4EC9B0",
 			"light_plus": "entity.name.type: #267F99",
