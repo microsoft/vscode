@@ -6032,8 +6032,8 @@ declare module 'vscode' {
 
 	/**
 	 * A debug configuration provider allows to add the initial debug configurations to a newly created launch.json
-	 * and allows to resolve a launch configuration before it is used to start a new debug session.
-	 * A debug configuration provider is registered via #workspace.registerDebugConfigurationProvider.
+	 * and to resolve a launch configuration before it is used to start a new debug session.
+	 * A debug configuration provider is registered via #debug.registerDebugConfigurationProvider.
 	 */
 	export interface DebugConfigurationProvider {
 		/**
