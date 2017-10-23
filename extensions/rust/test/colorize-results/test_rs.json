@@ -67,7 +67,7 @@
 	},
 	{
 		"c": "main",
-		"t": "source.rust entity.name.function.rust",
+		"t": "source.rust meta.definition.function.rust",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
