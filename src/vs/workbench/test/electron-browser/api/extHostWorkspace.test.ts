@@ -212,6 +212,17 @@ suite('ExtHostWorkspace', function () {
 		sub.dispose();
 	});
 
+	test('`vscode.workspace.getWorkspaceFolder(file)` don\'t return workspace folder when file open from command line. #36221', function () {
+		let ws = new ExtHostWorkspace(new TestThreadService(), {
+			id: 'foo', name: 'Test', folders: [
+				aWorkspaceFolderData(URI.file('c:/Users/marek/Desktop/vsc_test/'), 0)
+			]
+		});
+
+		assert.ok(ws.getWorkspaceFolder(URI.file('c:/Users/marek/Desktop/vsc_test/a.txt')));
+		assert.ok(ws.getWorkspaceFolder(URI.file('C:/Users/marek/Desktop/vsc_test/b.txt')));
+	});
+
 	function aWorkspaceFolderData(uri: URI, index: number, name: string = ''): IWorkspaceFolderData {
 		return {
 			uri,
