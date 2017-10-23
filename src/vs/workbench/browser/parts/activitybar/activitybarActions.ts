@@ -7,7 +7,7 @@
 
 import 'vs/css!./media/activityaction';
 import DOM = require('vs/base/browser/dom');
-import { EventType as TouchEventType } from 'vs/base/browser/touch';
+import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';

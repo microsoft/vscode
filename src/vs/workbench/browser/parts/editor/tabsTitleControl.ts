@@ -572,7 +572,7 @@ export class TabsTitleControl extends TitleControl {
 	private hookTabListeners(tab: HTMLElement, index: number): IDisposable {
 		const disposables: IDisposable[] = [];
 
-		function handleClickOrTouch(e: MouseEvent | GestureEvent): void {
+		const handleClickOrTouch = (e: MouseEvent | GestureEvent) => {
 			tab.blur();
 
 			if (e instanceof MouseEvent && e.button !== 0) {
@@ -583,15 +583,15 @@ export class TabsTitleControl extends TitleControl {
 			if (!this.isTabActionBar((e.target || e.srcElement) as HTMLElement)) {
 				setTimeout(() => this.editorService.openEditor(editor, null, position).done(null, errors.onUnexpectedError)); // timeout to keep focus in editor after mouse up
 			}
-		}
+		};
 
-		function showContextMenu(e: StandardKeyboardEvent | GestureEvent): void {
+		const showContextMenu = (e: Event) => {
 			DOM.EventHelper.stop(e);
 
 			const { group, editor } = this.toTabContext(index);
 
 			this.onContextMenu({ group, editor }, e, tab);
-		}
+		};
 
 		// Open on Click
 		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => handleClickOrTouch(e)));
@@ -613,7 +613,7 @@ export class TabsTitleControl extends TitleControl {
 		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.shiftKey && event.keyCode === KeyCode.F10) {
-				showContextMenu(event);
+				showContextMenu(e);
 			}
 		}));
 
