@@ -11,6 +11,7 @@
 			"name": "Function declarations",
 			"scope": [
 				"entity.name.function",
+				"meta.definition.function",
 				"support.function",
 				"support.constant.handlebars"
 			],
@@ -22,6 +23,7 @@
 			"name": "Types declaration and references",
 			"scope": [
 				"meta.return-type",
+				"meta.definition.type",
 				"support.class",
 				"support.type",
 				"entity.name.type",
