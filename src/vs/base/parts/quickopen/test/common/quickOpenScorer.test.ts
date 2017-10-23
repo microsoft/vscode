@@ -663,6 +663,58 @@ suite('Quick Open Scorer', () => {
 		assert.equal(res[2], resourceB);
 	});
 
+	test('compareFilesByScore - avoid match scattering (bug #14879)', function () {
+		const resourceA = URI.file('pkg/search/gradient/testdata/constraint_attrMatchString.yml');
+		const resourceB = URI.file('cmd/gradient/main.go');
+
+		let query = 'gradientmain';
+
+		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+
+		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+	});
+
+	test('compareFilesByScore - avoid match scattering (bug #14727 1)', function () {
+		const resourceA = URI.file('alpha-beta-cappa.txt');
+		const resourceB = URI.file('abc.txt');
+
+		let query = 'abc';
+
+		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+
+		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+	});
+
+	test('compareFilesByScore - avoid match scattering (bug #14727 2)', function () {
+		const resourceA = URI.file('xerxes-yak-zubba/index.js');
+		const resourceB = URI.file('xyz/index.js');
+
+		let query = 'xyz';
+
+		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+
+		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+	});
+
+	test('compareFilesByScore - avoid match scattering (bug #18381)', function () {
+		const resourceA = URI.file('AssymblyInfo.cs');
+		const resourceB = URI.file('IAsynchronousTask.java');
+
+		let query = 'async';
+
+		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+
+		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+	});
+
 	test('compareFilesByScore - prefer shorter hit (bug #20546)', function () {
 		const resourceA = URI.file('editor/core/components/tests/list-view-spec.js');
 		const resourceB = URI.file('editor/core/components/list-view.js');
