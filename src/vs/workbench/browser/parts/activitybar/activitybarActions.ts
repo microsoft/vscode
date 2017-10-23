@@ -123,7 +123,7 @@ export class GlobalActivityActionItem extends ActivityActionItem {
 			}
 		});
 
-		this.$container.on(TouchEventType.Tap, (e: MouseEvent) => {
+		this.$container.on(TouchEventType.Tap, (e: GestureEvent) => {
 			DOM.EventHelper.stop(e, true);
 
 			const event = new StandardMouseEvent(e);
