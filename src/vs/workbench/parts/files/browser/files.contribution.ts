@@ -340,16 +340,17 @@ configurationRegistry.registerConfiguration({
 		},
 		'explorer.sortOrder': {
 			'type': 'string',
-			'enum': [SortOrderConfiguration.DEFAULT, SortOrderConfiguration.MIXED, SortOrderConfiguration.FILES_FIRST, SortOrderConfiguration.TYPE, SortOrderConfiguration.MODIFIED],
+			'enum': [SortOrderConfiguration.DEFAULT, SortOrderConfiguration.MIXED, SortOrderConfiguration.FILES_FIRST, SortOrderConfiguration.TYPE, SortOrderConfiguration.MODIFIED, SortOrderConfiguration.CASE_SENSITIVE],
 			'default': SortOrderConfiguration.DEFAULT,
 			'enumDescriptions': [
 				nls.localize('sortOrder.default', 'Files and folders are sorted by their names, in alphabetical order. Folders are displayed before files.'),
 				nls.localize('sortOrder.mixed', 'Files and folders are sorted by their names, in alphabetical order. Files are interwoven with folders.'),
 				nls.localize('sortOrder.filesFirst', 'Files and folders are sorted by their names, in alphabetical order. Files are displayed before folders.'),
 				nls.localize('sortOrder.type', 'Files and folders are sorted by their extensions, in alphabetical order. Folders are displayed before files.'),
-				nls.localize('sortOrder.modified', 'Files and folders are sorted by last modified date, in descending order. Folders are displayed before files.')
+				nls.localize('sortOrder.modified', 'Files and folders are sorted by last modified date, in descending order. Folders are displayed before files.'),
+				nls.localize('sortOrder.caseSensitive', 'Files and folders are sorted by their names, in case-sensitive alphabetical order. Folders are displayed before files.')
 			],
-			'description': nls.localize({ key: 'sortOrder', comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'] }, "Controls sorting order of files and folders in the explorer. In addition to the default sorting, you can set the order to 'mixed' (files and folders sorted combined), 'type' (by file type), 'modified' (by last modified date) or 'filesFirst' (sort files before folders).")
+			'description': nls.localize({ key: 'sortOrder', comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'] }, "Controls sorting order of files and folders in the explorer. In addition to the default sorting, you can set the order to 'mixed' (files and folders sorted combined), 'type' (by file type), 'modified' (by last modified date), 'filesFirst' (sort files before folders) or 'caseSensitive' (case-sensitive default).")
 		},
 		'explorer.decorations.colors': {
 			type: 'boolean',

@@ -115,10 +115,11 @@ export const SortOrderConfiguration = {
 	MIXED: 'mixed',
 	FILES_FIRST: 'filesFirst',
 	TYPE: 'type',
-	MODIFIED: 'modified'
+	MODIFIED: 'modified',
+	CASE_SENSITIVE: 'caseSensitive'
 };
 
-export type SortOrder = 'default' | 'mixed' | 'filesFirst' | 'type' | 'modified';
+export type SortOrder = 'default' | 'mixed' | 'filesFirst' | 'type' | 'modified' | 'caseSensitive';
 
 export class FileOnDiskContentProvider implements ITextModelContentProvider {
 	private fileWatcher: IDisposable;

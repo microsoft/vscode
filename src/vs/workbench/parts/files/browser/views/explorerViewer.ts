@@ -621,7 +621,7 @@ export class FileSorter implements ISorter {
 			case 'mixed':
 				break; // not sorting when "mixed" is on
 
-			default: /* 'default', 'modified' */
+			default: /* 'default', 'modified', 'caseSensitive' */
 				if (statA.isDirectory && !statB.isDirectory) {
 					return -1;
 				}
@@ -653,6 +653,9 @@ export class FileSorter implements ISorter {
 				}
 
 				return comparers.compareFileNames(statA.name, statB.name);
+
+			case 'caseSensitive':
+				return comparers.compareFileNames(statA.name, statB.name, true);
 
 			default: /* 'default', 'mixed', 'filesFirst' */
 				return comparers.compareFileNames(statA.name, statB.name);

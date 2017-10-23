@@ -15,11 +15,31 @@ export function setFileNameComparer(collator: Intl.Collator): void {
 	intlFileNameCollatorIsNumeric = collator.resolvedOptions().numeric;
 }
 
-export function compareFileNames(one: string, other: string): number {
+export function compareFileNames(one: string, other: string, isCaseSensitive: boolean = false): number {
 	if (intlFileNameCollator) {
 		const a = one || '';
 		const b = other || '';
-		const result = intlFileNameCollator.compare(a, b);
+		let result = intlFileNameCollator.compare(a, b);
+
+		if (isCaseSensitive && a !== b) {
+			const length = a.length <= b.length ? a.length : b.length;
+
+			// Make a new comparer so the result is consistent regardless of what intlFileNameCollator is
+			const charComparer = new Intl.Collator(undefined, { numeric: true, sensitivity: 'case' });
+			for (let i = 0; i < length; i++) {
+				let charResult = charComparer.compare(a[i], b[i]);
+				const isUpperA = a[i] < 'a';
+				const isUpperB = b[i] < 'a';
+				if (charResult === 0 && isUpperA === isUpperB) {
+					continue;
+				} else if (isUpperA === isUpperB) {
+					result = charResult;
+					break;
+				}
+				result = isUpperA ? -1 : 1;
+				break;
+			}
+		}
 
 		// Using the numeric option in the collator will
 		// make compare(`foo1`, `foo01`) === 0. We must disambiguate.
