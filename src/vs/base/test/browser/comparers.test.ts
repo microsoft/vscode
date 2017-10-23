@@ -26,9 +26,9 @@ suite('Comparers', () => {
 		assert(compareFileNames('abc1.txt', 'abc1.txt') === 0, 'equal filenames with numbers should be equal');
 		assert(compareFileNames('abc1.txt', 'abc2.txt') < 0, 'filenames with numbers should be in numerical order, not alphabetical order');
 		assert(compareFileNames('abc2.txt', 'abc10.txt') < 0, 'filenames with numbers should be in numerical order even when they are multiple digits long');
-		assert(compareFileNames('ABC', 'abc') > 0, 'uppercase should come after lowercase when the value of both strings are equal');
+		assert(compareFileNames('ABC', 'abc') < 0, 'uppercase should become before lowercase when the value of both strings are equal');
 		assert(compareFileNames('XYZ', 'abc') > 0, 'uppercase should come after lowercase, when the lowercase name precedes the uppercase name alphabetically');
-		assert(compareFileNames('ABD', 'ABc', true) > 0, 'all uppercase should come after partial uppercase, even when the lowercase name precedes the uppercase name alphabetically');
+		assert(compareFileNames('ABD', 'ABc') > 0, 'all uppercase should come after partial uppercase, even when the lowercase name precedes the uppercase name alphabetically');
 
 		// Same test for case sensitivity
 		assert(compareFileNames(null, null, true) === 0, 'null should be equal');
