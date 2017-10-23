@@ -13,7 +13,6 @@
 	"actionNotEnabled": "Команда {0} не разрешена в текущем контексте.",
 	"recentlyUsed": "недавно использованные",
 	"morecCommands": "другие команды",
-	"commandLabel": "{0}: {1}",
 	"cat.title": "{0}: {1}",
 	"noCommandsMatching": "Нет соответствующих команд"
 }

@@ -6,6 +6,8 @@
 {
 	"entryAriaLabel": "{0}、デバッグ",
 	"debugAriaLabel": "実行する起動構成の名前を入力してください。",
+	"addConfigTo": "設定 ({0}) の追加 ...",
+	"addConfiguration": "構成の追加...",
 	"noConfigurationsMatching": "一致するデバッグ構成はありません",
 	"noConfigurationsFound": "デバッグ構成が見つかりません。'launch.json' ファイルを作成してください。"
 }

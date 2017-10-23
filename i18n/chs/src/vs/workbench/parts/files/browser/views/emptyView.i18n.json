@@ -6,6 +6,8 @@
 {
 	"noWorkspace": "无打开的文件夹",
 	"explorerSection": "文件资源管理器部分",
-	"noWorkspaceHelp": "尚未打开文件夹。",
+	"noWorkspaceHelp": "你还没有在工作区中添加文件夹。",
+	"addFolder": "添加文件夹",
+	"noFolderHelp": "尚未打开文件夹。",
 	"openFolder": "打开文件夹"
 }

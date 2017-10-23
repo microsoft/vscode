@@ -8,5 +8,5 @@
 	"replVariableAriaLabel": "变量 {0} 具有值 {1}、读取 Eval 打印循环，调试",
 	"replExpressionAriaLabel": "表达式 {0} 具有值 {1}，读取 Eval 打印循环，调试",
 	"replValueOutputAriaLabel": "{0}，读取 Eval 打印循环，调试",
-	"replKeyValueOutputAriaLabel": "输出变量 {0} 具有值 {1}，读取 Eval 打印循环，调试"
+	"replRawObjectAriaLabel": "Repl（交互式解释器）变量 {0} 具有值 {1}，读取 求值 输出 循环，调试"
 }

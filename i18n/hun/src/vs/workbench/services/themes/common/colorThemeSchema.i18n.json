@@ -6,6 +6,7 @@
 {
 	"schema.token.settings": "A token színe és stílusa.",
 	"schema.token.foreground": "A token előtérszíne.",
+	"schema.token.background.warning": "A tokenek háttérszíne jelenleg nem támogatott.",
 	"schema.token.fontStyle": "A szabály betűtípusának stílusa: 'italic', 'bold', 'underline', vagy ezek kombinációja",
 	"schema.fontStyle.error": "A betűtípus stílusa 'italic', 'bold', 'underline', vagy ezek kombinációja lehet.",
 	"schema.properties.name": "A szabály leírása.",

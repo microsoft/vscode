@@ -15,7 +15,6 @@
 	"vscode.extension.contributes.debuggers.initialConfigurations": "초기 'launch.json'을 생성하기 위한 구성입니다.",
 	"vscode.extension.contributes.debuggers.languages": "디버그 확장이 \"기본 디버거\"로 간주될 수 있는 언어 목록입니다.",
 	"vscode.extension.contributes.debuggers.adapterExecutableCommand": "지정하는 경우 VS Code에서 이 명령을 호출하여 디버그 어댑터의 실행 파일 경로 및 전달할 인수를 확인합니다.",
-	"vscode.extension.contributes.debuggers.startSessionCommand": "지정하는 경우 VS Code에서 이 확장을 대상으로 하는 \"디버그\" 또는 \"실행\" 작업에 대해 이 명령을 호출합니다.",
 	"vscode.extension.contributes.debuggers.configurationSnippets": "'launch.json'에 새 구성을 추가하는 코드 조각입니다.",
 	"vscode.extension.contributes.debuggers.configurationAttributes": "'launch.json'의 유효성 검사를 위한 JSON 스키마 구성입니다.",
 	"vscode.extension.contributes.debuggers.windows": "Windows 특정 설정",

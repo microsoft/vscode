@@ -44,7 +44,6 @@
 	"typescript.npm": "자동 입력 인식에 사용된 NPM 실행 파일 경로를 지정합니다. TypeScript >= 2.3.4가 필요합니다.",
 	"typescript.check.npmIsInstalled": "자동 입력 인식에 대해 NPM이 설치되어 있는지 확인합니다.",
 	"javascript.nameSuggestions": "JavaScript 제안 목록의 파일에서 고유한 이름 포함을 사용/사용 안 함으로 설정합니다.",
-	"typescript.tsc.autoDetect": "tsc 작업의 자동 검색을 켜거나 끕니다.",
 	"typescript.problemMatchers.tsc.label": "TypeScript 문제",
 	"typescript.problemMatchers.tscWatch.label": "TypeScript 문제(감시 모드)"
 }

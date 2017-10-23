@@ -6,6 +6,8 @@
 {
 	"entryAriaLabel": "{0}, hibakeresés",
 	"debugAriaLabel": "Írja be a futtatandó konfiguráció nevét.",
+	"addConfigTo": "Konfiguráció hozzáadása ({0})...",
+	"addConfiguration": "Konfiguráció hozzáadása...",
 	"noConfigurationsMatching": "Nincs illeszkedő hibakeresési konfiguráció",
 	"noConfigurationsFound": "Nem található hibakeresési konfiguráció. Készítsen egy 'launch.json' fájlt."
 }

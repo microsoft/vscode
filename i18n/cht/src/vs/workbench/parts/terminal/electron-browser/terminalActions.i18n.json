@@ -16,7 +16,6 @@
 	"workbench.action.terminal.new.short": "新增終端機",
 	"workbench.action.terminal.focus": "聚焦終端機",
 	"workbench.action.terminal.focusNext": "聚焦下一個終端機",
-	"workbench.action.terminal.focusAtIndex": "聚焦終端機 {0}",
 	"workbench.action.terminal.focusPrevious": "聚焦上一個終端機",
 	"workbench.action.terminal.paste": "貼入使用中的終端機",
 	"workbench.action.terminal.DefaultShell": "選取預設殼層",

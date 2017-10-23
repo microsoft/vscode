@@ -16,7 +16,6 @@
 	"workbench.action.terminal.new.short": "新しいターミナル",
 	"workbench.action.terminal.focus": "端末にフォーカス",
 	"workbench.action.terminal.focusNext": "次の端末にフォーカス",
-	"workbench.action.terminal.focusAtIndex": "ターミナル {0} にフォーカス",
 	"workbench.action.terminal.focusPrevious": "前のターミナルにフォーカス",
 	"workbench.action.terminal.paste": "アクティブなターミナルに貼り付け",
 	"workbench.action.terminal.DefaultShell": "既定のシェルの選択",

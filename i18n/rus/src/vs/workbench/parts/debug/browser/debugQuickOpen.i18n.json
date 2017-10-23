@@ -6,6 +6,8 @@
 {
 	"entryAriaLabel": "Отладка: {0}",
 	"debugAriaLabel": "Введите имя используемой конфигурации запуска.",
+	"addConfigTo": "Добавить конфигурацию ({0})...",
+	"addConfiguration": "Добавить конфигурацию...",
 	"noConfigurationsMatching": "Нет соответствующих конфигураций отладки.",
 	"noConfigurationsFound": "Конфигурации отладки не найдены. Создайте файл \"launch.json\"."
 }

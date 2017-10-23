@@ -10,6 +10,5 @@
 	"never again": "OK, non visualizzare più",
 	"terminal.integrated.chooseWindowsShell": "Seleziona la shell di terminale preferita - è possibile modificare questa impostazione dopo",
 	"terminalService.terminalCloseConfirmationSingular": "C'è una sessione di terminale attiva. Terminarla?",
-	"terminalService.terminalCloseConfirmationPlural": "Ci sono {0} sessioni di terminale attive. Terminarle?",
-	"yes": "Sì"
+	"terminalService.terminalCloseConfirmationPlural": "Ci sono {0} sessioni di terminale attive. Terminarle?"
 }

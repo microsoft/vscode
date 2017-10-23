@@ -6,6 +6,6 @@
 {
 	"noWorkspace": "沒有開啟的資料夾",
 	"explorerSection": "檔案總管區段",
-	"noWorkspaceHelp": "您尚未開啟資料夾。",
+	"noFolderHelp": "您尚未開啟資料夾。",
 	"openFolder": "開啟資料夾"
 }

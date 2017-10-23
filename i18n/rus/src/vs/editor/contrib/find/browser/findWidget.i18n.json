@@ -15,7 +15,6 @@
 	"label.replaceButton": "Заменить",
 	"label.replaceAllButton": "Заменить все",
 	"label.toggleReplaceButton": "Режим \"Переключение замены\"",
-	"title.matchesCountLimit": "Отображаются только первые 999 результатов, но все операции поиска выполняются со всем текстом.",
 	"label.matchesLocation": "{0} из {1}",
 	"label.noResults": "Нет результатов"
 }

@@ -6,6 +6,6 @@
 {
 	"noWorkspace": "Açık Klasör Yok",
 	"explorerSection": "Dosya Gezgini Bölümü",
-	"noWorkspaceHelp": "Henüz bir klasör açmadınız.",
+	"noFolderHelp": "Henüz bir klasör açmadınız.",
 	"openFolder": "Klasör Aç"
 }

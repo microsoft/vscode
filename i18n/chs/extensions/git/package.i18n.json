@@ -15,6 +15,8 @@
 	"command.stageAll": "暂存所有更改",
 	"command.stageSelectedRanges": "暂存所选范围",
 	"command.revertSelectedRanges": "还原所选更改",
+	"command.stageChange": "暂存更改",
+	"command.revertChange": "还原更改",
 	"command.unstage": "取消暂存更改",
 	"command.unstageAll": "取消暂存所有更改",
 	"command.unstageSelectedRanges": "取消暂存所选范围",
@@ -53,11 +55,11 @@
 	"config.enableLongCommitWarning": "是否针对长段提交消息进行警告",
 	"config.confirmSync": "同步 Git 存储库前进行确认",
 	"config.countBadge": "控制 Git 徽章计数器。“all”计算所有更改。“tracked”只计算跟踪的更改。“off”关闭此功能。",
-	"config.checkoutType": "控制运行“签出到...”时列出的分支的类型。“all”显示所有 refs，“local”只显示本地分支，“tags”只显示标签，“remote”只显示远程分支。",
+	"config.checkoutType": "控制运行“签出到...”命令时列出的分支的类型。\"all\" 显示所有 refs，\"local\" 只显示本地分支，\"tags\" 只显示标记，\"remote\" 只显示远程分支。",
 	"config.ignoreLegacyWarning": "忽略旧版 Git 警告",
 	"config.ignoreLimitWarning": "忽略“存储库中存在大量更改”的警告",
 	"config.defaultCloneDirectory": "克隆 Git 存储库的默认位置",
 	"config.enableSmartCommit": "在没有暂存的更改时提交所有更改。",
 	"config.enableCommitSigning": "启用使用 GPG 签名的提交",
-	"config.discardAllScope": "控制运行\"放弃所有更改\"命令时放弃的更改。\"all\" 放弃所有更改。 \"tracked\" 只放弃跟踪的文件。 \"prompt\" 每次运行此操作时显示提示对话框。"
+	"config.discardAllScope": "控制运行“放弃所有更改”命令时放弃的更改类型。\"all\" 放弃所有更改。\"tracked\" 只放弃跟踪的文件。\"prompt\" 表示在每次运行此操作时显示提示对话框。"
 }
