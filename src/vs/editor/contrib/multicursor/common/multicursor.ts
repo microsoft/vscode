@@ -22,6 +22,7 @@ import { CommonFindController } from 'vs/editor/contrib/find/common/findControll
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 import { overviewRulerSelectionHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { INewFindReplaceState, FindOptionOverride } from 'vs/editor/contrib/find/common/findState';
 
 @editorAction
 export class InsertCursorAbove extends EditorAction {
@@ -209,8 +210,8 @@ export class MultiCursorSession {
 
 	constructor(
 		private readonly _editor: ICommonCodeEditor,
-		private readonly _findController: CommonFindController,
-		private readonly _isDisconnectedFromFindController: boolean,
+		public readonly findController: CommonFindController,
+		public readonly isDisconnectedFromFindController: boolean,
 		public readonly searchText: string,
 		public readonly wholeWord: boolean,
 		public readonly matchCase: boolean,
@@ -244,9 +245,7 @@ export class MultiCursorSession {
 			return result;
 		}
 
-		if (!this._isDisconnectedFromFindController) {
-			this._findController.highlightFindOptions();
-		}
+		this.findController.highlightFindOptions();
 
 		const allSelections = this._editor.getSelections();
 		const lastAddedSelection = allSelections[allSelections.length - 1];
@@ -285,9 +284,7 @@ export class MultiCursorSession {
 			return result;
 		}
 
-		if (!this._isDisconnectedFromFindController) {
-			this._findController.highlightFindOptions();
-		}
+		this.findController.highlightFindOptions();
 
 		const allSelections = this._editor.getSelections();
 		const lastAddedSelection = allSelections[allSelections.length - 1];
@@ -300,9 +297,7 @@ export class MultiCursorSession {
 	}
 
 	public selectAll(): FindMatch[] {
-		if (!this._isDisconnectedFromFindController) {
-			this._findController.highlightFindOptions();
-		}
+		this.findController.highlightFindOptions();
 
 		return this._editor.getModel().findMatches(this.searchText, true, false, this.matchCase, this.wholeWord ? this._editor.getConfiguration().wordSeparators : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
 	}
@@ -348,6 +343,15 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 			}
 
 			this._session = session;
+
+			const newState: INewFindReplaceState = { searchString: this._session.searchText };
+			if (this._session.isDisconnectedFromFindController) {
+				newState.wholeWordOverride = FindOptionOverride.True;
+				newState.matchCaseOverride = FindOptionOverride.True;
+				newState.isRegexOverride = FindOptionOverride.False;
+			}
+			findController.getState().change(newState, false);
+
 			this._sessionDispose = [
 				this._editor.onDidChangeCursorSelection((e) => {
 					if (this._ignoreSelectionChange) {
@@ -357,47 +361,33 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 				}),
 				this._editor.onDidBlurEditorText(() => {
 					this._endSession();
+				}),
+				findController.getState().addChangeListener((e) => {
+					if (e.matchCase || e.wholeWord) {
+						this._endSession();
+					}
 				})
 			];
-			// TODO: seed find string
-			// if (input.changeFindSearchString) {
-			// 	findController.setSearchString(searchText);
-			// }
-
-			// TODO: stop find matches
 		}
 	}
 
 	private _endSession(): void {
-		this._session = null;
 		this._sessionDispose = dispose(this._sessionDispose);
+		if (this._session && this._session.isDisconnectedFromFindController) {
+			const newState: INewFindReplaceState = {
+				wholeWordOverride: FindOptionOverride.NotSet,
+				matchCaseOverride: FindOptionOverride.NotSet,
+				isRegexOverride: FindOptionOverride.NotSet,
+			};
+			this._session.findController.getState().change(newState, false);
+		}
+		this._session = null;
 	}
 
 	private _setSelections(selections: Selection[]): void {
 		this._ignoreSelectionChange = true;
 		this._editor.setSelections(selections);
 		this._ignoreSelectionChange = false;
-	}
-
-	private _getValueInRange(model: IModel, range: Range, toLowerCase: boolean): string {
-		const text = model.getValueInRange(range);
-		return (toLowerCase ? text.toLowerCase() : text);
-	}
-
-	private _rangesContainSameText(ranges: Range[], matchCase: boolean): boolean {
-		const model = this._editor.getModel();
-		const selectedText = this._getValueInRange(model, ranges[0], !matchCase);
-		for (let i = 1, len = ranges.length; i < len; i++) {
-			const range = ranges[i];
-			if (range.isEmpty()) {
-				return false;
-			}
-			const thisSelectedText = this._getValueInRange(model, range, !matchCase);
-			if (selectedText !== thisSelectedText) {
-				return false;
-			}
-		}
-		return true;
 	}
 
 	private _expandEmptyToWord(model: IModel, selection: Selection): Selection {
@@ -422,11 +412,7 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 	}
 
 	public getSession(findController: CommonFindController): MultiCursorSession {
-		if (this._session) {
-			return this._session;
-		}
-		// Create a new session
-		return MultiCursorSession.create(this._editor, findController);
+		return this._session;
 	}
 
 	public addSelectionToNextFindMatch(findController: CommonFindController): void {
@@ -436,7 +422,7 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 			if (allSelections.length > 1) {
 				const findState = findController.getState();
 				const matchCase = findState.matchCase;
-				const selectionsContainSameText = this._rangesContainSameText(allSelections, matchCase);
+				const selectionsContainSameText = modelRangesContainSameText(this._editor.getModel(), allSelections, matchCase);
 				if (!selectionsContainSameText) {
 					const model = this._editor.getModel();
 					let resultingSelections: Selection[] = [];
@@ -740,29 +726,37 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 		if (!isEnabled) {
 			return null;
 		}
-
 		const model = editor.getModel();
 		if (!model) {
 			return null;
 		}
-
 		const s = editor.getSelection();
 		if (s.startLineNumber !== s.endLineNumber) {
 			// multiline forbidden for perf reasons
 			return null;
 		}
-
 		const multiCursorController = MultiCursorSelectionController.get(editor);
 		if (!multiCursorController) {
 			return null;
 		}
-
 		const findController = CommonFindController.get(editor);
 		if (!findController) {
 			return null;
 		}
+		let r = multiCursorController.getSession(findController);
+		if (!r) {
+			const allSelections = editor.getSelections();
+			if (allSelections.length > 1) {
+				const findState = findController.getState();
+				const matchCase = findState.matchCase;
+				const selectionsContainSameText = modelRangesContainSameText(editor.getModel(), allSelections, matchCase);
+				if (!selectionsContainSameText) {
+					return null;
+				}
+			}
 
-		const r = multiCursorController.getSession(findController);
+			r = MultiCursorSession.create(editor, findController);
+		}
 		if (!r) {
 			return null;
 		}
@@ -795,21 +789,6 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 		// TODO: better handling of this case
 		const findState = findController.getState();
 		const caseSensitive = findState.matchCase;
-		const selections = editor.getSelections();
-		let firstSelectedText = model.getValueInRange(selections[0]);
-		if (!caseSensitive) {
-			firstSelectedText = firstSelectedText.toLowerCase();
-		}
-		for (let i = 1; i < selections.length; i++) {
-			let selectedText = model.getValueInRange(selections[i]);
-			if (!caseSensitive) {
-				selectedText = selectedText.toLowerCase();
-			}
-			if (firstSelectedText !== selectedText) {
-				// not all selections have the same text
-				return null;
-			}
-		}
 
 		// Return early if the find widget shows the exact same matches
 		if (findState.isRevealed) {
@@ -910,4 +889,24 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 		this._setState(null);
 		super.dispose();
 	}
+}
+
+function modelRangesContainSameText(model: IModel, ranges: Range[], matchCase: boolean): boolean {
+	const selectedText = getValueInRange(model, ranges[0], !matchCase);
+	for (let i = 1, len = ranges.length; i < len; i++) {
+		const range = ranges[i];
+		if (range.isEmpty()) {
+			return false;
+		}
+		const thisSelectedText = getValueInRange(model, range, !matchCase);
+		if (selectedText !== thisSelectedText) {
+			return false;
+		}
+	}
+	return true;
+}
+
+function getValueInRange(model: IModel, range: Range, toLowerCase: boolean): string {
+	const text = model.getValueInRange(range);
+	return (toLowerCase ? text.toLowerCase() : text);
 }
