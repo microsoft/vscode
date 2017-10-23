@@ -40,8 +40,18 @@ const HOVER_MESSAGE_COMMAND_META = new MarkdownString().appendText(
 		: nls.localize('links.command', "Ctrl + click to execute command")
 );
 
-const HOVER_MESSAGE_GENERAL_ALT = new MarkdownString().appendText(nls.localize('links.navigate.al', "Alt + click to follow link"));
-const HOVER_MESSAGE_COMMAND_ALT = new MarkdownString().appendText(nls.localize('links.command.al', "Alt + click to execute command"));
+const HOVER_MESSAGE_GENERAL_ALT = new MarkdownString().appendText(
+	platform.isMacintosh
+		? nls.localize('links.navigate.al.mac', "Cmd + Alt + click to follow link")
+		: nls.localize('links.navigate.al', "Ctrl + Alt + click to follow link")
+);
+
+const HOVER_MESSAGE_COMMAND_ALT = new MarkdownString().appendText(
+	platform.isMacintosh
+		? nls.localize('links.command.al.mac', "Cmd + Alt + click to execute command")
+		: nls.localize('links.command.al', "Ctrl + Alt + click to execute command")
+);
+
 
 const decoration = {
 	meta: ModelDecorationOptions.register({
