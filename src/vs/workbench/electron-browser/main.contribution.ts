@@ -170,7 +170,7 @@ let workbenchProperties: { [path: string]: IJSONSchema; } = {
 		'type': 'string',
 		'enum': ['left', 'right', 'first', 'last'],
 		'default': 'right',
-		'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'editorOpenPositioning' }, "Controls where editors open. Select 'left' or 'right' to open editors to the left or right of the current active one. Select 'first' or 'last' to open editors independently from the currently active one.")
+		'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'editorOpenPositioning' }, "Controls where editors open. Select 'left' or 'right' to open editors to the left or right of the currently active one. Select 'first' or 'last' to open editors independently from the currently active one.")
 	},
 	'workbench.editor.revealIfOpen': {
 		'type': 'boolean',
