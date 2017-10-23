@@ -508,7 +508,7 @@
 					"name": "keyword.other.fn.rust"
 				},
 				"2": {
-					"name": "entity.name.function.rust"
+					"name": "meta.definition.function.rust"
 				}
 			},
 			"patterns": [
@@ -573,7 +573,7 @@
 					"name": "storage.type.rust"
 				},
 				"2": {
-					"name": "entity.name.type.rust"
+					"name": "meta.definition.type.rust"
 				}
 			},
 			"patterns": [
@@ -612,7 +612,7 @@
 					"name": "storage.type.rust"
 				},
 				"2": {
-					"name": "entity.name.type.rust"
+					"name": "meta.definition.type.rust"
 				}
 			},
 			"patterns": [
