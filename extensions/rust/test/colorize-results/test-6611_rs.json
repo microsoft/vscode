@@ -606,7 +606,7 @@
 	},
 	{
 		"c": "struct",
-		"t": "source.rust storage.type.rust",
+		"t": "source.rust meta.definition.type.rust",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -694,7 +694,7 @@
 	},
 	{
 		"c": "trait",
-		"t": "source.rust storage.type.rust",
+		"t": "source.rust meta.definition.type.rust",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
