@@ -638,6 +638,7 @@ class SelectionHighlighterState {
 	public readonly wordSeparators: string;
 
 	constructor(lastWordUnderCursor: Selection, searchText: string, matchCase: boolean, wordSeparators: string) {
+		this.lastWordUnderCursor = lastWordUnderCursor;
 		this.searchText = searchText;
 		this.matchCase = matchCase;
 		this.wordSeparators = wordSeparators;
