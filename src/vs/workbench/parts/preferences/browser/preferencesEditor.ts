@@ -606,6 +606,9 @@ class SideBySidePreferencesWidget extends Widget {
 	}
 
 	public clearInput(): void {
+		if (this.defaultPreferencesEditor) {
+			this.defaultPreferencesEditor.clearInput();
+		}
 		if (this.editablePreferencesEditor) {
 			this.editablePreferencesEditor.clearInput();
 		}
@@ -821,6 +824,14 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 				.then(editorModel => this.getControl().setModel((<ResourceEditorModel>editorModel).textEditorModel)));
 	}
 
+	public clearInput(): void {
+		// Clear Model
+		this.getControl().setModel(null);
+
+		// Pass to super
+		super.clearInput();
+	}
+
 	public layout(dimension: Dimension) {
 		this.getControl().layout(dimension);
 	}
@@ -910,6 +921,7 @@ abstract class AbstractSettingsEditorContribution extends Disposable {
 					if (preferencesRenderer.associatedPreferencesModel) {
 						preferencesRenderer.associatedPreferencesModel.dispose();
 					}
+					preferencesRenderer.preferencesModel.dispose();
 					preferencesRenderer.dispose();
 				}
 			});

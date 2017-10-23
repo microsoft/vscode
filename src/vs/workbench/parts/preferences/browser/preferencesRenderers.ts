@@ -77,7 +77,6 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 		@IInstantiationService protected instantiationService: IInstantiationService
 	) {
 		super();
-		this._register(preferencesModel);
 		this.settingHighlighter = this._register(instantiationService.createInstance(SettingHighlighter, editor, this._onFocusPreference, this._onClearFocusPreference));
 		this.highlightMatchesRenderer = this._register(instantiationService.createInstance(HighlightMatchesRenderer, editor));
 		this.editSettingActionRenderer = this._register(this.instantiationService.createInstance(EditSettingRenderer, this.editor, this.preferencesModel, this.settingHighlighter));

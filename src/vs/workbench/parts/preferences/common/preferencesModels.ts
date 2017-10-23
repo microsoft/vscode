@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 import { assign } from 'vs/base/common/objects';
-import * as arrays from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import { IReference } from 'vs/base/common/lifecycle';
@@ -15,7 +14,7 @@ import { visit, JSONVisitor } from 'vs/base/common/json';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { EditorModel } from 'vs/workbench/common/editor';
 import { IConfigurationNode, IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN, IConfigurationPropertySchema, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { ISettingsEditorModel, IDefaultPreferencesEditorModel, IKeybindingsEditorModel, ISettingsGroup, ISetting, IFilterResult, ISettingsSection, IGroupFilter, ISettingFilter } from 'vs/workbench/parts/preferences/common/preferences';
+import { ISettingsEditorModel, IKeybindingsEditorModel, ISettingsGroup, ISetting, IFilterResult, ISettingsSection, IGroupFilter, ISettingFilter } from 'vs/workbench/parts/preferences/common/preferences';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -476,36 +475,16 @@ export class WorkspaceConfigModel extends SettingsEditorModel implements ISettin
 	}
 }
 
-export class DefaultSettingsEditorModel extends AbstractSettingsModel implements ISettingsEditorModel, IDefaultPreferencesEditorModel {
-
-	public static MOST_RELEVANT_SECTION_LENGTH = 100;
-	public static MOST_RELEVANT_START_LINE = 4;
-	public static MOST_RELEVANT_END_LINE = DefaultSettingsEditorModel.MOST_RELEVANT_SECTION_LENGTH - 1;
-	private static MOST_RELEVANT_CONTENT_LENGTH = DefaultSettingsEditorModel.MOST_RELEVANT_END_LINE - DefaultSettingsEditorModel.MOST_RELEVANT_START_LINE + 1;
+export class DefaultSettingsModel {
 
 	private _allSettingsGroups: ISettingsGroup[];
 	private _content: string;
-	private _model: IModel;
 	private _settingsByName: Map<string, ISetting>;
 
 	constructor(
-		private _uri: URI,
 		private _mostCommonlyUsedSettingsKeys: string[],
 		readonly configurationScope: ConfigurationScope,
-		@IModeService private modeService: IModeService,
-		@IModelService private modelService: IModelService) {
-		super();
-
-		const mode = this.modeService.getOrCreateMode('json');
-		this._model = this._register(this.modelService.createModel(this.content, mode, this._uri));
-	}
-
-	public get model(): IModel {
-		return this._model;
-	}
-
-	public get uri(): URI {
-		return this._uri;
+	) {
 	}
 
 	public get content(): string {
@@ -522,109 +501,13 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		return this._allSettingsGroups;
 	}
 
-	public get mostCommonlyUsedSettings(): ISettingsGroup {
-		return this.settingsGroups[0];
-	}
-
-	public filterSettings(filter: string, groupFilter: IGroupFilter, settingFilter: ISettingFilter, mostRelevantSettings?: string[]): IFilterResult {
-		if (mostRelevantSettings) {
-			const group = this.getMostRelevantSettings(mostRelevantSettings);
-			const builder = new SettingsContentBuilder(DefaultSettingsEditorModel.MOST_RELEVANT_START_LINE - 1);
-			builder.pushGroup(group, false);
-
-			const lines = builder.getTrimmedLines(DefaultSettingsEditorModel.MOST_RELEVANT_CONTENT_LENGTH);
-			if (!lines.length) {
-				lines.push('');
-			}
-
-			const mostRelevantContent = lines.join('\n');
-			const settingsTextEndLine = DefaultSettingsEditorModel.MOST_RELEVANT_START_LINE + lines.length - 1;
-			this.model.applyEdits([
-				{
-					text: mostRelevantContent,
-					forceMoveMarkers: false,
-					range: new Range(DefaultSettingsEditorModel.MOST_RELEVANT_START_LINE, 0, settingsTextEndLine, 0),
-					identifier: { major: 1, minor: 0 }
-				}
-			]);
-
-			if (settingsTextEndLine < DefaultSettingsEditorModel.MOST_RELEVANT_END_LINE) {
-				this.model.applyEdits([
-					{
-						text: strings.repeat('\n', DefaultSettingsEditorModel.MOST_RELEVANT_END_LINE - settingsTextEndLine),
-						forceMoveMarkers: false,
-						range: new Range(settingsTextEndLine + 1, 0, DefaultSettingsEditorModel.MOST_RELEVANT_END_LINE + 1, 0),
-						identifier: { major: 1, minor: 0 }
-					}
-				]);
-			}
-
-			return {
-				allGroups: this._allSettingsGroups,
-				filteredGroups: group.sections[0].settings.length ? [group] : [],
-				matches: [],
-				query: filter
-			};
-		} else {
-			// local
-			return this.doFilterSettings(filter, groupFilter, settingFilter);
-		}
-	}
-
-	public findValueMatches(filter: string, setting: ISetting): IRange[] {
-		return [];
-	}
-
-	public getPreference(key: string): ISetting {
-		for (const group of this.settingsGroups) {
-			for (const section of group.sections) {
-				for (const setting of section.settings) {
-					if (setting.key === key) {
-						return setting;
-					}
-				}
-			}
-		}
-		return null;
-	}
-
-	private getMostRelevantSettings(rankedSettingNames: string[]): ISettingsGroup {
-		const settings = rankedSettingNames.map(key => {
-			const setting = this._settingsByName.get(key);
-			if (setting) {
-				return <ISetting>{
-					description: setting.description,
-					key: setting.key,
-					value: setting.value,
-					range: null,
-					valueRange: null,
-					overrides: []
-				};
-			}
-			return null;
-		}).filter(setting => !!setting);
-
-		return <ISettingsGroup>{
-			id: 'mostRelevant',
-			range: null,
-			title: nls.localize('mostRelevant', "Most Relevant"),
-			titleRange: null,
-			sections: [
-				{
-					settings
-				}
-			]
-		};
-	}
-
 	private parse() {
 		const configurations = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurations().slice();
 		const settingsGroups = this.removeEmptySettingsGroups(configurations.sort(this.compareConfigurationNodes).reduce((result, config, index, array) => this.parseConfig(config, result, array), []));
 		this.initAllSettingsMap(settingsGroups);
 		const mostCommonlyUsed = this.getMostCommonlyUsedSettings(settingsGroups);
-		const mostRelevant = this.getMostRelevantSettings([]);
-		this._allSettingsGroups = [mostRelevant, mostCommonlyUsed, ...settingsGroups];
-		this._content = this.toContent(mostRelevant, mostCommonlyUsed, settingsGroups);
+		this._allSettingsGroups = [mostCommonlyUsed, ...settingsGroups];
+		this._content = this.toContent(mostCommonlyUsed, settingsGroups);
 	}
 
 	private initAllSettingsMap(allSettingsGroups: ISettingsGroup[]): void {
@@ -753,14 +636,16 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		return c1.order - c2.order;
 	}
 
-	private toContent(mostRelevant: ISettingsGroup, mostCommonlyUsed: ISettingsGroup, settingsGroups: ISettingsGroup[]): string {
+	private toContent(mostCommonlyUsed: ISettingsGroup, settingsGroups: ISettingsGroup[]): string {
 		const builder = new SettingsContentBuilder();
 		builder.pushLine('[');
+		/*
 		builder.pushLine('{');
 		const mostRelevantSectionContent = arrays.fill(DefaultSettingsEditorModel.MOST_RELEVANT_SECTION_LENGTH - 3, () => '');
 		builder.pushGroup(mostRelevant, false, mostRelevantSectionContent); // Empty at this point
 		builder.pushLine('}');
 		builder.pushLine(',');
+		*/
 		builder.pushGroups([mostCommonlyUsed]);
 		builder.pushLine(',');
 		builder.pushGroups(settingsGroups);
@@ -768,7 +653,138 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		return builder.getContent();
 	}
 
-	public dispose(): void {
+}
+
+export class DefaultSettingsEditorModel extends AbstractSettingsModel implements ISettingsEditorModel {
+
+	public static MOST_RELEVANT_SECTION_LENGTH = 100;
+	public static MOST_RELEVANT_START_LINE = 4;
+	public static MOST_RELEVANT_END_LINE = DefaultSettingsEditorModel.MOST_RELEVANT_SECTION_LENGTH - 1;
+	public static MOST_RELEVANT_CONTENT_LENGTH = DefaultSettingsEditorModel.MOST_RELEVANT_END_LINE - DefaultSettingsEditorModel.MOST_RELEVANT_START_LINE + 1;
+
+	private model: IModel;
+	private _settingsByName: Map<string, ISetting>;
+
+	constructor(
+		private _uri: URI,
+		reference: IReference<ITextEditorModel>,
+		readonly configurationScope: ConfigurationScope,
+		readonly settingsGroups: ISettingsGroup[]
+	) {
+		super();
+		this.model = reference.object.textEditorModel;
+		this._register(this.onDispose(() => reference.dispose()));
+
+		this.initAllSettingsMap();
+	}
+
+	public get uri(): URI {
+		return this._uri;
+	}
+
+	public filterSettings(filter: string, groupFilter: IGroupFilter, settingFilter: ISettingFilter, mostRelevantSettings?: string[]): IFilterResult {
+		if (mostRelevantSettings) {
+			const group = this.getMostRelevantSettings(mostRelevantSettings);
+			const builder = new SettingsContentBuilder(DefaultSettingsEditorModel.MOST_RELEVANT_START_LINE - 1);
+			builder.pushGroup(group, false);
+
+			const lines = builder.getTrimmedLines(DefaultSettingsEditorModel.MOST_RELEVANT_CONTENT_LENGTH);
+			if (!lines.length) {
+				lines.push('');
+			}
+
+			const mostRelevantContent = lines.join('\n');
+			const settingsTextEndLine = DefaultSettingsEditorModel.MOST_RELEVANT_START_LINE + lines.length - 1;
+			this.model.applyEdits([
+				{
+					text: mostRelevantContent,
+					forceMoveMarkers: false,
+					range: new Range(DefaultSettingsEditorModel.MOST_RELEVANT_START_LINE, 0, settingsTextEndLine, 0),
+					identifier: { major: 1, minor: 0 }
+				}
+			]);
+
+			if (settingsTextEndLine < DefaultSettingsEditorModel.MOST_RELEVANT_END_LINE) {
+				this.model.applyEdits([
+					{
+						text: strings.repeat('\n', DefaultSettingsEditorModel.MOST_RELEVANT_END_LINE - settingsTextEndLine),
+						forceMoveMarkers: false,
+						range: new Range(settingsTextEndLine + 1, 0, DefaultSettingsEditorModel.MOST_RELEVANT_END_LINE + 1, 0),
+						identifier: { major: 1, minor: 0 }
+					}
+				]);
+			}
+
+			return {
+				allGroups: this.settingsGroups,
+				filteredGroups: group.sections[0].settings.length ? [group] : [],
+				matches: [],
+				query: filter
+			};
+		} else {
+			// local
+			return this.doFilterSettings(filter, groupFilter, settingFilter);
+		}
+	}
+
+	public findValueMatches(filter: string, setting: ISetting): IRange[] {
+		return [];
+	}
+
+	public getPreference(key: string): ISetting {
+		for (const group of this.settingsGroups) {
+			for (const section of group.sections) {
+				for (const setting of section.settings) {
+					if (setting.key === key) {
+						return setting;
+					}
+				}
+			}
+		}
+		return null;
+	}
+
+	private initAllSettingsMap(): void {
+		this._settingsByName = new Map<string, ISetting>();
+		for (const group of this.settingsGroups) {
+			for (const section of group.sections) {
+				for (const setting of section.settings) {
+					this._settingsByName.set(setting.key, setting);
+				}
+			}
+		}
+	}
+
+	private getMostRelevantSettings(rankedSettingNames: string[]): ISettingsGroup {
+		const settings = rankedSettingNames.map(key => {
+			const setting = this._settingsByName.get(key);
+			if (setting) {
+				return <ISetting>{
+					description: setting.description,
+					key: setting.key,
+					value: setting.value,
+					range: null,
+					valueRange: null,
+					overrides: []
+				};
+			}
+			return null;
+		}).filter(setting => !!setting);
+
+		return <ISettingsGroup>{
+			id: 'mostRelevant',
+			range: null,
+			title: nls.localize('mostRelevant', "Most Relevant"),
+			titleRange: null,
+			sections: [
+				{
+					settings
+				}
+			]
+		};
+	}
+
+	dispose(): void {
 		super.dispose();
 	}
 }
@@ -921,7 +937,7 @@ export function defaultKeybindingsContents(keybindingService: IKeybindingService
 	return defaultsHeader + '\n' + keybindingService.getDefaultKeybindingsContent();
 }
 
-export class DefaultKeybindingsEditorModel implements IKeybindingsEditorModel<any>, IDefaultPreferencesEditorModel {
+export class DefaultKeybindingsEditorModel implements IKeybindingsEditorModel<any> {
 
 	private _content: string;
 	private _model: IModel;

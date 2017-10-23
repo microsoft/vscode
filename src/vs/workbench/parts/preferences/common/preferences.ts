@@ -69,13 +69,8 @@ export interface IFilterMetadata {
 
 export interface IPreferencesEditorModel<T> {
 	uri: URI;
-	content: string;
 	getPreference(key: string): T;
 	dispose(): void;
-}
-
-export interface IDefaultPreferencesEditorModel {
-	model: IModel;
 }
 
 export type IGroupFilter = (group: ISettingsGroup) => boolean;
