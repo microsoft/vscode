@@ -15,7 +15,6 @@ import DOM = require('vs/base/browser/dom');
 import { Builder, $ } from 'vs/base/browser/builder';
 import { Delayer, RunOnceScheduler } from 'vs/base/common/async';
 import * as browser from 'vs/base/browser/browser';
-import assert = require('vs/base/common/assert');
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { startTimer } from 'vs/base/node/startupTimers';
 import errors = require('vs/base/common/errors');
@@ -267,9 +266,6 @@ export class Workbench implements IPartService {
 	 * once. Use the shutdown function to free up resources created by the workbench on startup.
 	 */
 	public startup(callbacks?: IWorkbenchCallbacks): void {
-		assert.ok(!this.workbenchStarted, 'Can not start a workbench that was already started');
-		assert.ok(!this.workbenchShutdown, 'Can not start a workbench that was shutdown');
-
 		try {
 			this.workbenchStarted = true;
 			this.callbacks = callbacks;
@@ -1224,26 +1220,18 @@ export class Workbench implements IPartService {
 	}
 
 	public getEditorPart(): EditorPart {
-		assert.ok(this.workbenchStarted, 'Workbench is not started. Call startup() first.');
-
 		return this.editorPart;
 	}
 
 	public getSidebarPart(): SidebarPart {
-		assert.ok(this.workbenchStarted, 'Workbench is not started. Call startup() first.');
-
 		return this.sidebarPart;
 	}
 
 	public getPanelPart(): PanelPart {
-		assert.ok(this.workbenchStarted, 'Workbench is not started. Call startup() first.');
-
 		return this.panelPart;
 	}
 
 	public getInstantiationService(): IInstantiationService {
-		assert.ok(this.workbenchStarted, 'Workbench is not started. Call startup() first.');
-
 		return this.instantiationService;
 	}
 
@@ -1265,6 +1253,7 @@ export class Workbench implements IPartService {
 
 	public toggleZenMode(skipLayout?: boolean): void {
 		this.zenMode.active = !this.zenMode.active;
+
 		// Check if zen mode transitioned to full screen and if now we are out of zen mode -> we need to go out of full screen
 		let toggleFullScreen = false;
 		if (this.zenMode.active) {
@@ -1279,9 +1268,11 @@ export class Workbench implements IPartService {
 			if (config.hideActivityBar) {
 				this.setActivityBarHidden(true, true);
 			}
+
 			if (config.hideStatusBar) {
 				this.setStatusBarHidden(true, true);
 			}
+
 			if (config.hideTabs) {
 				this.editorPart.hideTabs(true);
 			}
@@ -1289,9 +1280,11 @@ export class Workbench implements IPartService {
 			if (this.zenMode.wasPanelVisible) {
 				this.setPanelHidden(false, true).done(undefined, errors.onUnexpectedError);
 			}
+
 			if (this.zenMode.wasSideBarVisible) {
 				this.setSideBarHidden(false, true).done(undefined, errors.onUnexpectedError);
 			}
+
 			// Status bar and activity bar visibility come from settings -> update their visibility.
 			this.onDidUpdateConfiguration(true);
 			this.editorPart.hideTabs(false);
@@ -1299,13 +1292,16 @@ export class Workbench implements IPartService {
 			if (activeEditor) {
 				activeEditor.focus();
 			}
+
 			toggleFullScreen = this.zenMode.transitionedToFullScreen && browser.isFullscreen();
 		}
+
 		this.inZenMode.set(this.zenMode.active);
 
 		if (!skipLayout) {
 			this.layout();
 		}
+
 		if (toggleFullScreen) {
 			this.windowService.toggleFullScreen().done(undefined, errors.onUnexpectedError);
 		}

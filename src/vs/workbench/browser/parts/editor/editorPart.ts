@@ -218,7 +218,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			if (configuration && configuration.workbench && configuration.workbench.editor) {
 				const editorConfig = configuration.workbench.editor;
 
-
 				// Pin all preview editors of the user chose to disable preview
 				const newPreviewEditors = editorConfig.enablePreview;
 				if (this.tabOptions.previewEditors !== newPreviewEditors && !newPreviewEditors) {

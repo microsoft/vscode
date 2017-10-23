@@ -46,7 +46,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 
 const TextInputActions: IAction[] = [
 	new Action('undo', nls.localize('undo', "Undo"), null, true, () => document.execCommand('undo') && TPromise.as(true)),
@@ -261,7 +261,11 @@ export class ElectronWindow extends Themable {
 		}
 	}
 
-	private onDidUpdateConfiguration(e): void {
+	private onDidUpdateConfiguration(event: IConfigurationChangeEvent): void {
+		if (!event.affectsConfiguration('window.zoomLevel')) {
+			return;
+		}
+
 		const windowConfig: IWindowsConfiguration = this.configurationService.getConfiguration<IWindowsConfiguration>();
 
 		let newZoomLevel = 0;

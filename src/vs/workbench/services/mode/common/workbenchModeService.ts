@@ -9,7 +9,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import * as paths from 'vs/base/common/paths';
 import { TPromise } from 'vs/base/common/winjs.base';
 import mime = require('vs/base/common/mime');
-import { IFilesConfiguration } from 'vs/platform/files/common/files';
+import { IFilesConfiguration, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IExtensionPointUser, ExtensionMessageCollector, IExtensionPoint, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
@@ -124,7 +124,7 @@ export class WorkbenchModeServiceImpl extends ModeServiceImpl {
 		});
 
 		this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('files.associations')) {
+			if (e.affectsConfiguration(FILES_ASSOCIATIONS_CONFIG)) {
 				this.updateMime();
 			}
 		});
