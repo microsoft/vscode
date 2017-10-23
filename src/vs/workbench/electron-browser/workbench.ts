@@ -102,6 +102,7 @@ import URI from 'vs/base/common/uri';
 export const MessagesVisibleContext = new RawContextKey<boolean>('globalMessageVisible', false);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
 export const InZenModeContext = new RawContextKey<boolean>('inZenMode', false);
+export const SidebarVisibleContext = new RawContextKey<boolean>('sidebarVisible', false);
 export const NoEditorsVisibleContext: ContextKeyExpr = EditorsVisibleContext.toNegated();
 
 interface WorkbenchParams {
@@ -200,6 +201,7 @@ export class Workbench implements IPartService {
 	private messagesVisibleContext: IContextKey<boolean>;
 	private editorsVisibleContext: IContextKey<boolean>;
 	private inZenMode: IContextKey<boolean>;
+	private sideBarVisibleContext: IContextKey<boolean>;
 	private hasFilesToCreateOpenOrDiff: boolean;
 	private fontAliasing: string;
 	private zenMode: {
@@ -288,6 +290,7 @@ export class Workbench implements IPartService {
 			this.messagesVisibleContext = MessagesVisibleContext.bindTo(this.contextKeyService);
 			this.editorsVisibleContext = EditorsVisibleContext.bindTo(this.contextKeyService);
 			this.inZenMode = InZenModeContext.bindTo(this.contextKeyService);
+			this.sideBarVisibleContext = SidebarVisibleContext.bindTo(this.contextKeyService);
 
 			// Register Listeners
 			this.registerListeners();
@@ -308,6 +311,7 @@ export class Workbench implements IPartService {
 			let viewletRestoreStopWatch: StopWatch;
 			let viewletIdToRestore: string;
 			if (!this.sideBarHidden) {
+				this.sideBarVisibleContext.set(true);
 
 				if (this.shouldRestoreLastOpenedViewlet()) {
 					viewletIdToRestore = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE);
@@ -790,6 +794,7 @@ export class Workbench implements IPartService {
 
 	public setSideBarHidden(hidden: boolean, skipLayout?: boolean): TPromise<void> {
 		this.sideBarHidden = hidden;
+		this.sideBarVisibleContext.set(!hidden);
 
 		// Adjust CSS
 		if (hidden) {
