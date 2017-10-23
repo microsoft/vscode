@@ -30,9 +30,13 @@ export function compareFileNames(one: string, other: string, isCaseSensitive: bo
 				let charResult = charComparer.compare(a[i], b[i]);
 				const isUpperA = a[i] < 'a';
 				const isUpperB = b[i] < 'a';
+				if (parseInt(a[i]) && parseInt(b[i])) {
+					break;
+				}
 				if (charResult === 0 && isUpperA === isUpperB) {
 					continue;
-				} else if (isUpperA === isUpperB) {
+				}
+				if (isUpperA === isUpperB) {
 					result = charResult;
 					break;
 				}
