@@ -19,7 +19,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, SortOrderConfiguration, SortOrder } from 'vs/workbench/parts/files/common/files';
-import { FileOperation, FileOperationEvent, IResolveFileOptions, FileChangeType, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationEvent, IResolveFileOptions, FileChangeType, FileChangesEvent, IFileService, FILES_EXCLUDE_CONFIG } from 'vs/platform/files/common/files';
 import { RefreshViewExplorerAction, NewFolderAction, NewFileAction } from 'vs/workbench/parts/files/browser/fileActions';
 import { FileDragAndDrop, FileFilter, FileSorter, FileController, FileRenderer, FileDataSource, FileViewletState, FileAccessibilityProvider } from 'vs/workbench/parts/files/browser/views/explorerViewer';
 import { toResource } from 'vs/workbench/common/editor';
@@ -115,7 +115,11 @@ export class ExplorerView extends ViewsViewletPanel {
 		this.filesExplorerFocusedContext = FilesExplorerFocusedContext.bindTo(contextKeyService);
 		this.explorerFocusedContext = ExplorerFocusedContext.bindTo(contextKeyService);
 
-		this.fileEventsFilter = instantiationService.createInstance(ResourceGlobMatcher, (root: URI) => this.getFileEventsExcludes(root), (expression: glob.IExpression) => glob.parse(expression));
+		this.fileEventsFilter = instantiationService.createInstance(
+			ResourceGlobMatcher,
+			(root: URI) => this.getFileEventsExcludes(root),
+			(event: IConfigurationChangeEvent) => event.affectsConfiguration(FILES_EXCLUDE_CONFIG)
+		);
 	}
 
 	private getFileEventsExcludes(root?: URI): glob.IExpression {

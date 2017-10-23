@@ -13,7 +13,7 @@ import { IEditor as IBaseEditor, IEditorInput, ITextEditorOptions, IResourceInpu
 import { Extensions as EditorExtensions, EditorInput, IEditorCloseEvent, IEditorGroup, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { FileChangesEvent, IFileService, FileChangeType } from 'vs/platform/files/common/files';
+import { FileChangesEvent, IFileService, FileChangeType, FILES_EXCLUDE_CONFIG } from 'vs/platform/files/common/files';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -21,12 +21,12 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { once, debounceEvent } from 'vs/base/common/event';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { getExcludes, ISearchConfiguration } from 'vs/platform/search/common/search';
-import { parse, IExpression } from 'vs/base/common/glob';
+import { IExpression } from 'vs/base/common/glob';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
@@ -211,7 +211,11 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		this.recentlyClosedFiles = [];
 		this.loaded = false;
 		this.registry = Registry.as<IEditorRegistry>(Extensions.Editors);
-		this.resourceFilter = instantiationService.createInstance(ResourceGlobMatcher, (root: URI) => this.getExcludes(root), (expression: IExpression) => parse(expression));
+		this.resourceFilter = instantiationService.createInstance(
+			ResourceGlobMatcher,
+			(root: URI) => this.getExcludes(root),
+			(event: IConfigurationChangeEvent) => event.affectsConfiguration(FILES_EXCLUDE_CONFIG) || event.affectsConfiguration('search.exclude')
+		);
 
 		this.registerListeners();
 	}
