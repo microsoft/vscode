@@ -18,7 +18,7 @@
 		{
 			"name": "Types declaration and references",
 			"scope": [
-				"meta.definition.type.rust",
+				"meta.definition.type",
 				"meta.return-type",
 				"support.class",
 				"support.type",
