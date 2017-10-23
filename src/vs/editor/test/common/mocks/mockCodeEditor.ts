@@ -18,6 +18,9 @@ import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 export class MockCodeEditor extends CommonCodeEditor {
+
+	public _isFocused = true;
+
 	protected _createConfiguration(options: editorOptions.IEditorOptions): CommonEditorConfiguration {
 		return new TestConfiguration(options);
 	}
@@ -25,7 +28,7 @@ export class MockCodeEditor extends CommonCodeEditor {
 	public layout(dimension?: editorCommon.IDimension): void { }
 
 	public focus(): void { }
-	public isFocused(): boolean { return true; }
+	public isFocused(): boolean { return this._isFocused; }
 	public hasWidgetFocus(): boolean { return true; };
 
 	protected _enableEmptySelectionClipboard(): boolean { return false; }
