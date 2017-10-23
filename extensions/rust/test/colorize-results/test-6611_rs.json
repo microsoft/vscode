@@ -419,7 +419,7 @@
 	},
 	{
 		"c": "foo",
-		"t": "source.rust meta.definition.function.rust",
+		"t": "source.rust entity.name.function.rust meta.definition.function.rust",
 		"r": {
 			"dark_plus": "meta.definition.function: #DCDCAA",
 			"light_plus": "meta.definition.function: #795E26",
@@ -529,7 +529,7 @@
 	},
 	{
 		"c": "foo",
-		"t": "source.rust meta.definition.function.rust",
+		"t": "source.rust entity.name.function.rust meta.definition.function.rust",
 		"r": {
 			"dark_plus": "meta.definition.function: #DCDCAA",
 			"light_plus": "meta.definition.function: #795E26",
@@ -628,7 +628,7 @@
 	},
 	{
 		"c": "Foo",
-		"t": "source.rust meta.definition.type.rust",
+		"t": "source.rust entity.name.type.rust meta.definition.type.rust",
 		"r": {
 			"dark_plus": "meta.definition.type: #4EC9B0",
 			"light_plus": "meta.definition.type: #267F99",
@@ -716,7 +716,7 @@
 	},
 	{
 		"c": "Foo",
-		"t": "source.rust meta.definition.type.rust",
+		"t": "source.rust entity.name.type.rust meta.definition.type.rust",
 		"r": {
 			"dark_plus": "meta.definition.type: #4EC9B0",
 			"light_plus": "meta.definition.type: #267F99",
