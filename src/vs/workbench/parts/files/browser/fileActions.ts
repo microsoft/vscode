@@ -1982,18 +1982,26 @@ export function validateFileName(parent: IFileStat, name: string, allowOverwriti
 
 	// Invalid File name
 	if (!paths.isValidBasename(name)) {
-		return nls.localize('invalidFileNameError', "The name **{0}** is not valid as a file or folder name. Please choose a different name.", name);
+		return nls.localize('invalidFileNameError', "The name **{0}** is not valid as a file or folder name. Please choose a different name.", trimLongName(name));
 	}
 
 	// Max length restriction (on Windows)
 	if (isWindows) {
 		const fullPathLength = name.length + parent.resource.fsPath.length + 1 /* path segment */;
 		if (fullPathLength > 255) {
-			return nls.localize('filePathTooLongError', "The name **{0}** results in a path that is too long. Please choose a shorter name.", name);
+			return nls.localize('filePathTooLongError', "The name **{0}** results in a path that is too long. Please choose a shorter name.", trimLongName(name));
 		}
 	}
 
 	return null;
+}
+
+function trimLongName(name: string): string {
+	if (name && name.length > 255) {
+		return `${name.substr(0, 255)}...`;
+	}
+
+	return name;
 }
 
 export function getWellFormedFileName(filename: string): string {

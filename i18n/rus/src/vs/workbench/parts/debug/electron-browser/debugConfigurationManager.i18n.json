@@ -15,7 +15,6 @@
 	"vscode.extension.contributes.debuggers.initialConfigurations": "Конфигурации для создания первоначального файла launch.json.",
 	"vscode.extension.contributes.debuggers.languages": "Список языков, для которых расширение отладки может считаться \"отладчиком по умолчанию\".",
 	"vscode.extension.contributes.debuggers.adapterExecutableCommand": "Если задано, VS Code будет вызывать эту команду, чтобы определить путь к исполняемому файлу адаптера отладки и передаваемые аргументы.",
-	"vscode.extension.contributes.debuggers.startSessionCommand": "Если задано, VS Code будет вызывать эту команду для действий \"отладка\" или \"запуск\", предназначенных для этого расширения.",
 	"vscode.extension.contributes.debuggers.configurationSnippets": "Фрагменты для добавления новых конфигураций в launch.json.",
 	"vscode.extension.contributes.debuggers.configurationAttributes": "Конфигурации схемы JSON для проверки launch.json.",
 	"vscode.extension.contributes.debuggers.windows": "Параметры, связанные с Windows.",

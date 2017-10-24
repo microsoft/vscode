@@ -14,6 +14,7 @@
 	"runningTasks": "Aktive Aufgaben anzeigen",
 	"tasks": "Aufgaben",
 	"TaskSystem.noHotSwap": "Zum Ändern des Aufgabenausführungsmoduls mit einem aktiven Task muss das Fenster erneut geladen werden.",
+	"TaskServer.folderIgnored": "Der Ordner {0} wird ignoriert, da er Aufgabenversion 0.1.0 verwendet",
 	"TaskService.noBuildTask1": "Keine Buildaufgabe definiert. Markieren Sie eine Aufgabe mit 'isBuildCommand' in der tasks.json-Datei.",
 	"TaskService.noBuildTask2": "Es ist keine Buildaufgabe definiert. Markieren Sie eine Aufgabe in der Datei \"tasks.json\" als \"Buildgruppe\". ",
 	"TaskService.noTestTask1": "Keine Testaufgabe definiert. Markieren Sie eine Aufgabe mit 'isTestCommand' in der tasks.json-Datei.",

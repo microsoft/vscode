@@ -15,7 +15,6 @@
 	"label.replaceButton": "Reemplazar",
 	"label.replaceAllButton": "Reemplazar todo",
 	"label.toggleReplaceButton": "Alternar modo de reemplazar",
-	"title.matchesCountLimit": "Solo se resaltan los primeros 999 resultados, pero todas las operaciones de búsqueda trabajan en todo el texto.",
 	"label.matchesLocation": "{0} de {1}",
 	"label.noResults": "Sin resultados"
 }

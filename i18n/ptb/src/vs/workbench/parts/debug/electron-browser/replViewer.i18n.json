@@ -8,5 +8,5 @@
 	"replVariableAriaLabel": "Variável {0} tem valor {1}, ler a impressão do valor do loop, depurar",
 	"replExpressionAriaLabel": "Expressão {0} tem valor {1}, ler o laço de avaliação de impressão, depurar",
 	"replValueOutputAriaLabel": " impressão da avaliação do laço de leitura, depurar",
-	"replKeyValueOutputAriaLabel": "Variável de saída {0} tem valor {1},  ler o loop de avaliação de impressão, depurar"
+	"replRawObjectAriaLabel": "Variável repl {0} tem valor {1}, ler o loop de avaliação de impressão e depuração"
 }

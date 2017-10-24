@@ -15,6 +15,8 @@
 	"command.stageAll": "Mettre en attente toutes les modifications",
 	"command.stageSelectedRanges": "Mettre en attente les plages sélectionnées",
 	"command.revertSelectedRanges": "Restaurer les portées sélectionnées",
+	"command.stageChange": "Mettre en attente la modification",
+	"command.revertChange": "Restaurer la modification",
 	"command.unstage": "Annuler la mise en attente des modifications",
 	"command.unstageAll": "Annuler la mise en attente de toutes les modifications",
 	"command.unstageSelectedRanges": "Annuler la mise en attente des plages sélectionnées",

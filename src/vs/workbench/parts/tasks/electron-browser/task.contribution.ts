@@ -1411,7 +1411,9 @@ class TaskService extends EventEmitter implements ITaskService {
 						let customTasksToDelete: Task[] = [];
 						if (configurations || legacyTaskConfigurations) {
 							let unUsedConfigurations: Set<string> = new Set<string>();
-							Object.keys(configurations.byIdentifier).forEach(key => unUsedConfigurations.add(key));
+							if (configurations) {
+								Object.keys(configurations.byIdentifier).forEach(key => unUsedConfigurations.add(key));
+							}
 							for (let task of contributed) {
 								if (!ContributedTask.is(task)) {
 									continue;

@@ -8,5 +8,5 @@
 	"replVariableAriaLabel": "変数 {0} に値 {1} があります、Read Eval Print Loop、デバッグ",
 	"replExpressionAriaLabel": "式 {0} に値 {1} があります、Read Eval Print Loop、デバッグ",
 	"replValueOutputAriaLabel": "{0}、Read Eval Print Loop、デバッグ",
-	"replKeyValueOutputAriaLabel": "出力変数 {0} に値 {1} があります、Read Eval Print Loop、デバッグ"
+	"replRawObjectAriaLabel": "Repl 変数 {0} に値 {1} があります、Read Eval Print Loop、デバッグ"
 }

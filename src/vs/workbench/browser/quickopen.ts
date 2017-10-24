@@ -22,11 +22,10 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IConstructorSignature0, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
+export const CLOSE_ON_FOCUS_LOST_CONFIG = 'workbench.quickOpen.closeOnFocusLost';
+
 export interface IWorkbenchQuickOpenConfiguration {
 	workbench: {
-		quickOpen: {
-			closeOnFocusLost: boolean;
-		},
 		commandPalette: {
 			history: number;
 			preserveInput: boolean;

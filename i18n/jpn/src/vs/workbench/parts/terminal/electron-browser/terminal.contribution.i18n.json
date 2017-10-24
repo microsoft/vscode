@@ -17,6 +17,7 @@
 	"terminal.integrated.fontFamily": "端末のフォント ファミリを制御します。既定値は editor.fontFamily になります。",
 	"terminal.integrated.fontSize": "ターミナルのフォント サイズをピクセル単位で制御します。",
 	"terminal.integrated.lineHeight": "ターミナルの行の高さを制御します。この数値にターミナルのフォント サイズを乗算すると、実際の行の高さ (ピクセル単位) になります。",
+	"terminal.integrated.enableBold": "ターミナル内でテキストを太字にするかどうか。ターミナル シェルのサポートが必要なことに注意してください。",
 	"terminal.integrated.cursorBlinking": "ターミナルのカーソルを点滅させるかどうかを制御します。",
 	"terminal.integrated.cursorStyle": "端末のカーソルのスタイルを制御します。",
 	"terminal.integrated.scrollback": "端末がそのバッファーに保持できる最大行数を制御します。",

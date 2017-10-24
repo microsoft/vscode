@@ -233,8 +233,8 @@ export class TestTextFileService extends TextFileService {
 		return this.confirmResult;
 	}
 
-	public onConfigurationChange(configuration: any): void {
-		super.onConfigurationChange(configuration);
+	public onFilesConfigurationChange(configuration: any): void {
+		super.onFilesConfigurationChange(configuration);
 	}
 
 	protected cleanupBackupsBeforeShutdown(): TPromise<void> {

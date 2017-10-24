@@ -36,7 +36,7 @@ import { Component } from 'vs/workbench/common/component';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { KeyMod } from 'vs/base/common/keyCodes';
-import { QuickOpenHandler, QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions, EditorQuickOpenEntry, IWorkbenchQuickOpenConfiguration } from 'vs/workbench/browser/quickopen';
+import { QuickOpenHandler, QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions, EditorQuickOpenEntry, CLOSE_ON_FOCUS_LOST_CONFIG } from 'vs/workbench/browser/quickopen';
 import errors = require('vs/base/common/errors');
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPickOpenEntry, IFilePickOpenEntry, IInputOptions, IQuickOpenService, IPickOptions, IShowOptions, IPickOpenItem } from 'vs/platform/quickOpen/common/quickOpen';
@@ -131,22 +131,22 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		this._onShow = new Emitter<void>();
 		this._onHide = new Emitter<void>();
 
-		this.updateConfiguration(<IWorkbenchQuickOpenConfiguration>this.configurationService.getConfiguration());
+		this.updateConfiguration();
 
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => this.updateConfiguration(this.configurationService.getConfiguration<IWorkbenchQuickOpenConfiguration>())));
+		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => this.updateConfiguration()));
 		this.toUnbind.push(this.partService.onTitleBarVisibilityChange(() => this.positionQuickOpenWidget()));
 		this.toUnbind.push(browser.onDidChangeZoomLevel(() => this.positionQuickOpenWidget()));
 	}
 
-	private updateConfiguration(settings: IWorkbenchQuickOpenConfiguration): void {
+	private updateConfiguration(): void {
 		if (this.environmentService.args['sticky-quickopen']) {
 			this.closeOnFocusLost = false;
 		} else {
-			this.closeOnFocusLost = settings.workbench && settings.workbench.quickOpen && settings.workbench.quickOpen.closeOnFocusLost;
+			this.closeOnFocusLost = this.configurationService.getValue(CLOSE_ON_FOCUS_LOST_CONFIG);
 		}
 	}
 

@@ -15,7 +15,6 @@
 	"label.replaceButton": "Değiştir",
 	"label.replaceAllButton": "Tümünü Değiştir",
 	"label.toggleReplaceButton": "Değiştirme modunu değiştir",
-	"title.matchesCountLimit": "Yalnızca ilk 999 sonuç vurgulandı, ancak tüm bulma işlemleri metnin tamamı üzerinde çalışıyor.",
 	"label.matchesLocation": "{0}/{1}",
 	"label.noResults": "Sonuç Yok"
 }

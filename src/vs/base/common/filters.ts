@@ -421,7 +421,7 @@ function printTable(table: number[][], pattern: string, patternLen: number, word
 	return ret;
 }
 
-export function isSeparatorAtPos(value: string, index: number): boolean {
+function isSeparatorAtPos(value: string, index: number): boolean {
 	if (index < 0 || index >= value.length) {
 		return false;
 	}

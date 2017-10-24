@@ -17,6 +17,7 @@
 	"terminal.integrated.fontFamily": "控制终端的字体系列，这在编辑器中是默认的。fontFamily 的值。",
 	"terminal.integrated.fontSize": "控制终端的字号(以像素为单位)。",
 	"terminal.integrated.lineHeight": "控制终端的行高，此数字乘以终端字号得到实际行高(以像素表示)。",
+	"terminal.integrated.enableBold": "是否在终端内启用粗体文本，注意这需要终端命令行的支持。",
 	"terminal.integrated.cursorBlinking": "控制终端光标是否闪烁。",
 	"terminal.integrated.cursorStyle": "控制终端游标的样式。",
 	"terminal.integrated.scrollback": "控制终端保持在缓冲区的最大行数。",

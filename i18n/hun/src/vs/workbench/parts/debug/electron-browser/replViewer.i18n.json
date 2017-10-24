@@ -8,5 +8,5 @@
 	"replVariableAriaLabel": "A(z) {0} változó értéke: {1}, REPL, hibakeresés",
 	"replExpressionAriaLabel": "A(z) {0} kifejezés értéke: {1}, REPL, hibakeresés",
 	"replValueOutputAriaLabel": "{0}, REPL, hibakeresés",
-	"replKeyValueOutputAriaLabel": "A(z) {0} kimeneti változó értéke: {1}, REPL, hibakeresés"
+	"replRawObjectAriaLabel": "{0} repl-változó értéke: {1}, REPL, hibakeresés"
 }

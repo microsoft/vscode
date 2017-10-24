@@ -104,7 +104,7 @@ suite('Files - TextFileService', () => {
 
 		const service = accessor.textFileService;
 		service.setConfirmResult(ConfirmResult.DONT_SAVE);
-		service.onConfigurationChange({ files: { hotExit: 'off' } });
+		service.onFilesConfigurationChange({ files: { hotExit: 'off' } });
 
 		model.load().done(() => {
 			model.textEditorModel.setValue('foo');
@@ -137,7 +137,7 @@ suite('Files - TextFileService', () => {
 
 		const service = accessor.textFileService;
 		service.setConfirmResult(ConfirmResult.SAVE);
-		service.onConfigurationChange({ files: { hotExit: 'off' } });
+		service.onFilesConfigurationChange({ files: { hotExit: 'off' } });
 
 		model.load().done(() => {
 			model.textEditorModel.setValue('foo');
@@ -377,7 +377,7 @@ suite('Files - TextFileService', () => {
 
 			const service = accessor.textFileService;
 			// Set hot exit config
-			service.onConfigurationChange({ files: { hotExit: setting } });
+			service.onFilesConfigurationChange({ files: { hotExit: setting } });
 			// Set empty workspace if required
 			if (!workspace) {
 				accessor.contextService.setWorkspace(new Workspace('empty:1508317022751'));

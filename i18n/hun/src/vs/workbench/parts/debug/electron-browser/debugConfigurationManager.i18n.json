@@ -15,7 +15,6 @@
 	"vscode.extension.contributes.debuggers.initialConfigurations": "Konfigurációk a 'launch.json' első változatának elkészítéséhez.",
 	"vscode.extension.contributes.debuggers.languages": "Azon nyelvek listája, amelyeknél ez a hibakeresési kiegészítő alapértelmezett hibakeresőnek tekinthető.",
 	"vscode.extension.contributes.debuggers.adapterExecutableCommand": "Ha meg van adva, a VS Code ezt a parancsot fogja hívni a hibakeresési illesztő futtatható állománya elérési útjának és az átadandó argumentumok meghatározásához.",
-	"vscode.extension.contributes.debuggers.startSessionCommand": "Ha meg van határozva, a VS Code ezt a parancsot fogja hívni az ennek a kiegészítőnek küldött \"debug\" vagy \"run\" parancsok esetén.",
 	"vscode.extension.contributes.debuggers.configurationSnippets": "Kódtöredékek új 'launch.json'-konfigurációk hozzáadásához.",
 	"vscode.extension.contributes.debuggers.configurationAttributes": "JSON-sémakonfigurációk a 'launch.json' validálásához.",
 	"vscode.extension.contributes.debuggers.windows": "Windows-specifikus beállítások.",

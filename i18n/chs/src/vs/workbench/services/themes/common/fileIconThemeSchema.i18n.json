@@ -33,5 +33,6 @@
 	"schema.fontSize": "使用某种字体时: 文本字体的字体大小(以百分比表示)。如果未设置，则默认为字体定义中的大小。",
 	"schema.fontId": "使用某种字体时: 字体的 ID。如果未设置，则默认为第一个字体定义。",
 	"schema.light": "浅色主题中文件图标的可选关联。",
-	"schema.highContrast": "高对比度颜色主题中文件图标的可选关联。"
+	"schema.highContrast": "高对比度颜色主题中文件图标的可选关联。",
+	"schema.hidesExplorerArrows": "配置文件资源管理器的箭头是否应在此主题启用时隐藏。"
 }
