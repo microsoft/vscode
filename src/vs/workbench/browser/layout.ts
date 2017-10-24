@@ -487,8 +487,6 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			editorSize.width = editorMinWidth;
 			if (panelPosition === Position.BOTTOM) {
 				panelDimension.width = editorMinWidth;
-			} else {
-				// TODO@Isidor might need to reduce panel size and only then recude sidebar size
 			}
 
 			sidebarSize.width -= diff;
