@@ -158,7 +158,7 @@ function getSettingsFromBing(filter: string, endpoint: IEndpointDetails): TPromi
 			console.log('time: ' + duration / 1000);
 			const suggestions = (result.value || [])
 				.map(r => ({
-					name: r.Setting,
+					name: r.setting || r.Setting,
 					score: r['@search.score']
 				}));
 
