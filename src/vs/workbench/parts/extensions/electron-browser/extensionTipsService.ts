@@ -124,41 +124,20 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		}
 	}
 
-	getRecommendations(installedExtensions: string[], searchText: string): string[] {
+	getFileBasedRecommendations(): string[] {
 		const fileBased = Object.keys(this._fileBasedRecommendations)
-			.filter(recommendation => {
-				return installedExtensions.indexOf(recommendation) === -1
-					&& recommendation.toLowerCase().indexOf(searchText) > -1;
-			}).sort((a, b) => {
+			.sort((a, b) => {
 				return this._fileBasedRecommendations[a] > this._fileBasedRecommendations[b] ? -1 : 1;
 			});
-
-		const exeBased = this._exeBasedRecommendations
-			.filter((recommendation, index) => {
-				return this._exeBasedRecommendations.indexOf(recommendation) === index
-					&& installedExtensions.indexOf(recommendation) === -1
-					&& fileBased.indexOf(recommendation) === -1
-					&& recommendation.toLowerCase().indexOf(searchText) > -1;
-			});
-
-		// Sort recommendations such that few of the exeBased ones show up earliar
-		const x = Math.min(6, fileBased.length);
-		const y = Math.min(4, exeBased.length);
-		const sortedRecommendations = fileBased.slice(0, x);
-		sortedRecommendations.push(...exeBased.slice(0, y));
-		sortedRecommendations.push(...fileBased.slice(x));
-		sortedRecommendations.push(...exeBased.slice(y));
-
-		/* __GDPR__
-			"extensionRecommendations:unfiltered" : {
-				"fileBased" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"exeBased": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		this.telemetryService.publicLog('extensionRecommendations:unfiltered', { fileBased, exeBased });
-
-		return sortedRecommendations;
+		return fileBased;
 	}
+
+	getOtherRecommendations(): string[] {
+
+		return distinct(this._exeBasedRecommendations);
+	}
+
+
 
 	getKeymapRecommendations(): string[] {
 		return product.keymapExtensionTips || [];

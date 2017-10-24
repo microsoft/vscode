@@ -293,23 +293,12 @@ export class ExtensionsListView extends ViewsViewletPanel {
 			.then(result => result.filter(e => e.type === LocalExtensionType.User))
 			.then(local => {
 				const installedExtensions = local.map(x => `${x.publisher}.${x.name}`);
-				return TPromise.join([TPromise.as(this.tipsService.getRecommendations(installedExtensions, value)), this.tipsService.getWorkspaceRecommendations()])
-					.then(([recommendations, workspaceRecommendations]) => {
+				let fileBasedRecommendations = this.tipsService.getFileBasedRecommendations();
+				let others = this.tipsService.getOtherRecommendations();
 
-						workspaceRecommendations = workspaceRecommendations
-							.filter(name => {
-								return recommendations.indexOf(name) === -1
-									&& installedExtensions.indexOf(name) === -1
-									&& name.toLowerCase().indexOf(value) > -1;
-							});
-
-						// Sort recommendations such that few of the workspace ones show up earliar
-						const x = Math.min(4, recommendations.length);
-						const y = Math.min(4, workspaceRecommendations.length);
-						const names = recommendations.slice(0, x);
-						names.push(...workspaceRecommendations.slice(0, y));
-						names.push(...recommendations.slice(x));
-						names.push(...workspaceRecommendations.slice(y));
+				return this.tipsService.getWorkspaceRecommendations()
+					.then(workspaceRecommendations => {
+						const names = this.getTrimmedRecommendations(installedExtensions, value, fileBasedRecommendations, others, workspaceRecommendations);
 
 						this.telemetryService.publicLog('extensionAllRecommendations:open', { count: names.length });
 						if (!names.length) {
@@ -331,7 +320,12 @@ export class ExtensionsListView extends ViewsViewletPanel {
 		return this.extensionsWorkbenchService.queryLocal()
 			.then(result => result.filter(e => e.type === LocalExtensionType.User))
 			.then(local => {
-				const names = this.tipsService.getRecommendations(local.map(x => `${x.publisher}.${x.name}`), value);
+				let fileBasedRecommendations = this.tipsService.getFileBasedRecommendations();
+				let others = this.tipsService.getOtherRecommendations();
+
+				const installedExtensions = local.map(x => `${x.publisher}.${x.name}`);
+
+				const names = this.getTrimmedRecommendations(installedExtensions, value, fileBasedRecommendations, others, []);
 
 				/* __GDPR__
 					"extensionRecommendations:open" : {
@@ -350,6 +344,35 @@ export class ExtensionsListView extends ViewsViewletPanel {
 						return new PagedModel(pager || []);
 					});
 			});
+	}
+
+	// Given all recommendations, trims and returns recommendations in the relevant order after filtering out installed extensions
+	private getTrimmedRecommendations(installedExtensions: string[], value: string, fileBasedRecommendations: string[], otherRecommendations: string[], workpsaceRecommendations: string[], ) {
+		const totalCount = 8;
+		workpsaceRecommendations = workpsaceRecommendations
+			.filter(name => {
+				return installedExtensions.indexOf(name) === -1
+					&& name.toLowerCase().indexOf(value) > -1;
+			});
+		fileBasedRecommendations = fileBasedRecommendations.filter(x => {
+			return installedExtensions.indexOf(x) === -1
+				&& workpsaceRecommendations.indexOf(x) === -1
+				&& x.toLowerCase().indexOf(value) > -1;
+		});
+		otherRecommendations = otherRecommendations.filter(x => {
+			return installedExtensions.indexOf(x) === -1
+				&& fileBasedRecommendations.indexOf(x) === -1
+				&& workpsaceRecommendations.indexOf(x) === -1
+				&& x.toLowerCase().indexOf(value) > -1;
+		});
+
+		let otherCount = Math.min(2, otherRecommendations.length);
+		let fileBasedCount = Math.min(fileBasedRecommendations.length, totalCount - workpsaceRecommendations.length - otherCount);
+		let names = workpsaceRecommendations;
+		names.push(...fileBasedRecommendations.splice(0, fileBasedCount));
+		names.push(...otherRecommendations.splice(0, otherCount));
+
+		return names;
 	}
 
 	private getWorkspaceRecommendationsModel(query: Query, options: IQueryOptions): TPromise<IPagedModel<IExtension>> {
