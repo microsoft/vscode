@@ -85,7 +85,6 @@ class WordHighlighter {
 
 	private _hasWordHighlights: IContextKey<boolean>;
 
-
 	constructor(editor: editorCommon.ICommonCodeEditor, contextKeyService: IContextKeyService) {
 		this.editor = editor;
 		this._hasWordHighlights = ctxHasWordHighlights.bindTo(contextKeyService);
@@ -138,43 +137,29 @@ class WordHighlighter {
 		this._run();
 	}
 
-	private _getSortedDecorations() {
+	private _getSortedHighlights(): Range[] {
 		return this._decorationIds
-			.map((id) => {
-				return { id: id, Range: this.model.getDecorationRange(id) };
-			})
-			.sort((a, b) => Range.compareRangesUsingStarts(a.Range, b.Range));
+			.map((id) => this.model.getDecorationRange(id))
+			.sort(Range.compareRangesUsingStarts);
 	}
 
 	public moveNext() {
-		let decorations = this._getSortedDecorations();
-		let index = firstIndex(decorations, (decoration) => decoration.Range.containsPosition(this.editor.getPosition()));
-		var newIndex;
-		if (index === decorations.length - 1) {
-			newIndex = 0;
-		}
-		else {
-			newIndex = index + 1;
-		}
-		let newDecoration = decorations[newIndex];
-		this.editor.setPosition(newDecoration.Range.getStartPosition());
-		this.editor.revealRangeInCenter(newDecoration.Range);
+		let highlights = this._getSortedHighlights();
+		let index = firstIndex(highlights, (range) => range.containsPosition(this.editor.getPosition()));
+		let newIndex = ((index + 1) % highlights.length);
+		let dest = highlights[newIndex];
+		this.editor.setPosition(dest.getStartPosition());
+		this.editor.revealRangeInCenter(dest);
 		this._run();
 	}
 
 	public moveBack() {
-		let decorations = this._getSortedDecorations();
-		let index = firstIndex(decorations, (decoration) => decoration.Range.containsPosition(this.editor.getPosition()));
-		var newIndex;
-		if (index === 0) {
-			newIndex = decorations.length - 1;
-		}
-		else {
-			newIndex = index - 1;
-		}
-		let newDecoration = decorations[newIndex];
-		this.editor.setPosition(newDecoration.Range.getStartPosition());
-		this.editor.revealRangeInCenter(newDecoration.Range);
+		let highlights = this._getSortedHighlights();
+		let index = firstIndex(highlights, (range) => range.containsPosition(this.editor.getPosition()));
+		let newIndex = ((index - 1 + highlights.length) % highlights.length);
+		let dest = highlights[newIndex];
+		this.editor.setPosition(dest.getStartPosition());
+		this.editor.revealRangeInCenter(dest);
 		this._run();
 	}
 
