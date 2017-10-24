@@ -152,6 +152,7 @@ export class Workbench implements IPartService {
 	private static zenModeActiveSettingKey = 'workbench.zenmode.active';
 
 	private static sidebarPositionConfigurationKey = 'workbench.sideBar.location';
+	private static panelPositionConfigurationKey = 'workbench.panel.location';
 	private static statusbarVisibleConfigurationKey = 'workbench.statusBar.visible';
 	private static activityBarVisibleConfigurationKey = 'workbench.activityBar.visible';
 
@@ -194,6 +195,7 @@ export class Workbench implements IPartService {
 	private statusBarHidden: boolean;
 	private activityBarHidden: boolean;
 	private sideBarPosition: Position;
+	private panelPosition: Position;
 	private panelHidden: boolean;
 	private editorBackgroundDelayer: Delayer<void>;
 	private closeEmptyWindowScheduler: RunOnceScheduler;
@@ -643,6 +645,10 @@ export class Workbench implements IPartService {
 		const sideBarPosition = this.configurationService.getValue<string>(Workbench.sidebarPositionConfigurationKey);
 		this.sideBarPosition = (sideBarPosition === 'right') ? Position.RIGHT : Position.LEFT;
 
+		// Panel position
+		const panelPosition = this.configurationService.getValue<string>(Workbench.panelPositionConfigurationKey);
+		this.panelPosition = (panelPosition === 'right') ? Position.RIGHT : Position.BOTTOM;
+
 		// Statusbar visibility
 		const statusBarVisible = this.configurationService.getValue<string>(Workbench.statusbarVisibleConfigurationKey);
 		this.statusBarHidden = !statusBarVisible;
@@ -921,6 +927,30 @@ export class Workbench implements IPartService {
 		this.workbenchLayout.layout();
 	}
 
+	public getPanelPosition(): Position {
+		return this.panelPosition;
+	}
+
+	private setPanelPosition(position: Position): void {
+		if (this.panelHidden) {
+			this.setPanelHidden(false, true /* Skip Layout */).done(undefined, errors.onUnexpectedError);
+		}
+
+		const newPositionValue = (position === Position.BOTTOM) ? 'bottom' : 'right';
+		const oldPositionValue = (this.panelPosition === Position.BOTTOM) ? 'bottom' : 'right';
+		this.panelPosition = position;
+
+		// Adjust CSS
+		this.panelPart.getContainer().removeClass(oldPositionValue);
+		this.panelPart.getContainer().addClass(newPositionValue);
+
+		// Update Styles
+		this.panelPart.updateStyles();
+
+		// Layout
+		this.workbenchLayout.layout();
+	}
+
 	private setFontAliasing(aliasing: string) {
 		this.fontAliasing = aliasing;
 
@@ -1074,6 +1104,12 @@ export class Workbench implements IPartService {
 		const newSidebarPosition = (newSidebarPositionValue === 'right') ? Position.RIGHT : Position.LEFT;
 		if (newSidebarPosition !== this.getSideBarPosition()) {
 			this.setSideBarPosition(newSidebarPosition);
+		}
+
+		const newPanelPositionValue = this.configurationService.getValue<string>(Workbench.panelPositionConfigurationKey);
+		const newPanelPosition = (newPanelPositionValue === 'right') ? Position.RIGHT : Position.BOTTOM;
+		if (newPanelPosition !== this.getSideBarPosition()) {
+			this.setPanelPosition(newPanelPosition);
 		}
 
 		const fontAliasing = this.configurationService.getValue<string>(Workbench.fontAliasingConfigurationKey);

@@ -19,7 +19,8 @@ export enum Parts {
 
 export enum Position {
 	LEFT,
-	RIGHT
+	RIGHT,
+	BOTTOM
 }
 
 export interface ILayoutOptions {
@@ -106,6 +107,11 @@ export interface IPartService {
 	 * Gets the current side bar position. Note that the sidebar can be hidden too.
 	 */
 	getSideBarPosition(): Position;
+
+	/**
+	 * Gets the current panel position. Note that the panel can be hidden too.
+	 */
+	getPanelPosition(): Position;
 
 	/**
 	 * Returns the identifier of the element that contains the workbench.
