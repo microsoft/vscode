@@ -499,7 +499,7 @@ class NextWordHighlightAction extends WordHighlightNavigationAction {
 			alias: 'Go to Next Symbol Highlight',
 			precondition: ctxHasWordHighlights,
 			kbOpts: {
-				kbExpr: EditorContextKeys.focus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyCode.F7
 			}
 		});
@@ -515,7 +515,7 @@ class PrevWordHighlightAction extends WordHighlightNavigationAction {
 			alias: 'Go to Previous Symbol Highlight',
 			precondition: ctxHasWordHighlights,
 			kbOpts: {
-				kbExpr: EditorContextKeys.focus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.Shift | KeyCode.F7
 			}
 		});
