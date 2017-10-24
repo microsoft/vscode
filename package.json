@@ -33,7 +33,7 @@
     "https-proxy-agent": "0.3.6",
     "iconv-lite": "0.4.15",
     "jschardet": "^1.5.1",
-    "keytar": "^4.0.3",
+    "keytar": "^4.0.5",
     "minimist": "1.2.0",
     "native-keymap": "1.2.5",
     "native-watchdog": "0.3.0",
