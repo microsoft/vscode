@@ -1226,7 +1226,7 @@ export class Workbench implements IPartService {
 	private createPanelPart(): void {
 		const panelPartContainer = $(this.workbench)
 			.div({
-				'class': ['part', 'panel'],
+				'class': ['part', 'panel', this.panelPosition === Position.BOTTOM ? 'bottom' : 'right'],
 				id: Identifiers.PANEL_PART,
 				role: 'complementary'
 			});
