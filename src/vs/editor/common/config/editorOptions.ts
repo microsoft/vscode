@@ -1715,7 +1715,7 @@ export class InternalEditorOptionsFactory {
 			wordWrapBreakBeforeCharacters: opts.wordWrapBreakBeforeCharacters,
 			wordWrapBreakAfterCharacters: opts.wordWrapBreakAfterCharacters,
 			wordWrapBreakObtrusiveCharacters: opts.wordWrapBreakObtrusiveCharacters,
-			autoClosingBrackets: (accessibilityIsOn ? false : opts.autoClosingBrackets), // DISABLED WHEN SCREEN READER IS ATTACHED
+			autoClosingBrackets: opts.autoClosingBrackets,
 			autoIndent: opts.autoIndent,
 			dragAndDrop: opts.dragAndDrop,
 			emptySelectionClipboard: opts.emptySelectionClipboard,
