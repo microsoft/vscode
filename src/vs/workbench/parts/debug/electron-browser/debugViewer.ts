@@ -1297,6 +1297,10 @@ export class BreakpointsController extends BaseDebugController {
 	}
 
 	public openBreakpointSource(breakpoint: Breakpoint, event: IKeyboardEvent | IMouseEvent, preserveFocus: boolean): void {
+		if (breakpoint.uri.scheme === debug.DEBUG_SCHEME && this.debugService.state === debug.State.Inactive) {
+			return;
+		}
+
 		const sideBySide = (event && (event.ctrlKey || event.metaKey));
 		const selection = breakpoint.endLineNumber ? {
 			startLineNumber: breakpoint.lineNumber,
