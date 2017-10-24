@@ -52,6 +52,14 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		this._proxy.$acceptWorkspaceData(this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : this._contextService.getWorkspace());
 	}
 
+	$addFolders(folders: { uri: URI, name?: string }[]): Thenable<void> {
+		return this._contextService.addFolders(folders);
+	}
+
+	$removeFolders(folders: URI[]): Thenable<void> {
+		return this._contextService.removeFolders(folders);
+	}
+
 	// --- search ---
 
 	$startSearch(include: string | IRelativePattern, exclude: string | IRelativePattern, maxResults: number, requestId: number): Thenable<URI[]> {

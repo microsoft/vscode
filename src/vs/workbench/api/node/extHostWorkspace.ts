@@ -78,6 +78,17 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		}
 	}
 
+	addWorkspaceFolders(folders: { uri: URI, name?: string }[]): Thenable<void> {
+		return this._proxy.$addFolders(folders);
+	}
+
+	removeWorkspaceFolders(folders: vscode.WorkspaceFolder[]): Thenable<void> {
+		const existingWorkspaceFolders = this.getWorkspaceFolders();
+		const folderUrisToRemove = folders.filter(folder => existingWorkspaceFolders.indexOf(folder) >= 0).map(f => f.uri);
+
+		return this._proxy.$removeFolders(folderUrisToRemove);
+	}
+
 	getWorkspaceFolder(uri: vscode.Uri, resolveParent?: boolean): vscode.WorkspaceFolder {
 		if (!this._workspace) {
 			return undefined;
