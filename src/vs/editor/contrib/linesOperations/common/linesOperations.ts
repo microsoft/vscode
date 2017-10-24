@@ -209,8 +209,11 @@ export class TrimTrailingWhitespaceAction extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor, args: any): void {
 
-		var cursors: Position[];
+		let cursors: Position[] = [];
 		if (args.reason === 'auto-save') {
+			// See https://github.com/editorconfig/editorconfig-vscode/issues/47
+			// It is very convenient for the editor config extension to invoke this action.
+			// So, if we get a reason:'auto-save' passed in, let's preserve cursor positions.
 			cursors = editor.getSelections().map(s => new Position(s.positionLineNumber, s.positionColumn));
 		}
 

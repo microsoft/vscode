@@ -17,7 +17,7 @@ export class TrimTrailingWhitespaceCommand implements editorCommon.ICommand {
 	private selectionId: string;
 	private cursors: Position[];
 
-	constructor(selection: Selection, cursors: Position[] = []) {
+	constructor(selection: Selection, cursors: Position[]) {
 		this.selection = selection;
 		this.cursors = cursors;
 	}

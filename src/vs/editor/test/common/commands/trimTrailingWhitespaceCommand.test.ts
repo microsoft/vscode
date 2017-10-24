@@ -14,7 +14,7 @@ import { withEditorModel } from 'vs/editor/test/common/editorTestUtils';
 
 function assertTrimTrailingWhitespaceCommand(text: string[], expected: IIdentifiedSingleEditOperation[]): void {
 	return withEditorModel(text, (model) => {
-		var op = new TrimTrailingWhitespaceCommand(new Selection(1, 1, 1, 1));
+		var op = new TrimTrailingWhitespaceCommand(new Selection(1, 1, 1, 1), []);
 		var actual = getEditOperation(model, op);
 		assert.deepEqual(actual, expected);
 	});
