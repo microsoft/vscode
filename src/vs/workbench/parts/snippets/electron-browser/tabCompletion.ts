@@ -102,7 +102,7 @@ export class TabCompletionController implements editorCommon.IEditorContribution
 			this._snippets = this._snippetService.getSnippetsSync(id).filter(selectFn);
 		}
 
-		this._hasSnippets.set(this._snippets.length > 0);
+		this._hasSnippets.set(this._snippets && this._snippets.length > 0);
 	}
 
 	performSnippetCompletions(): void {
