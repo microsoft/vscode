@@ -843,6 +843,15 @@
         }
       },
       {
+        "id": "git.color.deleted",
+        "description": "Color for deleted resources",
+        "defaults": {
+          "light": "#c02e11",
+          "dark": "#c74e39",
+          "highContrast": "#c74e39"
+        }
+      },
+      {
         "id": "git.color.untracked",
         "description": "Color for untracked resources",
         "defaults": {
@@ -858,6 +867,15 @@
           "light": "#8E8E90",
           "dark": "#A7A8A9",
           "highContrast": "#A7A8A9"
+        }
+      },
+      {
+        "id": "git.color.conflict",
+        "description": "Color for resources with conflicts",
+        "defaults": {
+          "light": "#6c6cc4",
+          "dark": "#6c6cc4",
+          "highContrast": "#6c6cc4"
         }
       }
     ]

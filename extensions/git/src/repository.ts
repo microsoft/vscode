@@ -171,8 +171,9 @@ export class Resource implements SourceControlResourceState {
 	}
 
 	get decorations(): SourceControlResourceDecorations {
-		const light = { iconPath: this.getIconPath('light') };
-		const dark = { iconPath: this.getIconPath('dark') };
+		// TODO@joh
+		const light = { iconPath: this.getIconPath('light') } && undefined;
+		const dark = { iconPath: this.getIconPath('dark') } && undefined;
 		const tooltip = this.tooltip;
 		const strikeThrough = this.strikeThrough;
 		const faded = this.faded;
@@ -180,17 +181,69 @@ export class Resource implements SourceControlResourceState {
 		return { strikeThrough, faded, tooltip, light, dark };
 	}
 
-	get resourceDecoration(): DecorationData | undefined {
-		const title = this.tooltip;
+	get letter(): string | undefined {
 		switch (this.type) {
-			case Status.UNTRACKED:
-				return { priority: 1, title, abbreviation: localize('untracked, short', "U"), bubble: true, color: new ThemeColor('git.color.untracked') };
 			case Status.INDEX_MODIFIED:
 			case Status.MODIFIED:
-				return { priority: 2, title, abbreviation: localize('modified, short', "M"), bubble: true, color: new ThemeColor('git.color.modified') };
+				return 'M';
+			case Status.INDEX_ADDED:
+				return 'A';
+			case Status.INDEX_DELETED:
+			case Status.DELETED:
+				return 'D';
+			case Status.INDEX_RENAMED:
+				return 'R';
+			case Status.UNTRACKED:
+				return 'U';
+			case Status.IGNORED:
+				return 'I';
+			case Status.INDEX_COPIED:
+			case Status.BOTH_DELETED:
+			case Status.ADDED_BY_US:
+			case Status.DELETED_BY_THEM:
+			case Status.ADDED_BY_THEM:
+			case Status.DELETED_BY_US:
+			case Status.BOTH_ADDED:
+			case Status.BOTH_MODIFIED:
+				return 'C';
 			default:
 				return undefined;
 		}
+	}
+
+	get color(): ThemeColor | undefined {
+		switch (this.type) {
+			case Status.INDEX_MODIFIED:
+			case Status.MODIFIED:
+				return new ThemeColor('git.color.modified');
+			case Status.INDEX_DELETED:
+			case Status.DELETED:
+				return new ThemeColor('git.color.deleted');
+			case Status.INDEX_ADDED: // todo@joh - special color?
+			case Status.INDEX_RENAMED: // todo@joh - special color?
+			case Status.UNTRACKED:
+				return new ThemeColor('git.color.untracked');
+			case Status.IGNORED:
+				return new ThemeColor('git.color.ignored');
+			case Status.INDEX_COPIED:
+			case Status.BOTH_DELETED:
+			case Status.ADDED_BY_US:
+			case Status.DELETED_BY_THEM:
+			case Status.ADDED_BY_THEM:
+			case Status.DELETED_BY_US:
+			case Status.BOTH_ADDED:
+			case Status.BOTH_MODIFIED:
+				return new ThemeColor('git.color.conflict');
+			default:
+				return undefined;
+		}
+	}
+
+	get resourceDecoration(): DecorationData | undefined {
+		const title = this.tooltip;
+		const abbreviation = this.letter;
+		const color = this.color;
+		return { bubble: true, title, abbreviation, color };
 	}
 
 	constructor(
