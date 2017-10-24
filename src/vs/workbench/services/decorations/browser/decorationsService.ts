@@ -54,7 +54,7 @@ class DecorationRule {
 		createCSSRule(`.focused .selected .${this.labelClassName}`, `color: inherit;`, element);
 		// letter
 		if (letter) {
-			createCSSRule(`.${this.badgeClassName}::before`, `content: "${letter}"`, element);
+			createCSSRule(`.${this.badgeClassName}::after`, `content: "${letter}";`, element);
 		}
 	}
 
@@ -62,14 +62,11 @@ class DecorationRule {
 		// label
 		const { color } = data[0];
 		createCSSRule(`.${this.labelClassName}`, `color: ${theme.getColor(color) || 'inherit'};`, element);
-		createCSSRule(`.focused .selected .${this.labelClassName}`, `color: inherit; opacity: inherit;`, element);
+		createCSSRule(`.focused .selected .${this.labelClassName}`, `color: inherit;`, element);
 
 		// badge
-		let letters: string[] = [];
-		for (const deco of data) {
-			letters.push(deco.letter);
-		}
-		createCSSRule(`.${this.badgeClassName}::before`, `content: "${letters.join(', ')}"`, element);
+		let content = data.map(d => d.letter).join(', ');
+		createCSSRule(`.${this.badgeClassName}::after`, `content: "${content}";`, element);
 	}
 
 	removeCSSRules(element: HTMLStyleElement): void {
