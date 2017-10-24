@@ -178,11 +178,14 @@ export class TerminalLinkHandler {
 
 	private _getLinkHoverString(): string {
 		const editorConf = this._configurationService.getConfiguration<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
+		if (platform.isMacintosh) {
+			if (editorConf.multiCursorModifier === 'ctrlCmd') {
+				return nls.localize('terminalLinkHandler.followLinkAltMac', 'Cmd + Alt + click to follow link');
+			}
+			return nls.localize('terminalLinkHandler.followLinkCmd', 'Cmd + click to follow link');
+		}
 		if (editorConf.multiCursorModifier === 'ctrlCmd') {
 			return nls.localize('terminalLinkHandler.followLinkAlt', 'Alt + click to follow link');
-		}
-		if (platform.isMacintosh) {
-			return nls.localize('terminalLinkHandler.followLinkCmd', 'Cmd + click to follow link');
 		}
 		return nls.localize('terminalLinkHandler.followLinkCtrl', 'Ctrl + click to follow link');
 	}
