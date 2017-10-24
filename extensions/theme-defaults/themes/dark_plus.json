@@ -18,8 +18,8 @@
 		{
 			"name": "Types declaration and references",
 			"scope": [
-				"meta.definition.type",
 				"meta.return-type",
+				"meta.definition.type",
 				"support.class",
 				"support.type",
 				"entity.name.type",
