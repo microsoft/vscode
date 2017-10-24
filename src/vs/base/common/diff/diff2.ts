@@ -9,6 +9,7 @@ import { DiffChange } from 'vs/base/common/diff/diffChange';
 export interface ISequence {
 	getLength(): number;
 	getElementHash(index: number): string;
+	[index: number]: string;
 }
 
 export interface IDiffChange {

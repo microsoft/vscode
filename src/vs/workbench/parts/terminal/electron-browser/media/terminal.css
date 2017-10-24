@@ -16,6 +16,7 @@
 .monaco-workbench .panel.integrated-terminal .terminal-outer-container {
 	height: 100%;
 	padding-left: 20px; /*Don't use right padding in case xterm.js misbehaves*/
+	padding-bottom: 2px;
 	width: 100%;
 	box-sizing: border-box;
 }
@@ -26,7 +27,7 @@
 .monaco-workbench .panel.integrated-terminal .terminal-wrapper.active {
 	display: block;
 	position: absolute;
-	bottom: 0;
+	bottom: 2px; /* Matches padding-bottom on .terminal-outer-container */
 	top: 0;
 }
 
@@ -40,11 +41,17 @@
 }
 
 .monaco-workbench .panel.integrated-terminal .xterm-viewport {
-	/* Align the viewport to the bottom of the panel, just like the terminal */
+	margin-right: -20px;
+}
+
+.monaco-workbench .panel.integrated-terminal canvas {
+	/* Align the viewport and canvases to the bottom of the panel */
 	position: absolute;
 	right: -20px;
 	bottom: 0;
 	left: 0;
+	/* Disable upstream's style */
+	top: auto;
 }
 
 .monaco-workbench .panel.integrated-terminal {
@@ -65,6 +72,40 @@
 	text-decoration: underline;
 }
 
+.monaco-workbench .panel.integrated-terminal .xterm {
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	user-select: none;
+}
+
+.monaco-workbench .panel.integrated-terminal .xterm:focus {
+	/* Hide outline when focus jumps from xterm to the text area */
+	outline: none;
+}
+
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm.focus::before,
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm:focus::before {
+	display: block;
+	content: "";
+	border: 2px solid #f38518;
+	position: absolute;
+	left: -5px;
+	top: 0;
+	right: -5px;
+	bottom: 0;
+}
+
+.monaco-workbench .panel.integrated-terminal .xterm .xterm-helpers {
+	position: absolute;
+	top: 0;
+}
+
+.monaco-workbench .panel.integrated-terminal .xterm .xterm-helper-textarea:focus {
+	/* Override the general vscode style applies `opacity:1!important` to textareas */
+	opacity: 0 !important;
+}
+
 /* Terminal actions */
 
 /* Light theme */
@@ -74,79 +115,16 @@
 .vs-dark .monaco-workbench .terminal-action.kill, .hc-black .monaco-workbench .terminal-action.kill { background: url('kill-inverse.svg') center center no-repeat; }
 .vs-dark .monaco-workbench .terminal-action.new, .hc-black .monaco-workbench .terminal-action.new { background: url('new-inverse.svg') center center no-repeat; }
 
-.vs-dark .monaco-workbench.mac .panel.integrated-terminal .xterm-rows,
-.hc-black .monaco-workbench.mac .panel.integrated-terminal .xterm-rows {
+.vs-dark .monaco-workbench.mac .panel.integrated-terminal .terminal:not(.enable-mouse-events),
+.hc-black .monaco-workbench.mac .panel.integrated-terminal .terminal:not(.enable-mouse-events) {
 	cursor: -webkit-image-set(url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAQAAAC1+jfqAAAAL0lEQVQoz2NgCD3x//9/BhBYBWdhgFVAiVW4JBFKGIa4AqD0//9D3pt4I4tAdAMAHTQ/j5Zom30AAAAASUVORK5CYII=') 1x, url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAQAAADZc7J/AAAAz0lEQVRIx2NgYGBY/R8I/vx5eelX3n82IJ9FxGf6tksvf/8FiTMQAcAGQMDvSwu09abffY8QYSAScNk45G198eX//yev73/4///701eh//kZSARckrNBRvz//+8+6ZohwCzjGNjdgQxkAg7B9WADeBjIBqtJCbhRA0YNoIkBSNmaPEMoNmA0FkYNoFKhapJ6FGyAH3nauaSmPfwI0v/3OukVi0CIZ+F25KrtYcx/CTIy0e+rC7R1Z4KMICVTQQ14feVXIbR695u14+Ir4gwAAD49E54wc1kWAAAAAElFTkSuQmCC') 2x) 5 8, text;
 }
 
-.monaco-workbench .panel.integrated-terminal .find-part {
-	position: absolute;
-	top: -40px;
-	right: 28px;
-	display: none;
-	padding: 4px;
-	align-items: center;
-
-	-webkit-transition: top 200ms linear;
-	-o-transition: top 200ms linear;
-	-moz-transition: top 200ms linear;
-	-ms-transition: top 200ms linear;
-	transition: top 200ms linear;
+.monaco-workbench .quick-open-terminal-configure {
+	background-image: url('configure.svg');
 }
 
-.monaco-workbench .panel.integrated-terminal .find-part.visible {
-	top: 0;
-	display: flex;
-}
-
-/* Temporarily we don't show match numbers */
-.monaco-workbench .panel.integrated-terminal .find-part .monaco-findInput .controls {
-	display: none;
-}
-.monaco-workbench .panel.integrated-terminal .find-part .monaco-findInput .monaco-inputbox .wrapper .input {
-	width: 100% !important;
-}
-
-.monaco-workbench .panel.integrated-terminal .find-part .button {
-	min-width: 20px;
-	width: 20px;
-	height: 20px;
-	display: flex;
-	flex: initial;
-	margin-left: 3px;
-	background-position: center center;
-	background-repeat: no-repeat;
-	cursor: pointer;
-}
-
-.monaco-workbench .panel.integrated-terminal .find-part .button.previous {
-	background-image: url('previous.svg');
-}
-
-.monaco-workbench .panel.integrated-terminal .find-part .button.next {
-	background-image: url('next.svg');
-}
-
-.monaco-workbench .panel.integrated-terminal .find-part .button.close-fw {
-	background-image: url('close.svg');
-}
-
-.hc-black .monaco-workbench .panel.integrated-terminal .find-part .button.previous,
-.vs-dark .monaco-workbench .panel.integrated-terminal .find-part .button.previous {
-	background-image: url('previous-inverse.svg');
-}
-
-.hc-black .monaco-workbench .panel.integrated-terminal .find-part .button.next,
-.vs-dark .monaco-workbench .panel.integrated-terminal .find-part .button.next {
-	background-image: url('next-inverse.svg');
-}
-
-.hc-black .monaco-workbench .panel.integrated-terminal .find-part .button.close-fw,
-.vs-dark .monaco-workbench .panel.integrated-terminal .find-part .button.close-fw {
-	background-image: url('close-dark.svg');
-}
-
-monaco-workbench .panel.integrated-terminal .find-part .button.disabled {
-	opacity: 0.3;
-	cursor: default;
+.vs-dark .monaco-workbench .quick-open-terminal-configure,
+.hc-black .monaco-workbench .quick-open-terminal-configure {
+	background-image: url('configure-inverse.svg');
 }

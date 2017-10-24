@@ -15,7 +15,8 @@ import { IVisibleLine } from 'vs/editor/browser/view/viewLayer';
 import { RangeUtil } from 'vs/editor/browser/viewParts/lines/rangeUtil';
 import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { ThemeType, HIGH_CONTRAST } from "vs/platform/theme/common/themeService";
+import { ThemeType, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
+import { IStringBuilder } from 'vs/editor/common/core/stringBuilder';
 
 const canUseFastRenderedViewLine = (function () {
 	if (platform.isNative) {
@@ -156,10 +157,10 @@ export class ViewLine implements IVisibleLine {
 		return false;
 	}
 
-	public renderLine(lineNumber: number, deltaTop: number, viewportData: ViewportData): string {
+	public renderLine(lineNumber: number, deltaTop: number, viewportData: ViewportData, sb: IStringBuilder): boolean {
 		if (this._isMaybeInvalid === false) {
 			// it appears that nothing relevant has changed
-			return null;
+			return false;
 		}
 
 		this._isMaybeInvalid = false;
@@ -204,10 +205,20 @@ export class ViewLine implements IVisibleLine {
 
 		if (this._renderedViewLine && this._renderedViewLine.input.equals(renderLineInput)) {
 			// no need to do anything, we have the same render input
-			return null;
+			return false;
 		}
 
-		const output = renderViewLine(renderLineInput);
+		sb.appendASCIIString('<div style="top:');
+		sb.appendASCIIString(String(deltaTop));
+		sb.appendASCIIString('px;height:');
+		sb.appendASCIIString(String(this._options.lineHeight));
+		sb.appendASCIIString('px;" class="');
+		sb.appendASCIIString(ViewLine.CLASS_NAME);
+		sb.appendASCIIString('">');
+
+		const output = renderViewLine(renderLineInput, sb);
+
+		sb.appendASCIIString('</div>');
 
 		let renderedViewLine: IRenderedViewLine = null;
 		if (canUseFastRenderedViewLine && options.useMonospaceOptimizations && !output.containsForeignElements) {
@@ -239,7 +250,7 @@ export class ViewLine implements IVisibleLine {
 
 		this._renderedViewLine = renderedViewLine;
 
-		return `<div style="top:${deltaTop}px;height:${this._options.lineHeight}px;" class="${ViewLine.CLASS_NAME}">${output.html}</div>`;
+		return true;
 	}
 
 	public layoutLine(lineNumber: number, deltaTop: number): void {
@@ -258,6 +269,13 @@ export class ViewLine implements IVisibleLine {
 		return this._renderedViewLine.getWidth();
 	}
 
+	public getWidthIsFast(): boolean {
+		if (!this._renderedViewLine) {
+			return true;
+		}
+		return this._renderedViewLine.getWidthIsFast();
+	}
+
 	public getVisibleRangesForRange(startColumn: number, endColumn: number, context: DomReadingContext): HorizontalRange[] {
 		startColumn = Math.min(this._renderedViewLine.input.lineContent.length + 1, Math.max(1, startColumn));
 		endColumn = Math.min(this._renderedViewLine.input.lineContent.length + 1, Math.max(1, endColumn));
@@ -273,6 +291,7 @@ interface IRenderedViewLine {
 	domNode: FastDomNode<HTMLElement>;
 	readonly input: RenderLineInput;
 	getWidth(): number;
+	getWidthIsFast(): boolean;
 	getVisibleRangesForRange(startColumn: number, endColumn: number, context: DomReadingContext): HorizontalRange[];
 	getColumnOfNodeOffset(lineNumber: number, spanNode: HTMLElement, offset: number): number;
 }
@@ -287,7 +306,6 @@ class FastRenderedViewLine implements IRenderedViewLine {
 
 	private readonly _characterMapping: CharacterMapping;
 	private readonly _charWidth: number;
-	private _charOffset: Uint32Array;
 
 	constructor(domNode: FastDomNode<HTMLElement>, renderLineInput: RenderLineInput, characterMapping: CharacterMapping) {
 		this.domNode = domNode;
@@ -295,42 +313,14 @@ class FastRenderedViewLine implements IRenderedViewLine {
 
 		this._characterMapping = characterMapping;
 		this._charWidth = renderLineInput.spaceWidth;
-		this._charOffset = null;
-	}
-
-	private static _createCharOffset(characterMapping: CharacterMapping): Uint32Array {
-		const partLengths = characterMapping.getPartLengths();
-		const len = characterMapping.length;
-
-		let result = new Uint32Array(len);
-		let currentPartIndex = 0;
-		let currentPartOffset = 0;
-		for (let ch = 0; ch < len; ch++) {
-			const partData = characterMapping.charOffsetToPartData(ch);
-			const partIndex = CharacterMapping.getPartIndex(partData);
-			const charIndex = CharacterMapping.getCharIndex(partData);
-
-			while (currentPartIndex < partIndex) {
-				currentPartOffset += partLengths[currentPartIndex];
-				currentPartIndex++;
-			}
-
-			result[ch] = currentPartOffset + charIndex;
-		}
-
-		return result;
-	}
-
-	private _getOrCreateCharOffset(): Uint32Array {
-		if (this._charOffset === null) {
-			this._charOffset = FastRenderedViewLine._createCharOffset(this._characterMapping);
-		}
-		return this._charOffset;
 	}
 
 	public getWidth(): number {
-		const charOffset = this._getOrCreateCharOffset();
-		return this._getCharPosition(charOffset.length);
+		return this._getCharPosition(this._characterMapping.length);
+	}
+
+	public getWidthIsFast(): boolean {
+		return true;
 	}
 
 	public getVisibleRangesForRange(startColumn: number, endColumn: number, context: DomReadingContext): HorizontalRange[] {
@@ -357,7 +347,7 @@ class FastRenderedViewLine implements IRenderedViewLine {
 	}
 
 	private _getCharPosition(column: number): number {
-		const charOffset = this._getOrCreateCharOffset();
+		const charOffset = this._characterMapping.getAbsoluteOffsets();
 		if (charOffset.length === 0) {
 			// No characters on this line
 			return 0;
@@ -382,7 +372,7 @@ class FastRenderedViewLine implements IRenderedViewLine {
 /**
  * Every time we render a line, we save what we have rendered in an instance of this class.
  */
-class RenderedViewLine {
+class RenderedViewLine implements IRenderedViewLine {
 
 	public domNode: FastDomNode<HTMLElement>;
 	public readonly input: RenderLineInput;
@@ -406,7 +396,7 @@ class RenderedViewLine {
 		this._cachedWidth = -1;
 
 		this._pixelOffsetCache = null;
-		if (!containsRTL) {
+		if (!containsRTL || this._characterMapping.length === 0 /* the line is empty */) {
 			this._pixelOffsetCache = new Int32Array(this._characterMapping.length + 1);
 			for (let column = 0, len = this._characterMapping.length; column <= len; column++) {
 				this._pixelOffsetCache[column] = -1;
@@ -428,6 +418,13 @@ class RenderedViewLine {
 			this._cachedWidth = this._getReadingTarget().offsetWidth;
 		}
 		return this._cachedWidth;
+	}
+
+	public getWidthIsFast(): boolean {
+		if (this._cachedWidth === -1) {
+			return false;
+		}
+		return true;
 	}
 
 	/**
@@ -484,8 +481,11 @@ class RenderedViewLine {
 
 	protected _readPixelOffset(column: number, context: DomReadingContext): number {
 		if (this._characterMapping.length === 0) {
-			// This line is empty
-			return 0;
+			// This line has no content
+			if (!this._containsForeignElements) {
+				// We can assume the line is really empty
+				return 0;
+			}
 		}
 
 		if (this._pixelOffsetCache !== null) {
@@ -505,6 +505,14 @@ class RenderedViewLine {
 	}
 
 	private _actualReadPixelOffset(column: number, context: DomReadingContext): number {
+		if (this._characterMapping.length === 0) {
+			// This line has no content
+			let r = RangeUtil.readHorizontalRanges(this._getReadingTarget(), 0, 0, 0, 0, context.clientRectDeltaLeft, context.endNode);
+			if (!r || r.length === 0) {
+				return -1;
+			}
+			return r[0].left;
+		}
 
 		if (column === this._characterMapping.length && this._isWhitespaceOnly && !this._containsForeignElements) {
 			// This branch helps in the case of whitespace only lines which have a width set

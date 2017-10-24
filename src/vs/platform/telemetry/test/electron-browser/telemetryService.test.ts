@@ -243,7 +243,7 @@ suite('TelemetryService', () => {
 	// 			let testAppender = new TestTelemetryAppender();
 	// 			service.addTelemetryAppender(testAppender);
 	//
-	// 			winjs.Promise.wrapError('This should not get logged');
+	// 			winjs.Promise.wrapError(new Error('This should not get logged'));
 	// 			winjs.TPromise.as(true).then(() => {
 	// 				throw new Error('This should get logged');
 	// 			});
@@ -678,27 +678,28 @@ suite('TelemetryService', () => {
 				_serviceBrand: undefined,
 				getConfiguration() {
 					return {
-						enableTelemetry
-					};
+						enableTelemetry: enableTelemetry
+					} as any;
 				},
-				getConfigurationData(): any {
+				getValue(key) {
+					return getConfigurationValue(this.getConfiguration(), key);
+				},
+				updateValue() {
 					return null;
 				},
-				reloadConfiguration() {
-					return TPromise.as(this.getConfiguration());
-				},
-				lookup(key: string) {
+				inspect(key: string) {
 					return {
 						value: getConfigurationValue(this.getConfiguration(), key),
 						default: getConfigurationValue(this.getConfiguration(), key),
 						user: getConfigurationValue(this.getConfiguration(), key),
 						workspace: null,
-						folder: null
+						workspaceFolder: null
 					};
 				},
-				keys() { return { default: [], user: [], workspace: [] }; },
-				values() { return {}; },
-				onDidUpdateConfiguration: emitter.event
+				keys() { return { default: [], user: [], workspace: [], workspaceFolder: [] }; },
+				onDidChangeConfiguration: emitter.event,
+				reloadConfiguration() { return null; },
+				getConfigurationData() { return null; }
 			});
 
 		assert.equal(service.isOptedIn, false);

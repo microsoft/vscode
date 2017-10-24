@@ -6,40 +6,71 @@
 
 import * as vscode from 'vscode';
 
-import { ContentSecurityPolicyArbiter, getMarkdownUri, MDDocumentContentProvider } from './previewContentProvider';
+import { getMarkdownUri, MDDocumentContentProvider } from './previewContentProvider';
 
 import * as nls from 'vscode-nls';
 
 const localize = nls.loadMessageBundle();
 
+export enum MarkdownPreviewSecurityLevel {
+	Strict = 0,
+	AllowInsecureContent = 1,
+	AllowScriptsAndAllContent = 2
+}
+
+export interface ContentSecurityPolicyArbiter {
+	getSecurityLevelForResource(resource: vscode.Uri): MarkdownPreviewSecurityLevel;
+
+	setSecurityLevelForResource(resource: vscode.Uri, level: MarkdownPreviewSecurityLevel): Thenable<void>;
+
+	shouldAllowSvgsForResource(resource: vscode.Uri): void;
+}
+
 export class ExtensionContentSecurityPolicyArbiter implements ContentSecurityPolicyArbiter {
-	private readonly key = 'trusted_preview_workspace:';
+	private readonly old_trusted_workspace_key = 'trusted_preview_workspace:';
+	private readonly security_level_key = 'preview_security_level:';
 
 	constructor(
 		private globalState: vscode.Memento
 	) { }
 
-	public isEnhancedSecurityDisableForWorkspace(rootPath: string): boolean {
-		return this.globalState.get<boolean>(this.key + rootPath, false);
+	public getSecurityLevelForResource(resource: vscode.Uri): MarkdownPreviewSecurityLevel {
+		// Use new security level setting first
+		const level = this.globalState.get<MarkdownPreviewSecurityLevel | undefined>(this.security_level_key + this.getRoot(resource), undefined);
+		if (typeof level !== 'undefined') {
+			return level;
+		}
+
+		// Fallback to old trusted workspace setting
+		if (this.globalState.get<boolean>(this.old_trusted_workspace_key + this.getRoot(resource), false)) {
+			return MarkdownPreviewSecurityLevel.AllowScriptsAndAllContent;
+		}
+		return MarkdownPreviewSecurityLevel.Strict;
 	}
 
-	public addTrustedWorkspace(rootPath: string): Thenable<void> {
-		return this.globalState.update(this.key + rootPath, true);
+	public setSecurityLevelForResource(resource: vscode.Uri, level: MarkdownPreviewSecurityLevel): Thenable<void> {
+		return this.globalState.update(this.security_level_key + this.getRoot(resource), level);
 	}
 
-	public removeTrustedWorkspace(rootPath: string): Thenable<void> {
-		return this.globalState.update(this.key + rootPath, false);
+	public shouldAllowSvgsForResource(resource: vscode.Uri) {
+		const securityLevel = this.getSecurityLevelForResource(resource);
+		return securityLevel === MarkdownPreviewSecurityLevel.AllowInsecureContent || securityLevel === MarkdownPreviewSecurityLevel.AllowScriptsAndAllContent;
 	}
-}
 
-enum PreviewSecuritySelection {
-	None,
-	DisableEnhancedSecurityForWorkspace,
-	EnableEnhancedSecurityForWorkspace
-}
+	private getRoot(resource: vscode.Uri): vscode.Uri {
+		if (vscode.workspace.workspaceFolders) {
+			const folderForResource = vscode.workspace.getWorkspaceFolder(resource);
+			if (folderForResource) {
+				return folderForResource.uri;
+			}
 
-interface PreviewSecurityPickItem extends vscode.QuickPickItem {
-	id: PreviewSecuritySelection;
+			if (vscode.workspace.workspaceFolders.length) {
+				return vscode.workspace.workspaceFolders[0].uri;
+			}
+		}
+
+		return resource;
+	}
 }
 
 export class PreviewSecuritySelector {
@@ -49,60 +80,61 @@ export class PreviewSecuritySelector {
 		private contentProvider: MDDocumentContentProvider
 	) { }
 
-	public showSecutitySelectorForWorkspace(resource: string | undefined): void {
-		const workspacePath = vscode.workspace.rootPath || resource;
-		if (!workspacePath) {
+	public async showSecutitySelectorForResource(resource: vscode.Uri): Promise<void> {
+		interface PreviewSecurityPickItem extends vscode.QuickPickItem {
+			type: 'moreinfo' | MarkdownPreviewSecurityLevel;
+		}
+
+		function markActiveWhen(when: boolean): string {
+			return when ? '• ' : '';
+		}
+
+		const currentSecurityLevel = this.cspArbiter.getSecurityLevelForResource(resource);
+		const selection = await vscode.window.showQuickPick<PreviewSecurityPickItem>(
+			[
+				{
+					type: MarkdownPreviewSecurityLevel.Strict,
+					label: markActiveWhen(currentSecurityLevel === MarkdownPreviewSecurityLevel.Strict) + localize('strict.title', 'Strict'),
+					description: localize('strict.description', 'Only load secure content'),
+				}, {
+					type: MarkdownPreviewSecurityLevel.AllowInsecureContent,
+					label: markActiveWhen(currentSecurityLevel === MarkdownPreviewSecurityLevel.AllowInsecureContent) + localize('insecureContent.title', 'Allow insecure content'),
+					description: localize('insecureContent.description', 'Enable loading content over http'),
+				}, {
+					type: MarkdownPreviewSecurityLevel.AllowScriptsAndAllContent,
+					label: markActiveWhen(currentSecurityLevel === MarkdownPreviewSecurityLevel.AllowScriptsAndAllContent) + localize('disable.title', 'Disable'),
+					description: localize('disable.description', 'Allow all content and script execution. Not recommended'),
+				}, {
+					type: 'moreinfo',
+					label: localize('moreInfo.title', 'More Information'),
+					description: ''
+				}
+			], {
+				placeHolder: localize(
+					'preview.showPreviewSecuritySelector.title',
+					'Select security settings for Markdown previews in this workspace'),
+			});
+
+		if (!selection) {
 			return;
 		}
 
-		let sourceUri: vscode.Uri | null = null;
-		if (resource) {
-			sourceUri = getMarkdownUri(vscode.Uri.parse(resource));
+		if (selection.type === 'moreinfo') {
+			vscode.commands.executeCommand('vscode.open', vscode.Uri.parse('https://go.microsoft.com/fwlink/?linkid=854414'));
+			return;
 		}
 
-		if (!sourceUri && vscode.window.activeTextEditor) {
-			sourceUri = getMarkdownUri(vscode.window.activeTextEditor.document.uri);
-		}
+		await this.cspArbiter.setSecurityLevelForResource(resource, selection.type);
 
-		vscode.window.showQuickPick<PreviewSecurityPickItem>(
-			[
-				{
-					id: PreviewSecuritySelection.EnableEnhancedSecurityForWorkspace,
-					label: localize(
-						'preview.showPreviewSecuritySelector.disallowScriptsForWorkspaceTitle',
-						'Disable script execution in markdown previews for this workspace'),
-					description: '',
-					detail: this.cspArbiter.isEnhancedSecurityDisableForWorkspace(workspacePath)
-						? ''
-						: localize('preview.showPreviewSecuritySelector.currentSelection', 'Current setting')
-				}, {
-					id: PreviewSecuritySelection.DisableEnhancedSecurityForWorkspace,
-					label: localize(
-						'preview.showPreviewSecuritySelector.allowScriptsForWorkspaceTitle',
-						'Enable script execution in markdown previews for this workspace'),
-					description: '',
-					detail: this.cspArbiter.isEnhancedSecurityDisableForWorkspace(workspacePath)
-						? localize('preview.showPreviewSecuritySelector.currentSelection', 'Current setting')
-						: ''
-				},
-			], {
-				placeHolder: localize('preview.showPreviewSecuritySelector.title', 'Change security settings for the Markdown preview'),
-			}).then(selection => {
-				if (!workspacePath) {
-					return false;
-				}
-				switch (selection && selection.id) {
-					case PreviewSecuritySelection.DisableEnhancedSecurityForWorkspace:
-						return this.cspArbiter.addTrustedWorkspace(workspacePath).then(() => true);
+		const sourceUri = getMarkdownUri(resource);
 
-					case PreviewSecuritySelection.EnableEnhancedSecurityForWorkspace:
-						return this.cspArbiter.removeTrustedWorkspace(workspacePath).then(() => true);
-				}
-				return false;
-			}).then(shouldUpdate => {
-				if (shouldUpdate && sourceUri) {
-					this.contentProvider.update(sourceUri);
-				}
+		await vscode.commands.executeCommand('_workbench.htmlPreview.updateOptions',
+			sourceUri,
+			{
+				allowScripts: true,
+				allowSvgs: this.cspArbiter.shouldAllowSvgsForResource(resource)
 			});
+
+		this.contentProvider.update(sourceUri);
 	}
 }

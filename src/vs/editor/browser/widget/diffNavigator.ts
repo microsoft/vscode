@@ -8,7 +8,7 @@ import * as assert from 'vs/base/common/assert';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import * as objects from 'vs/base/common/objects';
 import { Range } from 'vs/editor/common/core/range';
-import { ICommonDiffEditor, ILineChange } from 'vs/editor/common/editorCommon';
+import { ICommonDiffEditor, ILineChange, ScrollType } from 'vs/editor/common/editorCommon';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 
@@ -197,7 +197,7 @@ export class DiffNavigator extends EventEmitter {
 		try {
 			var pos = info.range.getStartPosition();
 			this.editor.setPosition(pos);
-			this.editor.revealPositionInCenter(pos);
+			this.editor.revealPositionInCenter(pos, ScrollType.Smooth);
 		} finally {
 			this.ignoreSelectionChange = false;
 		}

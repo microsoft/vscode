@@ -107,7 +107,7 @@ export class GotoLineEntry extends QuickOpenEntry {
 		// Apply selection and focus
 		let range = this.toSelection();
 		(<ICodeEditor>this.editor).setSelection(range);
-		(<ICodeEditor>this.editor).revealRangeInCenter(range);
+		(<ICodeEditor>this.editor).revealRangeInCenter(range, editorCommon.ScrollType.Smooth);
 		this.editor.focus();
 
 		return true;
@@ -123,7 +123,7 @@ export class GotoLineEntry extends QuickOpenEntry {
 
 		// Select Line Position
 		let range = this.toSelection();
-		this.editor.revealRangeInCenter(range);
+		this.editor.revealRangeInCenter(range, editorCommon.ScrollType.Smooth);
 
 		// Decorate if possible
 		this.decorator.decorateLine(range, this.editor);

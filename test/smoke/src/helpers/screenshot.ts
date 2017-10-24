@@ -3,46 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SpectronApplication } from "../spectron/application";
-var fs = require('fs');
+import * as path from 'path';
+import * as fs from 'fs';
+import { Application } from 'spectron';
+import { sanitize } from './utilities';
 
-const __testTime = new Date().toISOString();
+export class ScreenCapturer {
 
-export class Screenshot {
-	private index: number = 0;
-	private testPath: string;
+	private static counter = 0;
 
-	constructor(private spectron: SpectronApplication, testName: string, testRetry: number) {
-		const testTime = this.sanitizeFolderName(__testTime);
-		testName = this.sanitizeFolderName(testName);
+	constructor(
+		private application: Application,
+		private screenshotsDirPath: string | undefined
+	) { }
 
-		this.testPath = `test_data/screenshots/${testTime}/${testName}/${testRetry}`;
-		this.createFolder(this.testPath);
-	}
+	async capture(name: string): Promise<void> {
+		if (!this.screenshotsDirPath) {
+			return;
+		}
 
-	public async capture(): Promise<any> {
-		return new Promise(async (res, rej) => {
-			const image: Electron.NativeImage = await this.spectron.app.browserWindow.capturePage();
-			fs.writeFile(`${this.testPath}/${this.index}.png`, image, (err) => {
-				if (err) {
-					rej(err);
-				}
-				this.index++;
-				res();
-			});
-		});
-	}
+		const screenshotPath = path.join(
+			this.screenshotsDirPath,
+			`${ScreenCapturer.counter++}-${sanitize(name)}.png`
+		);
 
-	private createFolder(name: string): void {
-		name.split('/').forEach((folderName, i, fullPath) => {
-			const folder = fullPath.slice(0, i + 1).join('/');
-			if (!fs.existsSync(folder)) {
-				fs.mkdirSync(folder);
-			}
-		});
-	}
-
-	private sanitizeFolderName(name: string): string {
-		return name.replace(/[&*:\/]/g, '');
+		const image = await this.application.browserWindow.capturePage();
+		await new Promise((c, e) => fs.writeFile(screenshotPath, image, err => err ? e(err) : c()));
 	}
 }

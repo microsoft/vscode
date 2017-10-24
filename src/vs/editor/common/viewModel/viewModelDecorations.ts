@@ -9,7 +9,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { InlineDecoration, ViewModelDecoration, ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
-import { IModelDecorationsChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { IViewModelLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
 
 export interface IDecorationsViewportData {
 	/**
@@ -27,6 +27,7 @@ export class ViewModelDecorations implements IDisposable {
 	private readonly editorId: number;
 	private readonly model: editorCommon.IModel;
 	private readonly configuration: editorCommon.IConfiguration;
+	private readonly _linesCollection: IViewModelLinesCollection;
 	private readonly _coordinatesConverter: ICoordinatesConverter;
 
 	private _decorationsCache: { [decorationId: string]: ViewModelDecoration; };
@@ -34,10 +35,11 @@ export class ViewModelDecorations implements IDisposable {
 	private _cachedModelDecorationsResolver: IDecorationsViewportData;
 	private _cachedModelDecorationsResolverViewRange: Range;
 
-	constructor(editorId: number, model: editorCommon.IModel, configuration: editorCommon.IConfiguration, coordinatesConverter: ICoordinatesConverter) {
+	constructor(editorId: number, model: editorCommon.IModel, configuration: editorCommon.IConfiguration, linesCollection: IViewModelLinesCollection, coordinatesConverter: ICoordinatesConverter) {
 		this.editorId = editorId;
 		this.model = model;
 		this.configuration = configuration;
+		this._linesCollection = linesCollection;
 		this._coordinatesConverter = coordinatesConverter;
 		this._decorationsCache = Object.create(null);
 		this._clearCachedModelDecorationsResolver();
@@ -58,26 +60,8 @@ export class ViewModelDecorations implements IDisposable {
 		this._clearCachedModelDecorationsResolver();
 	}
 
-	public onModelDecorationsChanged(e: IModelDecorationsChangedEvent): void {
-		let changedDecorations = e.changedDecorations;
-		for (let i = 0, len = changedDecorations.length; i < len; i++) {
-			let changedDecoration = changedDecorations[i];
-			let myDecoration = this._decorationsCache[changedDecoration];
-			if (!myDecoration) {
-				continue;
-			}
-
-			myDecoration.range = null;
-		}
-
-		let removedDecorations = e.removedDecorations;
-		if (this._decorationsCache !== null && this._decorationsCache !== undefined) {
-			for (let i = 0, len = removedDecorations.length; i < len; i++) {
-				let removedDecoration = removedDecorations[i];
-				delete this._decorationsCache[removedDecoration];
-			}
-		}
-
+	public onModelDecorationsChanged(): void {
+		this._decorationsCache = Object.create(null);
 		this._clearCachedModelDecorationsResolver();
 	}
 
@@ -88,40 +72,23 @@ export class ViewModelDecorations implements IDisposable {
 	}
 
 	private _getOrCreateViewModelDecoration(modelDecoration: editorCommon.IModelDecoration): ViewModelDecoration {
-		let id = modelDecoration.id;
+		const id = modelDecoration.id;
 		let r = this._decorationsCache[id];
 		if (!r) {
-			r = new ViewModelDecoration(modelDecoration);
+			const modelRange = modelDecoration.range;
+			const options = modelDecoration.options;
+			let viewRange: Range;
+			if (options.isWholeLine) {
+				const start = this._coordinatesConverter.convertModelPositionToViewPosition(new Position(modelRange.startLineNumber, 1));
+				const end = this._coordinatesConverter.convertModelPositionToViewPosition(new Position(modelRange.endLineNumber, this.model.getLineMaxColumn(modelRange.endLineNumber)));
+				viewRange = new Range(start.lineNumber, start.column, end.lineNumber, end.column);
+			} else {
+				viewRange = this._coordinatesConverter.convertModelRangeToViewRange(modelRange);
+			}
+			r = new ViewModelDecoration(viewRange, options);
 			this._decorationsCache[id] = r;
 		}
-		if (r.range === null) {
-			const modelRange = modelDecoration.range;
-			if (modelDecoration.options.isWholeLine) {
-				let start = this._coordinatesConverter.convertModelPositionToViewPosition(new Position(modelRange.startLineNumber, 1));
-				let end = this._coordinatesConverter.convertModelPositionToViewPosition(new Position(modelRange.endLineNumber, this.model.getLineMaxColumn(modelRange.endLineNumber)));
-				r.range = new Range(start.lineNumber, start.column, end.lineNumber, end.column);
-			} else {
-				r.range = this._coordinatesConverter.convertModelRangeToViewRange(modelRange);
-			}
-		}
 		return r;
-	}
-
-	public getAllOverviewRulerDecorations(): ViewModelDecoration[] {
-		let modelDecorations = this.model.getAllDecorations(this.editorId, this.configuration.editor.readOnly);
-		let result: ViewModelDecoration[] = [], resultLen = 0;
-		for (let i = 0, len = modelDecorations.length; i < len; i++) {
-			let modelDecoration = modelDecorations[i];
-			let decorationOptions = modelDecoration.options;
-
-			if (!decorationOptions.overviewRuler.color) {
-				continue;
-			}
-
-			let viewModelDecoration = this._getOrCreateViewModelDecoration(modelDecoration);
-			result[resultLen++] = viewModelDecoration;
-		}
-		return result;
 	}
 
 	public getDecorationsViewportData(viewRange: Range): IDecorationsViewportData {
@@ -136,10 +103,9 @@ export class ViewModelDecorations implements IDisposable {
 	}
 
 	private _getDecorationsViewportData(viewportRange: Range): IDecorationsViewportData {
-		let viewportModelRange = this._coordinatesConverter.convertViewRangeToModelRange(viewportRange);
-		let startLineNumber = viewportRange.startLineNumber;
-		let endLineNumber = viewportRange.endLineNumber;
-		let modelDecorations = this.model.getDecorationsInRange(viewportModelRange, this.editorId, this.configuration.editor.readOnly);
+		const modelDecorations = this._linesCollection.getDecorationsInRange(viewportRange, this.editorId, this.configuration.editor.readOnly);
+		const startLineNumber = viewportRange.startLineNumber;
+		const endLineNumber = viewportRange.endLineNumber;
 
 		let decorationsInViewport: ViewModelDecoration[] = [], decorationsInViewportLen = 0;
 		let inlineDecorations: InlineDecoration[][] = [];

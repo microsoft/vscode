@@ -18,7 +18,7 @@ import * as errors from 'vs/base/common/errors';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IAction, Action } from 'vs/base/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -27,11 +27,13 @@ import nls = require('vs/nls');
 import * as labels from 'vs/base/common/labels';
 import { EditorInput, toResource } from 'vs/workbench/common/editor';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { Verbosity } from 'vs/platform/editor/common/editor';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
-import URI from "vs/base/common/uri";
+import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER } from 'vs/workbench/common/theme';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { isMacintosh } from 'vs/base/common/platform';
+import URI from 'vs/base/common/uri';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -40,7 +42,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	private static NLS_UNSUPPORTED = nls.localize('patchedWindowTitle', "[Unsupported]");
 	private static NLS_EXTENSION_HOST = nls.localize('devExtensionWindowTitlePrefix', "[Extension Development Host]");
 	private static TITLE_DIRTY = '\u25cf ';
-	private static TITLE_SEPARATOR = ' — ';
+	private static TITLE_SEPARATOR = isMacintosh ? ' — ' : ' - '; // macOS uses special - separator
 
 	private titleContainer: Builder;
 	private title: Builder;
@@ -50,7 +52,6 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	private isInactive: boolean;
 
-	private titleTemplate: string;
 	private isPure: boolean;
 	private activeEditorListeners: IDisposable[];
 
@@ -65,7 +66,8 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IIntegrityService private integrityService: IIntegrityService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IPartService private partService: IPartService
 	) {
 		super(id, { hasTitle: false }, themeService);
 
@@ -79,11 +81,8 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	private init(): void {
 
-		// Read initial config
-		this.onConfigurationChanged();
-
-		// Initial window title
-		this.setTitle(this.getWindowTitle());
+		// Initial window title when loading is done
+		this.partService.joinCreation().done(() => this.setTitle(this.getWindowTitle()));
 
 		// Integrity for window title
 		this.integrityService.isPure().then(r => {
@@ -97,9 +96,11 @@ export class TitlebarPart extends Part implements ITitleService {
 	private registerListeners(): void {
 		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.BLUR, () => this.onBlur()));
 		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.FOCUS, () => this.onFocus()));
-		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(() => this.onConfigurationChanged(true)));
+		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChanged(e)));
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
-		this.toUnbind.push(this.contextService.onDidChangeWorkspaceRoots(() => this.onDidChangeWorkspaceRoots()));
+		this.toUnbind.push(this.contextService.onDidChangeWorkspaceFolders(() => this.setTitle(this.getWindowTitle())));
+		this.toUnbind.push(this.contextService.onDidChangeWorkbenchState(() => this.setTitle(this.getWindowTitle())));
+		this.toUnbind.push(this.contextService.onDidChangeWorkspaceName(() => this.setTitle(this.getWindowTitle())));
 	}
 
 	private onBlur(): void {
@@ -112,15 +113,8 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.updateStyles();
 	}
 
-	private onDidChangeWorkspaceRoots(): void {
-		this.setTitle(this.getWindowTitle());
-	}
-
-	private onConfigurationChanged(update?: boolean): void {
-		const currentTitleTemplate = this.titleTemplate;
-		this.titleTemplate = this.configurationService.lookup<string>('window.title').value;
-
-		if (update && currentTitleTemplate !== this.titleTemplate) {
+	private onConfigurationChanged(event: IConfigurationChangeEvent): void {
+		if (event.affectsConfiguration('window.title')) {
 			this.setTitle(this.getWindowTitle());
 		}
 	}
@@ -183,43 +177,34 @@ export class TitlebarPart extends Part implements ITitleService {
 	 */
 	private doGetWindowTitle(): string {
 		const input = this.editorService.getActiveEditorInput();
-		const workspace = this.contextService.getWorkspace2();
+		const workspace = this.contextService.getWorkspace();
 
-		// Compute root resource
-		// Single Root Workspace: always the single root workspace in this case
-		// Multi Root Workspace: not yet defined (TODO@Ben multi root)
 		let root: URI;
-		if (workspace) {
-			if (workspace.roots.length === 1) {
-				root = workspace.roots[0];
-			}
+		if (workspace.configuration) {
+			root = workspace.configuration;
+		} else if (workspace.folders.length) {
+			root = workspace.folders[0].uri;
 		}
 
 		// Compute folder resource
 		// Single Root Workspace: always the root single workspace in this case
-		// Multi Root Workspace: root folder of the currently active file if any
-		let folder: URI;
-		if (workspace) {
-			if (workspace.roots.length === 1) {
-				folder = workspace.roots[0];
-			} else {
-				folder = this.contextService.getRoot(toResource(input, { supportSideBySide: true, filter: 'file' }));
-			}
-		}
+		// Otherwise: root folder of the currently active file if any
+		let folder = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? workspace.folders[0] : this.contextService.getWorkspaceFolder(toResource(input, { supportSideBySide: true }));
 
 		// Variables
 		const activeEditorShort = input ? input.getTitle(Verbosity.SHORT) : '';
 		const activeEditorMedium = input ? input.getTitle(Verbosity.MEDIUM) : activeEditorShort;
 		const activeEditorLong = input ? input.getTitle(Verbosity.LONG) : activeEditorMedium;
-		const rootName = workspace ? workspace.name : '';
-		const rootPath = workspace ? labels.getPathLabel(root, void 0, this.environmentService) : '';
-		const folderName = folder ? (paths.basename(folder.fsPath) || folder.fsPath) : '';
-		const folderPath = folder ? labels.getPathLabel(folder, void 0, this.environmentService) : '';
+		const rootName = workspace.name;
+		const rootPath = root ? labels.getPathLabel(root, void 0, this.environmentService) : '';
+		const folderName = folder ? folder.name : '';
+		const folderPath = folder ? labels.getPathLabel(folder.uri, void 0, this.environmentService) : '';
 		const dirty = input && input.isDirty() ? TitlebarPart.TITLE_DIRTY : '';
 		const appName = this.environmentService.appNameLong;
 		const separator = TitlebarPart.TITLE_SEPARATOR;
+		const titleTemplate = this.configurationService.getValue<string>('window.title');
 
-		return labels.template(this.titleTemplate, {
+		return labels.template(titleTemplate, {
 			activeEditorShort,
 			activeEditorLong,
 			activeEditorMedium,
@@ -258,6 +243,17 @@ export class TitlebarPart extends Part implements ITitleService {
 			}
 		});
 
+		// Since the title area is used to drag the window, we do not want to steal focus from the
+		// currently active element. So we restore focus after a timeout back to where it was.
+		this.titleContainer.on([DOM.EventType.MOUSE_DOWN], () => {
+			const active = document.activeElement;
+			setTimeout(() => {
+				if (active instanceof HTMLElement) {
+					active.focus();
+				}
+			}, 0 /* need a timeout because we are in capture phase */);
+		}, void 0, true /* use capture to know the currently active element properly */);
+
 		return this.titleContainer;
 	}
 
@@ -269,6 +265,9 @@ export class TitlebarPart extends Part implements ITitleService {
 		if (container) {
 			container.style('color', this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_FOREGROUND : TITLE_BAR_ACTIVE_FOREGROUND));
 			container.style('background-color', this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_BACKGROUND : TITLE_BAR_ACTIVE_BACKGROUND));
+
+			const titleBorder = this.getColor(TITLE_BAR_BORDER);
+			container.style('border-bottom', titleBorder ? `1px solid ${titleBorder}` : null);
 		}
 	}
 

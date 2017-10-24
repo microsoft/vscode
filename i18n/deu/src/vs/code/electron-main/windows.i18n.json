@@ -13,5 +13,18 @@
 	"appStalled": "Das Fenster reagiert nicht mehr.",
 	"appStalledDetail": "Sie können das Fenster erneut öffnen oder schließen oder weiterhin warten.",
 	"appCrashed": "Das Fenster ist abgestürzt.",
-	"appCrashedDetail": "Bitte entschuldigen Sie die Unannehmlichkeiten. Sie können das Fenster erneut öffnen und dort weitermachen, wo Sie aufgehört haben."
+	"appCrashedDetail": "Bitte entschuldigen Sie die Unannehmlichkeiten. Sie können das Fenster erneut öffnen und dort weitermachen, wo Sie aufgehört haben.",
+	"open": "Öffnen",
+	"openFolder": "Ordner öffnen",
+	"openFile": "Datei öffnen",
+	"workspaceOpenedMessage": "Der Arbeitsbereich \"{0}\" kann nicht gespeichert werden.",
+	"workspaceOpenedDetail": "Der Arbeitsbereich ist bereits in einem anderen Fenster geöffnet. Schließen Sie zuerst das andere Fenster, und versuchen Sie anschließend noch mal.",
+	"openWorkspace": "&&Öffnen",
+	"openWorkspaceTitle": "Arbeitsbereich öffnen",
+	"save": "&&Speichern",
+	"doNotSave": "&&Nicht speichern",
+	"cancel": "Abbrechen",
+	"saveWorkspaceMessage": "Möchten Sie Ihre Arbeitsbereichskonfiguration als Datei speichern?",
+	"saveWorkspaceDetail": "Speichern Sie Ihren Arbeitsbereich, wenn Sie ihn erneut öffnen möchten.",
+	"saveWorkspace": "Arbeitsbereich speichern"
 }

@@ -6,61 +6,83 @@
 
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
-import { ISearchService, QueryType } from 'vs/platform/search/common/search';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ISearchService, QueryType, ISearchQuery, IFolderQuery, ISearchConfiguration } from 'vs/platform/search/common/search';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { ICommonCodeEditor, isCommonCodeEditor } from 'vs/editor/common/editorCommon';
-import { bulkEdit, IResourceEdit } from 'vs/editor/common/services/bulkEdit';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { MainThreadWorkspaceShape, ExtHostWorkspaceShape, ExtHostContext } from '../node/extHost.protocol';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { MainThreadWorkspaceShape, ExtHostWorkspaceShape, ExtHostContext, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IRelativePattern } from 'vs/base/common/glob';
 
-
-export class MainThreadWorkspace extends MainThreadWorkspaceShape {
+@extHostNamedCustomer(MainContext.MainThreadWorkspace)
+export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	private readonly _toDispose: IDisposable[] = [];
 	private readonly _activeSearches: { [id: number]: TPromise<URI[]> } = Object.create(null);
 	private readonly _proxy: ExtHostWorkspaceShape;
 
 	constructor(
+		extHostContext: IExtHostContext,
 		@ISearchService private readonly _searchService: ISearchService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
-		@IWorkbenchEditorService private readonly _editorService: IWorkbenchEditorService,
-		@ITextModelService private readonly _textModelResolverService: ITextModelService,
-		@IFileService private readonly _fileService: IFileService,
-		@IThreadService threadService: IThreadService
+		@IConfigurationService private _configurationService: IConfigurationService,
+		@IFileService private readonly _fileService: IFileService
 	) {
-		super();
-		this._proxy = threadService.get(ExtHostContext.ExtHostWorkspace);
-		this._contextService.onDidChangeWorkspaceRoots(this._onDidChangeWorkspace, this, this._toDispose);
+		this._proxy = extHostContext.get(ExtHostContext.ExtHostWorkspace);
+		this._contextService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspace, this, this._toDispose);
+		this._contextService.onDidChangeWorkbenchState(this._onDidChangeWorkspace, this, this._toDispose);
+	}
+
+	dispose(): void {
+		dispose(this._toDispose);
+
+		for (let requestId in this._activeSearches) {
+			const search = this._activeSearches[requestId];
+			search.cancel();
+		}
 	}
 
 	// --- workspace ---
 
 	private _onDidChangeWorkspace(): void {
-		this._proxy.$acceptWorkspaceData(this._contextService.getWorkspace2());
+		this._proxy.$acceptWorkspaceData(this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : this._contextService.getWorkspace());
 	}
 
 	// --- search ---
 
-	$startSearch(include: string, exclude: string, maxResults: number, requestId: number): Thenable<URI[]> {
-		const workspace = this._contextService.getWorkspace2();
-		if (!workspace) {
+	$startSearch(include: string | IRelativePattern, exclude: string | IRelativePattern, maxResults: number, requestId: number): Thenable<URI[]> {
+		const workspace = this._contextService.getWorkspace();
+		if (!workspace.folders.length) {
 			return undefined;
 		}
 
-		const search = this._searchService.search({
-			folderQueries: workspace.roots.map(root => ({ folder: root })),
+		let folderQueries: IFolderQuery[];
+		if (typeof include === 'string' || !include) {
+			folderQueries = workspace.folders.map(folder => ({ folder: folder.uri })); // absolute pattern: search across all folders
+		} else {
+			folderQueries = [{ folder: URI.file(include.base) }]; // relative pattern: search only in base folder
+		}
+
+		const useRipgrep = folderQueries.every(folderQuery => {
+			const folderConfig = this._configurationService.getConfiguration<ISearchConfiguration>({ resource: folderQuery.folder });
+			return folderConfig.search.useRipgrep;
+		});
+
+		const query: ISearchQuery = {
+			folderQueries,
 			type: QueryType.File,
 			maxResults,
-			includePattern: { [include]: true },
-			excludePattern: { [exclude]: true },
-		}).then(result => {
+			includePattern: { [typeof include === 'string' ? include : !!include ? include.pattern : undefined]: true },
+			excludePattern: { [typeof exclude === 'string' ? exclude : !!exclude ? exclude.pattern : undefined]: true },
+			useRipgrep
+		};
+		this._searchService.extendQuery(query);
+
+		const search = this._searchService.search(query).then(result => {
 			return result.results.map(m => m.resource);
 		}, err => {
 			if (!isPromiseCanceledError(err)) {
@@ -93,19 +115,5 @@ export class MainThreadWorkspace extends MainThreadWorkspaceShape {
 			return result.results.every(each => each.success === true);
 		});
 	}
-
-	$applyWorkspaceEdit(edits: IResourceEdit[]): TPromise<boolean> {
-
-		let codeEditor: ICommonCodeEditor;
-		let editor = this._editorService.getActiveEditor();
-		if (editor) {
-			let candidate = editor.getControl();
-			if (isCommonCodeEditor(candidate)) {
-				codeEditor = candidate;
-			}
-		}
-
-		return bulkEdit(this._textModelResolverService, codeEditor, edits, this._fileService)
-			.then(() => true);
-	}
 }
+

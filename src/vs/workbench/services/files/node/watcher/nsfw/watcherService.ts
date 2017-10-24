@@ -13,7 +13,8 @@ import { toFileChangesEvent, IRawFileChange } from 'vs/workbench/services/files/
 import { IWatcherChannel, WatcherChannelClient } from 'vs/workbench/services/files/node/watcher/nsfw/watcherIpc';
 import { FileChangesEvent, IFilesConfiguration } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationService } from "vs/platform/configuration/common/configuration";
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export class FileWatcher {
 	private static MAX_RESTARTS = 5;
@@ -21,6 +22,7 @@ export class FileWatcher {
 	private service: WatcherChannelClient;
 	private isDisposed: boolean;
 	private restartCounter: number;
+	private toDispose: IDisposable[];
 
 	constructor(
 		private contextService: IWorkspaceContextService,
@@ -31,6 +33,7 @@ export class FileWatcher {
 	) {
 		this.isDisposed = false;
 		this.restartCounter = 0;
+		this.toDispose = [];
 	}
 
 	public startWatching(): () => void {
@@ -48,15 +51,16 @@ export class FileWatcher {
 				}
 			}
 		);
+		this.toDispose.push(client);
 
 		// Initialize watcher
 		const channel = getNextTickChannel(client.getChannel<IWatcherChannel>('watcher'));
 		this.service = new WatcherChannelClient(channel);
-		this.service.initialize(this.verboseLogging).then(null, (err) => {
-			if (!(err instanceof Error && err.name === 'Canceled' && err.message === 'Canceled')) {
+		this.service.initialize(this.verboseLogging).then(null, err => {
+			if (!this.isDisposed && !(err instanceof Error && err.name === 'Canceled' && err.message === 'Canceled')) {
 				return TPromise.wrapError(err); // the service lib uses the promise cancel error to indicate the process died, we do not want to bubble this up
 			}
-			return undefined;
+			return void 0;
 		}, (events: IRawFileChange[]) => this.onRawFileEvents(events)).done(() => {
 
 			// our watcher app should never be completed because it keeps on watching. being in here indicates
@@ -70,41 +74,58 @@ export class FileWatcher {
 					this.errorLogger('[FileWatcher] failed to start after retrying for some time, giving up. Please report this as a bug report!');
 				}
 			}
-		}, this.errorLogger);
+		}, error => {
+			if (!this.isDisposed) {
+				this.errorLogger(error);
+			}
+		});
 
 		// Start watching
-		this.updateRoots();
-		this.contextService.onDidChangeWorkspaceRoots(() => this.updateRoots());
-		this.configurationService.onDidUpdateConfiguration(() => this.updateRoots());
+		this.updateFolders();
+		this.toDispose.push(this.contextService.onDidChangeWorkspaceFolders(() => this.updateFolders()));
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('files.watcherExclude')) {
+				this.updateFolders();
+			}
+		}));
 
-		return () => {
-			client.dispose();
-			this.isDisposed = true;
-		};
+		return () => this.dispose();
 	}
 
-	private updateRoots() {
-		const roots = this.contextService.getWorkspace2().roots;
-		this.service.setRoots(roots.map(root => {
+	private updateFolders() {
+		if (this.isDisposed) {
+			return;
+		}
+
+		this.service.setRoots(this.contextService.getWorkspace().folders.map(folder => {
 			// Fetch the root's watcherExclude setting and return it
-			const configuration = this.configurationService.getConfiguration<IFilesConfiguration>(undefined, {
-				resource: root
+			const configuration = this.configurationService.getConfiguration<IFilesConfiguration>({
+				resource: folder.uri
 			});
 			let ignored: string[] = [];
 			if (configuration.files && configuration.files.watcherExclude) {
 				ignored = Object.keys(configuration.files.watcherExclude).filter(k => !!configuration.files.watcherExclude[k]);
 			}
 			return {
-				basePath: root.fsPath,
+				basePath: folder.uri.fsPath,
 				ignored
 			};
 		}));
 	}
 
 	private onRawFileEvents(events: IRawFileChange[]): void {
-		// Emit through broadcast service
+		if (this.isDisposed) {
+			return;
+		}
+
+		// Emit through event emitter
 		if (events.length > 0) {
 			this.onFileChanges(toFileChangesEvent(events));
 		}
+	}
+
+	private dispose(): void {
+		this.isDisposed = true;
+		this.toDispose = dispose(this.toDispose);
 	}
 }

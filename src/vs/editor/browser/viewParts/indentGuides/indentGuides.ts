@@ -13,6 +13,7 @@ import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorIndentGuides } from 'vs/editor/common/view/editorColorRegistry';
 import * as dom from 'vs/base/browser/dom';
+import { Position } from 'vs/editor/common/core/position';
 
 export class IndentGuidesOverlay extends DynamicViewOverlay {
 
@@ -54,6 +55,10 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		}
 		return true;
 	}
+	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
+		// true for inline decorations
+		return true;
+	}
 	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
 		return true;
 	}
@@ -70,6 +75,9 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		return e.scrollTopChanged;// || e.scrollWidthChanged;
 	}
 	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
+		return true;
+	}
+	public onLanguageConfigurationChanged(e: viewEvents.ViewLanguageConfigurationEvent): boolean {
 		return true;
 	}
 
@@ -94,7 +102,8 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 			let indent = this._context.model.getLineIndentGuide(lineNumber);
 
 			let result = '';
-			let left = 0;
+			let leftMostVisiblePosition = ctx.visibleRangeForPosition(new Position(lineNumber, 1));
+			let left = leftMostVisiblePosition ? leftMostVisiblePosition.left : 0;
 			for (let i = 0; i < indent; i++) {
 				result += `<div class="cigr" style="left:${left}px;height:${lineHeight}px;width:${indentGuideWidth}px"></div>`;
 				left += tabWidth;

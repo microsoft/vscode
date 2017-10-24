@@ -7,7 +7,9 @@
 	"editorGroupAriaLabel": "{0}, группа редакторов",
 	"openEditorAriaLabel": "{0}, открытый редактор",
 	"saveAll": "Сохранить все",
+	"closeAllUnmodified": "Закрыть без изменений",
 	"closeAll": "Закрыть все",
+	"compareWithSaved": "Сравнить с сохраненным",
 	"close": "Закрыть",
 	"closeOthers": "Закрыть другие"
 }

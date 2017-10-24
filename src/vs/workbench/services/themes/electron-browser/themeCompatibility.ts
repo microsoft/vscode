@@ -11,10 +11,6 @@ import * as editorColorRegistry from 'vs/editor/common/view/editorColorRegistry'
 import * as wordHighlighter from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
 import { peekViewEditorMatchHighlight, peekViewResultsMatchHighlight } from 'vs/editor/contrib/referenceSearch/browser/referencesWidget';
 
-// TODO@Martin layer breaker
-// tslint:disable-next-line:import-patterns
-import { ansiColorIdentifiers } from 'vs/workbench/parts/terminal/electron-browser/terminalColorRegistry';
-
 const settingToColorIdMapping: { [settingId: string]: string[] } = {};
 function addSettingMapping(settingId: string, colorId: string) {
 	let colorIds = settingToColorIdMapping[settingId];
@@ -35,14 +31,15 @@ export function convertSettings(oldSettings: ITokenColorizationRule[], resultRul
 				for (let key in settings) {
 					let mappings = settingToColorIdMapping[key];
 					if (mappings) {
-						let color = Color.fromHex(settings[key], null);
-						if (color) {
+						let colorHex = settings[key];
+						if (typeof colorHex === 'string') {
+							let color = Color.fromHex(colorHex);
 							for (let colorId of mappings) {
 								resultColors[colorId] = color;
 							}
 						}
 					}
-					if (key !== 'foreground' && key !== 'background') {
+					if (key !== 'foreground' && key !== 'background' && key !== 'fontStyle') {
 						delete settings[key];
 					}
 				}
@@ -66,7 +63,7 @@ addSettingMapping('findMatchHighlight', peekViewResultsMatchHighlight);
 addSettingMapping('referenceHighlight', peekViewEditorMatchHighlight);
 addSettingMapping('lineHighlight', editorColorRegistry.editorLineHighlight);
 addSettingMapping('rangeHighlight', editorColorRegistry.editorRangeHighlight);
-addSettingMapping('caret', editorColorRegistry.editorCursor);
+addSettingMapping('caret', editorColorRegistry.editorCursorForeground);
 addSettingMapping('invisibles', editorColorRegistry.editorWhitespaces);
 addSettingMapping('guide', editorColorRegistry.editorIndentGuides);
 
@@ -74,8 +71,8 @@ const ansiColorMap = ['ansiBlack', 'ansiRed', 'ansiGreen', 'ansiYellow', 'ansiBl
 	'ansiBrightBlack', 'ansiBrightRed', 'ansiBrightGreen', 'ansiBrightYellow', 'ansiBrightBlue', 'ansiBrightMagenta', 'ansiBrightCyan', 'ansiBrightWhite'
 ];
 
-for (let i = 0; i < ansiColorIdentifiers.length; i++) {
-	addSettingMapping(ansiColorMap[i], ansiColorIdentifiers[i]);
+for (let i = 0; i < ansiColorMap.length; i++) {
+	addSettingMapping(ansiColorMap[i], 'terminal.' + ansiColorMap[i]);
 }
 
 

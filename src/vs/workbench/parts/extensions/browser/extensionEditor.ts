@@ -24,9 +24,9 @@ import { append, $, addClass, removeClass, finalHandler, join } from 'vs/base/br
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionGalleryService, IExtensionManifest, IKeyBinding, IView } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension, IExtensionDependencies } from 'vs/workbench/parts/extensions/common/extensions';
 import { Renderer, DataSource, Controller } from 'vs/workbench/parts/extensions/browser/dependenciesViewer';
@@ -49,18 +49,44 @@ import { IPartService, Parts } from 'vs/workbench/services/part/common/partServi
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IContextKeyService, RawContextKey, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { Command, ICommandOptions } from 'vs/editor/common/editorCommonExtensions';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { Color } from 'vs/base/common/color';
+
+/**  A context key that is set when an extension editor webview has focus. */
+export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS = new RawContextKey<boolean>('extensionEditorWebviewFocus', undefined);
+/**  A context key that is set when an extension editor webview not have focus. */
+export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS.toNegated();
+/**  A context key that is set when the find widget find input in extension editor webview is focused. */
+export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_FOCUSED = new RawContextKey<boolean>('extensionEditorFindWidgetInputFocused', false);
+/**  A context key that is set when the find widget find input in extension editor webview is not focused. */
+export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_FOCUSED.toNegated();
 
 function renderBody(body: string): string {
-	const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
 	return `<!DOCTYPE html>
 		<html>
 			<head>
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src http: https: data:; media-src https:; script-src 'none'; style-src 'nonce-${nonce}'; child-src 'none'; frame-src 'none';">
-				<link rel="stylesheet" type="text/css" href="${require.toUrl('./media/markdown.css')}" nonce="${nonce}" >
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https:; media-src https:; script-src 'none'; style-src file:; child-src 'none'; frame-src 'none';">
+				<link rel="stylesheet" type="text/css" href="${require.toUrl('./media/markdown.css')}">
 			</head>
 			<body>${body}</body>
 		</html>`;
+}
+
+function removeEmbeddedSVGs(documentContent: string): string {
+	const newDocument = new DOMParser().parseFromString(documentContent, 'text/html');
+
+	// remove all inline svgs
+	const allSVGs = newDocument.documentElement.querySelectorAll('svg');
+	for (let i = 0; i < allSVGs.length; i++) {
+		allSVGs[i].parentNode.removeChild(allSVGs[i]);
+	}
+
+	return newDocument.documentElement.outerHTML;
 }
 
 class NavBar {
@@ -146,10 +172,13 @@ export class ExtensionEditor extends BaseEditor {
 	private extensionManifest: Cache<IExtensionManifest>;
 	private extensionDependencies: Cache<IExtensionDependencies>;
 
+	private contextKey: IContextKey<boolean>;
+	private findInputFocusContextKey: IContextKey<boolean>;
 	private layoutParticipants: ILayoutParticipant[] = [];
 	private contentDisposables: IDisposable[] = [];
 	private transientDisposables: IDisposable[] = [];
 	private disposables: IDisposable[];
+	private activeWebview: WebView;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -163,7 +192,9 @@ export class ExtensionEditor extends BaseEditor {
 		@IMessageService private messageService: IMessageService,
 		@IOpenerService private openerService: IOpenerService,
 		@IListService private listService: IListService,
-		@IPartService private partService: IPartService
+		@IPartService private partService: IPartService,
+		@IContextViewService private contextViewService: IContextViewService,
+		@IContextKeyService private contextKeyService: IContextKeyService,
 	) {
 		super(ExtensionEditor.ID, telemetryService, themeService);
 		this._highlight = null;
@@ -173,6 +204,8 @@ export class ExtensionEditor extends BaseEditor {
 		this.extensionChangelog = null;
 		this.extensionManifest = null;
 		this.extensionDependencies = null;
+		this.contextKey = KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS.bindTo(contextKeyService);
+		this.findInputFocusContextKey = KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_FOCUSED.bindTo(contextKeyService);
 	}
 
 	createEditor(parent: Builder): void {
@@ -232,6 +265,13 @@ export class ExtensionEditor extends BaseEditor {
 
 		this.transientDisposables = dispose(this.transientDisposables);
 
+		/* __GDPR__
+			"extensionGallery:openExtension" : {
+				"${include}": [
+					"${GalleryExtensionTelemetryData}"
+				]
+			}
+		*/
 		this.telemetryService.publicLog('extensionGallery:openExtension', extension.telemetryData);
 
 		this.extensionReadme = new Cache(() => extension.getReadme());
@@ -308,9 +348,34 @@ export class ExtensionEditor extends BaseEditor {
 		super.changePosition(position);
 	}
 
+	showFind(): void {
+		if (this.activeWebview) {
+			this.activeWebview.showFind();
+		}
+	}
+
+	hideFind(): void {
+		if (this.activeWebview) {
+			this.activeWebview.hideFind();
+		}
+	}
+
+	public showNextFindTerm() {
+		if (this.activeWebview) {
+			this.activeWebview.showNextFindTerm();
+		}
+	}
+
+	public showPreviousFindTerm() {
+		if (this.activeWebview) {
+			this.activeWebview.showPreviousFindTerm();
+		}
+	}
+
 	private onNavbarChange(extension: IExtension, id: string): void {
 		this.contentDisposables = dispose(this.contentDisposables);
 		this.content.innerHTML = '';
+		this.activeWebview = null;
 		switch (id) {
 			case NavbarSection.Readme: return this.openReadme();
 			case NavbarSection.Contributions: return this.openContributions();
@@ -323,22 +388,25 @@ export class ExtensionEditor extends BaseEditor {
 		return this.loadContents(() => content
 			.then(marked.parse)
 			.then(renderBody)
+			.then(removeEmbeddedSVGs)
 			.then<void>(body => {
-				const webview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART));
-				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, webview);
+				const allowedBadgeProviders = this.extensionsWorkbenchService.allowedBadgeProviders;
+				const webViewOptions = allowedBadgeProviders.length > 0 ? { allowScripts: false, allowSvgs: false, svgWhiteList: allowedBadgeProviders } : undefined;
+				this.activeWebview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART), this.contextViewService, this.contextKey, this.findInputFocusContextKey, webViewOptions);
+				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, this.activeWebview);
 				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
 
-				webview.style(this.themeService.getTheme());
-				webview.contents = [body];
+				this.activeWebview.style(this.themeService.getTheme());
+				this.activeWebview.contents = [body];
 
-				webview.onDidClickLink(link => {
+				this.activeWebview.onDidClickLink(link => {
 					// Whitelist supported schemes for links
 					if (link && ['http', 'https', 'mailto'].indexOf(link.scheme) >= 0) {
 						this.openerService.open(link);
 					}
 				}, null, this.contentDisposables);
-				this.themeService.onThemeChange(theme => webview.style(theme), null, this.contentDisposables);
-				this.contentDisposables.push(webview);
+				this.themeService.onThemeChange(theme => this.activeWebview.style(theme), null, this.contentDisposables);
+				this.contentDisposables.push(this.activeWebview);
 			})
 			.then(null, () => {
 				const p = append(this.content, $('p.nocontent'));
@@ -368,7 +436,9 @@ export class ExtensionEditor extends BaseEditor {
 					this.renderSettings(content, manifest, layout),
 					this.renderCommands(content, manifest, layout),
 					this.renderLanguages(content, manifest, layout),
-					this.renderThemes(content, manifest, layout),
+					this.renderColorThemes(content, manifest, layout),
+					this.renderIconThemes(content, manifest, layout),
+					this.renderColors(content, manifest, layout),
 					this.renderJSONValidation(content, manifest, layout),
 					this.renderDebuggers(content, manifest, layout),
 					this.renderViews(content, manifest, layout)
@@ -403,8 +473,8 @@ export class ExtensionEditor extends BaseEditor {
 				const tree = this.renderDependencies(content, extensionDependencies);
 				const layout = () => {
 					scrollableContent.scanDomNode();
-					const scrollState = scrollableContent.getScrollState();
-					tree.layout(scrollState.height);
+					const scrollDimensions = scrollableContent.getScrollDimensions();
+					tree.layout(scrollDimensions.height);
 				};
 				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
 				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
@@ -476,6 +546,8 @@ export class ExtensionEditor extends BaseEditor {
 		return true;
 	}
 
+
+
 	private renderDebuggers(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
 		const contributes = manifest.contributes;
 		const contrib = contributes && contributes.debuggers || [];
@@ -487,8 +559,13 @@ export class ExtensionEditor extends BaseEditor {
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
 			$('summary', null, localize('debuggers', "Debuggers ({0})", contrib.length)),
 			$('table', null,
-				$('tr', null, $('th', null, localize('debugger name', "Name"))),
-				...contrib.map(d => $('tr', null, $('td', null, d.label || d.type)))
+				$('tr', null,
+					$('th', null, localize('debugger name', "Name")),
+					$('th', null, localize('debugger type', "Type")),
+				),
+				...contrib.map(d => $('tr', null,
+					$('td', null, d.label),
+					$('td', null, d.type)))
 			)
 		);
 
@@ -522,7 +599,7 @@ export class ExtensionEditor extends BaseEditor {
 		return true;
 	}
 
-	private renderThemes(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
+	private renderColorThemes(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
 		const contributes = manifest.contributes;
 		const contrib = contributes && contributes.themes || [];
 
@@ -531,13 +608,75 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', null, localize('themes', "Themes ({0})", contrib.length)),
+			$('summary', null, localize('colorThemes', "Color Themes ({0})", contrib.length)),
 			$('ul', null, ...contrib.map(theme => $('li', null, theme.label)))
 		);
 
 		append(container, details);
 		return true;
 	}
+
+	private renderIconThemes(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
+		const contributes = manifest.contributes;
+		const contrib = contributes && contributes.iconThemes || [];
+
+		if (!contrib.length) {
+			return false;
+		}
+
+		const details = $('details', { open: true, ontoggle: onDetailsToggle },
+			$('summary', null, localize('iconThemes', "Icon Themes ({0})", contrib.length)),
+			$('ul', null, ...contrib.map(theme => $('li', null, theme.label)))
+		);
+
+		append(container, details);
+		return true;
+	}
+
+	private renderColors(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
+		const contributes = manifest.contributes;
+		const colors = contributes && contributes.colors;
+
+		if (!colors || !colors.length) {
+			return false;
+		}
+
+		function colorPreview(colorReference: string): Node[] {
+			let result: Node[] = [];
+			if (colorReference && colorReference[0] === '#') {
+				let color = Color.fromHex(colorReference);
+				if (color) {
+					result.push($('span', { class: 'colorBox', style: 'background-color: ' + Color.Format.CSS.format(color) }, ''));
+				}
+			}
+			result.push($('code', null, colorReference));
+			return result;
+		}
+
+		const details = $('details', { open: true, ontoggle: onDetailsToggle },
+			$('summary', null, localize('colors', "Colors ({0})", colors.length)),
+			$('table', null,
+				$('tr', null,
+					$('th', null, localize('colorId', "Id")),
+					$('th', null, localize('description', "Description")),
+					$('th', null, localize('defaultDark', "Dark Default")),
+					$('th', null, localize('defaultLight', "Light Default")),
+					$('th', null, localize('defaultHC', "High Contrast Default"))
+				),
+				...colors.map(color => $('tr', null,
+					$('td', null, $('code', null, color.id)),
+					$('td', null, color.description),
+					$('td', null, ...colorPreview(color.defaults.dark)),
+					$('td', null, ...colorPreview(color.defaults.light)),
+					$('td', null, ...colorPreview(color.defaults.highContrast))
+				))
+			)
+		);
+
+		append(container, details);
+		return true;
+	}
+
 
 	private renderJSONValidation(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
 		const contributes = manifest.contributes;
@@ -750,3 +889,96 @@ export class ExtensionEditor extends BaseEditor {
 		super.dispose();
 	}
 }
+
+class ShowExtensionEditorFindCommand extends Command {
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		const extensionEditor = this.getExtensionEditor(accessor);
+		if (extensionEditor) {
+			extensionEditor.showFind();
+		}
+	}
+
+	private getExtensionEditor(accessor: ServicesAccessor): ExtensionEditor {
+		const activeEditor = accessor.get(IWorkbenchEditorService).getActiveEditor() as ExtensionEditor;
+		if (activeEditor instanceof ExtensionEditor) {
+			return activeEditor;
+		}
+		return null;
+	}
+}
+const showCommand = new ShowExtensionEditorFindCommand({
+	id: 'editor.action.extensioneditor.showfind',
+	precondition: KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS,
+	kbOpts: {
+		primary: KeyMod.CtrlCmd | KeyCode.KEY_F
+	}
+});
+KeybindingsRegistry.registerCommandAndKeybindingRule(showCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
+
+class HideExtensionEditorFindCommand extends Command {
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		const extensionEditor = this.getExtensionEditor(accessor);
+		if (extensionEditor) {
+			extensionEditor.hideFind();
+		}
+	}
+
+	private getExtensionEditor(accessor: ServicesAccessor): ExtensionEditor {
+		const activeEditor = accessor.get(IWorkbenchEditorService).getActiveEditor() as ExtensionEditor;
+		if (activeEditor instanceof ExtensionEditor) {
+			return activeEditor;
+		}
+		return null;
+	}
+}
+const hideCommand = new ShowExtensionEditorFindCommand({
+	id: 'editor.action.extensioneditor.hidefind',
+	precondition: KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS,
+	kbOpts: {
+		primary: KeyMod.CtrlCmd | KeyCode.KEY_F
+	}
+});
+KeybindingsRegistry.registerCommandAndKeybindingRule(hideCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
+
+class ShowExtensionEditorFindTermCommand extends Command {
+	constructor(opts: ICommandOptions, private _next: boolean) {
+		super(opts);
+	}
+
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		const extensionEditor = this.getExtensionEditor(accessor);
+		if (extensionEditor) {
+			if (this._next) {
+				extensionEditor.showNextFindTerm();
+			} else {
+				extensionEditor.showPreviousFindTerm();
+			}
+		}
+	}
+
+	private getExtensionEditor(accessor: ServicesAccessor): ExtensionEditor {
+		const activeEditor = accessor.get(IWorkbenchEditorService).getActiveEditor() as ExtensionEditor;
+		if (activeEditor instanceof ExtensionEditor) {
+			return activeEditor;
+		}
+		return null;
+	}
+}
+
+const showNextFindTermCommand = new ShowExtensionEditorFindTermCommand({
+	id: 'editor.action.extensioneditor.showNextFindTerm',
+	precondition: KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_FOCUSED,
+	kbOpts: {
+		primary: KeyMod.Alt | KeyCode.DownArrow
+	}
+}, true);
+KeybindingsRegistry.registerCommandAndKeybindingRule(showNextFindTermCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
+
+const showPreviousFindTermCommand = new ShowExtensionEditorFindTermCommand({
+	id: 'editor.action.extensioneditor.showPreviousFindTerm',
+	precondition: KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_FOCUSED,
+	kbOpts: {
+		primary: KeyMod.Alt | KeyCode.UpArrow
+	}
+}, false);
+KeybindingsRegistry.registerCommandAndKeybindingRule(showPreviousFindTermCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));

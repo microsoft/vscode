@@ -80,6 +80,7 @@ suite('Strings', () => {
 		assertCompareIgnoreCase('aa', 'aA');
 		assertCompareIgnoreCase('a', 'aa');
 		assertCompareIgnoreCase('ab', 'aA');
+		assertCompareIgnoreCase('O', '/');
 	});
 
 	test('format', function () {
@@ -259,30 +260,6 @@ suite('Strings', () => {
 		assert.equal(strings.containsEmoji('1F1F7 1F1F4  # 🇷🇴 Romania'), true);
 	});
 
-	// test('containsRTL speed', () => {
-	// 	var SIZE = 1000000;
-	// 	var REPEAT = 10;
-	// 	function generateASCIIStr(len:number): string {
-	// 		let r = '';
-	// 		for (var i = 0; i < len; i++) {
-	// 			var res = Math.floor(Math.random() * 256);
-	// 			r += String.fromCharCode(res);
-	// 		}
-	// 		return r;
-	// 	}
-	// 	function testContainsRTLSpeed(): number {
-	// 		var str = generateASCIIStr(SIZE);
-	// 		var start = Date.now();
-	// 		assert.equal(strings.containsRTL(str), false);
-	// 		return (Date.now() - start);
-	// 	}
-	// 	var allTime = 0;
-	// 	for (var i = 0; i < REPEAT; i++) {
-	// 		allTime += testContainsRTLSpeed();
-	// 	}
-	// 	console.log('TOOK: ' + (allTime)/10 + 'ms for size of ' + SIZE/1000000 + 'Mb');
-	// });
-
 	test('isBasicASCII', () => {
 		function assertIsBasicASCII(str: string, expected: boolean): void {
 			assert.equal(strings.isBasicASCII(str), expected, str + ` (${str.charCodeAt(0)})`);
@@ -345,6 +322,33 @@ suite('Strings', () => {
 		assert.equal(strings.getLeadingWhitespace('  ', 0, 1), ' ');
 		assert.equal(strings.getLeadingWhitespace('\t\tfunction foo(){', 0, 1), '\t');
 		assert.equal(strings.getLeadingWhitespace('\t\tfunction foo(){', 0, 2), '\t\t');
+	});
 
+	test('fuzzyContains', function () {
+		assert.ok(!strings.fuzzyContains(void 0, null));
+		assert.ok(strings.fuzzyContains('hello world', 'h'));
+		assert.ok(!strings.fuzzyContains('hello world', 'q'));
+		assert.ok(strings.fuzzyContains('hello world', 'hw'));
+		assert.ok(strings.fuzzyContains('hello world', 'horl'));
+		assert.ok(strings.fuzzyContains('hello world', 'd'));
+		assert.ok(!strings.fuzzyContains('hello world', 'wh'));
+		assert.ok(!strings.fuzzyContains('d', 'dd'));
+	});
+
+	test('startsWithUTF8BOM', () => {
+		assert(strings.startsWithUTF8BOM(strings.UTF8_BOM_CHARACTER));
+		assert(strings.startsWithUTF8BOM(strings.UTF8_BOM_CHARACTER + 'a'));
+		assert(strings.startsWithUTF8BOM(strings.UTF8_BOM_CHARACTER + 'aaaaaaaaaa'));
+		assert(!strings.startsWithUTF8BOM(' ' + strings.UTF8_BOM_CHARACTER));
+		assert(!strings.startsWithUTF8BOM('foo'));
+		assert(!strings.startsWithUTF8BOM(''));
+	});
+
+	test('stripUTF8BOM', () => {
+		assert.equal(strings.stripUTF8BOM(strings.UTF8_BOM_CHARACTER), '');
+		assert.equal(strings.stripUTF8BOM(strings.UTF8_BOM_CHARACTER + 'foobar'), 'foobar');
+		assert.equal(strings.stripUTF8BOM('foobar' + strings.UTF8_BOM_CHARACTER), 'foobar' + strings.UTF8_BOM_CHARACTER);
+		assert.equal(strings.stripUTF8BOM('abc'), 'abc');
+		assert.equal(strings.stripUTF8BOM(''), '');
 	});
 });

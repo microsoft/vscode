@@ -9,7 +9,5 @@
 	"cut": "Kivágás",
 	"copy": "Másolás",
 	"paste": "Beillesztés",
-	"selectAll": "Összes kijelölése",
-	"confirmOpen": "Biztosan meg akar nyitni {0} mappát?",
-	"confirmOpenButton": "&&Megnyitás"
+	"selectAll": "Összes kijelölése"
 }

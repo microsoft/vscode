@@ -8,6 +8,7 @@
 	"lineHighlightBorderBox": "İmlecin bulunduğu satırın kenarlığının arka plan rengi.",
 	"rangeHighlight": "Hızlı açma ve bulma özellikleri gibi vurgulanan alanların arka plan rengi.",
 	"caret": "Düzenleyici imlecinin rengi.",
+	"editorCursorBackground": "Düzenleyici imlecinin arka plan rengi. Bir blok imlecinin kapladığı bir karakterin rengini özelleştirmeyi sağlar.",
 	"editorWhitespaces": "Düzenleyicideki boşluk karakterlerinin rengi.",
 	"editorIndentGuides": "Düzenleyici girinti kılavuzlarının rengi.",
 	"editorLineNumbers": "Düzenleyici satır numaralarının rengi.",
@@ -20,5 +21,11 @@
 	"errorForeground": "Düzenleyicideki hata karalamalarının ön plan rengi.",
 	"errorBorder": "Düzenleyicideki hata karalamalarının kenarlık rengi.",
 	"warningForeground": "Düzenleyicideki uyarı karalamalarının ön plan rengi.",
-	"warningBorder": "Düzenleyicideki uyarı karalamalarının kenarlık rengi."
+	"warningBorder": "Düzenleyicideki uyarı karalamalarının kenarlık rengi.",
+	"infoForeground": "Düzenleyicideki bilgilendirme karalamalarının ön plan rengi.",
+	"infoBorder": "Düzenleyicideki bilgilendirme karalamalarının kenarlık rengi.",
+	"overviewRulerRangeHighlight": "Aralık vurguları için genel bakış cetvelinin işaretleyici rengi.",
+	"overviewRuleError": "Hatalar için genel bakış cetvelinin işaretleyici rengi.",
+	"overviewRuleWarning": "Uyarılar için genel bakış cetvelinin işaretleyici rengi.",
+	"overviewRuleInfo": "Bilgilendirmeler için genel bakış cetvelinin işaretleyici rengi."
 }

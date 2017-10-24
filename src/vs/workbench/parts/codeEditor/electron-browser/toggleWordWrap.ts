@@ -17,7 +17,7 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { InternalEditorOptions, EDITOR_DEFAULTS } from 'vs/editor/common/config/editorOptions';
-import { ITextResourceConfigurationService } from "vs/editor/common/services/resourceConfiguration";
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 
 const transientWordWrapState = 'transientWordWrapState';
 const isWordWrapMinifiedKey = 'isWordWrapMinified';
@@ -54,7 +54,7 @@ function readTransientState(model: IModel, codeEditorService: ICodeEditorService
 
 function readWordWrapState(model: IModel, configurationService: ITextResourceConfigurationService, codeEditorService: ICodeEditorService): IWordWrapState {
 	const editorConfig = configurationService.getConfiguration(model.uri, 'editor') as { wordWrap: 'on' | 'off' | 'wordWrapColumn' | 'bounded'; wordWrapMinified: boolean };
-	let _configuredWordWrap = editorConfig && typeof editorConfig.wordWrap === 'string' ? editorConfig.wordWrap : void 0;
+	let _configuredWordWrap = editorConfig && (typeof editorConfig.wordWrap === 'string' || typeof editorConfig.wordWrap === 'boolean') ? editorConfig.wordWrap : void 0;
 
 	// Compatibility with old true or false values
 	if (<any>_configuredWordWrap === true) {

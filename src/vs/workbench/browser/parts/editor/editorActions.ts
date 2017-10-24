@@ -9,7 +9,7 @@ import nls = require('vs/nls');
 import { Action } from 'vs/base/common/actions';
 import { mixin } from 'vs/base/common/objects';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
-import { EditorInput, hasResource, TextEditorOptions, EditorOptions, IEditorIdentifier, IEditorContext, ActiveEditorMoveArguments, ActiveEditorMovePositioning, EditorCommands, ConfirmResult } from 'vs/workbench/common/editor';
+import { EditorInput, TextEditorOptions, EditorOptions, IEditorIdentifier, IEditorContext, ActiveEditorMoveArguments, ActiveEditorMovePositioning, EditorCommands, ConfirmResult } from 'vs/workbench/common/editor';
 import { QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry, QuickOpenAction } from 'vs/workbench/browser/quickopen';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -255,16 +255,13 @@ export class FocusFirstGroupAction extends Action {
 
 		// Since no editor is currently opened, try to open last history entry to the target side
 		const history = this.historyService.getHistory();
-		for (let input of history) {
-
-			// For now only support to open files from history to the side
+		if (history.length > 0) {
+			const input = history[0];
 			if (input instanceof EditorInput) {
-				if (hasResource(input, { filter: ['file', 'untitled'] })) {
-					return this.editorService.openEditor(input, null, Position.ONE);
-				}
-			} else {
-				return this.editorService.openEditor(input as IResourceInput, Position.ONE);
+				return this.editorService.openEditor(input, null, Position.ONE);
 			}
+
+			return this.editorService.openEditor(input as IResourceInput, Position.ONE);
 		}
 
 		return TPromise.as(true);
@@ -327,15 +324,11 @@ export abstract class BaseFocusSideGroupAction extends Action {
 		else if (referenceEditor) {
 			const history = this.historyService.getHistory();
 			for (let input of history) {
-
-				// For now only support to open files from history to the side
-				if (input instanceof EditorInput) {
-					if (hasResource(input, { filter: ['file', 'untitled'] })) {
-						return this.editorService.openEditor(input, { pinned: true }, this.getTargetEditorSide());
-					}
-				} else {
-					return this.editorService.openEditor({ resource: (input as IResourceInput).resource, options: { pinned: true } }, this.getTargetEditorSide());
+				if (input instanceof EditorInput && input.supportsSplitEditor()) {
+					return this.editorService.openEditor(input, { pinned: true }, this.getTargetEditorSide());
 				}
+
+				return this.editorService.openEditor({ resource: (input as IResourceInput).resource, options: { pinned: true } }, this.getTargetEditorSide());
 			}
 		}
 
@@ -672,7 +665,7 @@ export class CloseAllEditorsAction extends Action {
 		// Otherwise ask for combined confirmation
 		const confirm = this.textFileService.confirmSave();
 		if (confirm === ConfirmResult.CANCEL) {
-			return undefined;
+			return void 0;
 		}
 
 		let saveOrRevertPromise: TPromise<boolean>;
@@ -686,7 +679,8 @@ export class CloseAllEditorsAction extends Action {
 			if (success) {
 				return this.editorService.closeAllEditors();
 			}
-			return undefined;
+
+			return void 0;
 		});
 	}
 }
@@ -1115,6 +1109,22 @@ export class NavigateBackwardsAction extends Action {
 	}
 }
 
+export class NavigateLastAction extends Action {
+
+	public static ID = 'workbench.action.navigateLast';
+	public static LABEL = nls.localize('navigateLast', "Go Last");
+
+	constructor(id: string, label: string, @IHistoryService private historyService: IHistoryService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		this.historyService.last();
+
+		return TPromise.as(null);
+	}
+}
+
 export class ReopenClosedEditorAction extends Action {
 
 	public static ID = 'workbench.action.reopenClosedEditor';
@@ -1138,7 +1148,7 @@ export class ReopenClosedEditorAction extends Action {
 export class ClearRecentFilesAction extends Action {
 
 	public static ID = 'workbench.action.clearRecentFiles';
-	public static LABEL = nls.localize('clearRecentFiles', "Clear Recent Files");
+	public static LABEL = nls.localize('clearRecentFiles', "Clear Recently Opened");
 
 	constructor(
 		id: string,
@@ -1149,7 +1159,7 @@ export class ClearRecentFilesAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		this.windowsService.clearRecentPathsList();
+		this.windowsService.clearRecentlyOpened();
 
 		return TPromise.as(false);
 	}

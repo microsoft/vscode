@@ -33,7 +33,7 @@ suite('Cursor move command test', () => {
 
 		thisModel = Model.createFromString(text);
 		thisConfiguration = new TestConfiguration(null);
-		thisViewModel = new ViewModel(0, thisConfiguration, thisModel);
+		thisViewModel = new ViewModel(0, thisConfiguration, thisModel, null);
 		thisCursor = new Cursor(thisConfiguration, thisModel, thisViewModel);
 	});
 

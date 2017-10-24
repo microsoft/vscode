@@ -6,6 +6,8 @@
 {
 	"entryAriaLabel": "{0}, débogage",
 	"debugAriaLabel": "Tapez le nom d'une configuration de lancement à exécuter.",
+	"addConfigTo": "Ajouter une configuration ({0})...",
+	"addConfiguration": "Ajouter une configuration...",
 	"noConfigurationsMatching": "Aucune configuration de débogage correspondante",
 	"noConfigurationsFound": "Configurations de débogage introuvables. Créez un fichier 'launch.json'."
 }

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { MarkedString } from 'vs/base/common/htmlContent';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -160,7 +160,7 @@ export interface Hover {
 	/**
 	 * The contents of this hover.
 	 */
-	contents: MarkedString[];
+	contents: IMarkdownString[];
 
 	/**
 	 * The range to which this hover applies. When missing, the
@@ -226,7 +226,7 @@ export interface ISuggestion {
 	insertText: string;
 	type: SuggestionType;
 	detail?: string;
-	documentation?: string;
+	documentation?: string | IMarkdownString;
 	filterText?: string;
 	sortText?: string;
 	noAutoAccept?: boolean;
@@ -244,6 +244,23 @@ export interface ISuggestion {
 export interface ISuggestResult {
 	suggestions: ISuggestion[];
 	incomplete?: boolean;
+	dispose?(): void;
+}
+
+/**
+ * How a suggest provider was triggered.
+ */
+export enum SuggestTriggerKind {
+	Invoke = 0,
+	TriggerCharacter = 1
+}
+
+/**
+ * @internal
+ */
+export interface SuggestContext {
+	triggerKind: SuggestTriggerKind;
+	triggerCharacter?: string;
 }
 
 /**
@@ -253,18 +270,11 @@ export interface ISuggestSupport {
 
 	triggerCharacters?: string[];
 
-	provideCompletionItems(model: editorCommon.IModel, position: Position, token: CancellationToken): ISuggestResult | Thenable<ISuggestResult>;
+	provideCompletionItems(model: editorCommon.IModel, position: Position, context: SuggestContext, token: CancellationToken): ISuggestResult | Thenable<ISuggestResult>;
 
 	resolveCompletionItem?(model: editorCommon.IModel, position: Position, item: ISuggestion, token: CancellationToken): ISuggestion | Thenable<ISuggestion>;
 }
 
-/**
- * Interface used to quick fix typing errors while accesing member fields.
- */
-export interface CodeAction {
-	command: Command;
-	score: number;
-}
 /**
  * The code action interface defines the contract between extensions and
  * the [light bulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action) feature.
@@ -274,7 +284,7 @@ export interface CodeActionProvider {
 	/**
 	 * Provide commands for the given document and range.
 	 */
-	provideCodeActions(model: editorCommon.IReadOnlyModel, range: Range, token: CancellationToken): CodeAction[] | Thenable<CodeAction[]>;
+	provideCodeActions(model: editorCommon.IReadOnlyModel, range: Range, token: CancellationToken): Command[] | Thenable<Command[]>;
 }
 
 /**
@@ -291,7 +301,7 @@ export interface ParameterInformation {
 	 * The human-readable doc-comment of this signature. Will be shown
 	 * in the UI but can be omitted.
 	 */
-	documentation?: string;
+	documentation?: string | IMarkdownString;
 }
 /**
  * Represents the signature of something callable. A signature
@@ -308,7 +318,7 @@ export interface SignatureInformation {
 	 * The human-readable doc-comment of this signature. Will be shown
 	 * in the UI but can be omitted.
 	 */
-	documentation?: string;
+	documentation?: string | IMarkdownString;
 	/**
 	 * The parameters of this signature.
 	 */
@@ -659,6 +669,83 @@ export interface LinkProvider {
 	resolveLink?: (link: ILink, token: CancellationToken) => ILink | Thenable<ILink>;
 }
 
+/**
+ * A color in RGBA format.
+ */
+export interface IColor {
+
+	/**
+	 * The red component in the range [0-1].
+	 */
+	readonly red: number;
+
+	/**
+	 * The green component in the range [0-1].
+	 */
+	readonly green: number;
+
+	/**
+	 * The blue component in the range [0-1].
+	 */
+	readonly blue: number;
+
+	/**
+	 * The alpha component in the range [0-1].
+	 */
+	readonly alpha: number;
+}
+
+/**
+ * String representations for a color
+ */
+export interface IColorPresentation {
+	/**
+	 * The label of this color presentation. It will be shown on the color
+	 * picker header. By default this is also the text that is inserted when selecting
+	 * this color presentation.
+	 */
+	label: string;
+	/**
+	 * An [edit](#TextEdit) which is applied to a document when selecting
+	 * this presentation for the color.
+	 */
+	textEdit?: TextEdit;
+	/**
+	 * An optional array of additional [text edits](#TextEdit) that are applied when
+	 * selecting this color presentation.
+	 */
+	additionalTextEdits?: TextEdit[];
+}
+
+/**
+ * A color range is a range in a text model which represents a color.
+ */
+export interface IColorInformation {
+
+	/**
+	 * The range within the model.
+	 */
+	range: IRange;
+
+	/**
+	 * The color represented in this range.
+	 */
+	color: IColor;
+}
+
+/**
+ * A provider of colors for editor models.
+ */
+export interface DocumentColorProvider {
+	/**
+	 * Provides the color ranges for a specific model.
+	 */
+	provideDocumentColors(model: editorCommon.IReadOnlyModel, token: CancellationToken): IColorInformation[] | Thenable<IColorInformation[]>;
+	/**
+	 * Provide the string representations for a color.
+	 */
+	provideColorPresentations(model: editorCommon.IReadOnlyModel, colorInfo: IColorInformation, token: CancellationToken): IColorPresentation[] | Thenable<IColorPresentation[]>;
+}
 
 export interface IResourceEdit {
 	resource: URI;
@@ -772,6 +859,11 @@ export const OnTypeFormattingEditProviderRegistry = new LanguageFeatureRegistry<
  * @internal
  */
 export const LinkProviderRegistry = new LanguageFeatureRegistry<LinkProvider>();
+
+/**
+ * @internal
+ */
+export const ColorProviderRegistry = new LanguageFeatureRegistry<DocumentColorProvider>();
 
 /**
  * @internal

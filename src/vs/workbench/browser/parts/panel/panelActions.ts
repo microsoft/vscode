@@ -11,12 +11,14 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Action } from 'vs/base/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { IWorkbenchActionRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/actionRegistry';
+import { IWorkbenchActionRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/actions';
 import { IPanelService, IPanelIdentifier } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ActivityAction } from 'vs/workbench/browser/parts/compositebar/compositeBarActions';
+import { IActivity } from 'vs/workbench/common/activity';
 
-export class PanelAction extends Action {
+export class OpenPanelAction extends Action {
 
 	constructor(
 		private panel: IPanelIdentifier,
@@ -28,7 +30,7 @@ export class PanelAction extends Action {
 		this.tooltip = nls.localize('panelActionTooltip', "{0} ({1})", panel.name, this.getKeybindingLabel(panel.commandId));
 	}
 
-	public run(event): TPromise<any> {
+	public run(event: any): TPromise<any> {
 		return this.panelService.openPanel(this.panel.id, true).then(() => this.activate());
 	}
 
@@ -146,6 +148,20 @@ export class ToggleMaximizedPanelAction extends Action {
 	public dispose(): void {
 		super.dispose();
 		this.toDispose = dispose(this.toDispose);
+	}
+}
+
+export class PanelActivityAction extends ActivityAction {
+
+	constructor(
+		activity: IActivity,
+		@IPanelService private panelService: IPanelService
+	) {
+		super(activity);
+	}
+
+	public run(event: any): TPromise<any> {
+		return this.panelService.openPanel(this.activity.id, true).then(() => this.activate());
 	}
 }
 

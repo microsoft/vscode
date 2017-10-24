@@ -4,37 +4,38 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import Severity from 'vs/base/common/severity';
 import vscode = require('vscode');
-import { MainContext, MainThreadMessageServiceShape } from './extHost.protocol';
+import { MainContext, MainThreadMessageServiceShape, MainThreadMessageOptions, IMainContext } from './extHost.protocol';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
-const emptyMessageOptions: vscode.MessageOptions = Object.create(null);
 
 function isMessageItem<T>(item: any): item is vscode.MessageItem {
 	return item && item.title;
-}
-
-function parseMessageArguments(first: vscode.MessageOptions | string | vscode.MessageItem, rest: (string | vscode.MessageItem)[]): { options: vscode.MessageOptions; items: (string | vscode.MessageItem)[]; } {
-	if (typeof first === 'string' || isMessageItem(first)) {
-		return { options: emptyMessageOptions, items: [first, ...rest] };
-	} else {
-		return { options: first || emptyMessageOptions, items: rest };
-	}
 }
 
 export class ExtHostMessageService {
 
 	private _proxy: MainThreadMessageServiceShape;
 
-	constructor(threadService: IThreadService) {
-		this._proxy = threadService.get(MainContext.MainThreadMessageService);
+	constructor(mainContext: IMainContext) {
+		this._proxy = mainContext.get(MainContext.MainThreadMessageService);
 	}
 
-	showMessage(severity: Severity, message: string, optionsOrFirstItem: vscode.MessageOptions | string, rest: string[]): Thenable<string | undefined>;
-	showMessage(severity: Severity, message: string, optionsOrFirstItem: vscode.MessageOptions | vscode.MessageItem, rest: vscode.MessageItem[]): Thenable<vscode.MessageItem | undefined>;
-	showMessage(severity: Severity, message: string, optionsOrFirstItem: vscode.MessageOptions | string | vscode.MessageItem, rest: (string | vscode.MessageItem)[]): Thenable<string | vscode.MessageItem | undefined> {
-		const { options, items } = parseMessageArguments(optionsOrFirstItem, rest);
+	showMessage(extension: IExtensionDescription, severity: Severity, message: string, optionsOrFirstItem: vscode.MessageOptions | string, rest: string[]): Thenable<string | undefined>;
+	showMessage(extension: IExtensionDescription, severity: Severity, message: string, optionsOrFirstItem: vscode.MessageOptions | vscode.MessageItem, rest: vscode.MessageItem[]): Thenable<vscode.MessageItem | undefined>;
+	showMessage(extension: IExtensionDescription, severity: Severity, message: string, optionsOrFirstItem: vscode.MessageOptions | string | vscode.MessageItem, rest: (string | vscode.MessageItem)[]): Thenable<string | vscode.MessageItem | undefined> {
+
+		let options: MainThreadMessageOptions = { extension };
+		let items: (string | vscode.MessageItem)[];
+
+		if (typeof optionsOrFirstItem === 'string' || isMessageItem(optionsOrFirstItem)) {
+			items = [optionsOrFirstItem, ...rest];
+		} else {
+			options.modal = optionsOrFirstItem && optionsOrFirstItem.modal;
+			items = rest;
+		}
+
 		const commands: { title: string; isCloseAffordance: boolean; handle: number; }[] = [];
 
 		for (let handle = 0; handle < items.length; handle++) {

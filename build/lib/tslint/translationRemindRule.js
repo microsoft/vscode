@@ -16,7 +16,7 @@ var __extends = (this && this.__extends) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 var Lint = require("tslint");
 var fs = require("fs");
-var Rule = (function (_super) {
+var Rule = /** @class */ (function (_super) {
     __extends(Rule, _super);
     function Rule() {
         return _super !== null && _super.apply(this, arguments) || this;
@@ -27,7 +27,7 @@ var Rule = (function (_super) {
     return Rule;
 }(Lint.Rules.AbstractRule));
 exports.Rule = Rule;
-var TranslationRemindRuleWalker = (function (_super) {
+var TranslationRemindRuleWalker = /** @class */ (function (_super) {
     __extends(TranslationRemindRuleWalker, _super);
     function TranslationRemindRuleWalker(file, opts) {
         return _super.call(this, file, opts) || this;
@@ -74,6 +74,6 @@ var TranslationRemindRuleWalker = (function (_super) {
             this.addFailureAtNode(node, "Please add '" + resource + "' to ./builds/lib/i18n.resources.json file to use translations here.");
         }
     };
+    TranslationRemindRuleWalker.NLS_MODULE = 'vs/nls';
     return TranslationRemindRuleWalker;
 }(Lint.RuleWalker));
-TranslationRemindRuleWalker.NLS_MODULE = 'vs/nls';

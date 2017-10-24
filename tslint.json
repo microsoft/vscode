@@ -3,6 +3,7 @@
 		"build/lib/tslint"
 	],
 	"rules": {
+		"no-string-throw": true,
 		"no-unused-expression": true,
 		"no-duplicate-variable": true,
 		"no-unused-variable": true,
@@ -116,6 +117,7 @@
 				"target": "**/vs/platform/*/test/common/**",
 				"restrictions": [
 					"assert",
+					"sinon",
 					"vs/nls",
 					"**/vs/base/common/**",
 					"**/vs/platform/*/common/**",
@@ -136,6 +138,7 @@
 				"target": "**/vs/platform/*/test/browser/**",
 				"restrictions": [
 					"assert",
+					"sinon",
 					"vs/nls",
 					"**/vs/base/{common,browser}/**",
 					"**/vs/platform/*/{common,browser}/**",
@@ -292,7 +295,7 @@
 				]
 			},
 			{
-				"target": "**/vs/workbench/electron-browser/workbench.main.ts",
+				"target": "**/vs/workbench/workbench.main.ts",
 				"restrictions": [
 					"**"
 				]
@@ -337,7 +340,7 @@
 					"**/vs/base/**",
 					"**/vs/platform/**",
 					"**/vs/editor/**",
-					"**/vs/workbench/{common,browser,node,api,electron-browser}/**",
+					"**/vs/workbench/{common,browser,node,electron-browser}/**",
 					"vs/workbench/parts/files/common/editors/fileEditorInput",
 					"**/vs/workbench/services/**",
 					"**/vs/workbench/test/**",
@@ -345,15 +348,52 @@
 				]
 			},
 			{
-				"target": "**/vs/workbench/services/**",
+				"target": "**/vs/workbench/services/**/common/**",
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/**",
-					"**/vs/platform/**",
-					"**/vs/editor/**",
-					"**/vs/workbench/{common,browser,node,api,electron-browser}/**",
-					"**/vs/workbench/services/**",
+					"**/vs/base/**/common/**",
+					"**/vs/platform/**/common/**",
+					"**/vs/editor/common/**",
+					"**/vs/workbench/common/**",
+					"**/vs/workbench/services/**/common/**"
+				]
+			},
+			{
+				"target": "**/vs/workbench/services/**/browser/**",
+				"restrictions": [
+					"vs/nls",
+					"vs/css!./**/*",
+					"**/vs/base/**/{common,browser}/**",
+					"**/vs/platform/**/{common,browser}/**",
+					"**/vs/editor/{common,browser}/**",
+					"**/vs/workbench/{common,browser}/**",
+					"**/vs/workbench/services/**/{common,browser}/**"
+				]
+			},
+			{
+				"target": "**/vs/workbench/services/**/node/**",
+				"restrictions": [
+					"vs/nls",
+					"vs/css!./**/*",
+					"**/vs/base/**/{common,node}/**",
+					"**/vs/platform/**/{common,node}/**",
+					"**/vs/editor/{common,node}/**",
+					"**/vs/workbench/{common,node}/**",
+					"**/vs/workbench/services/**/{common,node}/**",
+					"*" // node modules
+				]
+			},
+			{
+				"target": "**/vs/workbench/services/**/electron-browser/**",
+				"restrictions": [
+					"vs/nls",
+					"vs/css!./**/*",
+					"**/vs/base/**/{common,browser,node,electron-browser}/**",
+					"**/vs/platform/**/{common,browser,node,electron-browser}/**",
+					"**/vs/editor/**/{common,browser,node,electron-browser}/**",
+					"**/vs/workbench/{common,browser,node,electron-browser,api}/**",
+					"**/vs/workbench/services/**/{common,browser,node,electron-browser}/**",
 					"*" // node modules
 				]
 			},
@@ -388,16 +428,6 @@
 			}
 		],
 		"duplicate-imports": true,
-		"allow-async": [
-			true,
-			[
-				"node",
-				"electron-main",
-				"electron-browser",
-				"extensions",
-				"smoke"
-			]
-		],
 		"translation-remind": true
 	}
 }

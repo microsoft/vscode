@@ -73,6 +73,10 @@ export class Checkbox extends Widget {
 		});
 	}
 
+	public get enabled(): boolean {
+		return this.domNode.getAttribute('aria-disabled') !== 'true';
+	}
+
 	public focus(): void {
 		this.domNode.focus();
 	}
@@ -105,7 +109,7 @@ export class Checkbox extends Widget {
 
 	protected applyStyles(): void {
 		if (this.domNode) {
-			this.domNode.style.borderColor = this._checked && this._opts.inputActiveOptionBorder ? this._opts.inputActiveOptionBorder.toString() : null;
+			this.domNode.style.borderColor = this._checked && this._opts.inputActiveOptionBorder ? this._opts.inputActiveOptionBorder.toString() : 'transparent';
 		}
 	}
 

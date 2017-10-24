@@ -19,7 +19,7 @@ var Lint = require("tslint");
 /**
  * Implementation of the no-unexternalized-strings rule.
  */
-var Rule = (function (_super) {
+var Rule = /** @class */ (function (_super) {
     __extends(Rule, _super);
     function Rule() {
         return _super !== null && _super.apply(this, arguments) || this;
@@ -39,7 +39,7 @@ function isObjectLiteral(node) {
 function isPropertyAssignment(node) {
     return node && node.kind === ts.SyntaxKind.PropertyAssignment;
 }
-var NoUnexternalizedStringsRuleWalker = (function (_super) {
+var NoUnexternalizedStringsRuleWalker = /** @class */ (function (_super) {
     __extends(NoUnexternalizedStringsRuleWalker, _super);
     function NoUnexternalizedStringsRuleWalker(file, opts) {
         var _this = _super.call(this, file, opts) || this;
@@ -87,7 +87,11 @@ var NoUnexternalizedStringsRuleWalker = (function (_super) {
         var doubleQuoted = text.length >= 2 && text[0] === NoUnexternalizedStringsRuleWalker.DOUBLE_QUOTE && text[text.length - 1] === NoUnexternalizedStringsRuleWalker.DOUBLE_QUOTE;
         var info = this.findDescribingParent(node);
         // Ignore strings in import and export nodes.
-        if (info && info.ignoreUsage) {
+        if (info && info.isImport && doubleQuoted) {
+            this.addFailureAtNode(node, NoUnexternalizedStringsRuleWalker.ImportFailureMessage, new Lint.Fix(NoUnexternalizedStringsRuleWalker.ImportFailureMessage, [
+                this.createReplacement(node.getStart(), 1, '\''),
+                this.createReplacement(node.getStart() + text.length - 1, 1, '\''),
+            ]));
             return;
         }
         var callInfo = info ? info.callInfo : null;
@@ -161,7 +165,7 @@ var NoUnexternalizedStringsRuleWalker = (function (_super) {
                 return { callInfo: { callExpression: callExpression, argIndex: callExpression.arguments.indexOf(node) } };
             }
             else if (kind === ts.SyntaxKind.ImportEqualsDeclaration || kind === ts.SyntaxKind.ImportDeclaration || kind === ts.SyntaxKind.ExportDeclaration) {
-                return { ignoreUsage: true };
+                return { isImport: true };
             }
             else if (kind === ts.SyntaxKind.VariableDeclaration || kind === ts.SyntaxKind.FunctionDeclaration || kind === ts.SyntaxKind.PropertyDeclaration
                 || kind === ts.SyntaxKind.MethodDeclaration || kind === ts.SyntaxKind.VariableDeclarationList || kind === ts.SyntaxKind.InterfaceDeclaration
@@ -172,6 +176,7 @@ var NoUnexternalizedStringsRuleWalker = (function (_super) {
             node = parent;
         }
     };
+    NoUnexternalizedStringsRuleWalker.ImportFailureMessage = 'Do not use double qoutes for imports.';
+    NoUnexternalizedStringsRuleWalker.DOUBLE_QUOTE = '"';
     return NoUnexternalizedStringsRuleWalker;
 }(Lint.RuleWalker));
-NoUnexternalizedStringsRuleWalker.DOUBLE_QUOTE = '"';

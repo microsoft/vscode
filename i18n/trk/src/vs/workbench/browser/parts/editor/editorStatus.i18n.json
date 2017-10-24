@@ -11,7 +11,7 @@
 	"endOfLineLineFeed": "LF",
 	"endOfLineCarriageReturnLineFeed": "CRLF",
 	"tabFocusModeEnabled": "Tab Odak Değiştirir",
-	"screenReaderDetected": "Ekran Okuyucu Algılandı",
+	"screenReaderDetected": "Ekran Okuyucu En İyi Duruma Getirildi",
 	"screenReaderDetectedExtra": "Bir Ekran Okuyucu kullanmıyorsanız, lütfen `editor.accessibilitySupport` ayarını \"off\" olarak değiştirin",
 	"disableTabMode": "Erişilebilirlik Modunu Devre Dışı Bırak",
 	"gotoLine": "Satıra Git",
@@ -47,5 +47,11 @@
 	"reopenWithEncoding": "Kodlama ile Yeniden Aç",
 	"guessedEncoding": "İçerikten tahmin edildi",
 	"pickEncodingForReopen": "Dosyayı Yeniden Açmak İçin Dosya Kodlaması Seçin",
-	"pickEncodingForSave": "Kaydedilecek Dosya Kodlamasını Seçin"
+	"pickEncodingForSave": "Kaydedilecek Dosya Kodlamasını Seçin",
+	"screenReaderDetectedExplanation.title": "Ekran Okuyucu En İyi Duruma Getirildi",
+	"screenReaderDetectedExplanation.question": "VS Code'u çalıştırmak için ekran okuyucu kullanıyor musunuz?",
+	"screenReaderDetectedExplanation.answerYes": "Evet",
+	"screenReaderDetectedExplanation.answerNo": "Hayır",
+	"screenReaderDetectedExplanation.body1": "VS Code, ekran okuyucu ile kullanılmak için uygun hale getirilmiştir.",
+	"screenReaderDetectedExplanation.body2": "Bazı düzenleyici özellikleri farklı bir davranış sergileyecektir: ör. sözcük kaydırma, katlama, ayraçları otomatik kapatma, vb."
 }

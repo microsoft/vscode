@@ -15,6 +15,21 @@ suite('workspace-namespace', () => {
 
 	teardown(closeAllEditors);
 
+	test('MarkdownString', function () {
+		let md = new vscode.MarkdownString();
+		assert.equal(md.value, '');
+		assert.equal(md.isTrusted, undefined);
+
+		md = new vscode.MarkdownString('**bold**');
+		assert.equal(md.value, '**bold**');
+
+		md.appendText('**bold?**');
+		assert.equal(md.value, '**bold**\\*\\*bold?\\*\\*');
+
+		md.appendMarkdown('**bold**');
+		assert.equal(md.value, '**bold**\\*\\*bold?\\*\\***bold**');
+	});
+
 
 	test('textDocuments', () => {
 		assert.ok(Array.isArray(vscode.workspace.textDocuments));
@@ -82,7 +97,7 @@ suite('workspace-namespace', () => {
 		});
 	});
 
-	test('openTextDocument, untitled closes on save', function (done) {
+	test('openTextDocument, untitled closes on save', function () {
 		const path = join(vscode.workspace.rootPath || '', './newfile.txt');
 
 		return vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + path)).then(doc => {
@@ -100,7 +115,7 @@ suite('workspace-namespace', () => {
 
 					d0.dispose();
 
-					return deleteFile(vscode.Uri.file(join(vscode.workspace.rootPath || '', './newfile.txt'))).then(() => done(null));
+					return deleteFile(vscode.Uri.file(join(vscode.workspace.rootPath || '', './newfile.txt')));
 				});
 			});
 
@@ -255,6 +270,19 @@ suite('workspace-namespace', () => {
 							return deleteFile(file);
 						});
 					});
+				});
+			});
+		});
+	});
+
+	test('openTextDocument, with selection', function () {
+		return createRandomFile('foo\nbar\nbar').then(file => {
+			return vscode.workspace.openTextDocument(file).then(doc => {
+				return vscode.window.showTextDocument(doc, { selection: new vscode.Range(new vscode.Position(1, 1), new vscode.Position(1, 2)) }).then(editor => {
+					assert.equal(editor.selection.start.line, 1);
+					assert.equal(editor.selection.start.character, 1);
+					assert.equal(editor.selection.end.line, 1);
+					assert.equal(editor.selection.end.character, 2);
 				});
 			});
 		});
@@ -455,7 +483,7 @@ suite('workspace-namespace', () => {
 			assert.equal(res.length, 1);
 			assert.equal(basename(vscode.workspace.asRelativePath(res[0])), 'far.js');
 		});
-	}).timeout(60 * 1000); // Increase timeout for search-based test
+	});
 
 	// TODO@Joh this test fails randomly
 	// test('findFiles, cancellation', () => {

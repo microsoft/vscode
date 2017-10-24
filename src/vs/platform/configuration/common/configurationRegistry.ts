@@ -11,6 +11,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import types = require('vs/base/common/types');
 import * as strings from 'vs/base/common/strings';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
+import { clone } from 'vs/base/common/objects';
 
 export const Extensions = {
 	Configuration: 'base.contributions.configuration'
@@ -28,13 +29,19 @@ export interface IConfigurationRegistry {
 	 */
 	registerConfigurations(configurations: IConfigurationNode[], validate?: boolean): void;
 
+	/**
+	 * Signal that the schema of a configuration setting has changes. It is currently only supported to change enumeration values.
+	 * Property or default value changes are not allowed.
+	 */
+	notifyConfigurationSchemaUpdated(configuration: IConfigurationNode): void;
+
 	registerDefaultConfigurations(defaultConfigurations: IDefaultConfigurationExtension[]): void;
 
 	/**
-	 * Event that fires whenver a configuratio has been
+	 * Event that fires whenver a configuration has been
 	 * registered.
 	 */
-	onDidRegisterConfiguration: Event<IConfigurationRegistry>;
+	onDidRegisterConfiguration: Event<string[]>;
 
 	/**
 	 * Returns all configuration nodes contributed to this registry.
@@ -52,9 +59,16 @@ export interface IConfigurationRegistry {
 	registerOverrideIdentifiers(identifiers: string[]): void;
 }
 
+export enum ConfigurationScope {
+	WINDOW = 1,
+	RESOURCE
+}
+
 export interface IConfigurationPropertySchema extends IJSONSchema {
 	overridable?: boolean;
 	isExecutable?: boolean;
+	scope?: ConfigurationScope;
+	isFromExtensions?: boolean;
 }
 
 export interface IConfigurationNode {
@@ -66,6 +80,7 @@ export interface IConfigurationNode {
 	properties?: { [path: string]: IConfigurationPropertySchema; };
 	allOf?: IConfigurationNode[];
 	overridable?: boolean;
+	scope?: ConfigurationScope;
 }
 
 export interface IDefaultConfigurationExtension {
@@ -74,33 +89,30 @@ export interface IDefaultConfigurationExtension {
 	defaults: { [key: string]: {} };
 }
 
-const schemaId = 'vscode://schemas/settings';
+export const settingsSchema: IJSONSchema = { properties: {}, patternProperties: {}, additionalProperties: false, errorMessage: 'Unknown configuration setting' };
+export const resourceSettingsSchema: IJSONSchema = { properties: {}, patternProperties: {}, additionalProperties: false, errorMessage: 'Unknown configuration setting' };
+
 export const editorConfigurationSchemaId = 'vscode://schemas/settings/editor';
 const contributionRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 
 class ConfigurationRegistry implements IConfigurationRegistry {
+
 	private configurationContributors: IConfigurationNode[];
 	private configurationProperties: { [qualifiedKey: string]: IJSONSchema };
-	private configurationSchema: IJSONSchema;
 	private editorConfigurationSchema: IJSONSchema;
-	private _onDidRegisterConfiguration: Emitter<IConfigurationRegistry>;
 	private overrideIdentifiers: string[] = [];
 	private overridePropertyPattern: string;
 
+	private _onDidRegisterConfiguration: Emitter<string[]> = new Emitter<string[]>();
+	readonly onDidRegisterConfiguration: Event<string[]> = this._onDidRegisterConfiguration.event;
+
 	constructor() {
 		this.configurationContributors = [];
-		this.configurationSchema = { properties: {}, patternProperties: {}, additionalProperties: false, errorMessage: 'Unknown configuration setting' };
 		this.editorConfigurationSchema = { properties: {}, patternProperties: {}, additionalProperties: false, errorMessage: 'Unknown editor configuration setting' };
-		this._onDidRegisterConfiguration = new Emitter<IConfigurationRegistry>();
 		this.configurationProperties = {};
 		this.computeOverridePropertyPattern();
 
-		contributionRegistry.registerSchema(schemaId, this.configurationSchema);
 		contributionRegistry.registerSchema(editorConfigurationSchemaId, this.editorConfigurationSchema);
-	}
-
-	public get onDidRegisterConfiguration() {
-		return this._onDidRegisterConfiguration.event;
 	}
 
 	public registerConfiguration(configuration: IConfigurationNode, validate: boolean = true): void {
@@ -108,14 +120,19 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	}
 
 	public registerConfigurations(configurations: IConfigurationNode[], validate: boolean = true): void {
+		const properties: string[] = [];
 		configurations.forEach(configuration => {
-			this.validateAndRegisterProperties(configuration, validate); // fills in defaults
+			properties.push(...this.validateAndRegisterProperties(configuration, validate)); // fills in defaults
 			this.configurationContributors.push(configuration);
 			this.registerJSONConfiguration(configuration);
 			this.updateSchemaForOverrideSettingsConfiguration(configuration);
 		});
 
-		this._onDidRegisterConfiguration.fire(this);
+		this._onDidRegisterConfiguration.fire(properties);
+	}
+
+	public notifyConfigurationSchemaUpdated(configuration: IConfigurationNode) {
+		contributionRegistry.registerSchema(editorConfigurationSchemaId, this.editorConfigurationSchema);
 	}
 
 	public registerOverrideIdentifiers(overrideIdentifiers: string[]): void {
@@ -147,8 +164,10 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		}
 	}
 
-	private validateAndRegisterProperties(configuration: IConfigurationNode, validate: boolean = true, overridable: boolean = false) {
+	private validateAndRegisterProperties(configuration: IConfigurationNode, validate: boolean = true, scope: ConfigurationScope = ConfigurationScope.WINDOW, overridable: boolean = false): string[] {
+		scope = configuration.scope !== void 0 && configuration.scope !== null ? configuration.scope : scope;
 		overridable = configuration.overridable || overridable;
+		let propertyKeys = [];
 		let properties = configuration.properties;
 		if (properties) {
 			for (let key in properties) {
@@ -168,16 +187,21 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 				if (overridable) {
 					property.overridable = true;
 				}
+				if (property.scope === void 0) {
+					property.scope = scope;
+				}
 				// add to properties map
 				this.configurationProperties[key] = properties[key];
+				propertyKeys.push(key);
 			}
 		}
 		let subNodes = configuration.allOf;
 		if (subNodes) {
 			for (let node of subNodes) {
-				this.validateAndRegisterProperties(node, validate, overridable);
+				propertyKeys.push(...this.validateAndRegisterProperties(node, validate, scope, overridable));
 			}
 		}
+		return propertyKeys;
 	}
 
 	validateProperty(property: string): boolean {
@@ -193,12 +217,15 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	}
 
 	private registerJSONConfiguration(configuration: IConfigurationNode) {
-		let configurationSchema = this.configurationSchema;
 		function register(configuration: IConfigurationNode) {
 			let properties = configuration.properties;
 			if (properties) {
 				for (let key in properties) {
-					configurationSchema.properties[key] = properties[key];
+					settingsSchema.properties[key] = properties[key];
+					resourceSettingsSchema.properties[key] = clone(properties[key]);
+					if (properties[key].scope !== ConfigurationScope.RESOURCE) {
+						resourceSettingsSchema.properties[key].doNotSuggest = true;
+					}
 				}
 			}
 			let subNodes = configuration.allOf;
@@ -207,18 +234,17 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 			}
 		};
 		register(configuration);
-		contributionRegistry.registerSchema(schemaId, configurationSchema);
 	}
 
 	private updateSchemaForOverrideSettingsConfiguration(configuration: IConfigurationNode): void {
 		if (configuration.id !== SETTINGS_OVERRRIDE_NODE_ID) {
-			this.update(configuration, this.editorConfigurationSchema);
+			this.update(configuration);
 			contributionRegistry.registerSchema(editorConfigurationSchemaId, this.editorConfigurationSchema);
 		}
 	}
 
 	private updateOverridePropertyPatternKey(): void {
-		let patternProperties: IJSONSchema = this.configurationSchema.patternProperties[this.overridePropertyPattern];
+		let patternProperties: IJSONSchema = settingsSchema.patternProperties[this.overridePropertyPattern];
 		if (!patternProperties) {
 			patternProperties = {
 				type: 'object',
@@ -227,24 +253,25 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 				$ref: editorConfigurationSchemaId
 			};
 		}
-		delete this.configurationSchema.patternProperties[this.overridePropertyPattern];
+		delete settingsSchema.patternProperties[this.overridePropertyPattern];
 		this.computeOverridePropertyPattern();
-		this.configurationSchema.patternProperties[this.overridePropertyPattern] = patternProperties;
-		contributionRegistry.registerSchema(schemaId, this.configurationSchema);
+
+		settingsSchema.patternProperties[this.overridePropertyPattern] = patternProperties;
+		resourceSettingsSchema.patternProperties[this.overridePropertyPattern] = patternProperties;
 	}
 
-	private update(configuration: IConfigurationNode, overridePropertiesSchema: IJSONSchema): void {
+	private update(configuration: IConfigurationNode): void {
 		let properties = configuration.properties;
 		if (properties) {
 			for (let key in properties) {
 				if (properties[key].overridable) {
-					overridePropertiesSchema.properties[key] = this.getConfigurationProperties()[key];
+					this.editorConfigurationSchema.properties[key] = this.getConfigurationProperties()[key];
 				}
 			}
 		}
 		let subNodes = configuration.allOf;
 		if (subNodes) {
-			subNodes.forEach(subNode => this.update(subNode, overridePropertiesSchema));
+			subNodes.forEach(subNode => this.update(subNode));
 		}
 	}
 

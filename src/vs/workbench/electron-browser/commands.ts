@@ -11,9 +11,8 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
-import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { NoEditorsVisibleContext, InZenModeContext } from 'vs/workbench/electron-browser/workbench';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { IListService, ListFocusContext } from 'vs/platform/list/browser/listService';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import errors = require('vs/base/common/errors');
@@ -21,6 +20,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import URI from 'vs/base/common/uri';
 import { IEditorOptions, Position as EditorPosition } from 'vs/platform/editor/common/editor';
+import { openFolderCommand, openFileInNewWindowCommand, openFileFolderInNewWindowCommand, openFolderInNewWindowCommand, openWorkspaceInNewWindowCommand } from 'vs/workbench/browser/actions/workspaceActions';
 
 // --- List Commands
 
@@ -366,8 +366,8 @@ export function registerCommands(): void {
 		when: NoEditorsVisibleContext,
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_W,
 		handler: accessor => {
-			const windowService = accessor.get(IWindowIPCService);
-			windowService.getWindow().close();
+			const windowService = accessor.get(IWindowService);
+			windowService.closeWindow();
 		}
 	});
 
@@ -400,8 +400,7 @@ export function registerCommands(): void {
 
 		if (!options || typeof options !== 'object') {
 			options = {
-				preserveFocus: false,
-				pinned: true
+				preserveFocus: false
 			};
 		}
 
@@ -422,4 +421,11 @@ export function registerCommands(): void {
 			return void 0;
 		});
 	});
+
+	CommandsRegistry.registerCommand('_files.pickFolderAndOpen', openFolderCommand);
+
+	CommandsRegistry.registerCommand('workbench.action.files.openFileInNewWindow', openFileInNewWindowCommand);
+	CommandsRegistry.registerCommand('workbench.action.files.openFolderInNewWindow', openFolderInNewWindowCommand);
+	CommandsRegistry.registerCommand('workbench.action.files.openFileFolderInNewWindow', openFileFolderInNewWindowCommand);
+	CommandsRegistry.registerCommand('workbench.action.openWorkspaceInNewWindow', openWorkspaceInNewWindowCommand);
 }

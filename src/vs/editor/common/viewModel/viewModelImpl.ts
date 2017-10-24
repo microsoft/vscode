@@ -8,86 +8,31 @@ import { EmitterEvent } from 'vs/base/common/eventEmitter';
 import * as strings from 'vs/base/common/strings';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { TokenizationRegistry, ColorId, LanguageId } from 'vs/editor/common/modes';
 import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
-import { MinimapLinesRenderingData, ViewLineRenderingData, ViewModelDecoration, IViewModel, ICoordinatesConverter, ViewEventsCollector } from 'vs/editor/common/viewModel/viewModel';
-import { SplitLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
+import { MinimapLinesRenderingData, ViewLineRenderingData, ViewModelDecoration, IViewModel, ICoordinatesConverter, ViewEventsCollector, IOverviewRulerDecorations } from 'vs/editor/common/viewModel/viewModel';
+import { SplitLinesCollection, IViewModelLinesCollection, IdentityLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { MinimapTokensColorTracker } from 'vs/editor/common/view/minimapCharRenderer';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { CharacterHardWrappingLineMapperFactory } from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
 import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';
+import { Color } from 'vs/base/common/color';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { ITheme } from 'vs/platform/theme/common/themeService';
+import { ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModelWithDecorations';
 
-export class CoordinatesConverter implements ICoordinatesConverter {
-
-	private readonly _lines: SplitLinesCollection;
-
-	constructor(lines: SplitLinesCollection) {
-		this._lines = lines;
-	}
-
-	// View -> Model conversion and related methods
-
-	public convertViewPositionToModelPosition(viewPosition: Position): Position {
-		return this._lines.convertViewPositionToModelPosition(viewPosition.lineNumber, viewPosition.column);
-	}
-
-	public convertViewRangeToModelRange(viewRange: Range): Range {
-		let start = this._lines.convertViewPositionToModelPosition(viewRange.startLineNumber, viewRange.startColumn);
-		let end = this._lines.convertViewPositionToModelPosition(viewRange.endLineNumber, viewRange.endColumn);
-		return new Range(start.lineNumber, start.column, end.lineNumber, end.column);
-	}
-
-	public convertViewSelectionToModelSelection(viewSelection: Selection): Selection {
-		let selectionStart = this._lines.convertViewPositionToModelPosition(viewSelection.selectionStartLineNumber, viewSelection.selectionStartColumn);
-		let position = this._lines.convertViewPositionToModelPosition(viewSelection.positionLineNumber, viewSelection.positionColumn);
-		return new Selection(selectionStart.lineNumber, selectionStart.column, position.lineNumber, position.column);
-	}
-
-	public validateViewPosition(viewPosition: Position, expectedModelPosition: Position): Position {
-		return this._lines.validateViewPosition(viewPosition.lineNumber, viewPosition.column, expectedModelPosition);
-	}
-
-	public validateViewRange(viewRange: Range, expectedModelRange: Range): Range {
-		var validViewStart = this._lines.validateViewPosition(viewRange.startLineNumber, viewRange.startColumn, expectedModelRange.getStartPosition());
-		var validViewEnd = this._lines.validateViewPosition(viewRange.endLineNumber, viewRange.endColumn, expectedModelRange.getEndPosition());
-		return new Range(validViewStart.lineNumber, validViewStart.column, validViewEnd.lineNumber, validViewEnd.column);
-	}
-
-	// Model -> View conversion and related methods
-
-	public convertModelPositionToViewPosition(modelPosition: Position): Position {
-		return this._lines.convertModelPositionToViewPosition(modelPosition.lineNumber, modelPosition.column);
-	}
-
-	public convertModelRangeToViewRange(modelRange: Range): Range {
-		let start = this._lines.convertModelPositionToViewPosition(modelRange.startLineNumber, modelRange.startColumn);
-		let end = this._lines.convertModelPositionToViewPosition(modelRange.endLineNumber, modelRange.endColumn);
-		return new Range(start.lineNumber, start.column, end.lineNumber, end.column);
-	}
-
-	public convertModelSelectionToViewSelection(modelSelection: Selection): Selection {
-		let selectionStart = this._lines.convertModelPositionToViewPosition(modelSelection.selectionStartLineNumber, modelSelection.selectionStartColumn);
-		let position = this._lines.convertModelPositionToViewPosition(modelSelection.positionLineNumber, modelSelection.positionColumn);
-		return new Selection(selectionStart.lineNumber, selectionStart.column, position.lineNumber, position.column);
-	}
-
-	public modelPositionIsVisible(modelPosition: Position): boolean {
-		return this._lines.modelPositionIsVisible(modelPosition.lineNumber, modelPosition.column);
-	}
-
-}
+const USE_IDENTITY_LINES_COLLECTION = true;
 
 export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel {
 
 	private readonly editorId: number;
 	private readonly configuration: editorCommon.IConfiguration;
 	private readonly model: editorCommon.IModel;
-	private readonly lines: SplitLinesCollection;
+	private readonly lines: IViewModelLinesCollection;
 	public readonly coordinatesConverter: ICoordinatesConverter;
 	public readonly viewLayout: ViewLayout;
 
@@ -96,33 +41,39 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 	private _isDisposing: boolean;
 	private _centeredViewLine: number;
 
-	constructor(editorId: number, configuration: editorCommon.IConfiguration, model: editorCommon.IModel) {
+	constructor(editorId: number, configuration: editorCommon.IConfiguration, model: editorCommon.IModel, scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable) {
 		super();
 
 		this.editorId = editorId;
 		this.configuration = configuration;
 		this.model = model;
 
-		const conf = this.configuration.editor;
+		if (USE_IDENTITY_LINES_COLLECTION && this.model.isTooLargeForTokenization()) {
 
-		let hardWrappingLineMapperFactory = new CharacterHardWrappingLineMapperFactory(
-			conf.wrappingInfo.wordWrapBreakBeforeCharacters,
-			conf.wrappingInfo.wordWrapBreakAfterCharacters,
-			conf.wrappingInfo.wordWrapBreakObtrusiveCharacters
-		);
+			this.lines = new IdentityLinesCollection(this.model);
 
-		this.lines = new SplitLinesCollection(
-			this.model,
-			hardWrappingLineMapperFactory,
-			this.model.getOptions().tabSize,
-			conf.wrappingInfo.wrappingColumn,
-			conf.fontInfo.typicalFullwidthCharacterWidth / conf.fontInfo.typicalHalfwidthCharacterWidth,
-			conf.wrappingInfo.wrappingIndent
-		);
+		} else {
+			const conf = this.configuration.editor;
 
-		this.coordinatesConverter = new CoordinatesConverter(this.lines);
+			let hardWrappingLineMapperFactory = new CharacterHardWrappingLineMapperFactory(
+				conf.wrappingInfo.wordWrapBreakBeforeCharacters,
+				conf.wrappingInfo.wordWrapBreakAfterCharacters,
+				conf.wrappingInfo.wordWrapBreakObtrusiveCharacters
+			);
 
-		this.viewLayout = this._register(new ViewLayout(this.configuration, this.getLineCount()));
+			this.lines = new SplitLinesCollection(
+				this.model,
+				hardWrappingLineMapperFactory,
+				this.model.getOptions().tabSize,
+				conf.wrappingInfo.wrappingColumn,
+				conf.fontInfo.typicalFullwidthCharacterWidth / conf.fontInfo.typicalHalfwidthCharacterWidth,
+				conf.wrappingInfo.wrappingIndent
+			);
+		}
+
+		this.coordinatesConverter = this.lines.createCoordinatesConverter();
+
+		this.viewLayout = this._register(new ViewLayout(this.configuration, this.getLineCount(), scheduleAtNextAnimationFrame));
 
 		this._register(this.viewLayout.onDidScroll((e) => {
 			this._emit([new viewEvents.ViewScrollChangedEvent(e)]);
@@ -131,7 +82,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		this._isDisposing = false;
 		this._centeredViewLine = -1;
 
-		this.decorations = new ViewModelDecorations(this.editorId, this.model, this.configuration, this.coordinatesConverter);
+		this.decorations = new ViewModelDecorations(this.editorId, this.model, this.configuration, this.lines, this.coordinatesConverter);
 
 		this._register(this.model.addBulkListener((events: EmitterEvent[]) => {
 			if (this._isDisposing) {
@@ -177,7 +128,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			this.decorations.onLineMappingChanged();
 			this.viewLayout.onFlushed(this.getLineCount());
 
-			if (this.viewLayout.getScrollTop() !== 0) {
+			if (this.viewLayout.getCurrentScrollTop() !== 0) {
 				// Never change the scroll position from 0 to something else...
 				revealPreviousCenteredModelRange = true;
 			}
@@ -200,7 +151,8 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			eventsCollector.emit(new viewEvents.ViewRevealRangeRequestEvent(
 				newCenteredViewRange,
 				viewEvents.VerticalRevealType.Center,
-				false
+				false,
+				editorCommon.ScrollType.Immediate
 			));
 		}
 	}
@@ -311,6 +263,10 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 					// That's ok, a model tokens changed event will follow shortly
 					break;
 				}
+				case textModelEvents.TextModelEventType.ModelLanguageConfigurationChanged: {
+					eventsCollector.emit(new viewEvents.ViewLanguageConfigurationEvent());
+					break;
+				}
 				case textModelEvents.TextModelEventType.ModelContentChanged: {
 					// Ignore
 					break;
@@ -328,8 +284,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 					break;
 				}
 				case textModelEvents.TextModelEventType.ModelDecorationsChanged: {
-					const e = <textModelEvents.IModelDecorationsChangedEvent>data;
-					this.decorations.onModelDecorationsChanged(e);
+					this.decorations.onModelDecorationsChanged();
 					eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent());
 					break;
 				}
@@ -475,8 +430,17 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		);
 	}
 
-	public getAllOverviewRulerDecorations(): ViewModelDecoration[] {
-		return this.decorations.getAllOverviewRulerDecorations();
+	public getAllOverviewRulerDecorations(theme: ITheme): IOverviewRulerDecorations {
+		return this.lines.getAllOverviewRulerDecorations(this.editorId, this.configuration.editor.readOnly, theme);
+	}
+
+	public invalidateOverviewRulerColorCache(): void {
+		const decorations = this.model.getOverviewRulerDecorations();
+		for (let i = 0, len = decorations.length; i < len; i++) {
+			const decoration = decorations[i];
+			const opts = <ModelDecorationOverviewRulerOptions>decoration.options.overviewRuler;
+			opts._resolvedColor = null;
+		}
 	}
 
 	public getValueInRange(range: Range, eol: editorCommon.EndOfLinePreference): string {
@@ -492,30 +456,54 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		return this.model.validatePosition(position);
 	}
 
-	public getPlainTextToCopy(ranges: Range[], emptySelectionClipboard: boolean): string {
-		let newLineCharacter = this.model.getEOL();
-
-		if (ranges.length === 1) {
-			let range: Range = ranges[0];
-			if (range.isEmpty()) {
-				if (emptySelectionClipboard) {
-					let modelLineNumber = this.coordinatesConverter.convertViewPositionToModelPosition(new Position(range.startLineNumber, 1)).lineNumber;
-					return this.model.getLineContent(modelLineNumber) + newLineCharacter;
-				} else {
-					return '';
-				}
+	public deduceModelPositionRelativeToViewPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position {
+		const modelAnchor = this.coordinatesConverter.convertViewPositionToModelPosition(viewAnchorPosition);
+		if (this.model.getEOL().length === 2) {
+			// This model uses CRLF, so the delta must take that into account
+			if (deltaOffset < 0) {
+				deltaOffset -= lineFeedCnt;
+			} else {
+				deltaOffset += lineFeedCnt;
 			}
-
-			return this.getValueInRange(range, editorCommon.EndOfLinePreference.TextDefined);
-		} else {
-			ranges = ranges.slice(0).sort(Range.compareRangesUsingStarts);
-			let result: string[] = [];
-			for (let i = 0; i < ranges.length; i++) {
-				result.push(this.getValueInRange(ranges[i], editorCommon.EndOfLinePreference.TextDefined));
-			}
-
-			return result.join(newLineCharacter);
 		}
+
+		const modelAnchorOffset = this.model.getOffsetAt(modelAnchor);
+		const resultOffset = modelAnchorOffset + deltaOffset;
+		return this.model.getPositionAt(resultOffset);
+	}
+
+	public getPlainTextToCopy(ranges: Range[], emptySelectionClipboard: boolean): string {
+		const newLineCharacter = this.model.getEOL();
+
+		ranges = ranges.slice(0);
+		ranges.sort(Range.compareRangesUsingStarts);
+		const nonEmptyRanges = ranges.filter((r) => !r.isEmpty());
+
+		if (nonEmptyRanges.length === 0) {
+			if (!emptySelectionClipboard) {
+				return '';
+			}
+
+			const modelLineNumbers = ranges.map((r) => {
+				const viewLineStart = new Position(r.startLineNumber, 1);
+				return this.coordinatesConverter.convertViewPositionToModelPosition(viewLineStart).lineNumber;
+			});
+
+			let result = '';
+			for (let i = 0; i < modelLineNumbers.length; i++) {
+				if (i > 0 && modelLineNumbers[i - 1] === modelLineNumbers[i]) {
+					continue;
+				}
+				result += this.model.getLineContent(modelLineNumbers[i]) + newLineCharacter;
+			}
+			return result;
+		}
+
+		let result: string[] = [];
+		for (let i = 0; i < nonEmptyRanges.length; i++) {
+			result.push(this.getValueInRange(nonEmptyRanges[i], editorCommon.EndOfLinePreference.TextDefined));
+		}
+		return result.join(newLineCharacter);
 	}
 
 	public getHTMLToCopy(viewRanges: Range[], emptySelectionClipboard: boolean): string {
@@ -586,7 +574,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		let colorMap = TokenizationRegistry.getColorMap();
 		let result: string[] = [null];
 		for (let i = 1, len = colorMap.length; i < len; i++) {
-			result[i] = colorMap[i].toRGBHex();
+			result[i] = Color.Format.CSS.formatHex(colorMap[i]);
 		}
 		return result;
 	}

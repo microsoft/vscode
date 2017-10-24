@@ -82,7 +82,7 @@ export class QuickOpenEditorWidget implements IOverlayWidget {
 	public show(value: string): void {
 		this.visible = true;
 
-		var editorLayout = this.codeEditor.getLayoutInfo();
+		const editorLayout = this.codeEditor.getLayoutInfo();
 		if (editorLayout) {
 			this.quickOpenWidget.layout(new Dimension(editorLayout.width, editorLayout.height));
 		}

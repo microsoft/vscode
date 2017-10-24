@@ -8,12 +8,13 @@
 import { IRawFileChange, toFileChangesEvent } from 'vs/workbench/services/files/node/watcher/common';
 import { OutOfProcessWin32FolderWatcher } from 'vs/workbench/services/files/node/watcher/win32/csharpWatcherService';
 import { FileChangesEvent } from 'vs/platform/files/common/files';
-import { IWorkspaceContextService } from "vs/platform/workspace/common/workspace";
-import { normalize } from "path";
-import { rtrim, endsWith } from "vs/base/common/strings";
-import { sep } from "vs/base/common/paths";
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { normalize } from 'path';
+import { rtrim, endsWith } from 'vs/base/common/strings';
+import { sep } from 'vs/base/common/paths';
 
 export class FileWatcher {
+	private isDisposed: boolean;
 
 	constructor(
 		private contextService: IWorkspaceContextService,
@@ -25,7 +26,7 @@ export class FileWatcher {
 	}
 
 	public startWatching(): () => void {
-		let basePath: string = normalize(this.contextService.getWorkspace2().roots[0].fsPath);
+		let basePath: string = normalize(this.contextService.getWorkspace().folders[0].uri.fsPath);
 
 		if (basePath && basePath.indexOf('\\\\') === 0 && endsWith(basePath, sep)) {
 			// for some weird reason, node adds a trailing slash to UNC paths
@@ -38,23 +39,31 @@ export class FileWatcher {
 		const watcher = new OutOfProcessWin32FolderWatcher(
 			basePath,
 			this.ignored,
-			(events) => this.onRawFileEvents(events),
-			(error) => this.onError(error),
+			events => this.onRawFileEvents(events),
+			error => this.onError(error),
 			this.verboseLogging
 		);
 
-		return () => watcher.dispose();
+		return () => {
+			this.isDisposed = true;
+			watcher.dispose();
+		};
 	}
 
 	private onRawFileEvents(events: IRawFileChange[]): void {
+		if (this.isDisposed) {
+			return;
+		}
 
-		// Emit through broadcast service
+		// Emit through event emitter
 		if (events.length > 0) {
 			this.onFileChanges(toFileChangesEvent(events));
 		}
 	}
 
 	private onError(error: string): void {
-		this.errorLogger(error);
+		if (!this.isDisposed) {
+			this.errorLogger(error);
+		}
 	}
 }

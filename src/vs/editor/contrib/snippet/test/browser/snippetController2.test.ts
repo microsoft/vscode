@@ -231,16 +231,47 @@ suite('SnippetController2', function () {
 		model.setValue('');
 		editor.setSelection(new Selection(1, 1, 1, 1));
 
-		ctrl.insert('import ${2:${1:module}} from \'${1: module }\'$0');
+		ctrl.insert('import ${2:${1:module}} from \'${1:module}\'$0');
 
 		assertContextKeys(contextKeys, true, false, true);
-		assertSelections(editor, new Selection(1, 8, 1, 14), new Selection(1, 21, 1, 29));
+		assertSelections(editor, new Selection(1, 8, 1, 14), new Selection(1, 21, 1, 27));
 
 		ctrl.insert('foo');
 		assertSelections(editor, new Selection(1, 11, 1, 11), new Selection(1, 21, 1, 21));
 
 		ctrl.next(); // ${2:...}
 		assertSelections(editor, new Selection(1, 8, 1, 11));
+	});
+
+	test('HTML Snippets Combine, #32211', function () {
+		const ctrl = new SnippetController2(editor, contextKeys);
+
+		model.setValue('');
+		model.updateOptions({ insertSpaces: false, tabSize: 4, trimAutoWhitespace: false });
+		editor.setSelection(new Selection(1, 1, 1, 1));
+
+		ctrl.insert(`
+			<!DOCTYPE html>
+			<html lang="en">
+			<head>
+				<meta charset="UTF-8">
+				<meta name="viewport" content="width=\${2:device-width}, initial-scale=\${3:1.0}">
+				<meta http-equiv="X-UA-Compatible" content="\${5:ie=edge}">
+				<title>\${7:Document}</title>
+			</head>
+			<body>
+				\${8}
+			</body>
+			</html>
+		`);
+		ctrl.next();
+		ctrl.next();
+		ctrl.next();
+		ctrl.next();
+		assertSelections(editor, new Selection(11, 5, 11, 5));
+
+		ctrl.insert('<input type="${2:text}">');
+		assertSelections(editor, new Selection(11, 18, 11, 22));
 	});
 
 });

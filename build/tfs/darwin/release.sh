@@ -20,7 +20,7 @@ rm -rf $UNSIGNEDZIP
 	zip -r -X -y $UNSIGNEDZIP *)
 
 step "Upload unsigned archive" \
-	node build/tfs/common/publish.js --upload-only $VSCODE_QUALITY darwin archive-unsigned VSCode-darwin-$VSCODE_QUALITY-unsigned.zip $VERSION false $UNSIGNEDZIP
+	node build/tfs/common/publish.js $VSCODE_QUALITY darwin archive-unsigned VSCode-darwin-$VSCODE_QUALITY-unsigned.zip $VERSION false $UNSIGNEDZIP
 
 step "Sign build" \
 	node build/tfs/common/enqueue.js $VSCODE_QUALITY

@@ -20,13 +20,12 @@ import { EditorOptions, EditorInput } from 'vs/workbench/common/editor';
 import { IResourceInput, IEditorInput, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
-import { AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { IConstructorSignature0, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+
+export const CLOSE_ON_FOCUS_LOST_CONFIG = 'workbench.quickOpen.closeOnFocusLost';
 
 export interface IWorkbenchQuickOpenConfiguration {
 	workbench: {
-		quickOpen: {
-			closeOnFocusLost: boolean;
-		},
 		commandPalette: {
 			history: number;
 			preserveInput: boolean;
@@ -128,7 +127,7 @@ export interface QuickOpenHandlerHelpEntry {
 /**
  * A lightweight descriptor of a quick open handler.
  */
-export class QuickOpenHandlerDescriptor extends AsyncDescriptor<QuickOpenHandler> {
+export class QuickOpenHandlerDescriptor {
 	public prefix: string;
 	public description: string;
 	public contextKey: string;
@@ -137,13 +136,13 @@ export class QuickOpenHandlerDescriptor extends AsyncDescriptor<QuickOpenHandler
 	public instantProgress: boolean;
 
 	private id: string;
+	private ctor: IConstructorSignature0<QuickOpenHandler>;
 
-	constructor(moduleId: string, ctorName: string, prefix: string, contextKey: string, description: string, instantProgress?: boolean);
-	constructor(moduleId: string, ctorName: string, prefix: string, contextKey: string, helpEntries: QuickOpenHandlerHelpEntry[], instantProgress?: boolean);
-	constructor(moduleId: string, ctorName: string, prefix: string, contextKey: string, param: any, instantProgress: boolean = false) {
-		super(moduleId, ctorName);
-
-		this.id = moduleId + ctorName;
+	constructor(ctor: IConstructorSignature0<QuickOpenHandler>, id: string, prefix: string, contextKey: string, description: string, instantProgress?: boolean);
+	constructor(ctor: IConstructorSignature0<QuickOpenHandler>, id: string, prefix: string, contextKey: string, helpEntries: QuickOpenHandlerHelpEntry[], instantProgress?: boolean);
+	constructor(ctor: IConstructorSignature0<QuickOpenHandler>, id: string, prefix: string, contextKey: string, param: any, instantProgress: boolean = false) {
+		this.ctor = ctor;
+		this.id = id;
 		this.prefix = prefix;
 		this.contextKey = contextKey;
 		this.instantProgress = instantProgress;
@@ -157,6 +156,10 @@ export class QuickOpenHandlerDescriptor extends AsyncDescriptor<QuickOpenHandler
 
 	public getId(): string {
 		return this.id;
+	}
+
+	public instantiate(instantiationService: IInstantiationService): QuickOpenHandler {
+		return instantiationService.createInstance(this.ctor);
 	}
 }
 

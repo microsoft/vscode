@@ -15,7 +15,7 @@ import URI from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
-import { IEditorGroup, ConfirmResult } from 'vs/workbench/common/editor';
+import { IEditorGroup, ConfirmResult, IEditorOpeningEvent } from 'vs/workbench/common/editor';
 import Event, { Emitter } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -24,17 +24,17 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IEditorInput, IEditorOptions, Position, Direction, IEditor, IResourceInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorInput, IEditorOptions, Position, Direction, IEditor, IResourceInput } from 'vs/platform/editor/common/editor';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { IMessageService, IConfirmation } from 'vs/platform/message/common/message';
-import { ILegacyWorkspace, IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IMessageService, IConfirmation, IConfirmationResult, IChoiceService } from 'vs/platform/message/common/message';
+import { IWorkspaceContextService, IWorkspace as IWorkbenchWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { ILifecycleService, ShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { EditorStacksModel } from 'vs/workbench/common/editor/editorStacksModel';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { IEditorGroupService, GroupArrangement, GroupOrientation, ITabOptions, IMoveOptions } from 'vs/workbench/services/group/common/groupService';
+import { IEditorGroupService, GroupArrangement, GroupOrientation, IEditorTabOptions, IMoveOptions } from 'vs/workbench/services/group/common/groupService';
 import { TextFileService } from 'vs/workbench/services/textfile/common/textFileService';
-import { FileOperationEvent, IFileService, IResolveContentOptions, IFileOperationResult, IFileStat, IImportResult, FileChangesEvent, IResolveFileOptions, IContent, IUpdateContentOptions, IStreamContent } from 'vs/platform/files/common/files';
+import { FileOperationEvent, IFileService, IResolveContentOptions, FileOperationError, IFileStat, IResolveFileResult, IImportResult, FileChangesEvent, IResolveFileOptions, IContent, IUpdateContentOptions, IStreamContent, ICreateFileOptions } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
@@ -44,16 +44,21 @@ import { EnvironmentService } from 'vs/platform/environment/node/environmentServ
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult } from 'vs/platform/windows/common/windows';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { RawTextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { isLinux } from 'vs/base/common/platform';
-import { generateUuid } from "vs/base/common/uuid";
-import { TestThemeService } from "vs/platform/theme/test/common/testThemeService";
+import { generateUuid } from 'vs/base/common/uuid';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IRecentlyOpened } from 'vs/platform/history/common/history';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { IPosition } from 'vs/editor/common/core/position';
+import { ICommandAction } from 'vs/platform/actions/common/actions';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -64,41 +69,66 @@ export const TestEnvironmentService = new EnvironmentService(parseArgs(process.a
 export class TestContextService implements IWorkspaceContextService {
 	public _serviceBrand: any;
 
-	private workspace: IWorkspace;
+	private workspace: IWorkbenchWorkspace;
 	private id: string;
 	private options: any;
 
-	private _onDidChangeWorkspaceRoots: Emitter<void>;
+	private _onDidChangeWorkspaceName: Emitter<void>;
+	private _onDidChangeWorkspaceFolders: Emitter<IWorkspaceFoldersChangeEvent>;
+	private _onDidChangeWorkbenchState: Emitter<WorkbenchState>;
 
 	constructor(workspace: any = TestWorkspace, options: any = null) {
 		this.workspace = workspace;
 		this.id = generateUuid();
 		this.options = options || Object.create(null);
-		this._onDidChangeWorkspaceRoots = new Emitter<void>();
+		this._onDidChangeWorkspaceFolders = new Emitter<IWorkspaceFoldersChangeEvent>();
+		this._onDidChangeWorkbenchState = new Emitter<WorkbenchState>();
 	}
 
-	public get onDidChangeWorkspaceRoots(): Event<void> {
-		return this._onDidChangeWorkspaceRoots.event;
+	public get onDidChangeWorkspaceName(): Event<void> {
+		return this._onDidChangeWorkspaceName.event;
 	}
 
-	public getFolders(): URI[] {
-		return this.workspace ? this.workspace.roots : [];
+	public get onDidChangeWorkspaceFolders(): Event<IWorkspaceFoldersChangeEvent> {
+		return this._onDidChangeWorkspaceFolders.event;
 	}
 
-	public hasWorkspace(): boolean {
-		return !!this.workspace;
+	public get onDidChangeWorkbenchState(): Event<WorkbenchState> {
+		return this._onDidChangeWorkbenchState.event;
 	}
 
-	public getWorkspace(): ILegacyWorkspace {
-		return this.workspace ? { resource: this.workspace.roots[0] } : void 0;
+	public getFolders(): IWorkspaceFolder[] {
+		return this.workspace ? this.workspace.folders : [];
 	}
 
-	public getWorkspace2(): IWorkspace {
+	public getWorkbenchState(): WorkbenchState {
+		if (this.workspace.configuration) {
+			return WorkbenchState.WORKSPACE;
+		}
+
+		if (this.workspace.folders.length) {
+			return WorkbenchState.FOLDER;
+		}
+
+		return WorkbenchState.EMPTY;
+	}
+
+	public getWorkspace(): IWorkbenchWorkspace {
 		return this.workspace;
 	}
 
-	public getRoot(resource: URI): URI {
-		return this.isInsideWorkspace(resource) ? this.workspace.roots[0] : null;
+	public addFolders(foldersToAdd: URI[]): TPromise<void>;
+	public addFolders(foldersToAdd: { uri: URI, name?: string }[]): TPromise<void>;
+	public addFolders(foldersToAdd: any[]): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	public removeFolders(foldersToRemove: URI[]): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	public getWorkspaceFolder(resource: URI): IWorkspaceFolder {
+		return this.isInsideWorkspace(resource) ? this.workspace.folders[0] : null;
 	}
 
 	public setWorkspace(workspace: any): void {
@@ -115,27 +145,28 @@ export class TestContextService implements IWorkspaceContextService {
 
 	public isInsideWorkspace(resource: URI): boolean {
 		if (resource && this.workspace) {
-			return paths.isEqualOrParent(resource.fsPath, this.workspace.roots[0].fsPath, !isLinux /* ignorecase */);
+			return paths.isEqualOrParent(resource.fsPath, this.workspace.folders[0].uri.fsPath, !isLinux /* ignorecase */);
 		}
 
 		return false;
 	}
 
-	public toWorkspaceRelativePath(resource: URI, toOSPath?: boolean): string {
-		return makePosixAbsolute(paths.normalize(resource.fsPath.substr('c:'.length), toOSPath));
-	}
-
 	public toResource(workspaceRelativePath: string): URI {
 		return URI.file(paths.join('C:\\', workspaceRelativePath));
 	}
-}
 
-function isPosixAbsolute(path: string): boolean {
-	return path && path[0] === '/';
-}
+	public isCurrentWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): boolean {
+		return isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && this.pathEquals(this.workspace.folders[0].uri.fsPath, workspaceIdentifier);
+	}
 
-function makePosixAbsolute(path: string): string {
-	return isPosixAbsolute(paths.normalize(path)) ? path : paths.sep + path;
+	private pathEquals(path1: string, path2: string): boolean {
+		if (!isLinux) {
+			path1 = path1.toLowerCase();
+			path2 = path2.toLowerCase();
+		}
+
+		return path1 === path2;
+	}
 }
 
 export class TestTextFileService extends TextFileService {
@@ -143,7 +174,7 @@ export class TestTextFileService extends TextFileService {
 
 	private promptPath: string;
 	private confirmResult: ConfirmResult;
-	private resolveTextContentError: IFileOperationResult;
+	private resolveTextContentError: FileOperationError;
 
 	constructor(
 		@ILifecycleService lifecycleService: ILifecycleService,
@@ -170,7 +201,7 @@ export class TestTextFileService extends TextFileService {
 		this.confirmResult = result;
 	}
 
-	public setResolveTextContentErrorOnce(error: IFileOperationResult): void {
+	public setResolveTextContentErrorOnce(error: FileOperationError): void {
 		this.resolveTextContentError = error;
 	}
 
@@ -204,8 +235,8 @@ export class TestTextFileService extends TextFileService {
 		return this.confirmResult;
 	}
 
-	public onConfigurationChange(configuration: any): void {
-		super.onConfigurationChange(configuration);
+	public onFilesConfigurationChange(configuration: any): void {
+		super.onFilesConfigurationChange(configuration);
 	}
 
 	protected cleanupBackupsBeforeShutdown(): TPromise<void> {
@@ -217,7 +248,9 @@ export class TestTextFileService extends TextFileService {
 export function workbenchInstantiationService(): IInstantiationService {
 	let instantiationService = new TestInstantiationService(new ServiceCollection([ILifecycleService, new TestLifecycleService()]));
 	instantiationService.stub(IWorkspaceContextService, new TestContextService(TestWorkspace));
-	instantiationService.stub(IConfigurationService, new TestConfigurationService());
+	const configService = new TestConfigurationService();
+	instantiationService.stub(IConfigurationService, configService);
+	instantiationService.stub(ITextResourceConfigurationService, new TestTextResourceConfigurationService(configService));
 	instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
 	instantiationService.stub(IStorageService, new TestStorageService());
 	instantiationService.stub(IWorkbenchEditorService, new TestEditorService());
@@ -236,6 +269,11 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
 	instantiationService.stub(IEnvironmentService, TestEnvironmentService);
 	instantiationService.stub(IThemeService, new TestThemeService());
+	instantiationService.stub(IChoiceService, {
+		choose: (severity, message, options, cancelId): TPromise<number> => {
+			return TPromise.as(cancelId);
+		}
+	});
 
 	return instantiationService;
 }
@@ -250,13 +288,13 @@ export class TestHistoryService implements IHistoryService {
 	public reopenLastClosedEditor(): void {
 	}
 
-	public add(input: IEditorInput, options?: ITextEditorOptions): void {
-	}
-
 	public forward(acrossEditors?: boolean): void {
 	}
 
 	public back(acrossEditors?: boolean): void {
+	}
+
+	public last(): void {
 	}
 
 	public remove(input: IEditorInput | IResourceInput): void {
@@ -269,12 +307,17 @@ export class TestHistoryService implements IHistoryService {
 		return [];
 	}
 
-	public getLastActiveWorkspaceRoot(): URI {
+	public getLastActiveWorkspaceRoot(schemeFilter?: string): URI {
 		return this.root;
+	}
+
+	public getLastActiveFile(): URI {
+		return void 0;
 	}
 }
 
 export class TestMessageService implements IMessageService {
+
 	public _serviceBrand: any;
 
 	private counter: number;
@@ -297,8 +340,12 @@ export class TestMessageService implements IMessageService {
 		// No-op
 	}
 
-	public confirm(confirmation: IConfirmation): boolean {
+	public confirmSync(confirmation: IConfirmation): boolean {
 		return false;
+	}
+
+	public confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
+		return TPromise.as({ confirmed: false });
 	}
 }
 
@@ -397,15 +444,11 @@ export class TestStorageService extends EventEmitter implements IStorageService 
 		super();
 
 		let context = new TestContextService();
-		this.storage = new StorageService(new InMemoryLocalStorage(), null, context.getWorkspace2());
+		this.storage = new StorageService(new InMemoryLocalStorage(), null, context.getWorkspace().id);
 	}
 
 	store(key: string, value: any, scope: StorageScope = StorageScope.GLOBAL): void {
 		this.storage.store(key, value, scope);
-	}
-
-	swap(key: string, valueA: any, valueB: any, scope: StorageScope = StorageScope.GLOBAL, defaultValue?: any): void {
-		this.storage.swap(key, valueA, valueB, scope, defaultValue);
 	}
 
 	remove(key: string, scope: StorageScope = StorageScope.GLOBAL): void {
@@ -431,17 +474,19 @@ export class TestEditorGroupService implements IEditorGroupService {
 	private stacksModel: EditorStacksModel;
 
 	private _onEditorsChanged: Emitter<void>;
+	private _onEditorOpening: Emitter<IEditorOpeningEvent>;
 	private _onEditorOpenFail: Emitter<IEditorInput>;
 	private _onEditorsMoved: Emitter<void>;
 	private _onGroupOrientationChanged: Emitter<void>;
-	private _onTabOptionsChanged: Emitter<ITabOptions>;
+	private _onTabOptionsChanged: Emitter<IEditorTabOptions>;
 
 	constructor(callback?: (method: string) => void) {
 		this._onEditorsMoved = new Emitter<void>();
 		this._onEditorsChanged = new Emitter<void>();
+		this._onEditorOpening = new Emitter<IEditorOpeningEvent>();
 		this._onGroupOrientationChanged = new Emitter<void>();
 		this._onEditorOpenFail = new Emitter<IEditorInput>();
-		this._onTabOptionsChanged = new Emitter<ITabOptions>();
+		this._onTabOptionsChanged = new Emitter<IEditorTabOptions>();
 
 		let services = new ServiceCollection();
 
@@ -465,11 +510,15 @@ export class TestEditorGroupService implements IEditorGroupService {
 		return this._onEditorsChanged.event;
 	}
 
+	public get onEditorOpening(): Event<IEditorOpeningEvent> {
+		return this._onEditorOpening.event;
+	}
+
 	public get onEditorOpenFail(): Event<IEditorInput> {
 		return this._onEditorOpenFail.event;
 	}
 
-	public get onEditorsMoved(): Event<void> {
+	public get onEditorGroupMoved(): Event<void> {
 		return this._onEditorsMoved.event;
 	}
 
@@ -477,7 +526,7 @@ export class TestEditorGroupService implements IEditorGroupService {
 		return this._onGroupOrientationChanged.event;
 	}
 
-	public get onTabOptionsChanged(): Event<ITabOptions> {
+	public get onTabOptionsChanged(): Event<IEditorTabOptions> {
 		return this._onTabOptionsChanged.event;
 	}
 
@@ -534,8 +583,12 @@ export class TestEditorGroupService implements IEditorGroupService {
 		return this.stacksModel;
 	}
 
-	public getTabOptions(): ITabOptions {
+	public getTabOptions(): IEditorTabOptions {
 		return {};
+	}
+
+	public invokeWithinEditorContext<T>(fn: (accessor: ServicesAccessor) => T): T {
+		return fn(null);
 	}
 }
 
@@ -632,9 +685,19 @@ export class TestFileService implements IFileService {
 	private _onFileChanges: Emitter<FileChangesEvent>;
 	private _onAfterOperation: Emitter<FileOperationEvent>;
 
+	private content = 'Hello Html';
+
 	constructor() {
 		this._onFileChanges = new Emitter<FileChangesEvent>();
 		this._onAfterOperation = new Emitter<FileOperationEvent>();
+	}
+
+	public setContent(content: string): void {
+		this.content = content;
+	}
+
+	public getContent(): string {
+		return this.content;
 	}
 
 	public get onFileChanges(): Event<FileChangesEvent> {
@@ -665,8 +728,8 @@ export class TestFileService implements IFileService {
 		});
 	}
 
-	resolveFiles(toResolve: { resource: URI, options?: IResolveFileOptions }[]): TPromise<IFileStat[]> {
-		return TPromise.join(toResolve.map(resourceAndOption => this.resolveFile(resourceAndOption.resource, resourceAndOption.options)));
+	resolveFiles(toResolve: { resource: URI, options?: IResolveFileOptions }[]): TPromise<IResolveFileResult[]> {
+		return TPromise.join(toResolve.map(resourceAndOption => this.resolveFile(resourceAndOption.resource, resourceAndOption.options))).then(stats => stats.map(stat => ({ stat, success: true })));
 	}
 
 	existsFile(resource: URI): TPromise<boolean> {
@@ -676,7 +739,7 @@ export class TestFileService implements IFileService {
 	resolveContent(resource: URI, options?: IResolveContentOptions): TPromise<IContent> {
 		return TPromise.as({
 			resource: resource,
-			value: 'Hello Html',
+			value: this.content,
 			etag: 'index.txt',
 			encoding: 'utf8',
 			mtime: Date.now(),
@@ -690,7 +753,7 @@ export class TestFileService implements IFileService {
 			value: {
 				on: (event: string, callback: Function): void => {
 					if (event === 'data') {
-						callback('Hello Html');
+						callback(this.content);
 					}
 					if (event === 'end') {
 						callback();
@@ -702,10 +765,6 @@ export class TestFileService implements IFileService {
 			mtime: Date.now(),
 			name: paths.basename(resource.fsPath)
 		});
-	}
-
-	resolveContents(resources: URI[]): TPromise<IContent[]> {
-		return TPromise.as(null);
 	}
 
 	updateContent(resource: URI, value: string, options?: IUpdateContentOptions): TPromise<IFileStat> {
@@ -730,7 +789,7 @@ export class TestFileService implements IFileService {
 		return TPromise.as(null);
 	}
 
-	createFile(resource: URI, content?: string): TPromise<IFileStat> {
+	createFile(resource: URI, content?: string, options?: ICreateFileOptions): TPromise<IFileStat> {
 		return TPromise.as(null);
 	}
 
@@ -757,9 +816,7 @@ export class TestFileService implements IFileService {
 	watchFileChanges(resource: URI): void {
 	}
 
-	unwatchFileChanges(resource: URI): void;
-	unwatchFileChanges(fsPath: string): void;
-	unwatchFileChanges(arg1: any): void {
+	unwatchFileChanges(resource: URI): void {
 	}
 
 	updateOptions(options: any): void {
@@ -833,6 +890,8 @@ export class TestWindowService implements IWindowService {
 
 	public _serviceBrand: any;
 
+	onDidChangeFocus: Event<boolean>;
+
 	isFocused(): TPromise<boolean> {
 		return TPromise.as(false);
 	}
@@ -841,20 +900,20 @@ export class TestWindowService implements IWindowService {
 		return 0;
 	}
 
-	pickFileFolderAndOpen(forceNewWindow?: boolean): TPromise<void> {
+	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
-	pickFileAndOpen(forceNewWindow?: boolean, path?: string): TPromise<void> {
+	pickFileAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
-	pickFolderAndOpen(forceNewWindow?: boolean): TPromise<void> {
+	pickFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
-	pickFolder(options?: { buttonLabel: string; title: string; }): TPromise<string[]> {
-		return TPromise.as([]);
+	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
+		return TPromise.as(void 0);
 	}
 
 	reloadWindow(): TPromise<void> {
@@ -869,7 +928,15 @@ export class TestWindowService implements IWindowService {
 		return TPromise.as(void 0);
 	}
 
-	closeFolder(): TPromise<void> {
+	closeWorkspace(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	createAndEnterWorkspace(folderPaths?: string[], path?: string): TPromise<IEnterWorkspaceResult> {
+		return TPromise.as(void 0);
+	}
+
+	saveAndEnterWorkspace(path: string): TPromise<IEnterWorkspaceResult> {
 		return TPromise.as(void 0);
 	}
 
@@ -881,19 +948,15 @@ export class TestWindowService implements IWindowService {
 		return TPromise.as(void 0);
 	}
 
-	addToRecentlyOpen(paths: { path: string, isFile?: boolean }[]): TPromise<void> {
-		return TPromise.as(void 0);
-	}
-
-	removeFromRecentlyOpen(paths: string[]): TPromise<void> {
-		return TPromise.as(void 0);
-	}
-
-	getRecentlyOpen(): TPromise<{ files: string[]; folders: string[]; }> {
+	getRecentlyOpened(): TPromise<IRecentlyOpened> {
 		return TPromise.as(void 0);
 	}
 
 	focusWindow(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	closeWindow(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
@@ -914,6 +977,30 @@ export class TestWindowService implements IWindowService {
 	}
 
 	onWindowTitleDoubleClick(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	show(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	showMessageBoxSync(options: Electron.MessageBoxOptions): number {
+		return 0;
+	}
+
+	showMessageBox(options: Electron.MessageBoxOptions): Promise<IMessageBoxResult> {
+		return TPromise.as(void 0);
+	}
+
+	showSaveDialog(options: Electron.SaveDialogOptions, callback?: (fileName: string) => void): string {
+		return void 0;
+	}
+
+	showOpenDialog(options: Electron.OpenDialogOptions, callback?: (fileNames: string[]) => void): string[] {
+		return void 0;
+	}
+
+	updateTouchBar(items: ICommandAction[][]): Promise<void> {
 		return TPromise.as(void 0);
 	}
 }
@@ -959,25 +1046,26 @@ export class TestWindowsService implements IWindowsService {
 
 	onWindowOpen: Event<number>;
 	onWindowFocus: Event<number>;
+	onWindowBlur: Event<number>;
 
 	isFocused(windowId: number): TPromise<boolean> {
 		return TPromise.as(false);
 	}
 
-	pickFileFolderAndOpen(windowId: number, forceNewWindow?: boolean): TPromise<void> {
+	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
-	pickFileAndOpen(windowId: number, forceNewWindow?: boolean, path?: string): TPromise<void> {
+	pickFileAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
-	pickFolderAndOpen(windowId: number, forceNewWindow?: boolean): TPromise<void> {
+	pickFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
-	pickFolder(options?: { buttonLabel: string; title: string; }): TPromise<string[]> {
-		return TPromise.as([]);
+	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
+		return TPromise.as(void 0);
 	}
 
 	reloadWindow(windowId: number): TPromise<void> {
@@ -992,8 +1080,15 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(void 0);
 	}
 
-	// TODO@joao: rename, shouldn't this be closeWindow?
-	closeFolder(windowId: number): TPromise<void> {
+	closeWorkspace(windowId: number): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	createAndEnterWorkspace(windowId: number, folderPaths?: string[], path?: string): TPromise<IEnterWorkspaceResult> {
+		return TPromise.as(void 0);
+	}
+
+	saveAndEnterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult> {
 		return TPromise.as(void 0);
 	}
 
@@ -1005,23 +1100,27 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(void 0);
 	}
 
-	addToRecentlyOpen(paths: { path: string, isFile?: boolean }[]): TPromise<void> {
+	addRecentlyOpened(files: string[]): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
-	removeFromRecentlyOpen(paths: string[]): TPromise<void> {
+	removeFromRecentlyOpened(paths: string[]): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
-	clearRecentPathsList(): TPromise<void> {
+	clearRecentlyOpened(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
-	getRecentlyOpen(windowId: number): TPromise<{ files: string[]; folders: string[]; }> {
+	getRecentlyOpened(windowId: number): TPromise<IRecentlyOpened> {
 		return TPromise.as(void 0);
 	}
 
 	focusWindow(windowId: number): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	closeWindow(windowId: number): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
@@ -1062,7 +1161,7 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	// Global methods
-	openWindow(paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean }): TPromise<void> {
+	openWindow(paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean }): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
@@ -1074,7 +1173,7 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(void 0);
 	}
 
-	getWindows(): TPromise<{ id: number; path: string; title: string; }[]> {
+	getWindows(): TPromise<{ id: number; workspace?: IWorkspaceIdentifier; folderPath?: string; title: string; filename?: string; }[]> {
 		return TPromise.as(void 0);
 	}
 
@@ -1086,12 +1185,31 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(void 0);
 	}
 
-	// TODO@joao: what?
-	closeExtensionHostWindow(extensionDevelopmentPaths: string[]): TPromise<void> {
+	showItemInFolder(path: string): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
-	showItemInFolder(path: string): TPromise<void> {
+	showPreviousWindowTab(): Promise<void> {
+		return TPromise.as(void 0);
+	}
+
+	showNextWindowTab(): Promise<void> {
+		return TPromise.as(void 0);
+	}
+
+	moveWindowTabToNewWindow(): Promise<void> {
+		return TPromise.as(void 0);
+	}
+
+	mergeAllWindowTabs(): Promise<void> {
+		return TPromise.as(void 0);
+	}
+
+	toggleWindowTabsBar(): Promise<void> {
+		return TPromise.as(void 0);
+	}
+
+	updateTouchBar(windowId: number, items: ICommandAction[][]): Promise<void> {
 		return TPromise.as(void 0);
 	}
 
@@ -1107,3 +1225,25 @@ export class TestWindowsService implements IWindowsService {
 	}
 }
 
+export class TestTextResourceConfigurationService implements ITextResourceConfigurationService {
+
+	_serviceBrand: any;
+
+	constructor(private configurationService = new TestConfigurationService()) {
+	}
+
+	public onDidChangeConfiguration() {
+		return { dispose() { } };
+	}
+
+	public getConfiguration(resource: URI, section?: string): any;
+	public getConfiguration(resource: URI, position?: IPosition, section?: string): any;
+	public getConfiguration(resource: any, position?: any, section?: any): any;
+	public getConfiguration(resource: any, position?: any, section?: any): any {
+		return this.configurationService.getConfiguration(section, { resource });
+	}
+}
+
+export function getRandomTestPath(tmpdir: string, ...segments: string[]): string {
+	return paths.join(tmpdir, ...segments, generateUuid());
+}

@@ -8,6 +8,7 @@
 	"lineHighlightBorderBox": "A kurzor pozícióján található sor keretszíne.",
 	"rangeHighlight": "A kiemelt területek háttérszíne, pl. a gyors megnyitás és keresés funkcióknál.",
 	"caret": "A szerkesztőablak kurzorának színe.",
+	"editorCursorBackground": "A szerkesztőablak kurzorának háttérszíne. Lehetővé teszik az olyan karakterek színének módosítását, amelyek fölött egy blokk-típusú kurzor áll.",
 	"editorWhitespaces": "A szerkesztőablakban található szóköz karakterek színe.",
 	"editorIndentGuides": "A szerkesztőablak segédvonalainak színe.",
 	"editorLineNumbers": "A szerkesztőablak sorszámainak színe.",
@@ -20,5 +21,11 @@
 	"errorForeground": "A hibákat jelző hullámvonal előtérszíne a szerkesztőablakban.",
 	"errorBorder": "A hibákat jelző hullámvonal keretszíne a szerkesztőablakban.",
 	"warningForeground": "A figyelmeztetéseket jelző hullámvonal előtérszíne a szerkesztőablakban.",
-	"warningBorder": "A figyelmeztetéseket jelző hullámvonal keretszíne a szerkesztőablakban."
+	"warningBorder": "A figyelmeztetéseket jelző hullámvonal keretszíne a szerkesztőablakban.",
+	"infoForeground": "Az információkat jelző hullámvonal előtérszíne a szerkesztőablakban.",
+	"infoBorder": "Az információkat jelző hullámvonal keretszíne a szerkesztőablakban. ",
+	"overviewRulerRangeHighlight": "A kiemelt tartományokat jelölő jelzések színe az áttekintősávon.",
+	"overviewRuleError": "A hibákat jelölő jelzések színe az áttekintősávon.",
+	"overviewRuleWarning": "A figyelmeztetéseket jelölő jelzések színe az áttekintősávon.",
+	"overviewRuleInfo": "Az információkat jelölő jelzések színe az áttekintősávon."
 }

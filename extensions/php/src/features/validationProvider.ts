@@ -121,6 +121,10 @@ export default class PHPValidationProvider {
 	public dispose(): void {
 		this.diagnosticCollection.clear();
 		this.diagnosticCollection.dispose();
+		if (this.documentListener) {
+			this.documentListener.dispose();
+			this.documentListener = null;
+		}
 	}
 
 	private loadConfiguration(): void {
@@ -150,6 +154,7 @@ export default class PHPValidationProvider {
 		}
 		if (this.documentListener) {
 			this.documentListener.dispose();
+			this.documentListener = null;
 		}
 		this.diagnosticCollection.clear();
 		if (this.validationEnabled) {

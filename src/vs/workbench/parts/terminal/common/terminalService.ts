@@ -43,7 +43,7 @@ export abstract class TerminalService implements ITerminalService {
 
 	constructor(
 		@IContextKeyService private _contextKeyService: IContextKeyService,
-		@IConfigurationService private _configurationService: IConfigurationService,
+		@IConfigurationService protected _configurationService: IConfigurationService,
 		@IPanelService protected _panelService: IPanelService,
 		@IPartService private _partService: IPartService,
 		@ILifecycleService lifecycleService: ILifecycleService
@@ -59,7 +59,11 @@ export abstract class TerminalService implements ITerminalService {
 		this._onInstanceTitleChanged = new Emitter<string>();
 		this._onInstancesChanged = new Emitter<string>();
 
-		this._configurationService.onDidUpdateConfiguration(() => this.updateConfig());
+		this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('terminal.integrated')) {
+				this.updateConfig();
+			}
+		});
 		lifecycleService.onWillShutdown(event => event.veto(this._onWillShutdown()));
 		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this._contextKeyService);
 		this._findWidgetVisible = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE.bindTo(this._contextKeyService);
@@ -134,6 +138,10 @@ export abstract class TerminalService implements ITerminalService {
 		return this.terminalInstances[this._getIndexFromId(terminalId)];
 	}
 
+	public getInstanceFromIndex(terminalIndex: number): ITerminalInstance {
+		return this.terminalInstances[terminalIndex];
+	}
+
 	public setActiveInstance(terminalInstance: ITerminalInstance): void {
 		this.setActiveInstanceByIndex(this._getIndexFromId(terminalInstance.id));
 	}
@@ -204,6 +212,8 @@ export abstract class TerminalService implements ITerminalService {
 
 	public abstract focusFindWidget(): TPromise<void>;
 	public abstract hideFindWidget(): void;
+	public abstract showNextFindTermFindWidget(): void;
+	public abstract showPreviousFindTermFindWidget(): void;
 
 	private _getIndexFromId(terminalId: number): number {
 		let terminalIndex = -1;

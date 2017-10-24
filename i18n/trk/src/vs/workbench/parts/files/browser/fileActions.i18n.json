@@ -37,17 +37,14 @@
 	"openToSide": "Yana Aç",
 	"compareSource": "Karşılaştırma İçin Seç",
 	"globalCompareFile": "Aktif Dosyayı Karşılaştır...",
-	"pickHistory": "Karşılaştırmak için daha önce açılan bir dosyayı seçin",
-	"unableToFileToCompare": "Seçtiğiniz dosya, '{0}' ile karşılaştırılamaz.",
 	"openFileToCompare": "Bir başka dosya ile karşılaştırmak için ilk olarak bir dosya açın.",
-	"compareWith": "'{0}' ile karşılaştır",
+	"compareWith": "'{0}' dosyasını '{1}' ile karşılaştır",
 	"compareFiles": "Dosyaları Karşılaştır",
 	"refresh": "Yenile",
 	"save": "Kaydet",
 	"saveAs": "Farklı Kaydet...",
 	"saveAll": "Tümünü Kaydet",
 	"saveAllInGroup": "Gruptaki Tümünü Kadet",
-	"saveFiles": "Kaydedilmemiş Değişiklikler İçeren Dosyaları Kaydet",
 	"revert": "Dosyayı Geri Döndür",
 	"focusOpenEditors": "Açık Düzenleyiciler Görünümüne Odakla",
 	"focusFilesExplorer": "Dosya Gezginine Odakla",
@@ -69,5 +66,7 @@
 	"emptyFileNameError": "Bir dosya veya klasör adı sağlanması gerekiyor.",
 	"fileNameExistsError": "Bu konumda bir **{0}** dosyası veya klasörü zaten mevcut. Lütfen başka bir ad seçin.",
 	"invalidFileNameError": "**{0}** adı, bir dosya veya klasör adı olarak geçerli değildir. Lütfen başka bir ad seçin.",
-	"filePathTooLongError": "**{0}** adı çok uzun bir yol ile sonuçlanıyor. Lütfen daha kısa bir ad seçin."
+	"filePathTooLongError": "**{0}** adı çok uzun bir yol ile sonuçlanıyor. Lütfen daha kısa bir ad seçin.",
+	"compareWithSaved": "Aktif Dosyayı Kaydedilenle Karşılaştır",
+	"modifiedLabel": "{0} (diskte) ↔ {1}"
 }

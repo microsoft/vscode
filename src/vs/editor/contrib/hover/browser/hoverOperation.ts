@@ -99,7 +99,7 @@ export class HoverOperation<Result> {
 			this._asyncComputationPromise = this._computer.computeAsync().then((asyncResult: Result) => {
 				this._asyncComputationPromiseDone = true;
 				this._withAsyncResult(asyncResult);
-			}, () => this._onError);
+			}, (e) => this._onError(e));
 		} else {
 			this._asyncComputationPromiseDone = true;
 		}

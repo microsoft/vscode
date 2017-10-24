@@ -9,8 +9,8 @@ import * as path from 'path';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as uuid from 'vs/base/common/uuid';
 import { distinct } from 'vs/base/common/arrays';
-import { getErrorMessage } from 'vs/base/common/errors';
-import { IGalleryExtension, IExtensionGalleryService, IGalleryExtensionAsset, IQueryOptions, SortBy, SortOrder, IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
+import { StatisticType, IGalleryExtension, IExtensionGalleryService, IGalleryExtensionAsset, IQueryOptions, SortBy, SortOrder, IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId, getGalleryExtensionTelemetryData, adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { assign, getOrDefault } from 'vs/base/common/objects';
 import { IRequestService } from 'vs/platform/request/node/request';
@@ -21,7 +21,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
 import { isVersionValid } from 'vs/platform/extensions/node/extensionValidator';
-import { getCommonHTTPHeaders } from 'vs/platform/environment/node/http';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 interface IRawGalleryExtensionFile {
 	assetType: string;
@@ -185,6 +185,11 @@ class Query {
 		const filters = [{ criteria, pageNumber, pageSize, sortBy, sortOrder }];
 		return { filters, assetTypes, flags };
 	}
+
+	get searchText(): string {
+		const criterium = this.state.criteria.filter(criterium => criterium.filterType === FilterType.SearchText)[0];
+		return criterium ? criterium.value : '';
+	}
 }
 
 function getStatistic(statistics: IRawGalleryExtensionStatistics[], name: string): number {
@@ -228,7 +233,7 @@ function getEngine(version: IRawGalleryExtensionVersion): string {
 	return (values.length > 0 && values[0].value) || '';
 }
 
-function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUrl: string): IGalleryExtension {
+function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUrl: string, index: number, query: Query, querySource?: string): IGalleryExtension {
 	const [version] = galleryExtension.versions;
 	const assets = {
 		manifest: getVersionAsset(version, AssetType.Manifest),
@@ -257,6 +262,18 @@ function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUr
 		properties: {
 			dependencies: getDependencies(version),
 			engine: getEngine(version)
+		},
+		/* __GDPR__FRAGMENT__
+			"GalleryExtensionTelemetryData2" : {
+				"index" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"searchText": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"querySource": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+		telemetryData: {
+			index: ((query.pageNumber - 1) * query.pageSize) + index,
+			searchText: query.searchText,
+			querySource
 		}
 	};
 }
@@ -267,16 +284,21 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 
 	private extensionsGalleryUrl: string;
 
-	private readonly commonHTTPHeaders: TPromise<{ [key: string]: string; }>;
+	private readonly commonHTTPHeaders: { [key: string]: string; };
 
 	constructor(
 		@IRequestService private requestService: IRequestService,
+		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		const config = product.extensionsGallery;
 		this.extensionsGalleryUrl = config && config.serviceUrl;
-		this.commonHTTPHeaders = getCommonHTTPHeaders();
+		this.commonHTTPHeaders = {
+			'X-Market-Client-Id': `VSCode ${pkg.version}`,
+			'User-Agent': `VSCode ${pkg.version}`,
+			'X-Market-User-Id': this.environmentService.machineUUID
+		};
 	}
 
 	private api(path = ''): string {
@@ -285,10 +307,6 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 
 	isEnabled(): boolean {
 		return !!this.extensionsGalleryUrl;
-	}
-
-	getRequestHeaders(): TPromise<{ [key: string]: string; }> {
-		return this.commonHTTPHeaders;
 	}
 
 	query(options: IQueryOptions = {}): TPromise<IPager<IGalleryExtension>> {
@@ -300,6 +318,12 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		let text = options.text || '';
 		const pageSize = getOrDefault(options, o => o.pageSize, 50);
 
+		/* __GDPR__
+			"galleryService:query" : {
+				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"text": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		this.telemetryService.publicLog('galleryService:query', { type, text });
 
 		let query = new Query()
@@ -325,6 +349,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			text = text.trim();
 
 			if (text) {
+				text = text.length < 200 ? text : text.substring(0, 200);
 				query = query.withFilter(FilterType.SearchText, text);
 			}
 
@@ -345,13 +370,14 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			query = query.withSortOrder(options.sortOrder);
 		}
 
-		console.log(query.raw);
-
 		return this.queryGallery(query).then(({ galleryExtensions, total }) => {
-			const extensions = galleryExtensions.map(e => toExtension(e, this.extensionsGalleryUrl));
+			const extensions = galleryExtensions.map((e, index) => toExtension(e, this.extensionsGalleryUrl, index, query, options.source));
 			const pageSize = query.pageSize;
-			const getPage = pageIndex => this.queryGallery(query.withPage(pageIndex + 1))
-				.then(({ galleryExtensions }) => galleryExtensions.map(e => toExtension(e, this.extensionsGalleryUrl)));
+			const getPage = (pageIndex: number) => {
+				const nextPageQuery = query.withPage(pageIndex + 1);
+				return this.queryGallery(nextPageQuery)
+					.then(({ galleryExtensions }) => galleryExtensions.map((e, index) => toExtension(e, this.extensionsGalleryUrl, index, nextPageQuery, options.source)));
+			};
 
 			return { firstPage: extensions, total, pageSize, getPage };
 		});
@@ -387,12 +413,41 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		return { galleryExtensions, total };
 	}
 
+	async reportStatistic(publisher: string, name: string, version: string, type: StatisticType): TPromise<void> {
+		if (!this.isEnabled()) {
+			return;
+		}
+
+		try {
+			const headers = {
+				...await this.commonHTTPHeaders,
+				Accept: '*/*;api-version=4.0-preview.1'
+			};
+
+			await this.requestService.request({
+				type: 'POST',
+				url: this.api(`/publishers/${publisher}/extensions/${name}/${version}/stats?statType=${type}`),
+				headers
+			});
+		} catch (err) {
+			// noop
+		}
+	}
+
 	download(extension: IGalleryExtension): TPromise<string> {
 		return this.loadCompatibleVersion(extension).then(extension => {
 			const zipPath = path.join(tmpdir(), uuid.generateUuid());
 			const data = getGalleryExtensionTelemetryData(extension);
 			const startTime = new Date().getTime();
-			const log = duration => this.telemetryService.publicLog('galleryService:downloadVSIX', assign(data, { duration }));
+			/* __GDPR__
+				"galleryService:downloadVSIX" : {
+					"duration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+					"${include}": [
+						"${GalleryExtensionTelemetryData}"
+					]
+				}
+			*/
+			const log = (duration: number) => this.telemetryService.publicLog('galleryService:downloadVSIX', assign(data, { duration }));
 
 			return this.getAsset(extension.assets.download)
 				.then(context => download(zipPath, context))
@@ -470,9 +525,10 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			const dependencies = [];
 			const ids = [];
 
-			for (const rawExtension of result.galleryExtensions) {
+			for (let index = 0; index < result.galleryExtensions.length; index++) {
+				const rawExtension = result.galleryExtensions[index];
 				if (ids.indexOf(rawExtension.extensionId) === -1) {
-					dependencies.push(toExtension(rawExtension, this.extensionsGalleryUrl));
+					dependencies.push(toExtension(rawExtension, this.extensionsGalleryUrl, index, query, 'dependencies'));
 					ids.push(rawExtension.extensionId);
 				}
 			}
@@ -509,26 +565,62 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 
 	private getAsset(asset: IGalleryExtensionAsset, options: IRequestOptions = {}): TPromise<IRequestContext> {
 		const baseOptions = { type: 'GET' };
+		const headers = assign({}, this.commonHTTPHeaders, options.headers || {});
+		options = assign({}, options, baseOptions, { headers });
 
-		return this.commonHTTPHeaders.then(headers => {
-			headers = assign({}, headers, options.headers || {});
-			options = assign({}, options, baseOptions, { headers });
+		const url = asset.uri;
+		const fallbackUrl = asset.fallbackUri;
+		const firstOptions = assign({}, options, { url });
 
-			const firstOptions = assign({}, options, { url: asset.uri });
+		return this.requestService.request(firstOptions)
+			.then(context => {
+				if (context.res.statusCode === 200) {
+					return TPromise.as(context);
+				}
 
-			return this.requestService.request(firstOptions)
-				.then(context => context.res.statusCode === 200 ? context : TPromise.wrapError('expected 200'))
-				.then(null, err => {
-					this.telemetryService.publicLog('galleryService:requestError', { cdn: true, message: getErrorMessage(err) });
-					this.telemetryService.publicLog('galleryService:cdnFallback', { url: asset.uri });
+				return asText(context)
+					.then(message => TPromise.wrapError<IRequestContext>(new Error(`Expected 200, got back ${context.res.statusCode} instead.\n\n${message}`)));
+			})
+			.then(null, err => {
+				if (isPromiseCanceledError(err)) {
+					return TPromise.wrapError<IRequestContext>(err);
+				}
 
-					const fallbackOptions = assign({}, options, { url: asset.fallbackUri });
-					return this.requestService.request(fallbackOptions).then(null, err => {
-						this.telemetryService.publicLog('galleryService:requestError', { cdn: false, message: getErrorMessage(err) });
+				const message = getErrorMessage(err);
+				/* __GDPR__
+					"galleryService:requestError" : {
+						"url" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"cdn": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"message": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
+				this.telemetryService.publicLog('galleryService:requestError', { url, cdn: true, message });
+				/* __GDPR__
+					"galleryService:cdnFallback" : {
+						"url" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"message": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
+				this.telemetryService.publicLog('galleryService:cdnFallback', { url, message });
+
+				const fallbackOptions = assign({}, options, { url: fallbackUrl });
+				return this.requestService.request(fallbackOptions).then(null, err => {
+					if (isPromiseCanceledError(err)) {
 						return TPromise.wrapError<IRequestContext>(err);
-					});
+					}
+
+					const message = getErrorMessage(err);
+					/* __GDPR__
+						"galleryService:requestError" : {
+							"url" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							"cdn": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							"message": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						}
+					*/
+					this.telemetryService.publicLog('galleryService:requestError', { url: fallbackUrl, cdn: false, message });
+					return TPromise.wrapError<IRequestContext>(err);
 				});
-		});
+			});
 	}
 
 	private getLastValidExtensionVersion(extension: IRawGalleryExtension, versions: IRawGalleryExtensionVersion[]): TPromise<IRawGalleryExtensionVersion> {

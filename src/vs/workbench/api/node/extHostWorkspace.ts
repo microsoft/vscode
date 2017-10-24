@@ -7,30 +7,61 @@
 import URI from 'vs/base/common/uri';
 import Event, { Emitter } from 'vs/base/common/event';
 import { normalize } from 'vs/base/common/paths';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { relative } from 'path';
-import { Workspace } from 'vs/platform/workspace/common/workspace';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { fromRange, EndOfLine } from 'vs/workbench/api/node/extHostTypeConverters';
-import { IWorkspaceData, ExtHostWorkspaceShape, MainContext, MainThreadWorkspaceShape } from './extHost.protocol';
+import { delta } from 'vs/base/common/arrays';
+import { relative, dirname } from 'path';
+import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceData, ExtHostWorkspaceShape, MainContext, MainThreadWorkspaceShape, IMainContext } from './extHost.protocol';
 import * as vscode from 'vscode';
+import { compare } from 'vs/base/common/strings';
+import { TernarySearchTree } from 'vs/base/common/map';
+import { IRelativePattern } from 'vs/base/common/glob';
 
-export class ExtHostWorkspace extends ExtHostWorkspaceShape {
+class Workspace2 extends Workspace {
+
+	static fromData(data: IWorkspaceData) {
+		return data ? new Workspace2(data) : null;
+	}
+
+	private readonly _workspaceFolders: vscode.WorkspaceFolder[] = [];
+	private readonly _structure = TernarySearchTree.forPaths<vscode.WorkspaceFolder>();
+
+	private constructor(data: IWorkspaceData) {
+		super(data.id, data.name, data.folders.map(folder => new WorkspaceFolder(folder)));
+
+		// setup the workspace folder data structure
+		this.folders.forEach(({ name, uri, index }) => {
+			const workspaceFolder = { name, uri, index };
+			this._workspaceFolders.push(workspaceFolder);
+			this._structure.set(workspaceFolder.uri.toString(), workspaceFolder);
+		});
+	}
+
+	get workspaceFolders(): vscode.WorkspaceFolder[] {
+		return this._workspaceFolders.slice(0);
+	}
+
+	getWorkspaceFolder(uri: URI, resolveParent?: boolean): vscode.WorkspaceFolder {
+		if (resolveParent && this._structure.get(uri.toString())) {
+			// `uri` is a workspace folder so we check for its parent
+			uri = uri.with({ path: dirname(uri.path) });
+		}
+		return this._structure.findSubstr(uri.toString());
+	}
+}
+
+export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 
 	private static _requestIdPool = 0;
 
-	private readonly _onDidChangeWorkspace = new Emitter<URI[]>();
+	private readonly _onDidChangeWorkspace = new Emitter<vscode.WorkspaceFoldersChangeEvent>();
 	private readonly _proxy: MainThreadWorkspaceShape;
-	private _workspace: Workspace;
+	private _workspace: Workspace2;
 
-	readonly onDidChangeWorkspace: Event<URI[]> = this._onDidChangeWorkspace.event;
+	readonly onDidChangeWorkspace: Event<vscode.WorkspaceFoldersChangeEvent> = this._onDidChangeWorkspace.event;
 
-	constructor(threadService: IThreadService, data: IWorkspaceData) {
-		super();
-		this._proxy = threadService.get(MainContext.MainThreadWorkspace);
-		this._workspace = data ? new Workspace(data.id, data.name, data.roots) : null;
+	constructor(mainContext: IMainContext, data: IWorkspaceData) {
+		this._proxy = mainContext.get(MainContext.MainThreadWorkspace);
+		this._workspace = Workspace2.fromData(data);
 	}
 
 	// --- workspace ---
@@ -39,12 +70,19 @@ export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 		return this._workspace;
 	}
 
-	getRoots(): URI[] {
+	getWorkspaceFolders(): vscode.WorkspaceFolder[] {
 		if (!this._workspace) {
 			return undefined;
 		} else {
-			return this._workspace.roots.slice(0);
+			return this._workspace.workspaceFolders.slice(0);
 		}
+	}
+
+	getWorkspaceFolder(uri: vscode.Uri, resolveParent?: boolean): vscode.WorkspaceFolder {
+		if (!this._workspace) {
+			return undefined;
+		}
+		return this._workspace.getWorkspaceFolder(uri, resolveParent);
 	}
 
 	getPath(): string {
@@ -54,19 +92,14 @@ export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 		if (!this._workspace) {
 			return undefined;
 		}
-		const { roots } = this._workspace;
-		if (roots.length === 0) {
+		const { folders } = this._workspace;
+		if (folders.length === 0) {
 			return undefined;
 		}
-		// if (roots.length === 1) {
-		return roots[0].fsPath;
-		// }
-		// return `undefined` when there no or more than 1
-		// root folder.
-		// return undefined;
+		return folders[0].uri.fsPath;
 	}
 
-	getRelativePath(pathOrUri: string | vscode.Uri): string {
+	getRelativePath(pathOrUri: string | vscode.Uri, includeWorkspace?: boolean): string {
 
 		let path: string;
 		if (typeof pathOrUri === 'string') {
@@ -79,29 +112,50 @@ export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 			return path;
 		}
 
-		if (!this._workspace || isFalsyOrEmpty(this._workspace.roots)) {
-			return normalize(path);
+		const folder = this.getWorkspaceFolder(
+			typeof pathOrUri === 'string' ? URI.file(pathOrUri) : pathOrUri,
+			true
+		);
+
+		if (!folder) {
+			return path;
 		}
 
-		for (const { fsPath } of this._workspace.roots) {
-			let result = relative(fsPath, path);
-			if (!result || result.indexOf('..') === 0) {
-				continue;
-			}
-			return normalize(result);
+		if (typeof includeWorkspace === 'undefined') {
+			includeWorkspace = this.workspace.folders.length > 1;
 		}
 
-		return normalize(path);
+		let result = relative(folder.uri.fsPath, path);
+		if (includeWorkspace) {
+			result = `${folder.name}/${result}`;
+		}
+		return normalize(result, true);
 	}
 
 	$acceptWorkspaceData(data: IWorkspaceData): void {
-		this._workspace = data ? new Workspace(data.id, data.name, data.roots) : null;
-		this._onDidChangeWorkspace.fire(this.getRoots());
+
+		// keep old workspace folder, build new workspace, and
+		// capture new workspace folders. Compute delta between
+		// them send that as event
+		const oldRoots = this._workspace ? this._workspace.workspaceFolders.sort(ExtHostWorkspace._compareWorkspaceFolder) : [];
+
+		this._workspace = Workspace2.fromData(data);
+		const newRoots = this._workspace ? this._workspace.workspaceFolders.sort(ExtHostWorkspace._compareWorkspaceFolder) : [];
+
+		const { added, removed } = delta(oldRoots, newRoots, ExtHostWorkspace._compareWorkspaceFolder);
+		this._onDidChangeWorkspace.fire(Object.freeze({
+			added: Object.freeze<vscode.WorkspaceFolder[]>(added),
+			removed: Object.freeze<vscode.WorkspaceFolder[]>(removed)
+		}));
+	}
+
+	private static _compareWorkspaceFolder(a: vscode.WorkspaceFolder, b: vscode.WorkspaceFolder): number {
+		return compare(a.uri.toString(), b.uri.toString());
 	}
 
 	// --- search ---
 
-	findFiles(include: string, exclude: string, maxResults?: number, token?: vscode.CancellationToken): Thenable<vscode.Uri[]> {
+	findFiles(include: string | IRelativePattern, exclude: string | IRelativePattern, maxResults?: number, token?: vscode.CancellationToken): Thenable<vscode.Uri[]> {
 		const requestId = ExtHostWorkspace._requestIdPool++;
 		const result = this._proxy.$startSearch(include, exclude, maxResults, requestId);
 		if (token) {
@@ -112,26 +166,5 @@ export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 
 	saveAll(includeUntitled?: boolean): Thenable<boolean> {
 		return this._proxy.$saveAll(includeUntitled);
-	}
-
-	appyEdit(edit: vscode.WorkspaceEdit): TPromise<boolean> {
-
-		let resourceEdits: IResourceEdit[] = [];
-
-		let entries = edit.entries();
-		for (let entry of entries) {
-			let [uri, edits] = entry;
-
-			for (let edit of edits) {
-				resourceEdits.push({
-					resource: <URI>uri,
-					newText: edit.newText,
-					newEol: EndOfLine.from(edit.newEol),
-					range: edit.range && fromRange(edit.range)
-				});
-			}
-		}
-
-		return this._proxy.$applyWorkspaceEdit(resourceEdits);
 	}
 }

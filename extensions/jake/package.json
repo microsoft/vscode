@@ -7,7 +7,6 @@
   "engines": {
     "vscode": "*"
   },
-  "enableProposedApi": true,
   "categories": [
     "Other"
   ],
@@ -19,7 +18,7 @@
     "vscode-nls": "^2.0.2"
   },
   "devDependencies": {
-    "@types/node": "^7.0.18"
+    "@types/node": "7.0.43"
   },
   "main": "./out/main",
   "activationEvents": [
@@ -32,6 +31,7 @@
       "title": "Jake",
       "properties": {
         "jake.autoDetect": {
+          "scope": "resource",
           "type": "string",
           "enum": [
             "off",
@@ -42,7 +42,7 @@
         }
       }
     },
-    "taskTypes": [
+    "taskDefinitions": [
       {
         "type": "jake",
         "required": ["task"],

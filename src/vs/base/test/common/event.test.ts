@@ -179,6 +179,29 @@ suite('Event', function () {
 		}
 	});
 
+	test('reusing event function and context', function () {
+		let counter = 0;
+		function listener() {
+			counter += 1;
+		}
+		const context = {};
+
+		let emitter = new Emitter();
+		let reg1 = emitter.event(listener, context);
+		let reg2 = emitter.event(listener, context);
+
+		emitter.fire();
+		assert.equal(counter, 2);
+
+		reg1.dispose();
+		emitter.fire();
+		assert.equal(counter, 3);
+
+		reg2.dispose();
+		emitter.fire();
+		assert.equal(counter, 3);
+	});
+
 	test('Debounce Event', function (done: () => void) {
 		let doc = new Samples.Document3();
 
@@ -208,6 +231,42 @@ suite('Event', function () {
 		doc.setText('1');
 		doc.setText('2');
 		doc.setText('3');
+	});
+
+	test('Debounce Event - leading', function (done: () => void) {
+		const emitter = new Emitter<void>();
+		let debounced = debounceEvent(emitter.event, (l, e) => e, 0, /*leading=*/true);
+
+		let calls = 0;
+		debounced(() => {
+			calls++;
+		});
+
+		// If the source event is fired once, the debounced (on the leading edge) event should be fired only once
+		emitter.fire();
+		setTimeout(() => {
+			assert.equal(calls, 1);
+			done();
+		});
+	});
+
+	test('Debounce Event - leading', function (done: () => void) {
+		const emitter = new Emitter<void>();
+		let debounced = debounceEvent(emitter.event, (l, e) => e, 0, /*leading=*/true);
+
+		let calls = 0;
+		debounced(() => {
+			calls++;
+		});
+
+		// If the source event is fired multiple times, the debounced (on the leading edge) event should be fired twice
+		emitter.fire();
+		emitter.fire();
+		emitter.fire();
+		setTimeout(() => {
+			assert.equal(calls, 2);
+			done();
+		});
 	});
 });
 
@@ -302,34 +361,16 @@ suite('Event utils', () => {
 			});
 		});
 
-		test('should emit when done - setTimeout', () => {
+		test('should emit when done - setTimeout', async () => {
 			let count = 0;
 
-			const event = fromPromise(TPromise.timeout(5));
+			const promise = TPromise.timeout(5);
+			const event = fromPromise(promise);
 			event(() => count++);
 
 			assert.equal(count, 0);
-
-			return TPromise.timeout(10).then(() => {
-				assert.equal(count, 1);
-			});
-		});
-
-		test('should emit when done - setTimeout (#2)', () => {
-			let count = 0;
-
-			const event = fromPromise(TPromise.timeout(30));
-			event(() => count++);
-
-			assert.equal(count, 0);
-
-			return TPromise.timeout(0).then(() => {
-				assert.equal(count, 0);
-
-				return TPromise.timeout(35).then(() => {
-					assert.equal(count, 1);
-				});
-			});
+			await promise;
+			assert.equal(count, 1);
 		});
 	});
 

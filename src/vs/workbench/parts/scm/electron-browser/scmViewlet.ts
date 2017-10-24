@@ -8,23 +8,21 @@
 import 'vs/css!./media/scmViewlet';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { chain } from 'vs/base/common/event';
+import Event, { Emitter, chain, mapEvent } from 'vs/base/common/event';
+import { domEvent, stop } from 'vs/base/browser/event';
+import { basename } from 'vs/base/common/paths';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import * as platform from 'vs/base/common/platform';
-import { domEvent } from 'vs/base/browser/event';
-import { IDisposable, dispose, empty as EmptyDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, combinedDisposable, empty as EmptyDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Builder, Dimension } from 'vs/base/browser/builder';
-import { Viewlet } from 'vs/workbench/browser/viewlet';
-import { append, $, toggleClass } from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { PanelViewlet, ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
+import { append, $, addClass, toggleClass, trackFocus } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
-import { IDelegate, IRenderer, IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
+import { IDelegate, IRenderer, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
 import { VIEWLET_ID } from 'vs/workbench/parts/scm/common/scm';
 import { FileLabel } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { ISCMService, ISCMProvider, ISCMResourceGroup, ISCMResource } from 'vs/workbench/services/scm/common/scm';
+import { ISCMService, ISCMRepository, ISCMResourceGroup, ISCMResource } from 'vs/workbench/services/scm/common/scm';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -34,18 +32,27 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { IMenuService, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { IAction, IActionItem, ActionRunner } from 'vs/base/common/actions';
-import { MenuItemActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
+import { MenuItemAction, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IAction, Action, IActionItem, ActionRunner } from 'vs/base/common/actions';
+import { MenuItemActionItem, fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { SCMMenus } from './scmMenus';
-import { ActionBar, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar, IActionItemProvider, Separator, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
-import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { comparePaths } from 'vs/base/common/comparers';
 import { isSCMResource } from './scmUtil';
-import { attachInputBoxStyler, attachListStyler, attachBadgeStyler } from 'vs/platform/theme/common/styler';
+import { attachListStyler, attachBadgeStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import Severity from 'vs/base/common/severity';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { IExtensionsViewlet, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/parts/extensions/common/extensions';
+import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import * as platform from 'vs/base/common/platform';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { Command } from 'vs/editor/common/modes';
+import { render as renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 
 // TODO@Joao
 // Need to subclass MenuItemActionItem in order to respect
@@ -62,20 +69,268 @@ class SCMMenuItemActionItem extends MenuItemActionItem {
 	}
 }
 
-function identityProvider(r: ISCMResourceGroup | ISCMResource): string {
-	if (isSCMResource(r)) {
-		const group = r.resourceGroup;
-		const provider = group.provider;
-		return `${provider.id}/${group.id}/${r.sourceUri.toString()}`;
-	} else {
-		const provider = r.provider;
-		return `${provider.id}/${r.id}`;
+export interface ISpliceEvent<T> {
+	index: number;
+	deleteCount: number;
+	elements: T[];
+}
+
+export interface IViewModel {
+	readonly repositories: ISCMRepository[];
+	readonly selectedRepositories: ISCMRepository[];
+	readonly onDidSplice: Event<ISpliceEvent<ISCMRepository>>;
+	hide(repository: ISCMRepository): void;
+}
+
+class ProvidersListDelegate implements IDelegate<ISCMRepository> {
+
+	getHeight(element: ISCMRepository): number {
+		return 22;
+	}
+
+	getTemplateId(element: ISCMRepository): string {
+		return 'provider';
 	}
 }
 
-interface SearchInputEvent extends Event {
-	target: HTMLInputElement;
-	immediate?: boolean;
+class StatusBarAction extends Action {
+
+	constructor(
+		private command: Command,
+		private commandService: ICommandService
+	) {
+		super(`statusbaraction{${command.id}}`, command.title, '', true);
+		this.tooltip = command.tooltip;
+	}
+
+	run(): TPromise<void> {
+		return this.commandService.executeCommand(this.command.id, ...this.command.arguments);
+	}
+}
+
+class StatusBarActionItem extends ActionItem {
+
+	constructor(action: StatusBarAction) {
+		super(null, action, {});
+	}
+
+	_updateLabel(): void {
+		if (this.options.label) {
+			this.$e.innerHtml(renderOcticons(this.getAction().label));
+		}
+	}
+}
+
+interface RepositoryTemplateData {
+	title: HTMLElement;
+	type: HTMLElement;
+	countContainer: HTMLElement;
+	count: CountBadge;
+	actionBar: ActionBar;
+	disposable: IDisposable;
+	templateDisposable: IDisposable;
+}
+
+class ProviderRenderer implements IRenderer<ISCMRepository, RepositoryTemplateData> {
+
+	readonly templateId = 'provider';
+
+	constructor(
+		@ICommandService protected commandService: ICommandService,
+		@IThemeService protected themeService: IThemeService
+	) { }
+
+	renderTemplate(container: HTMLElement): RepositoryTemplateData {
+		const provider = append(container, $('.scm-provider'));
+		const name = append(provider, $('.name'));
+		const title = append(name, $('span.title'));
+		const type = append(name, $('span.type'));
+		const countContainer = append(provider, $('.count'));
+
+		append(provider, $('.spacer'));
+
+		const count = new CountBadge(countContainer);
+		const badgeStyler = attachBadgeStyler(count, this.themeService);
+		const actionBar = new ActionBar(provider, { actionItemProvider: a => new StatusBarActionItem(a as StatusBarAction) });
+		const disposable = EmptyDisposable;
+		const templateDisposable = combinedDisposable([actionBar, badgeStyler]);
+
+		return { title, type, countContainer, count, actionBar, disposable, templateDisposable };
+	}
+
+	renderElement(repository: ISCMRepository, index: number, templateData: RepositoryTemplateData): void {
+		templateData.disposable.dispose();
+		const disposables: IDisposable[] = [];
+
+		if (repository.provider.rootUri) {
+			templateData.title.textContent = basename(repository.provider.rootUri.fsPath);
+			templateData.type.textContent = repository.provider.label;
+		} else {
+			templateData.title.textContent = repository.provider.label;
+			templateData.type.textContent = '';
+		}
+
+		// const disposables = commands.map(c => this.statusbarService.addEntry({
+		// 	text: c.title,
+		// 	tooltip: `${repository.provider.label} - ${c.tooltip}`,
+		// 	command: c.id,
+		// 	arguments: c.arguments
+		// }, MainThreadStatusBarAlignment.LEFT, 10000));
+
+		const actions = [];
+		const disposeActions = () => dispose(actions);
+		disposables.push({ dispose: disposeActions });
+
+		const update = () => {
+			disposeActions();
+
+			const commands = repository.provider.statusBarCommands || [];
+			actions.splice(0, actions.length, ...commands.map(c => new StatusBarAction(c, this.commandService)));
+			templateData.actionBar.clear();
+			templateData.actionBar.push(actions);
+
+			const count = repository.provider.count || 0;
+			toggleClass(templateData.countContainer, 'hidden', count === 0);
+			templateData.count.setCount(repository.provider.count);
+		};
+
+		repository.provider.onDidChange(update, null, disposables);
+		update();
+
+		templateData.disposable = combinedDisposable(disposables);
+	}
+
+	disposeTemplate(templateData: RepositoryTemplateData): void {
+		templateData.disposable.dispose();
+		templateData.templateDisposable.dispose();
+	}
+}
+
+class MainPanel extends ViewletPanel {
+
+	private list: List<ISCMRepository>;
+
+	private _onSelectionChange = new Emitter<ISCMRepository[]>();
+	readonly onSelectionChange: Event<ISCMRepository[]> = this._onSelectionChange.event;
+
+	constructor(
+		protected viewModel: IViewModel,
+		@IKeybindingService protected keybindingService: IKeybindingService,
+		@IContextMenuService protected contextMenuService: IContextMenuService,
+		@ISCMService protected scmService: ISCMService,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IThemeService private themeService: IThemeService,
+		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IMenuService private menuService: IMenuService
+	) {
+		super(localize('scm providers', "Source Control Providers"), {}, keybindingService, contextMenuService);
+		this.updateBodySize();
+	}
+
+	focus(): void {
+		super.focus();
+		this.list.domFocus();
+	}
+
+	hide(repository: ISCMRepository): void {
+		const selectedElements = this.list.getSelectedElements();
+		const index = selectedElements.indexOf(repository);
+
+		if (index === -1) {
+			return;
+		}
+
+		const selection = this.list.getSelection();
+		this.list.setSelection([...selection.slice(0, index), ...selection.slice(index + 1)]);
+	}
+
+	getSelection(): ISCMRepository[] {
+		return this.list.getSelectedElements();
+	}
+
+	private splice(index: number, deleteCount: number, repositories: ISCMRepository[] = []): void {
+		const wasEmpty = this.list.length === 0;
+
+		this.list.splice(index, deleteCount, repositories);
+		this.updateBodySize();
+
+		// Automatically select the first one
+		if (wasEmpty && this.list.length > 0) {
+			this.list.setSelection([0]);
+		}
+	}
+
+	protected renderBody(container: HTMLElement): void {
+		const delegate = new ProvidersListDelegate();
+		const renderer = this.instantiationService.createInstance(ProviderRenderer);
+
+		this.list = new List<ISCMRepository>(container, delegate, [renderer], {
+			identityProvider: repository => repository.provider.id
+		});
+
+		this.disposables.push(this.list);
+		this.disposables.push(attachListStyler(this.list, this.themeService));
+		this.list.onSelectionChange(this.onListSelectionChange, this, this.disposables);
+		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
+
+		this.viewModel.onDidSplice(({ index, deleteCount, elements }) => this.splice(index, deleteCount, elements), null, this.disposables);
+		this.splice(0, 0, this.viewModel.repositories);
+	}
+
+	protected layoutBody(size: number): void {
+		this.list.layout(size);
+	}
+
+	private updateBodySize(): void {
+		const count = this.viewModel.repositories.length;
+
+		if (count <= 5) {
+			const size = count * 22;
+			this.minimumBodySize = size;
+			this.maximumBodySize = size;
+		} else {
+			this.minimumBodySize = 5 * 22;
+			this.maximumBodySize = Number.POSITIVE_INFINITY;
+		}
+	}
+
+	private onListContextMenu(e: IListContextMenuEvent<ISCMRepository>): void {
+		const repository = e.element;
+
+		const contextKeyService = this.contextKeyService.createScoped();
+		const scmProviderKey = contextKeyService.createKey<string | undefined>('scmProvider', void 0);
+		scmProviderKey.set(repository.provider.contextValue);
+
+		const menu = this.menuService.createMenu(MenuId.SCMSourceControl, contextKeyService);
+		const primary: IAction[] = [];
+		const secondary: IAction[] = [];
+		const result = { primary, secondary };
+
+		fillInActions(menu, { shouldForwardArgs: true }, result, g => g === 'inline');
+
+		menu.dispose();
+		contextKeyService.dispose();
+
+		if (secondary.length === 0) {
+			return;
+		}
+
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => e.anchor,
+			getActions: () => TPromise.as(secondary),
+			getActionsContext: () => repository.provider
+		});
+	}
+
+	private onListSelectionChange(e: IListEvent<ISCMRepository>): void {
+		// select one repository if the selected one is gone
+		if (e.elements.length === 0 && this.list.length > 0) {
+			this.list.setSelection([0]);
+			return;
+		}
+
+		this._onSelectionChange.fire(e.elements);
+	}
 }
 
 interface ResourceGroupTemplate {
@@ -115,10 +370,10 @@ class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGrou
 
 	renderElement(group: ISCMResourceGroup, index: number, template: ResourceGroupTemplate): void {
 		template.name.textContent = group.label;
-		template.count.setCount(group.resources.length);
+		template.count.setCount(group.resourceCollection.resources.length);
 		template.actionBar.clear();
 		template.actionBar.context = group;
-		template.actionBar.push(this.scmMenus.getResourceGroupActions(group));
+		template.actionBar.push(this.scmMenus.getResourceGroupActions(group), { icon: true, label: false });
 	}
 
 	disposeTemplate(template: ResourceGroupTemplate): void {
@@ -132,6 +387,7 @@ interface ResourceTemplate {
 	fileLabel: FileLabel;
 	decorationIcon: HTMLElement;
 	actionBar: ActionBar;
+	dispose: () => void;
 }
 
 class MultipleSelectionActionRunner extends ActionRunner {
@@ -181,14 +437,19 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 
 		const decorationIcon = append(element, $('.decoration-icon'));
 
-		return { element, name, fileLabel, decorationIcon, actionBar };
+		return {
+			element, name, fileLabel, decorationIcon, actionBar, dispose: () => {
+				actionBar.dispose();
+				fileLabel.dispose();
+			}
+		};
 	}
 
 	renderElement(resource: ISCMResource, index: number, template: ResourceTemplate): void {
 		template.fileLabel.setFile(resource.sourceUri);
 		template.actionBar.clear();
 		template.actionBar.context = resource;
-		template.actionBar.push(this.scmMenus.getResourceActions(resource));
+		template.actionBar.push(this.scmMenus.getResourceActions(resource), { icon: true, label: false });
 		toggleClass(template.name, 'strike-through', resource.decorations.strikeThrough);
 		toggleClass(template.element, 'faded', resource.decorations.faded);
 
@@ -197,17 +458,18 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 
 		if (icon) {
 			template.decorationIcon.style.backgroundImage = `url('${icon}')`;
+			template.decorationIcon.title = resource.decorations.tooltip;
 		} else {
 			template.decorationIcon.style.backgroundImage = '';
 		}
 	}
 
 	disposeTemplate(template: ResourceTemplate): void {
-		// noop
+		template.dispose();
 	}
 }
 
-class Delegate implements IDelegate<ISCMResourceGroup | ISCMResource> {
+class ProviderListDelegate implements IDelegate<ISCMResourceGroup | ISCMResource> {
 
 	getHeight() { return 22; }
 
@@ -216,73 +478,90 @@ class Delegate implements IDelegate<ISCMResourceGroup | ISCMResource> {
 	}
 }
 
-function resourceSorter(a: ISCMResource, b: ISCMResource): number {
-	return comparePaths(a.sourceUri.fsPath, b.sourceUri.fsPath);
+function scmResourceIdentityProvider(r: ISCMResourceGroup | ISCMResource): string {
+	if (isSCMResource(r)) {
+		const group = r.resourceGroup;
+		const provider = group.provider;
+		return `${provider.contextValue}/${group.id}/${r.sourceUri.toString()}`;
+	} else {
+		const provider = r.provider;
+		return `${provider.contextValue}/${r.id}`;
+	}
 }
 
-export class SCMViewlet extends Viewlet {
+export class RepositoryPanel extends ViewletPanel {
 
-	private activeProvider: ISCMProvider | undefined;
-	private cachedDimension: Dimension;
+	private cachedHeight: number | undefined = undefined;
 	private inputBoxContainer: HTMLElement;
 	private inputBox: InputBox;
 	private listContainer: HTMLElement;
 	private list: List<ISCMResourceGroup | ISCMResource>;
 	private menus: SCMMenus;
-	private providerChangeDisposable: IDisposable = EmptyDisposable;
-	private disposables: IDisposable[] = [];
 
 	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@ISCMService private scmService: ISCMService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IContextViewService private contextViewService: IContextViewService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IKeybindingService private keybindingService: IKeybindingService,
-		@IMessageService private messageService: IMessageService,
-		@IListService private listService: IListService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
+		readonly repository: ISCMRepository,
+		private viewModel: IViewModel,
+		@IKeybindingService protected keybindingService: IKeybindingService,
 		@IThemeService protected themeService: IThemeService,
-		@IMenuService private menuService: IMenuService,
-		@IModelService private modelService: IModelService,
-		@ICommandService private commandService: ICommandService,
-		@IEditorGroupService private groupService: IEditorGroupService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IContextMenuService protected contextMenuService: IContextMenuService,
+		@IContextViewService protected contextViewService: IContextViewService,
+		@IListService protected listService: IListService,
+		@ICommandService protected commandService: ICommandService,
+		@IMessageService protected messageService: IMessageService,
+		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
+		@IEditorGroupService protected editorGroupService: IEditorGroupService,
+		@IInstantiationService protected instantiationService: IInstantiationService
 	) {
-		super(VIEWLET_ID, telemetryService, themeService);
-
-		this.menus = this.instantiationService.createInstance(SCMMenus);
-		this.menus.onDidChangeTitle(this.updateTitleArea, this, this.disposables);
-		this.disposables.push(this.menus);
+		super(repository.provider.label, {}, keybindingService, contextMenuService);
+		this.menus = instantiationService.createInstance(SCMMenus, repository.provider);
 	}
 
-	private setActiveProvider(activeProvider: ISCMProvider | undefined): void {
-		this.providerChangeDisposable.dispose();
-		this.activeProvider = activeProvider;
+	render(container: HTMLElement): void {
+		super.render(container);
+		this.menus.onDidChangeTitle(this.updateActions, this, this.disposables);
+	}
 
-		if (activeProvider) {
-			const disposables = [activeProvider.onDidChange(this.update, this)];
+	protected renderHeaderTitle(container: HTMLElement): void {
+		const header = append(container, $('.title.scm-provider'));
+		const name = append(header, $('.name'));
+		const title = append(name, $('span.title'));
+		const type = append(name, $('span.type'));
 
-			if (activeProvider.onDidChangeCommitTemplate) {
-				disposables.push(activeProvider.onDidChangeCommitTemplate(this.updateInputBox, this));
-			}
-
-			this.providerChangeDisposable = combinedDisposable(disposables);
+		if (this.repository.provider.rootUri) {
+			title.textContent = basename(this.repository.provider.rootUri.fsPath);
+			type.textContent = this.repository.provider.label;
 		} else {
-			this.providerChangeDisposable = EmptyDisposable;
+			title.textContent = this.repository.provider.label;
+			type.textContent = '';
 		}
 
-		this.updateInputBox();
-		this.updateTitleArea();
-		this.update();
+		const onContextMenu = mapEvent(stop(domEvent(container, 'contextmenu')), e => new StandardMouseEvent(e));
+		onContextMenu(this.onContextMenu, this, this.disposables);
 	}
 
-	create(parent: Builder): TPromise<void> {
-		super.create(parent);
-		parent.addClass('scm-viewlet');
+	private onContextMenu(event: StandardMouseEvent): void {
+		if (this.viewModel.selectedRepositories.length <= 1) {
+			return;
+		}
 
-		const root = parent.getHTMLElement();
-		this.inputBoxContainer = append(root, $('.scm-editor'));
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => ({ x: event.posx, y: event.posy }),
+			getActions: () => TPromise.as([<IAction>{
+				id: `scm.hideRepository`,
+				label: localize('hideRepository', "Hide"),
+				enabled: true,
+				run: () => this.viewModel.hide(this.repository)
+			}]),
+		});
+	}
+
+	protected renderBody(container: HTMLElement): void {
+		const focusTracker = trackFocus(container);
+		this.disposables.push(focusTracker.addFocusListener(() => this.repository.focus()));
+		this.disposables.push(focusTracker);
+
+		// Input
+		this.inputBoxContainer = append(container, $('.scm-editor'));
 
 		this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, {
 			placeholder: localize('commitMessage', "Message (press {0} to commit)", platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter'),
@@ -291,20 +570,28 @@ export class SCMViewlet extends Viewlet {
 		this.disposables.push(attachInputBoxStyler(this.inputBox, this.themeService));
 		this.disposables.push(this.inputBox);
 
-		this.inputBox.value = this.scmService.input.value;
-		this.inputBox.onDidChange(value => this.scmService.input.value = value, null, this.disposables);
-		this.scmService.input.onDidChange(value => this.inputBox.value = value, null, this.disposables);
-		this.disposables.push(this.inputBox.onDidHeightChange(() => this.layout()));
+		this.inputBox.value = this.repository.input.value;
+		this.inputBox.onDidChange(value => this.repository.input.value = value, null, this.disposables);
+		this.repository.input.onDidChange(value => this.inputBox.value = value, null, this.disposables);
+		this.disposables.push(this.inputBox.onDidHeightChange(() => this.layoutBody()));
 
 		chain(domEvent(this.inputBox.inputElement, 'keydown'))
 			.map(e => new StandardKeyboardEvent(e))
 			.filter(e => e.equals(KeyMod.CtrlCmd | KeyCode.Enter) || e.equals(KeyMod.CtrlCmd | KeyCode.KEY_S))
 			.on(this.onDidAcceptInput, this, this.disposables);
 
-		this.listContainer = append(root, $('.scm-status.show-file-icons'));
-		const delegate = new Delegate();
+		if (this.repository.provider.onDidChangeCommitTemplate) {
+			this.repository.provider.onDidChangeCommitTemplate(this.updateInputBox, this, this.disposables);
+		}
 
-		const actionItemProvider = action => this.getActionItem(action);
+		this.updateInputBox();
+
+		// List
+
+		this.listContainer = append(container, $('.scm-status.show-file-icons'));
+		const delegate = new ProviderListDelegate();
+
+		const actionItemProvider = (action: IAction) => this.getActionItem(action);
 
 		const renderers = [
 			new ResourceGroupRenderer(this.menus, actionItemProvider, this.themeService),
@@ -312,7 +599,7 @@ export class SCMViewlet extends Viewlet {
 		];
 
 		this.list = new List(this.listContainer, delegate, renderers, {
-			identityProvider,
+			identityProvider: scmResourceIdentityProvider,
 			keyboardSupport: false
 		});
 
@@ -332,103 +619,32 @@ export class SCMViewlet extends Viewlet {
 		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
 		this.disposables.push(this.list);
 
-		this.setActiveProvider(this.scmService.activeProvider);
-		this.scmService.onDidChangeProvider(this.setActiveProvider, this, this.disposables);
-		this.themeService.onThemeChange(this.update, this, this.disposables);
-
-		return TPromise.as(null);
+		this.repository.provider.onDidChangeResources(this.updateList, this, this.disposables);
+		this.updateList();
 	}
 
-	private onDidAcceptInput(): void {
-		if (!this.activeProvider) {
+	layoutBody(height: number = this.cachedHeight): void {
+		if (height === undefined) {
 			return;
 		}
 
-		if (!this.activeProvider.acceptInputCommand) {
-			return;
-		}
-
-		const id = this.activeProvider.acceptInputCommand.id;
-		const args = this.activeProvider.acceptInputCommand.arguments;
-
-		this.commandService.executeCommand(id, ...args)
-			.done(undefined, onUnexpectedError);
-	}
-
-	private update(): void {
-		const provider = this.scmService.activeProvider;
-
-		if (!provider) {
-			this.list.splice(0, this.list.length);
-			return;
-		}
-
-		const elements = provider.resources
-			.reduce<(ISCMResourceGroup | ISCMResource)[]>((r, g) => [...r, g, ...g.resources.sort(resourceSorter)], []);
-
-		this.list.splice(0, this.list.length, elements);
-	}
-
-	private updateInputBox(): void {
-		if (!this.activeProvider) {
-			return;
-		}
-
-		if (typeof this.activeProvider.commitTemplate === 'undefined') {
-			return;
-		}
-
-		this.inputBox.value = this.activeProvider.commitTemplate;
-	}
-
-	layout(dimension: Dimension = this.cachedDimension): void {
-		if (!dimension) {
-			return;
-		}
-
-		this.cachedDimension = dimension;
+		this.list.layout(height);
+		this.cachedHeight = height;
 		this.inputBox.layout();
 
 		const editorHeight = this.inputBox.height;
-		const listHeight = dimension.height - (editorHeight + 12 /* margin */);
+		const listHeight = height - (editorHeight + 12 /* margin */);
 		this.listContainer.style.height = `${listHeight}px`;
 		this.list.layout(listHeight);
 
 		toggleClass(this.inputBoxContainer, 'scroll', editorHeight >= 134);
 	}
 
-	getOptimalWidth(): number {
-		return 400;
-	}
-
 	focus(): void {
 		super.focus();
-		this.inputBox.focus();
-	}
 
-	private open(e: ISCMResource): void {
-		if (!e.command) {
-			return;
-		}
-
-		this.commandService.executeCommand(e.command.id, ...e.command.arguments)
-			.done(undefined, onUnexpectedError);
-	}
-
-	private pin(): void {
-		const activeEditor = this.editorService.getActiveEditor();
-		const activeEditorInput = this.editorService.getActiveEditorInput();
-		this.groupService.pinEditor(activeEditor.position, activeEditorInput);
-	}
-
-	getTitle(): string {
-		const title = localize('source control', "Source Control");
-		const providerLabel = this.scmService.activeProvider && this.scmService.activeProvider.label;
-
-		if (providerLabel) {
-			return localize('viewletTitle', "{0}: {1}", title, providerLabel);
-		} else {
-			return title;
+		if (this.isExpanded()) {
+			this.inputBox.focus();
 		}
 	}
 
@@ -446,6 +662,38 @@ export class SCMViewlet extends Viewlet {
 		}
 
 		return new SCMMenuItemActionItem(action, this.keybindingService, this.messageService);
+	}
+
+	getActionsContext(): any {
+		return this.repository.provider;
+	}
+
+	private updateList(): void {
+		const elements = this.repository.provider.resources
+			.reduce<(ISCMResourceGroup | ISCMResource)[]>((r, g) => {
+				if (g.resourceCollection.resources.length === 0 && g.hideWhenEmpty) {
+					return r;
+				}
+
+				return [...r, g, ...g.resourceCollection.resources];
+			}, []);
+
+		this.list.splice(0, this.list.length, elements);
+	}
+
+	private open(e: ISCMResource): void {
+		e.open().done(undefined, onUnexpectedError);
+	}
+
+	private pin(): void {
+		const activeEditor = this.editorService.getActiveEditor();
+		const activeEditorInput = this.editorService.getActiveEditorInput();
+
+		if (!activeEditor) {
+			return;
+		}
+
+		this.editorGroupService.pinEditor(activeEditor.position, activeEditorInput);
 	}
 
 	private onListContextMenu(e: IListContextMenuEvent<ISCMResourceGroup | ISCMResource>): void {
@@ -471,8 +719,266 @@ export class SCMViewlet extends Viewlet {
 			.filter(r => isSCMResource(r)) as ISCMResource[];
 	}
 
+	private updateInputBox(): void {
+		if (typeof this.repository.provider.commitTemplate === 'undefined') {
+			return;
+		}
+
+		this.inputBox.value = this.repository.provider.commitTemplate;
+	}
+
+	private onDidAcceptInput(): void {
+		if (!this.repository.provider.acceptInputCommand) {
+			return;
+		}
+
+		const id = this.repository.provider.acceptInputCommand.id;
+		const args = this.repository.provider.acceptInputCommand.arguments;
+
+		this.commandService.executeCommand(id, ...args)
+			.done(undefined, onUnexpectedError);
+	}
+
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
+		super.dispose();
+	}
+}
+
+class InstallAdditionalSCMProvidersAction extends Action {
+
+	constructor( @IViewletService private viewletService: IViewletService) {
+		super('scm.installAdditionalSCMProviders', localize('installAdditionalSCMProviders', "Install Additional SCM Providers..."), '', true);
+	}
+
+	run(): TPromise<void> {
+		return this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true).then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => {
+				viewlet.search('category:"SCM Providers" @sort:installs');
+				viewlet.focus();
+			});
+	}
+}
+
+export class SCMViewlet extends PanelViewlet implements IViewModel {
+
+	private el: HTMLElement;
+	private menus: SCMMenus;
+	private mainPanel: MainPanel | null = null;
+	private mainPanelDisposable: IDisposable = EmptyDisposable;
+	private _repositories: ISCMRepository[] = [];
+	private repositoryPanels: RepositoryPanel[] = [];
+	private disposables: IDisposable[] = [];
+
+	private _onDidSplice = new Emitter<ISpliceEvent<ISCMRepository>>();
+	readonly onDidSplice: Event<ISpliceEvent<ISCMRepository>> = this._onDidSplice.event;
+
+	private _height: number | undefined = undefined;
+	get height(): number | undefined { return this._height; }
+
+	get repositories(): ISCMRepository[] { return this._repositories; }
+	get selectedRepositories(): ISCMRepository[] { return this.repositoryPanels.map(p => p.repository); }
+
+	constructor(
+		@ITelemetryService telemetryService: ITelemetryService,
+		@ISCMService protected scmService: ISCMService,
+		@IInstantiationService protected instantiationService: IInstantiationService,
+		@IContextViewService protected contextViewService: IContextViewService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IKeybindingService protected keybindingService: IKeybindingService,
+		@IMessageService protected messageService: IMessageService,
+		@IListService protected listService: IListService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IThemeService protected themeService: IThemeService,
+		@ICommandService protected commandService: ICommandService,
+		@IEditorGroupService protected editorGroupService: IEditorGroupService,
+		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IStorageService storageService: IStorageService,
+		@IExtensionService extensionService: IExtensionService
+	) {
+		super(VIEWLET_ID, { showHeaderInTitleWhenSingleView: true }, telemetryService, themeService);
+
+		this.menus = instantiationService.createInstance(SCMMenus, undefined);
+		this.menus.onDidChangeTitle(this.updateTitleArea, this, this.disposables);
+	}
+
+	async create(parent: Builder): TPromise<void> {
+		await super.create(parent);
+
+		this.el = parent.getHTMLElement();
+		addClass(this.el, 'scm-viewlet');
+		addClass(this.el, 'empty');
+		append(parent.getHTMLElement(), $('div.empty-message', null, localize('no open repo', "There are no active source control providers.")));
+
+		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
+		this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
+		this.scmService.repositories.forEach(r => this.onDidAddRepository(r));
+		this.onDidChangeRepositories();
+	}
+
+	private onDidAddRepository(repository: ISCMRepository): void {
+		const index = this._repositories.length;
+		this._repositories.push(repository);
+		this._onDidSplice.fire({ index, deleteCount: 0, elements: [repository] });
+		this.onDidChangeRepositories();
+
+		if (!this.mainPanel) {
+			this.onSelectionChange(this.repositories);
+		}
+	}
+
+	private onDidRemoveRepository(repository: ISCMRepository): void {
+		const index = this._repositories.indexOf(repository);
+
+		if (index === -1) {
+			return;
+		}
+
+		this._repositories.splice(index, 1);
+		this._onDidSplice.fire({ index, deleteCount: 1, elements: [] });
+		this.onDidChangeRepositories();
+
+		if (!this.mainPanel) {
+			this.onSelectionChange(this.repositories);
+		}
+	}
+
+	private onDidChangeRepositories(): void {
+		toggleClass(this.el, 'empty', this.scmService.repositories.length === 0);
+
+		const shouldMainPanelBeVisible = this.scmService.repositories.length > 1;
+
+		if (!!this.mainPanel === shouldMainPanelBeVisible) {
+			return;
+		}
+
+		if (shouldMainPanelBeVisible) {
+			this.mainPanel = this.instantiationService.createInstance(MainPanel, this);
+			this.addPanel(this.mainPanel, this.mainPanel.minimumSize, 0);
+
+			const selectionChangeDisposable = this.mainPanel.onSelectionChange(this.onSelectionChange, this);
+			this.onSelectionChange(this.mainPanel.getSelection());
+
+			this.mainPanelDisposable = toDisposable(() => {
+				this.removePanel(this.mainPanel);
+				selectionChangeDisposable.dispose();
+				this.mainPanel.dispose();
+			});
+		} else {
+			this.mainPanelDisposable.dispose();
+			this.mainPanelDisposable = EmptyDisposable;
+			this.mainPanel = null;
+		}
+	}
+
+	getOptimalWidth(): number {
+		return 400;
+	}
+
+	getTitle(): string {
+		const title = localize('source control', "Source Control");
+
+		if (this.repositories.length === 1) {
+			const [repository] = this.repositories;
+			return localize('viewletTitle', "{0}: {1}", title, repository.provider.label);
+		} else {
+			return title;
+		}
+	}
+
+	getActions(): IAction[] {
+		if (this.isSingleView()) {
+			const [panel] = this.repositoryPanels;
+			return panel.getActions();
+		}
+
+		return this.menus.getTitleActions();
+	}
+
+	getSecondaryActions(): IAction[] {
+		let result: IAction[];
+
+		if (this.isSingleView()) {
+			const [panel] = this.repositoryPanels;
+
+			result = [
+				...panel.getSecondaryActions(),
+				new Separator()
+			];
+		} else {
+			result = this.menus.getTitleSecondaryActions();
+
+			if (result.length > 0) {
+				result.push(new Separator());
+			}
+		}
+
+		result.push(this.instantiationService.createInstance(InstallAdditionalSCMProvidersAction));
+
+		return result;
+	}
+
+	getActionItem(action: IAction): IActionItem {
+		if (!(action instanceof MenuItemAction)) {
+			return undefined;
+		}
+
+		return new SCMMenuItemActionItem(action, this.keybindingService, this.messageService);
+	}
+
+	layout(dimension: Dimension): void {
+		super.layout(dimension);
+		this._height = dimension.height;
+	}
+
+	private onSelectionChange(repositories: ISCMRepository[]): void {
+		// Remove unselected panels
+		this.repositoryPanels
+			.filter(p => repositories.every(r => p.repository !== r))
+			.forEach(panel => this.removePanel(panel));
+
+		// Collect panels still selected
+		const repositoryPanels = this.repositoryPanels
+			.filter(p => repositories.some(r => p.repository === r));
+
+		// Collect new selected panels
+		const newRepositoryPanels = repositories
+			.filter(r => this.repositoryPanels.every(p => p.repository !== r))
+			.map(r => this.instantiationService.createInstance(RepositoryPanel, r, this));
+
+		// Add new selected panels
+		this.repositoryPanels = [...repositoryPanels, ...newRepositoryPanels];
+		newRepositoryPanels.forEach(panel => {
+			this.addPanel(panel, panel.minimumSize, this.length);
+			panel.repository.focus();
+		});
+
+		// Resize all panels equally
+		const height = typeof this.height === 'number' ? this.height : 1000;
+		const mainPanelHeight = this.mainPanel ? this.mainPanel.minimumSize : 0;
+		const size = (height - mainPanelHeight) / repositories.length;
+
+		for (const panel of this.repositoryPanels) {
+			this.resizePanel(panel, size);
+		}
+	}
+
+	protected isSingleView(): boolean {
+		return super.isSingleView() && this.repositoryPanels.length === 1;
+	}
+
+	hide(repository: ISCMRepository): void {
+		if (!this.mainPanel) {
+			return;
+		}
+
+		this.mainPanel.hide(repository);
+	}
+
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
+		this.mainPanelDisposable.dispose();
 		super.dispose();
 	}
 }

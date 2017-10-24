@@ -6,6 +6,10 @@
 {
 	"fileInputAriaLabel": "Digitare il nome file. Premere INVIO per confermare oppure ESC per annullare.",
 	"filesExplorerViewerAriaLabel": "{0}, Esplora file",
+	"dropFolders": "Aggiungere le cartelle all'area di lavoro?",
+	"dropFolder": "Aggiungere la cartella all'area di lavoro?",
+	"addFolders": "&& Aggiungi cartelle",
+	"addFolder": "&&Aggiungi cartella",
 	"confirmOverwriteMessage": "'{0}' esiste già nella cartella di destinazione. Sostituirlo?",
 	"irreversible": "Questa azione è irreversibile.",
 	"replaceButtonLabel": "&&Sostituisci"

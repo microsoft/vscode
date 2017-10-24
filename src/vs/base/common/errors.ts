@@ -18,8 +18,8 @@ function promiseErrorHandler(e: IPromiseError): void {
 	//
 	// e.detail looks like: { exception, error, promise, handler, id, parent }
 	//
-	var details = e.detail;
-	var id = details.id;
+	const details = e.detail;
+	const id = details.id;
 
 	// If the error has a parent promise then this is not the origination of the
 	//  error so we check if it has a handler, and if so we mark that the error
@@ -39,10 +39,10 @@ function promiseErrorHandler(e: IPromiseError): void {
 	// check if any errors are still unhandled.
 	if (Object.keys(outstandingPromiseErrors).length === 1) {
 		setTimeout(function () {
-			var errors = outstandingPromiseErrors;
+			const errors = outstandingPromiseErrors;
 			outstandingPromiseErrors = {};
 			Object.keys(errors).forEach(function (errorId) {
-				var error = errors[errorId];
+				const error = errors[errorId];
 				if (error.exception) {
 					onUnexpectedError(error.exception);
 				} else if (error.error) {
@@ -126,32 +126,41 @@ export class ErrorHandler {
 	}
 }
 
-export let errorHandler = new ErrorHandler();
+export const errorHandler = new ErrorHandler();
 
 export function setUnexpectedErrorHandler(newUnexpectedErrorHandler: (e: any) => void): void {
 	errorHandler.setUnexpectedErrorHandler(newUnexpectedErrorHandler);
 }
 
-export function onUnexpectedError(e: any): void {
-
+export function onUnexpectedError(e: any): undefined {
 	// ignore errors from cancelled promises
 	if (!isPromiseCanceledError(e)) {
 		errorHandler.onUnexpectedError(e);
 	}
+	return undefined;
 }
 
-export function onUnexpectedExternalError(e: any): void {
-
+export function onUnexpectedExternalError(e: any): undefined {
 	// ignore errors from cancelled promises
 	if (!isPromiseCanceledError(e)) {
 		errorHandler.onUnexpectedExternalError(e);
 	}
+	return undefined;
 }
 
-export function onUnexpectedPromiseError<T>(promise: TPromise<T>): TPromise<T> {
-	return promise.then<T>(null, onUnexpectedError);
+export function onUnexpectedPromiseError<T>(promise: TPromise<T>): TPromise<T | void> {
+	return promise.then(null, onUnexpectedError);
 }
 
+export interface SerializedError {
+	readonly $isError: true;
+	readonly name: string;
+	readonly message: string;
+	readonly stack: string;
+}
+
+export function transformErrorForSerialization(error: Error): SerializedError;
+export function transformErrorForSerialization(error: any): any;
 export function transformErrorForSerialization(error: any): any {
 	if (error instanceof Error) {
 		let { name, message } = error;
@@ -166,6 +175,24 @@ export function transformErrorForSerialization(error: any): any {
 
 	// return as is
 	return error;
+}
+
+// see https://github.com/v8/v8/wiki/Stack%20Trace%20API#basic-stack-traces
+export interface V8CallSite {
+	getThis(): any;
+	getTypeName(): string;
+	getFunction(): string;
+	getFunctionName(): string;
+	getMethodName(): string;
+	getFileName(): string;
+	getLineNumber(): number;
+	getColumnNumber(): number;
+	getEvalOrigin(): string;
+	isToplevel(): boolean;
+	isEval(): boolean;
+	isNative(): boolean;
+	isConstructor(): boolean;
+	toString(): string;
 }
 
 const canceledName = 'Canceled';
@@ -213,6 +240,12 @@ export function readonly(name?: string): Error {
 	return name
 		? new Error(`readonly property '${name} cannot be changed'`)
 		: new Error('readonly property cannot be changed');
+}
+
+export function disposed(what: string): Error {
+	const result = new Error(`${what} has been disposed`);
+	result.name = 'DISPOSED';
+	return result;
 }
 
 export interface IErrorOptions {

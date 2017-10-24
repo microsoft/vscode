@@ -56,7 +56,7 @@ const ZERO_BYTE_DETECTION_BUFFER_MAX_LEN = 512; // number of bytes to look at to
 const NO_GUESS_BUFFER_MAX_LEN = 512; 		// when not auto guessing the encoding, small number of bytes are enough
 const AUTO_GUESS_BUFFER_MAX_LEN = 512 * 8; // with auto guessing we want a lot more content to be read for guessing
 
-function maxBufferLen(arg1?: DetectMimesOption | boolean): number {
+export function maxBufferLen(arg1?: DetectMimesOption | boolean): number {
 	let autoGuessEncoding: boolean;
 	if (typeof arg1 === 'boolean') {
 		autoGuessEncoding = arg1;
@@ -88,7 +88,9 @@ function doDetectMimesFromFile(absolutePath: string, option?: DetectMimesOption)
 	});
 }
 
-export function detectMimeAndEncodingFromBuffer({ buffer, bytesRead }: stream.ReadResult, autoGuessEncoding?: boolean): IMimeAndEncoding {
+export function detectMimeAndEncodingFromBuffer(readResult: stream.ReadResult, autoGuessEncoding?: false): IMimeAndEncoding;
+export function detectMimeAndEncodingFromBuffer(readResult: stream.ReadResult, autoGuessEncoding?: boolean): TPromise<IMimeAndEncoding>;
+export function detectMimeAndEncodingFromBuffer({ buffer, bytesRead }: stream.ReadResult, autoGuessEncoding?: boolean): TPromise<IMimeAndEncoding> | IMimeAndEncoding {
 	let enc = encoding.detectEncodingByBOMFromBuffer(buffer, bytesRead);
 
 	// Detect 0 bytes to see if file is binary (ignore for UTF 16 though)
@@ -103,7 +105,12 @@ export function detectMimeAndEncodingFromBuffer({ buffer, bytesRead }: stream.Re
 	}
 
 	if (autoGuessEncoding && isText && !enc) {
-		enc = encoding.guessEncodingByBuffer(buffer.slice(0, bytesRead));
+		return encoding.guessEncodingByBuffer(buffer.slice(0, bytesRead)).then(enc => {
+			return {
+				mimes: isText ? [mime.MIME_TEXT] : [mime.MIME_BINARY],
+				encoding: enc
+			};
+		});
 	}
 
 	return {

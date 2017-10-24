@@ -6,7 +6,7 @@
 
 import * as nls from 'vs/nls';
 import { IExtensionPoint, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
-import { languagesExtPoint } from "vs/workbench/services/mode/common/workbenchModeService";
+import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchModeService';
 
 export interface IEmbeddedLanguagesMap {
 	[scopeName: string]: string;

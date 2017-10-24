@@ -8,33 +8,42 @@
 import { PPromise, TPromise } from 'vs/base/common/winjs.base';
 import { IExpression } from 'vs/base/common/glob';
 import { IProgress, ILineMatch, IPatternInfo, ISearchStats, ISearchLog } from 'vs/platform/search/common/search';
+import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 
 export interface IFolderSearch {
 	folder: string;
 	excludePattern?: IExpression;
+	includePattern?: IExpression;
 	fileEncoding?: string;
 }
 
 export interface IRawSearch {
 	folderQueries: IFolderSearch[];
+	ignoreSymlinks?: boolean;
 	extraFiles?: string[];
 	filePattern?: string;
 	excludePattern?: IExpression;
 	includePattern?: IExpression;
 	contentPattern?: IPatternInfo;
 	maxResults?: number;
+	exists?: boolean;
 	sortByScore?: boolean;
 	cacheKey?: string;
 	maxFilesize?: number;
 	useRipgrep?: boolean;
 	disregardIgnoreFiles?: boolean;
-	searchPaths?: string[];
+}
+
+export interface ITelemetryEvent {
+	eventName: string;
+	data: ITelemetryData;
 }
 
 export interface IRawSearchService {
 	fileSearch(search: IRawSearch): PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem>;
 	textSearch(search: IRawSearch): PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem>;
 	clearCache(cacheKey: string): TPromise<void>;
+	fetchTelemetry(): PPromise<void, ITelemetryEvent>;
 }
 
 export interface IRawFileMatch {

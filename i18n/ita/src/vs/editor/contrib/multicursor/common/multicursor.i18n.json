@@ -6,5 +6,11 @@
 {
 	"mutlicursor.insertAbove": "Aggiungi cursore sopra",
 	"mutlicursor.insertBelow": "Aggiungi cursore sotto",
-	"mutlicursor.insertAtEndOfEachLineSelected": "Aggiungi cursore alla fine delle righe"
+	"mutlicursor.insertAtEndOfEachLineSelected": "Aggiungi cursore alla fine delle righe",
+	"addSelectionToNextFindMatch": "Aggiungi selezione a risultato ricerca successivo",
+	"addSelectionToPreviousFindMatch": "Aggiungi selezione a risultato ricerca precedente",
+	"moveSelectionToNextFindMatch": "Sposta ultima selezione a risultato ricerca successivo",
+	"moveSelectionToPreviousFindMatch": "Sposta ultima selezione a risultato ricerca precedente",
+	"selectAllOccurrencesOfFindMatch": "Seleziona tutte le occorrenze del risultato ricerca",
+	"changeAll.label": "Cambia tutte le occorrenze"
 }

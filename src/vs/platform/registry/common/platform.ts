@@ -20,13 +20,13 @@ export interface IRegistry {
 
 	/**
 	 * Returns true iff there is an extension with the provided id.
-	 * @param id an extension idenifier
+	 * @param id an extension identifier
 	 */
 	knows(id: string): boolean;
 
 	/**
 	 * Returns the extension functions and properties defined by the specified key or null.
-	 * @param id an extension idenifier
+	 * @param id an extension identifier
 	 */
 	as(id: string): any;
 	as<T>(id: string): T;
@@ -57,7 +57,7 @@ class RegistryImpl implements IRegistry {
 	}
 }
 
-export var Registry = <IRegistry>new RegistryImpl();
+export const Registry = <IRegistry>new RegistryImpl();
 
 /**
  * A base class for registries that leverage the instantiation service to create instances.

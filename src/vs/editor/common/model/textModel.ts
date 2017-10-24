@@ -8,12 +8,12 @@ import { OrderGuaranteeEventEmitter, BulkListenerCallback } from 'vs/base/common
 import * as strings from 'vs/base/common/strings';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range, IRange } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ModelLine } from 'vs/editor/common/model/modelLine';
+import { ModelLine, IModelLine, MinimalModelLine } from 'vs/editor/common/model/modelLine';
 import { guessIndentation } from 'vs/editor/common/model/indentationGuesser';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { IndentRange, computeRanges } from 'vs/editor/common/model/indentRanges';
 import { TextModelSearch, SearchParams } from 'vs/editor/common/model/textModelSearch';
 import { TextSource, ITextSource, IRawTextSource, RawTextSource } from 'vs/editor/common/model/textSource';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -28,8 +28,9 @@ export interface ITextModelCreationData {
 }
 
 export class TextModel implements editorCommon.ITextModel {
-	private static MODEL_SYNC_LIMIT = 5 * 1024 * 1024; // 5 MB
+	private static MODEL_SYNC_LIMIT = 50 * 1024 * 1024; // 50 MB
 	private static MODEL_TOKENIZATION_LIMIT = 20 * 1024 * 1024; // 20 MB
+	private static MANY_MANY_LINES = 300 * 1000; // 300K lines
 
 	public static DEFAULT_CREATION_OPTIONS: editorCommon.ITextModelCreationOptions = {
 		tabSize: EDITOR_MODEL_DEFAULTS.tabSize,
@@ -76,13 +77,12 @@ export class TextModel implements editorCommon.ITextModel {
 
 	protected readonly _eventEmitter: OrderGuaranteeEventEmitter;
 
-	/*protected*/ _lines: ModelLine[];
+	/*protected*/ _lines: IModelLine[];
 	protected _EOL: string;
 	protected _isDisposed: boolean;
 	protected _isDisposing: boolean;
 	protected _options: editorCommon.TextModelResolvedOptions;
 	protected _lineStarts: PrefixSumComputer;
-	private _indentRanges: IndentRange[];
 
 	private _versionId: number;
 	/**
@@ -93,16 +93,26 @@ export class TextModel implements editorCommon.ITextModel {
 	protected _mightContainRTL: boolean;
 	protected _mightContainNonBasicASCII: boolean;
 
-	private _shouldSimplifyMode: boolean;
-	private _shouldDenyMode: boolean;
+	private readonly _shouldSimplifyMode: boolean;
+	protected readonly _isTooLargeForTokenization: boolean;
 
 	constructor(rawTextSource: IRawTextSource, creationOptions: editorCommon.ITextModelCreationOptions) {
 		this._eventEmitter = new OrderGuaranteeEventEmitter();
 
 		const textModelData = TextModel.resolveCreationData(rawTextSource, creationOptions);
 
-		this._shouldSimplifyMode = (textModelData.text.length > TextModel.MODEL_SYNC_LIMIT);
-		this._shouldDenyMode = (textModelData.text.length > TextModel.MODEL_TOKENIZATION_LIMIT);
+		// !!! Make a decision in the ctor and permanently respect this decision !!!
+		// If a model is too large at construction time, it will never get tokenized,
+		// under no circumstances.
+		this._isTooLargeForTokenization = (
+			(textModelData.text.length > TextModel.MODEL_TOKENIZATION_LIMIT)
+			|| (textModelData.text.lines.length > TextModel.MANY_MANY_LINES)
+		);
+
+		this._shouldSimplifyMode = (
+			this._isTooLargeForTokenization
+			|| (textModelData.text.length > TextModel.MODEL_SYNC_LIMIT)
+		);
 
 		this._options = new editorCommon.TextModelResolvedOptions(textModelData.options);
 		this._constructLines(textModelData.text);
@@ -111,20 +121,25 @@ export class TextModel implements editorCommon.ITextModel {
 		this._isDisposing = false;
 	}
 
+	protected _createModelLine(text: string, tabSize: number): IModelLine {
+		if (this._isTooLargeForTokenization) {
+			return new MinimalModelLine(text, tabSize);
+		}
+		return new ModelLine(text, tabSize);
+	}
+
 	protected _assertNotDisposed(): void {
 		if (this._isDisposed) {
 			throw new Error('Model is disposed!');
 		}
 	}
 
-	public isTooLargeForHavingAMode(): boolean {
-		this._assertNotDisposed();
-		return this._shouldDenyMode;
+	public isTooLargeForHavingARichMode(): boolean {
+		return this._shouldSimplifyMode;
 	}
 
-	public isTooLargeForHavingARichMode(): boolean {
-		this._assertNotDisposed();
-		return this._shouldSimplifyMode;
+	public isTooLargeForTokenization(): boolean {
+		return this._isTooLargeForTokenization;
 	}
 
 	public getOptions(): editorCommon.TextModelResolvedOptions {
@@ -245,22 +260,9 @@ export class TextModel implements editorCommon.ITextModel {
 		return this._alternativeVersionId;
 	}
 
-	private _ensureLineStarts(): void {
-		if (!this._lineStarts) {
-			const eolLength = this._EOL.length;
-			const linesLength = this._lines.length;
-			const lineStartValues = new Uint32Array(linesLength);
-			for (let i = 0; i < linesLength; i++) {
-				lineStartValues[i] = this._lines[i].text.length + eolLength;
-			}
-			this._lineStarts = new PrefixSumComputer(lineStartValues);
-		}
-	}
-
 	public getOffsetAt(rawPosition: IPosition): number {
 		this._assertNotDisposed();
 		let position = this._validatePosition(rawPosition.lineNumber, rawPosition.column, false);
-		this._ensureLineStarts();
 		return this._lineStarts.getAccumulatedValue(position.lineNumber - 2) + position.column - 1;
 	}
 
@@ -269,7 +271,6 @@ export class TextModel implements editorCommon.ITextModel {
 		offset = Math.floor(offset);
 		offset = Math.max(0, offset);
 
-		this._ensureLineStarts();
 		let out = this._lineStarts.getIndexOf(offset);
 
 		let lineLength = this._lines[out.index].text.length;
@@ -495,65 +496,6 @@ export class TextModel implements editorCommon.ITextModel {
 		return this._lines[lineNumber - 1].getIndentLevel();
 	}
 
-	protected _resetIndentRanges(): void {
-		this._indentRanges = null;
-	}
-
-	private _getIndentRanges(): IndentRange[] {
-		if (!this._indentRanges) {
-			this._indentRanges = computeRanges(this);
-		}
-		return this._indentRanges;
-	}
-
-	public getIndentRanges(): IndentRange[] {
-		this._assertNotDisposed();
-		let indentRanges = this._getIndentRanges();
-		return IndentRange.deepCloneArr(indentRanges);
-	}
-
-	private _toValidLineIndentGuide(lineNumber: number, indentGuide: number): number {
-		let lineIndentLevel = this._lines[lineNumber - 1].getIndentLevel();
-		if (lineIndentLevel === -1) {
-			return indentGuide;
-		}
-		let maxIndentGuide = Math.ceil(lineIndentLevel / this._options.tabSize);
-		return Math.min(maxIndentGuide, indentGuide);
-	}
-
-	public getLineIndentGuide(lineNumber: number): number {
-		this._assertNotDisposed();
-		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
-			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
-		}
-
-		let indentRanges = this._getIndentRanges();
-
-		for (let i = indentRanges.length - 1; i >= 0; i--) {
-			let rng = indentRanges[i];
-
-			if (rng.startLineNumber === lineNumber) {
-				return this._toValidLineIndentGuide(lineNumber, Math.ceil(rng.indent / this._options.tabSize));
-			}
-			if (rng.startLineNumber < lineNumber && lineNumber <= rng.endLineNumber) {
-				return this._toValidLineIndentGuide(lineNumber, 1 + Math.floor(rng.indent / this._options.tabSize));
-			}
-			if (rng.endLineNumber + 1 === lineNumber) {
-				let bestIndent = rng.indent;
-				while (i > 0) {
-					i--;
-					rng = indentRanges[i];
-					if (rng.endLineNumber + 1 === lineNumber) {
-						bestIndent = rng.indent;
-					}
-				}
-				return this._toValidLineIndentGuide(lineNumber, Math.ceil(bestIndent / this._options.tabSize));
-			}
-		}
-
-		return 0;
-	}
-
 	public getLinesContent(): string[] {
 		this._assertNotDisposed();
 		var r: string[] = [];
@@ -566,6 +508,12 @@ export class TextModel implements editorCommon.ITextModel {
 	public getEOL(): string {
 		this._assertNotDisposed();
 		return this._EOL;
+	}
+
+	protected _onBeforeEOLChange(): void {
+	}
+
+	protected _onAfterEOLChange(): void {
 	}
 
 	public setEOL(eol: editorCommon.EndOfLineSequence): void {
@@ -581,9 +529,11 @@ export class TextModel implements editorCommon.ITextModel {
 		const endLineNumber = this.getLineCount();
 		const endColumn = this.getLineMaxColumn(endLineNumber);
 
+		this._onBeforeEOLChange();
 		this._EOL = newEOL;
-		this._lineStarts = null;
+		this._constructLineStarts();
 		this._increaseVersionId();
+		this._onAfterEOLChange();
 
 		this._emitModelRawContentChangedEvent(
 			new textModelEvents.ModelRawContentChangedEvent(
@@ -648,6 +598,77 @@ export class TextModel implements editorCommon.ITextModel {
 			lineNumber = this._lines.length;
 		}
 		return lineNumber;
+	}
+
+	/**
+	 * Validates `range` is within buffer bounds, but allows it to sit in between surrogate pairs, etc.
+	 * Will try to not allocate if possible.
+	 */
+	protected _validateRangeRelaxedNoAllocations(range: IRange): Range {
+		const linesCount = this._lines.length;
+
+		const initialStartLineNumber = range.startLineNumber;
+		const initialStartColumn = range.startColumn;
+		let startLineNumber: number;
+		let startColumn: number;
+
+		if (initialStartLineNumber < 1) {
+			startLineNumber = 1;
+			startColumn = 1;
+		} else if (initialStartLineNumber > linesCount) {
+			startLineNumber = linesCount;
+			startColumn = this.getLineMaxColumn(startLineNumber);
+		} else {
+			startLineNumber = initialStartLineNumber | 0;
+			if (initialStartColumn <= 1) {
+				startColumn = 1;
+			} else {
+				const maxColumn = this.getLineMaxColumn(startLineNumber);
+				if (initialStartColumn >= maxColumn) {
+					startColumn = maxColumn;
+				} else {
+					startColumn = initialStartColumn | 0;
+				}
+			}
+		}
+
+		const initialEndLineNumber = range.endLineNumber;
+		const initialEndColumn = range.endColumn;
+		let endLineNumber: number;
+		let endColumn: number;
+
+		if (initialEndLineNumber < 1) {
+			endLineNumber = 1;
+			endColumn = 1;
+		} else if (initialEndLineNumber > linesCount) {
+			endLineNumber = linesCount;
+			endColumn = this.getLineMaxColumn(endLineNumber);
+		} else {
+			endLineNumber = initialEndLineNumber | 0;
+			if (initialEndColumn <= 1) {
+				endColumn = 1;
+			} else {
+				const maxColumn = this.getLineMaxColumn(endLineNumber);
+				if (initialEndColumn >= maxColumn) {
+					endColumn = maxColumn;
+				} else {
+					endColumn = initialEndColumn | 0;
+				}
+			}
+		}
+
+		if (
+			initialStartLineNumber === startLineNumber
+			&& initialStartColumn === startColumn
+			&& initialEndLineNumber === endLineNumber
+			&& initialEndColumn === endColumn
+			&& range instanceof Range
+			&& !(range instanceof Selection)
+		) {
+			return range;
+		}
+
+		return new Range(startLineNumber, startColumn, endLineNumber, endColumn);
 	}
 
 	/**
@@ -756,18 +777,27 @@ export class TextModel implements editorCommon.ITextModel {
 	private _constructLines(textSource: ITextSource): void {
 		const tabSize = this._options.tabSize;
 		let rawLines = textSource.lines;
-		let modelLines: ModelLine[] = [];
+		let modelLines: IModelLine[] = new Array<IModelLine>(rawLines.length);
 
 		for (let i = 0, len = rawLines.length; i < len; i++) {
-			modelLines[i] = new ModelLine(i + 1, rawLines[i], tabSize);
+			modelLines[i] = this._createModelLine(rawLines[i], tabSize);
 		}
 		this._BOM = textSource.BOM;
 		this._mightContainRTL = textSource.containsRTL;
 		this._mightContainNonBasicASCII = !textSource.isBasicASCII;
 		this._EOL = textSource.EOL;
 		this._lines = modelLines;
-		this._lineStarts = null;
-		this._resetIndentRanges();
+		this._constructLineStarts();
+	}
+
+	private _constructLineStarts(): void {
+		const eolLength = this._EOL.length;
+		const linesLength = this._lines.length;
+		const lineStartValues = new Uint32Array(linesLength);
+		for (let i = 0; i < linesLength; i++) {
+			lineStartValues[i] = this._lines[i].text.length + eolLength;
+		}
+		this._lineStarts = new PrefixSumComputer(lineStartValues);
 	}
 
 	private _getEndOfLine(eol: editorCommon.EndOfLinePreference): string {

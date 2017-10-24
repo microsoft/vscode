@@ -24,6 +24,15 @@ suite('window namespace tests', () => {
 		});
 	});
 
+	test('editor, opened via resource', () => {
+		const uri = Uri.file(join(workspace.rootPath || '', './far.js'));
+		return window.showTextDocument(uri).then((editor) => {
+			const active = window.activeTextEditor;
+			assert.ok(active);
+			assert.ok(pathEquals(active!.document.uri.fsPath, uri.fsPath));
+		});
+	});
+
 	// test('editor, UN-active text editor', () => {
 	// 	assert.equal(window.visibleTextEditors.length, 0);
 	// 	assert.ok(window.activeTextEditor === undefined);
@@ -127,6 +136,26 @@ suite('window namespace tests', () => {
 		await window.showTextDocument(docC);
 		assert.ok(window.activeTextEditor!.document === docC);
 		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.One);
+	});
+
+	test('issue #27408 - showTextDocument & vscode.diff always default to ViewColumn.One', async () => {
+		const [docA, docB, docC] = await Promise.all([
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile())
+		]);
+
+		await window.showTextDocument(docA, ViewColumn.One);
+		await window.showTextDocument(docB, ViewColumn.Two);
+
+		assert.ok(window.activeTextEditor);
+		assert.ok(window.activeTextEditor!.document === docB);
+		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.Two);
+
+		await window.showTextDocument(docC, ViewColumn.Active);
+
+		assert.ok(window.activeTextEditor!.document === docC);
+		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.Two);
 	});
 
 	test('issue #5362 - Incorrect TextEditor passed by onDidChangeTextEditorSelection', (done) => {
@@ -320,6 +349,35 @@ suite('window namespace tests', () => {
 		return Promise.all([a, b]);
 	});
 
+	test('showWorkspaceFolderPick', function () {
+		const p = (<any>window).showWorkspaceFolderPick(undefined);
+
+		return commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem').then(() => {
+			return p.then(workspace => {
+				assert.ok(true);
+			}, error => {
+				assert.ok(false);
+			});
+		});
+	});
+
+	test('Default value for showInput Box accepted even if fails validateInput, #33691', function () {
+		const result = window.showInputBox({
+			validateInput: (value: string) => {
+				if (!value || value.trim().length === 0) {
+					return 'Cannot set empty description';
+				}
+				return null;
+			}
+		}).then(value => {
+			assert.equal(value, undefined);
+		});
+
+		const exec = commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		return Promise.all([result, exec]);
+	});
+
+
 	test('editor, selection change kind', () => {
 		return workspace.openTextDocument(join(workspace.rootPath || '', './far.js')).then(doc => window.showTextDocument(doc)).then(editor => {
 
@@ -372,20 +430,5 @@ suite('window namespace tests', () => {
 
 	test('terminal, name should set terminal.name', () => {
 		assert.equal(window.createTerminal('foo').name, 'foo');
-	});
-
-	test('terminal, listening to onData should report data from the pty process', done => {
-		const terminal = window.createTerminal();
-		let fromPty = '';
-		let isFinished = false;
-		(<any>terminal).onData(data => {
-			// The text could be split over multiple callbacks
-			fromPty += data;
-			if (!isFinished && fromPty.indexOf('test') >= 0) {
-				isFinished = true;
-				done();
-			}
-		});
-		terminal.sendText('test', false);
 	});
 });

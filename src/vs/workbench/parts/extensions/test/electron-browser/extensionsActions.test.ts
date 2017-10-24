@@ -53,7 +53,7 @@ suite('ExtensionsActions Test', () => {
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
-		instantiationService.stub(IConfigurationService, { onDidUpdateConfiguration: () => { }, getConfiguration: () => ({}) });
+		instantiationService.stub(IConfigurationService, { onDidUpdateConfiguration: () => { }, onDidChangeConfiguration: () => { }, getConfiguration: () => ({}) });
 
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
 

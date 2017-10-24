@@ -7,7 +7,9 @@
 	"editorGroupAriaLabel": "{0}, Gruppo di editor",
 	"openEditorAriaLabel": "{0}, Apri editor",
 	"saveAll": "Salva tutto",
+	"closeAllUnmodified": "Chiudi non modificate",
 	"closeAll": "Chiudi tutto",
+	"compareWithSaved": "Confronta con file salvato",
 	"close": "Chiudi",
 	"closeOthers": "Chiudi altri"
 }

@@ -10,12 +10,14 @@
 	"welcomePage.newFile": "Új fájl",
 	"welcomePage.openFolder": "Mappa megnyitása...",
 	"welcomePage.cloneGitRepository": "Git forráskódtár klónozása...",
+	"welcomePage.addWorkspaceFolder": "Mappa hozzáadása a munkaterülethez...",
 	"welcomePage.recent": "Legutóbbi",
 	"welcomePage.moreRecent": "Tovább...",
 	"welcomePage.noRecentFolders": "Nincsenek megnyitott mappák",
 	"welcomePage.help": "Segítség",
 	"welcomePage.keybindingsCheatsheet": "Nyomatható billentyűparancs-referencia",
 	"welcomePage.introductoryVideos": "Bemutatóvideók",
+	"welcomePage.tipsAndTricks": "Tippek és trükkök",
 	"welcomePage.productDocumentation": "Termékdokumentáció",
 	"welcomePage.gitHubRepository": "GitHub-forráskódtár",
 	"welcomePage.stackOverflow": "Stack Overflow",
@@ -35,10 +37,5 @@
 	"welcomePage.interfaceOverview": "Felhasználói felület áttekintése",
 	"welcomePage.interfaceOverviewDescription": "Fedvény, ami vizuálisan bemutatja a felhasználói felület legfőbb részeit.",
 	"welcomePage.interactivePlayground": "Interaktív játszótér",
-	"welcomePage.interactivePlaygroundDescription": "Próbálja ki a szerkesztő funkcióit egy rövid bemutató keretében!",
-	"welcomePage.quickLinks": "Gyorshivatkozások",
-	"welcomePage.keybindingsReference": "Billentyűparancs-referencia",
-	"welcomePage.keybindingsReferenceDescription": "Egy nyomtatható PDF a leggyakrabban használt billentyűparancsokkal",
-	"welcomePage.configureSettings": "Beállítások módosítása",
-	"welcomePage.configureSettingsDescription": "Szabadítsa fel a VS Code teljes tudását a beállítások személyre szabásával"
+	"welcomePage.interactivePlaygroundDescription": "Próbálja ki a szerkesztő funkcióit egy rövid bemutató keretében!"
 }

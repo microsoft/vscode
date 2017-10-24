@@ -227,7 +227,7 @@ module nls {
 		// `localize` named imports
 		const allLocalizeImportDeclarations = importDeclarations
 			.filter(d => d.importClause.namedBindings.kind === ts.SyntaxKind.NamedImports)
-			.map(d => (<ts.NamedImports>d.importClause.namedBindings).elements)
+			.map(d => [].concat((<ts.NamedImports>d.importClause.namedBindings).elements))
 			.flatten();
 
 		// `localize` read-only references

@@ -14,10 +14,6 @@
 	"watermark.toggleTerminal": "Терминал",
 	"watermark.findInFiles": "Найти в файлах",
 	"watermark.startDebugging": "Начать отладку",
-	"watermark.selectTheme": "Изменить тему",
-	"watermark.selectKeymap": "Изменить сопоставление клавиш",
-	"watermark.keybindingsReference": "Справочник по клавишам",
-	"watermark.openGlobalKeybindings": "Сочетания клавиш",
 	"watermark.unboundCommand": "свободный",
 	"workbenchConfigurationTitle": "Рабочее место",
 	"tips.enabled": "Если параметр включен, на подложке появляются советы, если нет открытых редакторов."

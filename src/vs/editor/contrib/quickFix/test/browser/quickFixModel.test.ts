@@ -14,17 +14,7 @@ import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { QuickFixOracle } from 'vs/editor/contrib/quickFix/browser/quickFixModel';
 import { CodeActionProviderRegistry, LanguageIdentifier } from 'vs/editor/common/modes';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import Event from 'vs/base/common/event';
 import { Range } from 'vs/editor/common/core/range';
-
-function promiseOnce<T>(event: Event<T>): TPromise<T> {
-	return new TPromise<T>(resolve => {
-		let reg = event(e => {
-			reg.dispose();
-			resolve(e);
-		});
-	});
-}
 
 suite('QuickFix', () => {
 
@@ -38,7 +28,7 @@ suite('QuickFix', () => {
 	setup(() => {
 		reg = CodeActionProviderRegistry.register(languageIdentifier.language, {
 			provideCodeActions() {
-				return [{ command: { id: 'test-command', title: 'test', arguments: [] }, score: 1 }];
+				return [{ id: 'test-command', title: 'test', arguments: [] }];
 			}
 		});
 		markerService = new MarkerService();
@@ -78,7 +68,7 @@ suite('QuickFix', () => {
 
 	});
 
-	test('Orcale -> position changed', done => {
+	test('Orcale -> position changed', () => {
 
 		markerService.changeOne('fake', uri, [{
 			startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 6,
@@ -90,72 +80,23 @@ suite('QuickFix', () => {
 
 		editor.setPosition({ lineNumber: 2, column: 1 });
 
-		const oracle = new QuickFixOracle(editor, markerService, e => {
-			assert.equal(e.type, 'auto');
-			assert.ok(e.fixes);
+		return new TPromise((resolve, reject) => {
 
-			e.fixes.then(fixes => {
-				oracle.dispose();
-				assert.equal(fixes.length, 1);
-				done();
-			}, done);
-		});
-
-		// start here
-		editor.setPosition({ lineNumber: 1, column: 1 });
-
-	});
-
-	test('Oracle -> ask once per marker/word', () => {
-
-		const start = promiseOnce(markerService.onMarkerChanged);
-
-		markerService.changeOne('fake', uri, [{
-			startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 6,
-			message: 'error',
-			severity: 1,
-			code: '',
-			source: ''
-		}]);
-
-		return start.then(() => {
-
-			let stacks: string[] = [];
-			let counter = 0;
-			let reg = CodeActionProviderRegistry.register(languageIdentifier.language, {
-				provideCodeActions() {
-					counter += 1;
-					stacks.push(new Error().stack);
-					return [];
-				}
-			});
-
-			let fixes: TPromise<any>[] = [];
-			let oracle = new QuickFixOracle(editor, markerService, e => {
-				fixes.push(e.fixes);
-			}, 10);
-
-			editor.setPosition({ lineNumber: 1, column: 3 }); // marker
-			editor.setPosition({ lineNumber: 1, column: 6 }); // (same) marker
-
-			return TPromise.join([TPromise.timeout(20)].concat(fixes)).then(() => {
-
-				assert.equal(counter, 1, stacks.join('\n----\n'));
-
-				editor.setPosition({ lineNumber: 1, column: 8 }); // whitespace
-				editor.setPosition({ lineNumber: 2, column: 2 }); // word
-				editor.setPosition({ lineNumber: 2, column: 6 }); // (same) word
-
-				return TPromise.join([TPromise.timeout(20)].concat(fixes)).then(_ => {
-					reg.dispose();
+			const oracle = new QuickFixOracle(editor, markerService, e => {
+				assert.equal(e.type, 'auto');
+				assert.ok(e.fixes);
+				e.fixes.then(fixes => {
 					oracle.dispose();
-					assert.equal(counter, 2, stacks.join('\n----\n'));
-				});
+					assert.equal(fixes.length, 1);
+					resolve(undefined);
+				}, reject);
 			});
+			// start here
+			editor.setPosition({ lineNumber: 1, column: 1 });
 		});
 	});
 
-	test('Oracle -> selection wins over marker', () => {
+	test('Oracle -> marker wins over selection', () => {
 
 		let range: Range;
 		let reg = CodeActionProviderRegistry.register(languageIdentifier.language, {
@@ -182,11 +123,11 @@ suite('QuickFix', () => {
 
 		return TPromise.join<any>([TPromise.timeout(20)].concat(fixes)).then(_ => {
 
-			// assert selection
-			assert.deepEqual(range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 13 });
+			// -> marker wins
+			assert.deepEqual(range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 6 });
 
-			range = undefined;
-			editor.setSelection({ startLineNumber: 1, startColumn: 2, endLineNumber: 1, endColumn: 2 });
+			// 'auto' triggered, non-empty selection BUT within a marker
+			editor.setSelection({ startLineNumber: 1, startColumn: 2, endLineNumber: 1, endColumn: 4 });
 
 			return TPromise.join([TPromise.timeout(20)].concat(fixes)).then(_ => {
 				reg.dispose();
@@ -196,6 +137,58 @@ suite('QuickFix', () => {
 				assert.deepEqual(range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 6 });
 			});
 		});
+	});
+
+	test('Lightbulb is in the wrong place, #29933', async function () {
+		let reg = CodeActionProviderRegistry.register(languageIdentifier.language, {
+			provideCodeActions(doc, _range) {
+				return [];
+			}
+		});
+
+		editor.getModel().setValue('// @ts-check\n2\ncon\n');
+
+		markerService.changeOne('fake', uri, [{
+			startLineNumber: 3, startColumn: 1, endLineNumber: 3, endColumn: 4,
+			message: 'error',
+			severity: 1,
+			code: '',
+			source: ''
+		}]);
+
+		// case 1 - drag selection over multiple lines -> range of enclosed marker, position or marker
+		await new TPromise(resolve => {
+
+			let oracle = new QuickFixOracle(editor, markerService, e => {
+				assert.equal(e.type, 'auto');
+				assert.deepEqual(e.range, { startLineNumber: 3, startColumn: 1, endLineNumber: 3, endColumn: 4 });
+				assert.deepEqual(e.position, { lineNumber: 3, column: 1 });
+
+				oracle.dispose();
+				resolve(null);
+			}, 5);
+
+			editor.setSelection({ startLineNumber: 1, startColumn: 1, endLineNumber: 4, endColumn: 1 });
+		});
+
+		// // case 2 - selection over multiple lines & manual trigger -> lightbulb
+		// await new TPromise(resolve => {
+
+		// 	editor.setSelection({ startLineNumber: 1, startColumn: 1, endLineNumber: 4, endColumn: 1 });
+
+		// 	let oracle = new QuickFixOracle(editor, markerService, e => {
+		// 		assert.equal(e.type, 'manual');
+		// 		assert.ok(e.range.equalsRange({ startLineNumber: 1, startColumn: 1, endLineNumber: 4, endColumn: 1 }));
+
+		// 		oracle.dispose();
+		// 		resolve(null);
+		// 	}, 5);
+
+		// 	oracle.trigger('manual');
+		// });
+
+
+		reg.dispose();
 	});
 
 });

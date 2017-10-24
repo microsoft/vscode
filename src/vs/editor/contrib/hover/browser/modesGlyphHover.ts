@@ -8,17 +8,11 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { HoverOperation, IHoverComputer } from './hoverOperation';
 import { GlyphHoverWidget } from './hoverWidgets';
 import { $ } from 'vs/base/browser/dom';
-import { renderMarkedString } from 'vs/base/browser/htmlContentRenderer';
-import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
-import URI from 'vs/base/common/uri';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
-import { MarkedString } from 'vs/base/common/htmlContent';
+import { MarkdownRenderer } from 'vs/editor/contrib/markdown/browser/markdownRenderer';
+import { IMarkdownString, isEmptyMarkdownString } from 'vs/base/common/htmlContent';
 
 export interface IHoverMessage {
-	value: MarkedString;
+	value: IMarkdownString;
 }
 
 class MarginComputer implements IHoverComputer<IHoverMessage[]> {
@@ -42,10 +36,8 @@ class MarginComputer implements IHoverComputer<IHoverMessage[]> {
 	}
 
 	public computeSync(): IHoverMessage[] {
-		const hasHoverContent = (contents: MarkedString | MarkedString[]) => {
-			return contents && (!Array.isArray(contents) || (<MarkedString[]>contents).length > 0);
-		};
-		const toHoverMessage = (contents: MarkedString): IHoverMessage => {
+
+		const toHoverMessage = (contents: IMarkdownString): IHoverMessage => {
 			return {
 				value: contents
 			};
@@ -63,7 +55,7 @@ class MarginComputer implements IHoverComputer<IHoverMessage[]> {
 
 			let hoverMessage = d.options.glyphMarginHoverMessage;
 
-			if (!hasHoverContent(hoverMessage)) {
+			if (isEmptyMarkdownString(hoverMessage)) {
 				continue;
 			}
 
@@ -96,16 +88,16 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 	private _messages: IHoverMessage[];
 	private _lastLineNumber: number;
 
+	private _markdownRenderer: MarkdownRenderer;
 	private _computer: MarginComputer;
 	private _hoverOperation: HoverOperation<IHoverMessage[]>;
 
-	constructor(editor: ICodeEditor, private openerService: IOpenerService, private modeService: IModeService) {
+	constructor(editor: ICodeEditor, markdownRenderer: MarkdownRenderer) {
 		super(ModesGlyphHoverWidget.ID, editor);
-
-		this.openerService = openerService || NullOpenerService;
 
 		this._lastLineNumber = -1;
 
+		this._markdownRenderer = markdownRenderer;
 		this._computer = new MarginComputer(this._editor);
 
 		this._hoverOperation = new HoverOperation(
@@ -168,17 +160,7 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 		const fragment = document.createDocumentFragment();
 
 		messages.forEach((msg) => {
-			const renderedContents = renderMarkedString(msg.value, {
-				actionCallback: content => this.openerService.open(URI.parse(content)).then(undefined, onUnexpectedError),
-				codeBlockRenderer: (languageAlias, value): string | TPromise<string> => {
-					// In markdown, it is possible that we stumble upon language aliases (e.g. js instead of javascript)
-					const modeId = this.modeService.getModeIdForLanguageName(languageAlias);
-					return this.modeService.getOrCreateMode(modeId).then(_ => {
-						return `<div class="code">${tokenizeToString(value, modeId)}</div>`;
-					});
-				}
-			});
-
+			const renderedContents = this._markdownRenderer.render(msg.value);
 			fragment.appendChild($('div.hover-row', null, renderedContents));
 		});
 

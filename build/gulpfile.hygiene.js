@@ -12,6 +12,7 @@ const gulptslint = require('gulp-tslint');
 const gulpeslint = require('gulp-eslint');
 const tsfmt = require('typescript-formatter');
 const tslint = require('tslint');
+const vfs = require('vinyl-fs');
 
 /**
  * Hygiene works by creating cascading subsets of all our files and
@@ -36,6 +37,7 @@ const eolFilter = [
 	'!ThirdPartyNotices.txt',
 	'!LICENSE.txt',
 	'!extensions/**/out/**',
+	'!test/smoke/out/**',
 	'!**/node_modules/**',
 	'!**/fixtures/**',
 	'!**/*.{svg,exe,png,bmp,scpt,bat,cmd,cur,ttf,woff,eot}',
@@ -53,6 +55,7 @@ const indentationFilter = [
 	'!**/*.md',
 	'!**/*.ps1',
 	'!**/*.template',
+	'!**/*.yaml',
 	'!**/*.yml',
 	'!**/lib/**',
 	'!extensions/**/*.d.ts',
@@ -91,6 +94,8 @@ const copyrightFilter = [
 	'!**/*.xpm',
 	'!**/*.opts',
 	'!**/*.disabled',
+	'!build/**/*.init',
+	'!resources/linux/snap/snapcraft.yaml',
 	'!resources/win32/bin/code.js',
 	'!extensions/markdown/media/tomorrow.css',
 	'!extensions/html/server/src/modes/typescript/*'
@@ -98,6 +103,7 @@ const copyrightFilter = [
 
 const eslintFilter = [
 	'src/**/*.js',
+	'build/gulpfile.*.js',
 	'!src/vs/loader.js',
 	'!src/vs/css.js',
 	'!src/vs/nls.js',
@@ -230,7 +236,7 @@ const hygiene = exports.hygiene = (some, options) => {
 		this.emit('data', file);
 	});
 
-	const result = gulp.src(some || all, { base: '.' })
+	const result = vfs.src(some || all, { base: '.', follow: true, allowEmpty: true })
 		.pipe(filter(f => !f.stat.isDirectory()))
 		.pipe(filter(eolFilter))
 		.pipe(options.skipEOL ? es.through() : eol)
@@ -260,7 +266,7 @@ const hygiene = exports.hygiene = (some, options) => {
 		}));
 };
 
-gulp.task('hygiene', () => hygiene());
+gulp.task('hygiene', () => hygiene(''));
 
 // this allows us to run hygiene as a git pre-commit hook
 if (require.main === module) {

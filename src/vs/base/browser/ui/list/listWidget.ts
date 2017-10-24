@@ -14,7 +14,7 @@ import * as platform from 'vs/base/common/platform';
 import { EventType as TouchEventType } from 'vs/base/browser/touch';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import Event, { Emitter, EventBufferer, chain, mapEvent, fromCallback, any } from 'vs/base/common/event';
+import Event, { Emitter, EventBufferer, chain, mapEvent, fromCallback, anyEvent } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IDelegate, IRenderer, IListEvent, IListMouseEvent, IListContextMenuEvent } from './list';
 import { ListView, IListViewOptions } from './listView';
@@ -84,14 +84,9 @@ class TraitRenderer<T, D> implements IRenderer<T, ITraitTemplateData>
 	}
 
 	splice(start: number, deleteCount: number): void {
-		for (let i = 0; i < deleteCount; i++) {
-			const key = `key_${start + i}`;
-			const data = this.rendered[key];
-
-			if (data) {
-				data.elementDisposable.dispose();
-			}
-		}
+		this.rendered
+			.filter(({ index }) => index >= start && index < start + deleteCount)
+			.forEach(({ templateData }) => templateData.elementDisposable.dispose());
 	}
 
 	disposeTemplate(templateData: ITraitTemplateData): void {
@@ -252,6 +247,8 @@ class KeyboardController<T> implements IDisposable {
 		onKeyDown.filter(e => e.keyCode === KeyCode.DownArrow).on(this.onDownArrow, this, this.disposables);
 		onKeyDown.filter(e => e.keyCode === KeyCode.PageUp).on(this.onPageUpArrow, this, this.disposables);
 		onKeyDown.filter(e => e.keyCode === KeyCode.PageDown).on(this.onPageDownArrow, this, this.disposables);
+		onKeyDown.filter(e => (platform.isMacintosh ? e.metaKey : e.ctrlKey) && e.keyCode === KeyCode.KEY_A).on(this.onCtrlA, this, this.disposables);
+		onKeyDown.filter(e => e.keyCode === KeyCode.Escape).on(this.onEscape, this, this.disposables);
 	}
 
 	private onEnter(e: StandardKeyboardEvent): void {
@@ -290,6 +287,20 @@ class KeyboardController<T> implements IDisposable {
 		e.stopPropagation();
 		this.list.focusNextPage();
 		this.list.reveal(this.list.getFocus()[0]);
+		this.view.domNode.focus();
+	}
+
+	private onCtrlA(e: StandardKeyboardEvent): void {
+		e.preventDefault();
+		e.stopPropagation();
+		this.list.setSelection(range(this.list.length));
+		this.view.domNode.focus();
+	}
+
+	private onEscape(e: StandardKeyboardEvent): void {
+		e.preventDefault();
+		e.stopPropagation();
+		this.list.setSelection([]);
 		this.view.domNode.focus();
 	}
 
@@ -336,7 +347,7 @@ class MouseController<T> implements IDisposable {
 			.map(({ element, index, clientX, clientY }) => ({ element, index, anchor: { x: clientX + 1, y: clientY } }))
 			.event;
 
-		return any<IListContextMenuEvent<T>>(fromKeyboard, fromMouse);
+		return anyEvent<IListContextMenuEvent<T>>(fromKeyboard, fromMouse);
 	}
 
 	constructor(
@@ -348,12 +359,11 @@ class MouseController<T> implements IDisposable {
 		this.disposables.push(view.addListener('mousedown', e => this.onMouseDown(e)));
 		this.disposables.push(view.addListener('click', e => this.onPointer(e)));
 		this.disposables.push(view.addListener('dblclick', e => this.onDoubleClick(e)));
+		this.disposables.push(view.addListener('touchstart', e => this.onMouseDown(e)));
 		this.disposables.push(view.addListener(TouchEventType.Tap, e => this.onPointer(e)));
 	}
 
 	private onMouseDown(e: IListMouseEvent<T>): void {
-		e.preventDefault();
-		e.stopPropagation();
 		this.view.domNode.focus();
 
 		let reference = this.list.getFocus()[0];
@@ -377,22 +387,18 @@ class MouseController<T> implements IDisposable {
 	}
 
 	private onPointer(e: IListMouseEvent<T>): void {
-		e.preventDefault();
-		e.stopPropagation();
-
 		if (isSelectionChangeEvent(e)) {
 			return;
 		}
 
-		const focus = this.list.getFocus();
-		this.list.setSelection(focus);
-		this.list.open(focus);
+		if (!this.options.selectOnMouseDown) {
+			const focus = this.list.getFocus();
+			this.list.setSelection(focus);
+			this.list.open(focus);
+		}
 	}
 
 	private onDoubleClick(e: IListMouseEvent<T>): void {
-		e.preventDefault();
-		e.stopPropagation();
-
 		if (isSelectionChangeEvent(e)) {
 			return;
 		}
@@ -408,7 +414,7 @@ class MouseController<T> implements IDisposable {
 		if (isSelectionRangeChangeEvent(e) && reference !== undefined) {
 			const min = Math.min(reference, focus);
 			const max = Math.max(reference, focus);
-			const rangeSelection = range(max + 1, min);
+			const rangeSelection = range(min, max + 1);
 			const selection = this.list.getSelection();
 			const contiguousRange = getContiguousRangeContaining(disjunction(selection, [reference]), reference);
 
@@ -619,11 +625,8 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		return mapEvent(this._onPin.event, indexes => this.toListEvent({ indexes }));
 	}
 
-	private _onDOMFocus = new Emitter<void>();
-	get onDOMFocus(): Event<void> { return this._onDOMFocus.event; }
-
-	private _onDOMBlur = new Emitter<void>();
-	get onDOMBlur(): Event<void> { return this._onDOMBlur.event; }
+	readonly onDOMFocus: Event<void>;
+	readonly onDOMBlur: Event<void>;
 
 	private _onDispose = new Emitter<void>();
 	get onDispose(): Event<void> { return this._onDispose.event; }
@@ -659,9 +662,8 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		this.disposables = [this.focus, this.selection, this.view, this._onDispose];
 
-		const tracker = DOM.trackFocus(this.view.domNode);
-		this.disposables.push(tracker.addFocusListener(() => this._onDOMFocus.fire()));
-		this.disposables.push(tracker.addBlurListener(() => this._onDOMBlur.fire()));
+		this.onDOMFocus = mapEvent(domEvent(this.view.domNode, 'focus', true), () => null);
+		this.onDOMBlur = mapEvent(domEvent(this.view.domNode, 'blur', true), () => null);
 
 		if (typeof options.keyboardSupport !== 'boolean' || options.keyboardSupport) {
 			const controller = new KeyboardController(this, this.view);
@@ -702,6 +704,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	set scrollTop(scrollTop: number) {
 		this.view.setScrollTop(scrollTop);
+	}
+
+	domFocus(): void {
+		this.view.domNode.focus();
 	}
 
 	layout(height?: number): void {

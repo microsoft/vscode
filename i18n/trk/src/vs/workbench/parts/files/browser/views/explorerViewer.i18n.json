@@ -6,6 +6,10 @@
 {
 	"fileInputAriaLabel": "Dosya adı girin. Onaylamak için Enter'a, iptal etmek için Escape tuşuna basın.",
 	"filesExplorerViewerAriaLabel": "{0}, Dosya Gezgini",
+	"dropFolders": "Çalışma alanına klasörleri eklemek istiyor musunuz?",
+	"dropFolder": "Klasörü çalışma alanına eklemek istiyor musunuz?",
+	"addFolders": "Klasörleri &&Ekle",
+	"addFolder": "Klasörü &&Ekle",
 	"confirmOverwriteMessage": "'{0}' hedef klasörde zaten mevcut. Değiştirmek istiyor musunuz?",
 	"irreversible": "Bu eylem geri döndürülemez!",
 	"replaceButtonLabel": "&&Değiştir"

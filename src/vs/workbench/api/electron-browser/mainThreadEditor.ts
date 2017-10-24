@@ -179,7 +179,7 @@ export class MainThreadTextEditor {
 		if (newConfiguration.tabSize === 'auto' || newConfiguration.insertSpaces === 'auto') {
 			// one of the options was set to 'auto' => detect indentation
 
-			let creationOpts = this._modelService.getCreationOptions(this._model.getLanguageIdentifier().language);
+			let creationOpts = this._modelService.getCreationOptions(this._model.getLanguageIdentifier().language, this._model.uri);
 			let insertSpaces = creationOpts.insertSpaces;
 			let tabSize = creationOpts.tabSize;
 
@@ -244,22 +244,33 @@ export class MainThreadTextEditor {
 		this._codeEditor.setDecorations(key, ranges);
 	}
 
+	public setDecorationsFast(key: string, _ranges: number[]): void {
+		if (!this._codeEditor) {
+			return;
+		}
+		let ranges: Range[] = [];
+		for (let i = 0, len = Math.floor(_ranges.length / 4); i < len; i++) {
+			ranges[i] = new Range(_ranges[4 * i], _ranges[4 * i + 1], _ranges[4 * i + 2], _ranges[4 * i + 3]);
+		}
+		this._codeEditor.setDecorationsFast(key, ranges);
+	}
+
 	public revealRange(range: IRange, revealType: TextEditorRevealType): void {
 		if (!this._codeEditor) {
 			return;
 		}
 		switch (revealType) {
 			case TextEditorRevealType.Default:
-				this._codeEditor.revealRange(range);
+				this._codeEditor.revealRange(range, EditorCommon.ScrollType.Smooth);
 				break;
 			case TextEditorRevealType.InCenter:
-				this._codeEditor.revealRangeInCenter(range);
+				this._codeEditor.revealRangeInCenter(range, EditorCommon.ScrollType.Smooth);
 				break;
 			case TextEditorRevealType.InCenterIfOutsideViewport:
-				this._codeEditor.revealRangeInCenterIfOutsideViewport(range);
+				this._codeEditor.revealRangeInCenterIfOutsideViewport(range, EditorCommon.ScrollType.Smooth);
 				break;
 			case TextEditorRevealType.AtTop:
-				this._codeEditor.revealRangeAtTop(range);
+				this._codeEditor.revealRangeAtTop(range, EditorCommon.ScrollType.Smooth);
 				break;
 			default:
 				console.warn(`Unknown revealType: ${revealType}`);

@@ -9,7 +9,5 @@
 	"cut": "Cortar",
 	"copy": "Copiar",
 	"paste": "Pegar",
-	"selectAll": "Seleccionar todo",
-	"confirmOpen": "¿Seguro que desea abrir {0} carpetas?",
-	"confirmOpenButton": "&&Abrir..."
+	"selectAll": "Seleccionar todo"
 }

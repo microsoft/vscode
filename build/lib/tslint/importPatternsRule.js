@@ -18,7 +18,7 @@ var ts = require("typescript");
 var Lint = require("tslint");
 var minimatch = require("minimatch");
 var path_1 = require("path");
-var Rule = (function (_super) {
+var Rule = /** @class */ (function (_super) {
     __extends(Rule, _super);
     function Rule() {
         return _super !== null && _super.apply(this, arguments) || this;
@@ -36,7 +36,7 @@ var Rule = (function (_super) {
     return Rule;
 }(Lint.Rules.AbstractRule));
 exports.Rule = Rule;
-var ImportPatterns = (function (_super) {
+var ImportPatterns = /** @class */ (function (_super) {
     __extends(ImportPatterns, _super);
     function ImportPatterns(file, opts, _config) {
         var _this = _super.call(this, file, opts) || this;
@@ -50,6 +50,14 @@ var ImportPatterns = (function (_super) {
     };
     ImportPatterns.prototype.visitImportDeclaration = function (node) {
         this._validateImport(node.moduleSpecifier.getText(), node);
+    };
+    ImportPatterns.prototype.visitCallExpression = function (node) {
+        _super.prototype.visitCallExpression.call(this, node);
+        // import('foo') statements inside the code
+        if (node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+            var path = node.arguments[0];
+            this._validateImport(path.getText(), node);
+        }
     };
     ImportPatterns.prototype._validateImport = function (path, node) {
         // remove quotes

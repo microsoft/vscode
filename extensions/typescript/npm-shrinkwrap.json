@@ -14,8 +14,8 @@
     },
     "vscode-extension-telemetry": {
       "version": "0.0.7",
-      "from": "vscode-extension-telemetry@>=0.0.7 <0.0.8",
-      "resolved": "https://registry.npmjs.org/vscode-extension-telemetry/-/vscode-extension-telemetry-0.0.7.tgz"
+      "from": "vscode-extension-telemetry@>=0.0.8 <0.0.9",
+      "resolved": "https://registry.npmjs.org/vscode-extension-telemetry/-/vscode-extension-telemetry-0.0.8.tgz"
     },
     "vscode-nls": {
       "version": "2.0.1",

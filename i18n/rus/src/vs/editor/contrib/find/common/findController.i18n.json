@@ -10,10 +10,6 @@
 	"nextSelectionMatchFindAction": "Найти следующее выделение",
 	"previousSelectionMatchFindAction": "Найти предыдущее выделение",
 	"startReplace": "Заменить",
-	"addSelectionToNextFindMatch": "Добавить выделение в следующее найденное совпадение",
-	"addSelectionToPreviousFindMatch": "Добавить выделенный фрагмент в предыдущее найденное совпадение",
-	"moveSelectionToNextFindMatch": "Переместить последнее выделение в следующее найденное совпадение",
-	"moveSelectionToPreviousFindMatch": "Переместить последний выделенный фрагмент в предыдущее найденное совпадение",
-	"selectAllOccurrencesOfFindMatch": "Выбрать все вхождения найденных совпадений",
-	"changeAll.label": "Изменить все вхождения"
+	"showNextFindTermAction": "Показать следующий найденный термин",
+	"showPreviousFindTermAction": "Показать предыдущий найденный термин"
 }

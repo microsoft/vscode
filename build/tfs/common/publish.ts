@@ -68,6 +68,7 @@ interface Asset {
 	mooncakeUrl: string;
 	hash: string;
 	sha256hash: string;
+	size: number;
 }
 
 function createOrUpdate(commit: string, quality: string, platform: string, type: string, release: NewDocument, asset: Asset, isUpdate: boolean): Promise<void> {
@@ -131,9 +132,11 @@ async function doesAssetExist(blobService: azure.BlobService, quality: string, b
 }
 
 async function uploadBlob(blobService: azure.BlobService, quality: string, blobName: string, file: string): Promise<void> {
-	const blobOptions = {
-		contentType: mime.lookup(file),
-		cacheControl: 'max-age=31536000, public'
+	const blobOptions: azure.BlobService.CreateBlockBlobRequestOptions = {
+		contentSettings: {
+			contentType: mime.lookup(file),
+			cacheControl: 'max-age=31536000, public'
+		}
 	};
 
 	await new Promise((c, e) => blobService.createBlockBlobFromLocalFile(quality, blobName, file, blobOptions, err => err ? e(err) : c()));
@@ -154,7 +157,7 @@ async function publish(commit: string, quality: string, platform: string, type: 
 
 	console.log('Publishing...');
 	console.log('Quality:', quality);
-	console.log('Platforn:', platform);
+	console.log('Platform:', platform);
 	console.log('Type:', type);
 	console.log('Name:', name);
 	console.log('Version:', version);
@@ -162,6 +165,11 @@ async function publish(commit: string, quality: string, platform: string, type: 
 	console.log('Is Update:', isUpdate);
 	console.log('Is Released:', isReleased);
 	console.log('File:', file);
+
+	const stat = await new Promise<fs.Stats>((c, e) => fs.stat(file, (err, stat) => err ? e(err) : c(stat)));
+	const size = stat.size;
+
+	console.log('Size:', size);
 
 	const stream = fs.createReadStream(file);
 	const [sha1hash, sha256hash] = await Promise.all([hashStream('sha1', stream), hashStream('sha256', stream)]);
@@ -173,10 +181,13 @@ async function publish(commit: string, quality: string, platform: string, type: 
 	const storageAccount = process.env['AZURE_STORAGE_ACCOUNT_2'];
 
 	const blobService = azure.createBlobService(storageAccount, process.env['AZURE_STORAGE_ACCESS_KEY_2'])
-		.withFilter(new azure.ExponentialRetryPolicyFilter());
+		.withFilter(new azure.ExponentialRetryPolicyFilter(20));
 
 	const mooncakeBlobService = azure.createBlobService(storageAccount, process.env['MOONCAKE_STORAGE_ACCESS_KEY'], `${storageAccount}.blob.core.chinacloudapi.cn`)
-		.withFilter(new azure.ExponentialRetryPolicyFilter());
+		.withFilter(new azure.ExponentialRetryPolicyFilter(20));
+
+	// mooncake is fussy and far away, this is needed!
+	mooncakeBlobService.defaultClientRequestTimeoutInMs = 10 * 60 * 1000;
 
 	await Promise.all([
 		assertContainer(blobService, quality),
@@ -188,17 +199,24 @@ async function publish(commit: string, quality: string, platform: string, type: 
 		doesAssetExist(mooncakeBlobService, quality, blobName)
 	]);
 
-	if (blobExists || moooncakeBlobExists) {
+	const promises = [];
+
+	if (!blobExists) {
+		promises.push(uploadBlob(blobService, quality, blobName, file));
+	}
+
+	if (!moooncakeBlobExists) {
+		promises.push(uploadBlob(mooncakeBlobService, quality, blobName, file));
+	}
+
+	if (promises.length === 0) {
 		console.log(`Blob ${quality}, ${blobName} already exists, not publishing again.`);
 		return;
 	}
 
 	console.log('Uploading blobs to Azure storage...');
 
-	await Promise.all([
-		uploadBlob(blobService, quality, blobName, file),
-		uploadBlob(mooncakeBlobService, quality, blobName, file)
-	]);
+	await Promise.all(promises);
 
 	console.log('Blobs successfully uploaded.');
 
@@ -212,7 +230,8 @@ async function publish(commit: string, quality: string, platform: string, type: 
 		url: `${process.env['AZURE_CDN_URL']}/${quality}/${blobName}`,
 		mooncakeUrl: `${process.env['MOONCAKE_CDN_URL']}/${quality}/${blobName}`,
 		hash: sha1hash,
-		sha256hash
+		sha256hash,
+		size
 	};
 
 	const release = {

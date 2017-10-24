@@ -7,14 +7,12 @@
 
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { dispose } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
-import { distinct } from 'vs/base/common/arrays';
 import { chain } from 'vs/base/common/event';
 import { isPromiseCanceledError, create as createError } from 'vs/base/common/errors';
 import Severity from 'vs/base/common/severity';
 import { PagedModel, IPagedModel, mergePagers, IPager } from 'vs/base/common/paging';
-import { ViewSizing } from 'vs/base/browser/ui/splitview/splitview';
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import { SortBy, SortOrder, IQueryOptions, LocalExtensionType, IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -32,7 +30,7 @@ import { IListService } from 'vs/platform/list/browser/listService';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachListStyler, attachBadgeStyler } from 'vs/platform/theme/common/styler';
-import { CollapsibleView, IViewletViewOptions, IViewOptions } from 'vs/workbench/parts/views/browser/views';
+import { ViewsViewletPanel, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { OpenGlobalSettingsAction } from 'vs/workbench/parts/preferences/browser/preferencesActions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -41,14 +39,13 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 
-export class ExtensionsListView extends CollapsibleView {
+export class ExtensionsListView extends ViewsViewletPanel {
 
 	private messageBox: HTMLElement;
 	private extensionsList: HTMLElement;
 	private badge: CountBadge;
 
 	private list: PagedList<IExtension>;
-	private disposables: IDisposable[] = [];
 
 	constructor(
 		private options: IViewletViewOptions,
@@ -69,7 +66,7 @@ export class ExtensionsListView extends CollapsibleView {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IProgressService private progressService: IProgressService
 	) {
-		super({ ...(options as IViewOptions), ariaHeaderLabel: options.name, sizing: ViewSizing.Flexible, collapsed: !!options.collapsed, initialBodySize: 1 * 62 }, keybindingService, contextMenuService);
+		super({ ...(options as IViewOptions), ariaHeaderLabel: options.name }, keybindingService, contextMenuService);
 	}
 
 	renderHeader(container: HTMLElement): void {
@@ -101,14 +98,6 @@ export class ExtensionsListView extends CollapsibleView {
 			.map(e => e.elements[0])
 			.filter(e => !!e)
 			.on(this.pin, this, this.disposables);
-	}
-
-	setVisible(visible: boolean): TPromise<void> {
-		return super.setVisible(visible).then(() => {
-			if (!visible) {
-				this.setModel(new PagedModel([]));
-			}
-		});
 	}
 
 	layoutBody(size: number): void {
@@ -159,7 +148,7 @@ export class ExtensionsListView extends CollapsibleView {
 
 		switch (query.sortBy) {
 			case 'installs': options = assign(options, { sortBy: SortBy.InstallCount }); break;
-			case 'rating': options = assign(options, { sortBy: SortBy.AverageRating }); break;
+			case 'rating': options = assign(options, { sortBy: SortBy.WeightedRating }); break;
 			case 'name': options = assign(options, { sortBy: SortBy.Title }); break;
 		}
 
@@ -174,6 +163,7 @@ export class ExtensionsListView extends CollapsibleView {
 					result = result.sort((e1, e2) => e2.installCount - e1.installCount);
 					break;
 				case SortBy.AverageRating:
+				case SortBy.WeightedRating:
 					result = result.sort((e1, e2) => e2.rating - e1.rating);
 					break;
 				default:
@@ -215,6 +205,21 @@ export class ExtensionsListView extends CollapsibleView {
 			return new PagedModel(result);
 		}
 
+		if (/@enabled/i.test(value)) {
+			value = value ? value.replace(/@enabled/g, '').trim().toLowerCase() : '';
+
+			const local = await this.extensionsWorkbenchService.queryLocal();
+
+			const result = local
+				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
+				.filter(e => e.type === LocalExtensionType.User &&
+					!(e.disabledForWorkspace || e.disabledGlobally) &&
+					e.name.toLowerCase().indexOf(value) > -1
+				);
+
+			return new PagedModel(result);
+		}
+
 		if (ExtensionsListView.isWorkspaceRecommendedExtensionsQuery(query.value)) {
 			return this.getWorkspaceRecommendationsModel(query, options);
 		} else if (ExtensionsListView.isKeymapsRecommendedExtensionsQuery(query.value)) {
@@ -248,13 +253,15 @@ export class ExtensionsListView extends CollapsibleView {
 			});
 
 			if (names.length) {
-				const namesOptions = assign({}, options, { names });
+				const namesOptions = assign({}, options, { names, source: 'extRegex' });
 				pagerPromises.push(this.extensionsWorkbenchService.queryGallery(namesOptions));
 			}
 		}
 
 		if (text) {
 			options = assign(options, { text: text.substr(0, 350) });
+		} else {
+			options.source = 'viewlet';
 		}
 
 		pagerPromises.push(this.extensionsWorkbenchService.queryGallery(options));
@@ -271,18 +278,35 @@ export class ExtensionsListView extends CollapsibleView {
 		return this.extensionsWorkbenchService.queryLocal()
 			.then(result => result.filter(e => e.type === LocalExtensionType.User))
 			.then(local => {
-				return TPromise.join([TPromise.as(this.tipsService.getRecommendations()), this.tipsService.getWorkspaceRecommendations(), TPromise.as(this.tipsService.getKeymapRecommendations())])
-					.then(([recommendations, workspaceRecommendations, keymapsRecommendations]) => {
-						const names = distinct([...recommendations, ...workspaceRecommendations, ...keymapsRecommendations])
-							.filter(name => local.every(ext => `${ext.publisher}.${ext.name}` !== name))
-							.filter(name => name.toLowerCase().indexOf(value) > -1);
+				const installedExtensions = local.map(x => `${x.publisher}.${x.name}`);
+				return TPromise.join([TPromise.as(this.tipsService.getRecommendations(installedExtensions, value)), this.tipsService.getWorkspaceRecommendations()])
+					.then(([recommendations, workspaceRecommendations]) => {
 
+						workspaceRecommendations = workspaceRecommendations
+							.filter(name => {
+								return recommendations.indexOf(name) === -1
+									&& installedExtensions.indexOf(name) === -1
+									&& name.toLowerCase().indexOf(value) > -1;
+							});
+
+						// Sort recommendations such that few of the workspace ones show up earliar
+						const x = Math.min(4, recommendations.length);
+						const y = Math.min(4, workspaceRecommendations.length);
+						const names = recommendations.slice(0, x);
+						names.push(...workspaceRecommendations.slice(0, y));
+						names.push(...recommendations.slice(x));
+						names.push(...workspaceRecommendations.slice(y));
+
+						this.telemetryService.publicLog('extensionAllRecommendations:open', { count: names.length });
 						if (!names.length) {
 							return TPromise.as(new PagedModel([]));
 						}
-
+						options.source = 'recommendations-all';
 						return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
-							.then(pager => new PagedModel(pager || []));
+							.then(pager => {
+								this.sortFirstPage(pager, names);
+								return new PagedModel(pager || []);
+							});
 					});
 			});
 	}
@@ -293,18 +317,24 @@ export class ExtensionsListView extends CollapsibleView {
 		return this.extensionsWorkbenchService.queryLocal()
 			.then(result => result.filter(e => e.type === LocalExtensionType.User))
 			.then(local => {
-				const names = this.tipsService.getRecommendations()
-					.filter(name => local.every(ext => `${ext.publisher}.${ext.name}` !== name))
-					.filter(name => name.toLowerCase().indexOf(value) > -1);
+				const names = this.tipsService.getRecommendations(local.map(x => `${x.publisher}.${x.name}`), value);
 
+				/* __GDPR__
+					"extensionRecommendations:open" : {
+						"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
 				this.telemetryService.publicLog('extensionRecommendations:open', { count: names.length });
 
 				if (!names.length) {
 					return TPromise.as(new PagedModel([]));
 				}
-
+				options.source = 'recommendations';
 				return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
-					.then(pager => new PagedModel(pager));
+					.then(pager => {
+						this.sortFirstPage(pager, names);
+						return new PagedModel(pager || []);
+					});
 			});
 	}
 
@@ -313,14 +343,19 @@ export class ExtensionsListView extends CollapsibleView {
 		return this.tipsService.getWorkspaceRecommendations()
 			.then(recommendations => {
 				const names = recommendations.filter(name => name.toLowerCase().indexOf(value) > -1);
+				/* __GDPR__
+			"extensionWorkspaceRecommendations:open" : {
+				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 				this.telemetryService.publicLog('extensionWorkspaceRecommendations:open', { count: names.length });
 
 				if (!names.length) {
 					return TPromise.as(new PagedModel([]));
 				}
-
+				options.source = 'recommendations-workspace';
 				return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
-					.then(pager => new PagedModel(pager));
+					.then(pager => new PagedModel(pager || []));
 			});
 	}
 
@@ -328,14 +363,36 @@ export class ExtensionsListView extends CollapsibleView {
 		const value = query.value.replace(/@recommended:keymaps/g, '').trim().toLowerCase();
 		const names = this.tipsService.getKeymapRecommendations()
 			.filter(name => name.toLowerCase().indexOf(value) > -1);
+		/* __GDPR__
+			"extensionKeymapRecommendations:open" : {
+				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		this.telemetryService.publicLog('extensionKeymapRecommendations:open', { count: names.length });
 
 		if (!names.length) {
 			return TPromise.as(new PagedModel([]));
 		}
-
+		options.source = 'recommendations-keymaps';
 		return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
 			.then(result => new PagedModel(result));
+	}
+
+	// Sorts the firsPage of the pager in the same order as given array of extension ids
+	private sortFirstPage(pager: IPager<IExtension>, ids: string[]) {
+		if (ids.length !== pager.pageSize) {
+			return;
+		}
+		ids = ids.map(x => x.toLowerCase());
+		let newFirstPage = new Array(pager.pageSize);
+		for (let i = 0; i < pager.pageSize; i++) {
+			let index = ids.indexOf(pager.firstPage[i].id.toLowerCase());
+			if (index === -1) {
+				return; // Something went wrong, Abort! Abort!
+			}
+			newFirstPage[index] = pager.firstPage[i];
+		}
+		pager.firstPage = newFirstPage;
 	}
 
 	private setModel(model: IPagedModel<IExtension>) {
@@ -405,6 +462,10 @@ export class ExtensionsListView extends CollapsibleView {
 		return /@disabled/i.test(query);
 	}
 
+	static isEnabledExtensionsQuery(query: string): boolean {
+		return /@enabled/i.test(query);
+	}
+
 	static isRecommendedExtensionsQuery(query: string): boolean {
 		return /@recommended/i.test(query);
 	}
@@ -423,7 +484,8 @@ export class InstalledExtensionsView extends ExtensionsListView {
 	public static isInsalledExtensionsQuery(query: string): boolean {
 		return ExtensionsListView.isInstalledExtensionsQuery(query)
 			|| ExtensionsListView.isOutdatedExtensionsQuery(query)
-			|| ExtensionsListView.isDisabledExtensionsQuery(query);
+			|| ExtensionsListView.isDisabledExtensionsQuery(query)
+			|| ExtensionsListView.isEnabledExtensionsQuery(query);
 	}
 
 	async show(query: string): TPromise<IPagedModel<IExtension>> {
@@ -441,8 +503,7 @@ export class RecommendedExtensionsView extends ExtensionsListView {
 
 	public static isRecommendedExtensionsQuery(query: string): boolean {
 		return ExtensionsListView.isRecommendedExtensionsQuery(query)
-			|| ExtensionsListView.isWorkspaceRecommendedExtensionsQuery(query)
-			|| ExtensionsListView.isKeymapsRecommendedExtensionsQuery(query);
+			|| ExtensionsListView.isWorkspaceRecommendedExtensionsQuery(query);
 	}
 
 	async show(query: string): TPromise<IPagedModel<IExtension>> {

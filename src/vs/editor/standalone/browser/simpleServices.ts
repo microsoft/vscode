@@ -8,7 +8,8 @@ import { Schemas } from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, IConfigurationKeys, IConfigurationValues, Configuration, IConfigurationData, ConfigurationModel, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationChangeEvent, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, Position } from 'vs/platform/editor/common/editor';
 import { ICommandService, ICommand, ICommandEvent, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
@@ -16,13 +17,13 @@ import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayo
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IKeybindingEvent, KeybindingSource, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IConfirmation, IMessageService } from 'vs/platform/message/common/message';
-import { IWorkspaceContextService, ILegacyWorkspace, IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IConfirmation, IMessageService, IConfirmationResult } from 'vs/platform/message/common/message';
+import { IWorkspaceContextService, IWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { Selection } from 'vs/editor/common/core/selection';
 import Event, { Emitter } from 'vs/base/common/event';
-import { DefaultConfigurationModel } from 'vs/platform/configuration/common/model';
+import { Configuration, ConfigurationModel, DefaultConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
@@ -33,7 +34,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeybindingsRegistry, IKeybindingItem } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { MenuId, IMenu, IMenuService } from 'vs/platform/actions/common/actions';
 import { Menu } from 'vs/platform/actions/common/menu';
-import { ITelemetryService, ITelemetryExperiments, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { ResolvedKeybinding, Keybinding, createKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { OS } from 'vs/base/common/platform';
@@ -150,14 +151,14 @@ export class SimpleEditorService implements IEditorService {
 		if (selection) {
 			if (typeof selection.endLineNumber === 'number' && typeof selection.endColumn === 'number') {
 				editor.setSelection(selection);
-				editor.revealRangeInCenter(selection);
+				editor.revealRangeInCenter(selection, editorCommon.ScrollType.Immediate);
 			} else {
 				let pos = {
 					lineNumber: selection.startLineNumber,
 					column: selection.startColumn
 				};
 				editor.setPosition(pos);
-				editor.revealPositionInCenter(pos);
+				editor.revealPositionInCenter(pos, editorCommon.ScrollType.Immediate);
 			}
 		}
 
@@ -235,6 +236,7 @@ export class SimpleProgressService implements IProgressService {
 }
 
 export class SimpleMessageService implements IMessageService {
+
 	public _serviceBrand: any;
 
 	private static Empty = function () { /* nothing */ };
@@ -260,13 +262,17 @@ export class SimpleMessageService implements IMessageService {
 		// No-op
 	}
 
-	public confirm(confirmation: IConfirmation): boolean {
+	public confirmSync(confirmation: IConfirmation): boolean {
 		let messageText = confirmation.message;
 		if (confirmation.detail) {
 			messageText = messageText + '\n\n' + confirmation.detail;
 		}
 
 		return window.confirm(messageText);
+	}
+
+	public confirm(confirmation: IConfirmation): TPromise<IConfirmationResult> {
+		return TPromise.as({ confirmed: this.confirmSync(confirmation) } as IConfirmationResult);
 	}
 }
 
@@ -284,7 +290,8 @@ export class StandaloneCommandService implements ICommandService {
 		this._dynamicCommands = Object.create(null);
 	}
 
-	public addCommand(id: string, command: ICommand): IDisposable {
+	public addCommand(command: ICommand): IDisposable {
+		const { id } = command;
 		this._dynamicCommands[id] = command;
 		return {
 			dispose: () => {
@@ -316,10 +323,11 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 	constructor(
 		contextKeyService: IContextKeyService,
 		commandService: ICommandService,
+		telemetryService: ITelemetryService,
 		messageService: IMessageService,
 		domNode: HTMLElement
 	) {
-		super(contextKeyService, commandService, messageService);
+		super(contextKeyService, commandService, telemetryService, messageService);
 
 		this._cachedResolver = null;
 		this._dynamicKeybindings = [];
@@ -359,7 +367,8 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 
 		let commandService = this._commandService;
 		if (commandService instanceof StandaloneCommandService) {
-			toDispose.push(commandService.addCommand(commandId, {
+			toDispose.push(commandService.addCommand({
+				id: commandId,
 				handler: handler
 			}));
 		} else {
@@ -425,45 +434,68 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 	}
 }
 
+function isConfigurationOverrides(thing: any): thing is IConfigurationOverrides {
+	return thing
+		&& typeof thing === 'object'
+		&& (!thing.overrideIdentifier || typeof thing.overrideIdentifier === 'string')
+		&& (!thing.resource || thing.resource instanceof URI);
+}
+
 export class SimpleConfigurationService implements IConfigurationService {
 
 	_serviceBrand: any;
 
-	private _onDidUpdateConfiguration = new Emitter<IConfigurationServiceEvent>();
-	public onDidUpdateConfiguration: Event<IConfigurationServiceEvent> = this._onDidUpdateConfiguration.event;
+	private _onDidChangeConfiguration = new Emitter<IConfigurationChangeEvent>();
+	public onDidChangeConfiguration: Event<IConfigurationChangeEvent> = this._onDidChangeConfiguration.event;
 
-	private _configuration: Configuration<any>;
+	private _configuration: Configuration;
 
 	constructor() {
 		this._configuration = new Configuration(new DefaultConfigurationModel(), new ConfigurationModel());
 	}
 
-	private configuration(): Configuration<any> {
+	private configuration(): Configuration {
 		return this._configuration;
 	}
 
-	public reloadConfiguration<T>(section?: string): TPromise<T> {
-		return TPromise.as<T>(this.getConfiguration<T>(section));
+	getConfiguration<T>(): T
+	getConfiguration<T>(section: string): T
+	getConfiguration<T>(overrides: IConfigurationOverrides): T
+	getConfiguration<T>(section: string, overrides: IConfigurationOverrides): T
+	getConfiguration(arg1?: any, arg2?: any): any {
+		const section = typeof arg1 === 'string' ? arg1 : void 0;
+		const overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : {};
+		return this.configuration().getSection(section, overrides, null);
 	}
 
-	public getConfiguration<C>(section?: string, options?: IConfigurationOverrides): C {
-		return this.configuration().getValue<C>(section, options);
+	public getValue<C>(key: string, options: IConfigurationOverrides = {}): C {
+		return this.configuration().getValue(key, options, null);
 	}
 
-	public lookup<C>(key: string, options?: IConfigurationOverrides): IConfigurationValue<C> {
-		return this.configuration().lookup<C>(key, options);
+	public updateValue(key: string, value: any, arg3?: any, arg4?: any): TPromise<void> {
+		return TPromise.as(null);
 	}
 
-	public keys(): IConfigurationKeys {
-		return this.configuration().keys();
+	public inspect<C>(key: string, options: IConfigurationOverrides = {}): {
+		default: C,
+		user: C,
+		workspace: C,
+		workspaceFolder: C
+		value: C,
+	} {
+		return this.configuration().lookup<C>(key, options, null);
 	}
 
-	public values<V>(): IConfigurationValues {
-		return this._configuration.values();
+	public keys() {
+		return this.configuration().keys(null);
 	}
 
-	public getConfigurationData(): IConfigurationData<any> {
-		return this.configuration().toData();
+	public reloadConfiguration(): TPromise<void> {
+		return TPromise.as(null);
+	}
+
+	public getConfigurationData() {
+		return null;
 	}
 }
 
@@ -471,12 +503,12 @@ export class SimpleResourceConfigurationService implements ITextResourceConfigur
 
 	_serviceBrand: any;
 
-	public readonly onDidUpdateConfiguration: Event<void>;
-	private readonly _onDidUpdateConfigurationEmitter = new Emitter();
+	public readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent>;
+	private readonly _onDidChangeConfigurationEmitter = new Emitter();
 
 	constructor(private configurationService: SimpleConfigurationService) {
-		this.configurationService.onDidUpdateConfiguration(() => {
-			this._onDidUpdateConfigurationEmitter.fire();
+		this.configurationService.onDidChangeConfiguration((e) => {
+			this._onDidChangeConfigurationEmitter.fire(e);
 		});
 	}
 
@@ -513,10 +545,6 @@ export class StandaloneTelemetryService implements ITelemetryService {
 	public getTelemetryInfo(): TPromise<ITelemetryInfo> {
 		return null;
 	}
-
-	public getExperiments(): ITelemetryExperiments {
-		return null;
-	}
 }
 
 export class SimpleWorkspaceContextService implements IWorkspaceContextService {
@@ -525,42 +553,59 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 
 	private static SCHEME: 'inmemory';
 
-	private readonly _onDidChangeWorkspaceRoots: Emitter<void> = new Emitter<void>();
-	public readonly onDidChangeWorkspaceRoots: Event<void> = this._onDidChangeWorkspaceRoots.event;
+	private readonly _onDidChangeWorkspaceName: Emitter<void> = new Emitter<void>();
+	public readonly onDidChangeWorkspaceName: Event<void> = this._onDidChangeWorkspaceName.event;
 
-	private readonly legacyWorkspace: ILegacyWorkspace;
+	private readonly _onDidChangeWorkspaceFolders: Emitter<IWorkspaceFoldersChangeEvent> = new Emitter<IWorkspaceFoldersChangeEvent>();
+	public readonly onDidChangeWorkspaceFolders: Event<IWorkspaceFoldersChangeEvent> = this._onDidChangeWorkspaceFolders.event;
+
+	private readonly _onDidChangeWorkbenchState: Emitter<WorkbenchState> = new Emitter<WorkbenchState>();
+	public readonly onDidChangeWorkbenchState: Event<WorkbenchState> = this._onDidChangeWorkbenchState.event;
+
 	private readonly workspace: IWorkspace;
 
 	constructor() {
-		this.legacyWorkspace = { resource: URI.from({ scheme: SimpleWorkspaceContextService.SCHEME, authority: 'model', path: '/' }) };
-		this.workspace = { id: '4064f6ec-cb38-4ad0-af64-ee6467e63c82', roots: [this.legacyWorkspace.resource], name: this.legacyWorkspace.resource.fsPath };
+		const resource = URI.from({ scheme: SimpleWorkspaceContextService.SCHEME, authority: 'model', path: '/' });
+		this.workspace = { id: '4064f6ec-cb38-4ad0-af64-ee6467e63c82', folders: [new WorkspaceFolder({ uri: resource, name: '', index: 0 })], name: resource.fsPath };
 	}
 
-	public getWorkspace(): ILegacyWorkspace {
-		return this.legacyWorkspace;
-	}
-
-	public getWorkspace2(): IWorkspace {
+	public getWorkspace(): IWorkspace {
 		return this.workspace;
 	}
 
-	public getRoot(resource: URI): URI {
-		return resource && resource.scheme === SimpleWorkspaceContextService.SCHEME ? this.workspace.roots[0] : void 0;
+	public getWorkbenchState(): WorkbenchState {
+		if (this.workspace) {
+			if (this.workspace.configuration) {
+				return WorkbenchState.WORKSPACE;
+			}
+			return WorkbenchState.FOLDER;
+		}
+		return WorkbenchState.EMPTY;
 	}
 
-	public hasWorkspace(): boolean {
-		return true;
+	public getWorkspaceFolder(resource: URI): IWorkspaceFolder {
+		return resource && resource.scheme === SimpleWorkspaceContextService.SCHEME ? this.workspace.folders[0] : void 0;
 	}
 
 	public isInsideWorkspace(resource: URI): boolean {
 		return resource && resource.scheme === SimpleWorkspaceContextService.SCHEME;
 	}
 
-	public toWorkspaceRelativePath(resource: URI, toOSPath?: boolean): string {
-		return resource.fsPath;
+	public toResource(workspaceRelativePath: string, workspaceFolder: IWorkspaceFolder): URI {
+		return URI.file(workspaceRelativePath);
 	}
 
-	public toResource(workspaceRelativePath: string): URI {
-		return URI.file(workspaceRelativePath);
+	public isCurrentWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): boolean {
+		return true;
+	}
+
+	public addFolders(foldersToAdd: URI[]): TPromise<void>;
+	public addFolders(foldersToAdd: { uri: URI, name?: string }[]): TPromise<void>;
+	public addFolders(foldersToAdd: any[]): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	public removeFolders(foldersToRemove: URI[]): TPromise<void> {
+		return TPromise.as(void 0);
 	}
 }

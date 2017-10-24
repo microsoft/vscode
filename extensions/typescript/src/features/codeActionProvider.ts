@@ -3,20 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CodeActionProvider, TextDocument, Range, CancellationToken, CodeActionContext, Command, commands, Uri, workspace, WorkspaceEdit, TextEdit, FormattingOptions, window, ProviderResult } from 'vscode';
+import { CodeActionProvider, TextDocument, Range, CancellationToken, CodeActionContext, Command, commands } from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
+import { vsRangeToTsFileRange } from '../utils/convert';
+import FormattingConfigurationManager from './formattingConfigurationManager';
+import { applyCodeAction } from '../utils/codeAction';
 
 interface NumberSet {
 	[key: number]: boolean;
-}
-
-interface Source {
-	uri: Uri;
-	version: number;
-	range: Range;
-	formattingOptions: FormattingOptions | undefined;
 }
 
 export default class TypeScriptCodeActionProvider implements CodeActionProvider {
@@ -26,13 +22,19 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 
 	constructor(
 		private readonly client: ITypescriptServiceClient,
+		private readonly formattingConfigurationManager: FormattingConfigurationManager,
 		mode: string
 	) {
 		this.commandId = `_typescript.applyCodeAction.${mode}`;
 		commands.registerCommand(this.commandId, this.onCodeAction, this);
 	}
 
-	public provideCodeActions(document: TextDocument, range: Range, context: CodeActionContext, token: CancellationToken): ProviderResult<Command[]> {
+	public async provideCodeActions(
+		document: TextDocument,
+		range: Range,
+		context: CodeActionContext,
+		token: CancellationToken
+	): Promise<Command[]> {
 		if (!this.client.apiVersion.has213Features()) {
 			return [];
 		}
@@ -41,34 +43,20 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 		if (!file) {
 			return [];
 		}
-		let formattingOptions: FormattingOptions | undefined = undefined;
-		for (const editor of window.visibleTextEditors) {
-			if (editor.document.fileName === document.fileName) {
-				formattingOptions = { tabSize: editor.options.tabSize, insertSpaces: editor.options.insertSpaces } as FormattingOptions;
-				break;
-			}
+
+		const supportedActions = await this.getSupportedActionsForContext(context);
+		if (!supportedActions.size) {
+			return [];
 		}
-		const source: Source = {
-			uri: document.uri,
-			version: document.version,
-			range: range,
-			formattingOptions: formattingOptions
+
+		await this.formattingConfigurationManager.ensureFormatOptionsForDocument(document, token);
+
+		const args: Proto.CodeFixRequestArgs = {
+			...vsRangeToTsFileRange(file, range),
+			errorCodes: Array.from(supportedActions)
 		};
-		return this.getSupportedActionsForContext(context)
-			.then(supportedActions => {
-				if (!supportedActions.size) {
-					return [];
-				}
-				return this.client.execute('getCodeFixes', {
-					file: file,
-					startLine: range.start.line + 1,
-					endLine: range.end.line + 1,
-					startOffset: range.start.character + 1,
-					endOffset: range.end.character + 1,
-					errorCodes: Array.from(supportedActions)
-				} as Proto.CodeFixRequestArgs, token).then(response => response.body || []);
-			})
-			.then(codeActions => codeActions.map(action => this.actionToEdit(source, action)));
+		const response = await this.client.execute('getCodeFixes', args, token);
+		return (response.body || []).map(action => this.getCommandForAction(action, file));
 	}
 
 	private get supportedCodeActions(): Thenable<NumberSet> {
@@ -85,63 +73,22 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 		return this._supportedCodeActions;
 	}
 
-	private getSupportedActionsForContext(context: CodeActionContext): Thenable<Set<number>> {
-		return this.supportedCodeActions.then(supportedActions =>
-			new Set(context.diagnostics
-				.map(diagnostic => +diagnostic.code)
-				.filter(code => supportedActions[code])));
+	private async getSupportedActionsForContext(context: CodeActionContext): Promise<Set<number>> {
+		const supportedActions = await this.supportedCodeActions;
+		return new Set(context.diagnostics
+			.map(diagnostic => +diagnostic.code)
+			.filter(code => supportedActions[code]));
 	}
 
-	private actionToEdit(source: Source, action: Proto.CodeAction): Command {
-		const workspaceEdit = new WorkspaceEdit();
-		for (const change of action.changes) {
-			for (const textChange of change.textChanges) {
-				workspaceEdit.replace(this.client.asUrl(change.fileName),
-					new Range(
-						textChange.start.line - 1, textChange.start.offset - 1,
-						textChange.end.line - 1, textChange.end.offset - 1),
-					textChange.newText);
-			}
-		}
+	private getCommandForAction(action: Proto.CodeAction, file: string): Command {
 		return {
 			title: action.description,
 			command: this.commandId,
-			arguments: [source, workspaceEdit]
+			arguments: [action, file]
 		};
 	}
 
-	private onCodeAction(source: Source, workspaceEdit: WorkspaceEdit) {
-		workspace.applyEdit(workspaceEdit).then(success => {
-			if (!success) {
-				return Promise.reject<boolean>(false);
-			}
-
-			let firstEdit: TextEdit | null = null;
-			for (const [uri, edits] of workspaceEdit.entries()) {
-				if (uri.fsPath === source.uri.fsPath) {
-					firstEdit = edits[0];
-					break;
-				}
-			}
-
-			if (!firstEdit) {
-				return true;
-			}
-
-			const newLines = firstEdit.newText.match(/\n/g);
-			const editedRange = new Range(
-				firstEdit.range.start.line, 0,
-				firstEdit.range.end.line + 1 + (newLines ? newLines.length : 0), 0);
-			// TODO: Workaround for https://github.com/Microsoft/TypeScript/issues/12249
-			// apply formatting to the source range until TS returns formatted results
-			return commands.executeCommand('vscode.executeFormatRangeProvider', source.uri, editedRange, source.formattingOptions || {}).then((edits: TextEdit[]) => {
-				if (!edits || !edits.length) {
-					return false;
-				}
-				const workspaceEdit = new WorkspaceEdit();
-				workspaceEdit.set(source.uri, edits);
-				return workspace.applyEdit(workspaceEdit);
-			});
-		});
+	private onCodeAction(action: Proto.CodeAction, file: string): Promise<boolean> {
+		return applyCodeAction(this.client, action, file);
 	}
 }

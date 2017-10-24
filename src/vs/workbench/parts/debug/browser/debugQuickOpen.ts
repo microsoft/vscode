@@ -10,17 +10,52 @@ import Quickopen = require('vs/workbench/browser/quickopen');
 import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');
 import Model = require('vs/base/parts/quickopen/browser/quickOpenModel');
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
-import { IDebugService } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, ILaunch } from 'vs/workbench/parts/debug/common/debug';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import * as errors from 'vs/base/common/errors';
+import { QuickOpenEntry, QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
-class DebugEntry extends Model.QuickOpenEntry {
+class AddConfigEntry extends Model.QuickOpenEntry {
 
-	constructor(private debugService: IDebugService, private configurationName: string, highlights: Model.IHighlight[] = []) {
+	constructor(private label: string, private launch: ILaunch, private commandService: ICommandService, private contextService: IWorkspaceContextService, highlights: Model.IHighlight[] = []) {
+		super(highlights);
+	}
+
+	public getLabel(): string {
+		return this.label;
+	}
+
+	public getDescription(): string {
+		return this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? this.launch.workspace.name : '';
+	}
+
+	public getAriaLabel(): string {
+		return nls.localize('entryAriaLabel', "{0}, debug", this.getLabel());
+	}
+
+	public run(mode: QuickOpen.Mode, context: Model.IContext): boolean {
+		if (mode === QuickOpen.Mode.PREVIEW) {
+			return false;
+		}
+		this.commandService.executeCommand('debug.addConfiguration', this.launch.workspace.uri.toString()).done(undefined, errors.onUnexpectedError);
+
+		return true;
+	}
+}
+
+class StartDebugEntry extends Model.QuickOpenEntry {
+
+	constructor(private debugService: IDebugService, private contextService: IWorkspaceContextService, private launch: ILaunch, private configurationName: string, highlights: Model.IHighlight[] = []) {
 		super(highlights);
 	}
 
 	public getLabel(): string {
 		return this.configurationName;
+	}
+
+	public getDescription(): string {
+		return this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? this.launch.workspace.name : '';
 	}
 
 	public getAriaLabel(): string {
@@ -32,8 +67,8 @@ class DebugEntry extends Model.QuickOpenEntry {
 			return false;
 		}
 		// Run selected debug configuration
-		this.debugService.getViewModel().setSelectedConfigurationName(this.configurationName);
-		this.debugService.startDebugging().done(undefined, errors.onUnexpectedError);
+		this.debugService.getConfigurationManager().selectConfiguration(this.launch, this.configurationName);
+		this.debugService.startDebugging(this.launch.workspace).done(undefined, errors.onUnexpectedError);
 
 		return true;
 	}
@@ -41,9 +76,13 @@ class DebugEntry extends Model.QuickOpenEntry {
 
 export class DebugQuickOpenHandler extends Quickopen.QuickOpenHandler {
 
+	public static readonly ID = 'workbench.picker.launch';
+
 	constructor(
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IDebugService private debugService: IDebugService
+		@IDebugService private debugService: IDebugService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@ICommandService private commandService: ICommandService
 	) {
 		super();
 	}
@@ -53,12 +92,26 @@ export class DebugQuickOpenHandler extends Quickopen.QuickOpenHandler {
 	}
 
 	public getResults(input: string): TPromise<Model.QuickOpenModel> {
-		const configurationNames = this.debugService.getConfigurationManager().getConfigurationNames()
-			.map(config => ({ config: config, highlights: Filters.matchesContiguousSubString(input, config) }))
-			.filter(({ highlights }) => !!highlights)
-			.map(({ config, highlights }) => new DebugEntry(this.debugService, config, highlights));
+		const configurations: QuickOpenEntry[] = [];
 
-		return TPromise.as(new Model.QuickOpenModel(configurationNames));
+		const launches = this.debugService.getConfigurationManager().getLaunches();
+		for (let launch of launches) {
+			launch.getConfigurationNames().map(config => ({ config: config, highlights: Filters.matchesContiguousSubString(input, config) }))
+				.filter(({ highlights }) => !!highlights)
+				.forEach(({ config, highlights }) => configurations.push(new StartDebugEntry(this.debugService, this.contextService, launch, config, highlights)));
+		}
+		launches.forEach((l, index) => {
+			const label = launches.length > 1 ? nls.localize("addConfigTo", "Add Config ({0})...", l.workspace.name) : nls.localize('addConfiguration', "Add Configuration...");
+			const entry = new AddConfigEntry(label, l, this.commandService, this.contextService, Filters.matchesContiguousSubString(input, label));
+			if (index === 0) {
+				configurations.push(new QuickOpenEntryGroup(entry, undefined, true));
+			} else {
+				configurations.push(entry);
+			}
+
+		});
+
+		return TPromise.as(new Model.QuickOpenModel(configurations));
 	}
 
 	public getAutoFocus(input: string): QuickOpen.IAutoFocus {

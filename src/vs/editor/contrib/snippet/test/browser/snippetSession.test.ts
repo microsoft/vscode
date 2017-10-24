@@ -234,9 +234,9 @@ suite('SnippetSession', function () {
 		assertSelections(editor, new Selection(1, 10, 1, 10), new Selection(2, 14, 2, 14));
 
 		session.prev();
-		assertSelections(editor, new Selection(1, 7, 1, 7), new Selection(2, 11, 2, 11));
+		assertSelections(editor, new Selection(1, 7, 1, 10), new Selection(2, 11, 2, 14));
 		session.prev();
-		assertSelections(editor, new Selection(1, 4, 1, 4), new Selection(2, 8, 2, 8));
+		assertSelections(editor, new Selection(1, 4, 1, 7), new Selection(2, 8, 2, 11));
 		session.prev();
 		assertSelections(editor, new Selection(1, 1, 1, 4), new Selection(2, 5, 2, 8));
 	});
@@ -432,6 +432,98 @@ suite('SnippetSession', function () {
 		// back to `${1:is ...}` which now grew
 		session.prev();
 		assertSelections(editor, new Selection(1, 6, 1, 25));
+	});
+
+	test('Snippet placeholder index incorrect after using 2+ snippets in a row that each end with a placeholder, #30769', function () {
+		editor.getModel().setValue('');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+		const session = new SnippetSession(editor, 'test ${1:replaceme}');
+		session.insert();
+
+		editor.trigger('test', 'type', { text: '1' });
+		editor.trigger('test', 'type', { text: '\n' });
+		assert.equal(editor.getModel().getValue(), 'test 1\n');
+
+		session.merge('test ${1:replaceme}');
+		editor.trigger('test', 'type', { text: '2' });
+		editor.trigger('test', 'type', { text: '\n' });
+
+		assert.equal(editor.getModel().getValue(), 'test 1\ntest 2\n');
+
+		session.merge('test ${1:replaceme}');
+		editor.trigger('test', 'type', { text: '3' });
+		editor.trigger('test', 'type', { text: '\n' });
+
+		assert.equal(editor.getModel().getValue(), 'test 1\ntest 2\ntest 3\n');
+
+		session.merge('test ${1:replaceme}');
+		editor.trigger('test', 'type', { text: '4' });
+		editor.trigger('test', 'type', { text: '\n' });
+
+		assert.equal(editor.getModel().getValue(), 'test 1\ntest 2\ntest 3\ntest 4\n');
+	});
+
+	test('Snippet variable text isn\'t whitespace normalised, #31124', function () {
+		editor.getModel().setValue([
+			'start',
+			'\t\t-one',
+			'\t\t-two',
+			'end'
+		].join('\n'));
+
+		editor.getModel().updateOptions({ insertSpaces: false });
+		editor.setSelection(new Selection(2, 2, 3, 7));
+
+		new SnippetSession(editor, '<div>\n\t$TM_SELECTED_TEXT\n</div>$0').insert();
+
+		let expected = [
+			'start',
+			'\t<div>',
+			'\t\t\t-one',
+			'\t\t\t-two',
+			'\t</div>',
+			'end'
+		].join('\n');
+
+		assert.equal(editor.getModel().getValue(), expected);
+
+		editor.getModel().setValue([
+			'start',
+			'\t\t-one',
+			'\t-two',
+			'end'
+		].join('\n'));
+
+		editor.getModel().updateOptions({ insertSpaces: false });
+		editor.setSelection(new Selection(2, 2, 3, 7));
+
+		new SnippetSession(editor, '<div>\n\t$TM_SELECTED_TEXT\n</div>$0').insert();
+
+		expected = [
+			'start',
+			'\t<div>',
+			'\t\t\t-one',
+			'\t\t-two',
+			'\t</div>',
+			'end'
+		].join('\n');
+
+		assert.equal(editor.getModel().getValue(), expected);
+	});
+
+	test('Selecting text from left to right, and choosing item messes up code, #31199', function () {
+		const model = editor.getModel();
+		model.setValue('console.log');
+
+		let actual = SnippetSession.adjustSelection(model, new Selection(1, 12, 1, 9), 3, 0);
+		assert.ok(actual.equalsSelection(new Selection(1, 9, 1, 6)));
+
+		actual = SnippetSession.adjustSelection(model, new Selection(1, 9, 1, 12), 3, 0);
+		assert.ok(actual.equalsSelection(new Selection(1, 9, 1, 12)));
+
+		editor.setSelections([new Selection(1, 9, 1, 12)]);
+		new SnippetSession(editor, 'far', 3, 0).insert();
+		assert.equal(model.getValue(), 'console.far');
 	});
 });
 

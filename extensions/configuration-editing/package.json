@@ -33,11 +33,19 @@
       },
       {
         "fileMatch": "vscode://defaultsettings/settings.json",
-        "url": "vscode://schemas/settings"
+        "url": "vscode://schemas/settings/default"
       },
       {
         "fileMatch": "%APP_SETTINGS_HOME%/settings.json",
-        "url": "vscode://schemas/settings"
+        "url": "vscode://schemas/settings/user"
+      },
+      {
+        "fileMatch": "%APP_WORKSPACES_HOME%/*/workspace.json",
+        "url": "vscode://schemas/workspaceConfig"
+      },
+      {
+        "fileMatch": "**/*.code-workspace",
+        "url": "vscode://schemas/workspaceConfig"
       },
       {
         "fileMatch": "%APP_SETTINGS_HOME%/locale.json",
@@ -45,7 +53,7 @@
       },
       {
         "fileMatch": "/.vscode/settings.json",
-        "url": "vscode://schemas/settings"
+        "url": "vscode://schemas/settings/folder"
       },
       {
         "fileMatch": "/.vscode/launch.json",
@@ -66,6 +74,6 @@
     ]
   },
   "devDependencies": {
-    "@types/node": "^7.0.4"
+    "@types/node": "7.0.4"
   }
 }

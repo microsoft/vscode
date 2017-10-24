@@ -3,13 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IEditor } from 'vs/platform/editor/common/editor';
+import { IEditor, Position, IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IModel } from 'vs/editor/common/editorCommon';
 import { IKeybindingItemEntry } from 'vs/workbench/parts/preferences/common/keybindingsEditorModel';
 import { IRange } from 'vs/editor/common/core/range';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { join } from 'vs/base/common/paths';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+
+export interface IWorkbenchSettingsConfiguration {
+	workbench: {
+		settings: {
+			openDefaultSettings: boolean;
+			experimentalFuzzySearchEndpoint: string;
+			experimentalFuzzySearchKey: string;
+		}
+	};
+}
 
 export interface ISettingsGroup {
 	id: string;
@@ -38,22 +53,34 @@ export interface ISetting {
 }
 
 export interface IFilterResult {
+	query: string;
 	filteredGroups: ISettingsGroup[];
 	allGroups: ISettingsGroup[];
 	matches: IRange[];
+	fuzzySearchAvailable?: boolean;
+	metadata?: IFilterMetadata;
+}
+
+export interface IFilterMetadata {
+	remoteUrl: string;
+	timestamp: number;
+	duration: number;
 }
 
 export interface IPreferencesEditorModel<T> {
 	uri: URI;
-	content: string;
 	getPreference(key: string): T;
 	dispose(): void;
 }
 
+export type IGroupFilter = (group: ISettingsGroup) => boolean;
+export type ISettingFilter = (setting: ISetting) => IRange[];
+
 export interface ISettingsEditorModel extends IPreferencesEditorModel<ISetting> {
 	settingsGroups: ISettingsGroup[];
 	groupsTerms: string[];
-	filterSettings(filter: string): IFilterResult;
+	filterSettings(filter: string, groupFilter: IGroupFilter, settingFilter: ISettingFilter, mostRelevantSettings?: string[]): IFilterResult;
+	findValueMatches(filter: string, setting: ISetting): IRange[];
 }
 
 export interface IKeybindingsEditorModel<T> extends IPreferencesEditorModel<T> {
@@ -64,17 +91,17 @@ export const IPreferencesService = createDecorator<IPreferencesService>('prefere
 export interface IPreferencesService {
 	_serviceBrand: any;
 
-	defaultSettingsResource: URI;
 	userSettingsResource: URI;
 	workspaceSettingsResource: URI;
-	defaultKeybindingsResource: URI;
+	getFolderSettingsResource(resource: URI): URI;
 
+	resolveModel(uri: URI): TPromise<IModel>;
 	createPreferencesEditorModel<T>(uri: URI): TPromise<IPreferencesEditorModel<T>>;
 
-	openSettings(): TPromise<IEditor>;
-	switchSettings(): TPromise<void>;
-	openGlobalSettings(): TPromise<IEditor>;
-	openWorkspaceSettings(): TPromise<IEditor>;
+	openGlobalSettings(options?: IEditorOptions, position?: Position): TPromise<IEditor>;
+	openWorkspaceSettings(options?: IEditorOptions, position?: Position): TPromise<IEditor>;
+	openFolderSettings(folder: URI, options?: IEditorOptions, position?: Position): TPromise<IEditor>;
+	switchSettings(target: ConfigurationTarget, resource: URI): TPromise<void>;
 	openGlobalKeybindingSettings(textual: boolean): TPromise<void>;
 
 	configureSettingsForLanguage(language: string): void;
@@ -86,6 +113,8 @@ export interface IKeybindingsEditor extends IEditor {
 	activeKeybindingEntry: IKeybindingItemEntry;
 
 	search(filter: string): void;
+	clearSearchResults(): void;
+	focusKeybindings(): void;
 	defineKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
 	removeKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
 	resetKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
@@ -93,14 +122,38 @@ export interface IKeybindingsEditor extends IEditor {
 	showConflicts(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
 }
 
+export function getSettingsTargetName(target: ConfigurationTarget, resource: URI, workspaceContextService: IWorkspaceContextService): string {
+	switch (target) {
+		case ConfigurationTarget.USER:
+			return localize('userSettingsTarget', "User Settings");
+		case ConfigurationTarget.WORKSPACE:
+			return localize('workspaceSettingsTarget', "Workspace Settings");
+		case ConfigurationTarget.WORKSPACE_FOLDER:
+			const folder = workspaceContextService.getWorkspaceFolder(resource);
+			return folder ? folder.name : '';
+	}
+	return '';
+}
+
 export const CONTEXT_SETTINGS_EDITOR = new RawContextKey<boolean>('inSettingsEditor', false);
+export const CONTEXT_SETTINGS_SEARCH_FOCUS = new RawContextKey<boolean>('inSettingsSearch', false);
 export const CONTEXT_KEYBINDINGS_EDITOR = new RawContextKey<boolean>('inKeybindings', false);
+export const CONTEXT_KEYBINDINGS_SEARCH_FOCUS = new RawContextKey<boolean>('inKeybindingsSearch', false);
 export const CONTEXT_KEYBINDING_FOCUS = new RawContextKey<boolean>('keybindingFocus', false);
 
 export const SETTINGS_EDITOR_COMMAND_SEARCH = 'settings.action.search';
+export const SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS = 'settings.action.clearSearchResults';
+export const SETTINGS_EDITOR_COMMAND_FOCUS_NEXT_SETTING = 'settings.action.focusNextSetting';
+export const SETTINGS_EDITOR_COMMAND_FOCUS_PREVIOUS_SETTING = 'settings.action.focusPreviousSetting';
+export const SETTINGS_EDITOR_COMMAND_FOCUS_FILE = 'settings.action.focusSettingsFile';
 export const KEYBINDINGS_EDITOR_COMMAND_SEARCH = 'keybindings.editor.searchKeybindings';
+export const KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS = 'keybindings.editor.clearSearchResults';
 export const KEYBINDINGS_EDITOR_COMMAND_DEFINE = 'keybindings.editor.defineKeybinding';
 export const KEYBINDINGS_EDITOR_COMMAND_REMOVE = 'keybindings.editor.removeKeybinding';
 export const KEYBINDINGS_EDITOR_COMMAND_RESET = 'keybindings.editor.resetKeybinding';
 export const KEYBINDINGS_EDITOR_COMMAND_COPY = 'keybindings.editor.copyKeybindingEntry';
 export const KEYBINDINGS_EDITOR_COMMAND_SHOW_CONFLICTS = 'keybindings.editor.showConflicts';
+export const KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS = 'keybindings.editor.focusKeybindings';
+
+export const FOLDER_SETTINGS_PATH = join('.vscode', 'settings.json');
+export const DEFAULT_SETTINGS_EDITOR_SETTING = 'workbench.settings.openDefaultSettings';

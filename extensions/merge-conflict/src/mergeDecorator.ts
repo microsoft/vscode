@@ -197,11 +197,17 @@ export default class MergeDectorator implements vscode.Disposable {
 
 			conflicts.forEach(conflict => {
 				// TODO, this could be more effective, just call getMatchPositions once with a map of decoration to position
-				pushDecoration('current.content', { range: conflict.current.decoratorContent });
-				pushDecoration('incoming.content', { range: conflict.incoming.decoratorContent });
+				if (!conflict.current.decoratorContent.isEmpty) {
+					pushDecoration('current.content', { range: conflict.current.decoratorContent });
+				}
+				if (!conflict.incoming.decoratorContent.isEmpty) {
+					pushDecoration('incoming.content', { range: conflict.incoming.decoratorContent });
+				}
 
 				conflict.commonAncestors.forEach(commonAncestorsRegion => {
-					pushDecoration('commonAncestors.content', { range: commonAncestorsRegion.decoratorContent });
+					if (!commonAncestorsRegion.decoratorContent.isEmpty) {
+						pushDecoration('commonAncestors.content', { range: commonAncestorsRegion.decoratorContent });
+					}
 				});
 
 				if (this.config.enableDecorations) {

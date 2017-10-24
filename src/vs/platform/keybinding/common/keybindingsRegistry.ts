@@ -162,7 +162,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 
 	public registerCommandAndKeybindingRule(desc: ICommandAndKeybindingRule): void {
 		this.registerKeybindingRule(desc);
-		CommandsRegistry.registerCommand(desc.id, desc);
+		CommandsRegistry.registerCommand({ id: desc.id, handler: desc.handler });
 	}
 
 	private static _mightProduceChar(keyCode: KeyCode): boolean {
@@ -223,10 +223,10 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		return result;
 	}
 }
-export let KeybindingsRegistry: IKeybindingsRegistry = new KeybindingsRegistryImpl();
+export const KeybindingsRegistry: IKeybindingsRegistry = new KeybindingsRegistryImpl();
 
 // Define extension point ids
-export let Extensions = {
+export const Extensions = {
 	EditorModes: 'platform.keybindingsRegistry'
 };
 Registry.add(Extensions.EditorModes, KeybindingsRegistry);

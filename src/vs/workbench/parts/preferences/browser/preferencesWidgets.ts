@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
+import URI from 'vs/base/common/uri';
 import { Dimension } from 'vs/base/browser/builder';
 import * as DOM from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Widget } from 'vs/base/browser/ui/widget';
+import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -17,27 +19,34 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { InputBox, IInputOptions } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ISettingsGroup } from 'vs/workbench/parts/preferences/common/preferences';
+import { ISettingsGroup, IPreferencesService, getSettingsTargetName } from 'vs/workbench/parts/preferences/common/preferences';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Action } from 'vs/base/common/actions';
-import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IAction, IActionRunner } from 'vs/base/common/actions';
+import { attachInputBoxStyler, attachStylerCallback, attachSelectBoxStyler, attachCheckboxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Position } from 'vs/editor/common/core/position';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { buttonBackground, buttonForeground, badgeForeground, badgeBackground, contrastBorder, errorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ISelectBoxStyles, defaultStyles } from 'vs/base/browser/ui/selectBox/selectBox';
+import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { Color } from 'vs/base/common/color';
+import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { MarkdownString } from 'vs/base/common/htmlContent';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 
 export class SettingsHeaderWidget extends Widget implements IViewZone {
 
 	private id: number;
 	private _domNode: HTMLElement;
 
-	private titleContainer: HTMLElement;
+	protected titleContainer: HTMLElement;
 	private messageElement: HTMLElement;
 
-	constructor(private editor: ICodeEditor, private title: string) {
+	constructor(protected editor: ICodeEditor, private title: string) {
 		super();
 		this.create();
 		this._register(this.editor.onDidChangeConfiguration(() => this.layout()));
@@ -56,12 +65,17 @@ export class SettingsHeaderWidget extends Widget implements IViewZone {
 		return 0;
 	}
 
-	private create() {
+	protected create() {
 		this._domNode = DOM.$('.settings-header-widget');
 
 		this.titleContainer = DOM.append(this._domNode, DOM.$('.title-container'));
-		DOM.append(this.titleContainer, DOM.$('.title')).textContent = this.title;
+		if (this.title) {
+			DOM.append(this.titleContainer, DOM.$('.title')).textContent = this.title;
+		}
 		this.messageElement = DOM.append(this.titleContainer, DOM.$('.message'));
+		if (this.title) {
+			this.messageElement.style.paddingLeft = '12px';
+		}
 
 		this.editor.changeViewZones(accessor => {
 			this.id = accessor.addZone(this);
@@ -76,6 +90,9 @@ export class SettingsHeaderWidget extends Widget implements IViewZone {
 	private layout(): void {
 		const configuration = this.editor.getConfiguration();
 		this.titleContainer.style.fontSize = configuration.fontInfo.fontSize + 'px';
+		if (!configuration.contribInfo.folding) {
+			this.titleContainer.style.paddingLeft = '12px';
+		}
 	}
 
 	public dispose() {
@@ -83,6 +100,38 @@ export class SettingsHeaderWidget extends Widget implements IViewZone {
 			accessor.removeZone(this.id);
 		});
 		super.dispose();
+	}
+}
+
+export class DefaultSettingsHeaderWidget extends SettingsHeaderWidget {
+
+	private linkElement: HTMLElement;
+	private _onClick = this._register(new Emitter<void>());
+	public onClick: Event<void> = this._onClick.event;
+
+	protected create() {
+		super.create();
+
+		this.linkElement = DOM.append(this.titleContainer, DOM.$('a.settings-header-fuzzy-link'));
+		this.linkElement.textContent = localize('defaultSettingsFuzzyPrompt', "Try fuzzy search!");
+
+		this.onclick(this.linkElement, e => this._onClick.fire());
+		this.toggleMessage(true);
+	}
+
+	public toggleMessage(hasSettings: boolean, promptFuzzy = false): void {
+		if (hasSettings) {
+			this.setMessage(localize('defaultSettings', "Place your settings in the right hand side editor to override."));
+			DOM.addClass(this.linkElement, 'hidden');
+		} else {
+			this.setMessage(localize('noSettingsFound', "No Settings Found."));
+
+			if (promptFuzzy) {
+				DOM.removeClass(this.linkElement, 'hidden');
+			} else {
+				DOM.addClass(this.linkElement, 'hidden');
+			}
+		}
 	}
 }
 
@@ -244,51 +293,137 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 	}
 }
 
-export class SettingsTabsWidget extends Widget {
+export class SettingsTargetsWidget extends Widget {
 
-	private settingsSwitcherBar: ActionBar;
-	private userSettings: Action;
-	private workspaceSettings: Action;
+	public actionRunner: IActionRunner;
+	private settingsTargetsContainer: HTMLSelectElement;
+	private targetLabel: HTMLSelectElement;
+	private targetDetails: HTMLSelectElement;
 
-	private _onSwitch: Emitter<void> = new Emitter<void>();
-	public readonly onSwitch: Event<void> = this._onSwitch.event;
+	private _onDidTargetChange: Emitter<URI> = new Emitter<URI>();
+	public readonly onDidTargetChange: Event<URI> = this._onDidTargetChange.event;
 
-	constructor(parent: HTMLElement, @IWorkspaceContextService private contextService: IWorkspaceContextService, ) {
+	private borderColor: Color;
+
+	constructor(parent: HTMLElement, private _uri: URI, private _configuartionTarget: ConfigurationTarget,
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
+		@IPreferencesService private preferencesService: IPreferencesService,
+		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IThemeService themeService: IThemeService) {
 		super();
+
+		this.borderColor = defaultStyles.selectBorder;
 		this.create(parent);
+		this._register(attachSelectBoxStyler(this, themeService, {
+			selectBackground: SIDE_BAR_BACKGROUND
+		}));
+	}
+
+	get configurationTarget(): ConfigurationTarget {
+		return this._configuartionTarget;
+	}
+
+	public updateTargets(uri: URI, configuartionTarget: ConfigurationTarget): void {
+		this._uri = uri;
+		this._configuartionTarget = configuartionTarget;
+		this.updateLabel();
 	}
 
 	private create(parent: HTMLElement): void {
-		const settingsTabsWidget = DOM.append(parent, DOM.$('.settings-tabs-widget'));
-		this.settingsSwitcherBar = this._register(new ActionBar(settingsTabsWidget, {
-			orientation: ActionsOrientation.HORIZONTAL,
-			ariaLabel: localize('settingsSwitcherBarAriaLabel', "Settings Switcher"),
-			animated: false
-		}));
-		this.userSettings = new Action('userSettings', localize('userSettings', "User Settings"), '.settings-tab', true, () => this.onClick(this.userSettings));
-		this.userSettings.tooltip = this.userSettings.label;
-		this.workspaceSettings = new Action('workspaceSettings', localize('workspaceSettings', "Workspace Settings"), '.settings-tab', this.contextService.hasWorkspace(), () => this.onClick(this.workspaceSettings));
-		this.workspaceSettings.tooltip = this.workspaceSettings.label;
+		this.settingsTargetsContainer = DOM.append(parent, DOM.$('.settings-targets-widget'));
+		this.settingsTargetsContainer.style.width = this.workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? '200px' : '150px';
 
-		this.settingsSwitcherBar.push([this.userSettings, this.workspaceSettings]);
+		const targetElement = DOM.append(this.settingsTargetsContainer, DOM.$('.settings-target'));
+		this.targetLabel = DOM.append(targetElement, DOM.$('.settings-target-label'));
+		this.targetDetails = DOM.append(targetElement, DOM.$('.settings-target-details'));
+		this.updateLabel();
+
+		this.onclick(this.settingsTargetsContainer, e => this.showContextMenu(e));
+
+		DOM.append(this.settingsTargetsContainer, DOM.$('.settings-target-dropdown-icon.octicon.octicon-triangle-down'));
+
+		this.applyStyles();
 	}
 
-	public show(configurationTarget: ConfigurationTarget): void {
-		this.userSettings.checked = ConfigurationTarget.USER === configurationTarget;
-		this.workspaceSettings.checked = ConfigurationTarget.WORKSPACE === configurationTarget;
+	private updateLabel(): void {
+		this.targetLabel.textContent = getSettingsTargetName(this._configuartionTarget, this._uri, this.workspaceContextService);
+		const details = ConfigurationTarget.WORKSPACE_FOLDER === this._configuartionTarget ? localize('folderSettingsDetails', "Folder Settings") : '';
+		this.targetDetails.textContent = details;
+		DOM.toggleClass(this.targetDetails, 'empty', !details);
 	}
 
-	private onClick(action: Action): TPromise<any> {
-		if (!action.checked) {
-			this._onSwitch.fire();
+	private showContextMenu(event: IMouseEvent): void {
+		const actions = this.getSettingsTargetsActions();
+		let elementPosition = DOM.getDomNodePagePosition(this.settingsTargetsContainer);
+		const anchor = { x: elementPosition.left, y: elementPosition.top + elementPosition.height + 5 };
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => anchor,
+			getActions: () => TPromise.wrap(actions)
+		});
+		event.stopPropagation();
+		event.preventDefault();
+	}
+
+	private getSettingsTargetsActions(): IAction[] {
+		const actions: IAction[] = [];
+		const userSettingsResource = this.preferencesService.userSettingsResource;
+		actions.push(<IAction>{
+			id: 'userSettingsTarget',
+			label: getSettingsTargetName(ConfigurationTarget.USER, userSettingsResource, this.workspaceContextService),
+			checked: this._uri.toString() === userSettingsResource.toString(),
+			enabled: true,
+			run: () => this.onTargetClicked(userSettingsResource)
+		});
+
+		if (this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
+			const workspaceSettingsResource = this.preferencesService.workspaceSettingsResource;
+			actions.push(<IAction>{
+				id: 'workspaceSettingsTarget',
+				label: getSettingsTargetName(ConfigurationTarget.WORKSPACE, workspaceSettingsResource, this.workspaceContextService),
+				checked: this._uri.toString() === workspaceSettingsResource.toString(),
+				enabled: true,
+				run: () => this.onTargetClicked(workspaceSettingsResource)
+			});
 		}
-		return TPromise.as(null);
+
+		const workspaceFolders = this.workspaceContextService.getWorkspace().folders;
+		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE && workspaceFolders.length > 0) {
+			actions.push(new Separator());
+			actions.push(...workspaceFolders.map((folder, index) => {
+				return <IAction>{
+					id: 'folderSettingsTarget' + index,
+					label: getSettingsTargetName(ConfigurationTarget.WORKSPACE_FOLDER, folder.uri, this.workspaceContextService),
+					checked: this._uri.toString() === folder.uri.toString(),
+					enabled: true,
+					run: () => this.onTargetClicked(folder.uri)
+				};
+			}));
+		}
+
+		return actions;
+	}
+
+	private onTargetClicked(target: URI): void {
+		if (this._uri.toString() === target.toString()) {
+			return;
+		}
+		this._onDidTargetChange.fire(target);
+	}
+
+	style(styles: ISelectBoxStyles): void {
+		this.borderColor = styles.selectBorder;
+		this.applyStyles();
+	}
+
+	private applyStyles(): void {
+		if (this.settingsTargetsContainer) {
+			this.settingsTargetsContainer.style.border = this.borderColor ? `1px solid ${this.borderColor}` : null;
+		}
 	}
 }
 
 export interface SearchOptions extends IInputOptions {
-	navigateByEnter?: boolean;
-	navigateByArrows?: boolean;
+	focusKey?: IContextKey<boolean>;
 }
 
 export class SearchWidget extends Widget {
@@ -298,12 +433,14 @@ export class SearchWidget extends Widget {
 	private countElement: HTMLElement;
 	private searchContainer: HTMLElement;
 	private inputBox: InputBox;
+	private fuzzyToggle: Checkbox;
+	private controlsDiv: HTMLElement;
 
-	private _onDidChange = this._register(new Emitter<string>());
+	private _onDidChange: Emitter<string> = this._register(new Emitter<string>());
 	public readonly onDidChange: Event<string> = this._onDidChange.event;
 
-	private _onNavigate = this._register(new Emitter<boolean>());
-	public readonly onNavigate: Event<boolean> = this._onNavigate.event;
+	private _onFocus: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onFocus: Event<void> = this._onFocus.event;
 
 	constructor(parent: HTMLElement, protected options: SearchOptions,
 		@IContextViewService private contextViewService: IContextViewService,
@@ -315,10 +452,31 @@ export class SearchWidget extends Widget {
 		this.create(parent);
 	}
 
+	public get fuzzyEnabled(): boolean {
+		return this.fuzzyToggle.checked && this.fuzzyToggle.enabled;
+	}
+
+	public set fuzzyEnabled(value: boolean) {
+		this.fuzzyToggle.checked = value;
+	}
+
 	private create(parent: HTMLElement) {
 		this.domNode = DOM.append(parent, DOM.$('div.settings-header-widget'));
 		this.createSearchContainer(DOM.append(this.domNode, DOM.$('div.settings-search-container')));
-		this.countElement = DOM.append(this.domNode, DOM.$('.settings-count-widget'));
+		this.controlsDiv = DOM.append(this.domNode, DOM.$('div.settings-search-controls'));
+		this.fuzzyToggle = this._register(new Checkbox({
+			actionClassName: 'prefs-fuzzy-search-toggle',
+			isChecked: false,
+			onChange: () => {
+				this.inputBox.focus();
+				this._onDidChange.fire();
+			},
+			title: localize('enableFuzzySearch', 'Enable experimental fuzzy search')
+		}));
+		DOM.append(this.controlsDiv, this.fuzzyToggle.domNode);
+		this._register(attachCheckboxStyler(this.fuzzyToggle, this.themeService));
+
+		this.countElement = DOM.append(this.controlsDiv, DOM.$('.settings-count-widget'));
 		this._register(attachStylerCallback(this.themeService, { badgeBackground, contrastBorder }, colors => {
 			const background = colors.badgeBackground ? colors.badgeBackground.toString() : null;
 			const border = colors.contrastBorder ? colors.contrastBorder.toString() : null;
@@ -332,14 +490,21 @@ export class SearchWidget extends Widget {
 			this.styleCountElementForeground();
 		}));
 		this.inputBox.inputElement.setAttribute('aria-live', 'assertive');
+
+		const focusTracker = this._register(DOM.trackFocus(this.inputBox.inputElement));
+		this._register(focusTracker.addFocusListener(() => this._onFocus.fire()));
+
+		if (this.options.focusKey) {
+			this._register(focusTracker.addFocusListener(() => this.options.focusKey.set(true)));
+			this._register(focusTracker.addBlurListener(() => this.options.focusKey.set(false)));
+		}
 	}
 
 	private createSearchContainer(searchContainer: HTMLElement) {
 		this.searchContainer = searchContainer;
 		const searchInput = DOM.append(this.searchContainer, DOM.$('div.settings-search-input'));
-		this.inputBox = this.createInputBox(searchInput);
-		this.inputBox.onDidChange(value => this._onDidChange.fire(value));
-		this.onkeydown(this.inputBox.inputElement, (e) => this._onKeyDown(e));
+		this.inputBox = this._register(this.createInputBox(searchInput));
+		this._register(this.inputBox.onDidChange(value => this._onDidChange.fire(value)));
 	}
 
 	protected createInputBox(parent: HTMLElement): InputBox {
@@ -353,8 +518,18 @@ export class SearchWidget extends Widget {
 		this.countElement.textContent = message;
 		this.inputBox.inputElement.setAttribute('aria-label', message);
 		DOM.toggleClass(this.countElement, 'no-results', count === 0);
-		this.inputBox.inputElement.style.paddingRight = DOM.getTotalWidth(this.countElement) + 20 + 'px';
+		this.inputBox.inputElement.style.paddingRight = this.getControlsWidth() + 'px';
 		this.styleCountElementForeground();
+	}
+
+	public setFuzzyToggleVisible(visible: boolean): void {
+		if (visible) {
+			this.fuzzyToggle.domNode.classList.remove('hidden');
+			this.fuzzyToggle.enable();
+		} else {
+			this.fuzzyToggle.domNode.classList.add('hidden');
+			this.fuzzyToggle.disable();
+		}
 	}
 
 	private styleCountElementForeground() {
@@ -369,8 +544,12 @@ export class SearchWidget extends Widget {
 			this.inputBox.inputElement.style.paddingRight = '0px';
 		} else {
 			DOM.removeClass(this.countElement, 'hide');
-			this.inputBox.inputElement.style.paddingRight = DOM.getTotalWidth(this.countElement) + 20 + 'px';
+			this.inputBox.inputElement.style.paddingRight = this.getControlsWidth() + 'px';
 		}
+	}
+
+	private getControlsWidth(): number {
+		return DOM.getTotalWidth(this.countElement) + DOM.getTotalWidth(this.fuzzyToggle.domNode) + 20;
 	}
 
 	public focus() {
@@ -396,36 +575,11 @@ export class SearchWidget extends Widget {
 		return this.inputBox.value = value;
 	}
 
-	private _onKeyDown(keyboardEvent: IKeyboardEvent): void {
-		let handled = false;
-		switch (keyboardEvent.keyCode) {
-			case KeyCode.Enter:
-				if (this.options.navigateByEnter) {
-					this._onNavigate.fire(keyboardEvent.shiftKey);
-					handled = true;
-				}
-				break;
-			case KeyCode.UpArrow:
-				if (this.options.navigateByArrows) {
-					this._onNavigate.fire(true);
-				}
-				handled = true;
-				break;
-			case KeyCode.DownArrow:
-				if (this.options.navigateByArrows) {
-					this._onNavigate.fire(false);
-				}
-				handled = true;
-				break;
-			case KeyCode.Escape:
-				this.clear();
-				handled = true;
-				break;
+	public dispose(): void {
+		if (this.options.focusKey) {
+			this.options.focusKey.set(false);
 		}
-		if (handled) {
-			keyboardEvent.preventDefault();
-			keyboardEvent.stopPropagation();
-		}
+		super.dispose();
 	}
 }
 
@@ -502,7 +656,8 @@ export class EditPreferenceWidget<T> extends Disposable {
 		super();
 		this._editPreferenceDecoration = [];
 		this._register(this.editor.onMouseDown((e: IEditorMouseEvent) => {
-			if (e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN || /* after last line */ e.target.detail || !this.isVisible()) {
+			const data = e.target.detail as IMarginData;
+			if (e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN || data.isAfterLines || !this.isVisible()) {
 				return;
 			}
 			this._onClick.fire(e);
@@ -524,7 +679,7 @@ export class EditPreferenceWidget<T> extends Disposable {
 		newDecoration.push({
 			options: {
 				glyphMarginClassName: EditPreferenceWidget.GLYPH_MARGIN_CLASS_NAME,
-				glyphMarginHoverMessage: hoverMessage,
+				glyphMarginHoverMessage: new MarkdownString().appendText(hoverMessage),
 				stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 			},
 			range: {

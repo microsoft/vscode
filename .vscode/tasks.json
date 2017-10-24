@@ -2,11 +2,12 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
-			"customize": "vscode.npm.run watch",
-			"taskName": "Build VS Code",
+			"type": "npm",
+			"script": "watch",
+			"label": "Build VS Code",
 			"group": "build",
 			"isBackground": true,
-			"terminal": {
+			"presentation": {
 				"reveal": "never"
 			},
 			"problemMatcher": {
@@ -28,9 +29,12 @@
 			}
 		},
 		{
-			"customize": "gulp.tslint",
-			"taskName": "Run tslint",
-			"problemMatcher": ["$tslint4"]
+			"type": "gulp",
+			"task": "tslint",
+			"label": "Run tslint",
+			"problemMatcher": [
+				"$tslint4"
+			]
 		},
 		{
 			"taskName": "Run tests",
@@ -51,11 +55,18 @@
 			"command": "./scripts/code.sh",
 			"windows": {
 				"command": ".\\scripts\\code.bat"
-			}
+			},
+			"problemMatcher": []
 		},
 		{
-			"customize": "gulp.electron",
-			"taskName": "Download electron"
+			"type": "gulp",
+			"task": "electron",
+			"label": "Download electron"
+		},
+		{
+			"type": "gulp",
+			"task": "hygiene",
+			"problemMatcher": []
 		}
 	]
 }

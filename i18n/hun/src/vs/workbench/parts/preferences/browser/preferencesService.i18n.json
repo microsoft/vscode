@@ -7,7 +7,6 @@
 	"openFolderFirst": "Munkaterületspecifikus beállítások létrehozásához nyisson meg egy mappát",
 	"emptyKeybindingsHeader": "Az ebben a fájlban elhelyezett billentyűparancsok felülírják az alapértelmezett beállításokat",
 	"defaultKeybindings": "Alapértelmezett billentyűparancsok",
-	"emptySettingsHeader": "Az ebben a fájlban elhelyezett beállítások felülírják az alapértelmezett beállításokat",
-	"emptySettingsHeader1": "Az ebben a fájlban elhelyezett beállítások felülírják az alapértelmezett és felhasználói beállításokat",
+	"folderSettingsName": "{0} (mappabeállítások)",
 	"fail.createSettings": "Nem sikerült a(z) '{0}' létrehozás ({1})."
 }

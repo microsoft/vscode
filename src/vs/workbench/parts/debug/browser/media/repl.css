@@ -36,6 +36,22 @@
 	font-size: 12px;
 }
 
+.monaco-workbench .repl .repl-tree .monaco-tree-row .output.expression.value-and-source {
+	display: flex;
+}
+
+
+.monaco-workbench .repl .repl-tree .monaco-tree-row .output.expression.value-and-source .value {
+	flex: 1;
+}
+
+.monaco-workbench .repl .repl-tree .monaco-tree-row .output.expression.value-and-source .source {
+	margin-left: 4px;
+	margin-right: 8px;
+	cursor: pointer;
+	text-decoration: underline;
+}
+
 .monaco-workbench.windows .repl .repl-tree .monaco-tree-row .input.expression,
 .monaco-workbench.windows .repl .repl-tree .monaco-tree-row .output.expression,
 .monaco-workbench.linux .repl .repl-tree .monaco-tree-row .input.expression,
@@ -50,22 +66,6 @@
 .monaco-workbench .repl .repl-tree .monaco-tree-row .output.expression > .annotation {
 	font-size: inherit;
 	padding-left: 6px;
-}
-
-.monaco-workbench .repl .repl-tree .monaco-tree-row .output.expression > .counter {
-	min-width: 11px;
-	padding: 0 3px;
-	margin-right: 6px;
-	display: inline-block;
-	border-radius: 8px;
-	font-size: 11px;
-	font-weight: normal;
-	text-align: center;
-	line-height: 16px;
-}
-
-.monaco-workbench .repl .repl-tree .monaco-tree-row .output.expression > .counter:empty {
-	display: none;
 }
 
 .monaco-workbench .repl .repl-tree .monaco-tree-row .output.expression .name:not(:empty) {
@@ -159,51 +159,6 @@
 
 .hc-black .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content > .output.expression > .annotation {
 	color: #0000FF;
-}
-
-.vs .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content > .output.expression > .counter.info {
-	background-color: #007ACC;
-	color: white;
-}
-
-.vs-dark .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content > .output.expression > .counter.info {
-	background-color: #1B80B2;
-	color: white;
-}
-
-.hc-black .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content > .output.expression > .counter.info {
-	background-color: #0000FF;
-	color: white;
-}
-
-.vs .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content > .output.expression > .counter.warn {
-	background-color: #cd9731;
-	color: white;
-}
-
-.vs-dark .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content > .output.expression > .counter.warn {
-	background-color: #cd9731;
-	color: white;
-}
-
-.hc-black .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content > .output.expression > .counter.warn {
-	background-color: #008000;
-	color: white;
-}
-
-.vs .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content > .output.expression > .counter.error {
-	background-color: #D72817;
-	color: white;
-}
-
-.vs-dark .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content > .output.expression > .counter.error {
-	background-color: #D72817;
-	color: white;
-}
-
-.hc-black .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content > .output.expression > .counter.error {
-	background-color: #FF0000;
-	color: white;
 }
 
 /* ANSI Codes */

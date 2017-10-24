@@ -10,6 +10,5 @@
 	"never again": "ОК. Больше не показывать",
 	"terminal.integrated.chooseWindowsShell": "Выберите предпочитаемую оболочку терминала. Ее можно позже изменить в параметрах",
 	"terminalService.terminalCloseConfirmationSingular": "Есть активный сеанс терминала, завершить его?",
-	"terminalService.terminalCloseConfirmationPlural": "Есть несколько активных сеансов терминала ({0}), завершить их?",
-	"yes": "Да"
+	"terminalService.terminalCloseConfirmationPlural": "Есть несколько активных сеансов терминала ({0}), завершить их?"
 }

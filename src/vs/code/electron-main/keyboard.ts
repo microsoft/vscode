@@ -7,71 +7,36 @@
 
 import * as nativeKeymap from 'native-keymap';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { isMacintosh } from 'vs/base/common/platform';
 import { IStorageService } from 'vs/platform/storage/node/storage';
 import Event, { Emitter, once } from 'vs/base/common/event';
 import { ConfigWatcher } from 'vs/base/node/config';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ipcMain as ipc } from 'electron';
-import { IWindowsMainService } from "vs/platform/windows/electron-main/windows";
+import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class KeyboardLayoutMonitor {
 
 	public static readonly INSTANCE = new KeyboardLayoutMonitor();
 
-	private _emitter: Emitter<boolean>;
+	private _emitter: Emitter<void>;
 	private _registered: boolean;
-	private _isISOKeyboard: boolean;
 
 	private constructor() {
-		this._emitter = new Emitter<boolean>();
+		this._emitter = new Emitter<void>();
 		this._registered = false;
-		this._isISOKeyboard = this._readIsISOKeyboard();
 	}
 
-	public onDidChangeKeyboardLayout(callback: (isISOKeyboard: boolean) => void): IDisposable {
+	public onDidChangeKeyboardLayout(callback: () => void): IDisposable {
 		if (!this._registered) {
 			this._registered = true;
 
 			nativeKeymap.onDidChangeKeyboardLayout(() => {
-				this._emitter.fire(this._isISOKeyboard);
+				this._emitter.fire();
 			});
-
-			if (isMacintosh) {
-				// See https://github.com/Microsoft/vscode/issues/24153
-				// On OSX, on ISO keyboards, Chromium swaps the scan codes
-				// of IntlBackslash and Backquote.
-				//
-				// The C++ methods can give the current keyboard type (ISO or not)
-				// only after a NSEvent was handled.
-				//
-				// We therefore poll.
-				setInterval(() => {
-					let newValue = this._readIsISOKeyboard();
-					if (this._isISOKeyboard === newValue) {
-						// no change
-						return;
-					}
-
-					this._isISOKeyboard = newValue;
-					this._emitter.fire(this._isISOKeyboard);
-
-				}, 3000);
-			}
 		}
 		return this._emitter.event(callback);
-	}
-
-	private _readIsISOKeyboard(): boolean {
-		if (isMacintosh) {
-			return nativeKeymap.isISOKeyboard();
-		}
-		return false;
-	}
-
-	public isISOKeyboard(): boolean {
-		return this._isISOKeyboard;
 	}
 }
 
@@ -95,20 +60,17 @@ export class KeybindingsResolver {
 	constructor(
 		@IStorageService private storageService: IStorageService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IWindowsMainService private windowsService: IWindowsMainService
+		@IWindowsMainService private windowsService: IWindowsMainService,
+		@ILogService private logService: ILogService
 	) {
 		this.commandIds = new Set<string>();
 		this.keybindings = this.storageService.getItem<{ [id: string]: string; }>(KeybindingsResolver.lastKnownKeybindingsMapStorageKey) || Object.create(null);
-		this.keybindingsWatcher = new ConfigWatcher<IUserFriendlyKeybinding[]>(environmentService.appKeybindingsPath, { changeBufferDelay: 100 });
+		this.keybindingsWatcher = new ConfigWatcher<IUserFriendlyKeybinding[]>(environmentService.appKeybindingsPath, { changeBufferDelay: 100, onError: error => this.logService.error(error) });
 
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
-
-		// Resolve keybindings when any first window is loaded
-		const onceOnWindowReady = once(this.windowsService.onWindowReady);
-		onceOnWindowReady(win => this.resolveKeybindings(win));
 
 		// Listen to resolved keybindings from window
 		ipc.on('vscode:keybindingsResolved', (event, rawKeybindings: string) => {
@@ -146,6 +108,10 @@ export class KeybindingsResolver {
 			}
 		});
 
+		// Resolve keybindings when any first window is loaded
+		const onceOnWindowReady = once(this.windowsService.onWindowReady);
+		onceOnWindowReady(win => this.resolveKeybindings(win));
+
 		// Resolve keybindings again when keybindings.json changes
 		this.keybindingsWatcher.onDidUpdateConfiguration(() => this.resolveKeybindings());
 
@@ -155,7 +121,7 @@ export class KeybindingsResolver {
 
 	private resolveKeybindings(win = this.windowsService.getLastActiveWindow()): void {
 		if (this.commandIds.size && win) {
-			const commandIds = [];
+			const commandIds: string[] = [];
 			this.commandIds.forEach(id => commandIds.push(id));
 			win.sendWhenReady('vscode:resolveKeybindings', JSON.stringify(commandIds));
 		}
@@ -171,5 +137,10 @@ export class KeybindingsResolver {
 		}
 
 		return this.keybindings[commandId];
+	}
+
+	public dispose(): void {
+		this._onKeybindingsChanged.dispose();
+		this.keybindingsWatcher.dispose();
 	}
 }

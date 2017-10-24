@@ -88,14 +88,15 @@ export default class CommandHandler implements vscode.Disposable {
 			}
 		}
 
+		const scheme = editor.document.uri.scheme;
 		let range = conflict.current.content;
 		const leftUri = editor.document.uri.with({
 			scheme: ContentProvider.scheme,
-			query: JSON.stringify(range)
+			query: JSON.stringify({ scheme, range })
 		});
 
 		range = conflict.incoming.content;
-		const rightUri = leftUri.with({ query: JSON.stringify(range) });
+		const rightUri = leftUri.with({ query: JSON.stringify({ scheme, range }) });
 
 		const title = localize('compareChangesTitle', '{0}: Current Changes ⟷ Incoming Changes', fileName);
 		vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title);
@@ -126,7 +127,7 @@ export default class CommandHandler implements vscode.Disposable {
 
 		// Figure out if the cursor is in current or incoming, we do this by seeing if
 		// the active position is before or after the range of the splitter or common
-		// ancesors marker. We can use this trick as the previous check in
+		// ancestors marker. We can use this trick as the previous check in
 		// findConflictByActiveSelection will ensure it's within the conflict range, so
 		// we don't falsely identify "current" or "incoming" if outside of a conflict range.
 		if (editor.selection.active.isBefore(tokenAfterCurrentBlock.start)) {
@@ -183,7 +184,7 @@ export default class CommandHandler implements vscode.Disposable {
 			conflict = args[1];
 		}
 		else {
-			// Attempt to find a conflict that matches the current curosr position
+			// Attempt to find a conflict that matches the current cursor position
 			conflict = await this.findConflictContainingSelection(editor);
 		}
 

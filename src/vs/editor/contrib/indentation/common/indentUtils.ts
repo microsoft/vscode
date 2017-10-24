@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export function getSpaceCnt(str, tabSize) {
+export function getSpaceCnt(str: string, tabSize: number) {
 	let spacesCnt = 0;
 
 	for (let i = 0; i < str.length; i++) {
@@ -17,7 +17,7 @@ export function getSpaceCnt(str, tabSize) {
 	return spacesCnt;
 }
 
-export function generateIndent(spacesCnt: number, tabSize, insertSpaces) {
+export function generateIndent(spacesCnt: number, tabSize: number, insertSpaces: boolean) {
 	spacesCnt = spacesCnt < 0 ? 0 : spacesCnt;
 
 	let result = '';

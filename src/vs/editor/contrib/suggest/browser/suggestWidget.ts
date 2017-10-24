@@ -18,7 +18,6 @@ import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlighte
 import { IDelegate, IListEvent, IRenderer } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
@@ -29,10 +28,13 @@ import { alert } from 'vs/base/browser/ui/aria/aria';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, ITheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { registerColor, editorWidgetBackground, listFocusBackground, activeContrastBorder, listHighlightForeground, editorForeground, editorWidgetBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, editorWidgetBackground, listFocusBackground, activeContrastBorder, listHighlightForeground, editorForeground, editorWidgetBorder, focusBorder, textLinkForeground, textCodeBlockBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { MarkdownRenderer } from 'vs/editor/contrib/markdown/browser/markdownRenderer';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
-const sticky = false; // for development purposes
+const sticky = true; // for development purposes
 const expandSuggestionDocsByDefault = false;
 const maxSuggestionsToShow = 12;
 
@@ -143,7 +145,7 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 		data.colorspan.style.backgroundColor = '';
 
 		if (suggestion.type === 'color') {
-			let color = matchesColor(suggestion.label) || matchesColor(suggestion.documentation);
+			let color = matchesColor(suggestion.label) || typeof suggestion.documentation === 'string' && matchesColor(suggestion.documentation);
 			if (color) {
 				data.icon.className = 'icon customcolor';
 				data.colorspan.style.backgroundColor = color;
@@ -204,6 +206,7 @@ class SuggestionDetails {
 		container: HTMLElement,
 		private widget: SuggestWidget,
 		private editor: ICodeEditor,
+		private markdownRenderer: MarkdownRenderer,
 		private triggerKeybindingLabel: string
 	) {
 		this.disposables = [];
@@ -245,7 +248,14 @@ class SuggestionDetails {
 			return;
 		}
 		removeClass(this.el, 'no-docs');
-		this.docs.textContent = item.suggestion.documentation;
+		if (typeof item.suggestion.documentation === 'string') {
+			removeClass(this.docs, 'markdown-docs');
+			this.docs.textContent = item.suggestion.documentation;
+		} else {
+			addClass(this.docs, 'markdown-docs');
+			this.docs.innerHTML = '';
+			this.docs.appendChild(this.markdownRenderer.render(item.suggestion.documentation));
+		}
 
 		if (item.suggestion.detail) {
 			this.type.innerText = item.suggestion.detail;
@@ -381,20 +391,25 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		private editor: ICodeEditor,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
-		@IKeybindingService keybindingService: IKeybindingService
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IModeService modeService: IModeService,
+		@IOpenerService openerService: IOpenerService
 	) {
 		const kb = keybindingService.lookupKeybinding('editor.action.triggerSuggest');
 		const triggerKeybindingLabel = !kb ? '' : ` (${kb.getLabel()})`;
+		const markdownRenderer = new MarkdownRenderer(editor, modeService, openerService);
 
 		this.isAuto = false;
 		this.focusedItem = null;
 		this.storageService = storageService;
-		const storageResult = this.storageService.store('expandSuggestionDocs', expandSuggestionDocsByDefault, StorageScope.GLOBAL);
-		if (storageResult === undefined) {
-			this.storageServiceAvailable = false;
+
+		if (this.expandDocsSettingFromStorage() === undefined) {
+			this.storageService.store('expandSuggestionDocs', expandSuggestionDocsByDefault, StorageScope.GLOBAL);
+			if (this.expandDocsSettingFromStorage() === undefined) {
+				this.storageServiceAvailable = false;
+			}
 		}
 
 		this.element = $('.editor-widget.suggest-widget');
@@ -404,9 +419,9 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 		this.messageElement = append(this.element, $('.message'));
 		this.listElement = append(this.element, $('.tree'));
-		this.details = new SuggestionDetails(this.element, this, this.editor, triggerKeybindingLabel);
+		this.details = new SuggestionDetails(this.element, this, this.editor, markdownRenderer, triggerKeybindingLabel);
 
-		let renderer: IRenderer<ICompletionItem, any> = instantiationService.createInstance(Renderer, this, this.editor, triggerKeybindingLabel);
+		let renderer = new Renderer(this, this.editor, triggerKeybindingLabel);
 
 		this.list = new List(this.listElement, this, [renderer], {
 			useShadows: false,
@@ -420,6 +435,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			}),
 			themeService.onThemeChange(t => this.onThemeChange(t)),
 			editor.onDidBlurEditorText(() => this.onEditorBlur()),
+			editor.onDidLayoutChange(() => this.onEditorLayoutChange()),
 			this.list.onSelectionChange(e => this.onListSelection(e)),
 			this.list.onFocusChange(e => this.onListFocus(e)),
 			this.editor.onDidChangeCursorSelection(() => this.onCursorSelectionChanged())
@@ -467,6 +483,12 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 				this.setState(State.Hidden);
 			}
 		});
+	}
+
+	private onEditorLayoutChange(): void {
+		if ((this.state === State.Open || this.state === State.Details) && this.expandDocsSettingFromStorage()) {
+			this.expandSideOrBelow();
+		}
 	}
 
 	private onListSelection(e: IListEvent<ICompletionItem>): void {
@@ -707,6 +729,15 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		} else {
 			const { stats } = this.completionModel;
 			stats['wasAutomaticallyTriggered'] = !!isAuto;
+			/* __GDPR__
+				"suggestWidget" : {
+					"wasAutomaticallyTriggered" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"${include}": [
+						"${ICompletionStats}",
+						"${EditorTelemetryData}"
+					]
+				}
+			*/
 			this.telemetryService.publicLog('suggestWidget', { ...stats, ...this.editor.getTelemetryData() });
 
 			this.focusedItem = null;
@@ -834,6 +865,13 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 				this.details.element.style.borderColor = this.detailsFocusBorderColor;
 			}
 		}
+		/* __GDPR__
+			"suggestWidget:toggleDetailsFocus" : {
+				"${include}": [
+					"${EditorTelemetryData}"
+				]
+			}
+		*/
 		this.telemetryService.publicLog('suggestWidget:toggleDetailsFocus', this.editor.getTelemetryData());
 	}
 
@@ -848,23 +886,38 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			removeClass(this.element, 'docs-side');
 			removeClass(this.element, 'docs-below');
 			this.editor.layoutContentWidget(this);
+			/* __GDPR__
+				"suggestWidget:collapseDetails" : {
+					"${include}": [
+						"${EditorTelemetryData}"
+					]
+				}
+			*/
 			this.telemetryService.publicLog('suggestWidget:collapseDetails', this.editor.getTelemetryData());
 		} else {
+			if (this.state !== State.Open && this.state !== State.Details) {
+				return;
+			}
+
 			this.updateExpandDocsSetting(true);
 			this.showDetails();
+			/* __GDPR__
+				"suggestWidget:expandDetails" : {
+					"${include}": [
+						"${EditorTelemetryData}"
+					]
+				}
+			*/
 			this.telemetryService.publicLog('suggestWidget:expandDetails', this.editor.getTelemetryData());
 		}
 
 	}
 
 	showDetails(): void {
-		if (this.state !== State.Open && this.state !== State.Details) {
-			return;
-		}
 		this.expandSideOrBelow();
 
 		show(this.details.element);
-		this.renderDetails();
+		this.details.render(this.list.getFocusedElements()[0]);
 		this.details.element.style.maxHeight = this.maxWidgetHeight + 'px';
 
 		// Reset margin-top that was set as Fix for #26416
@@ -946,8 +999,9 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		const editorCoords = getDomNodePagePosition(this.editor.getDomNode());
 		const cursorX = editorCoords.left + cursorCoords.left;
 		const cursorY = editorCoords.top + cursorCoords.top + cursorCoords.height;
-		const widgetX = this.element.offsetLeft;
-		const widgetY = this.element.offsetTop;
+		const widgetCoords = getDomNodePagePosition(this.element);
+		const widgetX = widgetCoords.left;
+		const widgetY = widgetCoords.top;
 
 		if (widgetX < cursorX - this.listWidth) {
 			// Widget is too far to the left of cursor, swap list and docs
@@ -980,14 +1034,6 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		}
 	}
 
-	private renderDetails(): void {
-		if (this.state === State.Details || this.state === State.Open) {
-			this.details.render(this.list.getFocusedElements()[0]);
-		} else {
-			this.details.render(null);
-		}
-	}
-
 	// Heights
 
 	private get maxWidgetHeight(): number {
@@ -1012,7 +1058,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	// Monaco Editor does not have a storage service
 	private expandDocsSettingFromStorage(): boolean {
 		if (this.storageServiceAvailable) {
-			return this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, expandSuggestionDocsByDefault);
+			return this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL);
 		} else {
 			return this.expandSuggestionDocs;
 		}
@@ -1060,10 +1106,20 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 registerThemingParticipant((theme, collector) => {
 	let matchHighlight = theme.getColor(editorSuggestWidgetHighlightForeground);
 	if (matchHighlight) {
-		collector.addRule(`.monaco-editor .suggest-widget:not(.frozen) .monaco-highlighted-label .highlight { color: ${matchHighlight}; }`);
+		collector.addRule(`.monaco-editor .suggest-widget:not(.frozen) .monaco-list .monaco-list-row .monaco-highlighted-label .highlight { color: ${matchHighlight}; }`);
 	}
 	let foreground = theme.getColor(editorSuggestWidgetForeground);
 	if (foreground) {
 		collector.addRule(`.monaco-editor .suggest-widget { color: ${foreground}; }`);
+	}
+
+	const link = theme.getColor(textLinkForeground);
+	if (link) {
+		collector.addRule(`.monaco-editor .suggest-widget a { color: ${link}; }`);
+	}
+
+	let codeBackground = theme.getColor(textCodeBlockBackground);
+	if (codeBackground) {
+		collector.addRule(`.monaco-editor .suggest-widget code { background-color: ${codeBackground}; }`);
 	}
 });

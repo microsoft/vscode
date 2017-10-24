@@ -66,7 +66,7 @@ export class QuickOpenController implements editorCommon.IEditorContribution {
 			// Restore selection if canceled
 			if (canceled && this.lastKnownEditorSelection) {
 				this.editor.setSelection(this.lastKnownEditorSelection);
-				this.editor.revealRangeInCenterIfOutsideViewport(this.lastKnownEditorSelection);
+				this.editor.revealRangeInCenterIfOutsideViewport(this.lastKnownEditorSelection, editorCommon.ScrollType.Smooth);
 			}
 
 			this.lastKnownEditorSelection = null;
@@ -102,20 +102,20 @@ export class QuickOpenController implements editorCommon.IEditorContribution {
 
 	public decorateLine(range: Range, editor: ICodeEditor): void {
 		editor.changeDecorations((changeAccessor: editorCommon.IModelDecorationsChangeAccessor) => {
-			var oldDecorations: string[] = [];
+			const oldDecorations: string[] = [];
 			if (this.rangeHighlightDecorationId) {
 				oldDecorations.push(this.rangeHighlightDecorationId);
 				this.rangeHighlightDecorationId = null;
 			}
 
-			var newDecorations: editorCommon.IModelDeltaDecoration[] = [
+			const newDecorations: editorCommon.IModelDeltaDecoration[] = [
 				{
 					range: range,
 					options: QuickOpenController._RANGE_HIGHLIGHT_DECORATION
 				}
 			];
 
-			var decorations = changeAccessor.deltaDecorations(oldDecorations, newDecorations);
+			const decorations = changeAccessor.deltaDecorations(oldDecorations, newDecorations);
 			this.rangeHighlightDecorationId = decorations[0];
 		});
 	}

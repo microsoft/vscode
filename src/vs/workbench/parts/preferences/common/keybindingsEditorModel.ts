@@ -13,8 +13,8 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ResolvedKeybinding, ResolvedKeybindingPart } from 'vs/base/common/keyCodes';
 import { AriaLabelProvider, UserSettingsLabelProvider, UILabelProvider, ModifierLabels as ModLabels } from 'vs/base/common/keybindingLabels';
 import { CommonEditorRegistry, EditorAction } from 'vs/editor/common/editorCommonExtensions';
-import { MenuRegistry, ILocalizedString, SyncActionDescriptor, ICommandAction } from 'vs/platform/actions/common/actions';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
+import { MenuRegistry, ILocalizedString, ICommandAction } from 'vs/platform/actions/common/actions';
+import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { EditorModel } from 'vs/workbench/common/editor';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -200,26 +200,21 @@ export class KeybindingsEditorModel extends EditorModel {
 	}
 
 	private static toKeybindingEntry(command: string, keybindingItem: ResolvedKeybindingItem, workbenchActionsRegistry: IWorkbenchActionRegistry, editorActions: {}): IKeybindingItem {
-		const workbenchAction = workbenchActionsRegistry.getWorkbenchAction(command);
 		const menuCommand = MenuRegistry.getCommand(command);
 		const editorAction: EditorAction = editorActions[command];
 		return <IKeybindingItem>{
 			keybinding: keybindingItem.resolvedKeybinding,
 			keybindingItem,
 			command,
-			commandLabel: KeybindingsEditorModel.getCommandLabel(workbenchAction, menuCommand, editorAction),
-			commandDefaultLabel: KeybindingsEditorModel.getCommandDefaultLabel(workbenchAction, menuCommand, workbenchActionsRegistry),
+			commandLabel: KeybindingsEditorModel.getCommandLabel(menuCommand, editorAction),
+			commandDefaultLabel: KeybindingsEditorModel.getCommandDefaultLabel(menuCommand, workbenchActionsRegistry),
 			when: keybindingItem.when ? keybindingItem.when.serialize() : '',
 			source: keybindingItem.isDefault ? localize('default', "Default") : localize('user', "User")
 		};
 	}
 
-	private static getCommandDefaultLabel(workbenchAction: SyncActionDescriptor, menuCommand: ICommandAction, workbenchActionsRegistry: IWorkbenchActionRegistry): string {
+	private static getCommandDefaultLabel(menuCommand: ICommandAction, workbenchActionsRegistry: IWorkbenchActionRegistry): string {
 		if (language !== LANGUAGE_DEFAULT) {
-			if (workbenchAction) {
-				return workbenchActionsRegistry.getAlias(workbenchAction.id);
-			}
-
 			if (menuCommand && menuCommand.title && (<ILocalizedString>menuCommand.title).original) {
 				return (<ILocalizedString>menuCommand.title).original;
 			}
@@ -227,11 +222,7 @@ export class KeybindingsEditorModel extends EditorModel {
 		return null;
 	}
 
-	private static getCommandLabel(workbenchAction: SyncActionDescriptor, menuCommand: ICommandAction, editorAction: EditorAction): string {
-		if (workbenchAction) {
-			return workbenchAction.label;
-		}
-
+	private static getCommandLabel(menuCommand: ICommandAction, editorAction: EditorAction): string {
 		if (menuCommand) {
 			return typeof menuCommand.title === 'string' ? menuCommand.title : menuCommand.title.value;
 		}
@@ -274,7 +265,7 @@ class KeybindingItemMatches {
 	}
 
 	private matchesWords(words: string[], wordToMatchAgainst: string, wordMatchesFilter: IFilter): IMatch[] {
-		let matches = [];
+		let matches: IMatch[] = [];
 		for (const word of words) {
 			const wordMatches = wordMatchesFilter(word, wordToMatchAgainst);
 			if (wordMatches) {
@@ -385,7 +376,7 @@ class KeybindingItemMatches {
 			return false;
 		}
 		const ariaLabel = keybinding.keyAriaLabel;
-		if (ariaLabel.length === 1 || word.length === 1) {
+		if (this.completeMatch || ariaLabel.length === 1 || word.length === 1) {
 			if (strings.compareIgnoreCase(ariaLabel, word) === 0) {
 				return true;
 			}

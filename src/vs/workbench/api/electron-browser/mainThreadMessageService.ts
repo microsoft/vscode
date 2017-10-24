@@ -9,27 +9,35 @@ import { IMessageService, IChoiceService } from 'vs/platform/message/common/mess
 import Severity from 'vs/base/common/severity';
 import { Action } from 'vs/base/common/actions';
 import { TPromise as Promise } from 'vs/base/common/winjs.base';
-import { MainThreadMessageServiceShape } from '../node/extHost.protocol';
-import * as vscode from 'vscode';
+import { MainThreadMessageServiceShape, MainContext, IExtHostContext, MainThreadMessageOptions } from '../node/extHost.protocol';
+import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
+import { IExtensionService, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
-export class MainThreadMessageService extends MainThreadMessageServiceShape {
+@extHostNamedCustomer(MainContext.MainThreadMessageService)
+export class MainThreadMessageService implements MainThreadMessageServiceShape {
 
 	constructor(
-		@IMessageService private _messageService: IMessageService,
-		@IChoiceService private _choiceService: IChoiceService
+		extHostContext: IExtHostContext,
+		@IExtensionService private readonly _extensionService: IExtensionService,
+		@IMessageService private readonly _messageService: IMessageService,
+		@IChoiceService private readonly _choiceService: IChoiceService
 	) {
-		super();
+		//
 	}
 
-	$showMessage(severity: Severity, message: string, options: vscode.MessageOptions, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Thenable<number> {
+	dispose(): void {
+		//
+	}
+
+	$showMessage(severity: Severity, message: string, options: MainThreadMessageOptions, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Thenable<number> {
 		if (options.modal) {
-			return this.showModalMessage(severity, message, commands);
+			return this._showModalMessage(severity, message, commands);
 		} else {
-			return this.showMessage(severity, message, commands);
+			return this._showMessage(severity, message, commands, options.extension);
 		}
 	}
 
-	private showMessage(severity: Severity, message: string, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Thenable<number> {
+	private _showMessage(severity: Severity, message: string, commands: { title: string; isCloseAffordance: boolean; handle: number; }[], extension: IExtensionDescription): Thenable<number> {
 
 		return new Promise<number>(resolve => {
 
@@ -63,12 +71,13 @@ export class MainThreadMessageService extends MainThreadMessageServiceShape {
 
 			messageHide = this._messageService.show(severity, {
 				message,
-				actions
+				actions,
+				source: extension && `${extension.displayName || extension.name}`
 			});
 		});
 	}
 
-	private showModalMessage(severity: Severity, message: string, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Thenable<number> {
+	private _showModalMessage(severity: Severity, message: string, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Thenable<number> {
 		let cancelId: number | undefined = void 0;
 
 		const options = commands.map((command, index) => {

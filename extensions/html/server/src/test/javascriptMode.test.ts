@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import { getJavascriptMode } from '../modes/javascriptMode';
-import { TextDocument, Range, TextEdit, FormattingOptions } from 'vscode-languageserver-types';
+import { TextDocument } from 'vscode-languageserver-types';
 import { getLanguageModelCache } from '../languageModelCache';
 
 import { getLanguageService } from 'vscode-html-languageservice';

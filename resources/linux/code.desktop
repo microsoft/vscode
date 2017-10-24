@@ -2,8 +2,8 @@
 Name=@@NAME_LONG@@
 Comment=Code Editing. Redefined.
 GenericName=Text Editor
-Exec=/usr/share/@@NAME@@/@@NAME@@ --unity-launch %U
-Icon=@@NAME@@
+Exec=/usr/share/@@NAME@@/@@NAME@@ --unity-launch %F
+Icon=@@ICON@@
 Type=Application
 StartupNotify=true
 StartupWMClass=@@NAME_SHORT@@
@@ -23,5 +23,5 @@ Name[ko]=새 창
 Name[ru]=Новое окно
 Name[zh_CN]=新建窗口
 Name[zh_TW]=開新視窗
-Exec=/usr/share/@@NAME@@/@@NAME@@ --new-window %U
+Exec=/usr/share/@@NAME@@/@@NAME@@ --new-window %F
 Icon=@@NAME@@

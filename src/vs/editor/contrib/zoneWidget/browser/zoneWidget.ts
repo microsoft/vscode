@@ -7,7 +7,6 @@
 
 import 'vs/css!./zoneWidget';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Widget } from 'vs/base/browser/ui/widget';
 import * as objects from 'vs/base/common/objects';
 import * as dom from 'vs/base/browser/dom';
 import { Sash, Orientation, IHorizontalSashLayoutProvider, ISashEvent } from 'vs/base/browser/ui/sash/sash';
@@ -17,7 +16,8 @@ import { Color, RGBA } from 'vs/base/common/color';
 import { EditorLayoutInfo } from 'vs/editor/common/config/editorOptions';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
-import { IdGenerator } from "vs/base/common/idGenerator";
+import { IdGenerator } from 'vs/base/common/idGenerator';
+import { ScrollType, TrackedRangeStickiness } from 'vs/editor/common/editorCommon';
 
 export interface IOptions {
 	showFrame?: boolean;
@@ -35,7 +35,7 @@ export interface IStyles {
 	arrowColor?: Color;
 }
 
-const defaultColor = Color.fromRGBA(new RGBA(0, 122, 204));
+const defaultColor = new Color(new RGBA(0, 122, 204));
 
 const defaultOptions: IOptions = {
 	showArrow: true,
@@ -147,7 +147,7 @@ class Arrow {
 	show(where: IPosition): void {
 		this._decorations = this._editor.deltaDecorations(
 			this._decorations,
-			[{ range: Range.fromPositions(where), options: { className: this._ruleName } }]
+			[{ range: Range.fromPositions(where), options: { className: this._ruleName, stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges } }]
 		);
 	}
 
@@ -156,7 +156,7 @@ class Arrow {
 	}
 }
 
-export abstract class ZoneWidget extends Widget implements IHorizontalSashLayoutProvider {
+export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 
 	private _arrow: Arrow;
 	private _overlayWidget: OverlayWidgetDelegate;
@@ -173,7 +173,6 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 
 
 	constructor(editor: ICodeEditor, options: IOptions = {}) {
-		super();
 		this.editor = editor;
 		this.options = objects.clone(options);
 		objects.mixin(this.options, defaultOptions, false);
@@ -396,7 +395,11 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 
 		// Reveal the line above or below the zone widget, to get the zone widget in the viewport
 		const revealLineNumber = Math.min(this.editor.getModel().getLineCount(), Math.max(1, where.endLineNumber + 1));
-		this.editor.revealLine(revealLineNumber);
+		this.revealLine(revealLineNumber);
+	}
+
+	protected revealLine(lineNumber: number) {
+		this.editor.revealLine(lineNumber, ScrollType.Smooth);
 	}
 
 	protected setCssClass(className: string, classToReplace?: string): void {

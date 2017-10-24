@@ -13,5 +13,18 @@
 	"appStalled": "視窗已沒有回應",
 	"appStalledDetail": "您可以重新開啟或關閉視窗，或是繼續等候。",
 	"appCrashed": "視窗已損毀",
-	"appCrashedDetail": "很抱歉造成您的不便! 您可以重新開啟視窗，從您離開的地方繼續進行。"
+	"appCrashedDetail": "很抱歉造成您的不便! 您可以重新開啟視窗，從您離開的地方繼續進行。",
+	"open": "開啟",
+	"openFolder": "開啟資料夾",
+	"openFile": "開啟檔案",
+	"workspaceOpenedMessage": "無法儲存工作區 '{0}'",
+	"workspaceOpenedDetail": "此工作區已在其他視窗中開啟。請先關閉該視窗再重試一次。",
+	"openWorkspace": "開啟(&&O)...",
+	"openWorkspaceTitle": "開啟工作區",
+	"save": "儲存(&&S)",
+	"doNotSave": "不要儲存(&&N)",
+	"cancel": "取消",
+	"saveWorkspaceMessage": "要將工作區組態儲存為檔案嗎?",
+	"saveWorkspaceDetail": "如果您預計再次開啟工作區，請儲存工作區。",
+	"saveWorkspace": "儲存工作區"
 }

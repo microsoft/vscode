@@ -7,13 +7,6 @@
 	"defaultConfigurations.title": "Substitutions de configuration par défaut",
 	"overrideSettings.description": "Configurez les paramètres d'éditeur à remplacer pour le langage {0}.",
 	"overrideSettings.defaultDescription": "Configurez les paramètres d'éditeur à remplacer pour un langage.",
-	"vscode.extension.contributes.configuration": "Ajoute des paramètres de configuration.",
-	"vscode.extension.contributes.configuration.title": "Résumé des paramètres. Cette étiquette va être utilisée dans le fichier de paramètres en tant que commentaire de séparation.",
-	"vscode.extension.contributes.configuration.properties": "Description des propriétés de configuration.",
 	"config.property.languageDefault": "Impossible d'inscrire '{0}'. Ceci correspond au modèle de propriété '\\\\[.*\\\\]$' permettant de décrire les paramètres d'éditeur spécifiques à un langage. Utilisez la contribution 'configurationDefaults'.",
-	"config.property.duplicate": "Impossible d'inscrire '{0}'. Cette propriété est déjà inscrite.",
-	"invalid.properties": "'configuration.properties' doit être un objet",
-	"invalid.type": "s'il est défini, 'configuration.type' doit avoir la valeur 'object",
-	"invalid.title": "'configuration.title' doit être une chaîne",
-	"vscode.extension.contributes.defaultConfiguration": "Contribue aux paramètres de configuration d'éditeur par défaut en fonction du langage."
+	"config.property.duplicate": "Impossible d'inscrire '{0}'. Cette propriété est déjà inscrite."
 }

@@ -144,6 +144,7 @@
 	text-align: left;
 	cursor: pointer;
 	white-space: nowrap;
+	font-family: inherit;
 }
 
 .monaco-workbench > .part.editor > .content .welcomePage .commands li button > span {
