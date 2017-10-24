@@ -23,7 +23,6 @@ import { ColorDetector } from 'vs/editor/contrib/colorPicker/browser/colorDetect
 import { Color, RGBA } from 'vs/base/common/color';
 import { IDisposable, empty as EmptyDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { getColorPresentations } from 'vs/editor/contrib/colorPicker/common/color';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 const $ = dom.$;
 
 class ColorHover {
@@ -170,7 +169,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 	private renderDisposable: IDisposable = EmptyDisposable;
 	private toDispose: IDisposable[];
 
-	constructor(editor: ICodeEditor, markdownRenderner: MarkdownRenderer, private telemetryService: ITelemetryService) {
+	constructor(editor: ICodeEditor, markdownRenderner: MarkdownRenderer) {
 		super(ModesContentHoverWidget.ID, editor);
 
 		this._computer = new ModesContentComputer(this._editor);
@@ -392,7 +391,6 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		});
 
 		// show
-		this.telemetryService.publicLog('editor.contentHoverWidgetDisplayed');
 
 		if (!containColorPicker) {
 			this.showAt(new Position(renderRange.startLineNumber, renderColumn), this._shouldFocus);

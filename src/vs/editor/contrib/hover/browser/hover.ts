@@ -24,7 +24,6 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { editorHoverHighlight, editorHoverBackground, editorHoverBorder, textLinkForeground, textCodeBlockBackground } from 'vs/platform/theme/common/colorRegistry';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/browser/markdownRenderer';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 @editorContribution
 export class ModesHoverController implements editorCommon.IEditorContribution {
@@ -46,8 +45,7 @@ export class ModesHoverController implements editorCommon.IEditorContribution {
 
 	constructor(editor: ICodeEditor,
 		@IOpenerService openerService: IOpenerService,
-		@IModeService modeService: IModeService,
-		@ITelemetryService telemetryService: ITelemetryService
+		@IModeService modeService: IModeService
 	) {
 		this._editor = editor;
 
@@ -67,9 +65,8 @@ export class ModesHoverController implements editorCommon.IEditorContribution {
 					this._hideWidgets();
 				}
 			}));
-
 			const renderer = new MarkdownRenderer(editor, modeService, openerService);
-			this._contentWidget = new ModesContentHoverWidget(editor, renderer, telemetryService);
+			this._contentWidget = new ModesContentHoverWidget(editor, renderer);
 			this._glyphWidget = new ModesGlyphHoverWidget(editor, renderer);
 		}
 	}
