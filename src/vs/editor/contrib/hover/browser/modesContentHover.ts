@@ -14,7 +14,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { getHover } from '../common/hover';
 import { HoverOperation, IHoverComputer } from './hoverOperation';
 import { ContentHoverWidget } from './hoverWidgets';
-import { IMarkdownString, MarkdownString, isEmptyMarkdownString } from 'vs/base/common/htmlContent';
+import { IMarkdownString, MarkdownString, isEmptyMarkdownString, markedStringsEquals } from 'vs/base/common/htmlContent';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/browser/markdownRenderer';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/browser/colorPickerModel';
@@ -243,6 +243,9 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 					}
 				}
 				if (filteredMessages.length > 0) {
+					if (hoverContentsEquals(filteredMessages, this._messages)) {
+						return;
+					}
 					this._renderMessages(range, filteredMessages);
 				} else {
 					this.hide();
@@ -405,4 +408,24 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 	private static _DECORATION_OPTIONS = ModelDecorationOptions.register({
 		className: 'hoverHighlight'
 	});
+}
+
+function hoverContentsEquals(first: HoverPart[], second: HoverPart[]): boolean {
+	if ((!first && second) || (first && !second) || first.length !== second.length) {
+		return false;
+	}
+	for (let i = 0; i < first.length; i++) {
+		const firstElement = first[i];
+		const secondElement = second[i];
+		if (firstElement instanceof ColorHover) {
+			return false;
+		}
+		if (secondElement instanceof ColorHover) {
+			return false;
+		}
+		if (!markedStringsEquals(firstElement.contents, secondElement.contents)) {
+			return false;
+		}
+	}
+	return true;
 }
