@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/ionide/ionide-fsgrammar/commit/826aa0690b4a1fb536485cc2806fa73b451fcee7",
+	"version": "https://github.com/ionide/ionide-fsgrammar/commit/7a24912ecdc886e4d973d6d3ab8df20a0feeda76",
 	"name": "fsharp",
 	"scopeName": "source.fsharp",
 	"fileTypes": [
@@ -330,7 +330,12 @@
 						"1": {
 							"name": "punctuation.definition.string.end.fsharp"
 						}
-					}
+					},
+					"patterns": [
+						{
+							"include": "#string_formatter"
+						}
+					]
 				},
 				{
 					"name": "string.quoted.double.fsharp",
@@ -358,8 +363,24 @@
 						{
 							"name": "invalid.illeagal.character.string.fsharp",
 							"match": "\\\\(?![\\\\''ntbr]|u[a-fA-F0-9]{4}|u[a-fA-F0-9]{8})."
+						},
+						{
+							"include": "#string_formatter"
 						}
 					]
+				}
+			]
+		},
+		"string_formatter": {
+			"patterns": [
+				{
+					"name": "entity.name.type.format.specifier.fsharp",
+					"match": "(%0?-?(\\d+)?((a|t)|(\\.\\d+)?(f|F|e|E|g|G|M)|(b|c|s|d|i|x|X|o)|(s|b|O)|(\\+?A)))",
+					"captures": {
+						"1": {
+							"name": "keyword.other.format.specifier.fsharp"
+						}
+					}
 				}
 			]
 		},
