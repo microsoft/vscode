@@ -39,8 +39,8 @@ export class OpenerService implements IOpenerService {
 
 		const { scheme, path, query, fragment } = resource;
 		let promise: TPromise<any>;
-		if (scheme === Schemas.http || scheme === Schemas.https) {
-			// open http
+		if (scheme === Schemas.http || scheme === Schemas.https || scheme === Schemas.mailto) {
+			// open http or default mail application
 			window.open(resource.toString(true));
 
 		} else if (scheme === 'command' && CommandsRegistry.getCommand(path)) {
