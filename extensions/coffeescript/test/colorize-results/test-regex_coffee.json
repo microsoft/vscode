@@ -430,7 +430,7 @@
 	},
 	{
 		"c": "///",
-		"t": "source.coffee string.regexp.coffee punctuation.definition.string.begin.coffee",
+		"t": "source.coffee string.regexp.multiline.coffee punctuation.definition.string.begin.coffee",
 		"r": {
 			"dark_plus": "string.regexp: #D16969",
 			"light_plus": "string.regexp: #811F3F",
@@ -441,7 +441,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.coffee string.regexp.coffee",
+		"t": "source.coffee string.regexp.multiline.coffee",
 		"r": {
 			"dark_plus": "string.regexp: #D16969",
 			"light_plus": "string.regexp: #811F3F",
@@ -452,7 +452,7 @@
 	},
 	{
 		"c": "#{",
-		"t": "source.coffee string.regexp.coffee source.coffee.embedded.source punctuation.section.embedded.coffee",
+		"t": "source.coffee string.regexp.multiline.coffee source.coffee.embedded.source punctuation.section.embedded.coffee",
 		"r": {
 			"dark_plus": "punctuation.section.embedded: #569CD6",
 			"light_plus": "punctuation.section.embedded: #0000FF",
@@ -463,7 +463,7 @@
 	},
 	{
 		"c": "name",
-		"t": "source.coffee string.regexp.coffee source.coffee.embedded.source",
+		"t": "source.coffee string.regexp.multiline.coffee source.coffee.embedded.source",
 		"r": {
 			"dark_plus": "source.coffee.embedded: #9CDCFE",
 			"light_plus": "source.coffee.embedded: #FF0000",
@@ -474,7 +474,7 @@
 	},
 	{
 		"c": "}",
-		"t": "source.coffee string.regexp.coffee source.coffee.embedded.source punctuation.section.embedded.coffee",
+		"t": "source.coffee string.regexp.multiline.coffee source.coffee.embedded.source punctuation.section.embedded.coffee",
 		"r": {
 			"dark_plus": "punctuation.section.embedded: #569CD6",
 			"light_plus": "punctuation.section.embedded: #0000FF",
@@ -485,7 +485,7 @@
 	},
 	{
 		"c": "fancyRegExp = ",
-		"t": "source.coffee string.regexp.coffee",
+		"t": "source.coffee string.regexp.multiline.coffee",
 		"r": {
 			"dark_plus": "string.regexp: #D16969",
 			"light_plus": "string.regexp: #811F3F",
@@ -496,7 +496,7 @@
 	},
 	{
 		"c": "///",
-		"t": "source.coffee string.regexp.coffee punctuation.definition.string.end.coffee",
+		"t": "source.coffee string.regexp.multiline.coffee punctuation.definition.string.end.coffee",
 		"r": {
 			"dark_plus": "string.regexp: #D16969",
 			"light_plus": "string.regexp: #811F3F",
@@ -716,7 +716,7 @@
 	},
 	{
 		"c": "///",
-		"t": "source.coffee string.regexp.coffee punctuation.definition.string.begin.coffee",
+		"t": "source.coffee string.regexp.multiline.coffee punctuation.definition.string.begin.coffee",
 		"r": {
 			"dark_plus": "string.regexp: #D16969",
 			"light_plus": "string.regexp: #811F3F",
