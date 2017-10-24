@@ -518,7 +518,7 @@ export class TestEditorGroupService implements IEditorGroupService {
 		return this._onEditorOpenFail.event;
 	}
 
-	public get onEditorsMoved(): Event<void> {
+	public get onEditorGroupMoved(): Event<void> {
 		return this._onEditorsMoved.event;
 	}
 

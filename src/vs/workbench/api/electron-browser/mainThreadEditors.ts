@@ -60,7 +60,7 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 		this._toDispose.push(documentsAndEditors.onTextEditorRemove(editors => editors.forEach(this._onTextEditorRemove, this)));
 
 		this._toDispose.push(editorGroupService.onEditorsChanged(() => this._updateActiveAndVisibleTextEditors()));
-		this._toDispose.push(editorGroupService.onEditorsMoved(() => this._updateActiveAndVisibleTextEditors()));
+		this._toDispose.push(editorGroupService.onEditorGroupMoved(() => this._updateActiveAndVisibleTextEditors()));
 
 		this._registeredDecorationTypes = Object.create(null);
 	}

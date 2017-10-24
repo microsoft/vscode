@@ -100,7 +100,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	private _onEditorsChanged: Emitter<void>;
 	private _onEditorOpening: Emitter<IEditorOpeningEvent>;
-	private _onEditorsMoved: Emitter<void>;
+	private _onEditorGroupMoved: Emitter<void>;
 	private _onEditorOpenFail: Emitter<EditorInput>;
 	private _onGroupOrientationChanged: Emitter<void>;
 	private _onTabOptionsChanged: Emitter<IEditorTabOptions>;
@@ -134,7 +134,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		this._onEditorsChanged = new Emitter<void>();
 		this._onEditorOpening = new Emitter<IEditorOpeningEvent>();
-		this._onEditorsMoved = new Emitter<void>();
+		this._onEditorGroupMoved = new Emitter<void>();
 		this._onEditorOpenFail = new Emitter<EditorInput>();
 		this._onGroupOrientationChanged = new Emitter<void>();
 		this._onTabOptionsChanged = new Emitter<IEditorTabOptions>();
@@ -298,8 +298,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		return this._onEditorOpening.event;
 	}
 
-	public get onEditorsMoved(): Event<void> {
-		return this._onEditorsMoved.event;
+	public get onEditorGroupMoved(): Event<void> {
+		return this._onEditorGroupMoved.event;
 	}
 
 	public get onEditorOpenFail(): Event<EditorInput> {
@@ -687,7 +687,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Emit Editor move event
 		if (rochade !== Rochade.NONE) {
-			this._onEditorsMoved.fire();
+			this._onEditorGroupMoved.fire();
 		}
 	}
 
@@ -901,7 +901,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this.focusGroup(fromGroup);
 
 		// Events
-		this._onEditorsMoved.fire();
+		this._onEditorGroupMoved.fire();
 	}
 
 	public moveEditor(input: EditorInput, from: EditorGroup, to: EditorGroup, moveOptions?: IMoveOptions): void;
@@ -1376,7 +1376,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		// Emitters
 		this._onEditorsChanged.dispose();
 		this._onEditorOpening.dispose();
-		this._onEditorsMoved.dispose();
+		this._onEditorGroupMoved.dispose();
 		this._onEditorOpenFail.dispose();
 
 		// Reset Tokens

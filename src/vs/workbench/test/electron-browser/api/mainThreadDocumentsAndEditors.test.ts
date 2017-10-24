@@ -49,7 +49,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 		};
 		const editorGroupService = new class extends mock<IEditorGroupService>() {
 			onEditorsChanged = Event.None;
-			onEditorsMoved = Event.None;
+			onEditorGroupMoved = Event.None;
 		};
 
 		documentAndEditor = new MainThreadDocumentsAndEditors(
