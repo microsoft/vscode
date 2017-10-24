@@ -25,7 +25,7 @@ With `$name` or `${name:default}` you can insert the value of a variable. When a
 * `TM_LINE_INDEX` The zero-index based line number
 * `TM_LINE_NUMBER` The one-index based line number
 * `TM_FILENAME` The filename of the current document
-* `TM_DIRECTORY` The direcorty of the current document
+* `TM_DIRECTORY` The directory of the current document
 * `TM_FILEPATH` The full file path of the current document
 
 Variable-Transform
