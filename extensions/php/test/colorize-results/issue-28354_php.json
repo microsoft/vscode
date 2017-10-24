@@ -56,7 +56,7 @@
 	},
 	{
 		"c": "        ",
-		"t": "text.html.php meta.embedded.block.html source.js punctuation.whitespace.embedded.leading.php",
+		"t": "text.html.php meta.embedded.block.html source.js",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
