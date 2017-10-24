@@ -5,7 +5,7 @@
 
 import Event, { Emitter } from 'vs/base/common/event';
 import { Range, IRange } from 'vs/editor/common/core/range';
-import { FoldingRegion, FoldingModel, IFoldingRange, CollapseMemento } from 'vs/editor/contrib/folding/common/foldingModel';
+import { FoldingRegion, FoldingModel, CollapseMemento } from 'vs/editor/contrib/folding/common/foldingModel';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Selection } from 'vs/editor/common/core/selection';
 import { findFirst } from 'vs/base/common/arrays';
@@ -36,12 +36,12 @@ export class HiddenRangeModel {
 
 		let regions = this._foldingModel.regions;
 		for (let region of regions) {
-			if (!region.isCollapsed || lastCollapsed && lastCollapsed.contains(region.range)) {
+			if (!region.isCollapsed || lastCollapsed && lastCollapsed.contains(region)) {
 				// ignore ranges contained in collapsed regions
 				continue;
 			}
 			lastCollapsed = region;
-			let range = region.range;
+			let range = region;
 
 			if (!updateHiddenAreas && i < this._hiddenRanges.length && matchesHiddenRange(this._hiddenRanges[i], range)) {
 				newHiddenAreas.push(this._hiddenRanges[i]);
@@ -128,7 +128,7 @@ export class HiddenRangeModel {
 	}
 }
 
-function matchesHiddenRange(hr: IRange, range: IFoldingRange) {
+function matchesHiddenRange(hr: IRange, range: FoldingRegion) {
 	return hr.startLineNumber === range.startLineNumber + 1 && hr.endLineNumber === range.endLineNumber;
 }
 function isInside(line: number, range: IRange) {

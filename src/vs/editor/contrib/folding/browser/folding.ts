@@ -13,12 +13,11 @@ import { RunOnceScheduler, Delayer } from 'vs/base/common/async';
 import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ICommonCodeEditor, ScrollType } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, ScrollType, IModel } from 'vs/editor/common/editorCommon';
 import { editorAction, ServicesAccessor, EditorAction, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
-import { FoldingModel, setCollapseStateAtLevel, setCollapseStateDown, CollapseMemento, setCollapseStateLevelsDown, setCollapseStateLevelsUp } from 'vs/editor/contrib/folding/common/foldingModel';
-import { computeRanges, limitByIndent } from 'vs/editor/contrib/folding/common/indentFoldStrategy';
+import { FoldingModel, setCollapseStateAtLevel, CollapseMemento, setCollapseStateLevelsDown, setCollapseStateLevelsUp } from 'vs/editor/contrib/folding/common/foldingModel';
 import { FoldingDecorationProvider } from './foldingDecorations';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
@@ -166,15 +165,9 @@ export class FoldingController {
 		this.onModelContentChanged();
 	}
 
-	private computeRanges() {
-		let editorModel = this.editor.getModel();
-		if (editorModel) {
-			let ranges = computeRanges(editorModel);
-			ranges = limitByIndent(ranges, FoldingController.MAX_FOLDING_REGIONS).sort((r1, r2) => r1.startLineNumber - r2.startLineNumber);
-			return ranges;
-		}
-
-		return [];
+	private computeRanges(editorModel: IModel) {
+		let ranges = editorModel.getIndentRanges();
+		return ranges;
 	}
 
 	public getFoldingModel() {
@@ -184,7 +177,7 @@ export class FoldingController {
 	private onModelContentChanged() {
 		this.foldingModelPromise = this.updateScheduler.trigger(() => {
 			if (this.foldingModel) { // null if editor has been disposed, or folding turned off
-				this.foldingModel.update(this.computeRanges());
+				this.foldingModel.update(this.computeRanges(this.foldingModel.textModel));
 			}
 			return this.foldingModel;
 		});
@@ -211,7 +204,7 @@ export class FoldingController {
 				for (let selection of selections) {
 					let lineNumber = selection.selectionStartLineNumber;
 					if (this.hiddenRangeModel.isHidden(lineNumber)) {
-						let toToggle = foldingModel.getAllRegionsAtLine(lineNumber, r => r.isCollapsed && lineNumber > r.range.startLineNumber);
+						let toToggle = foldingModel.getAllRegionsAtLine(lineNumber, r => r.isCollapsed && lineNumber > r.startLineNumber);
 						foldingModel.toggleCollapseState(toToggle);
 					}
 				}
@@ -406,9 +399,9 @@ class UnfoldAction extends FoldingAction<FoldingArguments> {
 		let levels = args && args.levels || 1;
 		let lineNumbers = this.getLineNumbers(args, editor);
 		if (args && args.direction === 'up') {
-			setCollapseStateLevelsUp(foldingModel, levels, false, lineNumbers);
+			setCollapseStateLevelsUp(foldingModel, false, levels, lineNumbers);
 		} else {
-			setCollapseStateLevelsDown(foldingModel, levels, false, lineNumbers);
+			setCollapseStateLevelsDown(foldingModel, false, levels, lineNumbers);
 		}
 	}
 }
@@ -430,7 +423,7 @@ class UnFoldRecursivelyAction extends FoldingAction<void> {
 	}
 
 	invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICommonCodeEditor, args: any): void {
-		setCollapseStateDown(foldingModel, false, this.getSelectedLines(editor));
+		setCollapseStateLevelsDown(foldingModel, false, Number.MAX_VALUE, this.getSelectedLines(editor));
 	}
 }
 
@@ -471,9 +464,9 @@ class FoldAction extends FoldingAction<FoldingArguments> {
 		let levels = args && args.levels || 1;
 		let lineNumbers = this.getLineNumbers(args, editor);
 		if (args && args.direction === 'up') {
-			setCollapseStateLevelsUp(foldingModel, levels, true, lineNumbers);
+			setCollapseStateLevelsUp(foldingModel, true, levels, lineNumbers);
 		} else {
-			setCollapseStateLevelsDown(foldingModel, levels, true, lineNumbers);
+			setCollapseStateLevelsDown(foldingModel, true, levels, lineNumbers);
 		}
 	}
 }
@@ -496,7 +489,7 @@ class FoldRecursivelyAction extends FoldingAction<void> {
 
 	invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICommonCodeEditor): void {
 		let selectedLines = this.getSelectedLines(editor);
-		setCollapseStateDown(foldingModel, true, selectedLines);
+		setCollapseStateLevelsDown(foldingModel, true, Number.MAX_VALUE, selectedLines);
 		if (selectedLines.length > 0) {
 			foldingController.reveal(selectedLines[0]);
 		}
@@ -521,7 +514,7 @@ class FoldAllAction extends FoldingAction<void> {
 	}
 
 	invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICommonCodeEditor): void {
-		setCollapseStateDown(foldingModel, true);
+		setCollapseStateLevelsDown(foldingModel, true);
 	}
 }
 
@@ -542,7 +535,7 @@ class UnfoldAllAction extends FoldingAction<void> {
 	}
 
 	invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICommonCodeEditor): void {
-		setCollapseStateDown(foldingModel, false);
+		setCollapseStateLevelsDown(foldingModel, false);
 	}
 }
 
