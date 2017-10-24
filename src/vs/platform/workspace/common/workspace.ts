@@ -48,7 +48,7 @@ export interface IWorkspaceContextService {
 	onDidChangeWorkspaceFolders: Event<IWorkspaceFoldersChangeEvent>;
 
 	/**
-	 * Provides access to the workspace object the platform is running with. 
+	 * Provides access to the workspace object the platform is running with.
 	 */
 	getWorkspace(): IWorkspace;
 
@@ -56,6 +56,7 @@ export interface IWorkspaceContextService {
 	 * add folders to the existing workspace
 	 */
 	addFolders(folders: URI[]): TPromise<void>;
+	addFolders(folders: { uri: URI, name?: string }[]): TPromise<void>;
 
 	/**
 	 * remove folders from the existing workspace

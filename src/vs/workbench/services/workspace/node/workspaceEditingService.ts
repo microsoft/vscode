@@ -44,7 +44,9 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	) {
 	}
 
-	public addFolders(folders: URI[]): TPromise<void> {
+	public addFolders(foldersToAdd: URI[]): TPromise<void>;
+	public addFolders(foldersToAdd: { uri: URI, name?: string }[]): TPromise<void>;
+	public addFolders(folders: any[]): TPromise<void> {
 		return this.contextService.addFolders(folders)
 			.then(() => null, error => this.handleWorkspaceConfigurationEditingError(error));
 	}

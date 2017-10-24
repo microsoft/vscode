@@ -599,7 +599,9 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 		return true;
 	}
 
-	public addFolders(foldersToAdd: URI[]): TPromise<void> {
+	public addFolders(foldersToAdd: URI[]): TPromise<void>;
+	public addFolders(foldersToAdd: { uri: URI, name?: string }[]): TPromise<void>;
+	public addFolders(foldersToAdd: any[]): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 

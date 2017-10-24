@@ -19,6 +19,7 @@ export interface IWorkspaceEditingService {
 	 * Add folders to the existing workspace
 	 */
 	addFolders(folders: URI[]): TPromise<void>;
+	addFolders(folders: { uri: URI, name?: string }[]): TPromise<void>;
 
 	/**
 	 * Remove folders from the existing workspace

@@ -106,9 +106,11 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		return this.workspace.getFolder(resource);
 	}
 
-	public addFolders(foldersToAdd: URI[]): TPromise<void> {
+	public addFolders(foldersToAdd: URI[]): TPromise<void>;
+	public addFolders(foldersToAdd: { uri: URI, name?: string }[]): TPromise<void>;
+	public addFolders(folders: URI[] | { uri: URI, name?: string }[]): TPromise<void> {
 		assert.ok(this.jsonEditingService, 'Workbench is not initialized yet');
-		return this.workspaceEditingQueue.queue(() => this.doAddFolders(foldersToAdd));
+		return this.workspaceEditingQueue.queue(() => this.doAddFolders(folders));
 	}
 
 	public removeFolders(foldersToRemove: URI[]): TPromise<void> {
@@ -130,7 +132,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		return false;
 	}
 
-	private doAddFolders(foldersToAdd: URI[]): TPromise<void> {
+	private doAddFolders(foldersToAdd: (URI | { uri: URI, name?: string })[]): TPromise<void> {
 		if (this.getWorkbenchState() !== WorkbenchState.WORKSPACE) {
 			return TPromise.as(void 0); // we need a workspace to begin with
 		}
@@ -144,23 +146,40 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		const workspaceConfigFolder = dirname(this.getWorkspace().configuration.fsPath);
 
 		foldersToAdd.forEach(folderToAdd => {
-			if (this.contains(currentWorkspaceFolderUris, folderToAdd)) {
+			let folderResource: URI;
+			let folderName: string;
+			if (URI.isUri(folderToAdd)) {
+				folderResource = folderToAdd;
+			} else {
+				folderResource = folderToAdd.uri;
+				folderName = folderToAdd.name;
+			}
+
+			if (this.contains(currentWorkspaceFolderUris, folderResource)) {
 				return; // already existing
 			}
 
+			let storedFolder: IStoredWorkspaceFolder;
+
 			// File resource: use "path" property
-			if (folderToAdd.scheme === Schemas.file) {
-				storedFoldersToAdd.push({
-					path: massageFolderPathForWorkspace(folderToAdd.fsPath, workspaceConfigFolder, currentStoredFolders)
-				});
+			if (folderResource.scheme === Schemas.file) {
+				storedFolder = {
+					path: massageFolderPathForWorkspace(folderResource.fsPath, workspaceConfigFolder, currentStoredFolders)
+				};
 			}
 
 			// Any other resource: use "uri" property
 			else {
-				storedFoldersToAdd.push({
-					uri: folderToAdd.toString(true)
-				});
+				storedFolder = {
+					uri: folderResource.toString(true)
+				};
 			}
+
+			if (folderName) {
+				storedFolder.name = folderName;
+			}
+
+			storedFoldersToAdd.push(storedFolder);
 		});
 
 		if (storedFoldersToAdd.length > 0) {

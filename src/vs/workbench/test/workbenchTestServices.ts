@@ -117,7 +117,9 @@ export class TestContextService implements IWorkspaceContextService {
 		return this.workspace;
 	}
 
-	public addFolders(foldersToAdd: URI[]): TPromise<void> {
+	public addFolders(foldersToAdd: URI[]): TPromise<void>;
+	public addFolders(foldersToAdd: { uri: URI, name?: string }[]): TPromise<void>;
+	public addFolders(foldersToAdd: any[]): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
