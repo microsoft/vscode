@@ -31,9 +31,9 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { anonymize } from 'vs/platform/telemetry/common/telemetryUtils';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IRawTextSource } from 'vs/editor/common/model/textSource';
+import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 
 /**
  * The text file editor model listens to changes to its underlying code editor model and saves these changes through the file service back to the disk.
@@ -87,6 +87,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		@IBackupFileService private backupFileService: IBackupFileService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IHashService private hashService: IHashService
 	) {
 		super(modelService, modeService);
 
@@ -380,7 +381,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 						"path": { "classification": "CustomerContent", "purpose": "FeatureInsight" }
 					}
 				*/
-				this.telemetryService.publicLog('fileGet', { mimeType: guessMimeTypes(this.resource.fsPath).join(', '), ext: paths.extname(this.resource.fsPath), path: anonymize(this.resource.fsPath) });
+				this.telemetryService.publicLog('fileGet', { mimeType: guessMimeTypes(this.resource.fsPath).join(', '), ext: paths.extname(this.resource.fsPath), path: this.hashService.createSHA1(this.resource.fsPath) });
 			}
 
 			return model;
