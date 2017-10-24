@@ -13,13 +13,21 @@
 }
 
 .monaco-workbench > .part.panel .title {
-	border-top-width: 1px;
-	border-top-style: solid;
 	padding-right: 0px;
 	height: 35px;
 	display: flex;
 	flex-direction: row;
 	justify-content: space-between;
+}
+
+.monaco-workbench > .part.panel.bottom .title {
+	border-top-width: 1px;
+	border-top-style: solid;
+}
+
+.monaco-workbench > .part.panel.right {
+	border-left-width: 1px;
+	border-left-style: solid;
 }
 
 .monaco-workbench > .part.panel > .composite.title > .title-actions {
