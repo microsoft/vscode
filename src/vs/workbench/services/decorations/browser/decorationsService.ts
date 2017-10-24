@@ -150,22 +150,27 @@ class DecorationStyles {
 	cleanUp(iter: IIterator<DecorationProviderWrapper>): void {
 		// remove every rule for which no more
 		// decoration (data) is kept. this isn't cheap
-
-		// let usedDecorations = new Set<string>();
-		// for (let e = iter.next(); !e.done; e = iter.next()) {
-		// 	e.value.data.forEach(value => {
-		// 		if (value instanceof ResourceDecoration) {
-		// 			const key = DecorationRule.keyOf(value._data);
-		// 			usedDecorations.add(key);
-		// 		}
-		// 	});
-		// }
-		// this._decorationRules.forEach((value, index) => {
-		// 	if (!usedDecorations.has(index)) {
-		// 		value.removeCSSRules(this._styleElement);
-		// 		this._decorationRules.delete(index);
-		// 	}
-		// });
+		let usedDecorations = new Set<string>();
+		for (let e = iter.next(); !e.done; e = iter.next()) {
+			e.value.data.forEach((value, key) => {
+				if (!isThenable<any>(value) && value) {
+					usedDecorations.add(DecorationRule.keyOf(value));
+				}
+			});
+		}
+		this._decorationRules.forEach((value, index) => {
+			const { data } = value;
+			let remove: boolean;
+			if (Array.isArray(data)) {
+				remove = data.some(data => !usedDecorations.has(DecorationRule.keyOf(data)));
+			} else if (!usedDecorations.has(DecorationRule.keyOf(data))) {
+				remove = true;
+			}
+			if (remove) {
+				value.removeCSSRules(this._styleElement);
+				this._decorationRules.delete(index);
+			}
+		});
 	}
 }
 
