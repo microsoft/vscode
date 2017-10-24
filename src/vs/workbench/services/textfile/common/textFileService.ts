@@ -639,12 +639,14 @@ export abstract class TextFileService implements ITextFileService {
 	}
 
 	private suggestFileName(untitledResource: URI): string {
-		const root = this.historyService.getLastActiveWorkspaceRoot();
-		if (root) {
-			return URI.file(paths.join(root.fsPath, this.untitledEditorService.suggestFileName(untitledResource))).fsPath;
+		const untitledFileName = this.untitledEditorService.suggestFileName(untitledResource);
+
+		const lastActiveFile = this.historyService.getLastActiveFile();
+		if (lastActiveFile) {
+			return URI.file(paths.join(paths.dirname(lastActiveFile.fsPath), untitledFileName)).fsPath;
 		}
 
-		return this.untitledEditorService.suggestFileName(untitledResource);
+		return untitledFileName;
 	}
 
 	public revert(resource: URI, options?: IRevertOptions): TPromise<boolean> {

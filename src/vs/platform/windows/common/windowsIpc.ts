@@ -20,10 +20,10 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'pickFileFolderAndOpen', arg: INativeOpenDialogOptions): TPromise<void>;
 	call(command: 'pickFileAndOpen', arg: INativeOpenDialogOptions): TPromise<void>;
 	call(command: 'pickFolderAndOpen', arg: INativeOpenDialogOptions): TPromise<void>;
+	call(command: 'pickWorkspaceAndOpen', arg: INativeOpenDialogOptions): TPromise<void>;
 	call(command: 'reloadWindow', arg: number): TPromise<void>;
 	call(command: 'toggleDevTools', arg: number): TPromise<void>;
 	call(command: 'closeWorkspace', arg: number): TPromise<void>;
-	call(command: 'openWorkspace', arg: number): TPromise<void>;
 	call(command: 'createAndEnterWorkspace', arg: [number, string[], string]): TPromise<IEnterWorkspaceResult>;
 	call(command: 'saveAndEnterWorkspace', arg: [number, string]): TPromise<IEnterWorkspaceResult>;
 	call(command: 'toggleFullScreen', arg: number): TPromise<void>;
@@ -82,11 +82,11 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'pickFileFolderAndOpen': return this.service.pickFileFolderAndOpen(arg);
 			case 'pickFileAndOpen': return this.service.pickFileAndOpen(arg);
 			case 'pickFolderAndOpen': return this.service.pickFolderAndOpen(arg);
+			case 'pickWorkspaceAndOpen': return this.service.pickWorkspaceAndOpen(arg);
 			case 'reloadWindow': return this.service.reloadWindow(arg);
 			case 'openDevTools': return this.service.openDevTools(arg);
 			case 'toggleDevTools': return this.service.toggleDevTools(arg);
 			case 'closeWorkspace': return this.service.closeWorkspace(arg);
-			case 'openWorkspace': return this.service.openWorkspace(arg);
 			case 'createAndEnterWorkspace': return this.service.createAndEnterWorkspace(arg[0], arg[1], arg[2]);
 			case 'saveAndEnterWorkspace': return this.service.saveAndEnterWorkspace(arg[0], arg[1]);
 			case 'toggleFullScreen': return this.service.toggleFullScreen(arg);
@@ -154,6 +154,10 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('pickFolderAndOpen', options);
 	}
 
+	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
+		return this.channel.call('pickWorkspaceAndOpen', options);
+	}
+
 	reloadWindow(windowId: number): TPromise<void> {
 		return this.channel.call('reloadWindow', windowId);
 	}
@@ -168,10 +172,6 @@ export class WindowsChannelClient implements IWindowsService {
 
 	closeWorkspace(windowId: number): TPromise<void> {
 		return this.channel.call('closeWorkspace', windowId);
-	}
-
-	openWorkspace(windowId: number): TPromise<void> {
-		return this.channel.call('openWorkspace', windowId);
 	}
 
 	createAndEnterWorkspace(windowId: number, folderPaths?: string[], path?: string): TPromise<IEnterWorkspaceResult> {

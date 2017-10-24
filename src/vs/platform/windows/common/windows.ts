@@ -43,11 +43,11 @@ export interface IWindowsService {
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	pickFileAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	pickFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
+	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	reloadWindow(windowId: number): TPromise<void>;
 	openDevTools(windowId: number): TPromise<void>;
 	toggleDevTools(windowId: number): TPromise<void>;
 	closeWorkspace(windowId: number): TPromise<void>;
-	openWorkspace(windowId: number): TPromise<void>;
 	createAndEnterWorkspace(windowId: number, folderPaths?: string[], path?: string): TPromise<IEnterWorkspaceResult>;
 	saveAndEnterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult>;
 	toggleFullScreen(windowId: number): TPromise<void>;
@@ -115,11 +115,11 @@ export interface IWindowService {
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	pickFileAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	pickFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
+	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	reloadWindow(): TPromise<void>;
 	openDevTools(): TPromise<void>;
 	toggleDevTools(): TPromise<void>;
 	closeWorkspace(): TPromise<void>;
-	openWorkspace(): TPromise<void>;
 	updateTouchBar(items: ICommandAction[][]): TPromise<void>;
 	createAndEnterWorkspace(folderPaths?: string[], path?: string): TPromise<IEnterWorkspaceResult>;
 	saveAndEnterWorkspace(path: string): TPromise<IEnterWorkspaceResult>;

@@ -592,7 +592,7 @@ export class TerminalInstance implements ITerminalInstance {
 		if (!this._shellLaunchConfig.executable) {
 			this._configHelper.mergeDefaultShellPathAndArgs(this._shellLaunchConfig);
 		}
-		this._initialCwd = this._getCwd(this._shellLaunchConfig, this._historyService.getLastActiveWorkspaceRoot());
+		this._initialCwd = this._getCwd(this._shellLaunchConfig, this._historyService.getLastActiveWorkspaceRoot('file'));
 		let envFromConfig: IStringDictionary<string>;
 		if (platform.isWindows) {
 			envFromConfig = { ...process.env };

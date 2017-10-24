@@ -103,7 +103,7 @@ export abstract class AbstractOpenInTerminalAction extends Action {
 		let pathToOpen: string;
 
 		// Try workspace path first
-		const root = this.historyService.getLastActiveWorkspaceRoot();
+		const root = this.historyService.getLastActiveWorkspaceRoot('file');
 		pathToOpen = this.resource ? this.resource.fsPath : (root && root.fsPath);
 
 		// Otherwise check if we have an active file open

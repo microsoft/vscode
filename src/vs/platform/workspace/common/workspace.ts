@@ -48,8 +48,7 @@ export interface IWorkspaceContextService {
 	onDidChangeWorkspaceFolders: Event<IWorkspaceFoldersChangeEvent>;
 
 	/**
-	 * Provides access to the workspace object the platform is running with. This may be null if the workbench was opened
-	 * without workspace (empty);
+	 * Provides access to the workspace object the platform is running with. 
 	 */
 	getWorkspace(): IWorkspace;
 

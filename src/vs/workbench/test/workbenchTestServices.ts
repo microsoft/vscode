@@ -305,8 +305,12 @@ export class TestHistoryService implements IHistoryService {
 		return [];
 	}
 
-	public getLastActiveWorkspaceRoot(): URI {
+	public getLastActiveWorkspaceRoot(schemeFilter?: string): URI {
 		return this.root;
+	}
+
+	public getLastActiveFile(): URI {
+		return void 0;
 	}
 }
 
@@ -906,6 +910,10 @@ export class TestWindowService implements IWindowService {
 		return TPromise.as(void 0);
 	}
 
+	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
 	reloadWindow(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
@@ -919,10 +927,6 @@ export class TestWindowService implements IWindowService {
 	}
 
 	closeWorkspace(): TPromise<void> {
-		return TPromise.as(void 0);
-	}
-
-	openWorkspace(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
@@ -1058,6 +1062,10 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(void 0);
 	}
 
+	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
 	reloadWindow(windowId: number): TPromise<void> {
 		return TPromise.as(void 0);
 	}
@@ -1071,10 +1079,6 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	closeWorkspace(windowId: number): TPromise<void> {
-		return TPromise.as(void 0);
-	}
-
-	openWorkspace(windowId: number): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 

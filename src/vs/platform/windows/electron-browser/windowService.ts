@@ -51,6 +51,12 @@ export class WindowService implements IWindowService {
 		return this.windowsService.pickFolderAndOpen(options);
 	}
 
+	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
+		options.windowId = this.windowId;
+
+		return this.windowsService.pickWorkspaceAndOpen(options);
+	}
+
 	reloadWindow(): TPromise<void> {
 		return this.windowsService.reloadWindow(this.windowId);
 	}
@@ -65,10 +71,6 @@ export class WindowService implements IWindowService {
 
 	closeWorkspace(): TPromise<void> {
 		return this.windowsService.closeWorkspace(this.windowId);
-	}
-
-	openWorkspace(): TPromise<void> {
-		return this.windowsService.openWorkspace(this.windowId);
 	}
 
 	createAndEnterWorkspace(folderPaths?: string[], path?: string): TPromise<IEnterWorkspaceResult> {
