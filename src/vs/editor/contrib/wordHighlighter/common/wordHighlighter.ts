@@ -22,7 +22,6 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDeco
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { firstIndex } from 'vs/base/common/arrays';
 
@@ -478,14 +477,11 @@ class WordHighlightNavigationAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
-		const telemetryService = accessor.get(ITelemetryService);
-
 		const controller = WordHighlighterContribution.get(editor);
 		if (!controller) {
 			return;
 		}
 
-		telemetryService.publicLog('wordHighlightNavigation', { mode: 'go to word highlight', ...editor.getTelemetryData() });
 		if (this._isNext) {
 			controller.moveNext();
 		} else {
