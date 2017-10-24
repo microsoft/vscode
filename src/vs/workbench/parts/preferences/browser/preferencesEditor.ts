@@ -87,10 +87,10 @@ export class DefaultPreferencesEditorInput extends ResourceEditorInput {
 	}
 
 	matches(other: any): boolean {
-		if (!super.matches(other)) {
-			return false;
+		if (other instanceof DefaultPreferencesEditorInput) {
+			return true;
 		}
-		if (!(other instanceof DefaultPreferencesEditorInput)) {
+		if (!super.matches(other)) {
 			return false;
 		}
 		return true;
