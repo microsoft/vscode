@@ -67,7 +67,6 @@ export interface IExtensionsWorkbenchService {
 	_serviceBrand: any;
 	onChange: Event<void>;
 	local: IExtension[];
-	isAutoUpdateEnabled: boolean;
 	queryLocal(): TPromise<IExtension[]>;
 	queryGallery(options?: IQueryOptions): TPromise<IPager<IExtension>>;
 	canInstall(extension: IExtension): boolean;
@@ -78,11 +77,11 @@ export interface IExtensionsWorkbenchService {
 	loadDependencies(extension: IExtension): TPromise<IExtensionDependencies>;
 	open(extension: IExtension, sideByside?: boolean): TPromise<any>;
 	checkForUpdates(): TPromise<void>;
-	setAutoUpdate(autoUpdate: boolean): TPromise<void>;
 	allowedBadgeProviders: string[];
 }
 
 export const ConfigurationKey = 'extensions';
+export const AutoUpdateConfigurationKey = 'extensions.autoUpdate';
 
 export interface IExtensionsConfiguration {
 	autoUpdate: boolean;

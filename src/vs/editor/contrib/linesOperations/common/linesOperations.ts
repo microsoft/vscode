@@ -407,7 +407,9 @@ export abstract class AbstractDeleteAllToBoundaryAction extends EditorAction {
 			return EditOperation.replace(range, '');
 		});
 
+		editor.pushUndoStop();
 		editor.executeEdits(this.id, edits, endCursorState);
+		editor.pushUndoStop();
 	}
 
 	/**
@@ -673,8 +675,9 @@ export class JoinLinesAction extends EditorAction {
 		}
 
 		endCursorState.unshift(endPrimaryCursor);
+		editor.pushUndoStop();
 		editor.executeEdits(this.id, edits, endCursorState);
-
+		editor.pushUndoStop();
 	}
 }
 

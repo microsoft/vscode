@@ -8,10 +8,10 @@
 import { localize } from 'vs/nls';
 import { basename } from 'vs/base/common/paths';
 import { IDisposable, dispose, empty as EmptyDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import { filterEvent, any as anyEvent } from 'vs/base/common/event';
+import { filterEvent, anyEvent as anyEvent } from 'vs/base/common/event';
 import { VIEWLET_ID } from 'vs/workbench/parts/scm/common/scm';
 import { ISCMService, ISCMRepository } from 'vs/workbench/services/scm/common/scm';
-import { IActivityBarService, NumberBadge } from 'vs/workbench/services/activity/common/activityBarService';
+import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/statusbar/common/statusbar';
@@ -25,7 +25,7 @@ export class StatusUpdater implements IWorkbenchContribution {
 
 	constructor(
 		@ISCMService private scmService: ISCMService,
-		@IActivityBarService private activityBarService: IActivityBarService
+		@IActivityService private activityService: IActivityService
 	) {
 		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
 		this.render();
@@ -64,7 +64,7 @@ export class StatusUpdater implements IWorkbenchContribution {
 
 		if (count > 0) {
 			const badge = new NumberBadge(count, num => localize('scmPendingChangesBadge', '{0} pending changes', num));
-			this.badgeDisposable = this.activityBarService.showActivity(VIEWLET_ID, badge, 'scm-viewlet-label');
+			this.badgeDisposable = this.activityService.showActivity(VIEWLET_ID, badge, 'scm-viewlet-label');
 		} else {
 			this.badgeDisposable = EmptyDisposable;
 		}

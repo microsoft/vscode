@@ -48,6 +48,8 @@ export interface IViewDescriptor {
 
 	readonly size?: number;
 
+	readonly collapsed?: boolean;
+
 	readonly canToggleVisibility?: boolean;
 }
 

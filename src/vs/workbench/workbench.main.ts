@@ -9,6 +9,9 @@
 import 'vs/base/common/strings';
 import 'vs/base/common/errors';
 
+// Configuration
+import 'vs/workbench/services/configuration/common/configurationExtensionPoint';
+
 // Editor
 import 'vs/editor/editor.all';
 

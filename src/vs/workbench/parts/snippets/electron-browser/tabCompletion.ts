@@ -7,7 +7,7 @@
 
 import { localize } from 'vs/nls';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { RawContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { RawContextKey, IContextKeyService, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ISnippetsService, Snippet } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
 import { getNonWhitespacePrefix, SnippetSuggestion } from 'vs/workbench/parts/snippets/electron-browser/snippetsService';
@@ -20,6 +20,7 @@ import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetCon
 import { showSimpleSuggestions } from 'vs/editor/contrib/suggest/browser/suggest';
 import { IConfigurationRegistry, Extensions as ConfigExt } from 'vs/platform/configuration/common/configurationRegistry';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 @commonEditorContribution
 export class TabCompletionController implements editorCommon.IEditorContribution {
@@ -31,44 +32,25 @@ export class TabCompletionController implements editorCommon.IEditorContribution
 		return editor.getContribution<TabCompletionController>(TabCompletionController.ID);
 	}
 
-	private readonly _editor: editorCommon.ICommonCodeEditor;
-	private readonly _snippetController: SnippetController2;
-	private readonly _dispoables: IDisposable[] = [];
+	private readonly _hasSnippets: IContextKey<boolean>;
+
 	private _snippets: Snippet[] = [];
+	private _selectionListener: IDisposable;
+	private _configListener: IDisposable;
 
 	constructor(
-		editor: editorCommon.ICommonCodeEditor,
+		private readonly _editor: editorCommon.ICommonCodeEditor,
+		@ISnippetsService private readonly _snippetService: ISnippetsService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ISnippetsService snippetService: ISnippetsService
 	) {
-		this._editor = editor;
-		this._snippetController = SnippetController2.get(editor);
-
-		const hasSnippets = TabCompletionController.ContextKey.bindTo(contextKeyService);
-		this._dispoables.push(editor.onDidChangeCursorSelection(e => {
-
-			this._snippets.length = 0;
-			let selectFn: (snippet: Snippet) => boolean;
-
-			if (e.selection.isEmpty()) {
-				// empty selection -> real text (no whitespace) left of cursor
-				const prefix = getNonWhitespacePrefix(editor.getModel(), editor.getPosition());
-				selectFn = prefix && (snippet => endsWith(prefix, snippet.prefix));
-
-			} else {
-				// actual selection -> snippet must be a full match
-				const selected = editor.getModel().getValueInRange(e.selection);
-				selectFn = snippet => selected === snippet.prefix;
+		this._hasSnippets = TabCompletionController.ContextKey.bindTo(contextKeyService);
+		this._configListener = this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('editor.tabCompletion')) {
+				this._update();
 			}
-
-			if (selectFn) {
-				const model = editor.getModel();
-				model.tokenizeIfCheap(e.selection.positionLineNumber);
-				const id = model.getLanguageIdAtPosition(e.selection.positionLineNumber, e.selection.positionColumn);
-				this._snippets = snippetService.getSnippetsSync(id).filter(selectFn);
-			}
-			hasSnippets.set(this._snippets.length > 0);
-		}));
+		});
+		this._update();
 	}
 
 	getId(): string {
@@ -76,7 +58,51 @@ export class TabCompletionController implements editorCommon.IEditorContribution
 	}
 
 	dispose(): void {
-		dispose(this._dispoables);
+		dispose(this._configListener);
+		dispose(this._selectionListener);
+	}
+
+	private _update(): void {
+		const enabled = this._configurationService.getValue<boolean>('editor.tabCompletion');
+		if (!enabled) {
+			dispose(this._selectionListener);
+		} else {
+			this._selectionListener = this._editor.onDidChangeCursorSelection(e => this._updateSnippets());
+			this._updateSnippets();
+		}
+	}
+
+	private _updateSnippets(): void {
+
+		let selection = this._editor.getSelection();
+		let model = this._editor.getModel();
+		let selectFn: (snippet: Snippet) => boolean;
+
+		if (!selection || !model) {
+			// too early
+			this._hasSnippets.set(false);
+			this._snippets = undefined;
+			return;
+		}
+
+		if (selection.isEmpty()) {
+			// empty selection -> real text (no whitespace) left of cursor
+			const prefix = getNonWhitespacePrefix(model, this._editor.getPosition());
+			selectFn = prefix && (snippet => endsWith(prefix, snippet.prefix));
+
+		} else if (selection.startLineNumber === selection.endLineNumber && model.getValueLengthInRange(selection) <= 100) {
+			// actual selection -> snippet must be a full match
+			const selected = model.getValueInRange(selection);
+			selectFn = snippet => selected === snippet.prefix;
+		}
+
+		if (selectFn) {
+			model.tokenizeIfCheap(selection.positionLineNumber);
+			const id = model.getLanguageIdAtPosition(selection.positionLineNumber, selection.positionColumn);
+			this._snippets = this._snippetService.getSnippetsSync(id).filter(selectFn);
+		}
+
+		this._hasSnippets.set(this._snippets && this._snippets.length > 0);
 	}
 
 	performSnippetCompletions(): void {
@@ -84,7 +110,7 @@ export class TabCompletionController implements editorCommon.IEditorContribution
 		if (this._snippets.length === 1) {
 			// one -> just insert
 			const [snippet] = this._snippets;
-			this._snippetController.insert(snippet.codeSnippet, snippet.prefix.length, 0);
+			SnippetController2.get(this._editor).insert(snippet.codeSnippet, snippet.prefix.length, 0);
 
 		} else if (this._snippets.length > 1) {
 			// two or more -> show IntelliSense box
@@ -104,8 +130,7 @@ CommonEditorRegistry.registerEditorCommand(new TabCompletionCommand({
 		kbExpr: ContextKeyExpr.and(
 			EditorContextKeys.textFocus,
 			EditorContextKeys.tabDoesNotMoveFocus,
-			SnippetController2.InSnippetMode.toNegated(),
-			ContextKeyExpr.has('config.editor.tabCompletion')
+			SnippetController2.InSnippetMode.toNegated()
 		),
 		primary: KeyCode.Tab
 	}

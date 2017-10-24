@@ -25,10 +25,9 @@ import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorWidgetBackground, widgetShadow, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import * as platform from 'vs/base/common/platform';
-import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import URI from 'vs/base/common/uri';
@@ -87,7 +86,6 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@IKeybindingService private _keybindingService: IKeybindingService,
 		@IConfigurationService private _configurationService: IConfigurationService,
-		@IConfigurationEditingService private _configurationEditingService: IConfigurationEditingService,
 		@IOpenerService private _openerService: IOpenerService
 	) {
 		super();
@@ -124,10 +122,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 			if (e.equals(KeyMod.CtrlCmd | KeyCode.KEY_E)) {
 				alert(nls.localize('emergencyConfOn', "Now changing the setting `editor.accessibilitySupport` to 'on'."));
 
-				this._configurationEditingService.writeConfiguration(ConfigurationTarget.USER, {
-					key: 'editor.accessibilitySupport',
-					value: 'on'
-				});
+				this._configurationService.updateValue('editor.accessibilitySupport', 'on', ConfigurationTarget.USER);
 
 				e.preventDefault();
 				e.stopPropagation();

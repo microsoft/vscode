@@ -21,6 +21,7 @@ export class FileIconThemeData implements IFileIconTheme {
 	description?: string;
 	hasFileIcons?: boolean;
 	hasFolderIcons?: boolean;
+	hidesExplorerArrows?: boolean;
 	isLoaded: boolean;
 	path?: string;
 	extensionData: ExtensionData;
@@ -38,6 +39,7 @@ export class FileIconThemeData implements IFileIconTheme {
 					this.styleSheetContent = result.content;
 					this.hasFileIcons = result.hasFileIcons;
 					this.hasFolderIcons = result.hasFolderIcons;
+					this.hidesExplorerArrows = result.hidesExplorerArrows;
 					this.isLoaded = true;
 					return this.styleSheetContent;
 				});
@@ -69,6 +71,7 @@ export class FileIconThemeData implements IFileIconTheme {
 			themeData.settingsId = null;
 			themeData.hasFileIcons = false;
 			themeData.hasFolderIcons = false;
+			themeData.hidesExplorerArrows = false;
 			themeData.isLoaded = true;
 			themeData.extensionData = null;
 		}
@@ -110,6 +113,7 @@ interface IconThemeDocument extends IconsAssociation {
 	fonts: FontDefinition[];
 	light?: IconsAssociation;
 	highContrast?: IconsAssociation;
+	hidesExplorerArrows?: boolean;
 }
 
 function _loadIconThemeDocument(fileSetPath: string): TPromise<IconThemeDocument> {
@@ -123,9 +127,9 @@ function _loadIconThemeDocument(fileSetPath: string): TPromise<IconThemeDocument
 	});
 }
 
-function _processIconThemeDocument(id: string, iconThemeDocumentPath: string, iconThemeDocument: IconThemeDocument): { content: string; hasFileIcons: boolean; hasFolderIcons: boolean; } {
+function _processIconThemeDocument(id: string, iconThemeDocumentPath: string, iconThemeDocument: IconThemeDocument): { content: string; hasFileIcons: boolean; hasFolderIcons: boolean; hidesExplorerArrows: boolean; } {
 
-	let result = { content: '', hasFileIcons: false, hasFolderIcons: false };
+	let result = { content: '', hasFileIcons: false, hasFolderIcons: false, hidesExplorerArrows: iconThemeDocument.hidesExplorerArrows };
 
 	if (!iconThemeDocument.iconDefinitions) {
 		return result;

@@ -25,15 +25,34 @@ export interface FindReplaceStateChangedEvent {
 	currentMatch: boolean;
 }
 
+export const enum FindOptionOverride {
+	NotSet = 0,
+	True = 1,
+	False = 2
+}
+
 export interface INewFindReplaceState {
 	searchString?: string;
 	replaceString?: string;
 	isRevealed?: boolean;
 	isReplaceRevealed?: boolean;
 	isRegex?: boolean;
+	isRegexOverride?: FindOptionOverride;
 	wholeWord?: boolean;
+	wholeWordOverride?: FindOptionOverride;
 	matchCase?: boolean;
+	matchCaseOverride?: FindOptionOverride;
 	searchScope?: Range;
+}
+
+function effectiveOptionValue(override: FindOptionOverride, value: boolean): boolean {
+	if (override === FindOptionOverride.True) {
+		return true;
+	}
+	if (override === FindOptionOverride.False) {
+		return false;
+	}
+	return value;
 }
 
 export class FindReplaceState implements IDisposable {
@@ -45,8 +64,11 @@ export class FindReplaceState implements IDisposable {
 	private _isRevealed: boolean;
 	private _isReplaceRevealed: boolean;
 	private _isRegex: boolean;
+	private _isRegexOverride: FindOptionOverride;
 	private _wholeWord: boolean;
+	private _wholeWordOverride: FindOptionOverride;
 	private _matchCase: boolean;
+	private _matchCaseOverride: FindOptionOverride;
 	private _searchScope: Range;
 	private _matchesPosition: number;
 	private _matchesCount: number;
@@ -57,9 +79,9 @@ export class FindReplaceState implements IDisposable {
 	public get replaceString(): string { return this._replaceString; }
 	public get isRevealed(): boolean { return this._isRevealed; }
 	public get isReplaceRevealed(): boolean { return this._isReplaceRevealed; }
-	public get isRegex(): boolean { return this._isRegex; }
-	public get wholeWord(): boolean { return this._wholeWord; }
-	public get matchCase(): boolean { return this._matchCase; }
+	public get isRegex(): boolean { return effectiveOptionValue(this._isRegexOverride, this._isRegex); }
+	public get wholeWord(): boolean { return effectiveOptionValue(this._wholeWordOverride, this._wholeWord); }
+	public get matchCase(): boolean { return effectiveOptionValue(this._matchCaseOverride, this._matchCase); }
 	public get searchScope(): Range { return this._searchScope; }
 	public get matchesPosition(): number { return this._matchesPosition; }
 	public get matchesCount(): number { return this._matchesCount; }
@@ -71,8 +93,11 @@ export class FindReplaceState implements IDisposable {
 		this._isRevealed = false;
 		this._isReplaceRevealed = false;
 		this._isRegex = false;
+		this._isRegexOverride = FindOptionOverride.NotSet;
 		this._wholeWord = false;
+		this._wholeWordOverride = FindOptionOverride.NotSet;
 		this._matchCase = false;
+		this._matchCaseOverride = FindOptionOverride.NotSet;
 		this._searchScope = null;
 		this._matchesPosition = 0;
 		this._matchesCount = 0;
@@ -155,6 +180,10 @@ export class FindReplaceState implements IDisposable {
 		};
 		let somethingChanged = false;
 
+		const oldEffectiveIsRegex = this.isRegex;
+		const oldEffectiveWholeWords = this.wholeWord;
+		const oldEffectiveMatchCase = this.matchCase;
+
 		if (typeof newState.searchString !== 'undefined') {
 			if (this._searchString !== newState.searchString) {
 				this._searchString = newState.searchString;
@@ -184,25 +213,13 @@ export class FindReplaceState implements IDisposable {
 			}
 		}
 		if (typeof newState.isRegex !== 'undefined') {
-			if (this._isRegex !== newState.isRegex) {
-				this._isRegex = newState.isRegex;
-				changeEvent.isRegex = true;
-				somethingChanged = true;
-			}
+			this._isRegex = newState.isRegex;
 		}
 		if (typeof newState.wholeWord !== 'undefined') {
-			if (this._wholeWord !== newState.wholeWord) {
-				this._wholeWord = newState.wholeWord;
-				changeEvent.wholeWord = true;
-				somethingChanged = true;
-			}
+			this._wholeWord = newState.wholeWord;
 		}
 		if (typeof newState.matchCase !== 'undefined') {
-			if (this._matchCase !== newState.matchCase) {
-				this._matchCase = newState.matchCase;
-				changeEvent.matchCase = true;
-				somethingChanged = true;
-			}
+			this._matchCase = newState.matchCase;
 		}
 		if (typeof newState.searchScope !== 'undefined') {
 			if (!Range.equalsRange(this._searchScope, newState.searchScope)) {
@@ -210,6 +227,24 @@ export class FindReplaceState implements IDisposable {
 				changeEvent.searchScope = true;
 				somethingChanged = true;
 			}
+		}
+
+		// Overrides get set when they explicitly come in and get reset anytime something else changes
+		this._isRegexOverride = (typeof newState.isRegexOverride !== 'undefined' ? newState.isRegexOverride : FindOptionOverride.NotSet);
+		this._wholeWordOverride = (typeof newState.wholeWordOverride !== 'undefined' ? newState.wholeWordOverride : FindOptionOverride.NotSet);
+		this._matchCaseOverride = (typeof newState.matchCaseOverride !== 'undefined' ? newState.matchCaseOverride : FindOptionOverride.NotSet);
+
+		if (oldEffectiveIsRegex !== this.isRegex) {
+			somethingChanged = true;
+			changeEvent.isRegex = true;
+		}
+		if (oldEffectiveWholeWords !== this.wholeWord) {
+			somethingChanged = true;
+			changeEvent.wholeWord = true;
+		}
+		if (oldEffectiveMatchCase !== this.matchCase) {
+			somethingChanged = true;
+			changeEvent.matchCase = true;
 		}
 
 		if (somethingChanged) {

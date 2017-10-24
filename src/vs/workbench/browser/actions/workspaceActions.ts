@@ -26,6 +26,27 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IQuickOpenService, IFilePickOpenEntry, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
+
+export class OpenFileAction extends Action {
+
+	static ID = 'workbench.action.files.openFile';
+	static LABEL = nls.localize('openFile', "Open File...");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowService private windowService: IWindowService,
+		@IHistoryService private historyService: IHistoryService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
+	) {
+		super(id, label);
+	}
+
+	run(event?: any, data?: ITelemetryData): TPromise<any> {
+		return this.windowService.pickFileAndOpen({ telemetryExtraData: data, dialogOptions: { defaultPath: defaultFilePath(this.contextService, this.historyService) } });
+	}
+}
 
 export class OpenFolderAction extends Action {
 
@@ -35,13 +56,15 @@ export class OpenFolderAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowService private windowService: IWindowService
+		@IWindowService private windowService: IWindowService,
+		@IHistoryService private historyService: IHistoryService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		super(id, label);
 	}
 
 	run(event?: any, data?: ITelemetryData): TPromise<any> {
-		return this.windowService.pickFolderAndOpen({ telemetryExtraData: data });
+		return this.windowService.pickFolderAndOpen({ telemetryExtraData: data, dialogOptions: { defaultPath: defaultFolderPath(this.contextService, this.historyService) } });
 	}
 }
 
@@ -53,14 +76,55 @@ export class OpenFileFolderAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowService private windowService: IWindowService
+		@IWindowService private windowService: IWindowService,
+		@IHistoryService private historyService: IHistoryService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		super(id, label);
 	}
 
 	run(event?: any, data?: ITelemetryData): TPromise<any> {
-		return this.windowService.pickFileFolderAndOpen({ telemetryExtraData: data });
+		return this.windowService.pickFileFolderAndOpen({ telemetryExtraData: data, dialogOptions: { defaultPath: defaultFilePath(this.contextService, this.historyService) } });
 	}
+}
+
+export const openFileFolderInNewWindowCommand = (accessor: ServicesAccessor) => {
+	const { windowService, historyService, contextService } = services(accessor);
+
+	windowService.pickFileFolderAndOpen({ forceNewWindow: true, dialogOptions: { defaultPath: defaultFilePath(contextService, historyService) } });
+};
+
+export const openFolderCommand = (accessor: ServicesAccessor, forceNewWindow: boolean) => {
+	const { windowService, historyService, contextService } = services(accessor);
+
+	windowService.pickFolderAndOpen({ forceNewWindow, dialogOptions: { defaultPath: defaultFolderPath(contextService, historyService) } });
+};
+
+export const openFolderInNewWindowCommand = (accessor: ServicesAccessor) => {
+	const { windowService, historyService, contextService } = services(accessor);
+
+	windowService.pickFolderAndOpen({ forceNewWindow: true, dialogOptions: { defaultPath: defaultFolderPath(contextService, historyService) } });
+};
+
+export const openFileInNewWindowCommand = (accessor: ServicesAccessor) => {
+	const { windowService, historyService, contextService } = services(accessor);
+
+	windowService.pickFileAndOpen({ forceNewWindow: true, dialogOptions: { defaultPath: defaultFilePath(contextService, historyService) } });
+};
+
+export const openWorkspaceInNewWindowCommand = (accessor: ServicesAccessor) => {
+	const { windowService, historyService, contextService, environmentService } = services(accessor);
+
+	windowService.pickWorkspaceAndOpen({ forceNewWindow: true, dialogOptions: { defaultPath: defaultWorkspacePath(contextService, historyService, environmentService) } });
+};
+
+function services(accessor: ServicesAccessor): { windowService: IWindowService, historyService: IHistoryService, contextService: IWorkspaceContextService, environmentService: IEnvironmentService } {
+	return {
+		windowService: accessor.get(IWindowService),
+		historyService: accessor.get(IHistoryService),
+		contextService: accessor.get(IWorkspaceContextService),
+		environmentService: accessor.get(IEnvironmentService)
+	};
 }
 
 export abstract class BaseWorkspacesAction extends Action {
@@ -70,25 +134,63 @@ export abstract class BaseWorkspacesAction extends Action {
 		label: string,
 		protected windowService: IWindowService,
 		protected environmentService: IEnvironmentService,
-		protected contextService: IWorkspaceContextService
+		protected contextService: IWorkspaceContextService,
+		protected historyService: IHistoryService
 	) {
 		super(id, label);
 	}
 
 	protected pickFolders(buttonLabel: string, title: string): string[] {
-		let defaultPath: string;
-		const workspace = this.contextService.getWorkspace();
-		if (workspace.folders.length > 0) {
-			defaultPath = dirname(workspace.folders[0].uri.fsPath); // pick the parent of the first root by default
-		}
-
 		return this.windowService.showOpenDialog({
 			buttonLabel,
 			title,
 			properties: ['multiSelections', 'openDirectory', 'createDirectory'],
-			defaultPath
+			defaultPath: defaultFolderPath(this.contextService, this.historyService)
 		});
 	}
+}
+
+function defaultFilePath(contextService: IWorkspaceContextService, historyService: IHistoryService): string {
+	let candidate: URI;
+
+	// Check for last active file first...
+	candidate = historyService.getLastActiveFile();
+
+	// ...then for last active file root
+	if (!candidate) {
+		candidate = historyService.getLastActiveWorkspaceRoot('file');
+	}
+
+	return candidate ? dirname(candidate.fsPath) : void 0;
+}
+
+function defaultFolderPath(contextService: IWorkspaceContextService, historyService: IHistoryService): string {
+	let candidate: URI;
+
+	// Check for last active file root first...
+	candidate = historyService.getLastActiveWorkspaceRoot('file');
+
+	// ...then for last active file
+	if (!candidate) {
+		candidate = historyService.getLastActiveFile();
+	}
+
+	return candidate ? dirname(candidate.fsPath) : void 0;
+}
+
+function defaultWorkspacePath(contextService: IWorkspaceContextService, historyService: IHistoryService, environmentService: IEnvironmentService): string {
+
+	// Check for current workspace config file first...
+	if (contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && !isUntitledWorkspace(contextService.getWorkspace().configuration.fsPath, environmentService)) {
+		return dirname(contextService.getWorkspace().configuration.fsPath);
+	}
+
+	// ...then fallback to default folder path
+	return defaultFolderPath(contextService, historyService);
+}
+
+function isUntitledWorkspace(path: string, environmentService: IEnvironmentService): boolean {
+	return isParent(path, environmentService.workspacesHome, !isLinux /* ignore case */);
 }
 
 export class AddRootFolderAction extends BaseWorkspacesAction {
@@ -104,9 +206,10 @@ export class AddRootFolderAction extends BaseWorkspacesAction {
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
-		@IViewletService private viewletService: IViewletService
+		@IViewletService private viewletService: IViewletService,
+		@IHistoryService historyService: IHistoryService
 	) {
-		super(id, label, windowService, environmentService, contextService);
+		super(id, label, windowService, environmentService, contextService, historyService);
 	}
 
 	public run(): TPromise<any> {
@@ -144,9 +247,10 @@ export class GlobalRemoveRootFolderAction extends BaseWorkspacesAction {
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
-		@ICommandService private commandService: ICommandService
+		@ICommandService private commandService: ICommandService,
+		@IHistoryService historyService: IHistoryService
 	) {
-		super(id, label, windowService, environmentService, contextService);
+		super(id, label, windowService, environmentService, contextService, historyService);
 	}
 
 	public run(): TPromise<any> {
@@ -186,9 +290,10 @@ class NewWorkspaceAction extends BaseWorkspacesAction {
 		@IWindowService windowService: IWindowService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService
+		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
+		@IHistoryService historyService: IHistoryService
 	) {
-		super(id, label, windowService, environmentService, contextService);
+		super(id, label, windowService, environmentService, contextService, historyService);
 	}
 
 	public run(): TPromise<any> {
@@ -243,6 +348,7 @@ export class OpenFolderSettingsAction extends Action {
 
 	public run(): TPromise<any> {
 		const workspaceFolder = this.contextService.getWorkspaceFolder(this.rootUri);
+
 		return this.commandService.executeCommand('_workbench.action.openFolderSettings', workspaceFolder);
 	}
 }
@@ -258,9 +364,10 @@ export class SaveWorkspaceAsAction extends BaseWorkspacesAction {
 		@IWindowService windowService: IWindowService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService
+		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
+		@IHistoryService historyService: IHistoryService
 	) {
-		super(id, label, windowService, environmentService, contextService);
+		super(id, label, windowService, environmentService, contextService, historyService);
 	}
 
 	public run(): TPromise<any> {
@@ -281,24 +388,12 @@ export class SaveWorkspaceAsAction extends BaseWorkspacesAction {
 	}
 
 	private getNewWorkspaceConfigPath(): string {
-		const workspace = this.contextService.getWorkspace();
-		let defaultPath: string;
-		if (workspace.configuration && !this.isUntitledWorkspace(workspace.configuration.fsPath)) {
-			defaultPath = workspace.configuration.fsPath;
-		} else if (workspace.folders.length > 0) {
-			defaultPath = dirname(workspace.folders[0].uri.fsPath); // pick the parent of the first root by default
-		}
-
 		return this.windowService.showSaveDialog({
 			buttonLabel: mnemonicButtonLabel(nls.localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")),
 			title: nls.localize('saveWorkspace', "Save Workspace"),
 			filters: WORKSPACE_FILTER,
-			defaultPath
+			defaultPath: defaultWorkspacePath(this.contextService, this.historyService, this.environmentService)
 		});
-	}
-
-	private isUntitledWorkspace(path: string): boolean {
-		return isParent(path, this.environmentService.workspacesHome, !isLinux /* ignore case */);
 	}
 }
 
@@ -311,12 +406,15 @@ export class OpenWorkspaceAction extends Action {
 		id: string,
 		label: string,
 		@IWindowService private windowService: IWindowService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IHistoryService private historyService: IHistoryService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
-		return this.windowService.openWorkspace();
+	public run(event?: any, data?: ITelemetryData): TPromise<any> {
+		return this.windowService.pickWorkspaceAndOpen({ telemetryExtraData: data, dialogOptions: { defaultPath: defaultWorkspacePath(this.contextService, this.historyService, this.environmentService) } });
 	}
 }
 

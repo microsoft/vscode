@@ -129,7 +129,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 		}).then(values => {
 
 			let workspaceResourceEdit: IWorkspaceResourceEdit = {
-				resource: <URI>document.uri,
+				resource: document.uri,
 				edits: []
 			};
 

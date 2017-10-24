@@ -85,7 +85,7 @@ export abstract class TextFileService implements ITextFileService {
 		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
 		this.currentFilesAssociationConfig = configuration && configuration.files && configuration.files.associations;
 
-		this.onConfigurationChange(configuration);
+		this.onFilesConfigurationChange(configuration);
 
 		/* __GDPR__
 			"autoSave" : {
@@ -123,8 +123,12 @@ export abstract class TextFileService implements ITextFileService {
 		this.lifecycleService.onWillShutdown(event => event.veto(this.beforeShutdown(event.reason)));
 		this.lifecycleService.onShutdown(this.dispose, this);
 
-		// Configuration changes
-		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(this.configurationService.getConfiguration<IFilesConfiguration>())));
+		// Files configuration changes
+		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('files')) {
+				this.onFilesConfigurationChange(this.configurationService.getConfiguration<IFilesConfiguration>());
+			}
+		}));
 	}
 
 	private beforeShutdown(reason: ShutdownReason): boolean | TPromise<boolean> {
@@ -316,7 +320,7 @@ export abstract class TextFileService implements ITextFileService {
 		return this.backupFileService.discardAllWorkspaceBackups();
 	}
 
-	protected onConfigurationChange(configuration: IFilesConfiguration): void {
+	protected onFilesConfigurationChange(configuration: IFilesConfiguration): void {
 		const wasAutoSaveEnabled = (this.getAutoSaveMode() !== AutoSaveMode.OFF);
 
 		const autoSaveMode = (configuration && configuration.files && configuration.files.autoSave) || AutoSaveConfiguration.OFF;
@@ -635,12 +639,14 @@ export abstract class TextFileService implements ITextFileService {
 	}
 
 	private suggestFileName(untitledResource: URI): string {
-		const root = this.historyService.getLastActiveWorkspaceRoot();
-		if (root) {
-			return URI.file(paths.join(root.fsPath, this.untitledEditorService.suggestFileName(untitledResource))).fsPath;
+		const untitledFileName = this.untitledEditorService.suggestFileName(untitledResource);
+
+		const lastActiveFile = this.historyService.getLastActiveFile();
+		if (lastActiveFile) {
+			return URI.file(paths.join(paths.dirname(lastActiveFile.fsPath), untitledFileName)).fsPath;
 		}
 
-		return this.untitledEditorService.suggestFileName(untitledResource);
+		return untitledFileName;
 	}
 
 	public revert(resource: URI, options?: IRevertOptions): TPromise<boolean> {

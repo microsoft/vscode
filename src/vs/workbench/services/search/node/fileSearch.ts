@@ -53,6 +53,7 @@ export class FileWalker {
 	private normalizedFilePatternLowercase: string;
 	private includePattern: glob.ParsedExpression;
 	private maxResults: number;
+	private exists: boolean;
 	private maxFilesize: number;
 	private isLimitHit: boolean;
 	private resultCount: number;
@@ -77,6 +78,7 @@ export class FileWalker {
 		this.filePattern = config.filePattern;
 		this.includePattern = config.includePattern && glob.parse(config.includePattern);
 		this.maxResults = config.maxResults || null;
+		this.exists = config.exists;
 		this.maxFilesize = config.maxFilesize || null;
 		this.walkedPaths = Object.create(null);
 		this.resultCount = 0;
@@ -234,6 +236,7 @@ export class FileWalker {
 				return;
 			}
 			if (this.isLimitHit) {
+				done();
 				return;
 			}
 
@@ -392,9 +395,12 @@ export class FileWalker {
 
 		cmd.on('close', (code: number) => {
 			// ripgrep returns code=1 when no results are found
-			if (code !== 0 && ((isRipgrep && stderr.length) || !isRipgrep)) {
+			if (code !== 0 && (!isRipgrep || code !== 1)) {
 				done(new Error(`command failed with error code ${code}: ${this.decodeData(stderr, encoding)}`));
 			} else {
+				if (isRipgrep && this.exists && code === 0) {
+					this.isLimitHit = true;
+				}
 				done(null, '', true);
 			}
 		});
@@ -657,7 +663,7 @@ export class FileWalker {
 		if (this.isFilePatternMatch(candidate.relativePath) && (!this.includePattern || this.includePattern(candidate.relativePath, candidate.basename))) {
 			this.resultCount++;
 
-			if (this.maxResults && this.resultCount > this.maxResults) {
+			if (this.exists || (this.maxResults && this.resultCount > this.maxResults)) {
 				this.isLimitHit = true;
 			}
 

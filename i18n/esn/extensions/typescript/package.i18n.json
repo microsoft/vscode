@@ -44,7 +44,6 @@
 	"typescript.npm": "Especifica la ruta de acceso al archivo ejecutable de NPM usada para la adquisición automática de tipos. Requiere TypeScript >= 2.3.4.",
 	"typescript.check.npmIsInstalled": "Compruebe si NPM está instalado para la adquisición automática de tipos.",
 	"javascript.nameSuggestions": "Habilitar/deshabilitar nombres únicos de la lista de sugerencias en los archivos de JavaScript. ",
-	"typescript.tsc.autoDetect": "Controla si la detección automática de tareas TSC está activada o desactivada.",
 	"typescript.problemMatchers.tsc.label": "Problemas de TypeScript",
 	"typescript.problemMatchers.tscWatch.label": "Problemas de TypeScript (modo de inspección)"
 }

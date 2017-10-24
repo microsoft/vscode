@@ -77,7 +77,7 @@ suite('Editor Contrib - Sort Lines Command', () => {
 				'third line',
 				'fifth'
 			],
-			new Selection(3, 3, 4, 2)
+			new Selection(3, 3, 4, 1)
 		);
 	});
 
@@ -119,7 +119,7 @@ suite('Editor Contrib - Sort Lines Command', () => {
 				'second line',
 				'third line',
 			],
-			new Selection(1, 1, 5, 6)
+			new Selection(1, 1, 5, 11)
 		);
 	});
 

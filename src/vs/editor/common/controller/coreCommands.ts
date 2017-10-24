@@ -8,7 +8,7 @@
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { CursorState, ICursors, RevealTarget, IColumnSelectData, CursorContext } from 'vs/editor/common/controller/cursorCommon';
+import { CursorState, ICursors, RevealTarget, IColumnSelectData, CursorContext, EditOperationType } from 'vs/editor/common/controller/cursorCommon';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { CursorMoveCommands, CursorMove as CursorMove_ } from 'vs/editor/common/controller/cursorMoveCommands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -1614,11 +1614,13 @@ export namespace CoreEditingCommands {
 		}
 
 		public runEditorCommand(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void {
-			const [shouldPushStackElementBefore, commands] = DeleteOperations.deleteLeft(editor._getCursorConfiguration(), editor.getModel(), editor.getSelections());
+			const cursors = editor._getCursors();
+			const [shouldPushStackElementBefore, commands] = DeleteOperations.deleteLeft(cursors.getPrevEditOperationType(), editor._getCursorConfiguration(), editor.getModel(), editor.getSelections());
 			if (shouldPushStackElementBefore) {
 				editor.pushUndoStop();
 			}
 			editor.executeCommands(this.id, commands);
+			cursors.setPrevEditOperationType(EditOperationType.DeletingLeft);
 		}
 	});
 
@@ -1637,11 +1639,13 @@ export namespace CoreEditingCommands {
 		}
 
 		public runEditorCommand(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void {
-			const [shouldPushStackElementBefore, commands] = DeleteOperations.deleteRight(editor._getCursorConfiguration(), editor.getModel(), editor.getSelections());
+			const cursors = editor._getCursors();
+			const [shouldPushStackElementBefore, commands] = DeleteOperations.deleteRight(cursors.getPrevEditOperationType(), editor._getCursorConfiguration(), editor.getModel(), editor.getSelections());
 			if (shouldPushStackElementBefore) {
 				editor.pushUndoStop();
 			}
 			editor.executeCommands(this.id, commands);
+			cursors.setPrevEditOperationType(EditOperationType.DeletingRight);
 		}
 	});
 

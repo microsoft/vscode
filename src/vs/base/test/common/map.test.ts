@@ -319,8 +319,7 @@ suite('Map', () => {
 		map.forEach((value, key) => {
 			assert.equal(trie.get(key), value);
 		});
-		trie.forEach(entry => {
-			const [key, element] = entry;
+		trie.forEach((element, key) => {
 			assert.equal(element, map.get(key));
 			map.delete(key);
 		});

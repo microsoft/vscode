@@ -67,6 +67,7 @@ suite('Keybindings Editing', () => {
 			instantiationService.stub(IConfigurationService, ConfigurationService);
 			instantiationService.stub(IConfigurationService, 'getConfiguration', { 'eol': '\n' });
 			instantiationService.stub(IConfigurationService, 'onDidUpdateConfiguration', () => { });
+			instantiationService.stub(IConfigurationService, 'onDidChangeConfiguration', () => { });
 			instantiationService.stub(IWorkspaceContextService, new TestContextService());
 			instantiationService.stub(ILifecycleService, new TestLifecycleService());
 			instantiationService.stub(IEditorGroupService, new TestEditorGroupService());

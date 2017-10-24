@@ -13,7 +13,6 @@
 	"actionNotEnabled": "目前內容中未啟用命令 '{0}'。",
 	"recentlyUsed": "最近使用的",
 	"morecCommands": "其他命令",
-	"commandLabel": "{0}: {1}",
 	"cat.title": "{0}: {1}",
 	"noCommandsMatching": "沒有相符的命令"
 }

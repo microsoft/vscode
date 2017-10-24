@@ -3691,6 +3691,8 @@
 		</dict>
 		<key>frontMatter</key>
 		<dict>
+			<key>contentName</key>
+			<string>meta.embedded.block.frontmatter</string>
 			<key>begin</key>
 			<string>\A-{3}\s*$</string>
 			<key>while</key>

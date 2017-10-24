@@ -234,9 +234,9 @@ suite('SnippetSession', function () {
 		assertSelections(editor, new Selection(1, 10, 1, 10), new Selection(2, 14, 2, 14));
 
 		session.prev();
-		assertSelections(editor, new Selection(1, 7, 1, 7), new Selection(2, 11, 2, 11));
+		assertSelections(editor, new Selection(1, 7, 1, 10), new Selection(2, 11, 2, 14));
 		session.prev();
-		assertSelections(editor, new Selection(1, 4, 1, 4), new Selection(2, 8, 2, 8));
+		assertSelections(editor, new Selection(1, 4, 1, 7), new Selection(2, 8, 2, 11));
 		session.prev();
 		assertSelections(editor, new Selection(1, 1, 1, 4), new Selection(2, 5, 2, 8));
 	});

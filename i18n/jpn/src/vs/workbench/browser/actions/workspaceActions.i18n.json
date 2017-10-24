@@ -9,14 +9,17 @@
 	"addFolderToWorkspace": "ワークスペースにフォルダーを追加...",
 	"add": "追加(&&A)",
 	"addFolderToWorkspaceTitle": "ワークスペースにフォルダーを追加",
+	"globalRemoveFolderFromWorkspace": "ワークスペースからフォルダーを削除...",
 	"newWorkspace": "新しいワークスペース...",
 	"select": "選択(&&S)",
 	"selectWorkspace": "ワークスペースのフォルダーを選択",
 	"removeFolderFromWorkspace": "ワークスペースからフォルダーを削除",
+	"openFolderSettings": "フォルダーの設定を開く",
 	"saveWorkspaceAsAction": "名前を付けてワークスペースを保存...",
 	"save": "保存(&&S)",
 	"saveWorkspace": "ワークスペースを保存",
 	"openWorkspaceAction": "ワークスペースを開く...",
 	"openWorkspaceConfigFile": "ワークスペースの構成ファイルを開く",
+	"openFolderAsWorkspaceInNewWindow": "新しいウィンドウでワークスペースとしてフォルダーを開く",
 	"workspaceFolderPickerPlaceholder": "ワークスペース フォルダーを選択"
 }

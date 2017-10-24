@@ -19,7 +19,6 @@
 	"ClearSearchResultsAction.label": "Cancella risultati della ricerca",
 	"FocusNextSearchResult.label": "Sposta lo stato attivo sul risultato della ricerca successivo",
 	"FocusPreviousSearchResult.label": "Sposta lo stato attivo sul risultato della ricerca precedente",
-	"RemoveAction.label": "Rimuovi",
 	"file.replaceAll.label": "Sostituisci tutto",
 	"match.replace.label": "Sostituisci"
 }

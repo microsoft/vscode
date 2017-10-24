@@ -933,4 +933,8 @@ suite('Glob', () => {
 			assert(!glob.match(p, '/DNXConsoleApp/foo/Program.cs'));
 		}
 	});
+
+	test('pattern with "base" does not explode - #36081', function () {
+		assert.ok(glob.match({ 'base': true }, 'base'));
+	});
 });

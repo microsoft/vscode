@@ -31,7 +31,7 @@ import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
 import { ElectronWindow } from 'vs/workbench/electron-browser/window';
 import { resolveWorkbenchCommonProperties, getOrCreateMachineId } from 'vs/platform/telemetry/node/workbenchCommonProperties';
 import { machineIdIpcChannel } from 'vs/platform/telemetry/node/commonProperties';
-import { WorkspaceStats } from 'vs/workbench/services/telemetry/common/workspaceStats';
+import { WorkspaceStats } from 'vs/workbench/services/telemetry/node/workspaceStats';
 import { IWindowsService, IWindowService, IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { WindowService } from 'vs/platform/windows/electron-browser/windowService';
 import { MessageService } from 'vs/workbench/services/message/electron-browser/messageService';
@@ -225,9 +225,9 @@ export class WorkbenchShell {
 			userAgent: navigator.userAgent,
 			windowSize: { innerHeight: window.innerHeight, innerWidth: window.innerWidth, outerHeight: window.outerHeight, outerWidth: window.outerWidth },
 			emptyWorkbench: this.contextService.getWorkbenchState() === WorkbenchState.EMPTY,
-			'workbench.filesToOpen': filesToOpen && filesToOpen.length || void 0,
-			'workbench.filesToCreate': filesToCreate && filesToCreate.length || void 0,
-			'workbench.filesToDiff': filesToDiff && filesToDiff.length || void 0,
+			'workbench.filesToOpen': filesToOpen && filesToOpen.length || 0,
+			'workbench.filesToCreate': filesToCreate && filesToCreate.length || 0,
+			'workbench.filesToDiff': filesToDiff && filesToDiff.length || 0,
 			customKeybindingsCount: info.customKeybindingsCount,
 			theme: this.themeService.getColorTheme().id,
 			language: platform.language,

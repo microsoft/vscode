@@ -22,6 +22,16 @@
 		],
 		"description": "For Loop"
 	},
+	"For Loop (let)": {
+		"prefix": "forl",
+		"body": [
+			"for (let ${1:index} = 0; ${1:index} < ${2:array}.length; ${1:index}++) {",
+			"\tlet ${3:element} = ${2:array}[${1:index}];",
+			"\t$0",
+			"}"
+		],
+		"description": "For Loop (let)"
+	},
 	"For-Each Loop": {
 		"prefix": "foreach",
 		"body": [
@@ -42,6 +52,15 @@
 			"}"
 		],
 		"description": "For-In Loop"
+	},
+	"For-Of Loop": {
+		"prefix": "forof",
+		"body": [
+			"for (let ${1:iterator} of ${2:object}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "For-Of Loop"
 	},
 	"Function Statement": {
 		"prefix": "function",

@@ -13,7 +13,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { editorAction, ServicesAccessor, EditorAction, commonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
 import { OnTypeFormattingEditProviderRegistry, DocumentRangeFormattingEditProviderRegistry } from 'vs/editor/common/modes';
-import { getOnTypeFormattingEdits, getDocumentFormattingEdits, getDocumentRangeFormattingEdits } from '../common/format';
+import { getOnTypeFormattingEdits, getDocumentFormattingEdits, getDocumentRangeFormattingEdits, NoProviderError } from '../common/format';
 import { EditOperationsCommand } from '../common/formatCommand';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
@@ -23,6 +23,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { EditorState, CodeEditorStateFlag } from 'vs/editor/common/core/editorState';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
 
 
 function alertFormattingEdits(edits: editorCommon.ISingleEditOperation[]): void {
@@ -263,6 +264,7 @@ export abstract class AbstractFormatAction extends EditorAction {
 	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): TPromise<void> {
 
 		const workerService = accessor.get(IEditorWorkerService);
+		const messageService = accessor.get(IMessageService);
 
 		const formattingPromise = this._getFormattingEdits(editor);
 		if (!formattingPromise) {
@@ -281,6 +283,15 @@ export abstract class AbstractFormatAction extends EditorAction {
 			EditOperationsCommand.execute(editor, edits);
 			alertFormattingEdits(edits);
 			editor.focus();
+		}, err => {
+			if (err instanceof Error && err.name === NoProviderError.Name) {
+				messageService.show(
+					Severity.Info,
+					nls.localize('no.provider', "Sorry, but there is no formatter for '{0}'-files installed.", editor.getModel().getLanguageIdentifier().language),
+				);
+			} else {
+				throw err;
+			}
 		});
 	}
 
@@ -296,7 +307,7 @@ export class FormatDocumentAction extends AbstractFormatAction {
 			id: 'editor.action.formatDocument',
 			label: nls.localize('formatDocument.label', "Format Document"),
 			alias: 'Format Document',
-			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasDocumentFormattingProvider),
+			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_F,
@@ -304,6 +315,7 @@ export class FormatDocumentAction extends AbstractFormatAction {
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I }
 			},
 			menuOpts: {
+				when: EditorContextKeys.hasDocumentFormattingProvider,
 				group: '1_modification',
 				order: 1.3
 			}
@@ -325,12 +337,13 @@ export class FormatSelectionAction extends AbstractFormatAction {
 			id: 'editor.action.formatSelection',
 			label: nls.localize('formatSelection.label', "Format Selection"),
 			alias: 'Format Code',
-			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasDocumentSelectionFormattingProvider, EditorContextKeys.hasNonEmptySelection),
+			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasNonEmptySelection),
 			kbOpts: {
 				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_F)
 			},
 			menuOpts: {
+				when: ContextKeyExpr.and(EditorContextKeys.hasDocumentSelectionFormattingProvider, EditorContextKeys.hasNonEmptySelection),
 				group: '1_modification',
 				order: 1.31
 			}

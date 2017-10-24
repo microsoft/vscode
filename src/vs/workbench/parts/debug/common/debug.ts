@@ -387,6 +387,7 @@ export interface IRawAdapter extends IRawEnvAdapter {
 
 export interface IDebugConfigurationProvider {
 	type: string;
+	handle: number;
 	resolveDebugConfiguration?(folderUri: uri | undefined, debugConfiguration: IConfig): TPromise<IConfig>;
 	provideDebugConfigurations?(folderUri: uri | undefined): TPromise<IConfig[]>;
 }
@@ -415,7 +416,7 @@ export interface IConfigurationManager {
 
 	registerDebugConfigurationProvider(handle: number, debugConfigurationProvider: IDebugConfigurationProvider): void;
 	unregisterDebugConfigurationProvider(handle: number): void;
-	resolveDebugConfiguration(folderUri: uri | undefined, type: string | undefined, debugConfiguration: any): TPromise<any>;
+	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: any): TPromise<any>;
 }
 
 export interface ILaunch {
@@ -589,11 +590,6 @@ export interface IDebugService {
 	 * and resolveds configurations via DebugConfigurationProviders.
 	 */
 	startDebugging(root: IWorkspaceFolder, configOrName?: IConfig | string, noDebug?: boolean): TPromise<any>;
-
-	/**
-	 * Creates a new debug process. Depending on the configuration will either 'launch' or 'attach'.
-	 */
-	createProcess(root: IWorkspaceFolder, config: IConfig): TPromise<IProcess>;
 
 	/**
 	 * Find process by ID.

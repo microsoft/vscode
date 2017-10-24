@@ -8,7 +8,7 @@ import * as os from 'os';
 import { Action, IAction } from 'vs/base/common/actions';
 import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
-import { ITerminalService, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalService, TERMINAL_PANEL_ID, ITerminalInstance } from 'vs/workbench/parts/terminal/common/terminal';
 import { SelectActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
@@ -21,6 +21,9 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { ActionBarContributor } from 'vs/workbench/browser/actions';
 import { TerminalEntry } from 'vs/workbench/parts/terminal/browser/terminalQuickOpen';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { PICK_WORKSPACE_FOLDER_COMMAND } from 'vs/workbench/browser/actions/workspaceActions';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 export const TERMINAL_PICKER_PREFIX = 'term ';
 
@@ -200,19 +203,39 @@ export class CreateNewTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
+		@ITerminalService private terminalService: ITerminalService,
+		@ICommandService private commandService: ICommandService,
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService
 	) {
 		super(id, label);
 		this.class = 'terminal-action new';
 	}
 
 	public run(event?: any): TPromise<any> {
-		const instance = this.terminalService.createInstance(undefined, true);
-		if (!instance) {
-			return TPromise.as(void 0);
+		const folders = this.workspaceContextService.getWorkspace().folders;
+
+		let instancePromise: TPromise<ITerminalInstance>;
+		if (folders.length <= 1) {
+			// Allow terminal service to handle the path when there is only a
+			// single root
+			instancePromise = TPromise.as(this.terminalService.createInstance(undefined, true));
+		} else {
+			instancePromise = this.commandService.executeCommand(PICK_WORKSPACE_FOLDER_COMMAND).then(workspace => {
+				if (!workspace) {
+					// Don't create the instance if the workspace picker was canceled
+					return null;
+				}
+				return this.terminalService.createInstance({ cwd: workspace.uri.fsPath }, true);
+			});
 		}
-		this.terminalService.setActiveInstance(instance);
-		return this.terminalService.showPanel(true);
+
+		return instancePromise.then(instance => {
+			if (!instance) {
+				return TPromise.as(void 0);
+			}
+			this.terminalService.setActiveInstance(instance);
+			return this.terminalService.showPanel(true);
+		});
 	}
 }
 

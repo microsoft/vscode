@@ -20,14 +20,14 @@ export class Problems {
 
 	public async showProblemsView(): Promise<any> {
 		if (!await this.isVisible()) {
-			await this.spectron.command('workbench.actions.view.problems');
+			await this.spectron.runCommand('workbench.actions.view.problems');
 			await this.waitForProblemsView();
 		}
 	}
 
 	public async hideProblemsView(): Promise<any> {
 		if (await this.isVisible()) {
-			await this.spectron.command('workbench.actions.view.problems');
+			await this.spectron.runCommand('workbench.actions.view.problems');
 			await this.spectron.client.waitForElement(Problems.PROBLEMS_VIEW_SELECTOR, el => !el);
 		}
 	}

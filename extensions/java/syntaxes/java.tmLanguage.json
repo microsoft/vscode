@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-java/commit/4eb3d906f572ef1999b7ebf0708c841d36b32f0b",
+	"version": "https://github.com/atom/language-java/commit/26b83893bf071f291481c924051462e17d2f77cd",
 	"scopeName": "source.java",
 	"name": "Java",
 	"fileTypes": [
@@ -121,18 +121,21 @@
 		"annotations": {
 			"patterns": [
 				{
-					"begin": "(@[^ (]+)(\\()",
+					"begin": "((@)[^\\s(]+)(\\()",
 					"beginCaptures": {
 						"1": {
 							"name": "storage.type.annotation.java"
 						},
 						"2": {
+							"name": "punctuation.definition.annotation.java"
+						},
+						"3": {
 							"name": "punctuation.definition.annotation-arguments.begin.bracket.round.java"
 						}
 					},
-					"end": "(\\))",
+					"end": "\\)",
 					"endCaptures": {
-						"1": {
+						"0": {
 							"name": "punctuation.definition.annotation-arguments.end.bracket.round.java"
 						}
 					},
@@ -155,8 +158,25 @@
 					]
 				},
 				{
-					"match": "@\\w*",
-					"name": "storage.type.annotation.java"
+					"match": "(@)(interface)\\s+(\\w*)|((@)\\w*)",
+					"name": "meta.declaration.annotation.java",
+					"captures": {
+						"1": {
+							"name": "punctuation.definition.annotation.java"
+						},
+						"2": {
+							"name": "storage.modifier.java"
+						},
+						"3": {
+							"name": "storage.type.annotation.java"
+						},
+						"4": {
+							"name": "storage.type.annotation.java"
+						},
+						"5": {
+							"name": "punctuation.definition.annotation.java"
+						}
+					}
 				}
 			]
 		},
@@ -224,7 +244,7 @@
 			]
 		},
 		"class": {
-			"begin": "(?=\\w?[\\w\\s]*(?:class|(?:@)?interface|enum)\\s+\\w+)",
+			"begin": "(?=\\w?[\\w\\s]*(?:class|(?<!@)interface|enum)\\s+\\w+)",
 			"end": "}",
 			"endCaptures": {
 				"0": {
@@ -251,7 +271,7 @@
 							"name": "entity.name.type.class.java"
 						}
 					},
-					"match": "(class|(?:@)?interface|enum)\\s+(\\w+)",
+					"match": "(class|(?<!@)interface|enum)\\s+(\\w+)",
 					"name": "meta.class.identifier.java"
 				},
 				{
@@ -1323,7 +1343,7 @@
 			]
 		},
 		"variables": {
-			"begin": "(?x)\n(?=\n  (\n    (void|boolean|byte|char|short|int|float|long|double)\n    |\n    (?>(\\w+\\.)*[A-Z]+\\w*) # e.g. `javax.ws.rs.Response`, or `String`\n  )\n  (\n    <[\\w<>,?\\s]*> # HashMap<Integer, String>\n    |\n    (\\[\\])* # int[][]\n  )?\n  \\s+\n  [A-Za-z_$][\\w$]* # At least one identifier after space\n  ([\\w\\[\\],$][\\w\\[\\],\\s]*)? # possibly primitive array or additional identifiers\n  \\s*(=|;)\n)",
+			"begin": "(?x)\n(?=\n  (\n    (void|boolean|byte|char|short|int|float|long|double)\n    |\n    (?>(\\w+\\.)*[A-Z]+\\w*) # e.g. `javax.ws.rs.Response`, or `String`\n  )\n  (\n    <[\\w<>,?\\s]*> # HashMap<Integer, String>\n  )?\n  (\n    (\\[\\])* # int[][]\n  )?\n  \\s+\n  [A-Za-z_$][\\w$]* # At least one identifier after space\n  ([\\w\\[\\],$][\\w\\[\\],\\s]*)? # possibly primitive array or additional identifiers\n  \\s*(=|;)\n)",
 			"end": "(?=;)",
 			"name": "meta.definition.variable.java",
 			"patterns": [

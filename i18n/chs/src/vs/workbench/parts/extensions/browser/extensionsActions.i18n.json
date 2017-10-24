@@ -44,7 +44,7 @@
 	"showOutdatedExtensions": "显示过时扩展",
 	"showPopularExtensions": "显示常用的扩展",
 	"showRecommendedExtensions": "显示推荐的扩展",
-	"showWorkspaceRecommendedExtensions": "显示工作区建议的扩展名",
+	"showWorkspaceRecommendedExtensions": "显示根据工作区推荐的扩展",
 	"showRecommendedKeymapExtensions": "显示推荐键映射",
 	"showRecommendedKeymapExtensionsShort": "键映射",
 	"showLanguageExtensions": "显示语言扩展",

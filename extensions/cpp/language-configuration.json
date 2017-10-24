@@ -28,8 +28,8 @@
 	},
 	"folding": {
 		"markers": {
-			"start": "^\\s*#pragma\\s+region",
-			"end": "^\\s*#pragma\\s+endregion"
+			"start": "^\\s*#pragma\\s+region\\b",
+			"end": "^\\s*#pragma\\s+endregion\\b"
 		}
 	}
 }

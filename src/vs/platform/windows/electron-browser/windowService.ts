@@ -5,7 +5,7 @@
 
 'use strict';
 
-import Event, { filterEvent, mapEvent, any } from 'vs/base/common/event';
+import Event, { filterEvent, mapEvent, anyEvent } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWindowService, IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult } from 'vs/platform/windows/common/windows';
 import { remote } from 'electron';
@@ -26,7 +26,7 @@ export class WindowService implements IWindowService {
 	) {
 		const onThisWindowFocus = mapEvent(filterEvent(windowsService.onWindowFocus, id => id === windowId), _ => true);
 		const onThisWindowBlur = mapEvent(filterEvent(windowsService.onWindowBlur, id => id === windowId), _ => false);
-		this.onDidChangeFocus = any(onThisWindowFocus, onThisWindowBlur);
+		this.onDidChangeFocus = anyEvent(onThisWindowFocus, onThisWindowBlur);
 	}
 
 	getCurrentWindowId(): number {
@@ -51,6 +51,12 @@ export class WindowService implements IWindowService {
 		return this.windowsService.pickFolderAndOpen(options);
 	}
 
+	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
+		options.windowId = this.windowId;
+
+		return this.windowsService.pickWorkspaceAndOpen(options);
+	}
+
 	reloadWindow(): TPromise<void> {
 		return this.windowsService.reloadWindow(this.windowId);
 	}
@@ -65,10 +71,6 @@ export class WindowService implements IWindowService {
 
 	closeWorkspace(): TPromise<void> {
 		return this.windowsService.closeWorkspace(this.windowId);
-	}
-
-	openWorkspace(): TPromise<void> {
-		return this.windowsService.openWorkspace(this.windowId);
 	}
 
 	createAndEnterWorkspace(folderPaths?: string[], path?: string): TPromise<IEnterWorkspaceResult> {
@@ -140,31 +142,37 @@ export class WindowService implements IWindowService {
 	}
 
 	showSaveDialog(options: Electron.SaveDialogOptions, callback?: (fileName: string) => void): string {
+
+		function normalizePath(path: string): string {
+			if (path && isMacintosh) {
+				path = normalizeNFC(path); // normalize paths returned from the OS
+			}
+
+			return path;
+		}
+
 		if (callback) {
-			return remote.dialog.showSaveDialog(remote.getCurrentWindow(), options, callback);
+			return remote.dialog.showSaveDialog(remote.getCurrentWindow(), options, path => callback(normalizePath(path)));
 		}
 
-		let path = remote.dialog.showSaveDialog(remote.getCurrentWindow(), options); // https://github.com/electron/electron/issues/4936
-
-		if (path && isMacintosh) {
-			path = normalizeNFC(path); // normalize paths returned from the OS
-		}
-
-		return path;
+		return normalizePath(remote.dialog.showSaveDialog(remote.getCurrentWindow(), options)); // https://github.com/electron/electron/issues/4936
 	}
 
 	showOpenDialog(options: Electron.OpenDialogOptions, callback?: (fileNames: string[]) => void): string[] {
+
+		function normalizePaths(paths: string[]): string[] {
+			if (paths && paths.length > 0 && isMacintosh) {
+				paths = paths.map(path => normalizeNFC(path)); // normalize paths returned from the OS
+			}
+
+			return paths;
+		}
+
 		if (callback) {
-			return remote.dialog.showOpenDialog(remote.getCurrentWindow(), options, callback);
+			return remote.dialog.showOpenDialog(remote.getCurrentWindow(), options, paths => callback(normalizePaths(paths)));
 		}
 
-		let paths = remote.dialog.showOpenDialog(remote.getCurrentWindow(), options); // https://github.com/electron/electron/issues/4936
-
-		if (paths && paths.length > 0 && isMacintosh) {
-			paths = paths.map(path => normalizeNFC(path)); // normalize paths returned from the OS
-		}
-
-		return paths;
+		return normalizePaths(remote.dialog.showOpenDialog(remote.getCurrentWindow(), options)); // https://github.com/electron/electron/issues/4936
 	}
 
 	updateTouchBar(items: ICommandAction[][]): TPromise<void> {

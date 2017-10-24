@@ -105,7 +105,6 @@ export function assertSyncedModels(text: string, callback: (model: EditableTextM
 
 	var assertMirrorModels = () => {
 		assertLineMapping(model, 'model');
-		model._assertLineNumbersOK();
 		assert.equal(mirrorModel2.getText(), model.getValue(), 'mirror model 2 text OK');
 		assert.equal(mirrorModel2.version, model.getVersionId(), 'mirror model 2 version OK');
 	};

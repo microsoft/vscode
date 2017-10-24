@@ -123,7 +123,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 			switch (kind) {
 				case 'open':
 					if (event.source === 'editor'
-						&& this._configurationService.lookup('editor.stablePeek').value) {
+						&& this._configurationService.getValue('editor.stablePeek')) {
 
 						// when stable peek is configured we don't close
 						// the peek window on selecting the editor

@@ -30,7 +30,7 @@ import { OpenNextRecentlyUsedEditorInGroupAction, OpenPreviousRecentlyUsedEditor
 import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { registerColors } from './terminalColorRegistry';
 import { NavigateUpAction, NavigateDownAction, NavigateLeftAction, NavigateRightAction } from 'vs/workbench/electron-browser/actions';
-import { QUICKOPEN_ACTION_ID, getQuickNavigateHandler } from 'vs/workbench/browser/parts/quickopen/quickopen';
+import { QUICKOPEN_ACTION_ID, getQuickNavigateHandler, QUICKOPEN_FOCUS_SECONDARY_ACTION_ID } from 'vs/workbench/browser/parts/quickopen/quickopen';
 import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs/workbench/browser/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -140,11 +140,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'number',
 			'default': 1
 		},
-		// 'terminal.integrated.enableBold': {
-		// 	'type': 'boolean',
-		// 	'description': nls.localize('terminal.integrated.enableBold', "Whether to enable bold text within the terminal, this requires support from the terminal shell."),
-		// 	'default': true
-		// },
+		'terminal.integrated.enableBold': {
+			'type': 'boolean',
+			'description': nls.localize('terminal.integrated.enableBold', "Whether to enable bold text within the terminal, note that this requires support from the terminal shell."),
+			'default': true
+		},
 		'terminal.integrated.cursorBlinking': {
 			'description': nls.localize('terminal.integrated.cursorBlinking', "Controls whether the terminal cursor blinks."),
 			'type': 'boolean',
@@ -185,6 +185,7 @@ configurationRegistry.registerConfiguration({
 				ToggleTabFocusModeAction.ID,
 				FocusActiveGroupAction.ID,
 				QUICKOPEN_ACTION_ID,
+				QUICKOPEN_FOCUS_SECONDARY_ACTION_ID,
 				ShowAllCommandsAction.ID,
 				CreateNewTerminalAction.ID,
 				CopyTerminalSelectionAction.ID,
@@ -192,6 +193,13 @@ configurationRegistry.registerConfiguration({
 				FocusActiveTerminalAction.ID,
 				FocusPreviousTerminalAction.ID,
 				FocusNextTerminalAction.ID,
+				'workbench.action.tasks.build',
+				'workbench.action.tasks.restartTask',
+				'workbench.action.tasks.runTask',
+				'workbench.action.tasks.showLog',
+				'workbench.action.tasks.showTasks',
+				'workbench.action.tasks.terminate',
+				'workbench.action.tasks.test',
 				'workbench.action.terminal.focusAtIndex1',
 				'workbench.action.terminal.focusAtIndex2',
 				'workbench.action.terminal.focusAtIndex3',

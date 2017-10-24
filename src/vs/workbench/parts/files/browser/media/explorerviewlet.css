@@ -26,7 +26,7 @@
 }
 
 .explorer-viewlet .explorer-item > a,
-.explorer-viewlet .open-editor,
+.explorer-viewlet .open-editor > a,
 .explorer-viewlet .editor-group {
 	text-overflow: ellipsis;
 	overflow: hidden;
@@ -104,6 +104,10 @@
 
 .hc-black .explorer-folders-view .monaco-tree-row.has-children .content::before {
 	background-image: url("collapsed-hc.svg");
+}
+
+.explorer-folders-view.hide-arrows .monaco-tree-row .content::before {
+	display: none;
 }
 
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row:hover > .content .monaco-action-bar,

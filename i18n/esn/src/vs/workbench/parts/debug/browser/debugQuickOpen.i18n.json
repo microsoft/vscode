@@ -6,6 +6,8 @@
 {
 	"entryAriaLabel": "{0}, depurar",
 	"debugAriaLabel": "Escriba un nombre de una configuración de inicio para ejecutar.",
+	"addConfigTo": "Agregar configuración ({0})...",
+	"addConfiguration": "Agregar configuración...",
 	"noConfigurationsMatching": "No hay ninguna configuración de depuración coincidente",
 	"noConfigurationsFound": "No se encontró ninguna configuración de inicio. Cree un archivo \"launch.json\"."
 }

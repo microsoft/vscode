@@ -15,7 +15,6 @@
 	"label.replaceButton": "Ersetzen",
 	"label.replaceAllButton": "Alle ersetzen",
 	"label.toggleReplaceButton": "Ersetzen-Modus wechseln",
-	"title.matchesCountLimit": "Nur die ersten 999 Ergebnisse werden hervorgehoben, alle Suchvorgänge beziehen sich aber auf den gesamten Text.",
 	"label.matchesLocation": "{0} von {1}",
 	"label.noResults": "Keine Ergebnisse"
 }

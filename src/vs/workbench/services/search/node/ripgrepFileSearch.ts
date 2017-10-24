@@ -42,7 +42,13 @@ function getRgArgs(config: IRawSearch, folderQuery: IFolderSearch, includePatter
 	}
 
 	// Follow symlinks
-	args.push('--follow');
+	if (!config.ignoreSymlinks) {
+		args.push('--follow');
+	}
+
+	if (config.exists) {
+		args.push('--quiet');
+	}
 
 	// Folder to search
 	args.push('--');

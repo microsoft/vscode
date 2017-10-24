@@ -138,7 +138,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 
 					// it happens on Linux and OS X that the pipe is left behind
 					// let's delete it, since we can't connect to it
-					// and the retry the whole thing
+					// and then retry the whole thing
 					try {
 						fs.unlinkSync(environmentService.mainIPCHandle);
 					} catch (e) {

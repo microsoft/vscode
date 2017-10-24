@@ -13,6 +13,7 @@
 	"select": "&&Выбрать",
 	"selectWorkspace": "Выбрать папки для рабочей области",
 	"removeFolderFromWorkspace": "Удалить папку из рабочей области",
+	"openFolderSettings": "Открыть параметры папок",
 	"saveWorkspaceAsAction": "Сохранить рабочую область как...",
 	"save": "Сохранить",
 	"saveWorkspace": "Сохранить рабочую область",

@@ -715,6 +715,10 @@ export function startsWithUTF8BOM(str: string): boolean {
 	return (str && str.length > 0 && str.charCodeAt(0) === CharCode.UTF8_BOM);
 }
 
+export function stripUTF8BOM(str: string): string {
+	return startsWithUTF8BOM(str) ? str.substr(1) : str;
+}
+
 /**
  * Appends two strings. If the appended result is longer than maxLength,
  * trims the start of the result and replaces it with '...'.

@@ -44,7 +44,6 @@
 	"typescript.npm": "Gibt den Pfad zur ausführbaren NPM-Datei an, die für die automatische Typerfassung verwendet wird. Hierfür ist TypeScript 2.3.4 oder höher erforderlich.",
 	"typescript.check.npmIsInstalled": "Überprüfen Sie, ob NPM für die automatische Typerfassung installiert ist.",
 	"javascript.nameSuggestions": "Das Einbeziehen eindeutiger Namen von der Datei in der JavaScript-Vorschlagsliste aktivieren/deaktivieren.",
-	"typescript.tsc.autoDetect": "Steuert, ob die automatische Erkennung von tsc-Tasks aktiviert oder deaktiviert ist.\n",
 	"typescript.problemMatchers.tsc.label": "TypeScript-Probleme",
 	"typescript.problemMatchers.tscWatch.label": "TypeScript-Probleme (Überwachungsmodus)"
 }

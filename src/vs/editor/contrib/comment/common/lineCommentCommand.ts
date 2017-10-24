@@ -200,8 +200,16 @@ export class LineCommentCommand implements editorCommon.ICommand {
 			ops = LineCommentCommand._createAddLineCommentsOperations(data.lines, s.startLineNumber);
 		}
 
+		const cursorPosition = new Position(s.positionLineNumber, s.positionColumn);
+
 		for (var i = 0, len = ops.length; i < len; i++) {
 			builder.addEditOperation(ops[i].range, ops[i].text);
+			if (ops[i].range.isEmpty() && ops[i].range.getStartPosition().equals(cursorPosition)) {
+				const lineContent = model.getLineContent(cursorPosition.lineNumber);
+				if (lineContent.length + 1 === cursorPosition.column) {
+					this._deltaColumn = ops[i].text.length;
+				}
+			}
 		}
 
 		this._selectionId = builder.trackSelection(s);
@@ -262,7 +270,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 	 */
 	private _executeBlockComment(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder, s: Selection): void {
 		model.tokenizeIfCheap(s.startLineNumber);
-		let languageId = model.getLanguageIdAtPosition(s.startLineNumber, s.startColumn);
+		let languageId = model.getLanguageIdAtPosition(s.startLineNumber, 1);
 		let config = LanguageConfigurationRegistry.getComments(languageId);
 		if (!config || !config.blockCommentStartToken || !config.blockCommentEndToken) {
 			// Mode does not support block comments

@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CodeActionProvider, TextDocument, Range, CancellationToken, CodeActionContext, Command, commands, workspace, WorkspaceEdit } from 'vscode';
+import { CodeActionProvider, TextDocument, Range, CancellationToken, CodeActionContext, Command, commands } from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
-import { tsTextSpanToVsRange, vsRangeToTsFileRange } from '../utils/convert';
+import { vsRangeToTsFileRange } from '../utils/convert';
 import FormattingConfigurationManager from './formattingConfigurationManager';
+import { applyCodeAction } from '../utils/codeAction';
 
 interface NumberSet {
 	[key: number]: boolean;
@@ -55,7 +56,7 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 			errorCodes: Array.from(supportedActions)
 		};
 		const response = await this.client.execute('getCodeFixes', args, token);
-		return (response.body || []).map(action => this.getCommandForAction(action));
+		return (response.body || []).map(action => this.getCommandForAction(action, file));
 	}
 
 	private get supportedCodeActions(): Thenable<NumberSet> {
@@ -72,31 +73,22 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 		return this._supportedCodeActions;
 	}
 
-	private getSupportedActionsForContext(context: CodeActionContext): Thenable<Set<number>> {
-		return this.supportedCodeActions.then(supportedActions =>
-			new Set(context.diagnostics
-				.map(diagnostic => +diagnostic.code)
-				.filter(code => supportedActions[code])));
+	private async getSupportedActionsForContext(context: CodeActionContext): Promise<Set<number>> {
+		const supportedActions = await this.supportedCodeActions;
+		return new Set(context.diagnostics
+			.map(diagnostic => +diagnostic.code)
+			.filter(code => supportedActions[code]));
 	}
 
-	private getCommandForAction(action: Proto.CodeAction): Command {
+	private getCommandForAction(action: Proto.CodeAction, file: string): Command {
 		return {
 			title: action.description,
 			command: this.commandId,
-			arguments: [action]
+			arguments: [action, file]
 		};
 	}
 
-	private async onCodeAction(action: Proto.CodeAction): Promise<boolean> {
-		const workspaceEdit = new WorkspaceEdit();
-		for (const change of action.changes) {
-			for (const textChange of change.textChanges) {
-				workspaceEdit.replace(this.client.asUrl(change.fileName),
-					tsTextSpanToVsRange(textChange),
-					textChange.newText);
-			}
-		}
-
-		return workspace.applyEdit(workspaceEdit);
+	private onCodeAction(action: Proto.CodeAction, file: string): Promise<boolean> {
+		return applyCodeAction(this.client, action, file);
 	}
 }

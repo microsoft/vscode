@@ -46,6 +46,7 @@
 					"meta.embedded.block.html": "html",
 					"source.js": "javascript",
 					"source.css": "css",
+					"meta.embedded.block.frontmatter": "yaml",
 
 					"meta.embedded.block.css": "css",
 					"meta.embedded.block.ini": "ini",
@@ -299,9 +300,9 @@
 		"vscode-nls": "2.0.2"
 	},
 	"devDependencies": {
-		"@types/highlight.js": "^9.1.9",
+		"@types/highlight.js": "9.1.10",
 		"@types/markdown-it": "0.0.2",
-		"@types/node": "^7.0.4",
+		"@types/node": "8.0.33",
 		"gulp-rename": "^1.2.2",
 		"gulp-replace": "^0.5.4"
 	}

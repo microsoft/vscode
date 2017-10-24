@@ -9,7 +9,6 @@ describe('Dataloss', () => {
 	let app: SpectronApplication;
 	before(() => { app = new SpectronApplication(); return app.start('Dataloss'); });
 	after(() => app.stop());
-	beforeEach(function () { app.screenCapturer.testName = this.currentTest.title; });
 
 	it(`verifies that 'hot exit' works for dirty files`, async function () {
 		await app.workbench.newUntitledFile();

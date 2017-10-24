@@ -6,5 +6,11 @@
 {
 	"mutlicursor.insertAbove": "Добавить курсор выше",
 	"mutlicursor.insertBelow": "Добавить курсор ниже",
-	"mutlicursor.insertAtEndOfEachLineSelected": "Добавить курсоры к окончаниям строк"
+	"mutlicursor.insertAtEndOfEachLineSelected": "Добавить курсоры к окончаниям строк",
+	"addSelectionToNextFindMatch": "Добавить выделение в следующее найденное совпадение",
+	"addSelectionToPreviousFindMatch": "Добавить выделенный фрагмент в предыдущее найденное совпадение",
+	"moveSelectionToNextFindMatch": "Переместить последнее выделение в следующее найденное совпадение",
+	"moveSelectionToPreviousFindMatch": "Переместить последний выделенный фрагмент в предыдущее найденное совпадение",
+	"selectAllOccurrencesOfFindMatch": "Выбрать все вхождения найденных совпадений",
+	"changeAll.label": "Изменить все вхождения"
 }

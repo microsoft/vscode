@@ -11,7 +11,7 @@ import * as os from 'os';
 import * as electron from './utils/electron';
 import { Reader } from './utils/wireProtocol';
 
-import { workspace, window, Uri, CancellationToken, Disposable, Memento, MessageItem, EventEmitter, Event, commands } from 'vscode';
+import { workspace, window, Uri, CancellationToken, Disposable, Memento, MessageItem, EventEmitter, Event, commands, env } from 'vscode';
 import * as Proto from './protocol';
 import { ITypescriptServiceClient, ITypescriptServiceClientHost } from './typescriptService';
 import { TypeScriptServerPlugin } from './utils/plugins';
@@ -231,6 +231,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		if (this.servicePromise) {
 			this.servicePromise = this.servicePromise.then(cp => {
 				if (cp) {
+					this.info('Killing TS Server');
 					this.isRestarting = true;
 					cp.kill();
 				}
@@ -381,6 +382,13 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					}
 				}
 
+				if (this.apiVersion.has260Features()) {
+					const tsLocale = getTsLocale(this.configuration);
+					if (tsLocale) {
+						args.push('--locale', tsLocale);
+					}
+				}
+
 				electron.fork(currentVersion.tsServerPath, args, options, this.logger, (err: any, childProcess: cp.ChildProcess) => {
 					if (err) {
 						this.lastError = err;
@@ -394,7 +402,10 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 						this.logTelemetry('error', { message: err.message });
 						return;
 					}
+
+					this.info('Started TSServer');
 					this.lastStart = Date.now();
+
 					childProcess.on('error', (err: Error) => {
 						this.lastError = err;
 						this.error('TSServer errored with error.', err);
@@ -409,7 +420,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					});
 					childProcess.on('exit', (code: any) => {
 						if (code === null || typeof code === 'undefined') {
-							this.info(`TSServer exited`);
+							this.info('TSServer exited');
 						} else {
 							this.error(`TSServer exited with code: ${code}`);
 							/* __GDPR__
@@ -862,3 +873,9 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this.logTelemetry(telemetryData.telemetryEventName, properties);
 	}
 }
+
+
+const getTsLocale = (configuration: TypeScriptServiceConfiguration): string | undefined =>
+	(configuration.locale
+		? configuration.locale
+		: env.language);
