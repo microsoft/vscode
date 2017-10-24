@@ -304,7 +304,7 @@ export function once<T>(event: Event<T>): Event<T> {
 	};
 }
 
-export function any<T>(...events: Event<T>[]): Event<T> {
+export function anyEvent<T>(...events: Event<T>[]): Event<T> {
 	return (listener, thisArgs = null, disposables?) => combinedDisposable(events.map(event => event(e => listener.call(thisArgs, e), null, disposables)));
 }
 

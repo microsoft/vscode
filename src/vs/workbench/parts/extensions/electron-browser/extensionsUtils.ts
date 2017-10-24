@@ -7,7 +7,7 @@
 
 import * as arrays from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
-import Event, { chain, any, debounceEvent } from 'vs/base/common/event';
+import Event, { chain, anyEvent, debounceEvent } from 'vs/base/common/event';
 import { onUnexpectedError, canceled } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -123,8 +123,8 @@ export class KeymapExtensions implements IWorkbenchContribution {
 export function onExtensionChanged(accessor: ServicesAccessor): Event<string[]> {
 	const extensionService = accessor.get(IExtensionManagementService);
 	const extensionEnablementService = accessor.get(IExtensionEnablementService);
-	return debounceEvent<string, string[]>(any(
-		chain(any(extensionService.onDidInstallExtension, extensionService.onDidUninstallExtension))
+	return debounceEvent<string, string[]>(anyEvent(
+		chain(anyEvent(extensionService.onDidInstallExtension, extensionService.onDidUninstallExtension))
 			.map(e => stripVersion(e.id))
 			.event,
 		extensionEnablementService.onEnablementChanged

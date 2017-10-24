@@ -5,7 +5,7 @@
 
 'use strict';
 
-import Event, { filterEvent, mapEvent, any } from 'vs/base/common/event';
+import Event, { filterEvent, mapEvent, anyEvent } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWindowService, IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult } from 'vs/platform/windows/common/windows';
 import { remote } from 'electron';
@@ -26,7 +26,7 @@ export class WindowService implements IWindowService {
 	) {
 		const onThisWindowFocus = mapEvent(filterEvent(windowsService.onWindowFocus, id => id === windowId), _ => true);
 		const onThisWindowBlur = mapEvent(filterEvent(windowsService.onWindowBlur, id => id === windowId), _ => false);
-		this.onDidChangeFocus = any(onThisWindowFocus, onThisWindowBlur);
+		this.onDidChangeFocus = anyEvent(onThisWindowFocus, onThisWindowBlur);
 	}
 
 	getCurrentWindowId(): number {
