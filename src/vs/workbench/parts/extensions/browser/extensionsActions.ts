@@ -17,7 +17,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet, AutoUpdateConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/parts/extensions/common/extensionsFileTemplate';
-import { LocalExtensionType, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { LocalExtensionType, IExtensionEnablementService, IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -1132,6 +1132,56 @@ export class ShowWorkspaceRecommendedExtensionsAction extends Action {
 		super.dispose();
 	}
 }
+
+export class InstallWorkspaceRecommendedExtensionsAction extends Action {
+
+	static ID = 'workbench.extensions.action.installWorkspaceRecommendedExtensions';
+	static LABEL = localize('installWorkspaceRecommendedExtensions', "Install All Workspace Recommended Extensions");
+
+	private disposables: IDisposable[] = [];
+
+	constructor(
+		id: string = InstallWorkspaceRecommendedExtensionsAction.ID,
+		label: string = InstallWorkspaceRecommendedExtensionsAction.LABEL,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IViewletService private viewletService: IViewletService,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionTipsService private extensionTipsService: IExtensionTipsService
+	) {
+		super(id, label, null);
+		this.contextService.onDidChangeWorkbenchState(() => this.update(), this, this.disposables);
+		this.update();
+	}
+
+	private update(): void {
+		this.enabled = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY;
+	}
+
+	run(): TPromise<any> {
+		this.viewletService.openViewlet(VIEWLET_ID, true)
+			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => {
+				viewlet.search('@recommended:workspace ');
+				viewlet.focus();
+			});
+
+		return this.extensionTipsService.getWorkspaceRecommendations().then(names => {
+			return this.extensionsWorkbenchService.queryGallery({ names, source: 'install-all-workspace-recommendations' }).then(pager => {
+				return TPromise.join(pager.firstPage.map(e => this.extensionsWorkbenchService.install(e)));
+			});
+		});
+	}
+
+	protected isEnabled(): boolean {
+		return true;
+	}
+
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
+		super.dispose();
+	}
+}
+
 
 export class ShowRecommendedKeymapExtensionsAction extends Action {
 

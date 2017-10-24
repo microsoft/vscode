@@ -17,7 +17,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import product from 'vs/platform/node/product';
 import { IChoiceService, IMessageService } from 'vs/platform/message/common/message';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
+import { ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import Severity from 'vs/base/common/severity';
 import { IWorkspaceContextService, IWorkspaceFolder, IWorkspace, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { Schemas } from 'vs/base/common/network';
@@ -359,15 +359,17 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				}
 
 				const message = localize('workspaceRecommended', "This workspace has extension recommendations.");
-				const action = this.instantiationService.createInstance(ShowWorkspaceRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction.ID, localize('showRecommendations', "Show Recommendations"));
+				const showAction = this.instantiationService.createInstance(ShowWorkspaceRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction.ID, localize('showRecommendations', "Show Recommendations"));
+				const installAllAction = this.instantiationService.createInstance(InstallWorkspaceRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsAction.ID, localize('installAll', "Install All"));
 
 				const options = [
-					action.label,
+					showAction.label,
+					installAllAction.label,
 					localize('neverShowAgain', "Don't show again"),
 					localize('close', "Close")
 				];
 
-				this.choiceService.choose(Severity.Info, message, options, 2).done(choice => {
+				this.choiceService.choose(Severity.Info, message, options, 3).done(choice => {
 					switch (choice) {
 						case 0:
 							/* __GDPR__
@@ -376,8 +378,17 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 								}
 							*/
 							this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'show' });
-							return action.run();
+							return showAction.run();
 						case 1:
+							/* __GDPR__
+								"extensionRecommendations:popup" : {
+									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+								}
+							*/
+							this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'installAll' });
+							// return showAction.run().then(installAllAction.run);
+							return installAllAction.run();
+						case 2:
 							/* __GDPR__
 								"extensionRecommendations:popup" : {
 									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
@@ -385,7 +396,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 							*/
 							this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'neverShowAgain' });
 							return this.storageService.store(storageKey, true, StorageScope.WORKSPACE);
-						case 2:
+						case 3:
 							/* __GDPR__
 								"extensionRecommendations:popup" : {
 									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
