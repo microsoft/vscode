@@ -54,7 +54,8 @@ class DecorationRule {
 		createCSSRule(`.focused .selected .${this.labelClassName}`, `color: inherit;`, element);
 		// letter
 		if (letter) {
-			createCSSRule(`.${this.badgeClassName}::after`, `content: "${letter}";`, element);
+			createCSSRule(`.${this.badgeClassName}::after`, `content: "${letter}"; color: ${theme.getColor(color) || 'inherit'};`, element);
+			createCSSRule(`.focused .selected .${this.badgeClassName}::after`, `color: inherit;`, element);
 		}
 	}
 
@@ -66,7 +67,8 @@ class DecorationRule {
 
 		// badge
 		let content = data.map(d => d.letter).join(', ');
-		createCSSRule(`.${this.badgeClassName}::after`, `content: "${content}";`, element);
+		createCSSRule(`.${this.badgeClassName}::after`, `content: "${content}"; color: ${theme.getColor(color) || 'inherit'};`, element);
+		createCSSRule(`.focused .selected .${this.badgeClassName}::after`, `color: inherit;`, element);
 	}
 
 	removeCSSRules(element: HTMLStyleElement): void {
@@ -380,6 +382,7 @@ export class FileDecorationsService implements IDecorationsService {
 		} else if (onlyChildren) {
 			let result = this._decorationStyles.asDecoration(data.sort((a, b) => b.weight - a.weight)[0]);
 			result.badgeClassName = '';
+			result.title = '';
 			return result;
 		} else if (data.length === 1) {
 			return this._decorationStyles.asDecoration(data[0]);
