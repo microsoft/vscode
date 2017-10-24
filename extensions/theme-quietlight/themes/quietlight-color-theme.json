@@ -8,7 +8,10 @@
 			}
 		},
 		{
-			"scope": ["meta.embedded", "source.groovy.embedded"],
+			"scope": [
+				"meta.embedded",
+				"source.groovy.embedded"
+			],
 			"settings": {
 				"background": "#F5F5F5",
 				"foreground": "#333333"
@@ -491,8 +494,8 @@
 		"statusBar.background": "#705697",
 		"statusBar.noFolderBackground": "#705697",
 		"statusBar.debuggingBackground": "#705697",
- 		"activityBar.background": "#EDEDF5",
- 		"activityBar.foreground": "#705697",
+		"activityBar.background": "#EDEDF5",
+		"activityBar.foreground": "#705697",
 		"activityBarBadge.background": "#705697",
 		"titleBar.activeBackground": "#c4b7d7",
 		"button.background": "#705697",
