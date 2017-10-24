@@ -84,14 +84,21 @@ class WordHighlighter {
 	private renderDecorationsTimer: number = -1;
 
 	private _hasWordHighlights: IContextKey<boolean>;
+	private _ignorePositionChangeEvent: boolean;
 
 	constructor(editor: editorCommon.ICommonCodeEditor, contextKeyService: IContextKeyService) {
 		this.editor = editor;
 		this._hasWordHighlights = ctxHasWordHighlights.bindTo(contextKeyService);
+		this._ignorePositionChangeEvent = false;
 		this.occurrencesHighlight = this.editor.getConfiguration().contribInfo.occurrencesHighlight;
 		this.model = this.editor.getModel();
 		this.toUnhook = [];
 		this.toUnhook.push(editor.onDidChangeCursorPosition((e: ICursorPositionChangedEvent) => {
+
+			if (this._ignorePositionChangeEvent) {
+				// We are changing the position => ignore this event
+				return;
+			}
 
 			if (!this.occurrencesHighlight) {
 				// Early exit if nothing needs to be done!
@@ -148,9 +155,13 @@ class WordHighlighter {
 		let index = firstIndex(highlights, (range) => range.containsPosition(this.editor.getPosition()));
 		let newIndex = ((index + 1) % highlights.length);
 		let dest = highlights[newIndex];
-		this.editor.setPosition(dest.getStartPosition());
-		this.editor.revealRangeInCenter(dest);
-		this._run();
+		try {
+			this._ignorePositionChangeEvent = true;
+			this.editor.setPosition(dest.getStartPosition());
+			this.editor.revealRangeInCenter(dest);
+		} finally {
+			this._ignorePositionChangeEvent = false;
+		}
 	}
 
 	public moveBack() {
@@ -158,9 +169,13 @@ class WordHighlighter {
 		let index = firstIndex(highlights, (range) => range.containsPosition(this.editor.getPosition()));
 		let newIndex = ((index - 1 + highlights.length) % highlights.length);
 		let dest = highlights[newIndex];
-		this.editor.setPosition(dest.getStartPosition());
-		this.editor.revealRangeInCenter(dest);
-		this._run();
+		try {
+			this._ignorePositionChangeEvent = true;
+			this.editor.setPosition(dest.getStartPosition());
+			this.editor.revealRangeInCenter(dest);
+		} finally {
+			this._ignorePositionChangeEvent = false;
+		}
 	}
 
 	private _removeDecorations(): void {
