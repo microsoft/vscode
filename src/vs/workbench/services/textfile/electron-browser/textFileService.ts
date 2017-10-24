@@ -138,7 +138,7 @@ export class TextFileService extends AbstractTextFileService {
 	}
 
 	public promptForPath(defaultPath?: string): string {
-		return this.windowService.showSaveDialog(this.getSaveDialogOptions(defaultPath ? paths.normalize(defaultPath, true) : void 0));
+		return this.windowService.showSaveDialog(this.getSaveDialogOptions(defaultPath));
 	}
 
 	private getSaveDialogOptions(defaultPath?: string): Electron.SaveDialogOptions {
