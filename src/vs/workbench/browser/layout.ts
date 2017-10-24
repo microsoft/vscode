@@ -11,7 +11,7 @@ import { Part } from 'vs/workbench/browser/part';
 import { QuickOpenController } from 'vs/workbench/browser/parts/quickopen/quickOpenController';
 import { Sash, ISashEvent, IVerticalSashLayoutProvider, IHorizontalSashLayoutProvider, Orientation } from 'vs/base/browser/ui/sash/sash';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IPartService, Position, ILayoutOptions, Parts } from 'vs/workbench/services/part/common/partService';
+import { IPartService, Position, Parts } from 'vs/workbench/services/part/common/partService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -72,7 +72,6 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	private statusbarHeight: number;
 	private panelHeight: number;
 	private panelHeightBeforeMaximized: number;
-	private panelMaximized: boolean;
 	private panelWidth: number;
 	private layoutEditorGroupsVertically: boolean;
 
@@ -109,7 +108,6 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		this.toUnbind = [];
 		this.partLayoutInfo = this.getPartLayoutInfo();
 		this.panelHeightBeforeMaximized = 0;
-		this.panelMaximized = false;
 
 		this.sashXOne = new Sash(this.workbenchContainer.getHTMLElement(), this, {
 			baseSize: 5
@@ -330,7 +328,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		}
 	}
 
-	public layout(options?: ILayoutOptions): void {
+	public layout(): void {
 		this.workbenchSize = this.parent.getClientArea();
 
 		const isActivityBarHidden = !this.partService.isVisible(Parts.ACTIVITYBAR_PART);
@@ -381,11 +379,6 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			} else {
 				panelHeight = sidebarSize.height * DEFAULT_PANEL_SIZE_COEFFICIENT;
 			}
-			if (options && options.toggleMaximizedPanel) {
-				panelHeight = this.panelMaximized ? Math.max(this.partLayoutInfo.panel.minHeight, Math.min(this.panelHeightBeforeMaximized, maxPanelHeight)) : maxPanelHeight;
-			}
-
-			this.panelMaximized = panelHeight === maxPanelHeight;
 			if (panelHeight / maxPanelHeight < 0.7) {
 				// Remember the previous height only if the panel size is not too large.
 				// To get a nice minimize effect even if a user dragged the panel sash to maximum.
@@ -590,10 +583,6 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 
 	public getHorizontalSashWidth(sash: Sash): number {
 		return this.panelWidth;
-	}
-
-	public isPanelMaximized(): boolean {
-		return this.panelMaximized;
 	}
 
 	// change part size along the main axis
