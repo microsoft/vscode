@@ -26,7 +26,7 @@
 }
 
 .explorer-viewlet .explorer-item > a,
-.explorer-viewlet .open-editor,
+.explorer-viewlet .open-editor > a,
 .explorer-viewlet .editor-group {
 	text-overflow: ellipsis;
 	overflow: hidden;

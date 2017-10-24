@@ -37,6 +37,8 @@
 	margin-left: 0.5em;
 	font-size: 0.9em;
 	white-space: pre; /* enable to show labels that include multiple whitespaces */
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .monaco-icon-label.italic > .label-name,
