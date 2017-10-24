@@ -36,6 +36,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	public static activePanelSettingsKey = 'workbench.panelpart.activepanelid';
 	private static readonly PINNED_PANELS = 'workbench.panel.pinnedPanels';
+	private static readonly MIN_COMPOSITE_BAR_WIDTH = 50;
 
 	public _serviceBrand: any;
 
@@ -225,7 +226,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			let availableWidth = this.dimension.width - 8; // take padding into account
 			if (this.toolBar) {
 				// adjust height for global actions showing
-				availableWidth -= this.toolBar.getContainer().getHTMLElement().offsetWidth;
+				availableWidth = Math.max(PanelPart.MIN_COMPOSITE_BAR_WIDTH, availableWidth - this.toolBar.getContainer().getHTMLElement().offsetWidth);
 			}
 			this.compositeBar.layout(new Dimension(availableWidth, this.dimension.height));
 		}

@@ -281,7 +281,7 @@ export class CompositeBar implements ICompositeBar {
 		}
 
 		// Add overflow action as needed
-		if (visibleCompositesChange && overflows) {
+		if ((visibleCompositesChange && overflows) || this.compositeSwitcherBar.length() === 0) {
 			this.compositeOverflowAction = this.instantiationService.createInstance(CompositeOverflowActivityAction, () => this.compositeOverflowActionItem.showMenu());
 			this.compositeOverflowActionItem = this.instantiationService.createInstance(
 				CompositeOverflowActivityActionItem,
