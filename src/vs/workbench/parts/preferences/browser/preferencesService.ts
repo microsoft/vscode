@@ -52,9 +52,9 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	private _onDispose: Emitter<void> = new Emitter<void>();
 
 	private _defaultSettingsUriCounter = 0;
-	private _defaultSettingsContentModel;
+	private _defaultSettingsContentModel: DefaultSettingsModel;
 	private _defaultResourceSettingsUriCounter = 0;
-	private _defaultResourceSettingsContentModel;
+	private _defaultResourceSettingsContentModel: DefaultSettingsModel;
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,

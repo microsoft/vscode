@@ -680,7 +680,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 			builder.pushGroups([mostRelevantGroup]);
 			builder.pushLine('');
 
-			// note- 1-indexed line numbers here
+			// note: 1-indexed line numbers here
 			const mostRelevantContent = builder.getContent();
 			const mostRelevantEndLine = this._model.getLineCount();
 			this._model.applyEdits([
@@ -760,10 +760,6 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 			]
 		};
 	}
-
-	dispose(): void {
-		super.dispose();
-	}
 }
 
 class SettingsContentBuilder {
@@ -810,7 +806,7 @@ class SettingsContentBuilder {
 		this._contentByLines.push('}');
 	}
 
-	private pushGroup(group: ISettingsGroup, showEmptyGroupMessage = true): ISetting {
+	private pushGroup(group: ISettingsGroup): ISetting {
 		const indent = '  ';
 		let lastSetting: ISetting = null;
 		let groupStart = this.lineCountWithOffset + 1;
@@ -826,9 +822,6 @@ class SettingsContentBuilder {
 					this.pushSetting(setting, indent);
 					lastSetting = setting;
 				}
-			} else if (showEmptyGroupMessage) {
-				this._contentByLines.push('// ' + nls.localize('noSettings', "No Settings"));
-				this._contentByLines.push('');
 			}
 
 		}
@@ -838,23 +831,6 @@ class SettingsContentBuilder {
 
 	getContent(): string {
 		return this._contentByLines.join('\n');
-	}
-
-	getTrimmedLines(maxLines: number): string[] {
-		let lines: string[];
-		if (this._contentByLines.length > maxLines) {
-			lines = this._contentByLines.slice(0, maxLines);
-
-			// If the trim happened in the middle of a setting, remove the truncated setting range.
-			if (this._contentByLines[maxLines] !== '') {
-				const lastEmptyLineIdx = lines.lastIndexOf('');
-				lines = lines.slice(0, lastEmptyLineIdx);
-			}
-		} else {
-			lines = this._contentByLines;
-		}
-
-		return lines;
 	}
 
 	private pushSetting(setting: ISetting, indent: string): void {

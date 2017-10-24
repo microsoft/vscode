@@ -128,6 +128,8 @@ export class DefaultSettingsHeaderWidget extends SettingsHeaderWidget {
 
 			if (promptFuzzy) {
 				DOM.removeClass(this.linkElement, 'hidden');
+			} else {
+				DOM.addClass(this.linkElement, 'hidden');
 			}
 		}
 	}
@@ -469,7 +471,7 @@ export class SearchWidget extends Widget {
 				this.inputBox.focus();
 				this._onDidChange.fire();
 			},
-			title: 'Enable experimental fuzzy search'
+			title: localize('enableFuzzySearch', 'Enable experimental fuzzy search')
 		}));
 		DOM.append(this.controlsDiv, this.fuzzyToggle.domNode);
 		this._register(attachCheckboxStyler(this.fuzzyToggle, this.themeService));
