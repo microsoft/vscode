@@ -120,15 +120,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 						return TPromise.as(schemaModel);
 					}
 				}
-				return this.preferencesService.resolveContent(uri)
-					.then(content => {
-						if (content !== null && content !== void 0) {
-							let mode = this.modeService.getOrCreateMode('json');
-							const model = this.modelService.createModel(content, mode, uri);
-							return TPromise.as(model);
-						}
-						return null;
-					});
+				return this.preferencesService.resolveModel(uri);
 			}
 		});
 	}

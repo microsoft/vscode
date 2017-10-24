@@ -9,11 +9,22 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditor, Position, IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IModel } from 'vs/editor/common/editorCommon';
 import { IKeybindingItemEntry } from 'vs/workbench/parts/preferences/common/keybindingsEditorModel';
 import { IRange } from 'vs/editor/common/core/range';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { join } from 'vs/base/common/paths';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+
+export interface IWorkbenchSettingsConfiguration {
+	workbench: {
+		settings: {
+			openDefaultSettings: boolean;
+			experimentalFuzzySearchEndpoint: string;
+			experimentalFuzzySearchKey: string;
+		}
+	};
+}
 
 export interface ISettingsGroup {
 	id: string;
@@ -42,22 +53,34 @@ export interface ISetting {
 }
 
 export interface IFilterResult {
+	query: string;
 	filteredGroups: ISettingsGroup[];
 	allGroups: ISettingsGroup[];
 	matches: IRange[];
+	fuzzySearchAvailable?: boolean;
+	metadata?: IFilterMetadata;
+}
+
+export interface IFilterMetadata {
+	remoteUrl: string;
+	timestamp: number;
+	duration: number;
 }
 
 export interface IPreferencesEditorModel<T> {
 	uri: URI;
-	content: string;
 	getPreference(key: string): T;
 	dispose(): void;
 }
 
+export type IGroupFilter = (group: ISettingsGroup) => boolean;
+export type ISettingFilter = (setting: ISetting) => IRange[];
+
 export interface ISettingsEditorModel extends IPreferencesEditorModel<ISetting> {
 	settingsGroups: ISettingsGroup[];
 	groupsTerms: string[];
-	filterSettings(filter: string): IFilterResult;
+	filterSettings(filter: string, groupFilter: IGroupFilter, settingFilter: ISettingFilter, mostRelevantSettings?: string[]): IFilterResult;
+	findValueMatches(filter: string, setting: ISetting): IRange[];
 }
 
 export interface IKeybindingsEditorModel<T> extends IPreferencesEditorModel<T> {
@@ -68,13 +91,11 @@ export const IPreferencesService = createDecorator<IPreferencesService>('prefere
 export interface IPreferencesService {
 	_serviceBrand: any;
 
-	defaultSettingsResource: URI;
-	defaultResourceSettingsResource: URI;
 	userSettingsResource: URI;
 	workspaceSettingsResource: URI;
 	getFolderSettingsResource(resource: URI): URI;
 
-	resolveContent(uri: URI): TPromise<string>;
+	resolveModel(uri: URI): TPromise<IModel>;
 	createPreferencesEditorModel<T>(uri: URI): TPromise<IPreferencesEditorModel<T>>;
 
 	openGlobalSettings(options?: IEditorOptions, position?: Position): TPromise<IEditor>;

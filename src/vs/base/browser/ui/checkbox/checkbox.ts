@@ -73,6 +73,10 @@ export class Checkbox extends Widget {
 		});
 	}
 
+	public get enabled(): boolean {
+		return this.domNode.getAttribute('aria-disabled') !== 'true';
+	}
+
 	public focus(): void {
 		this.domNode.focus();
 	}

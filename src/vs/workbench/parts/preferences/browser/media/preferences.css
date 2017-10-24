@@ -73,16 +73,36 @@
 	padding-right: 32px;
 }
 
-.settings-header-widget > .settings-count-widget {
+.settings-header-widget > .settings-search-controls > .settings-count-widget {
 	margin: 6px 0px;
 	padding: 0px 8px;
-	position: absolute;
-	right: 10px;
 	border-radius: 2px;
+	float: left;
 }
 
-.settings-header-widget > .settings-count-widget.hide {
+.settings-header-widget > .settings-search-controls {
+	position: absolute;
+	right: 10px;
+}
+
+.settings-header-widget > .settings-search-controls > .settings-count-widget.hide {
 	display: none;
+}
+
+.settings-header-widget > .settings-search-controls > .prefs-fuzzy-search-toggle {
+	margin: 5px 3px 5px 0px;
+}
+
+.settings-header-widget > .settings-search-controls > .prefs-fuzzy-search-toggle.hidden {
+	display: none;
+}
+
+.vs .settings-header-widget > .settings-search-controls > .prefs-fuzzy-search-toggle {
+	background: url('regex.svg') center center no-repeat;
+}
+
+.vs-dark .settings-header-widget > .settings-search-controls > .prefs-fuzzy-search-toggle {
+	background: url('regex-dark.svg') center center no-repeat;
 }
 
 .settings-header-widget > .settings-search-container {
@@ -106,8 +126,13 @@
 	padding-left:10px;
 }
 
+.monaco-editor .view-zones > .settings-header-widget {
+	z-index: 1;
+}
+
 .monaco-editor .settings-header-widget .title-container {
 	display: flex;
+	user-select: none;
 }
 
 .vs .monaco-editor .settings-header-widget .title-container {
@@ -128,6 +153,16 @@
 
 .monaco-editor .settings-header-widget .title-container .message {
 	white-space: nowrap;
+}
+
+.monaco-editor .settings-header-widget .title-container .settings-header-fuzzy-link {
+	margin-left: 4px;
+	text-decoration: underline;
+	cursor: pointer;
+}
+
+.monaco-editor .settings-header-widget .title-container .settings-header-fuzzy-link.hidden {
+	display: none;
 }
 
 .monaco-editor .settings-group-title-widget {
