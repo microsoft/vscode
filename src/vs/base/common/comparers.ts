@@ -23,16 +23,21 @@ export function compareFileNames(one: string, other: string, isCaseSensitive: bo
 
 		if (isCaseSensitive && a !== b) {
 			const length = a.length <= b.length ? a.length : b.length;
-
-			// Make a new comparer so the result is consistent regardless of what intlFileNameCollator is
-			const charComparer = new Intl.Collator(undefined, { numeric: true, sensitivity: 'case' });
+			let sign = 1;
+			if (intlFileNameCollator.resolvedOptions().sensitivity === 'case' || intlFileNameCollator.resolvedOptions().sensitivity === 'variant') {
+				sign = -1;
+			}
 			for (let i = 0; i < length; i++) {
-				let charResult = charComparer.compare(a[i], b[i]);
+				let charResult = sign * intlFileNameCollator.compare(a[i], b[i]);
 				const isUpperA = a[i] < 'a';
 				const isUpperB = b[i] < 'a';
+				if (parseInt(a[i]) && parseInt(b[i])) {
+					break;
+				}
 				if (charResult === 0 && isUpperA === isUpperB) {
 					continue;
-				} else if (isUpperA === isUpperB) {
+				}
+				if (isUpperA === isUpperB) {
 					result = charResult;
 					break;
 				}
