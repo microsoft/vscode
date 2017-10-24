@@ -14,7 +14,6 @@ import { LinkedList } from 'vs/base/common/linkedList';
 import { createStyleSheet, createCSSRule, removeCSSRulesContainingSelector } from 'vs/base/browser/dom';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { IdGenerator } from 'vs/base/common/idGenerator';
-import { listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IIterator } from 'vs/base/common/iterator';
 
 class DecorationRule {
@@ -52,10 +51,9 @@ class DecorationRule {
 		const { color, letter } = data;
 		// label
 		createCSSRule(`.${this.labelClassName}`, `color: ${theme.getColor(color) || 'inherit'};`, element);
-		createCSSRule(`.focused .selected .${this.labelClassName}`, `color: inherit; opacity: inherit;`, element);
-		// badge
+		createCSSRule(`.focused .selected .${this.labelClassName}`, `color: inherit;`, element);
+		// letter
 		if (letter) {
-			createCSSRule(`.${this.badgeClassName}`, `background-color: ${theme.getColor(color)}; color: ${theme.getColor(listActiveSelectionForeground)};`, element);
 			createCSSRule(`.${this.badgeClassName}::before`, `content: "${letter}"`, element);
 		}
 	}
@@ -68,17 +66,10 @@ class DecorationRule {
 
 		// badge
 		let letters: string[] = [];
-		let colors: string[] = [];
 		for (const deco of data) {
 			letters.push(deco.letter);
-			colors.push(`${theme.getColor(deco.color).toString()} ${100 / data.length}%`);
 		}
-		createCSSRule(`.${this.badgeClassName}::before`, `content: "${letters.join('\u2002')}"`, element);
-		createCSSRule(
-			`.${this.badgeClassName}`,
-			`background: linear-gradient(90deg, ${colors.join()}); color: ${theme.getColor(listActiveSelectionForeground)};`,
-			element
-		);
+		createCSSRule(`.${this.badgeClassName}::before`, `content: "${letters.join(', ')}"`, element);
 	}
 
 	removeCSSRules(element: HTMLStyleElement): void {

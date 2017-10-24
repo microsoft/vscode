@@ -49,10 +49,10 @@
 	height: 12px;
 	min-width: 10px;
 	line-height: 125%;
-	font-size: 80%;
+	font-size: 90%;
 	margin: 1px 15px 1px auto;
 	padding: 2px 3px;
 	border-radius: 5px;
-	font-weight: normal;
+	font-weight: 500;
 	text-align: center;
 }
