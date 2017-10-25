@@ -102,8 +102,7 @@
 
 .vs-dark .monaco-workbench .move-panel-to-right,
 .hc-black .monaco-workbench .move-panel-to-right {
-	background: url('panel-right.svg') center center no-repeat;
-	transform: rotate(180deg)
+	background: url('panel-right-inverse.svg') center center no-repeat;
 }
 
 .monaco-workbench .move-panel-to-bottom {
@@ -112,8 +111,7 @@
 
 .vs-dark .monaco-workbench .move-panel-to-bottom,
 .hc-black .monaco-workbench .move-panel-to-bottom {
-	background: url('panel-bottom.svg') center center no-repeat;
-	transform: rotate(180deg)
+	background: url('panel-bottom-inverse.svg') center center no-repeat;
 }
 
 .vs-dark .monaco-workbench .hide-panel-action,
