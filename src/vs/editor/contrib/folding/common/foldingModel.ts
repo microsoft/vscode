@@ -84,17 +84,15 @@ export class FoldingModel {
 			region.init(ranges, index, isCollapsed);
 			newRegions.push(region);
 
-			if (ranges.getIndent(index) < ranges.indentLimit) {
-				let startLineNumber = region.startLineNumber;
-				let maxColumn = this._textModel.getLineMaxColumn(startLineNumber);
-				let decorationRange = {
-					startLineNumber: startLineNumber,
-					startColumn: maxColumn,
-					endLineNumber: startLineNumber,
-					endColumn: maxColumn
-				};
-				newEditorDecorations.push({ range: decorationRange, options: this._decorationProvider.getDecorationOption(region) });
-			}
+			let startLineNumber = region.startLineNumber;
+			let maxColumn = this._textModel.getLineMaxColumn(startLineNumber);
+			let decorationRange = {
+				startLineNumber: startLineNumber,
+				startColumn: maxColumn,
+				endLineNumber: startLineNumber,
+				endColumn: maxColumn
+			};
+			newEditorDecorations.push({ range: decorationRange, options: this._decorationProvider.getDecorationOption(region) });
 		};
 
 		let k = 0, i = 0;
