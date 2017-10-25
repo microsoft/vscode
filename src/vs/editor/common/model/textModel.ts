@@ -487,15 +487,6 @@ export class TextModel implements editorCommon.ITextModel {
 		return this._lines[lineNumber - 1].text;
 	}
 
-	public getIndentLevel(lineNumber: number): number {
-		this._assertNotDisposed();
-		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
-			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
-		}
-
-		return this._lines[lineNumber - 1].getIndentLevel();
-	}
-
 	public getLinesContent(): string[] {
 		this._assertNotDisposed();
 		var r: string[] = [];

@@ -27,10 +27,10 @@ var NO_OP_TOKENS_ADJUSTER: ITokensAdjuster = {
 
 /**
  * Returns:
- *  - 0 => the line consists of whitespace
- *  - otherwise => the indent level is returned value - 1
+ *  - -1 => the line consists of whitespace
+ *  - otherwise => the indent level is returned value
  */
-function computePlusOneIndentLevel(line: string, tabSize: number): number {
+export function computeIndentLevel(line: string, tabSize: number): number {
 	let indent = 0;
 	let i = 0;
 	let len = line.length;
@@ -48,10 +48,19 @@ function computePlusOneIndentLevel(line: string, tabSize: number): number {
 	}
 
 	if (i === len) {
-		return 0; // line only consists of whitespace
+		return -1; // line only consists of whitespace
 	}
 
-	return indent + 1;
+	return indent;
+}
+
+/**
+ * Returns:
+ *  - 0 => the line consists of whitespace
+ *  - otherwise => the indent level is returned value - 1
+ */
+function computePlusOneIndentLevel(line: string, tabSize: number): number {
+	return computeIndentLevel(line, tabSize) + 1;
 }
 
 export interface IModelLine {

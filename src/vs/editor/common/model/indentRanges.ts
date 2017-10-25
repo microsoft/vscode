@@ -7,6 +7,7 @@
 
 import { ITextModel } from 'vs/editor/common/editorCommon';
 import { FoldingMarkers } from 'vs/editor/common/modes/languageConfiguration';
+import { computeIndentLevel } from 'vs/editor/common/model/modelLine';
 
 export const MAX_FOLDING_REGIONS = 0xFFFF;
 
@@ -78,7 +79,10 @@ export class IndentRanges {
 	}
 
 	public getIndent(index: number) {
-		return this._model.getIndentLevel(this.getStartLineNumber(index));
+		const lineNumber = this.getStartLineNumber(index);
+		const tabSize = this._model.getOptions().tabSize;
+		const lineContent = this._model.getLineContent(lineNumber);
+		return computeIndentLevel(lineContent, tabSize);
 	}
 
 	public contains(index: number, line: number) {
@@ -181,6 +185,8 @@ interface PreviousRegion { indent: number; line: number; marker: boolean; };
 
 export function computeRanges(model: ITextModel, offSide: boolean, markers?: FoldingMarkers, minimumRangeSize: number = 1): IndentRanges {
 
+	const tabSize = model.getOptions().tabSize;
+
 	let result = new RangesCollector();
 
 	let pattern = void 0;
@@ -192,7 +198,8 @@ export function computeRanges(model: ITextModel, offSide: boolean, markers?: Fol
 	previousRegions.push({ indent: -1, line: model.getLineCount() + 1, marker: false }); // sentinel, to make sure there's at least one entry
 
 	for (let line = model.getLineCount(); line > 0; line--) {
-		let indent = model.getIndentLevel(line);
+		let lineContent = model.getLineContent(line);
+		let indent = computeIndentLevel(lineContent, tabSize);
 		let previous = previousRegions[previousRegions.length - 1];
 		if (indent === -1) {
 			if (offSide && !previous.marker) {
@@ -202,7 +209,7 @@ export function computeRanges(model: ITextModel, offSide: boolean, markers?: Fol
 			continue; // only whitespace
 		}
 		let m;
-		if (pattern && (m = model.getLineContent(line).match(pattern))) {
+		if (pattern && (m = lineContent.match(pattern))) {
 			// folding pattern match
 			if (m[1]) { // start pattern match
 				// discard all regions until the folding pattern
