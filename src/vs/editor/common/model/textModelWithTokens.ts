@@ -905,7 +905,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 				}
 			}
 
-			if (belowContentLineIndex === -2 || belowContentLineIndex < lineNumber - 1) {
+			if (belowContentLineIndex !== -1 && (belowContentLineIndex === -2 || belowContentLineIndex < lineNumber - 1)) {
 				belowContentLineIndex = -1;
 				belowContentLineIndent = -1;
 
