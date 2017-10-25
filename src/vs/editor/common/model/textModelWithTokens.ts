@@ -23,6 +23,7 @@ import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { ITextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 import { IndentRanges, computeRanges } from 'vs/editor/common/model/indentRanges';
+import { computeIndentLevel } from 'vs/editor/common/model/modelLine';
 
 class ModelTokensChangedEventBuilder {
 
@@ -855,6 +856,10 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		return this._getIndentRanges();
 	}
 
+	private _computeIndentLevel(lineIndex: number): number {
+		return computeIndentLevel(this._lines[lineIndex].text, this._options.tabSize);
+	}
+
 	public getLinesIndentGuides(startLineNumber: number, endLineNumber: number): number[] {
 		this._assertNotDisposed();
 		const lineCount = this.getLineCount();
@@ -880,7 +885,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
 			let resultIndex = lineNumber - startLineNumber;
 
-			const currentIndent = this._lines[lineNumber - 1].getIndentLevel();
+			const currentIndent = this._computeIndentLevel(lineNumber - 1);
 			if (currentIndent >= 0) {
 				// This line has content (besides whitespace)
 				// Use the line's indent
@@ -896,7 +901,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 				// must find previous line with content
 				for (let lineIndex = lineNumber - 2; lineIndex >= 0; lineIndex--) {
-					let indent = this._lines[lineIndex].getIndentLevel();
+					let indent = this._computeIndentLevel(lineIndex);
 					if (indent >= 0) {
 						aboveContentLineIndex = lineIndex;
 						aboveContentLineIndent = indent;
@@ -911,7 +916,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 				// must find next line with content
 				for (let lineIndex = lineNumber; lineIndex < lineCount; lineIndex++) {
-					let indent = this._lines[lineIndex].getIndentLevel();
+					let indent = this._computeIndentLevel(lineIndex);
 					if (indent >= 0) {
 						belowContentLineIndex = lineIndex;
 						belowContentLineIndent = indent;

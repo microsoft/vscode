@@ -469,8 +469,6 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 	private _doApplyEdits(operations: IValidatedEditOperation[]): void {
 
-		const tabSize = this._options.tabSize;
-
 		// Sort operations descending
 		operations.sort(EditableTextModel._sortOpsDescending);
 
@@ -505,7 +503,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				}
 
 				this._invalidateLine(currentLineNumber - 1);
-				this._lines[currentLineNumber - 1].applyEdits(lineEditsQueue.slice(currentLineNumberStart, i), tabSize);
+				this._lines[currentLineNumber - 1].applyEdits(lineEditsQueue.slice(currentLineNumberStart, i));
 				this._lineStarts.changeValue(currentLineNumber - 1, this._lines[currentLineNumber - 1].text.length + this._EOL.length);
 				rawContentChanges.push(
 					new textModelEvents.ModelRawLineChanged(currentLineNumber, this._lines[currentLineNumber - 1].text)
@@ -516,7 +514,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 			}
 
 			this._invalidateLine(currentLineNumber - 1);
-			this._lines[currentLineNumber - 1].applyEdits(lineEditsQueue.slice(currentLineNumberStart, lineEditsQueue.length), tabSize);
+			this._lines[currentLineNumber - 1].applyEdits(lineEditsQueue.slice(currentLineNumberStart, lineEditsQueue.length));
 			this._lineStarts.changeValue(currentLineNumber - 1, this._lines[currentLineNumber - 1].text.length + this._EOL.length);
 			rawContentChanges.push(
 				new textModelEvents.ModelRawLineChanged(currentLineNumber, this._lines[currentLineNumber - 1].text)
@@ -569,7 +567,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 				const spliceStartLineNumber = startLineNumber + editingLinesCnt;
 
-				const endLineRemains = this._lines[endLineNumber - 1].split(endColumn, tabSize);
+				const endLineRemains = this._lines[endLineNumber - 1].split(endColumn);
 				this._invalidateLine(spliceStartLineNumber - 1);
 
 				const spliceCnt = endLineNumber - spliceStartLineNumber;
@@ -578,7 +576,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				this._lineStarts.removeValues(spliceStartLineNumber, spliceCnt);
 
 				// Reconstruct first line
-				this._lines[spliceStartLineNumber - 1].append(endLineRemains, tabSize);
+				this._lines[spliceStartLineNumber - 1].append(endLineRemains);
 				this._lineStarts.changeValue(spliceStartLineNumber - 1, this._lines[spliceStartLineNumber - 1].text.length + this._EOL.length);
 
 				rawContentChanges.push(
@@ -603,7 +601,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				}
 
 				// Split last line
-				let leftoverLine = this._lines[spliceLineNumber - 1].split(spliceColumn, tabSize);
+				let leftoverLine = this._lines[spliceLineNumber - 1].split(spliceColumn);
 				this._lineStarts.changeValue(spliceLineNumber - 1, this._lines[spliceLineNumber - 1].text.length + this._EOL.length);
 				rawContentChanges.push(
 					new textModelEvents.ModelRawLineChanged(spliceLineNumber, this._lines[spliceLineNumber - 1].text)
@@ -615,7 +613,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				let newLinesContent: string[] = [];
 				let newLinesLengths = new Uint32Array(insertingLinesCnt - editingLinesCnt);
 				for (let j = editingLinesCnt + 1; j <= insertingLinesCnt; j++) {
-					newLines.push(this._createModelLine(op.lines[j], tabSize));
+					newLines.push(this._createModelLine(op.lines[j]));
 					newLinesContent.push(op.lines[j]);
 					newLinesLengths[j - editingLinesCnt - 1] = op.lines[j].length + this._EOL.length;
 				}
@@ -624,7 +622,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				this._lineStarts.insertValues(startLineNumber + editingLinesCnt, newLinesLengths);
 
 				// Last line
-				this._lines[startLineNumber + insertingLinesCnt - 1].append(leftoverLine, tabSize);
+				this._lines[startLineNumber + insertingLinesCnt - 1].append(leftoverLine);
 				this._lineStarts.changeValue(startLineNumber + insertingLinesCnt - 1, this._lines[startLineNumber + insertingLinesCnt - 1].text.length + this._EOL.length);
 				rawContentChanges.push(
 					new textModelEvents.ModelRawLinesInserted(spliceLineNumber + 1, startLineNumber + insertingLinesCnt, newLinesContent.join('\n'))
