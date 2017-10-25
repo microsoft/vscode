@@ -53,7 +53,6 @@ import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
-import { distinct } from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { getPathLabel } from 'vs/base/common/labels';
 import { extractResources } from 'vs/base/browser/dnd';
@@ -909,23 +908,19 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 			// Handle folders by adding to workspace if we are in workspace context
 			const folders = result.filter(result => result.stat.isDirectory).map(result => result.stat.resource);
 			if (folders.length > 0) {
-				if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
-					return this.workspaceEditingService.addFolders(folders);
+
+				// If we are in no-workspace context, ask for confirmation to create a workspace
+				let confirmed = true;
+				if (this.contextService.getWorkbenchState() !== WorkbenchState.WORKSPACE) {
+					confirmed = this.messageService.confirmSync({
+						message: folders.length > 1 ? nls.localize('dropFolders', "Do you want to add the folders to the workspace?") : nls.localize('dropFolder', "Do you want to add the folder to the workspace?"),
+						type: 'question',
+						primaryButton: folders.length > 1 ? nls.localize('addFolders', "&&Add Folders") : nls.localize('addFolder', "&&Add Folder")
+					});
 				}
 
-				// If we are in single-folder context, ask for confirmation to create a workspace
-				const result = this.messageService.confirmSync({
-					message: folders.length > 1 ? nls.localize('dropFolders', "Do you want to add the folders to the workspace?") : nls.localize('dropFolder', "Do you want to add the folder to the workspace?"),
-					type: 'question',
-					primaryButton: folders.length > 1 ? nls.localize('addFolders', "&&Add Folders") : nls.localize('addFolder', "&&Add Folder")
-				});
-
-				if (result) {
-					const currentFolders = this.contextService.getWorkspace().folders.map(folder => folder.uri);
-					const newRoots = [...currentFolders, ...folders];
-
-					// Create and open workspace
-					return this.workspaceEditingService.createAndEnterWorkspace(distinct(newRoots.map(root => root.fsPath)));
+				if (confirmed) {
+					return this.workspaceEditingService.addFolders(folders);
 				}
 			}
 

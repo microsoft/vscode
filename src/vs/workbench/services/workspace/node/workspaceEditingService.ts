@@ -25,6 +25,9 @@ import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { BackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
 import { IChoiceService, Severity, IMessageService } from 'vs/platform/message/common/message';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { distinct } from 'vs/base/common/arrays';
+import { isLinux } from 'vs/base/common/platform';
+import { isEqual } from 'vs/base/common/resources';
 
 export class WorkspaceEditingService implements IWorkspaceEditingService {
 
@@ -46,13 +49,48 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 	public addFolders(foldersToAdd: URI[]): TPromise<void>;
 	public addFolders(foldersToAdd: { uri: URI, name?: string }[]): TPromise<void>;
-	public addFolders(folders: any[]): TPromise<void> {
-		return this.contextService.addFolders(folders)
+	public addFolders(foldersToAdd: any[]): TPromise<void> {
+		const state = this.contextService.getWorkbenchState();
+
+		// If we are in no-workspace or single-folder workspace, adding folders has to
+		// enter a workspace.
+		if (state !== WorkbenchState.WORKSPACE) {
+			const newWorkspaceFolders = distinct([
+				...this.contextService.getWorkspace().folders.map(folder => folder.uri),
+				...foldersToAdd.map(folder => {
+					if (URI.isUri(folder)) {
+						return folder;
+					}
+
+					return folder.uri;
+				})
+			].map(folder => folder.fsPath), folder => isLinux ? folder : folder.toLowerCase());
+
+			if (state === WorkbenchState.EMPTY && newWorkspaceFolders.length === 0 || state === WorkbenchState.FOLDER && newWorkspaceFolders.length === 1) {
+				return TPromise.as(void 0); // return if the operation is a no-op for the current state
+			}
+
+			return this.createAndEnterWorkspace(newWorkspaceFolders);
+		}
+
+		// Delegate addition of folders to workspace service otherwise
+		return this.contextService.addFolders(foldersToAdd)
 			.then(() => null, error => this.handleWorkspaceConfigurationEditingError(error));
 	}
 
-	public removeFolders(folders: URI[]): TPromise<void> {
-		return this.contextService.removeFolders(folders)
+	public removeFolders(foldersToRemove: URI[]): TPromise<void> {
+
+		// If we are in single-folder state and the opened folder is to be removed,
+		// we close the workspace and enter the empty workspace state for the window.
+		if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
+			const workspaceFolder = this.contextService.getWorkspace().folders[0];
+			if (foldersToRemove.some(folder => isEqual(folder, workspaceFolder.uri, isLinux))) {
+				return this.windowService.closeWorkspace();
+			}
+		}
+
+		// Delegate removal of folders to workspace service otherwise
+		return this.contextService.removeFolders(foldersToRemove)
 			.then(() => null, error => this.handleWorkspaceConfigurationEditingError(error));
 	}
 
