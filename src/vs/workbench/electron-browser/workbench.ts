@@ -1100,7 +1100,7 @@ export class Workbench implements IPartService {
 
 		const newPanelPositionValue = this.configurationService.getValue<string>(Workbench.panelPositionConfigurationKey);
 		const newPanelPosition = (newPanelPositionValue === 'right') ? Position.RIGHT : Position.BOTTOM;
-		if (newPanelPosition !== this.getSideBarPosition()) {
+		if (newPanelPosition !== this.getPanelPosition()) {
 			this.setPanelPosition(newPanelPosition);
 		}
 
