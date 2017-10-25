@@ -1139,6 +1139,8 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 	static LABEL = localize('installWorkspaceRecommendedExtensions', "Install All Workspace Recommended Extensions");
 
 	private disposables: IDisposable[] = [];
+	private recommendations: string[] = [];
+	private toInstall: string[] = [];
 
 	constructor(
 		id: string = InstallWorkspaceRecommendedExtensionsAction.ID,
@@ -1148,13 +1150,27 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionTipsService private extensionTipsService: IExtensionTipsService
 	) {
-		super(id, label, null);
-		this.contextService.onDidChangeWorkbenchState(() => this.update(), this, this.disposables);
-		this.update();
+		super(id, label, 'extension-action');
+		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.updateToInstall()));
+		this.contextService.onDidChangeWorkbenchState(() => this.updateRecommendations(), this, this.disposables);
+		this.updateRecommendations();
+		this.updateToInstall();
 	}
 
-	private update(): void {
+	private updateRecommendations(): void {
 		this.enabled = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY;
+		if (this.enabled) {
+			this.extensionTipsService.getWorkspaceRecommendations().then(names => {
+				this.recommendations = names;
+				this.enabled = this.recommendations.length > 0;
+			});
+		}
+	}
+
+	private updateToInstall(): void {
+		const installed = this.extensionsWorkbenchService.local.map(x => x.id.toLowerCase());
+		this.toInstall = this.recommendations.filter(x => installed.indexOf(x.toLowerCase()) === -1);
+		this.enabled = this.toInstall.length > 0;
 	}
 
 	run(): TPromise<any> {
@@ -1165,15 +1181,14 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 				viewlet.focus();
 			});
 
-		return this.extensionTipsService.getWorkspaceRecommendations().then(names => {
-			return this.extensionsWorkbenchService.queryGallery({ names, source: 'install-all-workspace-recommendations' }).then(pager => {
-				return TPromise.join(pager.firstPage.map(e => this.extensionsWorkbenchService.install(e)));
-			});
+
+		return this.extensionsWorkbenchService.queryGallery({ names: this.recommendations, source: 'install-all-workspace-recommendations' }).then(pager => {
+			return TPromise.join(pager.firstPage.map(e => this.extensionsWorkbenchService.install(e)));
 		});
 	}
 
 	protected isEnabled(): boolean {
-		return true;
+		return this.enabled;
 	}
 
 	dispose(): void {
