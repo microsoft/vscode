@@ -39,6 +39,7 @@
 	white-space: pre; /* enable to show labels that include multiple whitespaces */
 	overflow: hidden;
 	text-overflow: ellipsis;
+	flex-shrink: 100;
 }
 
 .monaco-icon-label.italic > .label-name,
