@@ -862,11 +862,29 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		}
 
 		let indentRanges = this._getIndentRanges();
-		let index = indentRanges.findRange(lineNumber);
-		if (index >= 0) {
-			let indent = indentRanges.getIndent(index);
-			return this._toValidLineIndentGuide(lineNumber, Math.ceil(indent / this._options.tabSize));
+
+		for (let i = indentRanges.length - 1; i >= 0; i--) {
+			let startLineNumber = indentRanges.getStartLineNumber(i);
+			if (startLineNumber === lineNumber) {
+				return this._toValidLineIndentGuide(lineNumber, Math.ceil(indentRanges.getIndent(i) / this._options.tabSize));
+			}
+			let endLineNumber = indentRanges.getEndLineNumber(i);
+			if (startLineNumber < lineNumber && lineNumber <= endLineNumber) {
+				return this._toValidLineIndentGuide(lineNumber, 1 + Math.floor(indentRanges.getIndent(i) / this._options.tabSize));
+			}
+			if (endLineNumber + 1 === lineNumber) {
+				let bestIndent = indentRanges.getIndent(i);
+				while (i > 0) {
+					i--;
+					endLineNumber = indentRanges.getEndLineNumber(i);
+					if (endLineNumber + 1 === lineNumber) {
+						bestIndent = indentRanges.getIndent(i);
+					}
+				}
+				return this._toValidLineIndentGuide(lineNumber, Math.ceil(bestIndent / this._options.tabSize));
+			}
 		}
+
 		return 0;
 	}
 

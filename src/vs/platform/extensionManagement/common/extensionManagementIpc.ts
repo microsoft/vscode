@@ -7,7 +7,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
-import { IExtensionManagementService, ILocalExtension, InstallExtensionEvent, DidInstallExtensionEvent, IGalleryExtension, LocalExtensionType, DidUninstallExtensionEvent } from './extensionManagement';
+import { IExtensionManagementService, ILocalExtension, InstallExtensionEvent, DidInstallExtensionEvent, IGalleryExtension, LocalExtensionType, DidUninstallExtensionEvent, IExtensionIdentifier } from './extensionManagement';
 import Event, { buffer } from 'vs/base/common/event';
 
 export interface IExtensionManagementChannel extends IChannel {
@@ -26,7 +26,7 @@ export class ExtensionManagementChannel implements IExtensionManagementChannel {
 
 	onInstallExtension: Event<InstallExtensionEvent>;
 	onDidInstallExtension: Event<DidInstallExtensionEvent>;
-	onUninstallExtension: Event<string>;
+	onUninstallExtension: Event<IExtensionIdentifier>;
 	onDidUninstallExtension: Event<DidUninstallExtensionEvent>;
 
 	constructor(private service: IExtensionManagementService) {
@@ -63,8 +63,8 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 	private _onDidInstallExtension = eventFromCall<DidInstallExtensionEvent>(this.channel, 'event:onDidInstallExtension');
 	get onDidInstallExtension(): Event<DidInstallExtensionEvent> { return this._onDidInstallExtension; }
 
-	private _onUninstallExtension = eventFromCall<string>(this.channel, 'event:onUninstallExtension');
-	get onUninstallExtension(): Event<string> { return this._onUninstallExtension; }
+	private _onUninstallExtension = eventFromCall<IExtensionIdentifier>(this.channel, 'event:onUninstallExtension');
+	get onUninstallExtension(): Event<IExtensionIdentifier> { return this._onUninstallExtension; }
 
 	private _onDidUninstallExtension = eventFromCall<DidUninstallExtensionEvent>(this.channel, 'event:onDidUninstallExtension');
 	get onDidUninstallExtension(): Event<DidUninstallExtensionEvent> { return this._onDidUninstallExtension; }

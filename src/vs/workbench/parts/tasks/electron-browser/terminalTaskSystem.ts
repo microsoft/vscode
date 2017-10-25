@@ -552,14 +552,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			shellLaunchConfig.cwd = options.cwd;
 		}
 		if (options.env) {
-			let env: IStringDictionary<string> = Object.create(null);
-			Object.keys(process.env).forEach((key) => {
-				env[key] = process.env[key];
-			});
-			Object.keys(options.env).forEach((key) => {
-				env[key] = options.env[key];
-			});
-			shellLaunchConfig.env = env;
+			shellLaunchConfig.env = options.env;
 		}
 		let prefersSameTerminal = task.command.presentation.panel === PanelKind.Dedicated;
 		let allowsSharedTerminal = task.command.presentation.panel === PanelKind.Shared;

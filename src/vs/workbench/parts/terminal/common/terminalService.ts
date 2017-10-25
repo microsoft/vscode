@@ -189,13 +189,17 @@ export abstract class TerminalService implements ITerminalService {
 			if (!panel || panel.getId() !== TERMINAL_PANEL_ID) {
 				return this._panelService.openPanel(TERMINAL_PANEL_ID, focus).then(() => {
 					if (focus) {
-						this.getActiveInstance().focus(true);
+						// Do the focus call asynchronously as going through the
+						// command palette will force editor focus
+						setTimeout(() => this.getActiveInstance().focus(true), 0);
 					}
 					complete(void 0);
 				});
 			} else {
 				if (focus) {
-					this.getActiveInstance().focus(true);
+					// Do the focus call asynchronously as going through the
+					// command palette will force editor focus
+					setTimeout(() => this.getActiveInstance().focus(true), 0);
 				}
 				complete(void 0);
 			}

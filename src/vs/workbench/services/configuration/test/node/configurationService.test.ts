@@ -146,7 +146,7 @@ suite('WorkspaceContextService - Folder', () => {
 
 suite('WorkspaceContextService - Workspace', () => {
 
-	let parentResource: string, testObject: IWorkspaceContextService;
+	let parentResource: string, testObject: WorkspaceService;
 
 	setup(() => {
 		return setUpWorkspace(['a', 'b'])

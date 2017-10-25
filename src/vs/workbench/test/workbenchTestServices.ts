@@ -59,6 +59,7 @@ import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IPosition } from 'vs/editor/common/core/position';
 import { ICommandAction } from 'vs/platform/actions/common/actions';
+import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -115,16 +116,6 @@ export class TestContextService implements IWorkspaceContextService {
 
 	public getWorkspace(): IWorkbenchWorkspace {
 		return this.workspace;
-	}
-
-	public addFolders(foldersToAdd: URI[]): TPromise<void>;
-	public addFolders(foldersToAdd: { uri: URI, name?: string }[]): TPromise<void>;
-	public addFolders(foldersToAdd: any[]): TPromise<void> {
-		return TPromise.as(void 0);
-	}
-
-	public removeFolders(foldersToRemove: URI[]): TPromise<void> {
-		return TPromise.as(void 0);
 	}
 
 	public getWorkspaceFolder(resource: URI): IWorkspaceFolder {
@@ -269,6 +260,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
 	instantiationService.stub(IEnvironmentService, TestEnvironmentService);
 	instantiationService.stub(IThemeService, new TestThemeService());
+	instantiationService.stub(IHashService, new TestHashService());
 	instantiationService.stub(IChoiceService, {
 		choose: (severity, message, options, cancelId): TPromise<number> => {
 			return TPromise.as(cancelId);
@@ -1245,6 +1237,14 @@ export class TestTextResourceConfigurationService implements ITextResourceConfig
 	public getConfiguration(resource: any, position?: any, section?: any): any;
 	public getConfiguration(resource: any, position?: any, section?: any): any {
 		return this.configurationService.getConfiguration(section, { resource });
+	}
+}
+
+export class TestHashService implements IHashService {
+	_serviceBrand: any;
+
+	createSHA1(content: string): string {
+		return content;
 	}
 }
 

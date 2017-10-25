@@ -415,6 +415,17 @@ suite('ConfigurationChangeEvent', () => {
 		assert.ok(testObject.affectsConfiguration('[markdown]'));
 	});
 
+	test('changeEvent affecting a root key and its children', () => {
+		let testObject = new ConfigurationChangeEvent();
+
+		testObject.change(['launch', 'launch.version', 'tasks']);
+
+		assert.deepEqual(testObject.affectedKeys, ['launch.version', 'tasks']);
+		assert.ok(testObject.affectsConfiguration('launch'));
+		assert.ok(testObject.affectsConfiguration('launch.version'));
+		assert.ok(testObject.affectsConfiguration('tasks'));
+	});
+
 	test('changeEvent affecting keys for resources', () => {
 		let testObject = new ConfigurationChangeEvent();
 

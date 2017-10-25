@@ -123,8 +123,10 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		}
 
 		if (this.defaultKeybindingsResource.toString() === uri.toString()) {
-			return this.extensionService.onReady()
-				.then(() => this.instantiationService.createInstance(DefaultKeybindingsEditorModel, uri).model);
+			const defaultKeybindingsEditorModel = this.instantiationService.createInstance(DefaultKeybindingsEditorModel, uri);
+			const mode = this.modeService.getOrCreateMode('json');
+			const model = this._register(this.modelService.createModel(defaultKeybindingsEditorModel.content, mode, uri));
+			return TPromise.as(model);
 		}
 
 		return TPromise.as(null);
@@ -133,11 +135,6 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	createPreferencesEditorModel(uri: URI): TPromise<IPreferencesEditorModel<any>> {
 		if (this.isDefaultSettingsResource(uri) || this.isDefaultResourceSettingsResource(uri)) {
 			return this.createDefaultSettingsEditorModel(uri);
-		}
-
-		if (this.defaultKeybindingsResource.toString() === uri.toString()) {
-			const model = this.instantiationService.createInstance(DefaultKeybindingsEditorModel, uri);
-			return TPromise.wrap(model);
 		}
 
 		if (this.workspaceConfigSettingsResource.toString() === uri.toString()) {

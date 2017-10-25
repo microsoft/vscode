@@ -150,15 +150,11 @@ class DecorationStyles {
 	cleanUp(iter: IIterator<DecorationProviderWrapper>): void {
 		// remove every rule for which no more
 		// decoration (data) is kept. this isn't cheap
-		let usedDecorations = new Set<IDecorationData>();
+		let usedDecorations = new Set<string>();
 		for (let e = iter.next(); !e.done; e = iter.next()) {
-			e.value.data.forEach(value => {
-				if (value instanceof ResourceDecoration) {
-					if (Array.isArray(value._data)) {
-						value._data.forEach(data => usedDecorations.add(data));
-					} else {
-						usedDecorations.add(value._data);
-					}
+			e.value.data.forEach((value, key) => {
+				if (!isThenable<any>(value) && value) {
+					usedDecorations.add(DecorationRule.keyOf(value));
 				}
 			});
 		}
@@ -166,8 +162,8 @@ class DecorationStyles {
 			const { data } = value;
 			let remove: boolean;
 			if (Array.isArray(data)) {
-				remove = data.every(data => !usedDecorations.has(data));
-			} else if (!usedDecorations.has(data)) {
+				remove = data.some(data => !usedDecorations.has(DecorationRule.keyOf(data)));
+			} else if (!usedDecorations.has(DecorationRule.keyOf(data))) {
 				remove = true;
 			}
 			if (remove) {
