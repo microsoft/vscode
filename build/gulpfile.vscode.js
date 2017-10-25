@@ -209,6 +209,7 @@ function computeChecksum(filename) {
 	return hash;
 }
 
+const buildNumber = getBuildNumber();
 function packageTask(platform, arch, opts) {
 	opts = opts || {};
 
@@ -274,7 +275,6 @@ function packageTask(platform, arch, opts) {
 			.pipe(json({ name, version }));
 
 		const date = new Date().toISOString();
-		const buildNumber = getBuildNumber();
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
 			.pipe(json({ commit, date, checksums, buildNumber }));
 
@@ -466,7 +466,7 @@ gulp.task('upload-vscode-configuration', ['generate-vscode-configuration'], () =
 			account: process.env.AZURE_STORAGE_ACCOUNT,
 			key: process.env.AZURE_STORAGE_ACCESS_KEY,
 			container: 'configuration',
-			prefix: `${getBuildNumber()}/${commit}/`
+			prefix: `${buildNumber}/${commit}/`
 		}));
 });
 
@@ -506,7 +506,7 @@ function getPreviousVersion(versionStr) {
 		do {
 			goodTag = semverArr.join('.');
 			semverArr[componentToTest]++;
-		} while (tagExists(semverArr.join('.')))
+		} while (tagExists(semverArr.join('.')));
 
 		return goodTag;
 	}
