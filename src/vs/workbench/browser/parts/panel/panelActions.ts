@@ -156,6 +156,10 @@ export class TogglePanelPositionAction extends Action {
 	}
 }
 
+class ToggleMaximizedPanelAction extends TogglePanelPositionAction {
+	public static ID = 'workbench.action.toggleMaximizedPanel';
+}
+
 export class PanelActivityAction extends ActivityAction {
 
 	constructor(
@@ -175,3 +179,4 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(TogglePanelActio
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusPanelAction, FocusPanelAction.ID, FocusPanelAction.LABEL), 'View: Focus into Panel', nls.localize('view', "View"));
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ClosePanelAction, ClosePanelAction.ID, ClosePanelAction.LABEL), 'View: Close Panel', nls.localize('view', "View"));
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(TogglePanelPositionAction, TogglePanelPositionAction.ID, TogglePanelPositionAction.LABEL), 'View: Toggle Panel Position', nls.localize('view', "View"));
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMaximizedPanelAction, ToggleMaximizedPanelAction.ID, undefined), 'View: Toggle Panel Position', nls.localize('view', "View"));
