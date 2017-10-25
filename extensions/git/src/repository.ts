@@ -239,11 +239,33 @@ export class Resource implements SourceControlResourceState {
 		}
 	}
 
+	get priority(): number {
+		switch (this.type) {
+			case Status.INDEX_MODIFIED:
+			case Status.MODIFIED:
+				return 2;
+			case Status.IGNORED:
+				return 3;
+			case Status.INDEX_COPIED:
+			case Status.BOTH_DELETED:
+			case Status.ADDED_BY_US:
+			case Status.DELETED_BY_THEM:
+			case Status.ADDED_BY_THEM:
+			case Status.DELETED_BY_US:
+			case Status.BOTH_ADDED:
+			case Status.BOTH_MODIFIED:
+				return 4;
+			default:
+				return 1;
+		}
+	}
+
 	get resourceDecoration(): DecorationData | undefined {
 		const title = this.tooltip;
 		const abbreviation = this.letter;
 		const color = this.color;
-		return { bubble: true, title, abbreviation, color };
+		const priority = this.priority;
+		return { bubble: true, title, abbreviation, color, priority };
 	}
 
 	constructor(
