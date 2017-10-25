@@ -17,7 +17,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import product from 'vs/platform/node/product';
 import { IChoiceService, IMessageService } from 'vs/platform/message/common/message';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
+import { ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsAction, InstallRecommendedExtensionAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import Severity from 'vs/base/common/severity';
 import { IWorkspaceContextService, IWorkspaceFolder, IWorkspace, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { Schemas } from 'vs/base/common/network';
@@ -279,15 +279,26 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 						}
 
 						const recommendationsAction = this.instantiationService.createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, localize('showRecommendations', "Show Recommendations"));
+						const installAction = this.instantiationService.createInstance(InstallRecommendedExtensionAction, id);
 						const options = [
+							localize('install', 'Install'),
 							recommendationsAction.label,
 							localize('neverShowAgain', "Don't show again"),
 							localize('close', "Close")
 						];
 
-						this.choiceService.choose(Severity.Info, message, options, 2).done(choice => {
+						this.choiceService.choose(Severity.Info, message, options, 3).done(choice => {
 							switch (choice) {
 								case 0:
+									/* __GDPR__
+										"extensionRecommendations:popup" : {
+											"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+											"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+										}
+									*/
+									this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'install', extensionId: name });
+									return installAction.run();
+								case 1:
 									/* __GDPR__
 										"extensionRecommendations:popup" : {
 											"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -363,8 +374,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				const installAllAction = this.instantiationService.createInstance(InstallWorkspaceRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsAction.ID, localize('installAll', "Install All"));
 
 				const options = [
-					showAction.label,
 					installAllAction.label,
+					showAction.label,
 					localize('neverShowAgain', "Don't show again"),
 					localize('close', "Close")
 				];
@@ -377,17 +388,16 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 								}
 							*/
-							this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'show' });
-							return showAction.run();
+							this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'install' });
+							return installAllAction.run();
 						case 1:
 							/* __GDPR__
 								"extensionRecommendations:popup" : {
 									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 								}
 							*/
-							this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'installAll' });
-							// return showAction.run().then(installAllAction.run);
-							return installAllAction.run();
+							this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'show' });
+							return showAction.run();
 						case 2:
 							/* __GDPR__
 								"extensionRecommendations:popup" : {

@@ -1182,6 +1182,48 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 	}
 }
 
+export class InstallRecommendedExtensionAction extends Action {
+
+	static ID = 'workbench.extensions.action.installRecommendedExtension';
+	static LABEL = localize('installRecommendedExtension', "Install Recommended Extension");
+
+	private extensionId: string;
+
+	constructor(
+		extensionId: string,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IViewletService private viewletService: IViewletService,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionTipsService private extensionTipsService: IExtensionTipsService
+	) {
+		super(InstallRecommendedExtensionAction.ID, InstallRecommendedExtensionAction.LABEL, null);
+		this.extensionId = extensionId;
+	}
+
+	run(): TPromise<any> {
+		this.viewletService.openViewlet(VIEWLET_ID, true)
+			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => {
+				viewlet.search('@recommended');
+				viewlet.focus();
+			});
+
+
+		return this.extensionsWorkbenchService.queryGallery({ names: [this.extensionId], source: 'install-recommendation' }).then(pager => {
+			return TPromise.join(pager.firstPage.map(e => this.extensionsWorkbenchService.install(e)));
+		});
+
+	}
+
+	protected isEnabled(): boolean {
+		return true;
+	}
+
+	dispose(): void {
+		super.dispose();
+	}
+}
+
 
 export class ShowRecommendedKeymapExtensionsAction extends Action {
 
