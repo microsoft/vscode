@@ -397,6 +397,9 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 				});
 			});
 		}
+		if (!terminal) {
+			return TPromise.wrapError<ITaskSummary>(new Error(`Failed to create terminal for task ${task._label}`));
+		}
 		this.terminalService.setActiveInstance(terminal);
 		if (task.command.presentation.reveal === RevealKind.Always || (task.command.presentation.reveal === RevealKind.Silent && task.problemMatchers.length === 0)) {
 			this.terminalService.showPanel(task.command.presentation.focus);
@@ -549,14 +552,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			shellLaunchConfig.cwd = options.cwd;
 		}
 		if (options.env) {
-			let env: IStringDictionary<string> = Object.create(null);
-			Object.keys(process.env).forEach((key) => {
-				env[key] = process.env[key];
-			});
-			Object.keys(options.env).forEach((key) => {
-				env[key] = options.env[key];
-			});
-			shellLaunchConfig.env = env;
+			shellLaunchConfig.env = options.env;
 		}
 		let prefersSameTerminal = task.command.presentation.panel === PanelKind.Dedicated;
 		let allowsSharedTerminal = task.command.presentation.panel === PanelKind.Shared;

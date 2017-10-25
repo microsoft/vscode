@@ -9,6 +9,7 @@
 	-moz-box-sizing: border-box;
 	-ms-box-sizing: border-box;
 	box-sizing:	border-box;
+	display: flex;
 }
 
 .monaco-editor .peekview-widget .head .peekview-title {
@@ -24,16 +25,35 @@
 }
 
 .monaco-editor .peekview-widget .head .peekview-actions {
-	display: inline-block;
-	position: absolute;
-	right: 2px;
-	top: 2px;
+	flex: 1;
+	text-align: right;
+	padding-right: 2px;
 }
 
-.monaco-editor .peekview-widget .head .peekview-actions .action-label {
+.monaco-editor .peekview-widget .head .peekview-actions > .monaco-action-bar {
+	display: inline-block;
+}
+
+.monaco-editor .peekview-widget .head .peekview-actions > .monaco-action-bar,
+.monaco-editor .peekview-widget .head .peekview-actions > .monaco-action-bar > .actions-container {
+	height: 100%;
+}
+
+.monaco-editor .peekview-widget .head .peekview-actions > .monaco-action-bar .action-item {
+	margin-left: 4px;
+}
+
+.monaco-editor .peekview-widget .head .peekview-actions > .monaco-action-bar .action-label {
 	width: 16px;
-	height: 16px;
-	margin: 2px 0;
+	height: 100%;
+	margin: 0;
+	line-height: inherit;
+	background-repeat: no-repeat;
+	background-position: center center;
+}
+
+.monaco-editor .peekview-widget .head .peekview-actions > .monaco-action-bar .action-label.octicon {
+	margin: 0;
 }
 
 .monaco-editor .peekview-widget .head .peekview-actions .action-label.icon.close-peekview-action {

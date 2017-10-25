@@ -17,6 +17,7 @@
 	"terminal.integrated.fontFamily": "Meghatározza a terminál betűtípusát. Alapértelmezett értéke az editor.fontFamily értéke.",
 	"terminal.integrated.fontSize": "Meghatározza a terminálban használt betű méretét, pixelekben.",
 	"terminal.integrated.lineHeight": "Meghatározza a sormagasságot a terminálban. A tényleges méret a megadott szám és a terminál betűméretének szorzatából jön ki.",
+	"terminal.integrated.enableBold": "Engedélyezve van-e a félkövér szöveg a terminálban. A működéshez szükséges, hogy a terminál shell támogassa a félkövér betűket.",
 	"terminal.integrated.cursorBlinking": "Meghatározza, hogy a terminál kurzora villog-e.",
 	"terminal.integrated.cursorStyle": "Meghatározza a terminál kurzorának stílusát.",
 	"terminal.integrated.scrollback": "Meghatározza, hogy a terminál legfeljebb hány sort tárol a pufferben.",

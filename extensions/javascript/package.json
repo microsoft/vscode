@@ -63,11 +63,12 @@
     "grammars": [
       {
         "language": "javascriptreact",
-        "scopeName": "source.js",
-        "path": "./syntaxes/JavaScript.tmLanguage.json",
+        "scopeName": "source.js.jsx",
+        "path": "./syntaxes/JavaScriptReact.tmLanguage.json",
         "embeddedLanguages": {
           "meta.tag.js": "jsx-tags",
           "meta.tag.without-attributes.js": "jsx-tags",
+          "meta.tag.attributes.js.jsx": "javascriptreact",
           "meta.embedded.expression.js": "javascriptreact"
         }
       },
@@ -78,6 +79,7 @@
         "embeddedLanguages": {
           "meta.tag.js": "jsx-tags",
           "meta.tag.without-attributes.js": "jsx-tags",
+          "meta.tag.attributes.js": "javascript",
           "meta.embedded.expression.js": "javascript"
         }
       },
@@ -132,6 +134,6 @@
     ]
   },
   "devDependencies": {
-    "@types/node": "^7.0.4"
+    "@types/node": "8.0.33"
   }
 }

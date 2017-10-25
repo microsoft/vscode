@@ -42,7 +42,6 @@ describe('Debug', () => {
 	// otherwise concurrent test runs will clash on those ports
 	before(async () => await app.start('Debug', [], { PORT: String(await findFreePort()), ...process.env }));
 	after(() => app.stop());
-	beforeEach(function () { app.screenCapturer.testName = this.currentTest.title; });
 
 	it('configure launch json', async function () {
 		await app.workbench.debug.openDebugViewlet();

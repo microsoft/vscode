@@ -35,7 +35,7 @@ class UnsupportedWorkspaceSettingsContribution implements IWorkbenchContribution
 		@IStorageService private storageService: IStorageService
 	) {
 		lifecycleService.onShutdown(this.dispose, this);
-		this.toDispose.push(this.workspaceConfigurationService.onDidUpdateConfiguration(e => this.checkWorkspaceSettings()));
+		this.toDispose.push(this.workspaceConfigurationService.onDidChangeConfiguration(e => this.checkWorkspaceSettings()));
 	}
 
 	getId(): string {

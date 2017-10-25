@@ -17,9 +17,16 @@ const testDataPath = tmpDir.name;
 process.once('exit', () => rimraf.sync(testDataPath));
 
 const [, , ...args] = process.argv;
-const opts = minimist(args, { string: ['build', 'stable-build', 'screenshots', 'wait-time'] });
+const opts = minimist(args, {
+	string: [
+		'build',
+		'stable-build',
+		'log',
+		'wait-time'
+	]
+});
 
-opts.screenshots = opts.screenshots === '' ? path.join(testDataPath, 'screenshots') : opts.screenshots;
+process.env.ARTIFACTS_DIR = opts.log || '';
 
 const workspacePath = path.join(testDataPath, 'smoketest.code-workspace');
 const testRepoUrl = 'https://github.com/Microsoft/vscode-smoketest-express';
@@ -98,7 +105,6 @@ process.env.VSCODE_EXTENSIONS_DIR = extensionsPath;
 process.env.SMOKETEST_REPO = testRepoLocalDir;
 process.env.VSCODE_WORKSPACE_PATH = workspacePath;
 process.env.VSCODE_KEYBINDINGS_PATH = keybindingsPath;
-process.env.SCREENSHOTS_DIR = opts.screenshots || '';
 process.env.WAIT_TIME = opts['wait-time'] || '20';
 
 if (process.env.VSCODE_DEV === '1') {

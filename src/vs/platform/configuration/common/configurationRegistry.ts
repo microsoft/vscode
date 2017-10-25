@@ -38,10 +38,10 @@ export interface IConfigurationRegistry {
 	registerDefaultConfigurations(defaultConfigurations: IDefaultConfigurationExtension[]): void;
 
 	/**
-	 * Event that fires whenver a configuratio has been
+	 * Event that fires whenver a configuration has been
 	 * registered.
 	 */
-	onDidRegisterConfiguration: Event<IConfigurationRegistry>;
+	onDidRegisterConfiguration: Event<string[]>;
 
 	/**
 	 * Returns all configuration nodes contributed to this registry.
@@ -96,25 +96,23 @@ export const editorConfigurationSchemaId = 'vscode://schemas/settings/editor';
 const contributionRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 
 class ConfigurationRegistry implements IConfigurationRegistry {
+
 	private configurationContributors: IConfigurationNode[];
 	private configurationProperties: { [qualifiedKey: string]: IJSONSchema };
 	private editorConfigurationSchema: IJSONSchema;
-	private _onDidRegisterConfiguration: Emitter<IConfigurationRegistry>;
 	private overrideIdentifiers: string[] = [];
 	private overridePropertyPattern: string;
+
+	private _onDidRegisterConfiguration: Emitter<string[]> = new Emitter<string[]>();
+	readonly onDidRegisterConfiguration: Event<string[]> = this._onDidRegisterConfiguration.event;
 
 	constructor() {
 		this.configurationContributors = [];
 		this.editorConfigurationSchema = { properties: {}, patternProperties: {}, additionalProperties: false, errorMessage: 'Unknown editor configuration setting' };
-		this._onDidRegisterConfiguration = new Emitter<IConfigurationRegistry>();
 		this.configurationProperties = {};
 		this.computeOverridePropertyPattern();
 
 		contributionRegistry.registerSchema(editorConfigurationSchemaId, this.editorConfigurationSchema);
-	}
-
-	public get onDidRegisterConfiguration() {
-		return this._onDidRegisterConfiguration.event;
 	}
 
 	public registerConfiguration(configuration: IConfigurationNode, validate: boolean = true): void {
@@ -122,14 +120,15 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	}
 
 	public registerConfigurations(configurations: IConfigurationNode[], validate: boolean = true): void {
+		const properties: string[] = [];
 		configurations.forEach(configuration => {
-			this.validateAndRegisterProperties(configuration, validate); // fills in defaults
+			properties.push(...this.validateAndRegisterProperties(configuration, validate)); // fills in defaults
 			this.configurationContributors.push(configuration);
 			this.registerJSONConfiguration(configuration);
 			this.updateSchemaForOverrideSettingsConfiguration(configuration);
 		});
 
-		this._onDidRegisterConfiguration.fire(this);
+		this._onDidRegisterConfiguration.fire(properties);
 	}
 
 	public notifyConfigurationSchemaUpdated(configuration: IConfigurationNode) {
@@ -165,9 +164,10 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		}
 	}
 
-	private validateAndRegisterProperties(configuration: IConfigurationNode, validate: boolean = true, scope: ConfigurationScope = ConfigurationScope.WINDOW, overridable: boolean = false) {
+	private validateAndRegisterProperties(configuration: IConfigurationNode, validate: boolean = true, scope: ConfigurationScope = ConfigurationScope.WINDOW, overridable: boolean = false): string[] {
 		scope = configuration.scope !== void 0 && configuration.scope !== null ? configuration.scope : scope;
 		overridable = configuration.overridable || overridable;
+		let propertyKeys = [];
 		let properties = configuration.properties;
 		if (properties) {
 			for (let key in properties) {
@@ -192,14 +192,16 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 				}
 				// add to properties map
 				this.configurationProperties[key] = properties[key];
+				propertyKeys.push(key);
 			}
 		}
 		let subNodes = configuration.allOf;
 		if (subNodes) {
 			for (let node of subNodes) {
-				this.validateAndRegisterProperties(node, validate, scope, overridable);
+				propertyKeys.push(...this.validateAndRegisterProperties(node, validate, scope, overridable));
 			}
 		}
+		return propertyKeys;
 	}
 
 	validateProperty(property: string): boolean {

@@ -70,8 +70,10 @@ export function renderExpressionValue(expressionOrValue: debug.IExpression | str
 		}
 	}
 
-	if (options.colorize) {
-		if (!isNaN(+value)) {
+	if (options.colorize && typeof expressionOrValue !== 'string') {
+		if (expressionOrValue.type === 'number' || expressionOrValue.type === 'boolean' || expressionOrValue.type === 'string') {
+			dom.addClass(container, expressionOrValue.type);
+		} else if (!isNaN(+value)) {
 			dom.addClass(container, 'number');
 		} else if (booleanRegex.test(value)) {
 			dom.addClass(container, 'boolean');
@@ -279,6 +281,9 @@ export class CallStackController extends BaseDebugController {
 			}
 
 			return element.source.uri.toString();
+		}
+		if (element instanceof Thread) {
+			return element.threadId;
 		}
 	}
 
@@ -1060,11 +1065,12 @@ export class BreakpointsActionProvider implements IActionProvider {
 	}
 
 	public getSecondaryActions(tree: ITree, element: any): TPromise<IAction[]> {
-		const actions: IAction[] = [];
-
-		if (element instanceof Breakpoint || element instanceof FunctionBreakpoint) {
-			actions.push(this.instantiationService.createInstance(RemoveBreakpointAction, RemoveBreakpointAction.ID, RemoveBreakpointAction.LABEL));
+		if (element instanceof ExceptionBreakpoint) {
+			return TPromise.as([]);
 		}
+
+		const actions: IAction[] = [];
+		actions.push(this.instantiationService.createInstance(RemoveBreakpointAction, RemoveBreakpointAction.ID, RemoveBreakpointAction.LABEL));
 		if (this.debugService.getModel().getBreakpoints().length + this.debugService.getModel().getFunctionBreakpoints().length > 1) {
 			actions.push(this.instantiationService.createInstance(RemoveAllBreakpointsAction, RemoveAllBreakpointsAction.ID, RemoveAllBreakpointsAction.LABEL));
 			actions.push(new Separator());
@@ -1291,6 +1297,10 @@ export class BreakpointsController extends BaseDebugController {
 	}
 
 	public openBreakpointSource(breakpoint: Breakpoint, event: IKeyboardEvent | IMouseEvent, preserveFocus: boolean): void {
+		if (breakpoint.uri.scheme === debug.DEBUG_SCHEME && this.debugService.state === debug.State.Inactive) {
+			return;
+		}
+
 		const sideBySide = (event && (event.ctrlKey || event.metaKey));
 		const selection = breakpoint.endLineNumber ? {
 			startLineNumber: breakpoint.lineNumber,

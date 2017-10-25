@@ -94,7 +94,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 	private registerListeners(): void {
 
 		// Config Changes
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange()));
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange()));
 	}
 
 	private onConfigurationChange(): void {

@@ -26,7 +26,7 @@ export interface ISnippetsService {
 
 	_serviceBrand: any;
 
-	getSnippets(languageId: LanguageId): TPromise<Snippet[]>;
+	getSnippets(languageId: LanguageId): Promise<Snippet[]>;
 
 	getSnippetsSync(languageId: LanguageId): Snippet[];
 }

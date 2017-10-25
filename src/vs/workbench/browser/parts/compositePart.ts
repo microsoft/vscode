@@ -62,7 +62,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	private lastActiveCompositeId: string;
 	private instantiatedComposites: Composite[];
 	private titleLabel: ICompositeTitleLabel;
-	private toolBar: ToolBar;
+	protected toolBar: ToolBar;
 	private progressBar: ProgressBar;
 	private contentAreaSize: Dimension;
 	private telemetryActionsListener: IDisposable;
@@ -74,7 +74,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		private messageService: IMessageService,
 		private storageService: IStorageService,
 		private telemetryService: ITelemetryService,
-		private contextMenuService: IContextMenuService,
+		protected contextMenuService: IContextMenuService,
 		protected partService: IPartService,
 		private keybindingService: IKeybindingService,
 		protected instantiationService: IInstantiationService,

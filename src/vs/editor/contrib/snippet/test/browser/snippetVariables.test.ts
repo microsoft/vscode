@@ -164,4 +164,12 @@ suite('Snippet Variables Resolver', function () {
 
 		assertVariableResolve2('${foobarfoobar/(foo)/${2:+FAR}/g}', 'barbar'); // bad group reference
 	});
+
+	// test('Snippet transforms do not handle regex with alternatives or optional matches, #36089', function () {
+	// 	assertVariableResolve2(
+	// 		'${TM_FILENAME/^(.)|(?:-(.))|(\\.js)/${1:+/upcase}${2:+/upcase}/g}',
+	// 		'MyClass',
+	// 		'my-class.js'
+	// 	);
+	// });
 });

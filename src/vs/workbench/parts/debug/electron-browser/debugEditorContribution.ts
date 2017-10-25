@@ -39,6 +39,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Position } from 'vs/editor/common/core/position';
 import { CoreEditingCommands } from 'vs/editor/common/controller/coreCommands';
 import { first } from 'vs/base/common/arrays';
+import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 
 const HOVER_DELAY = 300;
 const LAUNCH_JSON_REGEX = /launch\.json$/;
@@ -146,7 +147,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	private registerListeners(): void {
 		this.toDispose.push(this.editor.onMouseDown((e: IEditorMouseEvent) => {
-			if (e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN || /* after last line */ e.target.detail || !this.marginFreeFromNonDebugDecorations(e.target.position.lineNumber)) {
+			const data = e.target.detail as IMarginData;
+			if (e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN || data.isAfterLines || !this.marginFreeFromNonDebugDecorations(e.target.position.lineNumber)) {
 				return;
 			}
 			const canSetBreakpoints = this.debugService.getConfigurationManager().canSetBreakpointsIn(this.editor.getModel());
@@ -182,8 +184,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			let showBreakpointHintAtLineNumber = -1;
 			if (e.target.type === MouseTargetType.GUTTER_GLYPH_MARGIN && this.debugService.getConfigurationManager().canSetBreakpointsIn(this.editor.getModel()) &&
 				this.marginFreeFromNonDebugDecorations(e.target.position.lineNumber)) {
-				if (!e.target.detail) {
-					// is not after last line
+				const data = e.target.detail as IMarginData;
+				if (!data.isAfterLines) {
 					showBreakpointHintAtLineNumber = e.target.position.lineNumber;
 				}
 			}

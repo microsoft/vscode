@@ -14,6 +14,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ReplaceCommand, ReplaceCommandThatPreservesSelection } from 'vs/editor/common/commands/replaceCommand';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
+import { Position } from 'vs/editor/common/core/position';
 import { editorAction, ServicesAccessor, IActionOptions, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { CopyLinesCommand } from './copyLinesCommand';
 import { DeleteLinesCommand } from './deleteLinesCommand';
@@ -206,9 +207,17 @@ export class TrimTrailingWhitespaceAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor, args: any): void {
 
-		var command = new TrimTrailingWhitespaceCommand(editor.getSelection());
+		let cursors: Position[] = [];
+		if (args.reason === 'auto-save') {
+			// See https://github.com/editorconfig/editorconfig-vscode/issues/47
+			// It is very convenient for the editor config extension to invoke this action.
+			// So, if we get a reason:'auto-save' passed in, let's preserve cursor positions.
+			cursors = editor.getSelections().map(s => new Position(s.positionLineNumber, s.positionColumn));
+		}
+
+		var command = new TrimTrailingWhitespaceCommand(editor.getSelection(), cursors);
 
 		editor.pushUndoStop();
 		editor.executeCommands(this.id, [command]);
@@ -407,7 +416,9 @@ export abstract class AbstractDeleteAllToBoundaryAction extends EditorAction {
 			return EditOperation.replace(range, '');
 		});
 
+		editor.pushUndoStop();
 		editor.executeEdits(this.id, edits, endCursorState);
+		editor.pushUndoStop();
 	}
 
 	/**
@@ -673,8 +684,9 @@ export class JoinLinesAction extends EditorAction {
 		}
 
 		endCursorState.unshift(endPrimaryCursor);
+		editor.pushUndoStop();
 		editor.executeEdits(this.id, edits, endCursorState);
-
+		editor.pushUndoStop();
 	}
 }
 

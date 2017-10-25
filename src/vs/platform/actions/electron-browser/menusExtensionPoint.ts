@@ -34,12 +34,14 @@ namespace schema {
 			case 'editor/title': return MenuId.EditorTitle;
 			case 'editor/context': return MenuId.EditorContext;
 			case 'explorer/context': return MenuId.ExplorerContext;
+			case 'problems/context': return MenuId.ProblemsPanelContext;
 			case 'editor/title/context': return MenuId.EditorTitleContext;
 			case 'debug/callstack/context': return MenuId.DebugCallStackContext;
 			case 'scm/title': return MenuId.SCMTitle;
 			case 'scm/sourceControl': return MenuId.SCMSourceControl;
 			case 'scm/resourceGroup/context': return MenuId.SCMResourceGroupContext;
 			case 'scm/resourceState/context': return MenuId.SCMResourceContext;
+			case 'scm/change/title': return MenuId.SCMChangeContext;
 			case 'view/title': return MenuId.ViewTitle;
 			case 'view/item/context': return MenuId.ViewItemContext;
 		}
@@ -123,6 +125,11 @@ namespace schema {
 			},
 			'explorer/context': {
 				description: localize('menus.explorerContext', "The file explorer context menu"),
+				type: 'array',
+				items: menuItem
+			},
+			'problems/context': {
+				description: localize('menus.problemsContext', "The problems panel context menu"),
 				type: 'array',
 				items: menuItem
 			},

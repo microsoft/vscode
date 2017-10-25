@@ -66,10 +66,10 @@ export function activate(context: ExtensionContext) {
 					});
 				});
 			},
-			provideColorPresentations(document: TextDocument, colorInfo: ColorInformation): ColorPresentation[] | Thenable<ColorPresentation[]> {
+			provideColorPresentations(color: Color, context): ColorPresentation[] | Thenable<ColorPresentation[]> {
 				let params: ColorPresentationParams = {
-					textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document),
-					colorInfo: { range: client.code2ProtocolConverter.asRange(colorInfo.range), color: colorInfo.color }
+					textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(context.document),
+					colorInfo: { range: client.code2ProtocolConverter.asRange(context.range), color }
 				};
 				return client.sendRequest(ColorPresentationRequest.type, params).then(presentations => {
 					return presentations.map(p => {

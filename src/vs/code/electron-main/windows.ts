@@ -362,7 +362,7 @@ export class WindowsManager implements IWindowsMainService {
 		// When run with --add, take the folders that are to be opened as
 		// folders that should be added to the currently active window.
 		let foldersToAdd: IPath[] = [];
-		if (openConfig.addMode && product.quality !== 'stable') { // TODO@Ben multi root
+		if (openConfig.addMode) {
 			foldersToAdd = pathsToOpen.filter(path => !!path.folderPath).map(path => ({ filePath: path.folderPath }));
 			pathsToOpen = pathsToOpen.filter(path => !path.folderPath);
 		}
@@ -792,7 +792,7 @@ export class WindowsManager implements IWindowsMainService {
 		// This will ensure to open these folders in one window instead of multiple
 		// If we are in addMode, we should not do this because in that case all
 		// folders should be added to the existing window.
-		if (!openConfig.addMode && isCommandLineOrAPICall && product.quality !== 'stable') { // TODO@Ben multi root
+		if (!openConfig.addMode && isCommandLineOrAPICall) {
 			const foldersToOpen = windowsToOpen.filter(path => !!path.folderPath);
 			if (foldersToOpen.length > 1) {
 				const workspace = this.workspacesService.createWorkspaceSync(foldersToOpen.map(folder => folder.folderPath));
@@ -937,7 +937,7 @@ export class WindowsManager implements IWindowsMainService {
 			restoreWindows = ((windowConfig && windowConfig.restoreWindows) || 'one') as RestoreWindowsSetting;
 
 			if (restoreWindows === 'one' /* default */ && windowConfig && windowConfig.reopenFolders) {
-				restoreWindows = windowConfig.reopenFolders; // TODO@Ben migration
+				restoreWindows = windowConfig.reopenFolders; // TODO@Ben migration from deprecated window.reopenFolders setting
 			}
 
 			if (['all', 'folders', 'one', 'none'].indexOf(restoreWindows) === -1) {
@@ -1339,8 +1339,8 @@ export class WindowsManager implements IWindowsMainService {
 		return result;
 	}
 
-	public openWorkspace(win?: CodeWindow): void {
-		this.workspacesManager.openWorkspace(win);
+	public pickWorkspaceAndOpen(options: INativeOpenDialogOptions): void {
+		this.workspacesManager.pickWorkspaceAndOpen(options);
 	}
 
 	private onBeforeWindowUnload(e: IWindowUnloadEvent): void {
@@ -1618,7 +1618,7 @@ class FileDialog {
 		});
 	}
 
-	public getFileOrFolderPaths(options: IInternalNativeOpenDialogOptions, clb: (paths: string[]) => void): void {
+	private getFileOrFolderPaths(options: IInternalNativeOpenDialogOptions, clb: (paths: string[]) => void): void {
 
 		// Ensure dialog options
 		if (!options.dialogOptions) {
@@ -1755,13 +1755,8 @@ class WorkspacesManager {
 		});
 	}
 
-	public openWorkspace(window = this.windowsMainService.getLastActiveWindow()): void {
-		let defaultPath: string;
-		if (window && window.openedWorkspace && !this.workspacesService.isUntitledWorkspace(window.openedWorkspace)) {
-			defaultPath = dirname(window.openedWorkspace.configPath);
-		} else {
-			defaultPath = this.getWorkspaceDialogDefaultPath(window ? (window.openedWorkspace || window.openedFolderPath) : void 0);
-		}
+	public pickWorkspaceAndOpen(options: INativeOpenDialogOptions): void {
+		const window = this.windowsMainService.getWindowById(options.windowId) || this.windowsMainService.getFocusedWindow() || this.windowsMainService.getLastActiveWindow();
 
 		this.windowsMainService.pickFileAndOpen({
 			windowId: window ? window.id : void 0,
@@ -1770,8 +1765,11 @@ class WorkspacesManager {
 				title: localize('openWorkspaceTitle', "Open Workspace"),
 				filters: WORKSPACE_FILTER,
 				properties: ['openFile'],
-				defaultPath
-			}
+				defaultPath: options.dialogOptions && options.dialogOptions.defaultPath
+			},
+			forceNewWindow: options.forceNewWindow,
+			telemetryEventName: options.telemetryEventName,
+			telemetryExtraData: options.telemetryExtraData
 		});
 	}
 
@@ -1830,7 +1828,7 @@ class WorkspacesManager {
 					buttonLabel: mnemonicButtonLabel(localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")),
 					title: localize('saveWorkspace', "Save Workspace"),
 					filters: WORKSPACE_FILTER,
-					defaultPath: this.getWorkspaceDialogDefaultPath(workspace)
+					defaultPath: this.getUntitledWorkspaceSaveDialogDefaultPath(workspace)
 				});
 
 				if (target) {
@@ -1846,7 +1844,7 @@ class WorkspacesManager {
 		}
 	}
 
-	private getWorkspaceDialogDefaultPath(workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier): string {
+	private getUntitledWorkspaceSaveDialogDefaultPath(workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier): string {
 		if (workspace) {
 			if (isSingleFolderWorkspaceIdentifier(workspace)) {
 				return dirname(workspace);
@@ -1861,6 +1859,7 @@ class WorkspacesManager {
 				}
 			}
 		}
+
 		return void 0;
 	}
 }

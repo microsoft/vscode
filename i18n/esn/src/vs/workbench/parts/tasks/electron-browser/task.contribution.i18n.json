@@ -30,6 +30,7 @@
 	"TaskSystem.activeSame.noBackground": "La tarea \"{0}\" ya está activa. Para terminarla, use la opción \"Terminar tarea\" del menú Tareas.",
 	"TaskSystem.active": "Ya hay una tarea en ejecución. Finalícela antes de ejecutar otra tarea.",
 	"TaskSystem.restartFailed": "No se pudo terminar y reiniciar la tarea {0}",
+	"TaskService.noConfiguration": "Error: La detección de tarea {0} no encontró una tarea para la siguiente configuración:\n{1}\nLa tarea será omitida.\n",
 	"TaskSystem.configurationErrors": "Error: La configuración de la tarea proporcionada tiene errores de validación y no se puede usar. Corrija los errores primero.",
 	"taskService.ignoreingFolder": "Ignorando las configuraciones de tarea para la carpeta del area de trabajo {0}. El soporte de tarea de area de trabajo multi carpeta requiere que todas las carpetas usen la versión de tarea 2.0.0 ",
 	"TaskSystem.invalidTaskJson": "Error: El contenido del archivo tasks.json tiene errores de sintaxis. Corríjalos antes de ejecutar una tarea.",

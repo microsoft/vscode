@@ -237,6 +237,10 @@ export class RipgrepParser extends EventEmitter {
 	}
 
 	private handleMatchLine(outputLine: string, lineNum: number, text: string): void {
+		if (lineNum === 0) {
+			text = strings.stripUTF8BOM(text);
+		}
+
 		const lineMatch = new LineMatch(text, lineNum);
 		this.fileMatch.addMatch(lineMatch);
 
@@ -489,7 +493,9 @@ function getRgArgs(config: IRawSearch): IRgGlobResult {
 	}
 
 	// Follow symlinks
-	args.push('--follow');
+	if (!config.ignoreSymlinks) {
+		args.push('--follow');
+	}
 
 	// Set default encoding if only one folder is opened
 	if (config.folderQueries.length === 1 && config.folderQueries[0].fileEncoding && config.folderQueries[0].fileEncoding !== 'utf8') {

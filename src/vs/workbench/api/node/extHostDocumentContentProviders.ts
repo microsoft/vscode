@@ -47,7 +47,7 @@ export class ExtHostDocumentContentProvider implements ExtHostDocumentContentPro
 		if (typeof provider.onDidChange === 'function') {
 			subscription = provider.onDidChange(uri => {
 				if (this._documentsAndEditors.getDocument(uri.toString())) {
-					this.$provideTextDocumentContent(handle, <URI>uri).then(value => {
+					this.$provideTextDocumentContent(handle, uri).then(value => {
 
 						const document = this._documentsAndEditors.getDocument(uri.toString());
 						if (!document) {
@@ -60,7 +60,7 @@ export class ExtHostDocumentContentProvider implements ExtHostDocumentContentPro
 
 						// broadcast event when content changed
 						if (!document.equalLines(textSource)) {
-							return this._proxy.$onVirtualDocumentChange(<URI>uri, textSource);
+							return this._proxy.$onVirtualDocumentChange(uri, textSource);
 						}
 
 					}, onUnexpectedError);

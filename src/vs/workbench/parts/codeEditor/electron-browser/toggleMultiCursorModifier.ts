@@ -10,8 +10,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
-import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
 export class ToggleMultiCursorModifierAction extends Action {
 
@@ -23,21 +22,16 @@ export class ToggleMultiCursorModifierAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(id, label);
-
-		this.enabled = !!this.configurationService && !!this.configurationEditingService;
 	}
 
 	public run(): TPromise<any> {
 		const editorConf = this.configurationService.getConfiguration<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
 		const newValue: 'ctrlCmd' | 'alt' = (editorConf.multiCursorModifier === 'ctrlCmd' ? 'alt' : 'ctrlCmd');
 
-		this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: ToggleMultiCursorModifierAction.multiCursorModifierConfigurationKey, value: newValue });
-
-		return TPromise.as(null);
+		return this.configurationService.updateValue(ToggleMultiCursorModifierAction.multiCursorModifierConfigurationKey, newValue, ConfigurationTarget.USER);
 	}
 }
 

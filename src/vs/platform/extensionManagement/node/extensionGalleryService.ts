@@ -245,8 +245,10 @@ function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUr
 	};
 
 	return {
-		uuid: galleryExtension.extensionId,
-		id: getGalleryExtensionId(galleryExtension.publisher.publisherName, galleryExtension.extensionName),
+		identifier: {
+			id: getGalleryExtensionId(galleryExtension.publisher.publisherName, galleryExtension.extensionName),
+			uuid: galleryExtension.extensionId
+		},
 		name: galleryExtension.extensionName,
 		version: version.version,
 		date: version.lastUpdated,
@@ -488,7 +490,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code')
 			.withFilter(FilterType.ExcludeWithFlags, flagsToString(Flags.Unpublished))
 			.withAssetTypes(AssetType.Manifest, AssetType.VSIX)
-			.withFilter(FilterType.ExtensionId, extension.uuid);
+			.withFilter(FilterType.ExtensionId, extension.identifier.uuid);
 
 		return this.queryGallery(query).then(({ galleryExtensions }) => {
 			const [rawExtension] = galleryExtensions;
@@ -528,7 +530,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			for (let index = 0; index < result.galleryExtensions.length; index++) {
 				const rawExtension = result.galleryExtensions[index];
 				if (ids.indexOf(rawExtension.extensionId) === -1) {
-					dependencies.push(toExtension(rawExtension, this.extensionsGalleryUrl, index, query));
+					dependencies.push(toExtension(rawExtension, this.extensionsGalleryUrl, index, query, 'dependencies'));
 					ids.push(rawExtension.extensionId);
 				}
 			}
@@ -556,7 +558,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 						dep.properties.dependencies.forEach(d => dependenciesSet.add(d));
 					}
 				}
-				result = distinct(result.concat(loadedDependencies), d => d.uuid);
+				result = distinct(result.concat(loadedDependencies), d => d.identifier.uuid);
 				const dependencies: string[] = [];
 				dependenciesSet.forEach(d => !ExtensionGalleryService.hasExtensionByName(result, d) && dependencies.push(d));
 				return this.getDependenciesReccursively(dependencies, result, root);

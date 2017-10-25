@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/zargony/atom-language-rust/commit/452fc72b48d293dc1440a10054babc77a16c24bc",
+	"version": "https://github.com/zargony/atom-language-rust/commit/59893b659a6d674d0d1f6c4158d0f60cea20d190",
 	"name": "Rust",
 	"scopeName": "source.rust",
 	"fileTypes": [
@@ -173,7 +173,7 @@
 			"comment": "Type parameters",
 			"name": "meta.type_params.rust",
 			"begin": "<(?![=<])",
-			"end": ">",
+			"end": "(?<![-])>",
 			"patterns": [
 				{
 					"include": "#block_comment"

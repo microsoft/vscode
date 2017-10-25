@@ -15,6 +15,8 @@
 	"command.stageAll": "Prepara tutte le modifiche per commit",
 	"command.stageSelectedRanges": "Prepara per il commit intervalli selezionati",
 	"command.revertSelectedRanges": "Ripristina intervalli selezionati",
+	"command.stageChange": "Prepara modifica per commit",
+	"command.revertChange": "Annulla modifica",
 	"command.unstage": "Annulla preparazione modifiche per commit",
 	"command.unstageAll": "Annulla preparazione di tutte le modifiche per commit",
 	"command.unstageSelectedRanges": "Annulla preparazione per il commit di intervalli selezionati",

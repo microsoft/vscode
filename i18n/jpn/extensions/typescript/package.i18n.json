@@ -44,7 +44,8 @@
 	"typescript.npm": "型定義の自動取得に使用される NPM 実行可能ファイルへのパスを指定します。TypeScript 2.3.4 以上が必要です。",
 	"typescript.check.npmIsInstalled": "型定義の自動取得に NPM がインストールされているかどうかを確認します。",
 	"javascript.nameSuggestions": "JavaScript の候補リスト内でファイルから一意の名前を含むかどうかを有効/無効にします。",
-	"typescript.tsc.autoDetect": "tsc タスクの自動検出をオンにするかオフにするかを制御します。",
+	"typescript.tsc.autoDetect": "tsc タスクの自動検出を制御します。'off' はこの機能を無効にします。'build' は 1 つのコンパイル実行タスクのみを表示します。'watch' はコンパイルとウォッチ タスクのみを表示します。'on' はビルド タスクとウォッチ タスクの両方を表示します。既定値は 'on' です。",
 	"typescript.problemMatchers.tsc.label": "TypeScript の問題",
-	"typescript.problemMatchers.tscWatch.label": "TypeScript の問題 (ウォッチ モード)"
+	"typescript.problemMatchers.tscWatch.label": "TypeScript の問題 (ウォッチ モード)",
+	"typescript.quickSuggestionsForPaths": "Import パスを入力するときのクイック候補を有効/無効にします。"
 }

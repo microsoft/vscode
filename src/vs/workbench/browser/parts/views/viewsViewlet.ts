@@ -400,7 +400,7 @@ export class ViewsViewlet extends PanelViewlet {
 						id: viewDescriptor.id,
 						name: viewDescriptor.name,
 						actionRunner: this.getActionRunner(),
-						expanded: !(viewState ? viewState.collapsed : void 0),
+						expanded: !(viewState ? viewState.collapsed : viewDescriptor.collapsed),
 						viewletSettings: this.viewletSettings
 					});
 				toCreate.push(view);

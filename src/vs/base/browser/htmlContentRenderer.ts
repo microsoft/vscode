@@ -29,13 +29,13 @@ function createElement(options: RenderOptions): HTMLElement {
 	return element;
 }
 
-export function renderText(text: string, options: RenderOptions = {}): Node {
+export function renderText(text: string, options: RenderOptions = {}): HTMLElement {
 	const element = createElement(options);
 	element.textContent = text;
 	return element;
 }
 
-export function renderFormattedText(formattedText: string, options: RenderOptions = {}): Node {
+export function renderFormattedText(formattedText: string, options: RenderOptions = {}): HTMLElement {
 	const element = createElement(options);
 	_renderFormattedText(element, parseFormattedText(formattedText), options.actionCallback);
 	return element;

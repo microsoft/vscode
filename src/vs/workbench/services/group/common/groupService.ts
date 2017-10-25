@@ -7,7 +7,7 @@
 
 import { createDecorator, ServiceIdentifier, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Position, IEditorInput } from 'vs/platform/editor/common/editor';
-import { IEditorStacksModel, IEditorGroup } from 'vs/workbench/common/editor';
+import { IEditorStacksModel, IEditorGroup, IEditorOpeningEvent } from 'vs/workbench/common/editor';
 import Event from 'vs/base/common/event';
 
 export enum GroupArrangement {
@@ -46,14 +46,19 @@ export interface IEditorGroupService {
 	onEditorsChanged: Event<void>;
 
 	/**
+	 * Emitted when an editor is opening. Allows to prevent/replace the opening via the event method.
+	 */
+	onEditorOpening: Event<IEditorOpeningEvent>;
+
+	/**
 	 * Emitted when opening an editor fails.
 	 */
 	onEditorOpenFail: Event<IEditorInput>;
 
 	/**
-	 * Emitted when a editors are moved to another position.
+	 * Emitted when an entire editor group is moved to another position.
 	 */
-	onEditorsMoved: Event<void>;
+	onEditorGroupMoved: Event<void>;
 
 	/**
 	 * Emitted when the editor group orientation was changed.

@@ -32,21 +32,6 @@ export interface IWorkspaceContextService {
 	_serviceBrand: any;
 
 	/**
-	 * Provides access to the workspace object the platform is running with. This may be null if the workbench was opened
-	 * without workspace (empty);
-	 */
-	getWorkspace(): IWorkspace;
-
-	/**
-	 * Return the state of the workbench.
-	 *
-	 * WorkbenchState.EMPTY - if the workbench was opened with empty window or file
-	 * WorkbenchState.FOLDER - if the workbench was opened with a folder
-	 * WorkbenchState.WORKSPACE - if the workbench was opened with a workspace
-	 */
-	getWorkbenchState(): WorkbenchState;
-
-	/**
 	 * An event which fires on workbench state changes.
 	 */
 	onDidChangeWorkbenchState: Event<WorkbenchState>;
@@ -60,6 +45,20 @@ export interface IWorkspaceContextService {
 	 * An event which fires on workspace folders change.
 	 */
 	onDidChangeWorkspaceFolders: Event<IWorkspaceFoldersChangeEvent>;
+
+	/**
+	 * Provides access to the workspace object the platform is running with.
+	 */
+	getWorkspace(): IWorkspace;
+
+	/**
+	 * Return the state of the workbench.
+	 *
+	 * WorkbenchState.EMPTY - if the workbench was opened with empty window or file
+	 * WorkbenchState.FOLDER - if the workbench was opened with a folder
+	 * WorkbenchState.WORKSPACE - if the workbench was opened with a workspace
+	 */
+	getWorkbenchState(): WorkbenchState;
 
 	/**
 	 * Returns the folder for the given resource from the workspace.

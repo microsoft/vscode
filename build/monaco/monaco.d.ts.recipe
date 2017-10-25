@@ -34,7 +34,7 @@ declare module monaco {
 
 #include(vs/base/common/winjs.base.d.ts): TValueCallback, ProgressCallback, Promise
 #include(vs/base/common/cancellation): CancellationTokenSource, CancellationToken
-#include(vs/base/common/uri): URI
+#include(vs/base/common/uri): URI, UriComponents
 #include(vs/editor/common/standalone/standaloneBase): KeyCode, KeyMod
 #include(vs/base/common/htmlContent): IMarkdownString
 #include(vs/base/browser/keyboardEvent): IKeyboardEvent

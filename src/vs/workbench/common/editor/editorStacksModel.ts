@@ -6,11 +6,11 @@
 'use strict';
 
 import Event, { Emitter, once } from 'vs/base/common/event';
-import { Extensions, IEditorInputFactoryRegistry, EditorInput, toResource, IEditorStacksModel, IEditorGroup, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, EditorOpenPositioning, SideBySideEditorInput } from 'vs/workbench/common/editor';
+import { Extensions, IEditorInputFactoryRegistry, EditorInput, toResource, IEditorStacksModel, IEditorGroup, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, IStacksModelChangeEvent, EditorOpenPositioning, SideBySideEditorInput, OPEN_POSITIONING_CONFIG } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -84,7 +84,7 @@ export class EditorGroup implements IEditorGroup {
 		this.mru = [];
 		this.toDispose = [];
 		this.mapResourceToEditorCount = new ResourceMap<number>();
-		this.onConfigurationUpdated(configurationService.getConfiguration<IWorkbenchEditorConfiguration>());
+		this.onConfigurationUpdated();
 
 		this._onEditorActivated = new Emitter<EditorInput>();
 		this._onEditorOpened = new Emitter<EditorInput>();
@@ -110,13 +110,11 @@ export class EditorGroup implements IEditorGroup {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>())));
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
 	}
 
-	private onConfigurationUpdated(config: IWorkbenchEditorConfiguration): void {
-		if (config && config.workbench && config.workbench.editor) {
-			this.editorOpenPositioning = config.workbench.editor.openPositioning;
-		}
+	private onConfigurationUpdated(event?: IConfigurationChangeEvent): void {
+		this.editorOpenPositioning = this.configurationService.getValue(OPEN_POSITIONING_CONFIG);
 	}
 
 	public get id(): GroupIdentifier {

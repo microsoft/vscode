@@ -30,6 +30,7 @@ import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/ed
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 
 let EDITOR_ID = 0;
 
@@ -849,6 +850,26 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 			if (!newDecorationsSubTypes[subType]) {
 				this._removeDecorationType(decorationTypeKey + '-' + subType);
 			}
+		}
+
+		// update all decorations
+		let oldDecorationsIds = this._decorationTypeKeysToIds[decorationTypeKey] || [];
+		this._decorationTypeKeysToIds[decorationTypeKey] = this.deltaDecorations(oldDecorationsIds, newModelDecorations);
+	}
+
+	public setDecorationsFast(decorationTypeKey: string, ranges: IRange[]): void {
+
+		// remove decoration sub types that are no longer used, deregister decoration type if necessary
+		let oldDecorationsSubTypes = this._decorationTypeSubtypes[decorationTypeKey] || {};
+		for (let subType in oldDecorationsSubTypes) {
+			this._removeDecorationType(decorationTypeKey + '-' + subType);
+		}
+		this._decorationTypeSubtypes[decorationTypeKey] = {};
+
+		const opts = ModelDecorationOptions.createDynamic(this._resolveDecorationOptions(decorationTypeKey, false));
+		let newModelDecorations: editorCommon.IModelDeltaDecoration[] = new Array<editorCommon.IModelDeltaDecoration>(ranges.length);
+		for (let i = 0, len = ranges.length; i < len; i++) {
+			newModelDecorations[i] = { range: ranges[i], options: opts };
 		}
 
 		// update all decorations

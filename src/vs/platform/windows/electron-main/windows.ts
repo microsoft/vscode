@@ -60,7 +60,6 @@ export interface IWindowsMainService {
 	// methods
 	ready(initialUserEnv: IProcessEnvironment): void;
 	reload(win: ICodeWindow, cli?: ParsedArgs): void;
-	openWorkspace(win?: ICodeWindow): void;
 	createAndEnterWorkspace(win: ICodeWindow, folderPaths?: string[], path?: string): TPromise<IEnterWorkspaceResult>;
 	saveAndEnterWorkspace(win: ICodeWindow, path: string): TPromise<IEnterWorkspaceResult>;
 	closeWorkspace(win: ICodeWindow): void;
@@ -69,6 +68,7 @@ export interface IWindowsMainService {
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): void;
 	pickFolderAndOpen(options: INativeOpenDialogOptions): void;
 	pickFileAndOpen(options: INativeOpenDialogOptions): void;
+	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): void;
 	focusLastActive(cli: ParsedArgs, context: OpenContext): ICodeWindow;
 	getLastActiveWindow(): ICodeWindow;
 	waitForWindowCloseOrLoad(windowId: number): TPromise<void>;

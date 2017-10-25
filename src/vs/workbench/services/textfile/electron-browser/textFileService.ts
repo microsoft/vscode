@@ -138,13 +138,11 @@ export class TextFileService extends AbstractTextFileService {
 	}
 
 	public promptForPath(defaultPath?: string): string {
-		return this.windowService.showSaveDialog(this.getSaveDialogOptions(defaultPath ? paths.normalize(defaultPath, true) : void 0));
+		return this.windowService.showSaveDialog(this.getSaveDialogOptions(defaultPath));
 	}
 
 	private getSaveDialogOptions(defaultPath?: string): Electron.SaveDialogOptions {
-		const options: Electron.SaveDialogOptions = {
-			defaultPath: defaultPath
-		};
+		const options: Electron.SaveDialogOptions = { defaultPath };
 
 		// Filters are only enabled on Windows where they work properly
 		if (!isWindows) {
@@ -154,7 +152,7 @@ export class TextFileService extends AbstractTextFileService {
 		interface IFilter { name: string; extensions: string[]; }
 
 		// Build the file filter by using our known languages
-		const ext: string = paths.extname(defaultPath);
+		const ext: string = defaultPath ? paths.extname(defaultPath) : void 0;
 		let matchingFilter: IFilter;
 		const filters: IFilter[] = this.modeService.getRegisteredLanguageNames().map(languageName => {
 			const extensions = this.modeService.getExtensions(languageName);

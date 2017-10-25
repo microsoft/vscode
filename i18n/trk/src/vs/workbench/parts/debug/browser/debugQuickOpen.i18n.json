@@ -6,6 +6,8 @@
 {
 	"entryAriaLabel": "{0}, hata ayıklama",
 	"debugAriaLabel": "Çalıştırılacak bir başlatma yapılandırması adı girin.",
+	"addConfigTo": "Yapılandırma Ekle ({0})...",
+	"addConfiguration": "Yapı&&landırma Ekle...",
 	"noConfigurationsMatching": "Eşleyen hata ayıklama yapılandırması yok",
 	"noConfigurationsFound": "Hiçbir hata ayıklama yapılandırması bulunamadı. Lütfen bir 'launch.json' dosyası oluşturun."
 }

@@ -323,6 +323,10 @@ export class TernarySearchTree<E> {
 		this._segments = segments;
 	}
 
+	clear(): void {
+		this._root = undefined;
+	}
+
 	set(key: string, element: E): void {
 		const segements = this._segments.reset(key);
 		this._root = this._set(this._root, segements.next(), segements, element);
@@ -448,11 +452,11 @@ export class TernarySearchTree<E> {
 		}
 	}
 
-	forEach(callback: (entry: [string, E]) => any) {
+	forEach(callback: (value: E, index: string) => any) {
 		this._forEach(this._root, [], callback);
 	}
 
-	private _forEach(node: TernarySearchTreeNode<E>, parts: string[], callback: (entry: [string, E]) => any) {
+	private _forEach(node: TernarySearchTreeNode<E>, parts: string[], callback: (value: E, index: string) => any) {
 		if (!node) {
 			return;
 		}
@@ -461,7 +465,7 @@ export class TernarySearchTree<E> {
 		let newParts = parts.slice();
 		newParts.push(node.str);
 		if (node.element) {
-			callback([this._segments.join(newParts), node.element]);
+			callback(node.element, this._segments.join(newParts));
 		}
 		this._forEach(node.mid, newParts, callback);
 	}

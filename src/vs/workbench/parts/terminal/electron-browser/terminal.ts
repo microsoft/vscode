@@ -8,6 +8,7 @@ import * as cp from 'child_process';
 import * as os from 'os';
 import * as platform from 'vs/base/common/platform';
 import * as processes from 'vs/base/node/processes';
+import { readFile, fileExists } from 'vs/base/node/pfs';
 
 export const TERMINAL_DEFAULT_SHELL_LINUX = !platform.isWindows ? (process.env.SHELL || 'sh') : 'sh';
 export const TERMINAL_DEFAULT_SHELL_OSX = !platform.isWindows ? (process.env.SHELL || 'sh') : 'sh';
@@ -21,3 +22,20 @@ export const TERMINAL_DEFAULT_SHELL_WINDOWS = isAtLeastWindows10 ? powerShellPat
 export interface ITerminalProcessFactory {
 	create(env: { [key: string]: string }): cp.ChildProcess;
 }
+
+if (platform.isLinux) {
+	const file = '/etc/os-release';
+	fileExists(file).then(exists => {
+		if (!exists) {
+			return;
+		}
+		readFile(file).then(b => {
+			const contents = b.toString();
+			if (contents.indexOf('NAME=Fedora') >= 0) {
+				isFedora = true;
+			}
+		});
+	});
+}
+
+export let isFedora = false;

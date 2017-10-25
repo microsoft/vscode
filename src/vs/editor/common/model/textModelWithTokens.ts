@@ -22,7 +22,7 @@ import { getWordAtText } from 'vs/editor/common/model/wordHelper';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { ITextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
-import { IndentRange, computeRanges } from 'vs/editor/common/model/indentRanges';
+import { IndentRanges, computeRanges } from 'vs/editor/common/model/indentRanges';
 
 class ModelTokensChangedEventBuilder {
 
@@ -70,7 +70,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	private _invalidLineStartIndex: number;
 	private _lastState: IState;
 
-	private _indentRanges: IndentRange[];
+	private _indentRanges: IndentRanges;
 	private _languageRegistryListener: IDisposable;
 
 	private _revalidateTokensTimeout: number;
@@ -841,7 +841,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		this._indentRanges = null;
 	}
 
-	private _getIndentRanges(): IndentRange[] {
+	private _getIndentRanges(): IndentRanges {
 		if (!this._indentRanges) {
 			let foldingRules = LanguageConfigurationRegistry.getFoldingRules(this._languageIdentifier.id);
 			let offSide = foldingRules && foldingRules.offSide;
@@ -851,10 +851,8 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		return this._indentRanges;
 	}
 
-	public getIndentRanges(): IndentRange[] {
-		this._assertNotDisposed();
-		let indentRanges = this._getIndentRanges();
-		return IndentRange.deepCloneArr(indentRanges);
+	public getIndentRanges(): IndentRanges {
+		return this._getIndentRanges();
 	}
 
 	public getLineIndentGuide(lineNumber: number): number {
@@ -863,39 +861,57 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
 		}
 
-		let indentRanges = this._getIndentRanges();
+		const currentIndent = this._lines[lineNumber - 1].getIndentLevel();
+		if (currentIndent >= 0) {
+			// This line has content (besides whitespace)
+			// Use the line's indent
+			return Math.ceil(currentIndent / this._options.tabSize);
+		}
 
-		for (let i = indentRanges.length - 1; i >= 0; i--) {
-			let rng = indentRanges[i];
+		let belowIndent = -1;
+		for (let lineIndex = lineNumber, lineCount = this.getLineCount(); lineIndex < lineCount; lineIndex++) {
+			let indent = this._lines[lineIndex].getIndentLevel();
+			if (indent >= 0) {
+				belowIndent = indent;
+				break;
+			}
 
-			if (rng.startLineNumber === lineNumber) {
-				return this._toValidLineIndentGuide(lineNumber, Math.ceil(rng.indent / this._options.tabSize));
-			}
-			if (rng.startLineNumber < lineNumber && lineNumber <= rng.endLineNumber) {
-				return this._toValidLineIndentGuide(lineNumber, 1 + Math.floor(rng.indent / this._options.tabSize));
-			}
-			if (rng.endLineNumber + 1 === lineNumber) {
-				let bestIndent = rng.indent;
-				while (i > 0) {
-					i--;
-					rng = indentRanges[i];
-					if (rng.endLineNumber + 1 === lineNumber) {
-						bestIndent = rng.indent;
-					}
-				}
-				return this._toValidLineIndentGuide(lineNumber, Math.ceil(bestIndent / this._options.tabSize));
+		}
+
+		let aboveIndent = -1;
+		for (let lineIndex = lineNumber - 2; lineIndex >= 0; lineIndex--) {
+			let indent = this._lines[lineIndex].getIndentLevel();
+			if (indent >= 0) {
+				aboveIndent = indent;
+				break;
 			}
 		}
 
-		return 0;
+		if (aboveIndent === -1 || belowIndent === -1) {
+			// At the top or bottom of the file
+			return 0;
+		}
+
+		if (aboveIndent < belowIndent) {
+			// we are inside the region above
+			return (1 + Math.floor(aboveIndent / this._options.tabSize));
+		}
+
+		if (aboveIndent === belowIndent) {
+			// we are in between two regions
+			return Math.ceil(belowIndent / this._options.tabSize);
+		}
+
+		let foldingRules = LanguageConfigurationRegistry.getFoldingRules(this._languageIdentifier.id);
+		let offSide = foldingRules && foldingRules.offSide;
+		if (offSide) {
+			// same level as region below
+			return Math.ceil(belowIndent / this._options.tabSize);
+		} else {
+			// we are inside the region that ends below
+			return (1 + Math.floor(belowIndent / this._options.tabSize));
+		}
 	}
 
-	private _toValidLineIndentGuide(lineNumber: number, indentGuide: number): number {
-		let lineIndentLevel = this._lines[lineNumber - 1].getIndentLevel();
-		if (lineIndentLevel === -1) {
-			return indentGuide;
-		}
-		let maxIndentGuide = Math.ceil(lineIndentLevel / this._options.tabSize);
-		return Math.min(maxIndentGuide, indentGuide);
-	}
+
 }

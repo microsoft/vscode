@@ -23,7 +23,6 @@ import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorIn
 import { IFileEditorInput, EncodingMode, IEncodingSupport, toResource, SideBySideEditorInput } from 'vs/workbench/common/editor';
 import { IDisposable, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IEditorAction, ICommonCodeEditor, EndOfLineSequence, IModel } from 'vs/editor/common/editorCommon';
 import { IModelLanguageChangedEvent, IModelOptionsChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { TrimTrailingWhitespaceAction } from 'vs/editor/contrib/linesOperations/common/linesOperations';
@@ -34,7 +33,7 @@ import { IEditor as IBaseEditor, IEditorInput } from 'vs/platform/editor/common/
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService, IPickOpenEntry, IFilePickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { SUPPORTED_ENCODINGS, IFileService, IFilesConfiguration } from 'vs/platform/files/common/files';
+import { SUPPORTED_ENCODINGS, IFileService, IFilesConfiguration, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -56,6 +55,7 @@ import { widgetShadow, editorWidgetBackground } from 'vs/platform/theme/common/c
 // TODO@Sandeep layer breaker
 // tslint:disable-next-line:import-patterns
 import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
 function toEditorWithEncodingSupport(input: IEditorInput): IEncodingSupport {
 	if (input instanceof SideBySideEditorInput) {
@@ -785,22 +785,18 @@ export class ChangeModeAction extends Action {
 	public static ID = 'workbench.action.editor.changeLanguageMode';
 	public static LABEL = nls.localize('changeMode', "Change Language Mode");
 
-	private static FILE_ASSOCIATION_KEY = 'files.associations';
-
 	constructor(
 		actionId: string,
 		actionLabel: string,
 		@IModeService private modeService: IModeService,
 		@IModelService private modelService: IModelService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ICommandService private commandService: ICommandService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IConfigurationEditingService private configurationEditService: IConfigurationEditingService
+		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
 	) {
 		super(actionId, actionLabel);
 	}
@@ -966,7 +962,7 @@ export class ChangeModeAction extends Action {
 		TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */).done(() => {
 			this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickLanguageToConfigure', "Select Language Mode to Associate with '{0}'", extension || basename) }).done(language => {
 				if (language) {
-					const fileAssociationsConfig = this.configurationService.lookup(ChangeModeAction.FILE_ASSOCIATION_KEY);
+					const fileAssociationsConfig = this.configurationService.inspect(FILES_ASSOCIATIONS_CONFIG);
 
 					let associationKey: string;
 					if (extension && basename[0] !== '.') {
@@ -989,8 +985,7 @@ export class ChangeModeAction extends Action {
 
 					currentAssociations[associationKey] = language.id;
 
-					// Write config
-					this.configurationEditingService.writeConfiguration(target, { key: ChangeModeAction.FILE_ASSOCIATION_KEY, value: currentAssociations });
+					this.configurationService.updateValue(FILES_ASSOCIATIONS_CONFIG, currentAssociations, target);
 				}
 			});
 		});
@@ -1229,7 +1224,7 @@ class ScreenReaderDetectedExplanation {
 		anchorElement: HTMLElement,
 		@IThemeService private readonly themeService: IThemeService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
-		@IConfigurationEditingService private readonly configurationEditingService: IConfigurationEditingService,
+		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService,
 	) {
 		this._isDisposed = false;
 		this._toDispose = [];
@@ -1281,20 +1276,14 @@ class ScreenReaderDetectedExplanation {
 
 		const yesBtn = $('div.button', {}, nls.localize('screenReaderDetectedExplanation.answerYes', "Yes"));
 		this._toDispose.push(addDisposableListener(yesBtn, 'click', () => {
-			this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, {
-				key: 'editor.accessibilitySupport',
-				value: 'on'
-			});
+			this.configurationService.updateValue('editor.accessibilitySupport', 'on', ConfigurationTarget.USER);
 			this.contextViewService.hideContextView();
 		}));
 		domNode.appendChild(yesBtn);
 
 		const noBtn = $('div.button', {}, nls.localize('screenReaderDetectedExplanation.answerNo', "No"));
 		this._toDispose.push(addDisposableListener(noBtn, 'click', () => {
-			this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, {
-				key: 'editor.accessibilitySupport',
-				value: 'off'
-			});
+			this.configurationService.updateValue('editor.accessibilitySupport', 'off', ConfigurationTarget.USER);
 			this.contextViewService.hideContextView();
 		}));
 		domNode.appendChild(noBtn);

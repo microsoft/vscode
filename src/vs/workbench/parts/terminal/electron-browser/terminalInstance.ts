@@ -266,7 +266,8 @@ export class TerminalInstance implements ITerminalInstance {
 			theme: this._getXtermTheme(),
 			fontFamily: font.fontFamily,
 			fontSize: font.fontSize,
-			lineHeight: font.lineHeight
+			lineHeight: font.lineHeight,
+			enableBold: this._configHelper.config.enableBold
 		});
 		if (this._shellLaunchConfig.initialText) {
 			this._xterm.writeln(this._shellLaunchConfig.initialText);
@@ -511,6 +512,16 @@ export class TerminalInstance implements ITerminalInstance {
 			// background since scrollTop changes take no effect but the terminal's position does
 			// change since the number of visible rows decreases.
 			this._xterm.emit('scroll', this._xterm.buffer.ydisp);
+			if (this._container) {
+				// Force a layout when the instance becomes invisible. This is particularly important
+				// for ensuring that terminals that are created in the background by an extension will
+				// correctly get correct character measurements in order to render to the screen (see
+				// #34554).
+				const computedStyle = window.getComputedStyle(this._container);
+				const width = parseInt(computedStyle.getPropertyValue('width').replace('px', ''), 10);
+				const height = parseInt(computedStyle.getPropertyValue('height').replace('px', ''), 10);
+				this.layout(new Dimension(width, height));
+			}
 		}
 	}
 
@@ -581,7 +592,7 @@ export class TerminalInstance implements ITerminalInstance {
 		if (!this._shellLaunchConfig.executable) {
 			this._configHelper.mergeDefaultShellPathAndArgs(this._shellLaunchConfig);
 		}
-		this._initialCwd = this._getCwd(this._shellLaunchConfig, this._historyService.getLastActiveWorkspaceRoot());
+		this._initialCwd = this._getCwd(this._shellLaunchConfig, this._historyService.getLastActiveWorkspaceRoot('file'));
 		let envFromConfig: IStringDictionary<string>;
 		if (platform.isWindows) {
 			envFromConfig = { ...process.env };
@@ -767,7 +778,18 @@ export class TerminalInstance implements ITerminalInstance {
 	// TODO: This should be private/protected
 	// TODO: locale should not be optional
 	public static createTerminalEnv(parentEnv: IStringDictionary<string>, shell: IShellLaunchConfig, cwd: string, locale?: string, cols?: number, rows?: number): IStringDictionary<string> {
-		const env = shell.env ? shell.env : TerminalInstance._cloneEnv(parentEnv);
+		const env = TerminalInstance._cloneEnv(parentEnv);
+		if (shell.env) {
+			Object.keys(shell.env).forEach((key) => {
+				const value = shell.env[key];
+				if (typeof value === 'string') {
+					env[key] = value;
+				} else {
+					delete env[key];
+				}
+			});
+		}
+
 		env['PTYPID'] = process.pid.toString();
 		env['PTYSHELL'] = shell.executable;
 		env['TERM_PROGRAM'] = 'vscode';
@@ -902,21 +924,31 @@ export class TerminalInstance implements ITerminalInstance {
 		if (!terminalWidth) {
 			return;
 		}
+
 		if (this._xterm) {
 			const font = this._configHelper.getFont();
-			if (this._xterm.getOption('lineHeight') !== font.lineHeight) {
-				this._xterm.setOption('lineHeight', font.lineHeight);
-			}
-			if (this._xterm.getOption('fontSize') !== font.fontSize) {
-				this._xterm.setOption('fontSize', font.fontSize);
-			}
-			if (this._xterm.getOption('fontFamily') !== font.fontFamily) {
-				this._xterm.setOption('fontFamily', font.fontFamily);
+
+			// Only apply these settings when the terminal is visible so that
+			// the characters are measured correctly.
+			if (this._isVisible) {
+				if (this._xterm.getOption('lineHeight') !== font.lineHeight) {
+					this._xterm.setOption('lineHeight', font.lineHeight);
+				}
+				if (this._xterm.getOption('fontSize') !== font.fontSize) {
+					this._xterm.setOption('fontSize', font.fontSize);
+				}
+				if (this._xterm.getOption('fontFamily') !== font.fontFamily) {
+					this._xterm.setOption('fontFamily', font.fontFamily);
+				}
+				if (this._xterm.getOption('enableBold') !== this._configHelper.config.enableBold) {
+					this._xterm.setOption('enableBold', this._configHelper.config.enableBold);
+				}
 			}
 
 			this._xterm.resize(this._cols, this._rows);
 			this._xterm.element.style.width = terminalWidth + 'px';
 		}
+
 		this._processReady.then(() => {
 			if (this._process && this._process.connected) {
 				// The child process could aready be terminated

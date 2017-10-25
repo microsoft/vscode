@@ -7,7 +7,6 @@
 
 import { readFile } from 'vs/base/node/pfs';
 import { parse as jsonParse } from 'vs/base/common/json';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { SnippetParser, Variable, Placeholder, Text } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { EditorSnippetVariableResolver } from 'vs/editor/contrib/snippet/browser/snippetVariables';
 import { forEach } from 'vs/base/common/collections';
@@ -36,8 +35,8 @@ export class SnippetFile {
 		//
 	}
 
-	static fromFile(filepath: string, source: string, isFromExtension?: boolean): TPromise<SnippetFile> {
-		return readFile(filepath).then(value => {
+	static fromFile(filepath: string, source: string, isFromExtension?: boolean): Promise<SnippetFile> {
+		return Promise.resolve(readFile(filepath)).then(value => {
 			const data = <JsonSerializedSnippets>jsonParse(value.toString());
 			const snippets: Snippet[] = [];
 			if (typeof data === 'object') {

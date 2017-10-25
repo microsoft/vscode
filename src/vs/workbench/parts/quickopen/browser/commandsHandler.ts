@@ -95,7 +95,7 @@ class CommandsHistory {
 	}
 
 	private registerListeners(): void {
-		this.configurationService.onDidUpdateConfiguration(e => this.updateConfiguration());
+		this.configurationService.onDidChangeConfiguration(e => this.updateConfiguration());
 		once(this.lifecycleService.onShutdown)(reason => this.save());
 	}
 
@@ -404,7 +404,7 @@ export class CommandsHandler extends QuickOpenHandler {
 
 		this.commandsHistory = this.instantiationService.createInstance(CommandsHistory);
 
-		this.configurationService.onDidUpdateConfiguration(e => this.updateConfiguration());
+		this.configurationService.onDidChangeConfiguration(e => this.updateConfiguration());
 		this.updateConfiguration();
 	}
 

@@ -58,7 +58,7 @@ export interface ITerminalConfiguration {
 		osx: string[];
 		windows: string[];
 	};
-	// enableBold: boolean;
+	enableBold: boolean;
 	rightClickCopyPaste: boolean;
 	cursorBlinking: boolean;
 	cursorStyle: string;

@@ -11,9 +11,9 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { MainThreadConfigurationShape, MainContext, ExtHostContext, IExtHostContext } from '../node/extHost.protocol';
+import { MainThreadConfigurationShape, MainContext, ExtHostContext, IExtHostContext, IWorkspaceConfigurationChangeEventData } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
+import { ConfigurationTarget, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 
 @extHostNamedCustomer(MainContext.MainThreadConfiguration)
 export class MainThreadConfiguration implements MainThreadConfigurationShape {
@@ -22,14 +22,13 @@ export class MainThreadConfiguration implements MainThreadConfigurationShape {
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IConfigurationEditingService private readonly _configurationEditingService: IConfigurationEditingService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
-		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService
+		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
 	) {
 		const proxy = extHostContext.get(ExtHostContext.ExtHostConfiguration);
 
-		this._configurationListener = configurationService.onDidUpdateConfiguration(() => {
-			proxy.$acceptConfigurationChanged(configurationService.getConfigurationData());
+		this._configurationListener = configurationService.onDidChangeConfiguration(e => {
+			proxy.$acceptConfigurationChanged(configurationService.getConfigurationData(), this.toConfigurationChangeEventData(e));
 		});
 	}
 
@@ -47,16 +46,26 @@ export class MainThreadConfiguration implements MainThreadConfigurationShape {
 
 	private writeConfiguration(target: ConfigurationTarget, key: string, value: any, resource: URI): TPromise<void> {
 		target = target !== null && target !== undefined ? target : this.deriveConfigurationTarget(key, resource);
-		return this._configurationEditingService.writeConfiguration(target, { key, value }, { donotNotifyError: true, scopes: { resource } });
+		return this.configurationService.updateValue(key, value, { resource }, target, true);
 	}
 
 	private deriveConfigurationTarget(key: string, resource: URI): ConfigurationTarget {
 		if (resource && this._workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 			if (configurationProperties[key] && configurationProperties[key].scope === ConfigurationScope.RESOURCE) {
-				return ConfigurationTarget.FOLDER;
+				return ConfigurationTarget.WORKSPACE_FOLDER;
 			}
 		}
 		return ConfigurationTarget.WORKSPACE;
+	}
+
+	private toConfigurationChangeEventData(event: IConfigurationChangeEvent): IWorkspaceConfigurationChangeEventData {
+		return {
+			changedConfiguration: event.changedConfiguration,
+			changedConfigurationByResource: event.changedConfigurationByResource.keys().reduce((result, resource) => {
+				result[resource.toString()] = event.changedConfigurationByResource.get(resource);
+				return result;
+			}, Object.create({}))
+		};
 	}
 }

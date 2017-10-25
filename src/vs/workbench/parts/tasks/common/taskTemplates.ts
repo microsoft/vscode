@@ -54,7 +54,7 @@ const msbuild: TaskEntry = {
 		'\t"tasks": [',
 		'\t\t{',
 		'\t\t\t"taskName": "build",',
-		'\t\t\t"type": "process",',
+		'\t\t\t"type": "shell",',
 		'\t\t\t"command": "msbuild",',
 		'\t\t\t"args": [',
 		'\t\t\t\t// Ask msbuild to generate full paths for file names.',

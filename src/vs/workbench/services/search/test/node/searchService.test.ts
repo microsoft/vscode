@@ -7,14 +7,21 @@
 
 import * as assert from 'assert';
 import { normalize } from 'path';
+import path = require('path');
 
 import { IProgress, IUncachedSearchStats } from 'vs/platform/search/common/search';
-import { ISearchEngine, IRawSearch, IRawFileMatch, ISerializedFileMatch, ISerializedSearchComplete } from 'vs/workbench/services/search/node/search';
+import { ISearchEngine, IRawSearch, IRawFileMatch, ISerializedFileMatch, ISerializedSearchComplete, IFolderSearch } from 'vs/workbench/services/search/node/search';
 import { SearchService as RawSearchService } from 'vs/workbench/services/search/node/rawSearchService';
 import { DiskSearch } from 'vs/workbench/services/search/node/searchService';
 
 const TEST_FOLDER_QUERIES = [
 	{ folder: normalize('/some/where') }
+];
+
+const TEST_FIXTURES = path.normalize(require.toUrl('./fixtures'));
+const MULTIROOT_QUERIES: IFolderSearch[] = [
+	{ folder: path.join(TEST_FIXTURES, 'examples') },
+	{ folder: path.join(TEST_FIXTURES, 'more') }
 ];
 
 const stats: IUncachedSearchStats = {
@@ -140,6 +147,43 @@ suite('SearchService', () => {
 			}, null, match => {
 				assert.strictEqual(match.resource.path, uriPath);
 				progressResults.push(match);
+			});
+	});
+
+	test('Multi-root with include pattern and maxResults', function () {
+		const service = new RawSearchService();
+
+		const query: IRawSearch = {
+			folderQueries: MULTIROOT_QUERIES,
+			maxResults: 1,
+			includePattern: {
+				'*.txt': true,
+				'*.js': true
+			},
+		};
+
+		return DiskSearch.collectResults(service.fileSearch(query))
+			.then(result => {
+				assert.strictEqual(result.results.length, 1, 'Result');
+			});
+	});
+
+	test('Multi-root with include pattern and exists', function () {
+		const service = new RawSearchService();
+
+		const query: IRawSearch = {
+			folderQueries: MULTIROOT_QUERIES,
+			exists: true,
+			includePattern: {
+				'*.txt': true,
+				'*.js': true
+			},
+		};
+
+		return DiskSearch.collectResults(service.fileSearch(query))
+			.then(result => {
+				assert.strictEqual(result.results.length, 0, 'Result');
+				assert.ok(result.limitHit);
 			});
 	});
 

@@ -88,18 +88,6 @@ export interface IModelContentChangedEvent {
  * An event describing that model decorations have changed.
  */
 export interface IModelDecorationsChangedEvent {
-	/**
-	 * Lists of ids for added decorations.
-	 */
-	readonly addedDecorations: string[];
-	/**
-	 * Lists of ids for changed decorations.
-	 */
-	readonly changedDecorations: string[];
-	/**
-	 * List of ids for removed decorations.
-	 */
-	readonly removedDecorations: string[];
 }
 
 /**

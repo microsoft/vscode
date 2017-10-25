@@ -9,7 +9,6 @@ describe('Terminal', () => {
 	let app: SpectronApplication;
 	before(() => { app = new SpectronApplication(); return app.start('Terminal'); });
 	after(() => app.stop());
-	beforeEach(function () { app.screenCapturer.testName = this.currentTest.title; });
 
 	it(`opens terminal, runs 'echo' and verifies the output`, async function () {
 		const expected = new Date().getTime().toString();

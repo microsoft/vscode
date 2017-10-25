@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { app, ipcMain as ipc, BrowserWindow } from 'electron';
+import { app, ipcMain as ipc, BrowserWindow, dialog } from 'electron';
 import * as platform from 'vs/base/common/platform';
 import { WindowsManager } from 'vs/code/electron-main/windows';
 import { IWindowsService, OpenContext } from 'vs/platform/windows/common/windows';
@@ -76,7 +76,7 @@ export class CodeApplication {
 		@ILogService private logService: ILogService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IConfigurationService private configurationService: ConfigurationService<any>,
+		@IConfigurationService private configurationService: ConfigurationService,
 		@IStorageService private storageService: IStorageService,
 		@IHistoryMainService private historyService: IHistoryMainService
 	) {
@@ -379,7 +379,23 @@ export class CodeApplication {
 				windowsMutex = new Mutex(product.win32MutexName);
 				this.toDispose.push({ dispose: () => windowsMutex.release() });
 			} catch (e) {
-				// noop
+				if (!this.environmentService.isBuilt) {
+					dialog.showMessageBox({
+						message: 'Failed to load windows-mutex',
+						detail: e.toString()
+					});
+				}
+			}
+
+			try {
+				<any>require.__$__nodeRequire('windows-foreground-love');
+			} catch (e) {
+				if (!this.environmentService.isBuilt) {
+					dialog.showMessageBox({
+						message: 'Failed to load windows-foreground-love',
+						detail: e.toString()
+					});
+				}
 			}
 		}
 

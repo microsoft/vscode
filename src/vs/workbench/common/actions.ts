@@ -61,8 +61,8 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 		});
 
 		// menu item
-		// TODO@Ben slightly weird if-check required because of
-		// https://github.com/Microsoft/vscode/blob/d28ace31aa147596e35adf101a27768a048c79ec/src/vs/workbench/parts/files/browser/fileActions.contribution.ts#L194
+		// TODO@Rob slightly weird if-check required because of
+		// https://github.com/Microsoft/vscode/blob/master/src/vs/workbench/parts/search/browser/search.contribution.ts#L266
 		if (descriptor.label) {
 
 			const command = {

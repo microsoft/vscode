@@ -794,7 +794,7 @@ export class SymbolInformation {
 		if (locationOrUri instanceof Location) {
 			this.location = locationOrUri;
 		} else if (rangeOrContainer instanceof Range) {
-			this.location = new Location(<URI>locationOrUri, rangeOrContainer);
+			this.location = new Location(locationOrUri, rangeOrContainer);
 		}
 	}
 
@@ -841,6 +841,15 @@ export class MarkdownString {
 
 	appendMarkdown(value: string): MarkdownString {
 		this.value += value;
+		return this;
+	}
+
+	appendCodeblock(code: string, language: string = ''): MarkdownString {
+		this.value += '\n```';
+		this.value += language;
+		this.value += '\n';
+		this.value += code;
+		this.value += '\n```\n';
 		return this;
 	}
 }

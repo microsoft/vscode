@@ -12,7 +12,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { toResource } from 'vs/workbench/common/editor';
-import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -50,24 +50,9 @@ export const copyPathCommand = (accessor: ServicesAccessor, resource?: URI) => {
 	}
 };
 
-export const openFolderPickerCommand = (accessor: ServicesAccessor, forceNewWindow: boolean) => {
-	const windowService = accessor.get(IWindowService);
-
-	windowService.pickFolderAndOpen({ forceNewWindow });
-};
-
 export const openWindowCommand = (accessor: ServicesAccessor, paths: string[], forceNewWindow: boolean) => {
 	const windowsService = accessor.get(IWindowsService);
 	windowsService.openWindow(paths, { forceNewWindow });
-};
-
-export const openFileInNewWindowCommand = (accessor: ServicesAccessor) => {
-	const windowService = accessor.get(IWindowService);
-	const editorService = accessor.get(IWorkbenchEditorService);
-
-	const fileResource = toResource(editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
-
-	windowService.pickFileAndOpen({ forceNewWindow: true, dialogOptions: { defaultPath: fileResource ? paths.dirname(fileResource.fsPath) : void 0 } });
 };
 
 export const revealInOSCommand = (accessor: ServicesAccessor, resource?: URI) => {

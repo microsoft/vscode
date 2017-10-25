@@ -22,6 +22,7 @@ import product from 'vs/platform/node/product';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IUpdateService, State, IAutoUpdater, IUpdate, IRawUpdate } from 'vs/platform/update/common/update';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export class UpdateService implements IUpdateService {
 
@@ -87,7 +88,8 @@ export class UpdateService implements IUpdateService {
 		@IRequestService requestService: IRequestService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		if (process.platform === 'win32') {
 			this.raw = new Win32AutoUpdaterImpl(requestService);
@@ -96,6 +98,10 @@ export class UpdateService implements IUpdateService {
 		} else if (process.platform === 'darwin') {
 			this.raw = electron.autoUpdater;
 		} else {
+			return;
+		}
+
+		if (this.environmentService.disableUpdates) {
 			return;
 		}
 

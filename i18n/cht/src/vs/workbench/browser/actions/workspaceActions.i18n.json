@@ -13,6 +13,7 @@
 	"select": "選取(&&S)",
 	"selectWorkspace": "為工作區選取資料夾",
 	"removeFolderFromWorkspace": "將資料夾從工作區移除",
+	"openFolderSettings": "開啟資料夾設定",
 	"saveWorkspaceAsAction": "另存工作區為...",
 	"save": "儲存(&&S)",
 	"saveWorkspace": "儲存工作區",

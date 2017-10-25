@@ -408,8 +408,8 @@ suite('TextModel.getLineIndentGuide', () => {
 
 	test('getLineIndentGuide decreasing indent', () => {
 		assertIndentGuides([
-			[0, '    A'],
-			[0, '  A'],
+			[1, '    A'],
+			[1, '  A'],
 			[0, 'A'],
 		]);
 	});
@@ -450,7 +450,7 @@ suite('TextModel.getLineIndentGuide', () => {
 			[1, ''],
 			[1, '  void foo() {'],
 			[1, '     '],
-			[1, '     return 1;'],
+			[2, '     return 1;'],
 			[1, '  }'],
 			[1, '      '],
 			[0, '}'],
