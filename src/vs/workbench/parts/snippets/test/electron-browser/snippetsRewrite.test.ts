@@ -6,12 +6,12 @@
 'use strict';
 
 import * as assert from 'assert';
-import { SnippetFile } from 'vs/workbench/parts/snippets/electron-browser/snippetsFile';
+import { Snippet } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
 
 suite('TMSnippets', function () {
 
 	function assertRewrite(input: string, expected: string | boolean): void {
-		const actual = SnippetFile._rewriteBogousVariables(input);
+		const actual = Snippet._rewriteBogousVariables(input);
 		assert.equal(actual, expected);
 	}
 

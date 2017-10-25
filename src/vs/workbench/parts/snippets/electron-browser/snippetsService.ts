@@ -99,12 +99,12 @@ class SnippetsService implements ISnippetsService {
 	private readonly _disposables: IDisposable[] = [];
 
 	constructor(
-		@IModeService readonly _modeService: IModeService,
+		@IModeService private readonly _modeService: IModeService,
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IExtensionService extensionService: IExtensionService,
-		@IEnvironmentService environmentService: IEnvironmentService,
 	) {
 		this._wait = Promise.resolve(extensionService.onReady());
-		this._userSnippetsFolder = join(environmentService.appSettingsHome, 'snippets');
+		this._userSnippetsFolder = join(_environmentService.appSettingsHome, 'snippets');
 		this._prepUserSnippetsWatching();
 		this._prepExtensionSnippets();
 
@@ -182,17 +182,13 @@ class SnippetsService implements ISnippetsService {
 
 			return Promise.all(pending.map(([extension, filepath]) => {
 				return SnippetFile.fromFile(filepath, extension.description.displayName || extension.description.name, true).then(file => {
-					let hasBogousSnippets = false;
-					for (const snippet of file.data) {
-						snippets.push(snippet);
-						bucket.push(snippet);
 
-						hasBogousSnippets = hasBogousSnippets || snippet.isBogous;
-
-					}
+					// collect
+					snippets.push(...file.data);
+					bucket.push(...file.data);
 
 					// warn about bad tabstop/variable usage
-					if (hasBogousSnippets) {
+					if (this._environmentService.isExtensionDevelopment && file.data.some(snippet => snippet.isBogous)) {
 						extension.collector.warn(localize(
 							'badVariableUse',
 							"One or more snippets from the extension '{0}' very likely confuse snippet-variables and snippet-placeholders (see https://code.visualstudio.com/docs/editor/userdefinedsnippets#_snippet-syntax for more details)",
@@ -289,7 +285,7 @@ export class SnippetSuggestion implements ISuggestion {
 	) {
 		this.label = snippet.prefix;
 		this.detail = localize('detail.snippet', "{0} ({1})", snippet.description, snippet.source);
-		this.insertText = snippet.codeSnippet;
+		this.insertText = snippet.body;
 		this.overwriteBefore = overwriteBefore;
 		this.sortText = `${snippet.isFromExtension ? 'z' : 'a'}-${snippet.prefix}`;
 		this.noAutoAccept = true;
@@ -299,6 +295,7 @@ export class SnippetSuggestion implements ISuggestion {
 
 	resolve(): this {
 		this.documentation = new MarkdownString().appendCodeblock('', new SnippetParser().text(this.snippet.codeSnippet));
+		this.insertText = this.snippet.codeSnippet;
 		return this;
 	}
 
