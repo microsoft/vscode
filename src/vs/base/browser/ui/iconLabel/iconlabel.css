@@ -48,12 +48,12 @@
 }
 
 .monaco-icon-label::after {
-	flex: 1;
 	opacity: 0.75;
 	font-size: 90%;
 	font-weight: 600;
-	text-align: right;
 	padding: 0 12px 0 5px;
+	margin-left: auto;
+	text-align: center;
 }
 
 .focused .selected .monaco-icon-label, /* tree */
