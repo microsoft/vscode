@@ -1063,9 +1063,5 @@ export function computeScreenAwareSize(cssPx: number): number {
  * See https://mathiasbynens.github.io/rel-noopener/
  */
 export function windowOpenNoOpener(url: string): void {
-	let newTab = window.open();
-	if (newTab) {
-		newTab.opener = null;
-		newTab.location.href = url;
-	}
+	window.open(url, '_blank', 'noopener');
 }
