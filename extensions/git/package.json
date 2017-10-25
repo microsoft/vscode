@@ -837,7 +837,7 @@
         "id": "git.color.modified",
         "description": "Color for modified resources",
         "defaults": {
-          "light": "#D58809",
+          "light": "#a76e12",
           "dark": "#E2C08D",
           "highContrast": "#E2C08D"
         }
@@ -855,7 +855,7 @@
         "id": "git.color.untracked",
         "description": "Color for untracked resources",
         "defaults": {
-          "light": "#00B333",
+          "light": "#019001",
           "dark": "#73C991",
           "highContrast": "#73C991"
         }
