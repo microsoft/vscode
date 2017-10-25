@@ -118,16 +118,6 @@ export class TestContextService implements IWorkspaceContextService {
 		return this.workspace;
 	}
 
-	public addFolders(foldersToAdd: URI[]): TPromise<void>;
-	public addFolders(foldersToAdd: { uri: URI, name?: string }[]): TPromise<void>;
-	public addFolders(foldersToAdd: any[]): TPromise<void> {
-		return TPromise.as(void 0);
-	}
-
-	public removeFolders(foldersToRemove: URI[]): TPromise<void> {
-		return TPromise.as(void 0);
-	}
-
 	public getWorkspaceFolder(resource: URI): IWorkspaceFolder {
 		return this.isInsideWorkspace(resource) ? this.workspace.folders[0] : null;
 	}

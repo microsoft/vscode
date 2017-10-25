@@ -598,14 +598,4 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 	public isCurrentWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): boolean {
 		return true;
 	}
-
-	public addFolders(foldersToAdd: URI[]): TPromise<void>;
-	public addFolders(foldersToAdd: { uri: URI, name?: string }[]): TPromise<void>;
-	public addFolders(foldersToAdd: any[]): TPromise<void> {
-		return TPromise.as(void 0);
-	}
-
-	public removeFolders(foldersToRemove: URI[]): TPromise<void> {
-		return TPromise.as(void 0);
-	}
 }
