@@ -18,7 +18,7 @@
 	],
 	"firstLineMatch": "^#!.*\\b(bash|zsh|sh|tcsh)|^#.*-\\*-.*\\bshell-script\\b.*-\\*-",
 	"keyEquivalent": "^~S",
-	"name": "Shell Script (Bash)",
+	"name": "Shell Script",
 	"patterns": [
 		{
 			"include": "#comment"
