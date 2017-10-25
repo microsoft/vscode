@@ -21,6 +21,10 @@
 	font-size: 14px;
 }
 
+.extension-editor > .header.recommended {
+	height: 140px;
+}
+
 .extension-editor > .header > .icon {
 	height: 128px;
 	width: 128px;
@@ -59,7 +63,7 @@
 }
 
 .extension-editor > .header > .details > .subtitle {
-	padding-top: 10px;
+	padding-top: 6px;
 	white-space: nowrap;
 	height: 20px;
 	line-height: 20px;
@@ -81,14 +85,14 @@
 }
 
 .extension-editor > .header > .details > .description {
-	margin-top: 14px;
+	margin-top: 10px;
 	white-space: nowrap;
 	text-overflow: ellipsis;
 	overflow: hidden;
 }
 
 .extension-editor > .header > .details > .actions {
-	margin-top: 14px;
+	margin-top: 10px;
 }
 
 .extension-editor > .header > .details > .actions > .monaco-action-bar {
@@ -102,6 +106,16 @@
 .extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .action-label {
 	font-weight: 600;
 	padding: 1px 6px;
+}
+
+.extension-editor > .header.recommended > .details > .recommendation {
+	display: none;
+}
+
+.extension-editor > .header.recommended > .details > .recommendation {
+	display: block;
+	margin-top: 10px;
+	font-size: 13px;
 }
 
 .extension-editor > .body {
