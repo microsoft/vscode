@@ -20,7 +20,6 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
-// cleidigh
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 
 const $ = dom.$;

@@ -24,11 +24,6 @@ const $ = dom.$;
 
 export const SELECT_OPTION_ENTRY_TEMPLATE_ID = 'selectOption.entry.template';
 
-export interface IListEntry {
-	id: string;
-	templateId: string;
-}
-
 export interface ISelectOptionItem {
 	optionText: string;
 }
@@ -37,17 +32,6 @@ interface ISelectListTemplateData {
 	root: HTMLElement;
 	optionText: HTMLElement;
 	disposables: IDisposable[];
-}
-
-// TODO: cleidigh what height?
-class Delegate implements IDelegate<ISelectOptionItem> {
-	getHeight(): number {
-		return 20;
-	}
-
-	getTemplateId(): string {
-		return SELECT_OPTION_ENTRY_TEMPLATE_ID;
-	}
 }
 
 class SelectListRenderer implements IRenderer<ISelectOptionItem, ISelectListTemplateData> {
@@ -75,7 +59,6 @@ class SelectListRenderer implements IRenderer<ISelectOptionItem, ISelectListTemp
 	disposeTemplate(templateData: ISelectListTemplateData): void {
 		templateData.disposables = dispose(templateData.disposables);
 	}
-
 }
 
 export interface ISelectBoxStyles extends IListStyles {
@@ -105,10 +88,9 @@ export interface ISelectData {
 	index: number;
 }
 
-export class SelectBox extends Widget {
+export class SelectBox extends Widget implements IDelegate<ISelectOptionItem> {
 
 	private static SELECT_DROPDOWN_BOTTOM_MARGIN = 10;
-	// private static SELECT_DROPDOWN_SIDE_MARGIN = 15;
 
 	private _useNativeSelect: boolean;
 	private selectElement: HTMLSelectElement;
@@ -119,9 +101,8 @@ export class SelectBox extends Widget {
 	private _onDidSelect: Emitter<ISelectData>;
 	private toDispose: IDisposable[];
 	private styles: ISelectBoxStyles;
-
+	private listRenderer: SelectListRenderer;
 	private contextViewProvider: IContextViewProvider;
-	private selectDropDownContainerWrapper: HTMLElement;
 	private selectDropDownContainer: HTMLElement;
 	private styleElement: HTMLStyleElement;
 	private selectList: List<ISelectOptionItem>;
@@ -149,13 +130,11 @@ export class SelectBox extends Widget {
 		this.selectElement = document.createElement('select');
 		this.selectElement.className = 'select-box';
 
-		this.setOptions(options, selected);
 		this.toDispose = [];
 		this._onDidSelect = new Emitter<ISelectData>();
 
 		this.styles = styles;
 		mixin(this.styles, defaultStyles, false);
-
 
 		this.registerNativeSelectListeners();
 
@@ -164,27 +143,30 @@ export class SelectBox extends Widget {
 			this.registerSelectDropDownListeners();
 		}
 
-
-
+		this.setOptions(options, selected);
 	}
 
+	// IDelegate - List renderer
 
+	getHeight(): number {
+		return 18;
+	}
+
+	getTemplateId(): string {
+		return SELECT_OPTION_ENTRY_TEMPLATE_ID;
+	}
 
 	private constructSelectDropDown(contextViewProvider: IContextViewProvider) {
 
 		// SetUp ContextView container to hold select Dropdown
-		// We have to use a wrapper div to enable CSS file visibility
-
 		this.contextViewProvider = contextViewProvider;
-
-		this.selectDropDownContainerWrapper = dom.$('.select-dropdown-container-wrapper');
 		this.selectDropDownContainer = dom.$('.select-dropdown-container');
-		dom.append(this.selectDropDownContainerWrapper, this.selectDropDownContainer);
 
 		// Setup list for drop-down select
 		this.createSelectList(this.selectDropDownContainer);
 
 		// TODO:cleidigh - find better width control
+		// Create span flex box item/div we can measure and control
 		let widthControlOuterDiv = dom.append(this.selectDropDownContainer, $('.select-dropdown-container-width-control'));
 		let widthControlInnerDiv = dom.append(widthControlOuterDiv, $('.width-control-div'));
 		this.widthControlElement = document.createElement('span');
@@ -206,14 +188,10 @@ export class SelectBox extends Widget {
 				selected: e.target.value
 			});
 		}));
-
 	}
 
-
 	private registerSelectDropDownListeners() {
-
-
-		// Intercept mouse events to override normal select actions
+		// Intercept mouse events to override normal select actions on parents
 
 		this.toDispose.push(dom.addDisposableListener(this.selectElement, dom.EventType.CLICK, () => {
 			this.showSelectDropDown();
@@ -231,8 +209,6 @@ export class SelectBox extends Widget {
 			event.stopPropagation();
 		}));
 
-
-
 		// Intercept keyboard handling
 
 		this.toDispose.push(dom.addDisposableListener(this.selectElement, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
@@ -242,10 +218,10 @@ export class SelectBox extends Widget {
 		}));
 
 		this.toDispose.push(dom.addDisposableListener(this.selectElement, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			// dom.toggleClass(this.selectElement, 'synthetic-focus', false);
 			const event = new StandardKeyboardEvent(e);
 			let showDropDown = false;
 
+			// Create and drop down select list on keyboard select
 			switch (process.platform) {
 				case 'darwin':
 					if (event.keyCode === KeyCode.DownArrow || event.keyCode === KeyCode.UpArrow || event.keyCode === KeyCode.Space) {
@@ -273,29 +249,23 @@ export class SelectBox extends Widget {
 
 	}
 
-
 	public get onDidSelect(): Event<ISelectData> {
 		return this._onDidSelect.event;
 	}
 
 	public setOptions(options: string[], selected?: number, disabled?: number): void {
+
 		if (!this.options || !arrays.equals(this.options, options)) {
 			this.options = options;
-
-			// Mirror options in drop-down
 			this.selectElement.options.length = 0;
-			// cleidigh remove
-			// this.selectDropDownElement.options.length = 0;
+
 			let i = 0;
 			this.options.forEach((option) => {
 				this.selectElement.add(this.createOption(option, i, disabled === i++));
-				// this.selectDropDownElement.add(this.createOption(option, i, disabled === i++));
 			});
 
-			// cleidigh populate select list
-
-
-
+			// Mirror options in drop-down
+			// Populate select list for non-native select mode
 			if (this.selectList && !!this.options) {
 				let listEntries: ISelectOptionItem[];
 
@@ -310,7 +280,10 @@ export class SelectBox extends Widget {
 				this.selectList.splice(0, this.selectList.length, listEntries);
 			}
 		}
-		this.select(selected);
+
+		if (selected !== undefined) {
+			this.select(selected);
+		}
 	}
 
 	public select(index: number): void {
@@ -341,7 +314,6 @@ export class SelectBox extends Widget {
 		dom.addClass(container, 'select-container');
 		container.appendChild(this.selectElement);
 		this.setOptions(this.options, this.selected);
-
 		this.applyStyles();
 	}
 
@@ -353,16 +325,16 @@ export class SelectBox extends Widget {
 		// We can only style non-native select mode
 		if (!this._useNativeSelect) {
 
+			// Match quickOpen outline styles
 			if (this.styles.selectOptionCheckedOutline) {
-				content.push(`.monaco-workbench .selectbox-dropdown-list-container .monaco-list .monaco-list-row.focused { outline: 2px dotted ${this.styles.selectOptionCheckedOutline}; outline-offset: -1px; }`);
+				content.push(`.monaco-shell .select-dropdown-container .selectbox-dropdown-list-container .monaco-list .monaco-list-row.focused { outline: 1.6px dotted ${this.styles.selectOptionCheckedOutline} !important; outline-offset: -1.6px !important; }`);
 			}
 
 			if (this.styles.selectOptionHoverOutline) {
-				content.push(`.monaco-workbench .selectbox-dropdown-list-container .monaco-list .monaco-list-row:hover { outline: 2px dashed ${this.styles.selectOptionCheckedOutline}; outline-offset: -1px; }`);
+				content.push(`.monaco-shell .select-dropdown-container .selectbox-dropdown-list-container .monaco-list .monaco-list-row:hover { outline: 1.6px dashed ${this.styles.selectOptionCheckedOutline} !important; outline-offset: -1.6px !important; }`);
 			}
 
 			this.styleElement.innerHTML = content.join('\n');
-
 		}
 
 		this.applyStyles();
@@ -370,6 +342,7 @@ export class SelectBox extends Widget {
 
 	protected applyStyles(): void {
 
+		// Style parent select
 		if (this.selectElement) {
 			const background = this.styles.selectBackground ? this.styles.selectBackground.toString() : null;
 			const foreground = this.styles.selectForeground ? this.styles.selectForeground.toString() : null;
@@ -380,6 +353,7 @@ export class SelectBox extends Widget {
 			this.selectElement.style.borderColor = border;
 		}
 
+		// Style drop down select list (non-native mode only)
 		if (this.selectList) {
 			this.selectList.style({
 				listFocusBackground: this.styles.selectOptionCheckedBackground,
@@ -409,8 +383,10 @@ export class SelectBox extends Widget {
 		super.dispose();
 	}
 
-	private showSelectDropDown() {
+	// Non-native select list handling
+	// ContextView dropdown methods
 
+	private showSelectDropDown() {
 		if (!this.contextViewProvider) {
 			return;
 		}
@@ -424,149 +400,87 @@ export class SelectBox extends Widget {
 				dom.toggleClass(this.selectElement, 'synthetic-focus', false);
 			}
 		});
-
 	}
 
 	private hideSelectDropDown() {
+		if (!this.contextViewProvider) {
+			return;
+		}
 		this.contextViewProvider.hideContextView();
 	}
 
 	private renderSelectDropDown(container: HTMLElement) {
-		// Add the wrapper container
-		this.container.appendChild(this.selectDropDownContainerWrapper);
+		dom.append(container, this.selectDropDownContainer);
 		this.layoutSelectDropDown();
 		return null;
 	}
 
 	private layoutSelectDropDown() {
 
+		// Layout ContextView drop down select list and container
+		// Have to manage our vertical overflow, sizing
 		// Need to be visible to measure
+
 		dom.toggleClass(this.selectDropDownContainer, 'visible', true);
 
 		const selectWidth = dom.getTotalWidth(this.selectElement);
 		const selectPosition = dom.getDomNodePagePosition(this.selectElement);
 
-
-		// TODO:cleidigh - have to figure out ContextView tracking problem
-		// const selectDropDownPosition = dom.getDomNodePagePosition(this.selectDropDownContainer);
-		// const selectDropDownPositionWrapper = dom.getDomNodePagePosition(this.selectDropDownContainerWrapper);
-
-		// console.debug('Positions');
-		// console.debug('S:W ' + selectPosition.left + ' ' + selectDropDownPositionWrapper.left);
-		// console.debug('S:D ' + selectPosition.left + ' ' + selectDropDownPosition.left);
-
-		// if (selectPosition.left !== selectDropDownPositionWrapper.left) {
-		// 	// const leftDelta = selectDropDownPositionWrapper.left - selectPosition.left;
-		// 	// console.debug('Select Wrapper DifferentPosition ' + leftDelta);
-		// }
-
-
-		// Adjust container position - anchors can move like terminal drop-down!
-		// if (selectPosition.left !== selectDropDownPosition.left) {
-		// const leftDelta = selectDropDownPosition.left - selectPosition.left;
-		// console.debug('SelectDifferentPosition ' + leftDelta);
-
-		// Must adjust ContextView wrapper container - use left offset delta
-		// this.selectDropDownContainerWrapper.style.left = -leftDelta + 'px';
-		// this.selectDropDownContainerWrapper.style.left = selectPosition.left + 'px';
-		// }
-
 		// Set container height to max from select bottom to margin above status bar
 		const statusBarHeight = dom.getTotalHeight(document.getElementById('workbench.parts.statusbar'));
 		const maxSelectDropDownHeight = (window.innerHeight - selectPosition.top - selectPosition.height - statusBarHeight - SelectBox.SELECT_DROPDOWN_BOTTOM_MARGIN);
 
-		// SetUp list dimensions and layout
+		// SetUp list dimensions and layout - account for container padding
 		if (this.selectList) {
+			this.selectList.layout();
 			let listHeight = this.selectList.contentHeight;
-			// console.debug('ListHeight ' + listHeight);
-			if (listHeight > maxSelectDropDownHeight) {
-				listHeight = maxSelectDropDownHeight - 2;
-				// console.debug('Adjusted ListHeight ' + listHeight);
+			const listContainerHeight = dom.getTotalHeight(this.selectDropDownListContainer);
+			const totalVerticalListPadding = listContainerHeight - listHeight;
+
+			// Always show complete list items - never more than Max available vertical height
+			if (listContainerHeight > maxSelectDropDownHeight) {
+				listHeight = ((Math.floor((maxSelectDropDownHeight - totalVerticalListPadding) / this.getHeight())) * this.getHeight());
 			}
 
+			// Use parent select font
 			this.cloneElementFont(this.selectElement, this.selectDropDownContainer);
 			this.selectList.layout(listHeight);
 			this.selectList.domFocus();
+
+			// Trick to force scroll to nice focus position
+			this.selectList.scrollTop = 0;
 			this.selectList.setFocus([this.selected]);
-			this.selectDropDownContainer.style.height = listHeight + 6 + 'px';
-		}
+			const selectedPosition = (((1 + this.selected) * this.getHeight()));
 
-		const selectMinWidth = this.setWidthControlElement(this.widthControlElement);
-		const selectOptimalWidth = Math.max(selectMinWidth, Math.round(selectWidth)).toString() + 'px';
-		this.selectDropDownContainer.style.width = selectOptimalWidth;
-
-		// Maintain focus outline on parent select as well as list container
-		dom.toggleClass(this.selectElement, 'synthetic-focus', true);
-		dom.toggleClass(this.selectDropDownContainer, 'synthetic-focus', true);
-
-		this.selectDropDownListContainer.setAttribute('tabindex', '0');
-
-	}
-
-	private createSelectList(parent: HTMLElement): void {
-
-		// SetUp container for list
-		this.selectDropDownListContainer = dom.append(parent, $('.selectbox-dropdown-list-container'));
-
-		let renderer = new SelectListRenderer();
-
-		this.selectList = new List(this.selectDropDownListContainer, new Delegate(), [renderer], {
-			useShadows: false,
-			selectOnMouseDown: true,
-			verticalScrollMode: ScrollbarVisibility.Visible,
-			keyboardSupport: false,
-		});
-
-		const onSelectDropDownKeyDown = chain(domEvent(this.selectDropDownListContainer, 'keydown'))
-			.filter(() => this.selectList.length > 0)
-			.map(e => new StandardKeyboardEvent(e));
-
-		onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.Enter).on(this.onEnter, this, this.toDispose);
-		onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.Escape).on(e => this.onEscape(e), this, this.toDispose);
-		onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.UpArrow).on(this.onUpArrow, this, this.toDispose);
-		onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.DownArrow).on(this.onDownArrow, this, this.toDispose);
-
-		this.toDispose = [
-			this.selectList.onSelectionChange(e => this.onListSelection(e)),
-			this.selectList.onDOMBlur(e => this.onListBlur())
-		];
-
-	}
-
-
-	private onListSelection(e: IListEvent<ISelectOptionItem>): void {
-
-		if (e.indexes[0] !== undefined) {
-			console.debug(e.elements[0].optionText);
-			this.selected = e.indexes[0];
-			this.selectElement.selectedIndex = this.selected;
+			if (this.selectList.contentHeight > (maxSelectDropDownHeight - totalVerticalListPadding) && selectedPosition > (maxSelectDropDownHeight - totalVerticalListPadding)) {
+				this.selectList.scrollTop = this.selected * this.getHeight();
+			}
+			// Finally set focus on selected item
 			this.selectList.setFocus([this.selected]);
-			this.selectList.reveal(this.selectList.getFocus()[0]);
-			this._onDidSelect.fire({
-				index: this.selectElement.selectedIndex,
-				selected: this.selectElement.title
-			});
 
-			this.hideSelectDropDown();
-			event.preventDefault();
-			event.stopPropagation();
+			// Set final container height after adjustments
+			this.selectDropDownContainer.style.height = (listHeight + totalVerticalListPadding) + 'px';
+
+			// Determine optimal width - min(longest option), opt(parent select), max(ContextView controlled)
+			const selectMinWidth = this.setWidthControlElement(this.widthControlElement);
+			const selectOptimalWidth = Math.max(selectMinWidth, Math.round(selectWidth)).toString() + 'px';
+
+			this.selectDropDownContainer.style.minWidth = selectOptimalWidth;
+
+			// Maintain focus outline on parent select as well as list container - tabindex for focus
+			this.selectDropDownListContainer.setAttribute('tabindex', '0');
+			dom.toggleClass(this.selectElement, 'synthetic-focus', true);
+			dom.toggleClass(this.selectDropDownContainer, 'synthetic-focus', true);
 		}
 	}
-
-	private onListBlur(): void {
-		console.debug('ListBlur');
-		this.hideSelectDropDown();
-	}
-
 
 	private setWidthControlElement(container: HTMLElement): number {
-
 		let elementWidth = 0;
+
 		if (container && !!this.options) {
 			let longest = 0;
 
 			for (var index = 0; index < this.options.length; index++) {
-				// console.debug('options push');
 				if (this.options[index].length > this.options[longest].length) {
 					longest = index;
 				}
@@ -587,18 +501,78 @@ export class SelectBox extends Widget {
 		target.style.fontSize = fontSize;
 	}
 
-	private onEscape(e: StandardKeyboardEvent): void {
-		e.preventDefault();
-		e.stopPropagation();
+	private createSelectList(parent: HTMLElement): void {
 
-		this.hideSelectDropDown();
-		this.selectElement.focus();
+		// SetUp container for list
+		this.selectDropDownListContainer = dom.append(parent, $('.selectbox-dropdown-list-container'));
+
+		this.listRenderer = new SelectListRenderer();
+
+		this.selectList = new List(this.selectDropDownListContainer, this, [this.listRenderer], {
+			useShadows: false,
+			selectOnMouseDown: true,
+			verticalScrollMode: ScrollbarVisibility.Visible,
+			keyboardSupport: false,
+		});
+
+		// SetUp list keyboard controller - control navigation, disabled items, focus
+		const onSelectDropDownKeyDown = chain(domEvent(this.selectDropDownListContainer, 'keydown'))
+			.filter(() => this.selectList.length > 0)
+			.map(e => new StandardKeyboardEvent(e));
+
+		onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.Enter).on(e => this.onEnter(e), this, this.toDispose);
+		onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.Escape).on(e => this.onEscape(e), this, this.toDispose);
+		onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.UpArrow).on(this.onUpArrow, this, this.toDispose);
+		onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.DownArrow).on(this.onDownArrow, this, this.toDispose);
+		// Operate as Modal ContextView - prevent other keyboard actions
+		onSelectDropDownKeyDown.filter(e => true).on(e => { e.stopPropagation(); e.preventDefault(); }, this, this.toDispose);
+
+		this.toDispose.push(this.selectList.onSelectionChange(e => this.onListSelection(e)));
+		this.toDispose.push(this.selectList.onDOMBlur(e => this.onListBlur()));
+	}
+
+	// List methods
+
+	private onListSelection(e: IListEvent<ISelectOptionItem>): void {
+
+		if (e.indexes[0] !== undefined) {
+			this.selected = e.indexes[0];
+			this.select(this.selected);
+
+			this.selectList.setFocus([this.selected]);
+			this.selectList.reveal(this.selectList.getFocus()[0]);
+			this._onDidSelect.fire({
+				index: this.selectElement.selectedIndex,
+				selected: this.selectElement.title
+			});
+
+			this.hideSelectDropDown();
+			event.preventDefault();
+			event.stopPropagation();
+		}
+	}
+
+	private onListBlur(): void {
 
 		this._onDidSelect.fire({
 			index: this.selectElement.selectedIndex,
 			selected: this.selectElement.title
 		});
 
+		this.hideSelectDropDown();
+	}
+
+	// List exit - hide ContextView dropdown, return focus to parent select
+	private onEscape(e: StandardKeyboardEvent): void {
+		e.preventDefault();
+		e.stopPropagation();
+
+		this.hideSelectDropDown();
+		this.selectElement.focus();
+		this._onDidSelect.fire({
+			index: this.selectElement.selectedIndex,
+			selected: this.selectElement.title
+		});
 	}
 
 	private onEnter(e: StandardKeyboardEvent): void {
@@ -613,6 +587,7 @@ export class SelectBox extends Widget {
 		});
 	}
 
+	// List navigation - have to handle a disabled option (jump over)
 	private onDownArrow(): void {
 
 		if (this.selected < this.options.length - 1) {
@@ -622,10 +597,10 @@ export class SelectBox extends Widget {
 			} else {
 				this.selected++;
 			}
-			this.selectElement.selectedIndex = this.selected;
+			this.select(this.selected);
+			// this.selectElement.selectedIndex = this.selected;
 			this.selectList.setFocus([this.selected]);
 			this.selectList.reveal(this.selectList.getFocus()[0]);
-
 		}
 	}
 
@@ -638,12 +613,10 @@ export class SelectBox extends Widget {
 			} else {
 				this.selected--;
 			}
-			this.selectElement.selectedIndex = this.selected;
+			this.select(this.selected);
+			// this.selectElement.selectedIndex = this.selected;
 			this.selectList.setFocus([this.selected]);
 			this.selectList.reveal(this.selectList.getFocus()[0]);
-
 		}
 	}
-
 }
-
