@@ -54,7 +54,7 @@ const extensions = [
 	'scss',
 	'shaderlab',
 	'shellscript',
-	// 'sql', customized, PRs pending
+	'sql',
 	'swift',
 	'typescript',
 	'vb',
