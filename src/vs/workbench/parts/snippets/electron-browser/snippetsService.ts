@@ -182,18 +182,22 @@ class SnippetsService implements ISnippetsService {
 
 			return Promise.all(pending.map(([extension, filepath]) => {
 				return SnippetFile.fromFile(filepath, extension.description.displayName || extension.description.name, true).then(file => {
+					let hasBogousSnippets = false;
 					for (const snippet of file.data) {
 						snippets.push(snippet);
 						bucket.push(snippet);
 
-						if (snippet.isBogous) {
-							// warn about bad tabstop/variable usage
-							extension.collector.warn(localize(
-								'badVariableUse',
-								"The \"{0}\"-snippet very likely confuses snippet-variables and snippet-placeholders. See https://code.visualstudio.com/docs/editor/userdefinedsnippets#_snippet-syntax for more details.",
-								snippet.name
-							));
-						}
+						hasBogousSnippets = hasBogousSnippets || snippet.isBogous;
+
+					}
+
+					// warn about bad tabstop/variable usage
+					if (hasBogousSnippets) {
+						extension.collector.warn(localize(
+							'badVariableUse',
+							"One or more snippets from the extension '{0}' very likely confuse snippet-variables and snippet-placeholders (see https://code.visualstudio.com/docs/editor/userdefinedsnippets#_snippet-syntax for more details)",
+							extension.description.name
+						));
 					}
 
 				}, err => {
@@ -204,7 +208,9 @@ class SnippetsService implements ISnippetsService {
 						filepath
 					));
 				});
-			}));
+			})).then(() => {
+
+			});
 
 		} else {
 			return undefined;
