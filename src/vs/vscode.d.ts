@@ -5198,6 +5198,14 @@ declare module 'vscode' {
 		export let workspaceFolders: WorkspaceFolder[] | undefined;
 
 		/**
+		 * The name of the workspace. `undefined` when no folder
+		 * has been opened.
+		 *
+		 * @readonly
+		 */
+		export let name: string | undefined;
+
+		/**
 		 * An event that is emitted when a workspace folder is added or removed.
 		 */
 		export const onDidChangeWorkspaceFolders: Event<WorkspaceFoldersChangeEvent>;
