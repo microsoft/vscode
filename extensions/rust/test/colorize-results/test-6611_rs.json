@@ -419,13 +419,13 @@
 	},
 	{
 		"c": "foo",
-		"t": "source.rust entity.name.function.rust",
+		"t": "source.rust entity.name.function.rust meta.definition.function.rust",
 		"r": {
-			"dark_plus": "entity.name.function: #DCDCAA",
-			"light_plus": "entity.name.function: #795E26",
+			"dark_plus": "meta.definition.function: #DCDCAA",
+			"light_plus": "meta.definition.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "entity.name.function: #DCDCAA"
+			"hc_black": "meta.definition.function: #DCDCAA"
 		}
 	},
 	{
@@ -529,13 +529,13 @@
 	},
 	{
 		"c": "foo",
-		"t": "source.rust entity.name.function.rust",
+		"t": "source.rust entity.name.function.rust meta.definition.function.rust",
 		"r": {
-			"dark_plus": "entity.name.function: #DCDCAA",
-			"light_plus": "entity.name.function: #795E26",
+			"dark_plus": "meta.definition.function: #DCDCAA",
+			"light_plus": "meta.definition.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "entity.name.function: #DCDCAA"
+			"hc_black": "meta.definition.function: #DCDCAA"
 		}
 	},
 	{
@@ -628,13 +628,13 @@
 	},
 	{
 		"c": "Foo",
-		"t": "source.rust entity.name.type.rust",
+		"t": "source.rust entity.name.type.rust meta.definition.type.rust",
 		"r": {
-			"dark_plus": "entity.name.type: #4EC9B0",
-			"light_plus": "entity.name.type: #267F99",
+			"dark_plus": "meta.definition.type: #4EC9B0",
+			"light_plus": "meta.definition.type: #267F99",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "entity.name.type: #4EC9B0"
+			"hc_black": "meta.definition.type: #4EC9B0"
 		}
 	},
 	{
@@ -716,13 +716,13 @@
 	},
 	{
 		"c": "Foo",
-		"t": "source.rust entity.name.type.rust",
+		"t": "source.rust entity.name.type.rust meta.definition.type.rust",
 		"r": {
-			"dark_plus": "entity.name.type: #4EC9B0",
-			"light_plus": "entity.name.type: #267F99",
+			"dark_plus": "meta.definition.type: #4EC9B0",
+			"light_plus": "meta.definition.type: #267F99",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "entity.name.type: #4EC9B0"
+			"hc_black": "meta.definition.type: #4EC9B0"
 		}
 	},
 	{
