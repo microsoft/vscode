@@ -482,7 +482,7 @@ export class AbstractConfigurationChangeEvent {
 
 	protected updateKeys(configuration: ConfigurationModel, keys: string[], resource?: URI): void {
 		for (const key of keys) {
-			configuration.setValue(key, true);
+			configuration.setValue(key, {});
 		}
 	}
 }
