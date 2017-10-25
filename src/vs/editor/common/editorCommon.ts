@@ -908,7 +908,7 @@ export interface ITokenizedModel extends ITextModel {
 	/**
 	 * @internal
 	 */
-	getLineIndentGuide(lineNumber: number): number;
+	getLinesIndentGuides(startLineNumber: number, endLineNumber: number): number[];
 }
 
 /**

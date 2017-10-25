@@ -79,7 +79,7 @@ export interface IViewModelLinesCollection {
 
 	getViewLineCount(): number;
 	warmUpLookupCache(viewStartLineNumber: number, viewEndLineNumber: number): void;
-	getViewLineIndentGuide(viewLineNumber: number): number;
+	getViewLinesIndentGuides(viewStartLineNumber: number, viewEndLineNumber: number): number[];
 	getViewLineContent(viewLineNumber: number): string;
 	getViewLineMinColumn(viewLineNumber: number): number;
 	getViewLineMaxColumn(viewLineNumber: number): number;
@@ -499,11 +499,63 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		this.prefixSumComputer.warmUpCache(viewStartLineNumber - 1, viewEndLineNumber - 1);
 	}
 
-	public getViewLineIndentGuide(viewLineNumber: number): number {
+	public getViewLinesIndentGuides(viewStartLineNumber: number, viewEndLineNumber: number): number[] {
 		this._ensureValidState();
-		viewLineNumber = this._toValidViewLineNumber(viewLineNumber);
-		let r = this.prefixSumComputer.getIndexOf(viewLineNumber - 1);
-		return this.model.getLineIndentGuide(r.index + 1);
+		viewStartLineNumber = this._toValidViewLineNumber(viewStartLineNumber);
+		viewEndLineNumber = this._toValidViewLineNumber(viewEndLineNumber);
+
+		const modelStart = this.convertViewPositionToModelPosition(viewStartLineNumber, this.getViewLineMinColumn(viewStartLineNumber));
+		const modelEnd = this.convertViewPositionToModelPosition(viewEndLineNumber, this.getViewLineMaxColumn(viewEndLineNumber));
+
+		let result: number[] = [];
+		let resultRepeatCount: number[] = [];
+		const modelStartLineIndex = modelStart.lineNumber - 1;
+		const modelEndLineIndex = modelEnd.lineNumber - 1;
+
+		let reqStart: Position = null;
+		for (let modelLineIndex = modelStartLineIndex; modelLineIndex <= modelEndLineIndex; modelLineIndex++) {
+			const line = this.lines[modelLineIndex];
+			if (line.isVisible()) {
+				let count = 0;
+				if (modelLineIndex === modelStartLineIndex) {
+					let viewLineStartIndex = line.getViewLineNumberOfModelPosition(0, modelStart.column);
+					let viewLineEndIndex = line.getViewLineNumberOfModelPosition(0, this.model.getLineMaxColumn(modelLineIndex + 1));
+					count = viewLineEndIndex - viewLineStartIndex + 1;
+				} else {
+					let viewLineStartIndex = line.getViewLineNumberOfModelPosition(0, 1);
+					let viewLineEndIndex = line.getViewLineNumberOfModelPosition(0, this.model.getLineMaxColumn(modelLineIndex + 1));
+					count = viewLineEndIndex - viewLineStartIndex + 1;
+				}
+				resultRepeatCount.push(count);
+				// merge into previous request
+				if (reqStart === null) {
+					reqStart = new Position(modelLineIndex + 1, 0);
+				}
+			} else {
+				// hit invisible line => flush request
+				if (reqStart !== null) {
+					result = result.concat(this.model.getLinesIndentGuides(reqStart.lineNumber, modelLineIndex));
+					reqStart = null;
+				}
+			}
+		}
+
+		if (reqStart !== null) {
+			result = result.concat(this.model.getLinesIndentGuides(reqStart.lineNumber, modelEnd.lineNumber));
+			reqStart = null;
+		}
+
+		const viewLineCount = viewEndLineNumber - viewStartLineNumber + 1;
+		let viewIndents = new Array<number>(viewLineCount);
+		let currIndex = 0;
+		for (let i = 0, len = result.length; i < len; i++) {
+			let value = result[i];
+			let count = Math.min(viewLineCount - currIndex, resultRepeatCount[i]);
+			for (let j = 0; j < count; j++) {
+				viewIndents[currIndex++] = value;
+			}
+		}
+		return viewIndents;
 	}
 
 	public getViewLineContent(viewLineNumber: number): string {
@@ -1149,8 +1201,13 @@ export class IdentityLinesCollection implements IViewModelLinesCollection {
 	public warmUpLookupCache(viewStartLineNumber: number, viewEndLineNumber: number): void {
 	}
 
-	public getViewLineIndentGuide(viewLineNumber: number): number {
-		return 0;
+	public getViewLinesIndentGuides(viewStartLineNumber: number, viewEndLineNumber: number): number[] {
+		const viewLineCount = viewEndLineNumber - viewStartLineNumber + 1;
+		let result = new Array<number>(viewLineCount);
+		for (let i = 0; i < viewLineCount; i++) {
+			result[i] = 0;
+		}
+		return result;
 	}
 
 	public getViewLineContent(viewLineNumber: number): string {

@@ -855,6 +855,14 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		return this._getIndentRanges();
 	}
 
+	public getLinesIndentGuides(startLineNumber: number, endLineNumber: number): number[] {
+		let result: number[] = [];
+		for (let j = startLineNumber; j <= endLineNumber; j++) {
+			result[j - startLineNumber] = this.getLineIndentGuide(j);
+		}
+		return result;
+	}
+
 	public getLineIndentGuide(lineNumber: number): number {
 		this._assertNotDisposed();
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {

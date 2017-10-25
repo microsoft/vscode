@@ -136,15 +136,17 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 			assert.equal(linesCollection.getViewLineCount(), 6);
 
 			// getOutputIndentGuide
-			assert.equal(linesCollection.getViewLineIndentGuide(-1), 0);
-			assert.equal(linesCollection.getViewLineIndentGuide(0), 0);
-			assert.equal(linesCollection.getViewLineIndentGuide(1), 0);
-			assert.equal(linesCollection.getViewLineIndentGuide(2), 1);
-			assert.equal(linesCollection.getViewLineIndentGuide(3), 0);
-			assert.equal(linesCollection.getViewLineIndentGuide(4), 0);
-			assert.equal(linesCollection.getViewLineIndentGuide(5), 1);
-			assert.equal(linesCollection.getViewLineIndentGuide(6), 0);
-			assert.equal(linesCollection.getViewLineIndentGuide(7), 0);
+			assert.deepEqual(linesCollection.getViewLinesIndentGuides(-1, -1), [0]);
+			assert.deepEqual(linesCollection.getViewLinesIndentGuides(0, 0), [0]);
+			assert.deepEqual(linesCollection.getViewLinesIndentGuides(1, 1), [0]);
+			assert.deepEqual(linesCollection.getViewLinesIndentGuides(2, 2), [1]);
+			assert.deepEqual(linesCollection.getViewLinesIndentGuides(3, 3), [0]);
+			assert.deepEqual(linesCollection.getViewLinesIndentGuides(4, 4), [0]);
+			assert.deepEqual(linesCollection.getViewLinesIndentGuides(5, 5), [1]);
+			assert.deepEqual(linesCollection.getViewLinesIndentGuides(6, 6), [0]);
+			assert.deepEqual(linesCollection.getViewLinesIndentGuides(7, 7), [0]);
+
+			assert.deepEqual(linesCollection.getViewLinesIndentGuides(0, 7), [0, 1, 0, 0, 1, 0]);
 
 			// getOutputLineContent
 			assert.equal(linesCollection.getViewLineContent(-1), 'int main() {');
