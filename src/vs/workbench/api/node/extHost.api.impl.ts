@@ -397,11 +397,11 @@ export function createApiFactory(
 			get workspaceFolders() {
 				return extHostWorkspace.getWorkspaceFolders();
 			},
-			addWorkspaceFolders(folders) {
-				return extHostWorkspace.addWorkspaceFolders(folders);
+			addWorkspaceFolder(uri, name) {
+				return extHostWorkspace.addWorkspaceFolder(uri, name);
 			},
-			removeWorkspaceFolders(folders) {
-				return extHostWorkspace.removeWorkspaceFolders(folders);
+			removeWorkspaceFolder(folder) {
+				return extHostWorkspace.removeWorkspaceFolder(folder);
 			},
 			onDidChangeWorkspaceFolders: function (listener, thisArgs?, disposables?) {
 				return extHostWorkspace.onDidChangeWorkspace(listener, thisArgs, disposables);

@@ -5199,20 +5199,20 @@ declare module 'vscode' {
 		export const onDidChangeWorkspaceFolders: Event<WorkspaceFoldersChangeEvent>;
 
 		/**
-		 * Adds workspace folders to the currently opened workspace. Will ignore workspace
-		 * folders that are already part of the workspace.
+		 * Adds a workspac folder to the currently opened workspace.
+		 *
+		 * This method will be a no-op if the folder is already part of the workspace.
 		 *
 		 * Note: if this workspace had no folder opened, all extensions will be restarted
 		 * so that the (deprecated) `rootPath` property is updated to point to the first workspace
 		 * folder.
 		 *
-		 * @param folders a list of workspace folders to add.
+		 * @param folder a workspace folder to add.
 		 */
-		export function addWorkspaceFolders(folders: { uri: Uri, name?: string }[]): Thenable<void>;
+		export function addWorkspaceFolder(uri: Uri, name?: string): Thenable<void>;
 
 		/**
-		 * Removes workspace folders from the currently opened workspace if they are part of the
-		 * workspace.
+		 * Remove a workspace folder from the currently opened workspace.
 		 *
 		 * This method will be a no-op when called while not having a workspace opened.
 		 *
@@ -5220,9 +5220,9 @@ declare module 'vscode' {
 		 * so that the (deprecated) `rootPath` property is updated to point to the first workspace
 		 * folder.
 		 *
-		 * @param folders a list of [workspace folders](#WorkspaceFolder) to remove.
+		 * @param folder a [workspace folder](#WorkspaceFolder) to remove.
 		 */
-		export function removeWorkspaceFolders(folders: WorkspaceFolder[]): Thenable<void>;
+		export function removeWorkspaceFolder(folder: WorkspaceFolder): Thenable<void>;
 
 		/**
 		 * Returns the [workspace folder](#WorkspaceFolder) that contains a given uri.
