@@ -139,12 +139,15 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		// Stop the extension host first to give extensions most time to shutdown
 		this.extensionService.stopExtensionHost();
 
-		return mainSidePromise().then(result => {
-			let enterWorkspacePromise: TPromise<void> = TPromise.as(void 0);
-			if (result) {
+		const startExtensionHost = () => {
+			this.extensionService.startExtensionHost();
+		};
 
-				// Migrate storage and settings
-				enterWorkspacePromise = this.migrate(result.workspace).then(() => {
+		return mainSidePromise().then(result => {
+
+			// Migrate storage and settings if we are to enter a workspace
+			if (result) {
+				return this.migrate(result.workspace).then(() => {
 
 					// Reinitialize backup service
 					const backupFileService = this.backupFileService as BackupFileService; // TODO@Ben ugly cast
@@ -156,9 +159,8 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 				});
 			}
 
-			// Finally bring the extension host back online
-			return enterWorkspacePromise.then(() => this.extensionService.startExtensionHost());
-		});
+			return TPromise.as(void 0);
+		}).then(startExtensionHost, startExtensionHost); // in any case start the extension host again!
 	}
 
 	private migrate(toWorkspace: IWorkspaceIdentifier): TPromise<void> {
