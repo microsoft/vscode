@@ -55,3 +55,11 @@
 	text-align: right;
 	padding: 0 12px 0 5px;
 }
+
+.focused .selected .monaco-icon-label, /* tree */
+.focused .selected .monaco-icon-label::after,
+.focused.selected .monaco-icon-label, /* list */
+.focused.selected .monaco-icon-label::after
+{
+	color: inherit !important;
+}
