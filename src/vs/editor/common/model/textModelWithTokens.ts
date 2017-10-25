@@ -856,70 +856,94 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	}
 
 	public getLinesIndentGuides(startLineNumber: number, endLineNumber: number): number[] {
-		let result: number[] = [];
-		for (let j = startLineNumber; j <= endLineNumber; j++) {
-			result[j - startLineNumber] = this.getLineIndentGuide(j);
+		this._assertNotDisposed();
+		const lineCount = this.getLineCount();
+
+		if (startLineNumber < 1 || startLineNumber > lineCount) {
+			throw new Error('Illegal value ' + startLineNumber + ' for `startLineNumber`');
+		}
+		if (endLineNumber < 1 || endLineNumber > lineCount) {
+			throw new Error('Illegal value ' + endLineNumber + ' for `endLineNumber`');
+		}
+
+		const foldingRules = LanguageConfigurationRegistry.getFoldingRules(this._languageIdentifier.id);
+		const offSide = foldingRules && foldingRules.offSide;
+
+		let result: number[] = new Array<number>(endLineNumber - startLineNumber + 1);
+
+		let aboveContentLineIndex = -2; /* -2 is a marker for not having computed it */
+		let aboveContentLineIndent = -1;
+
+		let belowContentLineIndex = -2; /* -2 is a marker for not having computed it */
+		let belowContentLineIndent = -1;
+
+		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
+			let resultIndex = lineNumber - startLineNumber;
+
+			const currentIndent = this._lines[lineNumber - 1].getIndentLevel();
+			if (currentIndent >= 0) {
+				// This line has content (besides whitespace)
+				// Use the line's indent
+				aboveContentLineIndex = lineNumber - 1;
+				aboveContentLineIndent = currentIndent;
+				result[resultIndex] = Math.ceil(currentIndent / this._options.tabSize);
+				continue;
+			}
+
+			if (aboveContentLineIndex === -2) {
+				aboveContentLineIndex = -1;
+				aboveContentLineIndent = -1;
+
+				// must find previous line with content
+				for (let lineIndex = lineNumber - 2; lineIndex >= 0; lineIndex--) {
+					let indent = this._lines[lineIndex].getIndentLevel();
+					if (indent >= 0) {
+						aboveContentLineIndex = lineIndex;
+						aboveContentLineIndent = indent;
+						break;
+					}
+				}
+			}
+
+			if (belowContentLineIndex === -2 || belowContentLineIndex < lineNumber - 1) {
+				belowContentLineIndex = -1;
+				belowContentLineIndent = -1;
+
+				// must find next line with content
+				for (let lineIndex = lineNumber; lineIndex < lineCount; lineIndex++) {
+					let indent = this._lines[lineIndex].getIndentLevel();
+					if (indent >= 0) {
+						belowContentLineIndex = lineIndex;
+						belowContentLineIndent = indent;
+						break;
+					}
+				}
+			}
+
+			if (aboveContentLineIndent === -1 || belowContentLineIndent === -1) {
+				// At the top or bottom of the file
+				result[resultIndex] = 0;
+
+			} else if (aboveContentLineIndent < belowContentLineIndent) {
+				// we are inside the region above
+				result[resultIndex] = (1 + Math.floor(aboveContentLineIndent / this._options.tabSize));
+
+			} else if (aboveContentLineIndent === belowContentLineIndent) {
+				// we are in between two regions
+				result[resultIndex] = Math.ceil(belowContentLineIndent / this._options.tabSize);
+
+			} else {
+
+				if (offSide) {
+					// same level as region below
+					result[resultIndex] = Math.ceil(belowContentLineIndent / this._options.tabSize);
+				} else {
+					// we are inside the region that ends below
+					result[resultIndex] = (1 + Math.floor(belowContentLineIndent / this._options.tabSize));
+				}
+
+			}
 		}
 		return result;
 	}
-
-	public getLineIndentGuide(lineNumber: number): number {
-		this._assertNotDisposed();
-		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
-			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
-		}
-
-		const currentIndent = this._lines[lineNumber - 1].getIndentLevel();
-		if (currentIndent >= 0) {
-			// This line has content (besides whitespace)
-			// Use the line's indent
-			return Math.ceil(currentIndent / this._options.tabSize);
-		}
-
-		let belowIndent = -1;
-		for (let lineIndex = lineNumber, lineCount = this.getLineCount(); lineIndex < lineCount; lineIndex++) {
-			let indent = this._lines[lineIndex].getIndentLevel();
-			if (indent >= 0) {
-				belowIndent = indent;
-				break;
-			}
-
-		}
-
-		let aboveIndent = -1;
-		for (let lineIndex = lineNumber - 2; lineIndex >= 0; lineIndex--) {
-			let indent = this._lines[lineIndex].getIndentLevel();
-			if (indent >= 0) {
-				aboveIndent = indent;
-				break;
-			}
-		}
-
-		if (aboveIndent === -1 || belowIndent === -1) {
-			// At the top or bottom of the file
-			return 0;
-		}
-
-		if (aboveIndent < belowIndent) {
-			// we are inside the region above
-			return (1 + Math.floor(aboveIndent / this._options.tabSize));
-		}
-
-		if (aboveIndent === belowIndent) {
-			// we are in between two regions
-			return Math.ceil(belowIndent / this._options.tabSize);
-		}
-
-		let foldingRules = LanguageConfigurationRegistry.getFoldingRules(this._languageIdentifier.id);
-		let offSide = foldingRules && foldingRules.offSide;
-		if (offSide) {
-			// same level as region below
-			return Math.ceil(belowIndent / this._options.tabSize);
-		} else {
-			// we are inside the region that ends below
-			return (1 + Math.floor(belowIndent / this._options.tabSize));
-		}
-	}
-
-
 }

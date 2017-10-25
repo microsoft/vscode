@@ -365,9 +365,11 @@ suite('TextModel.getLineIndentGuide', () => {
 		let text = lines.map(l => l[1]).join('\n');
 		let model = Model.createFromString(text);
 
+		let actualIndents = model.getLinesIndentGuides(1, model.getLineCount());
+
 		let actual: [number, string][] = [];
 		for (let line = 1; line <= model.getLineCount(); line++) {
-			actual[line - 1] = [model.getLineIndentGuide(line), model.getLineContent(line)];
+			actual[line - 1] = [actualIndents[line - 1], model.getLineContent(line)];
 		}
 
 		// let expected = lines.map(l => l[0]);
