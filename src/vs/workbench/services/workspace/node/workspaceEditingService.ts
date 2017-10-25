@@ -84,7 +84,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		// we close the workspace and enter the empty workspace state for the window.
 		if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 			const workspaceFolder = this.contextService.getWorkspace().folders[0];
-			if (foldersToRemove.some(folder => isEqual(folder, workspaceFolder.uri, isLinux))) {
+			if (foldersToRemove.some(folder => isEqual(folder, workspaceFolder.uri, !isLinux))) {
 				return this.windowService.closeWorkspace();
 			}
 		}
