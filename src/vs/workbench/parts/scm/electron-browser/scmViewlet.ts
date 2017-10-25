@@ -45,7 +45,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IExtensionsViewlet, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/parts/extensions/common/extensions';
-import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Command } from 'vs/editor/common/modes';
@@ -753,7 +753,21 @@ export class RepositoryPanel extends ViewletPanel {
 			this.inputBox.setPlaceHolder(placeholder);
 		};
 
-		this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, { flexibleHeight: true });
+		this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, {
+			flexibleHeight: true,
+			validationOptions: {
+				validation: (text: string) => {
+					const charactersLeft = 72 - text.length;
+					if (text.length > 72) {
+						return { content: `${charactersLeft} characters left`, type: MessageType.ERROR };
+					} else if (text.length > 55) {
+						return { content: `${charactersLeft} characters left`, type: MessageType.WARNING };
+					} else {
+						return { content: `${charactersLeft} characters left`, type: MessageType.INFO };
+					}
+				}
+			}
+		});
 		this.disposables.push(attachInputBoxStyler(this.inputBox, this.themeService));
 		this.disposables.push(this.inputBox);
 
