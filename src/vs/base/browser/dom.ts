@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as platform from 'vs/base/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -1063,9 +1064,14 @@ export function computeScreenAwareSize(cssPx: number): number {
  * See https://mathiasbynens.github.io/rel-noopener/
  */
 export function windowOpenNoOpener(url: string): void {
-	let newTab = window.open();
-	if (newTab) {
-		newTab.opener = null;
-		newTab.location.href = url;
+	if (platform.isNative) {
+		// In VSCode, window.open() always returns null...
+		window.open(url);
+	} else {
+		let newTab = window.open();
+		if (newTab) {
+			newTab.opener = null;
+			newTab.location.href = url;
+		}
 	}
 }
