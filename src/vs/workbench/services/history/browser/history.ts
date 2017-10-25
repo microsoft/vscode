@@ -10,7 +10,7 @@ import errors = require('vs/base/common/errors');
 import URI from 'vs/base/common/uri';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { IEditor as IBaseEditor, IEditorInput, ITextEditorOptions, IResourceInput, ITextEditorSelection, Position as GroupPosition } from 'vs/platform/editor/common/editor';
-import { Extensions as EditorExtensions, EditorInput, IEditorCloseEvent, IEditorGroup, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
+import { Extensions as EditorExtensions, EditorInput, IEditorCloseEvent, IEditorGroup, IEditorInputFactoryRegistry, toResource } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { FileChangesEvent, IFileService, FileChangeType, FILES_EXCLUDE_CONFIG } from 'vs/platform/files/common/files';
@@ -776,12 +776,25 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}).filter(input => !!input);
 	}
 
-	public getLastActiveWorkspaceRoot(): URI {
+	public getLastActiveWorkspaceRoot(schemeFilter?: string): URI {
+
+		// No Folder: return early
 		const folders = this.contextService.getWorkspace().folders;
 		if (folders.length === 0) {
 			return void 0;
 		}
 
+		// Single Folder: return early
+		if (folders.length === 1) {
+			const resource = folders[0].uri;
+			if (!schemeFilter || resource.scheme === schemeFilter) {
+				return resource;
+			}
+
+			return void 0;
+		}
+
+		// Multiple folders: find the last active one
 		const history = this.getHistory();
 		for (let i = 0; i < history.length; i++) {
 			const input = history[i];
@@ -790,13 +803,44 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 			}
 
 			const resourceInput = input as IResourceInput;
+			if (schemeFilter && resourceInput.resource.scheme !== schemeFilter) {
+				continue;
+			}
+
 			const resourceWorkspace = this.contextService.getWorkspaceFolder(resourceInput.resource);
 			if (resourceWorkspace) {
 				return resourceWorkspace.uri;
 			}
 		}
 
-		// fallback to first workspace
-		return folders[0].uri;
+		// fallback to first workspace matching scheme filter if any
+		for (let i = 0; i < folders.length; i++) {
+			const resource = folders[i].uri;
+			if (!schemeFilter || resource.scheme === schemeFilter) {
+				return resource;
+			}
+		}
+
+		return void 0;
+	}
+
+	public getLastActiveFile(): URI {
+		const history = this.getHistory();
+		for (let i = 0; i < history.length; i++) {
+			let resource: URI;
+
+			const input = history[i];
+			if (input instanceof EditorInput) {
+				resource = toResource(input, { filter: 'file' });
+			} else {
+				resource = (input as IResourceInput).resource;
+			}
+
+			if (resource && resource.scheme === 'file') {
+				return resource;
+			}
+		}
+
+		return void 0;
 	}
 }

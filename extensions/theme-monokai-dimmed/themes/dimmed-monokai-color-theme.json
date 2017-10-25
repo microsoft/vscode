@@ -52,7 +52,10 @@
 			}
 		},
 		{
-			"scope": ["meta.embedded", "source.groovy.embedded"],
+			"scope": [
+				"meta.embedded",
+				"source.groovy.embedded"
+			],
 			"settings": {
 				"background": "#1e1e1e",
 				"foreground": "#C5C8C6"
@@ -62,7 +65,7 @@
 			"name": "Comment",
 			"scope": "comment",
 			"settings": {
-				"fontStyle": "\n        ",
+				"fontStyle": "",
 				"foreground": "#9A9B99"
 			}
 		},
@@ -70,7 +73,7 @@
 			"name": "String",
 			"scope": "string",
 			"settings": {
-				"fontStyle": "\n    \t\t\t",
+				"fontStyle": "",
 				"foreground": "#9AA83A"
 			}
 		},
@@ -78,7 +81,7 @@
 			"name": "String Embedded Source",
 			"scope": "string source",
 			"settings": {
-				"fontStyle": "\n    \t\t\t",
+				"fontStyle": "",
 				"foreground": "#D08442"
 			}
 		},
@@ -86,7 +89,7 @@
 			"name": "Number",
 			"scope": "constant.numeric",
 			"settings": {
-				"fontStyle": "\n    \t\t\t",
+				"fontStyle": "",
 				"foreground": "#6089B4"
 			}
 		},
@@ -94,7 +97,7 @@
 			"name": "Built-in constant",
 			"scope": "constant.language",
 			"settings": {
-				"fontStyle": "\n    \t\t\t",
+				"fontStyle": "",
 				"foreground": "#408080"
 			}
 		},
@@ -102,7 +105,7 @@
 			"name": "User-defined constant",
 			"scope": "constant.character, constant.other",
 			"settings": {
-				"fontStyle": "\n    \t\t\t",
+				"fontStyle": "",
 				"foreground": "#8080FF",
 				"background": "#1e1e1e"
 			}
@@ -111,7 +114,7 @@
 			"name": "Keyword",
 			"scope": "keyword",
 			"settings": {
-				"fontStyle": "\n    \t\t\t",
+				"fontStyle": "",
 				"foreground": "#6089B4"
 			}
 		},
@@ -119,7 +122,7 @@
 			"name": "Support",
 			"scope": "support",
 			"settings": {
-				"fontStyle": "\n    \t\t\t",
+				"fontStyle": "",
 				"foreground": "#C7444A"
 			}
 		},
@@ -127,7 +130,7 @@
 			"name": "Storage",
 			"scope": "storage",
 			"settings": {
-				"fontStyle": "\n    \t\t\t",
+				"fontStyle": "",
 				"foreground": "#9872A2"
 			}
 		},
@@ -135,7 +138,7 @@
 			"name": "Class name",
 			"scope": "entity.name.class, entity.name.type",
 			"settings": {
-				"fontStyle": "\n   \t\t\t \t",
+				"fontStyle": "",
 				"foreground": "#9B0000",
 				"background": "#1E1E1E"
 			}
@@ -144,7 +147,7 @@
 			"name": "Inherited class",
 			"scope": "entity.other.inherited-class",
 			"settings": {
-				"fontStyle": "\n    \t\t\t",
+				"fontStyle": "",
 				"foreground": "#C7444A"
 			}
 		},
@@ -152,7 +155,7 @@
 			"name": "Function name",
 			"scope": "entity.name.function",
 			"settings": {
-				"fontStyle": "\n    \t\t\t",
+				"fontStyle": "",
 				"foreground": "#CE6700"
 			}
 		},
@@ -160,7 +163,7 @@
 			"name": "Function argument",
 			"scope": "variable.parameter",
 			"settings": {
-				"fontStyle": "\n    \t\t\t",
+				"fontStyle": "",
 				"foreground": "#6089B4"
 			}
 		},
@@ -168,7 +171,7 @@
 			"name": "Tag name",
 			"scope": "entity.name.tag",
 			"settings": {
-				"fontStyle": "\n    \t\t\t",
+				"fontStyle": "",
 				"foreground": "#9872A2"
 			}
 		},
@@ -176,7 +179,7 @@
 			"name": "Tag attribute",
 			"scope": "entity.other.attribute-name",
 			"settings": {
-				"fontStyle": "\n    \t\t\t",
+				"fontStyle": "",
 				"foreground": "#9872A2"
 			}
 		},
@@ -184,7 +187,7 @@
 			"name": "Library function",
 			"scope": "support.function",
 			"settings": {
-				"fontStyle": "\n    \t\t\t",
+				"fontStyle": "",
 				"foreground": "#9872A2"
 			}
 		},
@@ -192,7 +195,7 @@
 			"name": "Keyword",
 			"scope": "keyword",
 			"settings": {
-				"fontStyle": "\n   \t\t\t\t",
+				"fontStyle": "",
 				"foreground": "#676867"
 			}
 		},
@@ -200,7 +203,7 @@
 			"name": "Class Variable",
 			"scope": "variable.other, variable.js, punctuation.separator.variable",
 			"settings": {
-				"fontStyle": "\n    \t\t\t",
+				"fontStyle": "",
 				"foreground": "#6089B4"
 			}
 		},
@@ -208,7 +211,7 @@
 			"name": "Language Constant",
 			"scope": "constant.language",
 			"settings": {
-				"fontStyle": "\n    \t\t\t",
+				"fontStyle": "",
 				"foreground": "#FF0080"
 			}
 		},
@@ -216,7 +219,7 @@
 			"name": "Meta Brace",
 			"scope": "punctuation.section.embedded -(source string source punctuation.section.embedded), meta.brace.erb.html",
 			"settings": {
-				"fontStyle": "\n    \t\t\t",
+				"fontStyle": "",
 				"foreground": "#008200"
 			}
 		},
@@ -224,7 +227,7 @@
 			"name": "Invalid",
 			"scope": "invalid",
 			"settings": {
-				"fontStyle": "\n    \t\t\t",
+				"fontStyle": "",
 				"foreground": "#FF0B00"
 			}
 		},
@@ -232,7 +235,7 @@
 			"name": "Normal Variable",
 			"scope": "variable.other.php, variable.other.normal",
 			"settings": {
-				"fontStyle": "\n    \t\t\t",
+				"fontStyle": "",
 				"foreground": "#6089B4"
 			}
 		},
@@ -240,7 +243,7 @@
 			"name": "Function Object",
 			"scope": "meta.function-call.object",
 			"settings": {
-				"fontStyle": "\n    \t\t\t",
+				"fontStyle": "",
 				"foreground": "#9872A2"
 			}
 		},
@@ -248,7 +251,7 @@
 			"name": "Function Call Variable",
 			"scope": "variable.other.property",
 			"settings": {
-				"fontStyle": "\n    \t\t\t",
+				"fontStyle": "",
 				"foreground": "#9872A2"
 			}
 		},
@@ -256,7 +259,7 @@
 			"name": "Keyword Control",
 			"scope": "keyword.control",
 			"settings": {
-				"fontStyle": "\n    \t\t\t",
+				"fontStyle": "",
 				"foreground": "#9872A2"
 			}
 		},
@@ -264,7 +267,7 @@
 			"name": "Tag",
 			"scope": "meta.tag",
 			"settings": {
-				"fontStyle": "\n    \t\t\t",
+				"fontStyle": "",
 				"foreground": "#D0B344"
 			}
 		},
@@ -272,7 +275,7 @@
 			"name": "Tag Name",
 			"scope": "entity.name.tag",
 			"settings": {
-				"fontStyle": "\n    \t\t\t",
+				"fontStyle": "",
 				"foreground": "#6089B4"
 			}
 		},
@@ -280,7 +283,7 @@
 			"name": "Doctype",
 			"scope": "meta.doctype, meta.tag.sgml-declaration.doctype, meta.tag.sgml.doctype",
 			"settings": {
-				"fontStyle": "\n    \t\t\t",
+				"fontStyle": "",
 				"foreground": "#9AA83A"
 			}
 		},
@@ -288,7 +291,7 @@
 			"name": "Tag Inline Source",
 			"scope": "meta.tag.inline source, text.html.php.source",
 			"settings": {
-				"fontStyle": "\n    \t\t\t",
+				"fontStyle": "",
 				"foreground": "#9AA83A"
 			}
 		},
@@ -296,7 +299,7 @@
 			"name": "Tag Other",
 			"scope": "meta.tag.other, entity.name.tag.style, entity.name.tag.script, meta.tag.block.script, source.js.embedded punctuation.definition.tag.html, source.css.embedded punctuation.definition.tag.html",
 			"settings": {
-				"fontStyle": "\n    \t\t\t",
+				"fontStyle": "",
 				"foreground": "#9872A2"
 			}
 		},
@@ -304,7 +307,7 @@
 			"name": "Tag Attribute",
 			"scope": "entity.other.attribute-name, meta.tag punctuation.definition.string",
 			"settings": {
-				"fontStyle": "\n    \t\t\t",
+				"fontStyle": "",
 				"foreground": "#D0B344"
 			}
 		},
@@ -312,7 +315,7 @@
 			"name": "Tag Value",
 			"scope": "meta.tag string -source -punctuation, text source text meta.tag string -punctuation",
 			"settings": {
-				"fontStyle": "\n    \t\t\t",
+				"fontStyle": "",
 				"foreground": "#6089B4"
 			}
 		},
@@ -320,7 +323,7 @@
 			"name": "Meta Brace",
 			"scope": "punctuation.section.embedded -(source string source punctuation.section.embedded), meta.brace.erb.html",
 			"settings": {
-				"fontStyle": "\n    \t\t\t",
+				"fontStyle": "",
 				"foreground": "#D0B344"
 			}
 		},
@@ -335,7 +338,7 @@
 			"name": "HTML String",
 			"scope": "string.quoted.double.html, punctuation.definition.string.begin.html, punctuation.definition.string.end.html",
 			"settings": {
-				"fontStyle": "\n    \t\t\t",
+				"fontStyle": "",
 				"foreground": "#9AA83A"
 			}
 		},
@@ -343,7 +346,7 @@
 			"name": "HTML Tags",
 			"scope": "punctuation.definition.tag.html, punctuation.definition.tag.begin, punctuation.definition.tag.end",
 			"settings": {
-				"fontStyle": "\n    \t\t\t",
+				"fontStyle": "",
 				"foreground": "#6089B4"
 			}
 		},
@@ -351,7 +354,7 @@
 			"name": "CSS ID",
 			"scope": "meta.selector.css entity.other.attribute-name.id",
 			"settings": {
-				"fontStyle": "\n    \t\t\t",
+				"fontStyle": "",
 				"foreground": "#9872A2"
 			}
 		},
@@ -359,7 +362,7 @@
 			"name": "CSS Property Name",
 			"scope": "support.type.property-name.css",
 			"settings": {
-				"fontStyle": "\n    \t\t\t",
+				"fontStyle": "",
 				"foreground": "#676867"
 			}
 		},
@@ -367,7 +370,7 @@
 			"name": "CSS Property Value",
 			"scope": "meta.property-group support.constant.property-value.css, meta.property-value support.constant.property-value.css",
 			"settings": {
-				"fontStyle": "\n    \t\t\t",
+				"fontStyle": "",
 				"foreground": "#C7444A"
 			}
 		},
@@ -401,7 +404,7 @@
 			"name": "PHP Function Call",
 			"scope": "meta.function-call.object.php",
 			"settings": {
-				"fontStyle": "\n    \t\t\t",
+				"fontStyle": "",
 				"foreground": "#D0B344"
 			}
 		},
@@ -423,7 +426,7 @@
 			"name": "PHP Punctuation Embedded",
 			"scope": "punctuation.section.embedded.begin.php, punctuation.section.embedded.end.php",
 			"settings": {
-				"fontStyle": "\n    \t\t\t",
+				"fontStyle": "",
 				"foreground": "#D08442"
 			}
 		},
@@ -431,7 +434,7 @@
 			"name": "Ruby Symbol",
 			"scope": "constant.other.symbol.ruby",
 			"settings": {
-				"fontStyle": "\n    \t\t\t",
+				"fontStyle": "",
 				"foreground": "#9AA83A"
 			}
 		},
@@ -439,7 +442,7 @@
 			"name": "Ruby Variable",
 			"scope": "variable.language.ruby",
 			"settings": {
-				"fontStyle": "\n    \t\t\t",
+				"fontStyle": "",
 				"foreground": "#D0B344"
 			}
 		},
@@ -447,7 +450,7 @@
 			"name": "Ruby Special Method",
 			"scope": "keyword.other.special-method.ruby",
 			"settings": {
-				"fontStyle": "\n    \t\t\t",
+				"fontStyle": "",
 				"foreground": "#D9B700"
 			}
 		},
@@ -455,7 +458,8 @@
 			"name": "Ruby Embedded Source",
 			"scope": [
 				"punctuation.section.embedded.begin.ruby",
-				"punctuation.section.embedded.end.ruby"],
+				"punctuation.section.embedded.end.ruby"
+			],
 			"settings": {
 				"foreground": "#D08442"
 			}
@@ -464,7 +468,7 @@
 			"name": "SQL",
 			"scope": "keyword.other.DML.sql",
 			"settings": {
-				"fontStyle": "\n   \t\t\t\t",
+				"fontStyle": "",
 				"foreground": "#D0B344"
 			}
 		},

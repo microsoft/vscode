@@ -22,7 +22,7 @@ import { getWordAtText } from 'vs/editor/common/model/wordHelper';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { ITextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
-import { IndentRange, computeRanges } from 'vs/editor/common/model/indentRanges';
+import { IndentRanges, computeRanges } from 'vs/editor/common/model/indentRanges';
 
 class ModelTokensChangedEventBuilder {
 
@@ -70,7 +70,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	private _invalidLineStartIndex: number;
 	private _lastState: IState;
 
-	private _indentRanges: IndentRange[];
+	private _indentRanges: IndentRanges;
 	private _languageRegistryListener: IDisposable;
 
 	private _revalidateTokensTimeout: number;
@@ -841,7 +841,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		this._indentRanges = null;
 	}
 
-	private _getIndentRanges(): IndentRange[] {
+	private _getIndentRanges(): IndentRanges {
 		if (!this._indentRanges) {
 			let foldingRules = LanguageConfigurationRegistry.getFoldingRules(this._languageIdentifier.id);
 			let offSide = foldingRules && foldingRules.offSide;
@@ -851,10 +851,8 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		return this._indentRanges;
 	}
 
-	public getIndentRanges(): IndentRange[] {
-		this._assertNotDisposed();
-		let indentRanges = this._getIndentRanges();
-		return IndentRange.deepCloneArr(indentRanges);
+	public getIndentRanges(): IndentRanges {
+		return this._getIndentRanges();
 	}
 
 	public getLineIndentGuide(lineNumber: number): number {
@@ -866,21 +864,21 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		let indentRanges = this._getIndentRanges();
 
 		for (let i = indentRanges.length - 1; i >= 0; i--) {
-			let rng = indentRanges[i];
-
-			if (rng.startLineNumber === lineNumber) {
-				return this._toValidLineIndentGuide(lineNumber, Math.ceil(rng.indent / this._options.tabSize));
+			let startLineNumber = indentRanges.getStartLineNumber(i);
+			if (startLineNumber === lineNumber) {
+				return this._toValidLineIndentGuide(lineNumber, Math.ceil(indentRanges.getIndent(i) / this._options.tabSize));
 			}
-			if (rng.startLineNumber < lineNumber && lineNumber <= rng.endLineNumber) {
-				return this._toValidLineIndentGuide(lineNumber, 1 + Math.floor(rng.indent / this._options.tabSize));
+			let endLineNumber = indentRanges.getEndLineNumber(i);
+			if (startLineNumber < lineNumber && lineNumber <= endLineNumber) {
+				return this._toValidLineIndentGuide(lineNumber, 1 + Math.floor(indentRanges.getIndent(i) / this._options.tabSize));
 			}
-			if (rng.endLineNumber + 1 === lineNumber) {
-				let bestIndent = rng.indent;
+			if (endLineNumber + 1 === lineNumber) {
+				let bestIndent = indentRanges.getIndent(i);
 				while (i > 0) {
 					i--;
-					rng = indentRanges[i];
-					if (rng.endLineNumber + 1 === lineNumber) {
-						bestIndent = rng.indent;
+					endLineNumber = indentRanges.getEndLineNumber(i);
+					if (endLineNumber + 1 === lineNumber) {
+						bestIndent = indentRanges.getIndent(i);
 					}
 				}
 				return this._toValidLineIndentGuide(lineNumber, Math.ceil(bestIndent / this._options.tabSize));

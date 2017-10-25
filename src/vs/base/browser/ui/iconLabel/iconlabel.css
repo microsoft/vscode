@@ -6,7 +6,7 @@
 /* ---------- Icon label ---------- */
 
 .monaco-icon-label {
-	display: inline-block; /* required for icons support :before rule */
+	display: flex; /* required for icons support :before rule */
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
@@ -37,6 +37,8 @@
 	margin-left: 0.5em;
 	font-size: 0.9em;
 	white-space: pre; /* enable to show labels that include multiple whitespaces */
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .monaco-icon-label.italic > .label-name,
@@ -44,15 +46,11 @@
 	font-style: italic;
 }
 
-.monaco-icon-label > .label-badge {
-	align-self: center;
-	height: 12px;
-	min-width: 10px;
-	line-height: 125%;
-	font-size: 80%;
-	margin: 1px 15px 1px auto;
-	padding: 2px 3px;
-	border-radius: 5px;
-	font-weight: normal;
-	text-align: center;
+.monaco-icon-label::after {
+	flex: 1;
+	opacity: 0.75;
+	font-size: 90%;
+	font-weight: 600;
+	text-align: right;
+	padding: 0 12px 0 5px;
 }

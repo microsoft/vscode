@@ -7,30 +7,33 @@
 
 import * as assert from 'assert';
 import { Model } from 'vs/editor/common/model/model';
-import { computeRanges } from 'vs/editor/common/model/indentRanges';
+import { computeRanges, MAX_FOLDING_REGIONS } from 'vs/editor/common/model/indentRanges';
 import { FoldingMarkers } from 'vs/editor/common/modes/languageConfiguration';
 
-export interface IndentRange {
+export interface ExpectedIndentRange {
 	startLineNumber: number;
 	endLineNumber: number;
 	indent: number;
-	marker: boolean;
+	parentIndex: number;
 }
 
-function assertRanges(lines: string[], expected: IndentRange[], offside: boolean, markers?: FoldingMarkers): void {
+function assertRanges(lines: string[], expected: ExpectedIndentRange[], offside: boolean, markers?: FoldingMarkers): void {
 	let model = Model.createFromString(lines.join('\n'));
 	let actual = computeRanges(model, offside, markers);
-	actual.sort((r1, r2) => r1.startLineNumber - r2.startLineNumber);
-	assert.deepEqual(actual, expected);
+
+	let actualRanges = [];
+	for (let i = 0; i < actual.length; i++) {
+		actualRanges[i] = r(actual.getStartLineNumber(i), actual.getEndLineNumber(i), actual.getIndent(i), actual.getParentIndex(i));
+	}
+	assert.deepEqual(actualRanges, expected);
 	model.dispose();
 }
 
-function r(startLineNumber: number, endLineNumber: number, indent: number, marker?: boolean): IndentRange {
-	return { startLineNumber, endLineNumber, indent, marker };
+function r(startLineNumber: number, endLineNumber: number, indent: number, parentIndex: number, marker = false): ExpectedIndentRange {
+	return { startLineNumber, endLineNumber, indent, parentIndex };
 }
 
 suite('Indentation Folding', () => {
-
 	test('Fold one level', () => {
 		let range = [
 			'A',
@@ -38,8 +41,8 @@ suite('Indentation Folding', () => {
 			'  A',
 			'  A'
 		];
-		assertRanges(range, [r(1, 4, 0)], true);
-		assertRanges(range, [r(1, 4, 0)], false);
+		assertRanges(range, [r(1, 4, 0, -1)], true);
+		assertRanges(range, [r(1, 4, 0, -1)], false);
 	});
 
 	test('Fold two levels', () => {
@@ -50,8 +53,8 @@ suite('Indentation Folding', () => {
 			'    A',
 			'    A'
 		];
-		assertRanges(range, [r(1, 5, 0), r(3, 5, 2)], true);
-		assertRanges(range, [r(1, 5, 0), r(3, 5, 2)], false);
+		assertRanges(range, [r(1, 5, 0, -1), r(3, 5, 2, 0)], true);
+		assertRanges(range, [r(1, 5, 0, -1), r(3, 5, 2, 0)], false);
 	});
 
 	test('Fold three levels', () => {
@@ -62,8 +65,8 @@ suite('Indentation Folding', () => {
 			'      A',
 			'A'
 		];
-		assertRanges(range, [r(1, 4, 0), r(2, 4, 2), r(3, 4, 4)], true);
-		assertRanges(range, [r(1, 4, 0), r(2, 4, 2), r(3, 4, 4)], false);
+		assertRanges(range, [r(1, 4, 0, -1), r(2, 4, 2, 0), r(3, 4, 4, 1)], true);
+		assertRanges(range, [r(1, 4, 0, -1), r(2, 4, 2, 0), r(3, 4, 4, 1)], false);
 	});
 
 	test('Fold decreasing indent', () => {
@@ -91,7 +94,7 @@ suite('Indentation Folding', () => {
 		/*11*/	'interface B {',
 		/*12*/	'  void bar();',
 		/*13*/	'}',
-		], [r(1, 9, 0), r(2, 4, 2), r(7, 8, 2), r(11, 12, 0)], false);
+		], [r(1, 9, 0, -1), r(2, 4, 2, 0), r(7, 8, 2, 0), r(11, 12, 0, -1)], false);
 	});
 
 	test('Fold Javadoc', () => {
@@ -103,7 +106,7 @@ suite('Indentation Folding', () => {
 		/* 5*/	'  void foo() {',
 		/* 6*/	'  }',
 		/* 7*/	'}',
-		], [r(1, 3, 0), r(4, 6, 0)], false);
+		], [r(1, 3, 0, -1), r(4, 6, 0, -1)], false);
 	});
 	test('Fold Whitespace Java', () => {
 		assertRanges([
@@ -115,7 +118,7 @@ suite('Indentation Folding', () => {
 		/* 6*/	'  }',
 		/* 7*/	'      ',
 		/* 8*/	'}',
-		], [r(1, 7, 0), r(3, 5, 2)], false);
+		], [r(1, 7, 0, -1), r(3, 5, 2, 0)], false);
 	});
 
 	test('Fold Whitespace Python', () => {
@@ -128,7 +131,7 @@ suite('Indentation Folding', () => {
 		/* 6*/	'  ',
 		/* 7*/	'      ',
 		/* 8*/	'def c: # since there was a deintent here'
-		], [r(1, 5, 0), r(4, 5, 2)], true);
+		], [r(1, 5, 0, -1), r(4, 5, 2, 0)], true);
 	});
 
 	test('Fold Tabs', () => {
@@ -141,7 +144,7 @@ suite('Indentation Folding', () => {
 		/* 6*/	'  \t}',
 		/* 7*/	'      ',
 		/* 8*/	'}',
-		], [r(1, 7, 0), r(3, 5, 4)], false);
+		], [r(1, 7, 0, -1), r(3, 5, 4, 0)], false);
 	});
 });
 
@@ -161,7 +164,7 @@ suite('Folding with regions', () => {
 		/* 6*/	'  }',
 		/* 7*/	'  #endregion',
 		/* 8*/	'}',
-		], [r(1, 7, 0), r(2, 7, 2, true), r(3, 5, 2)], false, markers);
+		], [r(1, 7, 0, -1), r(2, 7, 2, 0, true), r(3, 5, 2, 1)], false, markers);
 	});
 	test('Inside region, not indented', () => {
 		assertRanges([
@@ -173,7 +176,7 @@ suite('Folding with regions', () => {
 		/* 6*/	'  }',
 		/* 7*/	'#endregion',
 		/* 8*/	'',
-		], [r(2, 7, 0, true), r(3, 6, 0)], false, markers);
+		], [r(2, 7, 0, -1, true), r(3, 6, 0, 0)], false, markers);
 	});
 	test('Empty Regions', () => {
 		assertRanges([
@@ -184,7 +187,7 @@ suite('Folding with regions', () => {
 		/* 5*/	'',
 		/* 6*/	'#endregion',
 		/* 7*/	'var y;',
-		], [r(2, 3, 0, true), r(4, 6, 0, true)], false, markers);
+		], [r(2, 3, 0, -1, true), r(4, 6, 0, -1, true)], false, markers);
 	});
 	test('Nested Regions', () => {
 		assertRanges([
@@ -195,7 +198,7 @@ suite('Folding with regions', () => {
 		/* 5*/	'#endregion',
 		/* 6*/	'#endregion',
 		/* 7*/	'var y;',
-		], [r(2, 6, 0, true), r(3, 5, 0, true)], false, markers);
+		], [r(2, 6, 0, -1, true), r(3, 5, 0, 0, true)], false, markers);
 	});
 	test('Nested Regions 2', () => {
 		assertRanges([
@@ -208,7 +211,7 @@ suite('Folding with regions', () => {
 		/* 7*/	'  // comment',
 		/* 8*/	'  #endregion',
 		/* 9*/	'}',
-		], [r(1, 8, 0), r(2, 8, 2, true), r(4, 6, 2, true)], false, markers);
+		], [r(1, 8, 0, -1), r(2, 8, 2, 0, true), r(4, 6, 2, 1, true)], false, markers);
 	});
 	test('Incomplete Regions', () => {
 		assertRanges([
@@ -216,7 +219,7 @@ suite('Folding with regions', () => {
 		/* 2*/	'#region',
 		/* 3*/	'  // comment',
 		/* 4*/	'}',
-		], [r(2, 3, 0)], false, markers);
+		], [r(2, 3, 0, -1)], false, markers);
 	});
 	test('Incomplete Regions 2', () => {
 		assertRanges([
@@ -228,7 +231,7 @@ suite('Folding with regions', () => {
 		/* 6*/	'#endregion',
 		/* 7*/	'#endregion',
 		/* 8*/	' // hello',
-		], [r(3, 7, 0, true), r(4, 6, 0, true)], false, markers);
+		], [r(3, 7, 0, -1, true), r(4, 6, 0, 0, true)], false, markers);
 	});
 	test('Indented region before', () => {
 		assertRanges([
@@ -238,7 +241,7 @@ suite('Folding with regions', () => {
 		/* 4*/	'#region',
 		/* 5*/	'  // comment',
 		/* 6*/	'#endregion',
-		], [r(1, 3, 0), r(4, 6, 0, true)], false, markers);
+		], [r(1, 3, 0, -1), r(4, 6, 0, -1, true)], false, markers);
 	});
 	test('Indented region before 2', () => {
 		assertRanges([
@@ -248,7 +251,7 @@ suite('Folding with regions', () => {
 		/* 4*/	'    #region',
 		/* 5*/	'      // comment',
 		/* 6*/	'    #endregion',
-		], [r(1, 6, 0), r(2, 6, 2), r(4, 6, 4, true)], false, markers);
+		], [r(1, 6, 0, -1), r(2, 6, 2, 0), r(4, 6, 4, 1, true)], false, markers);
 	});
 	test('Indented region in-between', () => {
 		assertRanges([
@@ -258,7 +261,7 @@ suite('Folding with regions', () => {
 		/* 4*/	'    return;',
 		/* 5*/	'',
 		/* 6*/	'#endregion',
-		], [r(1, 6, 0, true), r(3, 5, 2)], false, markers);
+		], [r(1, 6, 0, -1, true), r(3, 5, 2, 0)], false, markers);
 	});
 	test('Indented region after', () => {
 		assertRanges([
@@ -268,7 +271,7 @@ suite('Folding with regions', () => {
 		/* 4*/	'#endregion',
 		/* 5*/	'  if (x)',
 		/* 6*/	'    return;',
-		], [r(1, 4, 0, true), r(5, 6, 2)], false, markers);
+		], [r(1, 4, 0, -1, true), r(5, 6, 2, -1)], false, markers);
 	});
 	test('With off-side', () => {
 		assertRanges([
@@ -277,7 +280,7 @@ suite('Folding with regions', () => {
 		/* 3*/	'',
 		/* 4*/	'#endregion',
 		/* 5*/	'',
-		], [r(1, 4, 0, true)], true, markers);
+		], [r(1, 4, 0, -1, true)], true, markers);
 	});
 	test('Nested with off-side', () => {
 		assertRanges([
@@ -289,7 +292,7 @@ suite('Folding with regions', () => {
 		/* 6*/	'',
 		/* 7*/	'#endregion',
 		/* 8*/	'',
-		], [r(1, 7, 0, true), r(3, 5, 0, true)], true, markers);
+		], [r(1, 7, 0, -1, true), r(3, 5, 0, 0, true)], true, markers);
 	});
 	test('Issue 35981', () => {
 		assertRanges([
@@ -302,7 +305,7 @@ suite('Folding with regions', () => {
 		/* 7*/	'function thisFoldsProperly() {',
 		/* 8*/	'  const foo = "bar"',
 		/* 9*/	'}',
-		], [r(1, 4, 0), r(2, 4, 2), r(7, 8, 0)], false, markers);
+		], [r(1, 4, 0, -1), r(2, 4, 2, 0), r(7, 8, 0, -1)], false, markers);
 	});
 	test('Misspelled Markers', () => {
 		assertRanges([
@@ -316,4 +319,70 @@ suite('Folding with regions', () => {
 		/* 8*/	'#endregionff',
 		], [], true, markers);
 	});
+
+	test('test max folding regions', () => {
+		let lines = [];
+		let nRegions = MAX_FOLDING_REGIONS;
+		for (let i = 0; i < nRegions; i++) {
+			lines.push('#region');
+		}
+		for (let i = 0; i < nRegions; i++) {
+			lines.push('#endregion');
+		}
+		let model = Model.createFromString(lines.join('\n'));
+		let actual = computeRanges(model, false, markers);
+		assert.equal(actual.length, nRegions, 'len');
+		for (let i = 0; i < nRegions; i++) {
+			assert.equal(actual.getStartLineNumber(i), i + 1, 'start' + i);
+			assert.equal(actual.getEndLineNumber(i), nRegions * 2 - i, 'end' + i);
+			assert.equal(actual.getParentIndex(i), i - 1, 'parent' + i);
+		}
+
+	});
+
+	test('findRange', () => {
+		let lines = [
+		/* 1*/	'#region',
+		/* 2*/	'#endregion',
+		/* 3*/	'class A {',
+		/* 4*/	'  void foo() {',
+		/* 5*/	'    if (true) {',
+		/* 6*/	'        return;',
+		/* 7*/	'    }',
+		/* 8*/	'',
+		/* 9*/	'    if (true) {',
+		/* 10*/	'      return;',
+		/* 11*/	'    }',
+		/* 12*/	'  }',
+		/* 13*/	'}'];
+
+		let textModel = Model.createFromString(lines.join('\n'));
+		try {
+			let actual = computeRanges(textModel, false, markers);
+			// let r0 = r(1, 2);
+			// let r1 = r(3, 12);
+			// let r2 = r(4, 11);
+			// let r3 = r(5, 6);
+			// let r4 = r(9, 10);
+
+			assert.equal(actual.findRange(1), 0, '1');
+			assert.equal(actual.findRange(2), 0, '2');
+			assert.equal(actual.findRange(3), 1, '3');
+			assert.equal(actual.findRange(4), 2, '4');
+			assert.equal(actual.findRange(5), 3, '5');
+			assert.equal(actual.findRange(6), 3, '6');
+			assert.equal(actual.findRange(7), 2, '7');
+			assert.equal(actual.findRange(8), 2, '8');
+			assert.equal(actual.findRange(9), 4, '9');
+			assert.equal(actual.findRange(10), 4, '10');
+			assert.equal(actual.findRange(11), 2, '11');
+			assert.equal(actual.findRange(12), 1, '12');
+			assert.equal(actual.findRange(13), -1, '13');
+		} finally {
+			textModel.dispose();
+		}
+
+
+	});
+
 });

@@ -295,6 +295,10 @@ export class ExtensionService implements IExtensionService {
 		});
 
 		ExtensionService._scanInstalledExtensions(this._environmentService, log).then((installedExtensions) => {
+
+			// Migrate enablement service to use identifiers
+			this._extensionEnablementService.migrateToIdentifiers(installedExtensions);
+
 			const disabledExtensions = [
 				...getGloballyDisabledExtensions(this._extensionEnablementService, this._storageService, installedExtensions),
 				...this._extensionEnablementService.getWorkspaceDisabledExtensions()
@@ -314,7 +318,7 @@ export class ExtensionService implements IExtensionService {
 			if (disabledExtensions.length === 0) {
 				return installedExtensions;
 			}
-			return installedExtensions.filter(e => disabledExtensions.every(id => !areSameExtensions({ id }, e)));
+			return installedExtensions.filter(e => disabledExtensions.every(disabled => !areSameExtensions(disabled, e)));
 
 		}).then((extensionDescriptions) => {
 			this._registry = new ExtensionDescriptionRegistry(extensionDescriptions);

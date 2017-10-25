@@ -29,6 +29,7 @@ export interface IExtension {
 	name: string;
 	displayName: string;
 	id: string;
+	uuid: string;
 	publisher: string;
 	publisherDisplayName: string;
 	version: string;

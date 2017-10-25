@@ -1741,6 +1741,49 @@ suite('Editor Controller - Regression tests', () => {
 			assertCursor(cursor, new Selection(1, 1, 1, 1));
 		});
 	});
+
+	test('issue #36740: wordwrap creates an extra step / character at the wrapping point', () => {
+		// a single model line => 4 view lines
+		withMockCodeEditor([
+			[
+				'Lorem ipsum ',
+				'dolor sit amet ',
+				'consectetur ',
+				'adipiscing elit',
+			].join('')
+		], { wordWrap: 'wordWrapColumn', wordWrapColumn: 16 }, (editor, cursor) => {
+			cursor.setSelections('test', [new Selection(1, 7, 1, 7)]);
+
+			moveRight(cursor);
+			assertCursor(cursor, new Selection(1, 8, 1, 8));
+
+			moveRight(cursor);
+			assertCursor(cursor, new Selection(1, 9, 1, 9));
+
+			moveRight(cursor);
+			assertCursor(cursor, new Selection(1, 10, 1, 10));
+
+			moveRight(cursor);
+			assertCursor(cursor, new Selection(1, 11, 1, 11));
+
+			moveRight(cursor);
+			assertCursor(cursor, new Selection(1, 12, 1, 12));
+
+			moveRight(cursor);
+			assertCursor(cursor, new Selection(1, 13, 1, 13));
+
+			// moving to view line 2
+			moveRight(cursor);
+			assertCursor(cursor, new Selection(1, 14, 1, 14));
+
+			moveLeft(cursor);
+			assertCursor(cursor, new Selection(1, 13, 1, 13));
+
+			// moving back to view line 1
+			moveLeft(cursor);
+			assertCursor(cursor, new Selection(1, 12, 1, 12));
+		});
+	});
 });
 
 suite('Editor Controller - Cursor Configuration', () => {

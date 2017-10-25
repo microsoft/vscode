@@ -592,7 +592,7 @@ export class TerminalInstance implements ITerminalInstance {
 		if (!this._shellLaunchConfig.executable) {
 			this._configHelper.mergeDefaultShellPathAndArgs(this._shellLaunchConfig);
 		}
-		this._initialCwd = this._getCwd(this._shellLaunchConfig, this._historyService.getLastActiveWorkspaceRoot());
+		this._initialCwd = this._getCwd(this._shellLaunchConfig, this._historyService.getLastActiveWorkspaceRoot('file'));
 		let envFromConfig: IStringDictionary<string>;
 		if (platform.isWindows) {
 			envFromConfig = { ...process.env };
@@ -778,7 +778,18 @@ export class TerminalInstance implements ITerminalInstance {
 	// TODO: This should be private/protected
 	// TODO: locale should not be optional
 	public static createTerminalEnv(parentEnv: IStringDictionary<string>, shell: IShellLaunchConfig, cwd: string, locale?: string, cols?: number, rows?: number): IStringDictionary<string> {
-		const env = shell.env ? shell.env : TerminalInstance._cloneEnv(parentEnv);
+		const env = TerminalInstance._cloneEnv(parentEnv);
+		if (shell.env) {
+			Object.keys(shell.env).forEach((key) => {
+				const value = shell.env[key];
+				if (typeof value === 'string') {
+					env[key] = value;
+				} else {
+					delete env[key];
+				}
+			});
+		}
+
 		env['PTYPID'] = process.pid.toString();
 		env['PTYSHELL'] = shell.executable;
 		env['TERM_PROGRAM'] = 'vscode';
