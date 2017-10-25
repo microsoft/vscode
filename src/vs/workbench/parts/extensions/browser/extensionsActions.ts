@@ -85,6 +85,7 @@ export class InstallAction extends Action {
 	}
 
 	run(): TPromise<any> {
+		this.extensionsWorkbenchService.open(this.extension);
 		return this.extensionsWorkbenchService.install(this.extension);
 	}
 
