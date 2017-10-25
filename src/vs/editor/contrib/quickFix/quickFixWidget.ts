@@ -12,26 +12,22 @@ import { Position } from 'vs/editor/common/core/position';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeAction } from 'vs/editor/common/modes';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Action } from 'vs/base/common/actions';
 import Event, { Emitter } from 'vs/base/common/event';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 
 export class QuickFixContextMenu {
 
-	private _editor: ICodeEditor;
-	private _contextMenuService: IContextMenuService;
-	private _commandService: ICommandService;
 	private _visible: boolean;
 	private _onDidExecuteCodeAction = new Emitter<void>();
 
 	readonly onDidExecuteCodeAction: Event<void> = this._onDidExecuteCodeAction.event;
 
-	constructor(editor: ICodeEditor, contextMenuService: IContextMenuService, commandService: ICommandService) {
-		this._editor = editor;
-		this._contextMenuService = contextMenuService;
-		this._commandService = commandService;
-	}
+	constructor(
+		private readonly editor: ICodeEditor,
+		private readonly contextMenuService: IContextMenuService,
+		private readonly onApplyCodeAction: (action: CodeAction) => TPromise<any>
+	) { }
 
 	show(fixes: TPromise<CodeAction[]>, at: { x: number; y: number } | Position) {
 
@@ -39,18 +35,14 @@ export class QuickFixContextMenu {
 			return value.map(action => {
 				// TODO: just placeholders for testing
 				return new Action(action.command.id, (action.diagnostics ? '💡 ' : '✂️ ') + action.title, undefined, true, () => {
-					if (!action.command) {
-						return TPromise.as(undefined);
-					}
 					return always(
-						this._commandService.executeCommand(action.command.id, ...action.command.arguments),
-						() => this._onDidExecuteCodeAction.fire(undefined)
-					);
+						this.onApplyCodeAction(action),
+						() => this._onDidExecuteCodeAction.fire(undefined));
 				});
 			});
 		});
 
-		this._contextMenuService.showContextMenu({
+		this.contextMenuService.showContextMenu({
 			getAnchor: () => {
 				if (Position.isIPosition(at)) {
 					at = this._toCoords(at);
@@ -69,12 +61,12 @@ export class QuickFixContextMenu {
 
 	private _toCoords(position: Position): { x: number, y: number } {
 
-		this._editor.revealPosition(position, ScrollType.Immediate);
-		this._editor.render();
+		this.editor.revealPosition(position, ScrollType.Immediate);
+		this.editor.render();
 
 		// Translate to absolute editor position
-		const cursorCoords = this._editor.getScrolledVisiblePosition(this._editor.getPosition());
-		const editorCoords = getDomNodePagePosition(this._editor.getDomNode());
+		const cursorCoords = this.editor.getScrolledVisiblePosition(this.editor.getPosition());
+		const editorCoords = getDomNodePagePosition(this.editor.getDomNode());
 		const x = editorCoords.left + cursorCoords.left;
 		const y = editorCoords.top + cursorCoords.top + cursorCoords.height;
 

@@ -16,6 +16,7 @@ import { Range, IRange } from 'vs/editor/common/core/range';
 import Event from 'vs/base/common/event';
 import { TokenizationRegistryImpl } from 'vs/editor/common/modes/tokenizationRegistry';
 import { Color } from 'vs/base/common/color';
+import { IMarkerData } from 'vs/platform/markers/common/markers';
 
 /**
  * Open ended enum at runtime
@@ -279,7 +280,7 @@ export interface CodeAction {
 	title: string;
 	command?: Command;
 	edits?: TextEdit[] | WorkspaceEdit;
-	diagnostics?: editorCommon.IModelDecoration[];
+	diagnostics?: IMarkerData[];
 }
 
 /**

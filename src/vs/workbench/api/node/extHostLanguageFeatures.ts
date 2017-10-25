@@ -15,7 +15,7 @@ import * as modes from 'vs/editor/common/modes';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
-import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
+import { ExtHostDiagnostics, DiagnosticCollection } from 'vs/workbench/api/node/extHostDiagnostics';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IExtHostSuggestResult, IExtHostSuggestion, IWorkspaceSymbols, IWorkspaceSymbol, IdObject } from './extHost.protocol';
 import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
@@ -310,6 +310,9 @@ class QuickFixAdapter {
 						? Array.isArray(codeAction.edits)
 							? codeAction.edits.map(TypeConverters.TextEdit.from)
 							: TypeConverters.WorkspaceEdit.from(codeAction.edits)
+						: undefined,
+					diagnostics: codeAction.diagnostics
+						? codeAction.diagnostics.map(DiagnosticCollection.toMarkerData)
 						: undefined
 				} as modes.CodeAction;
 			});

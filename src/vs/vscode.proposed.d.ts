@@ -230,7 +230,7 @@ declare module 'vscode' {
 	 *
 	 * Shown using the [light bulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action)
 	 */
-	export interface CodeAction {
+	export class CodeAction {
 		/**
 		 * Label used to identify the code action in UI.
 		 */

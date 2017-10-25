@@ -4535,7 +4535,7 @@ declare module monaco.languages {
 		title: string;
 		command?: Command;
 		edits?: TextEdit[] | WorkspaceEdit;
-		diagnostics?: editor.IModelDecoration[];
+		diagnostics?: editor.IMarkerData[];
 	}
 
 	/**

@@ -9,7 +9,7 @@ import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { vsRangeToTsFileRange } from '../utils/convert';
 import FormattingConfigurationManager from './formattingConfigurationManager';
-import { applyCodeAction } from '../utils/codeAction';
+import { applyCodeAction, getEditForCodeAction } from '../utils/codeAction';
 import { CommandManager, Command } from '../utils/commandManager';
 
 interface NumberSet {
@@ -107,9 +107,11 @@ export default class TypeScriptCodeActionProvider implements vscode.CodeActionPr
 			title: action.description,
 			command: {
 				title: action.description,
-				command: this.commandId,
+				command: ApplyCodeActionCommand.ID,
 				arguments: [action, file]
-			}
+			},
+			edits: getEditForCodeAction(this.client, action),
+			diagnostics: []
 		};
 	}
 }
