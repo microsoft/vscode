@@ -95,13 +95,15 @@ class SnippetsService implements ISnippetsService {
 	private readonly _extensionSnippets = new Map<LanguageId, Snippet[]>();
 	private readonly _userSnippets = new Map<LanguageId, Snippet[]>();
 	private readonly _userSnippetsFolder: string;
+	private readonly _wait: Promise<any>;
 	private readonly _disposables: IDisposable[] = [];
 
 	constructor(
 		@IModeService readonly _modeService: IModeService,
-		@IExtensionService readonly _extensionService: IExtensionService,
+		@IExtensionService extensionService: IExtensionService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 	) {
+		this._wait = Promise.resolve(extensionService.onReady());
 		this._userSnippetsFolder = join(environmentService.appSettingsHome, 'snippets');
 		this._prepUserSnippetsWatching();
 		this._prepExtensionSnippets();
@@ -115,25 +117,34 @@ class SnippetsService implements ISnippetsService {
 
 	getSnippets(languageId: LanguageId): Promise<Snippet[]> {
 		let result: Snippet[] = [];
-		return Promise.all([
-			this._extensionService.onReady(),
-			this._getOrLoadUserSnippets(languageId, result),
-			this._getOrLoadExtensionSnippets(languageId, result)
-		]).then(() => {
+		return this._wait.then(() => {
+			return this._getOrLoadUserSnippets(languageId, result);
+		}).then(() => {
+			return this._getOrLoadExtensionSnippets(languageId, result);
+		}).then(() => {
 			return result;
 		});
 	}
 
 	getSnippetsSync(languageId: LanguageId): Snippet[] {
 		// just kick off snippet loading for this language such
-		// that subseqent calls to this method return more
+		// that subsequent calls to this method return more
 		// correct results
 		this.getSnippets(languageId).catch(undefined);
 
 		// collect and return what we already have
-		let userSnippets = this._userSnippets.get(languageId);
-		let extensionSnippets = this._extensionSnippets.get(languageId);
-		return (userSnippets || []).concat(extensionSnippets || []);
+		const userSnippets = this._userSnippets.get(languageId);
+		const extensionSnippets = this._extensionSnippets.get(languageId);
+
+		if (userSnippets && extensionSnippets) {
+			return userSnippets.concat(extensionSnippets);
+		} else if (!userSnippets) {
+			return extensionSnippets;
+		} else if (!extensionSnippets) {
+			return userSnippets;
+		} else {
+			return undefined;
+		}
 	}
 
 	// --- extension snippet logic ---
