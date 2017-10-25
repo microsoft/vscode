@@ -5,11 +5,11 @@
 
 import * as assert from 'assert';
 
-import { SpectronApplication, VSCODE_BUILD } from '../../spectron/application';
+import { SpectronApplication, Quality } from '../../spectron/application';
 
 describe('Localization', () => {
 	let app: SpectronApplication = new SpectronApplication();
-	if (app.build === VSCODE_BUILD.DEV) {
+	if (app.quality === Quality.Dev) {
 		return;
 	}
 

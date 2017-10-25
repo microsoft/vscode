@@ -8,18 +8,16 @@ import { SpectronApplication } from '../../spectron/application';
 import { ProblemSeverity, Problems } from '../problems/problems';
 
 describe('CSS', () => {
-	let app: SpectronApplication;
-	before(function () { app = new SpectronApplication(); return app.start('CSS'); });
-	after(() => app.stop());
-
-	it('verifies quick outline', async () => {
+	it('verifies quick outline', async function () {
+		const app = this.app as SpectronApplication;
 		await app.workbench.quickopen.openFile('style.css');
 
 		await app.workbench.editor.openOutline();
 		await app.workbench.quickopen.waitForQuickOpenElements(names => names.length === 2);
 	});
 
-	it('verifies warnings for the empty rule', async () => {
+	it('verifies warnings for the empty rule', async function () {
+		const app = this.app as SpectronApplication;
 		await app.workbench.quickopen.openFile('style.css');
 		await app.workbench.editor.waitForTypeInEditor('style.css', '.foo{}');
 
@@ -34,7 +32,8 @@ describe('CSS', () => {
 		await app.workbench.problems.hideProblemsView();
 	});
 
-	it('verifies that warning becomes an error once setting changed', async () => {
+	it('verifies that warning becomes an error once setting changed', async function () {
+		const app = this.app as SpectronApplication;
 		await app.workbench.settingsEditor.addUserSetting('css.lint.emptyRules', '"error"');
 		await app.workbench.quickopen.openFile('style.css');
 		await app.workbench.editor.waitForTypeInEditor('style.css', '.foo{}');

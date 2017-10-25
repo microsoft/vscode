@@ -14,21 +14,15 @@ import * as path from 'path';
 import * as mkdirp from 'mkdirp';
 import { sanitize } from '../helpers/utilities';
 
-export const LATEST_PATH = process.env.VSCODE_PATH as string;
-export const STABLE_PATH = process.env.VSCODE_STABLE_PATH || '';
-export const WORKSPACE_PATH = process.env.SMOKETEST_REPO as string;
-export const CODE_WORKSPACE_PATH = process.env.VSCODE_WORKSPACE_PATH as string;
-export const USER_DIR = process.env.VSCODE_USER_DIR as string;
-export const EXTENSIONS_DIR = process.env.VSCODE_EXTENSIONS_DIR as string;
-export const VSCODE_EDITION = process.env.VSCODE_EDITION as string;
-export const ARTIFACTS_DIR = process.env.ARTIFACTS_DIR as string;
-export const WAIT_TIME = parseInt(process.env.WAIT_TIME as string);
-
-export enum VSCODE_BUILD {
-	DEV,
-	INSIDERS,
-	STABLE
-}
+// export const LATEST_PATH = process.env.VSCODE_PATH as string;
+// export const STABLE_PATH = process.env.VSCODE_STABLE_PATH || '';
+// export const WORKSPACE_PATH = process.env.SMOKETEST_REPO as string;
+// export const CODE_WORKSPACE_PATH = process.env.VSCODE_WORKSPACE_PATH as string;
+// export const USER_DIR = process.env.VSCODE_USER_DIR as string;
+// export const EXTENSIONS_DIR = process.env.VSCODE_EXTENSIONS_DIR as string;
+// export const VSCODE_EDITION = process.env.VSCODE_EDITION as string;
+// export const ARTIFACTS_DIR = process.env.ARTIFACTS_DIR as string;
+// export const WAIT_TIME = parseInt(process.env.WAIT_TIME as string);
 
 // Just hope random helps us here, cross your fingers!
 export async function findFreePort(): Promise<number> {
@@ -43,12 +37,26 @@ export async function findFreePort(): Promise<number> {
 	throw new Error('Could not find free port!');
 }
 
+export enum Quality {
+	Dev,
+	Insiders,
+	Stable
+}
+
+export interface SpectronApplicationOptions {
+	quality: Quality;
+	electronPath: string;
+	workspacePath: string;
+	userDataDir: string;
+	extensionsPath: string;
+	artifactsPath: string;
+	waitTime: number;
+}
+
 /**
  * Wraps Spectron's Application instance with its used methods.
  */
 export class SpectronApplication {
-
-	private static count = 0;
 
 	private _client: SpectronClient;
 	private _workbench: Workbench;
@@ -57,19 +65,14 @@ export class SpectronApplication {
 	private keybindings: any[]; private stopLogCollection: (() => Promise<void>) | undefined;
 
 	constructor(
-		private _electronPath: string = LATEST_PATH,
-		private _workspace: string = WORKSPACE_PATH,
-		private _userDir: string = USER_DIR
+		private options: SpectronApplicationOptions
+		// private _electronPath: string = LATEST_PATH,
+		// private _workspace: string = WORKSPACE_PATH,
+		// private _userDir: string = USER_DIR
 	) { }
 
-	get build(): VSCODE_BUILD {
-		switch (VSCODE_EDITION) {
-			case 'dev':
-				return VSCODE_BUILD.DEV;
-			case 'insiders':
-				return VSCODE_BUILD.INSIDERS;
-		}
-		return VSCODE_BUILD.STABLE;
+	get quality(): Quality {
+		return this.options.quality;
 	}
 
 	get app(): Application {
@@ -92,9 +95,21 @@ export class SpectronApplication {
 		return this._workbench;
 	}
 
+	get workspacePath(): string {
+		return this.options.workspacePath;
+	}
+
+	get extensionsPath(): string {
+		return this.options.extensionsPath;
+	}
+
+	get userDataPath(): string {
+		return this.options.userDataDir;
+	}
+
 	async start(testSuiteName: string, codeArgs: string[] = [], env = process.env): Promise<any> {
 		await this.retrieveKeybindings();
-		cp.execSync('git checkout .', { cwd: WORKSPACE_PATH });
+		cp.execSync('git checkout .', { cwd: this.options.workspacePath });
 		await this.startApplication(testSuiteName, codeArgs, env);
 		await this.checkWindowReady();
 		await this.waitForWelcome();
@@ -129,7 +144,7 @@ export class SpectronApplication {
 			args.push(process.env.VSCODE_REPOSITORY as string);
 		}
 
-		args.push(this._workspace);
+		args.push(this.options.workspacePath);
 
 		// Prevent 'Getting Started' web page from opening on clean user-data-dir
 		args.push('--skip-getting-started');
@@ -149,12 +164,11 @@ export class SpectronApplication {
 		args.push('--disable-crash-reporter');
 
 		// Ensure that running over custom extensions directory, rather than picking up the one that was used by a tester previously
-		args.push(`--extensions-dir=${EXTENSIONS_DIR}`);
+		args.push(`--extensions-dir=${this.options.extensionsPath}`);
 
 		args.push(...codeArgs);
 
-		const id = String(SpectronApplication.count++);
-		chromeDriverArgs.push(`--user-data-dir=${path.join(this._userDir, id)}`);
+		chromeDriverArgs.push(`--user-data-dir=${this.options.userDataDir}`);
 
 		// Spectron always uses the same port number for the chrome driver
 		// and it handles gracefully when two instances use the same port number
@@ -162,7 +176,7 @@ export class SpectronApplication {
 		// chrome driver with it, leaving the other instance in DISPAIR!!! :(
 		const port = await findFreePort();
 		const opts: any = {
-			path: this._electronPath,
+			path: this.options.electronPath,
 			port,
 			args,
 			env,
@@ -174,8 +188,8 @@ export class SpectronApplication {
 		let testsuiteRootPath: string | undefined = undefined;
 		let screenshotsDirPath: string | undefined = undefined;
 
-		if (ARTIFACTS_DIR) {
-			testsuiteRootPath = path.join(ARTIFACTS_DIR, sanitize(testSuiteName));
+		if (this.options.artifactsPath) {
+			testsuiteRootPath = path.join(this.options.artifactsPath, sanitize(testSuiteName));
 			mkdirp.sync(testsuiteRootPath);
 
 			// Collect screenshots
@@ -229,7 +243,7 @@ export class SpectronApplication {
 		}
 
 		this._screenCapturer = new ScreenCapturer(this.spectron, screenshotsDirPath);
-		this._client = new SpectronClient(this.spectron, this);
+		this._client = new SpectronClient(this.spectron, this, this.options.waitTime);
 		this._workbench = new Workbench(this);
 	}
 

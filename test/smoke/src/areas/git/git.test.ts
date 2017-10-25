@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import * as cp from 'child_process';
-import { SpectronApplication, WORKSPACE_PATH } from '../../spectron/application';
+import { SpectronApplication } from '../../spectron/application';
 
 const DIFF_EDITOR_LINE_INSERT = '.monaco-diff-editor .editor.modified .line-insert';
 const SYNC_STATUSBAR = 'div[id="workbench.parts.statusbar"] .statusbar-entry a[title$="Synchronize Changes"]';
@@ -73,6 +73,6 @@ describe('Git', () => {
 		await app.workbench.scm.commit('second commit');
 		await app.client.waitForText(SYNC_STATUSBAR, ' 0↓ 2↑');
 
-		cp.execSync('git reset --hard origin/master', { cwd: WORKSPACE_PATH });
+		cp.execSync('git reset --hard origin/master', { cwd: app.workspacePath });
 	});
 });

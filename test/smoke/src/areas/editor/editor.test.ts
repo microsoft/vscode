@@ -6,11 +6,8 @@
 import { SpectronApplication } from '../../spectron/application';
 
 describe('Editor', () => {
-	let app: SpectronApplication;
-	before(() => { app = new SpectronApplication(); return app.start('Editor'); });
-	after(() => app.stop());
-
 	it('shows correct quick outline', async function () {
+		const app = this.app as SpectronApplication;
 		await app.workbench.quickopen.openFile('www');
 
 		await app.workbench.editor.openOutline();
@@ -18,6 +15,7 @@ describe('Editor', () => {
 	});
 
 	it(`finds 'All References' to 'app'`, async function () {
+		const app = this.app as SpectronApplication;
 		await app.workbench.quickopen.openFile('www');
 
 		const references = await app.workbench.editor.findReferences('app', 7);
@@ -28,6 +26,7 @@ describe('Editor', () => {
 	});
 
 	it(`renames local 'app' variable`, async function () {
+		const app = this.app as SpectronApplication;
 		await app.workbench.quickopen.openFile('www');
 		await app.workbench.editor.rename('www', 7, 'app', 'newApp');
 		await app.workbench.editor.waitForEditorContents('www', contents => contents.indexOf('newApp') > -1);
@@ -51,6 +50,7 @@ describe('Editor', () => {
 	// });
 
 	it(`verifies that 'Go To Definition' works`, async function () {
+		const app = this.app as SpectronApplication;
 		await app.workbench.quickopen.openFile('app.js');
 
 		await app.workbench.editor.gotoDefinition('express', 11);
@@ -59,6 +59,7 @@ describe('Editor', () => {
 	});
 
 	it(`verifies that 'Peek Definition' works`, async function () {
+		const app = this.app as SpectronApplication;
 		await app.workbench.quickopen.openFile('app.js');
 
 		const peek = await app.workbench.editor.peekDefinition('express', 11);

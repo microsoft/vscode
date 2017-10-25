@@ -9,34 +9,36 @@ import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as stripJsonComments from 'strip-json-comments';
-import { SpectronApplication, VSCODE_BUILD, EXTENSIONS_DIR, findFreePort, WORKSPACE_PATH } from '../../spectron/application';
+import { SpectronApplication, Quality, findFreePort } from '../../spectron/application';
 
 describe('Debug', () => {
-	let app: SpectronApplication = new SpectronApplication();
 	let port: number;
+	before(function () {
+		const app = this.app as SpectronApplication;
 
-	if (app.build === VSCODE_BUILD.DEV) {
-		const extensionsPath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions');
+		if (app.quality === Quality.Dev) {
+			const extensionsPath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions');
 
-		const debugPath = path.join(extensionsPath, 'vscode-node-debug');
-		const debugExists = fs.existsSync(debugPath);
+			const debugPath = path.join(extensionsPath, 'vscode-node-debug');
+			const debugExists = fs.existsSync(debugPath);
 
-		const debug2Path = path.join(extensionsPath, 'vscode-node-debug2');
-		const debug2Exists = fs.existsSync(debug2Path);
+			const debug2Path = path.join(extensionsPath, 'vscode-node-debug2');
+			const debug2Exists = fs.existsSync(debug2Path);
 
-		if (!debugExists) {
-			console.warn(`Skipping debug tests because vscode-node-debug extension was not found in ${extensionsPath}`);
-			return;
+			if (!debugExists) {
+				console.warn(`Skipping debug tests because vscode-node-debug extension was not found in ${extensionsPath}`);
+				return;
+			}
+
+			if (!debug2Exists) {
+				console.warn(`Skipping debug tests because vscode-node-debug2 extension was not found in ${extensionsPath}`);
+				return;
+			}
+
+			fs.symlinkSync(debugPath, path.join(app.extensionsPath, 'vscode-node-debug'));
+			fs.symlinkSync(debug2Path, path.join(app.extensionsPath, 'vscode-node-debug2'));
 		}
-
-		if (!debug2Exists) {
-			console.warn(`Skipping debug tests because vscode-node-debug2 extension was not found in ${extensionsPath}`);
-			return;
-		}
-
-		fs.symlinkSync(debugPath, path.join(EXTENSIONS_DIR, 'vscode-node-debug'));
-		fs.symlinkSync(debug2Path, path.join(EXTENSIONS_DIR, 'vscode-node-debug2'));
-	}
+	});
 
 	// We must get a different port for our smoketest express app
 	// otherwise concurrent test runs will clash on those ports
@@ -48,7 +50,7 @@ describe('Debug', () => {
 		await app.workbench.quickopen.openFile('app.js');
 		await app.workbench.debug.configure();
 
-		const launchJsonPath = path.join(WORKSPACE_PATH, '.vscode', 'launch.json');
+		const launchJsonPath = path.join(app.workspacePath, '.vscode', 'launch.json');
 		const content = fs.readFileSync(launchJsonPath, 'utf8');
 		const config = JSON.parse(stripJsonComments(content));
 		config.configurations[0].protocol = 'inspector';

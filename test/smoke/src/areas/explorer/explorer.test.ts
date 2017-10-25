@@ -6,11 +6,8 @@
 import { SpectronApplication } from '../../spectron/application';
 
 describe('Explorer', () => {
-	let app: SpectronApplication;
-	before(() => { app = new SpectronApplication(); return app.start('Explorer'); });
-	after(() => app.stop());
-
 	it('quick open search produces correct result', async function () {
+		const app = this.app as SpectronApplication;
 		const expectedNames = [
 			'.eslintrc.json',
 			'tasks.json',
@@ -27,6 +24,7 @@ describe('Explorer', () => {
 	});
 
 	it('quick open respects fuzzy matching', async function () {
+		const app = this.app as SpectronApplication;
 		const expectedNames = [
 			'tasks.json',
 			'app.js',

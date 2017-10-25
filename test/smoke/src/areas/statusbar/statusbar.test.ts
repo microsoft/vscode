@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 
-import { SpectronApplication, VSCODE_BUILD } from '../../spectron/application';
+import { SpectronApplication, Quality } from '../../spectron/application';
 import { StatusBarElement } from './statusbar';
 
 
@@ -16,7 +16,7 @@ describe('Statusbar', () => {
 
 	it('verifies presence of all default status bar elements', async function () {
 		await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.BRANCH_STATUS);
-		if (app.build !== VSCODE_BUILD.DEV) {
+		if (app.quality !== Quality.Dev) {
 			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.FEEDBACK_ICON);
 		}
 		await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.SYNC_STATUS);
@@ -55,7 +55,7 @@ describe('Statusbar', () => {
 		await app.workbench.problems.waitForProblemsView();
 	});
 
-	if (app.build !== VSCODE_BUILD.DEV) {
+	if (app.quality !== Quality.Dev) {
 		it(`verifies that 'Tweet us feedback' pop-up appears when clicking on 'Feedback' icon`, async function () {
 			await app.workbench.statusbar.clickOn(StatusBarElement.FEEDBACK_ICON);
 			assert.ok(!!await app.client.waitForElement('.feedback-form'));
