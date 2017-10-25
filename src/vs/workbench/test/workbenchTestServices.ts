@@ -418,6 +418,10 @@ export class TestPartService implements IPartService {
 		return 0;
 	}
 
+	public getPanelPosition() {
+		return 0;
+	}
+
 	public addClass(clazz: string): void { }
 	public removeClass(clazz: string): void { }
 	public getWorkbenchElementId(): string { return ''; }

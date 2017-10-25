@@ -38,7 +38,7 @@ import { IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs/workbe
 import { PanelRegistry, Extensions as PanelExtensions } from 'vs/workbench/browser/panel';
 import { QuickOpenController } from 'vs/workbench/browser/parts/quickopen/quickOpenController';
 import { getServices } from 'vs/platform/instantiation/common/extensions';
-import { Position, Parts, IPartService, ILayoutOptions } from 'vs/workbench/services/part/common/partService';
+import { Position, Parts, IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ContextMenuService } from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
@@ -152,6 +152,7 @@ export class Workbench implements IPartService {
 	private static zenModeActiveSettingKey = 'workbench.zenmode.active';
 
 	private static sidebarPositionConfigurationKey = 'workbench.sideBar.location';
+	private static panelPositionConfigurationKey = 'workbench.panel.location';
 	private static statusbarVisibleConfigurationKey = 'workbench.statusBar.visible';
 	private static activityBarVisibleConfigurationKey = 'workbench.activityBar.visible';
 
@@ -194,6 +195,7 @@ export class Workbench implements IPartService {
 	private statusBarHidden: boolean;
 	private activityBarHidden: boolean;
 	private sideBarPosition: Position;
+	private panelPosition: Position;
 	private panelHidden: boolean;
 	private editorBackgroundDelayer: Delayer<void>;
 	private closeEmptyWindowScheduler: RunOnceScheduler;
@@ -643,6 +645,10 @@ export class Workbench implements IPartService {
 		const sideBarPosition = this.configurationService.getValue<string>(Workbench.sidebarPositionConfigurationKey);
 		this.sideBarPosition = (sideBarPosition === 'right') ? Position.RIGHT : Position.LEFT;
 
+		// Panel position
+		const panelPosition = this.configurationService.getValue<string>(Workbench.panelPositionConfigurationKey);
+		this.panelPosition = (panelPosition === 'right') ? Position.RIGHT : Position.BOTTOM;
+
 		// Statusbar visibility
 		const statusBarVisible = this.configurationService.getValue<string>(Workbench.statusbarVisibleConfigurationKey);
 		this.statusBarHidden = !statusBarVisible;
@@ -886,14 +892,6 @@ export class Workbench implements IPartService {
 		});
 	}
 
-	public toggleMaximizedPanel(): void {
-		this.workbenchLayout.layout({ toggleMaximizedPanel: true });
-	}
-
-	public isPanelMaximized(): boolean {
-		return this.workbenchLayout.isPanelMaximized();
-	}
-
 	public getSideBarPosition(): Position {
 		return this.sideBarPosition;
 	}
@@ -921,6 +919,30 @@ export class Workbench implements IPartService {
 		this.workbenchLayout.layout();
 	}
 
+	public getPanelPosition(): Position {
+		return this.panelPosition;
+	}
+
+	private setPanelPosition(position: Position): void {
+		if (this.panelHidden) {
+			this.setPanelHidden(false, true /* Skip Layout */).done(undefined, errors.onUnexpectedError);
+		}
+
+		const newPositionValue = (position === Position.BOTTOM) ? 'bottom' : 'right';
+		const oldPositionValue = (this.panelPosition === Position.BOTTOM) ? 'bottom' : 'right';
+		this.panelPosition = position;
+
+		// Adjust CSS
+		this.panelPart.getContainer().removeClass(oldPositionValue);
+		this.panelPart.getContainer().addClass(newPositionValue);
+
+		// Update Styles
+		this.panelPart.updateStyles();
+
+		// Layout
+		this.workbenchLayout.layout();
+	}
+
 	private setFontAliasing(aliasing: string) {
 		this.fontAliasing = aliasing;
 
@@ -940,9 +962,9 @@ export class Workbench implements IPartService {
 	 * Asks the workbench and all its UI components inside to lay out according to
 	 * the containers dimension the workbench is living in.
 	 */
-	public layout(options?: ILayoutOptions): void {
+	public layout(): void {
 		if (this.isStarted()) {
-			this.workbenchLayout.layout(options);
+			this.workbenchLayout.layout();
 		}
 	}
 
@@ -1076,6 +1098,12 @@ export class Workbench implements IPartService {
 			this.setSideBarPosition(newSidebarPosition);
 		}
 
+		const newPanelPositionValue = this.configurationService.getValue<string>(Workbench.panelPositionConfigurationKey);
+		const newPanelPosition = (newPanelPositionValue === 'right') ? Position.RIGHT : Position.BOTTOM;
+		if (newPanelPosition !== this.getSideBarPosition()) {
+			this.setPanelPosition(newPanelPosition);
+		}
+
 		const fontAliasing = this.configurationService.getValue<string>(Workbench.fontAliasingConfigurationKey);
 		if (fontAliasing !== this.fontAliasing) {
 			this.setFontAliasing(fontAliasing);
@@ -1190,7 +1218,7 @@ export class Workbench implements IPartService {
 	private createPanelPart(): void {
 		const panelPartContainer = $(this.workbench)
 			.div({
-				'class': ['part', 'panel'],
+				'class': ['part', 'panel', this.panelPosition === Position.BOTTOM ? 'bottom' : 'right'],
 				id: Identifiers.PANEL_PART,
 				role: 'complementary'
 			});
