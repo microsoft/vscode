@@ -846,7 +846,7 @@
         "id": "git.color.deleted",
         "description": "Color for deleted resources",
         "defaults": {
-          "light": "#c02e11",
+          "light": "#ad0707",
           "dark": "#c74e39",
           "highContrast": "#c74e39"
         }
