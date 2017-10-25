@@ -38,13 +38,16 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { EventType } from 'vs/base/common/events';
+import { InstallWorkspaceRecommendedExtensionsAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 
 export class ExtensionsListView extends ViewsViewletPanel {
 
 	private messageBox: HTMLElement;
 	private extensionsList: HTMLElement;
 	private badge: CountBadge;
-
+	private listActionBar: HTMLElement;
 	private list: PagedList<IExtension>;
 
 	constructor(
@@ -98,6 +101,16 @@ export class ExtensionsListView extends ViewsViewletPanel {
 			.map(e => e.elements[0])
 			.filter(e => !!e)
 			.on(this.pin, this, this.disposables);
+
+		this.listActionBar = append(this.extensionsList, $('.list-actionbar-container'));
+		const actionbar = new ActionBar(this.listActionBar, {
+			animated: false
+		});
+		actionbar.addListener(EventType.RUN, ({ error }) => error && this.messageService.show(Severity.Error, error));
+		const installAllAction = this.instantiationService.createInstance(InstallWorkspaceRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsAction.ID, localize('installAll', "Install All"));
+		actionbar.push([installAllAction], { icon: true, label: true });
+
+		this.disposables.push(actionbar);
 	}
 
 	layoutBody(size: number): void {
@@ -106,6 +119,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 	}
 
 	async show(query: string): TPromise<IPagedModel<IExtension>> {
+		toggleClass(this.listActionBar, 'hidden', !ExtensionsListView.isWorkspaceRecommendedExtensionsQuery(query));
 		const model = await this.query(query);
 		this.setModel(model);
 		return model;

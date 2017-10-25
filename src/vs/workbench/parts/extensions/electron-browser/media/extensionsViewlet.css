@@ -27,6 +27,19 @@
 	height: calc(100% - 38px);
 }
 
+.extensions-viewlet > .extensions .extensions-list > .monaco-list {
+	height: auto;
+}
+
+.extensions-viewlet > .extensions .extensions-list > .list-actionbar-container {
+	padding: 4px 7px;
+}
+
+.extensions-viewlet > .extensions .extensions-list > .list-actionbar-container.hidden,
+.extensions-viewlet > .extensions .extensions-list > .list-actionbar-container .monaco-action-bar .action-item.disabled  {
+	display: none;
+}
+
 .extensions-viewlet > .extensions .extensions-list.hidden,
 .extensions-viewlet > .extensions .message.hidden {
 	display: none;
