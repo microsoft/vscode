@@ -25,7 +25,8 @@ export function registerContributions(): void {
 		},
 		menu: {
 			menuId: MenuId.ProblemsPanelContext,
-			when: Constants.MarkerFocusContextKey
+			when: Constants.MarkerFocusContextKey,
+			group: 'navigation'
 		},
 		keybinding: {
 			keys: {
@@ -42,7 +43,8 @@ export function registerContributions(): void {
 		},
 		menu: {
 			menuId: MenuId.ProblemsPanelContext,
-			when: Constants.MarkerFocusContextKey
+			when: Constants.MarkerFocusContextKey,
+			group: 'navigation'
 		}
 	});
 }
