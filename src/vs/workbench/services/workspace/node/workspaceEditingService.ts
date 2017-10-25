@@ -160,7 +160,11 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 			}
 
 			return TPromise.as(void 0);
-		}).then(startExtensionHost, startExtensionHost); // in any case start the extension host again!
+		}).then(startExtensionHost, error => {
+			startExtensionHost(); // in any case start the extension host again!
+
+			return TPromise.wrapError(error);
+		});
 	}
 
 	private migrate(toWorkspace: IWorkspaceIdentifier): TPromise<void> {
