@@ -79,6 +79,13 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		this._register(this.contextService.onDidChangeWorkspaceFolders(e => this.onWorkspaceFoldersChanged(e)));
 	}
 
+	getAllRecommendationsWithReason(): { [id: string]: string; } {
+		let output: { [id: string]: string; } = Object.create(null);
+		this.getFileBasedRecommendations().forEach(x => output[x.toLowerCase()] = localize('fileBasedRecommendation', "Based on your recent file history, we recommend this extension."));
+		this._allWorkspaceRecommendedExtensions.forEach(x => output[x.toLowerCase()] = localize('workspaceRecommendation', "Your team recommends this extension."));
+		return output;
+	}
+
 	getWorkspaceRecommendations(): TPromise<string[]> {
 		const workspace = this.contextService.getWorkspace();
 		return TPromise.join([this.resolveWorkspaceRecommendations(workspace), ...workspace.folders.map(workspaceFolder => this.resolveWorkspaceFolderRecommendations(workspaceFolder))])
