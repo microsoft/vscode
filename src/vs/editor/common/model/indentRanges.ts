@@ -122,24 +122,18 @@ export class IndentRanges {
 }
 // public only for testing
 export class RangesCollector {
-	private _startIndexes: Uint32Array;
-	private _endIndexes: Uint32Array;
-	private _indentOccurrences: number[] = [];
+	private _startIndexes: number[];
+	private _endIndexes: number[];
+	private _indentOccurrences: number[];
 	private _length: number;
 	private _foldingRegionsLimit: number;
 
 	constructor(foldingRegionsLimit = MAX_FOLDING_REGIONS_FOR_INDENT_LIMIT) {
-		this._startIndexes = new Uint32Array(64);
-		this._endIndexes = new Uint32Array(64);
+		this._startIndexes = [];
+		this._endIndexes = [];
 		this._indentOccurrences = [];
 		this._length = 0;
 		this._foldingRegionsLimit = foldingRegionsLimit;
-	}
-
-	private expand(arr: Uint32Array): Uint32Array {
-		let data = new Uint32Array(arr.length * 2);
-		data.set(arr, 0);
-		return data;
 	}
 
 	public insertFirst(startLineNumber: number, endLineNumber: number, indent: number) {
@@ -147,10 +141,6 @@ export class RangesCollector {
 			return;
 		}
 		let index = this._length;
-		if (index >= this._startIndexes.length) {
-			this._startIndexes = this.expand(this._startIndexes);
-			this._endIndexes = this.expand(this._endIndexes);
-		}
 		this._startIndexes[index] = startLineNumber;
 		this._endIndexes[index] = endLineNumber;
 		this._length++;
