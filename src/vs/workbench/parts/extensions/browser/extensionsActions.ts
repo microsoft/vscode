@@ -39,6 +39,7 @@ import { IJSONEditingService } from 'vs/workbench/services/configuration/common/
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { PICK_WORKSPACE_FOLDER_COMMAND } from 'vs/workbench/browser/actions/workspaceActions';
+import Severity from 'vs/base/common/severity';
 
 export class InstallAction extends Action {
 
@@ -1141,6 +1142,7 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 	private disposables: IDisposable[] = [];
 	private recommendations: string[] = [];
 	private toInstall: string[] = [];
+	private updatePromise: TPromise<any> = TPromise.as(null);
 
 	constructor(
 		id: string = InstallWorkspaceRecommendedExtensionsAction.ID,
@@ -1148,23 +1150,24 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IViewletService private viewletService: IViewletService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionTipsService private extensionTipsService: IExtensionTipsService
+		@IExtensionTipsService private extensionTipsService: IExtensionTipsService,
+		@IMessageService private messageService: IMessageService
 	) {
 		super(id, label, 'extension-action');
-		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.updateToInstall()));
+		this.extensionsWorkbenchService.onChange(() => this.updateToInstall(), this, this.disposables);
 		this.contextService.onDidChangeWorkbenchState(() => this.updateRecommendations(), this, this.disposables);
-		this.updateRecommendations();
-		this.updateToInstall();
+		this.updatePromise = this.updateRecommendations();
 	}
 
-	private updateRecommendations(): void {
+	private updateRecommendations(): TPromise<any> {
 		this.enabled = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY;
 		if (this.enabled) {
-			this.extensionTipsService.getWorkspaceRecommendations().then(names => {
+			return this.extensionTipsService.getWorkspaceRecommendations().then(names => {
 				this.recommendations = names;
-				this.enabled = this.recommendations.length > 0;
+				this.updateToInstall();
 			});
 		}
+		return TPromise.as(null);
 	}
 
 	private updateToInstall(): void {
@@ -1181,9 +1184,14 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 				viewlet.focus();
 			});
 
-
-		return this.extensionsWorkbenchService.queryGallery({ names: this.recommendations, source: 'install-all-workspace-recommendations' }).then(pager => {
-			return TPromise.join(pager.firstPage.map(e => this.extensionsWorkbenchService.install(e)));
+		return this.updatePromise.then(() => {
+			if (!this.toInstall.length) {
+				this.messageService.show(Severity.Info, localize('allExtensionsInstalled', "All extensions recommended for this workspace have already been installed"));
+				return TPromise.as(null);
+			}
+			return this.extensionsWorkbenchService.queryGallery({ names: this.toInstall, source: 'install-all-workspace-recommendations' }).then(pager => {
+				return TPromise.join(pager.firstPage.map(e => this.extensionsWorkbenchService.install(e)));
+			});
 		});
 	}
 
