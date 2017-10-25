@@ -37,10 +37,6 @@
 	flex: 1;
 }
 
-.explorer-viewlet .explorer-item::before {
-	flex-shrink: 0; /* fix for https://github.com/Microsoft/vscode/issues/13787 */
-}
-
 .explorer-viewlet .explorer-item.explorer-item-edited .label-name {
 	flex: 0; /* do not steal space when label is hidden because we are in edit mode */
 }
