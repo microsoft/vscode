@@ -5208,8 +5208,9 @@ declare module 'vscode' {
 		 * folder.
 		 *
 		 * @param folder a workspace folder to add.
+		 * @return A thenable that resolves when the workspace folder was added successfully.
 		 */
-		export function addWorkspaceFolder(uri: Uri, name?: string): Thenable<void>;
+		export function addWorkspaceFolder(uri: Uri, name?: string): Thenable<boolean>;
 
 		/**
 		 * Remove a workspace folder from the currently opened workspace.
@@ -5221,8 +5222,9 @@ declare module 'vscode' {
 		 * folder.
 		 *
 		 * @param folder a [workspace folder](#WorkspaceFolder) to remove.
+		 * @return A thenable that resolves when the workspace folder was removed successfully
 		 */
-		export function removeWorkspaceFolder(folder: WorkspaceFolder): Thenable<void>;
+		export function removeWorkspaceFolder(folder: WorkspaceFolder): Thenable<boolean>;
 
 		/**
 		 * Returns the [workspace folder](#WorkspaceFolder) that contains a given uri.

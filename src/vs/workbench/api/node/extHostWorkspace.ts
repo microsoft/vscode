@@ -78,13 +78,13 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		}
 	}
 
-	addWorkspaceFolder(uri: URI, name?: string): Thenable<void> {
+	addWorkspaceFolder(uri: URI, name?: string): Thenable<boolean> {
 		return this._proxy.$addFolder(uri, name);
 	}
 
-	removeWorkspaceFolder(folder: vscode.WorkspaceFolder): Thenable<void> {
+	removeWorkspaceFolder(folder: vscode.WorkspaceFolder): Thenable<boolean> {
 		if (this.getWorkspaceFolders().indexOf(folder) === -1) {
-			return Promise.resolve(undefined);
+			return Promise.resolve(false);
 		}
 
 		return this._proxy.$removeFolder(folder.uri);
