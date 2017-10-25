@@ -69,7 +69,6 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	private _sidebarWidth: number;
 	private sidebarHeight: number;
 	private titlebarHeight: number;
-	private activitybarWidth: number;
 	private statusbarHeight: number;
 	private _panelHeight: number;
 	private _panelWidth: number;
@@ -134,6 +133,14 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		this.registerSashListeners();
 	}
 
+	private get activitybarWidth(): number {
+		if (this.partService.isVisible(Parts.ACTIVITYBAR_PART)) {
+			return this.partLayoutInfo.activitybar.width;
+		}
+
+		return 0;
+	}
+
 	private get panelHeight(): number {
 		const panelPosition = this.partService.getPanelPosition();
 		if (panelPosition === Position.RIGHT) {
@@ -173,7 +180,10 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	}
 
 	private set sidebarWidth(value: number) {
-		this._sidebarWidth = Math.max(this.partLayoutInfo.sidebar.minWidth, value);
+		const editorCountForWidth = this.editorGroupService.getGroupOrientation() === 'vertical' ? this.editorGroupService.getStacksModel().groups.length : 1;
+		const panelMinWidth = this.partService.getPanelPosition() === Position.RIGHT && this.partService.isVisible(Parts.PANEL_PART) ? MIN_PANEL_PART_WIDTH : 0;
+		const maxSidebarWidth = this.workbenchSize.width - this.activitybarWidth - editorCountForWidth * MIN_EDITOR_PART_WIDTH - panelMinWidth;
+		this._sidebarWidth = Math.min(maxSidebarWidth, Math.max(this.partLayoutInfo.sidebar.minWidth, value));
 	}
 
 	private getPartLayoutInfo(): PartLayoutInfo {
@@ -428,7 +438,6 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		let sidebarSize = new Dimension(this.sidebarWidth, this.sidebarHeight);
 
 		// Activity Bar
-		this.activitybarWidth = isActivityBarHidden ? 0 : this.partLayoutInfo.activitybar.width;
 		let activityBarSize = new Dimension(this.activitybarWidth, sidebarSize.height);
 
 		// Panel part
