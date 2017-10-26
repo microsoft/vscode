@@ -7,25 +7,26 @@ import * as assert from 'assert';
 import { SpectronApplication, Quality } from '../../spectron/application';
 
 describe('Extensions', () => {
-	let app: SpectronApplication = new SpectronApplication();
-	before(() => app.start('Extensions'));
-	after(() => app.stop());
+	it(`install and activate vscode-smoketest-check extension`, async function () {
+		const app = this.app as SpectronApplication;
 
-	if (app.quality !== Quality.Dev) {
-		it(`install and activate vscode-smoketest-check extension`, async function () {
-			const extensionName = 'vscode-smoketest-check';
-			await app.workbench.extensions.openExtensionsViewlet();
+		if (app.quality === Quality.Dev) {
+			this.skip();
+			return;
+		}
 
-			const installed = await app.workbench.extensions.installExtension(extensionName);
-			assert.ok(installed);
+		const extensionName = 'vscode-smoketest-check';
+		await app.workbench.extensions.openExtensionsViewlet();
 
-			await app.reload();
-			await app.workbench.extensions.waitForExtensionsViewlet();
-			await app.workbench.quickopen.runCommand('Smoke Test Check');
+		const installed = await app.workbench.extensions.installExtension(extensionName);
+		assert.ok(installed);
 
-			const statusbarText = await app.workbench.statusbar.getStatusbarTextByTitle('smoke test');
-			await app.screenCapturer.capture('Statusbar');
-			assert.equal(statusbarText, 'VS Code Smoke Test Check');
-		});
-	}
+		await app.reload();
+		await app.workbench.extensions.waitForExtensionsViewlet();
+		await app.workbench.quickopen.runCommand('Smoke Test Check');
+
+		const statusbarText = await app.workbench.statusbar.getStatusbarTextByTitle('smoke test');
+		await app.screenCapturer.capture('Statusbar');
+		assert.equal(statusbarText, 'VS Code Smoke Test Check');
+	});
 });

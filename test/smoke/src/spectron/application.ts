@@ -132,6 +132,7 @@ export class SpectronApplication {
 		if (this.spectron && this.spectron.isRunning()) {
 			await this.screenCapturer.capture('Stopping application');
 			await this.spectron.stop();
+			this.spectron = null;
 		}
 	}
 

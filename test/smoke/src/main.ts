@@ -208,7 +208,7 @@ before(async function () {
 	this.timeout(2 * 60 * 1000);
 	await setup();
 
-	this.app = new SpectronApplication({
+	const app = new SpectronApplication({
 		quality,
 		electronPath,
 		workspacePath,
@@ -217,7 +217,9 @@ before(async function () {
 		artifactsPath,
 		waitTime: parseInt(opts['wait-time'] || '0') || 20
 	});
-	await this.app.start('foo');
+
+	await app.start('foo');
+	this.app = app;
 });
 
 after(async function () {
@@ -237,5 +239,5 @@ import './areas/debug/debug.test';
 import './areas/git/git.test';
 // import './areas/terminal/terminal.test';
 import './areas/statusbar/statusbar.test';
-// import './areas/extensions/extensions.test';
-// import './areas/workbench/localization.test';
+import './areas/extensions/extensions.test';
+import './areas/workbench/localization.test';

@@ -8,15 +8,36 @@ import * as assert from 'assert';
 import { SpectronApplication, Quality } from '../../spectron/application';
 
 describe('Localization', () => {
-	let app: SpectronApplication = new SpectronApplication();
-	if (app.quality === Quality.Dev) {
-		return;
-	}
+	before(async function () {
+		const app = this.app as SpectronApplication;
 
-	after(() => app.stop());
+		if (app.quality === Quality.Dev) {
+			return;
+		}
+
+		await app.stop();
+		await new Promise(c => setTimeout(c, 500));
+		await app.start('Localization', ['--locale=DE']);
+	});
+
+	after(async function () {
+		const app = this.app as SpectronApplication;
+
+		if (app.quality === Quality.Dev) {
+			return;
+		}
+
+		await app.stop();
+		await new Promise(c => setTimeout(c, 500));
+		await app.start('foo');
+	});
 
 	it(`starts with 'DE' locale and verifies title and viewlets text is in German`, async function () {
-		await app.start('Localization', ['--locale=DE']);
+		const app = this.app as SpectronApplication;
+
+		if (app.quality === Quality.Dev) {
+			return;
+		}
 
 		let text = await app.workbench.explorer.getOpenEditorsViewTitle();
 		await app.screenCapturer.capture('Open editors title');
