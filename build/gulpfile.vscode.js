@@ -461,6 +461,11 @@ gulp.task('upload-vscode-configuration', ['generate-vscode-configuration'], () =
 		return;
 	}
 
+	if (!buildNumber) {
+		console.error('Failed to compute build number');
+		return;
+	}
+
 	return gulp.src(allConfigDetailsPath)
 		.pipe(azure.upload({
 			account: process.env.AZURE_STORAGE_ACCOUNT,
@@ -472,6 +477,10 @@ gulp.task('upload-vscode-configuration', ['generate-vscode-configuration'], () =
 
 function getBuildNumber() {
 	const previous = getPreviousVersion(packageJson.version);
+	if (!previous) {
+		return 0;
+	}
+
 	try {
 		const out = cp.execSync(`git rev-list ${previous}..HEAD --count`);
 		const count = parseInt(out.toString());
@@ -498,7 +507,9 @@ function getPreviousVersion(versionStr) {
 	}
 
 	function getLastTagFromBase(semverArr, componentToTest) {
-		if (!tagExists(semverArr.join('.'))) {
+		const baseVersion = semverArr.join('.');
+		if (!tagExists(baseVersion)) {
+			console.error('Failed to find tag for base version, ' + baseVersion);
 			return null;
 		}
 
