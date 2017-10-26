@@ -459,9 +459,14 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	}
 
 	private syncLocalWithGalleryExtension(local: Extension, gallery: IGalleryExtension) {
-		local.gallery = gallery;
-		this._onChange.fire();
-		this.eventuallyAutoUpdateExtensions();
+		// Sync the local extension with gallery extension if local extension doesnot has metadata
+		(local.local.metadata ? TPromise.as(local.local) : this.extensionService.updateMetadata(local.local, { id: gallery.identifier.uuid, publisherDisplayName: gallery.publisherDisplayName, publisherId: gallery.publisherId }))
+			.then(localExtension => {
+				local.local = localExtension;
+				local.gallery = gallery;
+				this._onChange.fire();
+				this.eventuallyAutoUpdateExtensions();
+			});
 	}
 
 	checkForUpdates(): TPromise<void> {
