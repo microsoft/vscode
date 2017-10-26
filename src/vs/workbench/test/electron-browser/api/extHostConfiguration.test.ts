@@ -455,7 +455,6 @@ suite('ExtHostConfiguration', function () {
 				'newConfig': true,
 			});
 
-			assert.deepEqual(e.affectedKeys, ['farboo.updatedConfig', 'farboo.newConfig']);
 			assert.ok(e.affectsConfiguration('farboo'));
 			assert.ok(e.affectsConfiguration('farboo', workspaceFolder.uri));
 			assert.ok(e.affectsConfiguration('farboo', URI.file('any')));

@@ -5405,11 +5405,6 @@ declare module 'vscode' {
 	export interface ConfigurationChangeEvent {
 
 		/**
-		 * Affected configuration keys
-		 */
-		readonly affectedKeys: string[];
-
-		/**
 		 * Returns `true` if the given section for the given resource (if provided) has affected.
 		 *
 		 * @param section Configuration name, supports _dotted_ names.

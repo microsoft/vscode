@@ -130,7 +130,6 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 		}
 		const event = new WorkspaceConfigurationChangeEvent(new ConfigurationChangeEvent(changedConfiguration, changedConfigurationByResource), this._extHostWorkspace.workspace);
 		return Object.freeze({
-			get affectedKeys() { return event.affectedKeys; },
 			affectsConfiguration: (section: string, resource?: URI) => event.affectsConfiguration(section, resource)
 		});
 	}
