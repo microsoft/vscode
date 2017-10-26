@@ -18,5 +18,11 @@
 		["[", "]"],
 		["(", ")"],
 		["\"", "\""]
-	]
+	],
+	"folding": {
+		"markers": {
+			"start": "^\\s*(::|REM)\\s*#region",
+			"end": "^\\s*(::|REM)\\s*#endregion"
+		}
+	}
 }
