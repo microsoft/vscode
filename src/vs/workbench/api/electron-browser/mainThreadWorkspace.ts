@@ -16,6 +16,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IRelativePattern } from 'vs/base/common/glob';
+import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
@@ -30,7 +31,8 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
 		@IConfigurationService private _configurationService: IConfigurationService,
-		@IFileService private readonly _fileService: IFileService
+		@IFileService private readonly _fileService: IFileService,
+		@IWorkspaceEditingService private _workspaceEditingService: IWorkspaceEditingService
 	) {
 		this._proxy = extHostContext.get(ExtHostContext.ExtHostWorkspace);
 		this._contextService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspace, this, this._toDispose);
@@ -53,11 +55,11 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 	}
 
 	$addFolder(uri: URI, name?: string): Thenable<boolean> {
-		return this._contextService.addFolders([{ uri, name }]).then(() => true);
+		return this._workspaceEditingService.addFolders([{ uri, name }]).then(() => true);
 	}
 
 	$removeFolder(folder: URI): Thenable<boolean> {
-		return this._contextService.removeFolders([folder]).then(() => true);
+		return this._workspaceEditingService.removeFolders([folder]).then(() => true);
 	}
 
 	// --- search ---
