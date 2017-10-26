@@ -134,7 +134,7 @@ export class PanelActivityAction extends ActivityAction {
 	}
 
 	public run(event: any): TPromise<any> {
-		return this.panelService.openPanel(this.activity.id, true).then(() => this.activate());;
+		return this.panelService.openPanel(this.activity.id, true).then(() => this.activate());
 	}
 }
 
