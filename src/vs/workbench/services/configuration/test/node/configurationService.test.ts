@@ -20,6 +20,7 @@ import extfs = require('vs/base/node/extfs');
 import uuid = require('vs/base/common/uuid');
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
+import { ConfigurationEditingErrorCode } from 'vs/workbench/services/configuration/node/configurationEditingService';
 import { FileChangeType, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -29,6 +30,8 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
+import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
+import { JSONEditingService } from 'vs/workbench/services/configuration/node/jsonEditingService';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -505,7 +508,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 
 suite('WorkspaceConfigurationService - Update (Multiroot)', () => {
 
-	let parentResource: string, workspaceContextService: IWorkspaceContextService, testObject: IConfigurationService;
+	let parentResource: string, workspaceContextService: IWorkspaceContextService, jsonEditingServce: IJSONEditingService, testObject: IConfigurationService;
 
 	suiteSetup(() => {
 		const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
@@ -548,6 +551,7 @@ suite('WorkspaceConfigurationService - Update (Multiroot)', () => {
 					workspaceService.setInstantiationService(instantiationService);
 
 					workspaceContextService = workspaceService;
+					jsonEditingServce = instantiationService.createInstance(JSONEditingService);
 					testObject = workspaceService;
 				});
 			});
@@ -600,9 +604,39 @@ suite('WorkspaceConfigurationService - Update (Multiroot)', () => {
 			.then(() => assert.ok(target.called));
 	});
 
-	test('update tasks configuration', () => {
+	test('update tasks configuration in a folder', () => {
 		const workspace = workspaceContextService.getWorkspace();
 		return testObject.updateValue('tasks', { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] }, { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE_FOLDER)
 			.then(() => assert.deepEqual(testObject.getValue('tasks', { resource: workspace.folders[0].uri }), { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] }));
+	});
+
+	test('update tasks configuration in a workspace is not supported', () => {
+		const workspace = workspaceContextService.getWorkspace();
+		return testObject.updateValue('tasks', { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] }, { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE, true)
+			.then(() => assert.fail('Should not be supported'), (e) => assert.equal(e.code, ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_TARGET));
+	});
+
+	test('update launch configuration in a workspace is not supported', () => {
+		const workspace = workspaceContextService.getWorkspace();
+		return testObject.updateValue('launch', { 'version': '1.0.0', configurations: [{ 'name': 'myLaunch' }] }, { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE, true)
+			.then(() => assert.fail('Should not be supported'), (e) => assert.equal(e.code, ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_TARGET));
+	});
+
+	test('task configurations are not read from workspace', () => {
+		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration, { key: 'tasks.version', value: '1.0' }, true)
+			.then(() => testObject.reloadConfiguration())
+			.then(() => {
+				const actual = testObject.inspect('tasks');
+				assert.equal(actual.workspace, void 0);
+			});
+	});
+
+	test('launch configurations are not read from workspace', () => {
+		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration, { key: 'launch.version', value: '1.0' }, true)
+			.then(() => testObject.reloadConfiguration())
+			.then(() => {
+				const actual = testObject.inspect('launch');
+				assert.equal(actual.workspace, void 0);
+			});
 	});
 });
