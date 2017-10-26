@@ -269,7 +269,7 @@ export class PanelViewlet extends Viewlet {
 		return this.panelview.getPanelSize(panel);
 	}
 
-	private updateViewHeaders(): void {
+	protected updateViewHeaders(): void {
 		if (this.isSingleView()) {
 			this.panelItems[0].panel.setExpanded(true);
 			this.panelItems[0].panel.headerVisible = false;

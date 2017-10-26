@@ -241,12 +241,14 @@ export class ViewsViewlet extends PanelViewlet {
 		this._register(ViewsRegistry.onViewsDeregistered(this.onViewsDeregistered, this));
 		this._register(this.contextKeyService.onDidChangeContext(keys => this.onContextChanged(keys)));
 
-		await this.extensionService.onReady();
-		this.areExtensionsReady = true;
-		await this.updateViews();
-		// this.onViewsUpdated();
+		// Update headers after and title contributed views after available, since we read from cache in the beginning to know if the viewlet has single view or not. Ref #29609
+		this.extensionService.onReady().then(() => {
+			this.areExtensionsReady = true;
+			this.updateViewHeaders();
+			this.updateTitleArea();
+		});
 
-		await this.onViewsRegistered(ViewsRegistry.getViews(this.location));
+		this.onViewsRegistered(ViewsRegistry.getViews(this.location));
 		this.focus();
 	}
 
@@ -510,7 +512,7 @@ export class ViewsViewlet extends PanelViewlet {
 		});
 	}
 
-	protected showHeaderInTitleArea(): boolean {
+	protected isSingleView(): boolean {
 		if (!this.showHeaderInTitleWhenSingleView) {
 			return false;
 		}
@@ -520,11 +522,8 @@ export class ViewsViewlet extends PanelViewlet {
 		if (ViewLocation.getContributedViewLocation(this.location.id) && !this.areExtensionsReady) {
 			// Checks in cache so that view do not jump. See #29609
 			let visibleViewsCount = 0;
-			const viewDecriptors = this.getViewDescriptorsFromRegistry();
 			this.viewsStates.forEach((viewState, id) => {
-				const viewDescriptor = viewDecriptors.filter(viewDescriptor => viewDescriptor.id === id)[0];
-				const isHidden = viewState.isHidden || (viewDescriptor && !this.contextKeyService.contextMatchesRules(viewDescriptor.when));
-				if (!isHidden) {
+				if (!viewState.isHidden) {
 					visibleViewsCount++;
 				}
 			});
