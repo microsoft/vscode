@@ -22,6 +22,10 @@ const ROOT_FOLDER_QUERY: IFolderSearch[] = [
 	TEST_ROOT_FOLDER
 ];
 
+const ROOT_FOLDER_QUERY_36438: IFolderSearch[] = [
+	{ folder: path.normalize(require.toUrl('./fixtures2/36438')) }
+];
+
 const MULTIROOT_QUERIES: IFolderSearch[] = [
 	{ folder: EXAMPLES_FIXTURES },
 	{ folder: MORE_FIXTURES }
@@ -377,6 +381,44 @@ suite('FileSearchEngine', () => {
 		}, () => { }, (error) => {
 			assert.ok(!error);
 			assert.equal(count, 8);
+			done();
+		});
+	});
+
+	test('Files: exclude folder without wildcard #36438', function (done: () => void) {
+		this.timeout(testTimeout);
+		let engine = new FileSearchEngine({
+			folderQueries: ROOT_FOLDER_QUERY_36438,
+			excludePattern: { 'modules': true }
+		});
+
+		let count = 0;
+		engine.search((result) => {
+			if (result) {
+				count++;
+			}
+		}, () => { }, (error) => {
+			assert.ok(!error);
+			assert.equal(count, 1);
+			done();
+		});
+	});
+
+	test('Files: include folder without wildcard #36438', function (done: () => void) {
+		this.timeout(testTimeout);
+		let engine = new FileSearchEngine({
+			folderQueries: ROOT_FOLDER_QUERY_36438,
+			includePattern: { 'modules/**': true }
+		});
+
+		let count = 0;
+		engine.search((result) => {
+			if (result) {
+				count++;
+			}
+		}, () => { }, (error) => {
+			assert.ok(!error);
+			assert.equal(count, 1);
 			done();
 		});
 	});
