@@ -8,6 +8,10 @@ import { SpectronApplication } from '../../spectron/application';
 import { ProblemSeverity, Problems } from '../problems/problems';
 
 describe('CSS', () => {
+	before(function () {
+		this.app.suiteName = 'CSS';
+	});
+
 	it('verifies quick outline', async function () {
 		const app = this.app as SpectronApplication;
 		await app.workbench.quickopen.openFile('style.css');

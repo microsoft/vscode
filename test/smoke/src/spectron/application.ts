@@ -59,6 +59,8 @@ export interface SpectronApplicationOptions {
  */
 export class SpectronApplication {
 
+	private static count = 0;
+
 	private _client: SpectronClient;
 	private _workbench: Workbench;
 	private _screenCapturer: ScreenCapturer;
@@ -112,23 +114,28 @@ export class SpectronApplication {
 		return this.options.workspaceFilePath;
 	}
 
-	async start(testSuiteName: string, codeArgs: string[] = []): Promise<any> {
-		await this._start(testSuiteName, codeArgs);
+	private _suiteName: string = 'Init';
+
+	set suiteName(suiteName: string) {
+		this._suiteName = suiteName;
+		this._screenCapturer.suiteName = suiteName;
+	}
+
+	async start(): Promise<any> {
+		await this._start();
 		await this.waitForWelcome();
-		await this.screenCapturer.capture('Application started');
 	}
 
 	async restart(codeArgs: string[] = []): Promise<any> {
 		await this.stop();
 		await new Promise(c => setTimeout(c, 1000));
-		await this._start('foo', codeArgs);
-		await this.screenCapturer.capture('Application restarted');
+		await this._start(codeArgs);
 	}
 
-	private async _start(testSuiteName: string, codeArgs: string[] = []): Promise<any> {
+	private async _start(codeArgs: string[] = []): Promise<any> {
 		await this.retrieveKeybindings();
 		cp.execSync('git checkout .', { cwd: this.options.workspacePath });
-		await this.startApplication(testSuiteName, codeArgs);
+		await this.startApplication(codeArgs);
 		await this.checkWindowReady();
 	}
 
@@ -146,13 +153,12 @@ export class SpectronApplication {
 		}
 
 		if (this.spectron && this.spectron.isRunning()) {
-			await this.screenCapturer.capture('Stopping application');
 			await this.spectron.stop();
 			this.spectron = undefined;
 		}
 	}
 
-	private async startApplication(testSuiteName: string, codeArgs: string[] = []): Promise<any> {
+	private async startApplication(codeArgs: string[] = []): Promise<any> {
 
 		let args: string[] = [];
 		let chromeDriverArgs: string[] = [];
@@ -207,11 +213,12 @@ export class SpectronApplication {
 			requireName: 'nodeRequire'
 		};
 
+		const runName = String(SpectronApplication.count++);
 		let testsuiteRootPath: string | undefined = undefined;
 		let screenshotsDirPath: string | undefined = undefined;
 
 		if (this.options.artifactsPath) {
-			testsuiteRootPath = path.join(this.options.artifactsPath, sanitize(testSuiteName));
+			testsuiteRootPath = path.join(this.options.artifactsPath, sanitize(runName));
 			mkdirp.sync(testsuiteRootPath);
 
 			// Collect screenshots
@@ -268,7 +275,7 @@ export class SpectronApplication {
 			};
 		}
 
-		this._screenCapturer = new ScreenCapturer(this.spectron, screenshotsDirPath);
+		this._screenCapturer = new ScreenCapturer(this.spectron, this._suiteName, screenshotsDirPath);
 		this._client = new SpectronClient(this.spectron, this, this.options.waitTime);
 		this._workbench = new Workbench(this);
 	}

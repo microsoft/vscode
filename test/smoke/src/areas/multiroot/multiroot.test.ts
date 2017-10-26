@@ -9,6 +9,8 @@ import { SpectronApplication } from '../../spectron/application';
 describe('Multiroot', () => {
 
 	before(async function () {
+		this.app.suiteName = 'Multiroot';
+
 		const app = this.app as SpectronApplication;
 
 		await app.restart([app.workspaceFilePath]);

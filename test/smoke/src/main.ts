@@ -219,7 +219,7 @@ before(async function () {
 		waitTime: parseInt(opts['wait-time'] || '0') || 20
 	});
 
-	await app.start('foo');
+	await app.start();
 	this.app = app;
 });
 

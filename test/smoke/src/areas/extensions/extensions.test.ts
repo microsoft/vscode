@@ -7,6 +7,10 @@ import * as assert from 'assert';
 import { SpectronApplication, Quality } from '../../spectron/application';
 
 describe('Extensions', () => {
+	before(function () {
+		this.app.suiteName = 'Extensions';
+	});
+
 	it(`install and activate vscode-smoketest-check extension`, async function () {
 		const app = this.app as SpectronApplication;
 

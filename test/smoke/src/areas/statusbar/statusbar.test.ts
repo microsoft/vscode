@@ -9,6 +9,10 @@ import { SpectronApplication, Quality } from '../../spectron/application';
 import { StatusBarElement } from './statusbar';
 
 describe('Statusbar', () => {
+	before(function () {
+		this.app.suiteName = 'Statusbar';
+	});
+
 	it('verifies presence of all default status bar elements', async function () {
 		const app = this.app as SpectronApplication;
 

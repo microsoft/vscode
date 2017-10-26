@@ -39,6 +39,8 @@ describe('Debug', () => {
 			await new Promise((c, e) => fs.symlink(debug2Path, path.join(app.extensionsPath, 'vscode-node-debug2'), err => err ? e(err) : c()));
 			await app.reload();
 		}
+
+		this.app.suiteName = 'Debug';
 	});
 
 	it('configure launch json', async function () {

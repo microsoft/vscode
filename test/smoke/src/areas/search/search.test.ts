@@ -6,6 +6,10 @@
 import { SpectronApplication } from '../../spectron/application';
 
 describe('Search', () => {
+	before(function () {
+		this.app.suiteName = 'Search';
+	});
+
 	it('searches for body & checks for correct result number', async function () {
 		const app = this.app as SpectronApplication;
 		await app.workbench.search.openSearchViewlet();

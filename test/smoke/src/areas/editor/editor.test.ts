@@ -6,6 +6,10 @@
 import { SpectronApplication } from '../../spectron/application';
 
 describe('Editor', () => {
+	before(function () {
+		this.app.suiteName = 'Editor';
+	});
+
 	it('shows correct quick outline', async function () {
 		const app = this.app as SpectronApplication;
 		await app.workbench.quickopen.openFile('www');

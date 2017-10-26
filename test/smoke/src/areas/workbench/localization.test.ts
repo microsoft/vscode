@@ -10,6 +10,7 @@ import { SpectronApplication, Quality } from '../../spectron/application';
 describe('Localization', () => {
 	before(async function () {
 		const app = this.app as SpectronApplication;
+		this.app.suiteName = 'Localization';
 
 		if (app.quality === Quality.Dev) {
 			return;
