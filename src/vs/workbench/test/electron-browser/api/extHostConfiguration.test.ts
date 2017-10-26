@@ -31,12 +31,16 @@ suite('ExtHostConfiguration', function () {
 		if (!shape) {
 			shape = new class extends mock<MainThreadConfigurationShape>() { };
 		}
-		return new ExtHostConfiguration(shape, new ExtHostWorkspace(new TestThreadService(), null), {
+		return new ExtHostConfiguration(shape, new ExtHostWorkspace(new TestThreadService(), null), createConfigurationData(contents));
+	}
+
+	function createConfigurationData(contents: any) {
+		return {
 			defaults: new ConfigurationModel(contents),
 			user: new ConfigurationModel(contents),
 			workspace: new ConfigurationModel(),
 			folders: Object.create(null)
-		});
+		};
 	}
 
 	test('getConfiguration fails regression test 1.7.1 -> 1.8 #15552', function () {
@@ -402,6 +406,74 @@ suite('ExtHostConfiguration', function () {
 			.getConfiguration('')
 			.update('', true, false)
 			.then(() => assert.ok(false), err => { /* expecting rejection */ });
+	});
+
+	test('configuration change event', (done) => {
+
+		const workspaceFolder = aWorkspaceFolder(URI.file('folder1'), 0);
+		const testObject = new ExtHostConfiguration(
+			new class extends mock<MainThreadConfigurationShape>() { },
+			new ExtHostWorkspace(new TestThreadService(), {
+				'id': 'foo',
+				'folders': [workspaceFolder],
+				'name': 'foo'
+			}),
+			createConfigurationData({
+				'farboo': {
+					'config': false,
+					'updatedconfig': false
+				}
+			})
+		);
+
+		const newConfigData = createConfigurationData({
+			'farboo': {
+				'config': false,
+				'updatedconfig': true,
+				'newConfig': true,
+			}
+		});
+		const changedConfigurationByResource = Object.create({});
+		changedConfigurationByResource[workspaceFolder.uri.toString()] = new ConfigurationModel({
+			'farboo': {
+				'newConfig': true,
+			}
+		}, ['farboo.newConfig']);
+		const configEventData = {
+			changedConfiguration: new ConfigurationModel({
+				'farboo': {
+					'updatedConfig': true,
+				}
+			}, ['farboo.updatedConfig']),
+			changedConfigurationByResource
+		};
+		testObject.onDidChangeConfiguration(e => {
+
+			assert.deepEqual(testObject.getConfiguration().get('farboo'), {
+				'config': false,
+				'updatedconfig': true,
+				'newConfig': true,
+			});
+
+			assert.ok(e.affectsConfiguration('farboo'));
+			assert.ok(e.affectsConfiguration('farboo', workspaceFolder.uri));
+			assert.ok(e.affectsConfiguration('farboo', URI.file('any')));
+
+			assert.ok(e.affectsConfiguration('farboo.updatedConfig'));
+			assert.ok(e.affectsConfiguration('farboo.updatedConfig', workspaceFolder.uri));
+			assert.ok(e.affectsConfiguration('farboo.updatedConfig', URI.file('any')));
+
+			assert.ok(e.affectsConfiguration('farboo.newConfig'));
+			assert.ok(e.affectsConfiguration('farboo.newConfig', workspaceFolder.uri));
+			assert.ok(!e.affectsConfiguration('farboo.newConfig', URI.file('any')));
+
+			assert.ok(!e.affectsConfiguration('farboo.config'));
+			assert.ok(!e.affectsConfiguration('farboo.config', workspaceFolder.uri));
+			assert.ok(!e.affectsConfiguration('farboo.config', URI.file('any')));
+			done();
+		});
+
+		testObject.$acceptConfigurationChanged(newConfigData, configEventData);
 	});
 
 	function aWorkspaceFolder(uri: URI, index: number, name: string = ''): IWorkspaceFolder {

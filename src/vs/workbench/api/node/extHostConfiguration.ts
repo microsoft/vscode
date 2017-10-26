@@ -37,7 +37,7 @@ type ConfigurationInspect<T> = {
 
 export class ExtHostConfiguration implements ExtHostConfigurationShape {
 
-	private readonly _onDidChangeConfiguration = new Emitter<void>();
+	private readonly _onDidChangeConfiguration = new Emitter<vscode.ConfigurationChangeEvent>();
 	private readonly _proxy: MainThreadConfigurationShape;
 	private readonly _extHostWorkspace: ExtHostWorkspace;
 	private _configuration: Configuration;
@@ -48,13 +48,13 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 		this._configuration = Configuration.parse(data);
 	}
 
-	get onDidChangeConfiguration(): Event<void> {
+	get onDidChangeConfiguration(): Event<vscode.ConfigurationChangeEvent> {
 		return this._onDidChangeConfiguration && this._onDidChangeConfiguration.event;
 	}
 
 	$acceptConfigurationChanged(data: IConfigurationData, eventData: IWorkspaceConfigurationChangeEventData) {
 		this._configuration = Configuration.parse(data);
-		this._onDidChangeConfiguration.fire(undefined);
+		this._onDidChangeConfiguration.fire(this.toConfigurationChangeEvent(eventData));
 	}
 
 	getConfiguration(section?: string, resource?: URI): vscode.WorkspaceConfiguration {
@@ -120,7 +120,7 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 		return <vscode.WorkspaceConfiguration>Object.freeze(result);
 	}
 
-	protected toConfigurationChangeEvent(data: IWorkspaceConfigurationChangeEventData): WorkspaceConfigurationChangeEvent {
+	private toConfigurationChangeEvent(data: IWorkspaceConfigurationChangeEventData): vscode.ConfigurationChangeEvent {
 		const changedConfiguration = new ConfigurationModel(data.changedConfiguration.contents, data.changedConfiguration.keys, data.changedConfiguration.overrides);
 		const changedConfigurationByResource: StrictResourceMap<ConfigurationModel> = new StrictResourceMap<ConfigurationModel>();
 		for (const key of Object.keys(data.changedConfigurationByResource)) {
@@ -128,7 +128,9 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 			const model = data.changedConfigurationByResource[key];
 			changedConfigurationByResource.set(resource, new ConfigurationModel(model.contents, model.keys, model.overrides));
 		}
-		const event = new ConfigurationChangeEvent(changedConfiguration, changedConfigurationByResource);
-		return new WorkspaceConfigurationChangeEvent(event, this._extHostWorkspace.workspace);
+		const event = new WorkspaceConfigurationChangeEvent(new ConfigurationChangeEvent(changedConfiguration, changedConfigurationByResource), this._extHostWorkspace.workspace);
+		return Object.freeze({
+			affectsConfiguration: (section: string, resource?: URI) => event.affectsConfiguration(section, resource)
+		});
 	}
 }
