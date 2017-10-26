@@ -5211,7 +5211,7 @@ declare module 'vscode' {
 		export const onDidChangeWorkspaceFolders: Event<WorkspaceFoldersChangeEvent>;
 
 		/**
-		 * Adds a workspac folder to the currently opened workspace.
+		 * Adds a workspace folder to the currently opened workspace.
 		 *
 		 * This method will be a no-op if the folder is already part of the workspace.
 		 *
