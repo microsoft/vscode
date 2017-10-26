@@ -116,12 +116,20 @@
 	overflow: hidden;
 }
 
-.extensions-viewlet > .extensions .extension > .details > .header-container > .header > .version {
+.extensions-viewlet > .extensions .extension > .details > .header-container > .header > .subtext-container {
 	opacity: 0.85;
 	font-size: 80%;
 	padding-left: 6px;
 	flex: 1;
 	min-width: fit-content;
+}
+
+.extensions-viewlet > .extensions .extension > .details > .header-container > .header > .subtext-container > span.subtext.recommended {
+	color: white;
+	background-color: green;
+	border: solid 1px green;
+	border-radius: 10px;
+	padding: 0 5px;
 }
 
 .extensions-viewlet > .extensions .extension > .details > .header-container > .header > .install-count:not(:empty) {

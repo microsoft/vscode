@@ -23,6 +23,7 @@ import { EventType } from 'vs/base/common/events';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { localize } from 'vs/nls';
 
 export interface ITemplateData {
 	root: HTMLElement;
@@ -70,7 +71,8 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const headerContainer = append(details, $('.header-container'));
 		const header = append(headerContainer, $('.header'));
 		const name = append(header, $('span.name'));
-		const subText = append(header, $('span.version'));
+		const subTextContainer = append(header, $('span.subtext-container'));
+		const subText = append(subTextContainer, $('span.subtext'));
 		const installCount = append(header, $('span.install-count'));
 		const ratings = append(header, $('span.ratings'));
 		const description = append(details, $('.description.ellipsis'));
@@ -153,12 +155,15 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 		data.subText.textContent = isInstalled ? extension.version : '';
 		data.root.setAttribute('aria-label', extension.displayName);
+		removeClass(data.subText, 'recommended');
 
 		const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
 		if (extRecommendations[extension.id.toLowerCase()] && !isInstalled) {
 			data.root.setAttribute('aria-label', extension.displayName + '. ' + extRecommendations[extension.id]);
 			if (this.showRecommendedLabel) {
-				data.subText.textContent = 'Recommended';
+				data.subText.textContent = localize('recommended', "Recommended");
+				addClass(data.subText, 'recommended');
+				data.subText.title = extRecommendations[extension.id.toLowerCase()];
 			}
 		}
 
