@@ -623,19 +623,19 @@ suite('WorkspaceConfigurationService - Update (Multiroot)', () => {
 	});
 
 	test('task configurations are not read from workspace', () => {
-		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration, { key: 'tasks.version', value: '1.0' }, true)
+		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration, { key: 'tasks', value: { 'version': '1.0' } }, true)
 			.then(() => testObject.reloadConfiguration())
 			.then(() => {
-				const actual = testObject.inspect('tasks');
+				const actual = testObject.inspect('tasks.version');
 				assert.equal(actual.workspace, void 0);
 			});
 	});
 
 	test('launch configurations are not read from workspace', () => {
-		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration, { key: 'launch.version', value: '1.0' }, true)
+		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration, { key: 'launch', value: { 'version': '1.0' } }, true)
 			.then(() => testObject.reloadConfiguration())
 			.then(() => {
-				const actual = testObject.inspect('launch');
+				const actual = testObject.inspect('launch.version');
 				assert.equal(actual.workspace, void 0);
 			});
 	});

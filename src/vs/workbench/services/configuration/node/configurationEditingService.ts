@@ -50,6 +50,11 @@ export enum ConfigurationEditingErrorCode {
 	ERROR_INVALID_USER_TARGET,
 
 	/**
+	 * Error when trying to write to user target but not supported for provided key.
+	 */
+	ERROR_INVALID_WORKSPACE_TARGET,
+
+	/**
 	 * Error when trying to write a configuration key to folder target
 	 */
 	ERROR_INVALID_FOLDER_TARGET,
@@ -281,6 +286,7 @@ export class ConfigurationEditingService {
 			case ConfigurationEditingErrorCode.ERROR_UNKNOWN_KEY: return nls.localize('errorUnknownKey', "Unable to write to {0} because {1} is not a registered configuration.", this.stringifyTarget(target), operation.key);
 			case ConfigurationEditingErrorCode.ERROR_INVALID_FOLDER_CONFIGURATION: return nls.localize('errorInvalidFolderConfiguration', "Unable to write to Folder Settings because {0} does not support the folder resource scope.", operation.key);
 			case ConfigurationEditingErrorCode.ERROR_INVALID_USER_TARGET: return nls.localize('errorInvalidUserTarget', "Unable to write to User Settings because {0} does not support for global scope.", operation.key);
+			case ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_TARGET: return nls.localize('errorInvalidWorkspaceTarget', "Unable to write to Workspace Settings because {0} does not support for workspace scope in a multi folder workspace.", operation.key);
 			case ConfigurationEditingErrorCode.ERROR_INVALID_FOLDER_TARGET: return nls.localize('errorInvalidFolderTarget', "Unable to write to Folder Settings because no resource is provided.");
 			case ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED: return nls.localize('errorNoWorkspaceOpened', "Unable to write to {0} because no workspace is opened. Please open a workspace first and try again.", this.stringifyTarget(target));
 
@@ -383,9 +389,16 @@ export class ConfigurationEditingService {
 			}
 		}
 
-		// Target cannot be user if is standalone
-		if (operation.workspaceStandAloneConfigurationKey && target === ConfigurationTarget.USER) {
-			return this.wrapError(ConfigurationEditingErrorCode.ERROR_INVALID_USER_TARGET, target, operation);
+		if (operation.workspaceStandAloneConfigurationKey) {
+			// Global tasks and launches are not supported
+			if (target === ConfigurationTarget.USER) {
+				return this.wrapError(ConfigurationEditingErrorCode.ERROR_INVALID_USER_TARGET, target, operation);
+			}
+
+			// Workspace tasks and launches are not supported
+			if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && operation.target === ConfigurationTarget.WORKSPACE) {
+				return this.wrapError(ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_TARGET, target, operation);
+			}
 		}
 
 		// Target cannot be workspace or folder if no workspace opened

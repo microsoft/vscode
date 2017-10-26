@@ -21,8 +21,6 @@ export class WorkspaceConfigurationModel extends CustomConfigurationModel {
 	private _raw: any;
 	private _folders: IStoredWorkspaceFolder[];
 	private _worksapaceSettings: ConfigurationModel;
-	private _tasksConfiguration: ConfigurationModel;
-	private _launchConfiguration: ConfigurationModel;
 	private _workspaceConfiguration: ConfigurationModel;
 
 	public update(content: string): void {
@@ -44,8 +42,6 @@ export class WorkspaceConfigurationModel extends CustomConfigurationModel {
 
 		this._folders = (this._raw['folders'] || []) as IStoredWorkspaceFolder[];
 		this._worksapaceSettings = this.parseConfigurationModel('settings');
-		this._tasksConfiguration = this.parseConfigurationModel('tasks');
-		this._launchConfiguration = this.parseConfigurationModel('launch');
 
 		super.processRaw(raw);
 	}
@@ -57,16 +53,7 @@ export class WorkspaceConfigurationModel extends CustomConfigurationModel {
 	}
 
 	private consolidate(): ConfigurationModel {
-		const keys: string[] = [...this._worksapaceSettings.keys,
-		...this._tasksConfiguration.keys.map(key => `tasks.${key}`),
-		...this._launchConfiguration.keys.map(key => `launch.${key}`)];
-
-		const mergedContents = new ConfigurationModel({}, keys)
-			.merge(this._worksapaceSettings)
-			.merge(this._tasksConfiguration)
-			.merge(this._launchConfiguration);
-
-		return new ConfigurationModel(mergedContents.contents, keys, mergedContents.overrides);
+		return this._worksapaceSettings;
 	}
 }
 

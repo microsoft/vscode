@@ -254,6 +254,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 			return this.reloadWorkspaceFolderConfiguration(folder, key);
 		}
 		return this.reloadUserConfiguration()
+			.then(() => this.reloadWorkspaceConfiguration())
 			.then(() => this.loadConfiguration());
 	}
 
