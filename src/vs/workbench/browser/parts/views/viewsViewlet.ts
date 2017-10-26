@@ -234,8 +234,9 @@ export class ViewsViewlet extends PanelViewlet {
 	}
 
 	async create(parent: Builder): TPromise<void> {
-		super.create(parent);
+		await super.create(parent);
 
+		this._register(this.onDidSashChange(() => this.updateAllViewsSizes()));
 		this._register(ViewsRegistry.onViewsRegistered(this.onViewsRegistered, this));
 		this._register(ViewsRegistry.onViewsDeregistered(this.onViewsDeregistered, this));
 		this._register(this.contextKeyService.onDidChangeContext(keys => this.onContextChanged(keys)));
@@ -276,10 +277,7 @@ export class ViewsViewlet extends PanelViewlet {
 			this._resizePanels();
 		}
 
-		for (const view of this.viewsViewletPanels) {
-			let viewState = this.updateViewStateSize(view);
-			this.viewsStates.set(view.id, viewState);
-		}
+		this.updateAllViewsSizes();
 	}
 
 	getOptimalWidth(): number {
@@ -417,6 +415,13 @@ export class ViewsViewlet extends PanelViewlet {
 		}
 
 		return TPromise.as([]);
+	}
+
+	private updateAllViewsSizes(): void {
+		for (const view of this.viewsViewletPanels) {
+			let viewState = this.updateViewStateSize(view);
+			this.viewsStates.set(view.id, viewState);
+		}
 	}
 
 	private _resizePanels(): void {

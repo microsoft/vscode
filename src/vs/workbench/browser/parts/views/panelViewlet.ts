@@ -138,6 +138,10 @@ export class PanelViewlet extends Viewlet {
 	private panelItems: IViewletPanelItem[] = [];
 	private panelview: PanelView;
 
+	get onDidSashChange(): Event<void> {
+		return this.panelview.onDidSashChange;
+	}
+
 	protected get length(): number {
 		return this.panelItems.length;
 	}
