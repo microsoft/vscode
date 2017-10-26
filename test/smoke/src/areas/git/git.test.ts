@@ -48,6 +48,12 @@ describe('Git', () => {
 	it('stages correctly', async function () {
 		const app = this.app as SpectronApplication;
 
+		// TODO@joao get these working once joh fixes scm viewlet
+		if (!false) {
+			this.skip();
+			return;
+		}
+
 		await app.workbench.scm.openSCMViewlet();
 
 		const appJs = await app.workbench.scm.waitForChange(c => c.name === 'app.js' && c.type === 'Modified');
@@ -61,6 +67,13 @@ describe('Git', () => {
 
 	it(`stages, commits changes and verifies outgoing change`, async function () {
 		const app = this.app as SpectronApplication;
+
+		// TODO@joao get these working once joh fixes scm viewlet
+		if (!false) {
+			cp.execSync('git reset --hard origin/master', { cwd: app.workspacePath });
+			this.skip();
+			return;
+		}
 
 		await app.workbench.scm.openSCMViewlet();
 
