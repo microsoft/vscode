@@ -18,14 +18,15 @@ export interface IDecorationData {
 	readonly letter?: string;
 	readonly title?: string;
 	readonly bubble?: boolean;
+	readonly source?: string;
 }
 
 export interface IDecoration {
-	readonly _decoBrand: undefined;
-	readonly weight?: number;
-	readonly title?: string;
-	readonly labelClassName?: string;
-	readonly badgeClassName?: string;
+	readonly title: string;
+	readonly labelClassName: string;
+	readonly badgeClassName: string;
+	readonly data: IDecorationData[];
+	update(replace: { source?: string, data?: IDecorationData }): IDecoration;
 }
 
 export interface IDecorationsProvider {

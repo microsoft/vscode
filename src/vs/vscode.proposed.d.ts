@@ -178,6 +178,7 @@ declare module 'vscode' {
 		bubble?: boolean;
 		abbreviation?: string;
 		color?: ThemeColor;
+		source?: string;
 	}
 
 	export interface DecorationProvider {

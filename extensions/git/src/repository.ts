@@ -265,7 +265,7 @@ export class Resource implements SourceControlResourceState {
 		const abbreviation = this.letter;
 		const color = this.color;
 		const priority = this.priority;
-		return { bubble: true, title, abbreviation, color, priority };
+		return { bubble: true, source: 'git.resource', title, abbreviation, color, priority };
 	}
 
 	constructor(

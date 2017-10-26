@@ -120,7 +120,6 @@ suite('DecorationsService', function () {
 
 		let deco = service.getDecoration(childUri, false);
 		assert.equal(deco.title, '.txt');
-		assert.equal(deco.weight, 17);
 
 		deco = service.getDecoration(childUri.with({ path: 'some/path/' }), true);
 		assert.equal(deco, undefined);
@@ -139,10 +138,8 @@ suite('DecorationsService', function () {
 
 		deco = service.getDecoration(childUri, false);
 		assert.equal(deco.title, '.txt.bubble');
-		assert.equal(deco.weight, 71);
 
 		deco = service.getDecoration(childUri.with({ path: 'some/path/' }), true);
 		assert.equal(deco.title, '');
-		assert.equal(deco.weight, 71);
 	});
 });

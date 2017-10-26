@@ -625,7 +625,7 @@ export interface ExtHostDebugServiceShape {
 }
 
 
-export type DecorationData = [number, boolean, string, string, ThemeColor];
+export type DecorationData = [number, boolean, string, string, ThemeColor, string];
 
 export interface ExtHostDecorationsShape {
 	$providerDecorations(handle: number, uri: URI): TPromise<DecorationData>;
