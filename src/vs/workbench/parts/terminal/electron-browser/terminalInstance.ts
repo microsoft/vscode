@@ -827,6 +827,32 @@ export class TerminalInstance implements ITerminalInstance {
 		};
 	}
 
+	public onLineData(listener: (lineData: string) => void): lifecycle.IDisposable {
+		if (!this._xterm) {
+			throw new Error('xterm must be initialized');
+		}
+		const lineFeedListener = () => {
+			const buffer = (<any>this._xterm.buffer);
+			const newLine = buffer.lines.get(buffer.ybase + buffer.y);
+			if (!newLine.isWrapped) {
+				let i = buffer.ybase + buffer.y - 1;
+				let lineData = buffer.translateBufferLineToString(i, true);
+				while (i >= 0 && buffer.lines.get(i--).isWrapped) {
+					lineData = buffer.translateBufferLineToString(i, true) + lineData;
+				}
+				listener(lineData);
+			}
+		};
+		this._xterm.on('lineFeed', lineFeedListener);
+		return {
+			dispose: () => {
+				if (this._xterm) {
+					this._xterm.off('lineFeed', lineFeedListener);
+				}
+			}
+		};
+	}
+
 	public onExit(listener: (exitCode: number) => void): lifecycle.IDisposable {
 		if (this._process) {
 			this._process.on('exit', listener);
