@@ -108,12 +108,23 @@ export class SpectronApplication {
 	}
 
 	async start(testSuiteName: string, codeArgs: string[] = []): Promise<any> {
+		await this._start(testSuiteName, codeArgs);
+		await this.waitForWelcome();
+		await this.screenCapturer.capture('Application started');
+	}
+
+	async restart(codeArgs: string[] = []): Promise<any> {
+		await this.stop();
+		await new Promise(c => setTimeout(c, 1000));
+		await this._start('foo', codeArgs);
+		await this.screenCapturer.capture('Application restarted');
+	}
+
+	private async _start(testSuiteName: string, codeArgs: string[] = []): Promise<any> {
 		await this.retrieveKeybindings();
 		cp.execSync('git checkout .', { cwd: this.options.workspacePath });
 		await this.startApplication(testSuiteName, codeArgs);
 		await this.checkWindowReady();
-		await this.waitForWelcome();
-		await this.screenCapturer.capture('Application started');
 	}
 
 	async reload(): Promise<any> {

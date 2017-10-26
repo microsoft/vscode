@@ -15,27 +15,14 @@ describe('Localization', () => {
 			return;
 		}
 
-		await app.stop();
-		await new Promise(c => setTimeout(c, 500));
-		await app.start('Localization', ['--locale=DE']);
-	});
-
-	after(async function () {
-		const app = this.app as SpectronApplication;
-
-		if (app.quality === Quality.Dev) {
-			return;
-		}
-
-		await app.stop();
-		await new Promise(c => setTimeout(c, 500));
-		await app.start('foo');
+		await app.restart(['--locale=DE']);
 	});
 
 	it(`starts with 'DE' locale and verifies title and viewlets text is in German`, async function () {
 		const app = this.app as SpectronApplication;
 
 		if (app.quality === Quality.Dev) {
+			this.skip();
 			return;
 		}
 
