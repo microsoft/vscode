@@ -80,7 +80,8 @@ export interface IWorkbenchSearchConfiguration extends ISearchConfiguration {
 		},
 		exclude: glob.IExpression,
 		useRipgrep: boolean,
-		useIgnoreFilesByDefault: boolean
+		useIgnoreFilesByDefault: boolean,
+		followSymlinks: boolean;
 	};
 }
 

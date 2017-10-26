@@ -139,7 +139,7 @@ export class SimpleEditorService implements IEditorService {
 					let schema = data.resource.scheme;
 					if (schema === Schemas.http || schema === Schemas.https) {
 						// This is a fully qualified http or https URL
-						window.open(data.resource.toString());
+						dom.windowOpenNoOpener(data.resource.toString());
 						return this.editor;
 					}
 				}
@@ -464,30 +464,30 @@ export class SimpleConfigurationService implements IConfigurationService {
 	getConfiguration<T>(section: string, overrides: IConfigurationOverrides): T
 	getConfiguration(arg1?: any, arg2?: any): any {
 		const section = typeof arg1 === 'string' ? arg1 : void 0;
-		const overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : void 0;
-		return this.configuration().getSection(section, overrides);
+		const overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : {};
+		return this.configuration().getSection(section, overrides, null);
 	}
 
-	public getValue<C>(key: string, options?: IConfigurationOverrides): C {
-		return this.configuration().getValue(key, options);
+	public getValue<C>(key: string, options: IConfigurationOverrides = {}): C {
+		return this.configuration().getValue(key, options, null);
 	}
 
 	public updateValue(key: string, value: any, arg3?: any, arg4?: any): TPromise<void> {
 		return TPromise.as(null);
 	}
 
-	public inspect<C>(key: string, options?: IConfigurationOverrides): {
+	public inspect<C>(key: string, options: IConfigurationOverrides = {}): {
 		default: C,
 		user: C,
 		workspace: C,
 		workspaceFolder: C
 		value: C,
 	} {
-		return this.configuration().lookup<C>(key, options);
+		return this.configuration().lookup<C>(key, options, null);
 	}
 
 	public keys() {
-		return this.configuration().keys();
+		return this.configuration().keys(null);
 	}
 
 	public reloadConfiguration(): TPromise<void> {
@@ -597,13 +597,5 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 
 	public isCurrentWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): boolean {
 		return true;
-	}
-
-	public addFolders(foldersToAdd: URI[]): TPromise<void> {
-		return TPromise.as(void 0);
-	}
-
-	public removeFolders(foldersToRemove: URI[]): TPromise<void> {
-		return TPromise.as(void 0);
 	}
 }

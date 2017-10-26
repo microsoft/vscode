@@ -177,6 +177,10 @@
 				{
 					"command": "markdown.showPreviewSecuritySelector",
 					"when": "editorLangId == markdown"
+				},
+				{
+					"command": "markdown.showPreviewSecuritySelector",
+					"when": "resourceScheme == markdown"
 				}
 			]
 		},

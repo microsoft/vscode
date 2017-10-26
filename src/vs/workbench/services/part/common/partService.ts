@@ -19,11 +19,8 @@ export enum Parts {
 
 export enum Position {
 	LEFT,
-	RIGHT
-}
-
-export interface ILayoutOptions {
-	toggleMaximizedPanel?: boolean;
+	RIGHT,
+	BOTTOM
 }
 
 export const IPartService = createDecorator<IPartService>('partService');
@@ -44,7 +41,7 @@ export interface IPartService {
 	/**
 	 * Asks the part service to layout all parts.
 	 */
-	layout(options?: ILayoutOptions): void;
+	layout(): void;
 
 	/**
 	 * Asks the part service to if all parts have been created.
@@ -92,20 +89,14 @@ export interface IPartService {
 	setPanelHidden(hidden: boolean): TPromise<void>;
 
 	/**
-	 * Maximizes the panel height if the panel is not already maximized.
-	 * Shrinks the panel to the default starting size if the panel is maximized.
-	 */
-	toggleMaximizedPanel(): void;
-
-	/**
-	 * Returns true if the panel is maximized.
-	 */
-	isPanelMaximized(): boolean;
-
-	/**
 	 * Gets the current side bar position. Note that the sidebar can be hidden too.
 	 */
 	getSideBarPosition(): Position;
+
+	/**
+	 * Gets the current panel position. Note that the panel can be hidden too.
+	 */
+	getPanelPosition(): Position;
 
 	/**
 	 * Returns the identifier of the element that contains the workbench.

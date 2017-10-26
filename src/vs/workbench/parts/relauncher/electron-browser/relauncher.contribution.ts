@@ -104,6 +104,12 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 
 		// React to folder changes when we are in workspace state
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
+
+			// Update our known first folder path if we entered workspace
+			const workspace = this.contextService.getWorkspace();
+			this.firstFolderPath = workspace.folders.length > 0 ? workspace.folders[0].uri.fsPath : void 0;
+
+			// Install workspace folder listener
 			if (!this.onDidChangeWorkspaceFoldersUnbind) {
 				this.onDidChangeWorkspaceFoldersUnbind = this.contextService.onDidChangeWorkspaceFolders(() => this.onDidChangeWorkspaceFolders());
 			}

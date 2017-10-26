@@ -13,7 +13,6 @@
 	"actionNotEnabled": "在当前上下文中没有启用命令“{0}”。",
 	"recentlyUsed": "最近使用",
 	"morecCommands": "其他命令",
-	"commandLabel": "{0}: {1}",
 	"cat.title": "{0}: {1}",
 	"noCommandsMatching": "没有匹配的命令"
 }

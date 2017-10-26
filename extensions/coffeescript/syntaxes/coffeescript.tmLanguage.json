@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-coffee-script/commit/8873cbc4e2f3b790603cbe7102d60f41fc82f726",
+	"version": "https://github.com/atom/language-coffee-script/commit/3f0b6b0e28d64cd6d5a720bf7a25c969be636e7b",
 	"scopeName": "source.coffee",
 	"name": "CoffeeScript",
 	"fileTypes": [
@@ -47,7 +47,7 @@
 					"name": "punctuation.definition.string.end.coffee"
 				}
 			},
-			"name": "string.quoted.heredoc.coffee",
+			"name": "string.quoted.single.heredoc.coffee",
 			"patterns": [
 				{
 					"captures": {
@@ -143,7 +143,7 @@
 		{
 			"begin": "///",
 			"end": "(///)[gimuy]*",
-			"name": "string.regexp.coffee",
+			"name": "string.regexp.multiline.coffee",
 			"beginCaptures": {
 				"0": {
 					"name": "punctuation.definition.string.begin.coffee"

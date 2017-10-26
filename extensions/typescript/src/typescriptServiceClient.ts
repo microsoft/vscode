@@ -231,6 +231,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		if (this.servicePromise) {
 			this.servicePromise = this.servicePromise.then(cp => {
 				if (cp) {
+					this.info('Killing TS Server');
 					this.isRestarting = true;
 					cp.kill();
 				}
@@ -401,7 +402,10 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 						this.logTelemetry('error', { message: err.message });
 						return;
 					}
+
+					this.info('Started TSServer');
 					this.lastStart = Date.now();
+
 					childProcess.on('error', (err: Error) => {
 						this.lastError = err;
 						this.error('TSServer errored with error.', err);
@@ -416,7 +420,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					});
 					childProcess.on('exit', (code: any) => {
 						if (code === null || typeof code === 'undefined') {
-							this.info(`TSServer exited`);
+							this.info('TSServer exited');
 						} else {
 							this.error(`TSServer exited with code: ${code}`);
 							/* __GDPR__

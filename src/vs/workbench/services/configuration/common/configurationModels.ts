@@ -5,7 +5,7 @@
 'use strict';
 
 import { clone, equals } from 'vs/base/common/objects';
-import { compare, toValuesTree, IConfigurationChangeEvent, ConfigurationTarget, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
+import { compare, toValuesTree, IConfigurationChangeEvent, ConfigurationTarget, IConfigurationModel, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationModel, Configuration as BaseConfiguration, CustomConfigurationModel, ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, IConfigurationPropertySchema, Extensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
@@ -193,8 +193,36 @@ export class Configuration extends BaseConfiguration {
 		protected folders: StrictResourceMap<FolderConfigurationModel>,
 		memoryConfiguration: ConfigurationModel,
 		memoryConfigurationByResource: StrictResourceMap<ConfigurationModel>,
-		workspace: Workspace) {
-		super(defaults, user, workspaceConfiguration, folders, memoryConfiguration, memoryConfigurationByResource, workspace);
+		private readonly _workspace: Workspace) {
+		super(defaults, user, workspaceConfiguration, folders, memoryConfiguration, memoryConfigurationByResource);
+	}
+
+	getSection<C>(section: string = '', overrides: IConfigurationOverrides = {}): C {
+		return super.getSection(section, overrides, this._workspace);
+	}
+
+	getValue(key: string, overrides: IConfigurationOverrides = {}): any {
+		return super.getValue(key, overrides, this._workspace);
+	}
+
+	lookup<C>(key: string, overrides: IConfigurationOverrides = {}): {
+		default: C,
+		user: C,
+		workspace: C,
+		workspaceFolder: C
+		memory?: C
+		value: C,
+	} {
+		return super.lookup(key, overrides, this._workspace);
+	}
+
+	keys(): {
+		default: string[];
+		user: string[];
+		workspace: string[];
+		workspaceFolder: string[];
+	} {
+		return super.keys(this._workspace);
 	}
 
 	updateDefaultConfiguration(defaults: ConfigurationModel): void {

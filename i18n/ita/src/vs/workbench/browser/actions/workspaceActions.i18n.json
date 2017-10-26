@@ -13,6 +13,7 @@
 	"select": "&&Seleziona",
 	"selectWorkspace": "Seleziona cartelle per l'area di lavoro",
 	"removeFolderFromWorkspace": "Rimuovi cartella dall'area di lavoro",
+	"openFolderSettings": "Apri impostazioni cartella",
 	"saveWorkspaceAsAction": "Salva area di lavoro come...",
 	"save": "&&Salva",
 	"saveWorkspace": "Salva area di lavoro",

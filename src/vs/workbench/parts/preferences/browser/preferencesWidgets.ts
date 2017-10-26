@@ -10,6 +10,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Widget } from 'vs/base/browser/ui/widget';
+import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -22,7 +23,7 @@ import { ISettingsGroup, IPreferencesService, getSettingsTargetName } from 'vs/w
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
-import { attachInputBoxStyler, attachStylerCallback, attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
+import { attachInputBoxStyler, attachStylerCallback, attachSelectBoxStyler, attachCheckboxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Position } from 'vs/editor/common/core/position';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
@@ -42,10 +43,10 @@ export class SettingsHeaderWidget extends Widget implements IViewZone {
 	private id: number;
 	private _domNode: HTMLElement;
 
-	private titleContainer: HTMLElement;
+	protected titleContainer: HTMLElement;
 	private messageElement: HTMLElement;
 
-	constructor(private editor: ICodeEditor, private title: string) {
+	constructor(protected editor: ICodeEditor, private title: string) {
 		super();
 		this.create();
 		this._register(this.editor.onDidChangeConfiguration(() => this.layout()));
@@ -64,7 +65,7 @@ export class SettingsHeaderWidget extends Widget implements IViewZone {
 		return 0;
 	}
 
-	private create() {
+	protected create() {
 		this._domNode = DOM.$('.settings-header-widget');
 
 		this.titleContainer = DOM.append(this._domNode, DOM.$('.title-container'));
@@ -99,6 +100,38 @@ export class SettingsHeaderWidget extends Widget implements IViewZone {
 			accessor.removeZone(this.id);
 		});
 		super.dispose();
+	}
+}
+
+export class DefaultSettingsHeaderWidget extends SettingsHeaderWidget {
+
+	private linkElement: HTMLElement;
+	private _onClick = this._register(new Emitter<void>());
+	public onClick: Event<void> = this._onClick.event;
+
+	protected create() {
+		super.create();
+
+		this.linkElement = DOM.append(this.titleContainer, DOM.$('a.settings-header-fuzzy-link'));
+		this.linkElement.textContent = localize('defaultSettingsFuzzyPrompt', "Try fuzzy search!");
+
+		this.onclick(this.linkElement, e => this._onClick.fire());
+		this.toggleMessage(true);
+	}
+
+	public toggleMessage(hasSettings: boolean, promptFuzzy = false): void {
+		if (hasSettings) {
+			this.setMessage(localize('defaultSettings', "Place your settings in the right hand side editor to override."));
+			DOM.addClass(this.linkElement, 'hidden');
+		} else {
+			this.setMessage(localize('noSettingsFound', "No Settings Found."));
+
+			if (promptFuzzy) {
+				DOM.removeClass(this.linkElement, 'hidden');
+			} else {
+				DOM.addClass(this.linkElement, 'hidden');
+			}
+		}
 	}
 }
 
@@ -400,6 +433,8 @@ export class SearchWidget extends Widget {
 	private countElement: HTMLElement;
 	private searchContainer: HTMLElement;
 	private inputBox: InputBox;
+	private fuzzyToggle: Checkbox;
+	private controlsDiv: HTMLElement;
 
 	private _onDidChange: Emitter<string> = this._register(new Emitter<string>());
 	public readonly onDidChange: Event<string> = this._onDidChange.event;
@@ -417,10 +452,31 @@ export class SearchWidget extends Widget {
 		this.create(parent);
 	}
 
+	public get fuzzyEnabled(): boolean {
+		return this.fuzzyToggle.checked && this.fuzzyToggle.enabled;
+	}
+
+	public set fuzzyEnabled(value: boolean) {
+		this.fuzzyToggle.checked = value;
+	}
+
 	private create(parent: HTMLElement) {
 		this.domNode = DOM.append(parent, DOM.$('div.settings-header-widget'));
 		this.createSearchContainer(DOM.append(this.domNode, DOM.$('div.settings-search-container')));
-		this.countElement = DOM.append(this.domNode, DOM.$('.settings-count-widget'));
+		this.controlsDiv = DOM.append(this.domNode, DOM.$('div.settings-search-controls'));
+		this.fuzzyToggle = this._register(new Checkbox({
+			actionClassName: 'prefs-fuzzy-search-toggle',
+			isChecked: false,
+			onChange: () => {
+				this.inputBox.focus();
+				this._onDidChange.fire();
+			},
+			title: localize('enableFuzzySearch', 'Enable experimental fuzzy search')
+		}));
+		DOM.append(this.controlsDiv, this.fuzzyToggle.domNode);
+		this._register(attachCheckboxStyler(this.fuzzyToggle, this.themeService));
+
+		this.countElement = DOM.append(this.controlsDiv, DOM.$('.settings-count-widget'));
 		this._register(attachStylerCallback(this.themeService, { badgeBackground, contrastBorder }, colors => {
 			const background = colors.badgeBackground ? colors.badgeBackground.toString() : null;
 			const border = colors.contrastBorder ? colors.contrastBorder.toString() : null;
@@ -462,8 +518,18 @@ export class SearchWidget extends Widget {
 		this.countElement.textContent = message;
 		this.inputBox.inputElement.setAttribute('aria-label', message);
 		DOM.toggleClass(this.countElement, 'no-results', count === 0);
-		this.inputBox.inputElement.style.paddingRight = DOM.getTotalWidth(this.countElement) + 20 + 'px';
+		this.inputBox.inputElement.style.paddingRight = this.getControlsWidth() + 'px';
 		this.styleCountElementForeground();
+	}
+
+	public setFuzzyToggleVisible(visible: boolean): void {
+		if (visible) {
+			this.fuzzyToggle.domNode.classList.remove('hidden');
+			this.fuzzyToggle.enable();
+		} else {
+			this.fuzzyToggle.domNode.classList.add('hidden');
+			this.fuzzyToggle.disable();
+		}
 	}
 
 	private styleCountElementForeground() {
@@ -478,8 +544,12 @@ export class SearchWidget extends Widget {
 			this.inputBox.inputElement.style.paddingRight = '0px';
 		} else {
 			DOM.removeClass(this.countElement, 'hide');
-			this.inputBox.inputElement.style.paddingRight = DOM.getTotalWidth(this.countElement) + 20 + 'px';
+			this.inputBox.inputElement.style.paddingRight = this.getControlsWidth() + 'px';
 		}
+	}
+
+	private getControlsWidth(): number {
+		return DOM.getTotalWidth(this.countElement) + DOM.getTotalWidth(this.fuzzyToggle.domNode) + 20;
 	}
 
 	public focus() {

@@ -45,7 +45,7 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 	constructor(proxy: MainThreadConfigurationShape, extHostWorkspace: ExtHostWorkspace, data: IConfigurationData) {
 		this._proxy = proxy;
 		this._extHostWorkspace = extHostWorkspace;
-		this._configuration = Configuration.parse(data, extHostWorkspace.workspace);
+		this._configuration = Configuration.parse(data);
 	}
 
 	get onDidChangeConfiguration(): Event<void> {
@@ -53,14 +53,14 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 	}
 
 	$acceptConfigurationChanged(data: IConfigurationData, eventData: IWorkspaceConfigurationChangeEventData) {
-		this._configuration = Configuration.parse(data, this._extHostWorkspace.workspace);
+		this._configuration = Configuration.parse(data);
 		this._onDidChangeConfiguration.fire(undefined);
 	}
 
 	getConfiguration(section?: string, resource?: URI): vscode.WorkspaceConfiguration {
 		const config = section
-			? lookUp(this._configuration.getSection(null, { resource }), section)
-			: this._configuration.getSection(null, { resource });
+			? lookUp(this._configuration.getSection(null, { resource }, this._extHostWorkspace.workspace), section)
+			: this._configuration.getSection(null, { resource }, this._extHostWorkspace.workspace);
 
 		function parseConfigurationTarget(arg: boolean | ExtHostConfigurationTarget): ConfigurationTarget {
 			if (arg === void 0 || arg === null) {
@@ -99,7 +99,7 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 			},
 			inspect: <T>(key: string): ConfigurationInspect<T> => {
 				key = section ? `${section}.${key}` : key;
-				const config = this._configuration.lookup<T>(key, { resource });
+				const config = this._configuration.lookup<T>(key, { resource }, this._extHostWorkspace.workspace);
 				if (config) {
 					return {
 						key,

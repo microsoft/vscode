@@ -14,7 +14,6 @@ import { IDebugService } from 'vs/workbench/parts/debug/common/debug';
 import { Themable, STATUS_BAR_FOREGROUND } from 'vs/workbench/common/theme';
 
 const $ = dom.$;
-const MAX_LABEL_LENGTH = 17;
 
 export class DebugStatus extends Themable implements IStatusbarItem {
 	private toDispose: IDisposable[];
@@ -68,11 +67,9 @@ export class DebugStatus extends Themable implements IStatusbarItem {
 
 	private setLabel(): void {
 		if (this.label && !this.hidden) {
-			let name = this.debugService.getConfigurationManager().selectedName || '';
-			if (name.length > MAX_LABEL_LENGTH) {
-				name = name.substring(0, MAX_LABEL_LENGTH) + '...';
-			}
-			this.label.textContent = name;
+			const manager = this.debugService.getConfigurationManager();
+			const name = manager.selectedName || '';
+			this.label.textContent = manager.getLaunches().length > 1 ? `${name} (${manager.selectedLaunch.workspace.name})` : name;
 		}
 	}
 

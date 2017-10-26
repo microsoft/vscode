@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import * as paths from 'vs/base/common/paths';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { forEach } from 'vs/base/common/collections';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { match } from 'vs/base/common/glob';
 import * as json from 'vs/base/common/json';
 import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, LocalExtensionType, EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -17,9 +17,9 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import product from 'vs/platform/node/product';
 import { IChoiceService, IMessageService } from 'vs/platform/message/common/message';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
+import { ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsAction, InstallRecommendedExtensionAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import Severity from 'vs/base/common/severity';
-import { IWorkspaceContextService, IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspaceFolder, IWorkspace, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { Schemas } from 'vs/base/common/network';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IExtensionsConfiguration, ConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
@@ -36,7 +36,7 @@ interface IExtensionsContent {
 const empty: { [key: string]: any; } = Object.create(null);
 const milliSecondsInADay = 1000 * 60 * 60 * 24;
 
-export class ExtensionTipsService implements IExtensionTipsService {
+export class ExtensionTipsService extends Disposable implements IExtensionTipsService {
 
 	_serviceBrand: any;
 
@@ -45,8 +45,10 @@ export class ExtensionTipsService implements IExtensionTipsService {
 	private _availableRecommendations: { [pattern: string]: string[] } = Object.create(null);
 	private importantRecommendations: { [id: string]: { name: string; pattern: string; } } = Object.create(null);
 	private importantRecommendationsIgnoreList: string[];
-	private _allRecommendations: string[];
+	private _allRecommendations: string[] = [];
 	private _disposables: IDisposable[] = [];
+
+	private _allWorkspaceRecommendedExtensions: string[] = [];
 
 	constructor(
 		@IExtensionGalleryService private _galleryService: IExtensionGalleryService,
@@ -61,9 +63,12 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		@IMessageService private messageService: IMessageService,
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
+		super();
+
 		if (!this._galleryService.isEnabled()) {
 			return;
 		}
+
 
 		this._suggestTips();
 		this._suggestWorkspaceRecommendations();
@@ -71,12 +76,23 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		// Executable based recommendations carry out a lot of file stats, so run them after 10 secs
 		// So that the startup is not affected
 		setTimeout(() => this._suggestBasedOnExecutables(this._exeBasedRecommendations), 10000);
+		this._register(this.contextService.onDidChangeWorkspaceFolders(e => this.onWorkspaceFoldersChanged(e)));
+	}
+
+	getAllRecommendationsWithReason(): { [id: string]: string; } {
+		let output: { [id: string]: string; } = Object.create(null);
+		this.getFileBasedRecommendations().forEach(x => output[x.toLowerCase()] = localize('fileBasedRecommendation', "Based on your recent file history, we recommend this extension."));
+		this._allWorkspaceRecommendedExtensions.forEach(x => output[x.toLowerCase()] = localize('workspaceRecommendation', "Your team recommends this extension."));
+		return output;
 	}
 
 	getWorkspaceRecommendations(): TPromise<string[]> {
 		const workspace = this.contextService.getWorkspace();
 		return TPromise.join([this.resolveWorkspaceRecommendations(workspace), ...workspace.folders.map(workspaceFolder => this.resolveWorkspaceFolderRecommendations(workspaceFolder))])
-			.then(recommendations => distinct(flatten(recommendations)));
+			.then(recommendations => {
+				this._allWorkspaceRecommendedExtensions = distinct(flatten(recommendations));
+				return this._allWorkspaceRecommendedExtensions;
+			});
 	}
 
 	private resolveWorkspaceRecommendations(workspace: IWorkspace): TPromise<string[]> {
@@ -102,56 +118,36 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		return [];
 	}
 
-	getRecommendations(installedExtensions: string[], searchText: string): string[] {
-		const allRecomendations = this._getAllRecommendationsInProduct();
+	private onWorkspaceFoldersChanged(event: IWorkspaceFoldersChangeEvent): void {
+		if (event.added.length) {
+			TPromise.join(event.added.map(workspaceFolder => this.resolveWorkspaceFolderRecommendations(workspaceFolder)))
+				.then(result => {
+					const newRecommendations = flatten(result);
+					// Suggest only if atleast one of the newly added recommendtations was not suggested before
+					if (newRecommendations.some(e => this._allWorkspaceRecommendedExtensions.indexOf(e) === -1)) {
+						this._suggestWorkspaceRecommendations();
+					}
+				});
+		}
+	}
+
+	getFileBasedRecommendations(): string[] {
 		const fileBased = Object.keys(this._fileBasedRecommendations)
-			.filter(recommendation => {
-				return allRecomendations.indexOf(recommendation) > -1
-					&& installedExtensions.indexOf(recommendation) === -1
-					&& recommendation.toLowerCase().indexOf(searchText) > -1;
-			}).sort((a, b) => {
+			.sort((a, b) => {
 				return this._fileBasedRecommendations[a] > this._fileBasedRecommendations[b] ? -1 : 1;
 			});
-
-		const exeBased = this._exeBasedRecommendations
-			.filter((recommendation, index) => {
-				return this._exeBasedRecommendations.indexOf(recommendation) === index
-					&& installedExtensions.indexOf(recommendation) === -1
-					&& fileBased.indexOf(recommendation) === -1
-					&& recommendation.toLowerCase().indexOf(searchText) > -1;
-			});
-
-		// Sort recommendations such that few of the exeBased ones show up earliar
-		const x = Math.min(6, fileBased.length);
-		const y = Math.min(4, exeBased.length);
-		const sortedRecommendations = fileBased.slice(0, x);
-		sortedRecommendations.push(...exeBased.slice(0, y));
-		sortedRecommendations.push(...fileBased.slice(x));
-		sortedRecommendations.push(...exeBased.slice(y));
-
-		/* __GDPR__
-			"extensionRecommendations:unfiltered" : {
-				"fileBased" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"exeBased": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		this.telemetryService.publicLog('extensionRecommendations:unfiltered', { fileBased, exeBased });
-
-		return sortedRecommendations;
+		return fileBased;
 	}
+
+	getOtherRecommendations(): string[] {
+
+		return distinct(this._exeBasedRecommendations);
+	}
+
+
 
 	getKeymapRecommendations(): string[] {
 		return product.keymapExtensionTips || [];
-	}
-
-	private _getAllRecommendationsInProduct(): string[] {
-		if (!this._allRecommendations) {
-			this._allRecommendations = [...Object.keys(this.importantRecommendations)];
-			forEach(this._availableRecommendations, ({ value: ids }) => {
-				this._allRecommendations.push(...ids);
-			});
-		}
-		return this._allRecommendations;
 	}
 
 	private _suggestTips() {
@@ -161,26 +157,6 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		}
 		this.importantRecommendations = product.extensionImportantTips || Object.create(null);
 		this.importantRecommendationsIgnoreList = <string[]>JSON.parse(this.storageService.get('extensionsAssistant/importantRecommendationsIgnore', StorageScope.GLOBAL, '[]'));
-
-		// retrieve ids of previous recommendations
-		const storedRecommendationsJson = JSON.parse(this.storageService.get('extensionsAssistant/recommendations', StorageScope.GLOBAL, '[]'));
-		if (Array.isArray<string>(storedRecommendationsJson)) {
-			for (let id of <string[]>storedRecommendationsJson) {
-				this._fileBasedRecommendations[id] = Date.now();
-			}
-		} else {
-			const now = Date.now();
-			forEach(storedRecommendationsJson, entry => {
-				if (typeof entry.value === 'number') {
-					const diff = (now - entry.value) / milliSecondsInADay;
-					if (diff > 7) {
-						delete this._fileBasedRecommendations[entry.value];
-					} else {
-						this._fileBasedRecommendations[entry.key] = entry.value;
-					}
-				}
-			});
-		}
 
 		// group ids by pattern, like {**/*.md} -> [ext.foo1, ext.bar2]
 		this._availableRecommendations = Object.create(null);
@@ -204,6 +180,31 @@ export class ExtensionTipsService implements IExtensionTipsService {
 				ids.push(id);
 			}
 		});
+
+		forEach(this._availableRecommendations, ({ value: ids }) => {
+			this._allRecommendations.push(...ids);
+		});
+
+		// retrieve ids of previous recommendations
+		const storedRecommendationsJson = JSON.parse(this.storageService.get('extensionsAssistant/recommendations', StorageScope.GLOBAL, '[]'));
+
+		if (Array.isArray<string>(storedRecommendationsJson)) {
+			for (let id of <string[]>storedRecommendationsJson) {
+				if (this._allRecommendations.indexOf(id) > -1) {
+					this._fileBasedRecommendations[id] = Date.now();
+				}
+			}
+		} else {
+			const now = Date.now();
+			forEach(storedRecommendationsJson, entry => {
+				if (typeof entry.value === 'number') {
+					const diff = (now - entry.value) / milliSecondsInADay;
+					if (diff <= 7 && this._allRecommendations.indexOf(entry.key) > -1) {
+						this._fileBasedRecommendations[entry.key] = entry.value;
+					}
+				}
+			});
+		}
 
 		this._modelService.onModelAdded(this._suggest, this, this._disposables);
 		this._modelService.getModels().forEach(model => this._suggest(model));
@@ -264,15 +265,26 @@ export class ExtensionTipsService implements IExtensionTipsService {
 						}
 
 						const recommendationsAction = this.instantiationService.createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, localize('showRecommendations', "Show Recommendations"));
+						const installAction = this.instantiationService.createInstance(InstallRecommendedExtensionAction, id);
 						const options = [
+							localize('install', 'Install'),
 							recommendationsAction.label,
 							localize('neverShowAgain', "Don't show again"),
 							localize('close', "Close")
 						];
 
-						this.choiceService.choose(Severity.Info, message, options, 2).done(choice => {
+						this.choiceService.choose(Severity.Info, message, options, 3).done(choice => {
 							switch (choice) {
 								case 0:
+									/* __GDPR__
+										"extensionRecommendations:popup" : {
+											"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+											"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+										}
+									*/
+									this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'install', extensionId: name });
+									return installAction.run();
+								case 1:
 									/* __GDPR__
 										"extensionRecommendations:popup" : {
 											"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -344,15 +356,17 @@ export class ExtensionTipsService implements IExtensionTipsService {
 				}
 
 				const message = localize('workspaceRecommended', "This workspace has extension recommendations.");
-				const action = this.instantiationService.createInstance(ShowWorkspaceRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction.ID, localize('showRecommendations', "Show Recommendations"));
+				const showAction = this.instantiationService.createInstance(ShowWorkspaceRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction.ID, localize('showRecommendations', "Show Recommendations"));
+				const installAllAction = this.instantiationService.createInstance(InstallWorkspaceRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsAction.ID, localize('installAll', "Install All"));
 
 				const options = [
-					action.label,
+					installAllAction.label,
+					showAction.label,
 					localize('neverShowAgain', "Don't show again"),
 					localize('close', "Close")
 				];
 
-				this.choiceService.choose(Severity.Info, message, options, 2).done(choice => {
+				this.choiceService.choose(Severity.Info, message, options, 3).done(choice => {
 					switch (choice) {
 						case 0:
 							/* __GDPR__
@@ -360,9 +374,17 @@ export class ExtensionTipsService implements IExtensionTipsService {
 									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 								}
 							*/
-							this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'show' });
-							return action.run();
+							this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'install' });
+							return installAllAction.run();
 						case 1:
+							/* __GDPR__
+								"extensionRecommendations:popup" : {
+									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+								}
+							*/
+							this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'show' });
+							return showAction.run();
+						case 2:
 							/* __GDPR__
 								"extensionRecommendations:popup" : {
 									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
@@ -370,7 +392,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 							*/
 							this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'neverShowAgain' });
 							return this.storageService.store(storageKey, true, StorageScope.WORKSPACE);
-						case 2:
+						case 3:
 							/* __GDPR__
 								"extensionRecommendations:popup" : {
 									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }

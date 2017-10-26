@@ -1002,4 +1002,20 @@ suite('Editor Contrib - Line Comment in mixed modes', () => {
 		);
 	});
 
+	test('issue #36173: Commenting code in JSX tag body', () => {
+		testLineCommentCommand(
+			[
+				'<div>',
+				'  {123}',
+				'</div>',
+			],
+			new Selection(2, 4, 2, 4),
+			[
+				'<div>',
+				'  {/* {123} */}',
+				'</div>',
+			],
+			new Selection(2, 8, 2, 8),
+		);
+	});
 });

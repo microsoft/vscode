@@ -6,7 +6,7 @@
 /* ---------- Icon label ---------- */
 
 .monaco-icon-label {
-	display: inline-block; /* required for icons support :before rule */
+	display: flex; /* required for icons support :before rule */
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
@@ -25,34 +25,46 @@
 	/* fonts icons */
 	-webkit-font-smoothing: antialiased;
 	vertical-align: top;
+
+	flex-shrink: 0; /* fix for https://github.com/Microsoft/vscode/issues/13787 */
 }
 
-.monaco-icon-label > .label-name {
+.monaco-icon-label > .monaco-icon-label-description-container {
+	overflow: hidden; /* this causes the label/description to shrink first if decorations are enabled */
+	text-overflow: ellipsis;
+}
+
+.monaco-icon-label > .monaco-icon-label-description-container > .label-name {
 	color: inherit;
 	white-space: pre; /* enable to show labels that include multiple whitespaces */
 }
 
-.monaco-icon-label > .label-description {
+.monaco-icon-label > .monaco-icon-label-description-container > .label-description {
 	opacity: 0.7;
 	margin-left: 0.5em;
 	font-size: 0.9em;
 	white-space: pre; /* enable to show labels that include multiple whitespaces */
 }
 
-.monaco-icon-label.italic > .label-name,
-.monaco-icon-label.italic > .label-description {
+.monaco-icon-label.italic > .monaco-icon-label-description-container > .label-name,
+.monaco-icon-label.italic > .monaco-icon-label-description-container > .label-description {
 	font-style: italic;
 }
 
-.monaco-icon-label > .label-badge {
-	align-self: center;
-	height: 12px;
-	min-width: 10px;
-	line-height: 125%;
-	font-size: 80%;
-	margin: 1px 15px 1px auto;
-	padding: 2px 3px;
-	border-radius: 5px;
-	font-weight: normal;
+.monaco-icon-label::after {
+	opacity: 0.75;
+	font-size: 90%;
+	font-weight: 600;
+	padding: 0 12px 0 5px;
+	margin-left: auto;
 	text-align: center;
+}
+
+/* make sure selection color wins when a label is being selected */
+.monaco-tree.focused .selected .monaco-icon-label, /* tree */
+.monaco-tree.focused .selected .monaco-icon-label::after,
+.monaco-list:focus .focused.selected .monaco-icon-label, /* list */
+.monaco-list:focus .focused.selected .monaco-icon-label::after
+{
+	color: inherit !important;
 }

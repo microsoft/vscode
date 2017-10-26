@@ -78,23 +78,22 @@ suite('Workbench - TerminalConfigHelper', () => {
 		configurationService = new MockConfigurationService({
 			editor: {
 				fontFamily: 'foo',
-				fontSize: 1
+				fontSize: 9
 			},
 			terminal: {
 				integrated: {
 					fontFamily: 'bar',
-					fontSize: 2
+					fontSize: 10
 				}
 			}
 		});
 		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, null, null, null);
 		configHelper.panelContainer = fixture;
-		assert.equal(configHelper.getFont().fontSize, 2, 'terminal.integrated.fontSize should be selected over editor.fontSize');
+		assert.equal(configHelper.getFont().fontSize, 10, 'terminal.integrated.fontSize should be selected over editor.fontSize');
 
 		configurationService = new MockConfigurationService({
 			editor: {
-				fontFamily: 'foo',
-				fontSize: 0
+				fontFamily: 'foo'
 			},
 			terminal: {
 				integrated: {
@@ -105,23 +104,22 @@ suite('Workbench - TerminalConfigHelper', () => {
 		});
 		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, null, null, null);
 		configHelper.panelContainer = fixture;
-		assert.equal(configHelper.getFont().fontSize, EDITOR_FONT_DEFAULTS.fontSize, 'The default editor font size should be used when editor.fontSize is 0 and terminal.integrated.fontSize not set');
+		assert.equal(configHelper.getFont().fontSize, 6, 'The minimum terminal font size should be used when terminal.integrated.fontSize less than it');
 
 		configurationService = new MockConfigurationService({
 			editor: {
 				fontFamily: 'foo',
-				fontSize: 0
 			},
 			terminal: {
 				integrated: {
 					fontFamily: 0,
-					fontSize: -10
+					fontSize: null
 				}
 			}
 		});
 		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, null, null, null);
 		configHelper.panelContainer = fixture;
-		assert.equal(configHelper.getFont().fontSize, EDITOR_FONT_DEFAULTS.fontSize, 'The default editor font size should be used when editor.fontSize is < 0 and terminal.integrated.fontSize not set');
+		assert.equal(configHelper.getFont().fontSize, EDITOR_FONT_DEFAULTS.fontSize, 'The default editor font size should be used when terminal.integrated.fontSize is not set');
 	});
 
 	test('TerminalConfigHelper - getFont lineHeight', function () {

@@ -28,7 +28,6 @@ export interface IIconLabelOptions {
 	extraClasses?: string[];
 	italic?: boolean;
 	matches?: IMatch[];
-	badge?: ILabelBadgeOptions;
 }
 
 class FastLabelNode {
@@ -90,18 +89,19 @@ export class IconLabel {
 	private domNode: FastLabelNode;
 	private labelNode: FastLabelNode | HighlightedLabel;
 	private descriptionNode: FastLabelNode;
-	private badgeNode: HTMLSpanElement;
 
 	constructor(container: HTMLElement, options?: IIconLabelCreationOptions) {
 		this.domNode = new FastLabelNode(dom.append(container, dom.$('.monaco-icon-label')));
 
+		const labelDescriptionContainer = new FastLabelNode(dom.append(this.domNode.element, dom.$('.monaco-icon-label-description-container')));
+
 		if (options && options.supportHighlights) {
-			this.labelNode = new HighlightedLabel(dom.append(this.domNode.element, dom.$('a.label-name')));
+			this.labelNode = new HighlightedLabel(dom.append(labelDescriptionContainer.element, dom.$('a.label-name')));
 		} else {
-			this.labelNode = new FastLabelNode(dom.append(this.domNode.element, dom.$('a.label-name')));
+			this.labelNode = new FastLabelNode(dom.append(labelDescriptionContainer.element, dom.$('a.label-name')));
 		}
 
-		this.descriptionNode = new FastLabelNode(dom.append(this.domNode.element, dom.$('span.label-description')));
+		this.descriptionNode = new FastLabelNode(dom.append(labelDescriptionContainer.element, dom.$('span.label-description')));
 	}
 
 	public get element(): HTMLElement {
@@ -148,20 +148,6 @@ export class IconLabel {
 
 		this.descriptionNode.textContent = description || '';
 		this.descriptionNode.empty = !description;
-
-		if (options && options.badge) {
-			if (!this.badgeNode) {
-				this.badgeNode = document.createElement('span');
-				this.element.style.display = 'flex';
-				this.element.appendChild(this.badgeNode);
-			}
-			this.badgeNode.title = options.badge.title;
-			this.badgeNode.className = `label-badge ${options.badge.className}`;
-			dom.show(this.badgeNode);
-
-		} else if (this.badgeNode) {
-			dom.hide(this.badgeNode);
-		}
 	}
 
 	public dispose(): void {

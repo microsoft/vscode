@@ -16,7 +16,6 @@
 	"workbench.action.terminal.new.short": "新的终端",
 	"workbench.action.terminal.focus": "聚焦于终端",
 	"workbench.action.terminal.focusNext": "聚焦于下一终端",
-	"workbench.action.terminal.focusAtIndex": "焦点终端 {0}",
 	"workbench.action.terminal.focusPrevious": "聚焦于上一终端",
 	"workbench.action.terminal.paste": "粘贴到活动终端中",
 	"workbench.action.terminal.DefaultShell": "选择默认 Shell",

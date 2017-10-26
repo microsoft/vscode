@@ -39,14 +39,14 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { Themable } from 'vs/workbench/common/theme';
 import { ipcRenderer as ipc, webFrame } from 'electron';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { IMenuService, MenuId, IMenu, MenuItemAction, ICommandAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 
 const TextInputActions: IAction[] = [
 	new Action('undo', nls.localize('undo', "Undo"), null, true, () => document.execCommand('undo') && TPromise.as(true)),
@@ -261,7 +261,11 @@ export class ElectronWindow extends Themable {
 		}
 	}
 
-	private onDidUpdateConfiguration(e): void {
+	private onDidUpdateConfiguration(event: IConfigurationChangeEvent): void {
+		if (!event.affectsConfiguration('window.zoomLevel')) {
+			return;
+		}
+
 		const windowConfig: IWindowsConfiguration = this.configurationService.getConfiguration<IWindowsConfiguration>();
 
 		let newZoomLevel = 0;
@@ -398,21 +402,7 @@ export class ElectronWindow extends Themable {
 	private onAddFolders(request: IAddFoldersRequest): void {
 		const foldersToAdd = request.foldersToAdd.map(folderToAdd => URI.file(folderToAdd.filePath));
 
-		// Workspace: just add to workspace config
-		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
-			this.contextService.addFolders(foldersToAdd).done(null, errors.onUnexpectedError);
-		}
-
-		// Single folder or no workspace: create workspace and open
-		else {
-			const workspaceFolders: URI[] = [...this.contextService.getWorkspace().folders.map(folder => folder.uri)];
-
-			// Fill in remaining ones from request
-			workspaceFolders.push(...request.foldersToAdd.map(folderToAdd => URI.file(folderToAdd.filePath)));
-
-			// Create workspace and open (ensure no duplicates)
-			this.workspaceEditingService.createAndEnterWorkspace(arrays.distinct(workspaceFolders.map(folder => folder.fsPath), folder => platform.isLinux ? folder : folder.toLowerCase()));
-		}
+		this.workspaceEditingService.addFolders(foldersToAdd).done(null, errors.onUnexpectedError);
 	}
 
 	private onOpenFiles(request: IOpenFileRequest): void {

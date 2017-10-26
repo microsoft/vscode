@@ -62,12 +62,12 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 	getConfiguration<T>(section: string, overrides: IConfigurationOverrides): T
 	getConfiguration(arg1?: any, arg2?: any): any {
 		const section = typeof arg1 === 'string' ? arg1 : void 0;
-		const overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : void 0;
-		return this.configuration.getSection(section, overrides);
+		const overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : {};
+		return this.configuration.getSection(section, overrides, null);
 	}
 
-	getValue(key: string, overrides: IConfigurationOverrides): any {
-		return this.configuration.getValue(key, overrides);
+	getValue(key: string, overrides: IConfigurationOverrides = {}): any {
+		return this.configuration.getValue(key, overrides, null);
 	}
 
 	updateValue(key: string, value: any): TPromise<void>
@@ -85,7 +85,7 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 		workspaceFolder: T
 		value: T
 	} {
-		return this.configuration.lookup<T>(key);
+		return this.configuration.lookup<T>(key, {}, null);
 	}
 
 	keys(): {
@@ -94,7 +94,7 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 		workspace: string[];
 		workspaceFolder: string[];
 	} {
-		return this.configuration.keys();
+		return this.configuration.keys(null);
 	}
 
 	reloadConfiguration(folder?: IWorkspaceFolder): TPromise<void> {
@@ -109,7 +109,7 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 		if (changedKeys.length) {
 			const oldConfiguartion = this._configuration;
 			this.reset();
-			changedKeys = changedKeys.filter(key => !equals(oldConfiguartion.getValue(key), this._configuration.getValue(key)));
+			changedKeys = changedKeys.filter(key => !equals(oldConfiguartion.getValue(key, {}, null), this._configuration.getValue(key, {}, null)));
 			if (changedKeys.length) {
 				this.trigger(changedKeys, ConfigurationTarget.USER);
 			}

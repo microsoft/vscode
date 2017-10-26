@@ -19,7 +19,6 @@
 	"ClearSearchResultsAction.label": "Очистить результаты поиска",
 	"FocusNextSearchResult.label": "Перейти к следующему результату поиска.",
 	"FocusPreviousSearchResult.label": "Перейти к предыдущему результату поиска.",
-	"RemoveAction.label": "Удалить",
 	"file.replaceAll.label": "Заменить все",
 	"match.replace.label": "Заменить"
 }

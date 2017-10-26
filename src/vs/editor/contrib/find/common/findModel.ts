@@ -50,10 +50,6 @@ export const FIND_IDS = {
 	PreviousMatchFindAction: 'editor.action.previousMatchFindAction',
 	NextSelectionMatchFindAction: 'editor.action.nextSelectionMatchFindAction',
 	PreviousSelectionMatchFindAction: 'editor.action.previousSelectionMatchFindAction',
-	AddSelectionToNextFindMatchAction: 'editor.action.addSelectionToNextFindMatch',
-	AddSelectionToPreviousFindMatchAction: 'editor.action.addSelectionToPreviousFindMatch',
-	MoveSelectionToNextFindMatchAction: 'editor.action.moveSelectionToNextFindMatch',
-	MoveSelectionToPreviousFindMatchAction: 'editor.action.moveSelectionToPreviousFindMatch',
 	StartFindReplaceAction: 'editor.action.startFindReplaceAction',
 	CloseFindWidgetCommand: 'closeFindWidget',
 	ToggleCaseSensitiveCommand: 'toggleFindCaseSensitive',
@@ -128,6 +124,10 @@ export class FindModelBoundToEditorModel {
 	private _onStateChanged(e: FindReplaceStateChangedEvent): void {
 		if (this._isDisposed) {
 			// The find model is disposed during a find state changed event
+			return;
+		}
+		if (!this._editor.getModel()) {
+			// The find model will be disposed momentarily
 			return;
 		}
 		if (e.searchString || e.isReplaceRevealed || e.isRegex || e.wholeWord || e.matchCase || e.searchScope) {

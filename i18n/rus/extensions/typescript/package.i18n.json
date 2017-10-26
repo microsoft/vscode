@@ -44,7 +44,6 @@
 	"typescript.npm": "Указывает путь к исполняемому файлу NPM, используемому для автоматического получения типа. Требуется TypeScript версии 2.3.4 или более поздней версии.",
 	"typescript.check.npmIsInstalled": "Проверяет, установлен ли NPM для автоматического получения типов.",
 	"javascript.nameSuggestions": "Включить/отключить использование уникальных имен из файла в списках предложений JavaScript.",
-	"typescript.tsc.autoDetect": "Включает или отключает автоматическое определние заданий tsc.",
 	"typescript.problemMatchers.tsc.label": "Проблемы TypeScript",
 	"typescript.problemMatchers.tscWatch.label": "Проблемы TypeScript (режим наблюдения)"
 }

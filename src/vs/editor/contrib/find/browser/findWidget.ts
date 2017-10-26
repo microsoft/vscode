@@ -921,7 +921,7 @@ class SimpleCheckbox extends Widget {
 
 		this._label = document.createElement('label');
 		this._label.className = 'label';
-		// Connect the label and the checkbox. Checkbox will get checked when the label recieves a click.
+		// Connect the label and the checkbox. Checkbox will get checked when the label receives a click.
 		this._label.htmlFor = this._checkbox.id;
 		this._label.tabIndex = -1;
 

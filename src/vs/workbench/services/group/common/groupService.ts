@@ -56,9 +56,9 @@ export interface IEditorGroupService {
 	onEditorOpenFail: Event<IEditorInput>;
 
 	/**
-	 * Emitted when a editors are moved to another position.
+	 * Emitted when an entire editor group is moved to another position.
 	 */
-	onEditorsMoved: Event<void>;
+	onEditorGroupMoved: Event<void>;
 
 	/**
 	 * Emitted when the editor group orientation was changed.

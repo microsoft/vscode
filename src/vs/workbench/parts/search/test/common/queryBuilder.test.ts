@@ -594,6 +594,8 @@ function assertEqualQueries(actual: ISearchQuery, expected: ISearchQuery): void 
 		};
 	};
 
+	delete actual.ignoreSymlinks;
+
 	// Avoid comparing URI objects, not a good idea
 	if (expected.folderQueries) {
 		assert.deepEqual(actual.folderQueries.map(folderQueryToCompareObject), expected.folderQueries.map(folderQueryToCompareObject));

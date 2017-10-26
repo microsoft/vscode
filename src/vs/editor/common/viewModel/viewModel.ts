@@ -134,7 +134,7 @@ export interface IViewModel {
 	getTabSize(): number;
 	getLineCount(): number;
 	getLineContent(lineNumber: number): string;
-	getLineIndentGuide(lineNumber: number): number;
+	getLinesIndentGuides(startLineNumber: number, endLineNumber: number): number[];
 	getLineMinColumn(lineNumber: number): number;
 	getLineMaxColumn(lineNumber: number): number;
 	getLineFirstNonWhitespaceColumn(lineNumber: number): number;

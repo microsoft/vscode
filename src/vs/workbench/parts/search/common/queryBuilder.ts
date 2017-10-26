@@ -60,6 +60,8 @@ export class QueryBuilder {
 			return folderConfig.search.useRipgrep;
 		});
 
+		const ignoreSymlinks = !this.configurationService.getConfiguration<ISearchConfiguration>().search.followSymlinks;
+
 		const query = <ISearchQuery>{
 			type,
 			folderQueries,
@@ -74,7 +76,8 @@ export class QueryBuilder {
 			contentPattern: contentPattern,
 			useRipgrep,
 			disregardIgnoreFiles: options.disregardIgnoreFiles,
-			disregardExcludeSettings: options.disregardExcludeSettings
+			disregardExcludeSettings: options.disregardExcludeSettings,
+			ignoreSymlinks
 		};
 
 		// Filter extraFileResources against global include/exclude patterns - they are already expected to not belong to a workspace

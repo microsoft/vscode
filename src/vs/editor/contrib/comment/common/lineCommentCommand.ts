@@ -270,7 +270,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 	 */
 	private _executeBlockComment(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder, s: Selection): void {
 		model.tokenizeIfCheap(s.startLineNumber);
-		let languageId = model.getLanguageIdAtPosition(s.startLineNumber, s.startColumn);
+		let languageId = model.getLanguageIdAtPosition(s.startLineNumber, 1);
 		let config = LanguageConfigurationRegistry.getComments(languageId);
 		if (!config || !config.blockCommentStartToken || !config.blockCommentEndToken) {
 			// Mode does not support block comments

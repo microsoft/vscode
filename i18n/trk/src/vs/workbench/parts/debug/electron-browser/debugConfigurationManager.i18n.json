@@ -15,7 +15,6 @@
 	"vscode.extension.contributes.debuggers.initialConfigurations": "İlk 'launch.json' dosyasının üretimi için yapılandırmalar.",
 	"vscode.extension.contributes.debuggers.languages": "Hata ayıklama eklentisinin, \"varsayılan hata ayıklayıcı\" olarak değerlendirilebileceği diller listesi.",
 	"vscode.extension.contributes.debuggers.adapterExecutableCommand": "Belirtilirse; VS Code, hata ayıklama bağdaştırıcısı yürütülebilir dosyasının yolunu ve ona gönderilecek argümanları belirlemek için bu komutu çağırır.",
-	"vscode.extension.contributes.debuggers.startSessionCommand": "Belirtilirse; VS Code, bu eklenti için hedeflenen \"hata ayıklama\" ve \"çalıştır\" eylemleri için bu komutu çağırır.",
 	"vscode.extension.contributes.debuggers.configurationSnippets": "'launch.json' dosyasına yeni yapılandırmalar ekleme parçacıkları.",
 	"vscode.extension.contributes.debuggers.configurationAttributes": "'launch.json' dosyasını doğrulayacak JSON şema yapılandırmaları.",
 	"vscode.extension.contributes.debuggers.windows": "Windows'a özel ayarlar.",

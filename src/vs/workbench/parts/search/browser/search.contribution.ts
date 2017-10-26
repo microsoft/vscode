@@ -371,6 +371,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'description': nls.localize('search.quickOpen.includeSymbols', "Configure to include results from a global symbol search in the file results for Quick Open."),
 			'default': false
+		},
+		'search.followSymlinks': {
+			'type': 'boolean',
+			'description': nls.localize('search.followSymlinks', "Controls whether to follow symlinks while searching."),
+			'default': true
 		}
 	}
 });

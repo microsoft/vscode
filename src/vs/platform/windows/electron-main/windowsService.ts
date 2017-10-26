@@ -70,6 +70,12 @@ export class WindowsService implements IWindowsService, IDisposable {
 		return TPromise.as(null);
 	}
 
+	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
+		this.windowsMainService.pickWorkspaceAndOpen(options);
+
+		return TPromise.as(null);
+	}
+
 	reloadWindow(windowId: number): TPromise<void> {
 		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
@@ -120,16 +126,6 @@ export class WindowsService implements IWindowsService, IDisposable {
 
 		if (codeWindow) {
 			this.windowsMainService.closeWorkspace(codeWindow);
-		}
-
-		return TPromise.as(null);
-	}
-
-	openWorkspace(windowId: number): TPromise<void> {
-		const codeWindow = this.windowsMainService.getWindowById(windowId);
-
-		if (codeWindow) {
-			this.windowsMainService.openWorkspace(codeWindow);
 		}
 
 		return TPromise.as(null);

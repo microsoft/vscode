@@ -16,9 +16,8 @@ import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
-import { IWorkspaceSymbolProvider } from 'vs/workbench/parts/search/common/search';
 import { asWinJsPromise } from 'vs/base/common/async';
-import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IExtHostSuggestResult, IExtHostSuggestion } from './extHost.protocol';
+import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IExtHostSuggestResult, IExtHostSuggestion, IWorkspaceSymbols, IWorkspaceSymbol, IdObject } from './extHost.protocol';
 import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
@@ -368,44 +367,55 @@ class OnTypeFormattingAdapter {
 	}
 }
 
+class NavigateTypeAdapter {
 
-class NavigateTypeAdapter implements IWorkspaceSymbolProvider {
+	private readonly _symbolCache: { [id: number]: vscode.SymbolInformation } = Object.create(null);
+	private readonly _resultCache: { [id: number]: [number, number] } = Object.create(null);
+	private readonly _provider: vscode.WorkspaceSymbolProvider;
 
-	private _provider: vscode.WorkspaceSymbolProvider;
-	private _heapService: ExtHostHeapService;
-
-	constructor(provider: vscode.WorkspaceSymbolProvider, heapService: ExtHostHeapService) {
+	constructor(provider: vscode.WorkspaceSymbolProvider) {
 		this._provider = provider;
-		this._heapService = heapService;
 	}
 
-	provideWorkspaceSymbols(search: string): TPromise<modes.SymbolInformation[]> {
-
+	provideWorkspaceSymbols(search: string): TPromise<IWorkspaceSymbols> {
+		const result: IWorkspaceSymbols = IdObject.mixin({ symbols: [] });
 		return asWinJsPromise(token => this._provider.provideWorkspaceSymbols(search, token)).then(value => {
-			if (Array.isArray(value)) {
-				return value.map(item => {
-					const id = this._heapService.keep(item);
-					const result = TypeConverters.fromSymbolInformation(item);
-					return ObjectIdentifier.mixin(result, id);
-				});
+			if (!isFalsyOrEmpty(value)) {
+				for (const item of value) {
+					const symbol = IdObject.mixin(TypeConverters.fromSymbolInformation(item));
+					this._symbolCache[symbol._id] = item;
+					result.symbols.push(symbol);
+				}
 			}
-			return undefined;
+		}).then(() => {
+			this._resultCache[result._id] = [result.symbols[0]._id, result.symbols[result.symbols.length - 1]._id];
+			return result;
 		});
 	}
 
-	resolveWorkspaceSymbol(item: modes.SymbolInformation): TPromise<modes.SymbolInformation> {
+	resolveWorkspaceSymbol(symbol: IWorkspaceSymbol): TPromise<IWorkspaceSymbol> {
 
 		if (typeof this._provider.resolveWorkspaceSymbol !== 'function') {
-			return TPromise.as(item);
+			return TPromise.as(symbol);
 		}
 
-		const symbolInfo = this._heapService.get<vscode.SymbolInformation>(ObjectIdentifier.of(item));
-		if (symbolInfo) {
-			return asWinJsPromise(token => this._provider.resolveWorkspaceSymbol(symbolInfo, token)).then(value => {
-				return value && TypeConverters.fromSymbolInformation(value);
+		const item = this._symbolCache[symbol._id];
+		if (item) {
+			return asWinJsPromise(token => this._provider.resolveWorkspaceSymbol(item, token)).then(value => {
+				return value && mixin(symbol, TypeConverters.fromSymbolInformation(value), true);
 			});
 		}
 		return undefined;
+	}
+
+	releaseWorkspaceSymbols(id: number): any {
+		const range = this._resultCache[id];
+		if (range) {
+			for (let [from, to] = range; from <= to; from++) {
+				delete this._symbolCache[from];
+			}
+			delete this._resultCache[id];
+		}
 	}
 }
 
@@ -946,17 +956,21 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	registerWorkspaceSymbolProvider(provider: vscode.WorkspaceSymbolProvider): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter.set(handle, new NavigateTypeAdapter(provider, this._heapService));
+		this._adapter.set(handle, new NavigateTypeAdapter(provider));
 		this._proxy.$registerNavigateTypeSupport(handle);
 		return this._createDisposable(handle);
 	}
 
-	$provideWorkspaceSymbols(handle: number, search: string): TPromise<modes.SymbolInformation[]> {
+	$provideWorkspaceSymbols(handle: number, search: string): TPromise<IWorkspaceSymbols> {
 		return this._withAdapter(handle, NavigateTypeAdapter, adapter => adapter.provideWorkspaceSymbols(search));
 	}
 
-	$resolveWorkspaceSymbol(handle: number, symbol: modes.SymbolInformation): TPromise<modes.SymbolInformation> {
+	$resolveWorkspaceSymbol(handle: number, symbol: IWorkspaceSymbol): TPromise<IWorkspaceSymbol> {
 		return this._withAdapter(handle, NavigateTypeAdapter, adapter => adapter.resolveWorkspaceSymbol(symbol));
+	}
+
+	$releaseWorkspaceSymbols(handle: number, id: number) {
+		this._withAdapter(handle, NavigateTypeAdapter, adapter => adapter.releaseWorkspaceSymbols(id));
 	}
 
 	// --- rename

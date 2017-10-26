@@ -397,6 +397,12 @@ export function createApiFactory(
 			get workspaceFolders() {
 				return extHostWorkspace.getWorkspaceFolders();
 			},
+			get name() {
+				return extHostWorkspace.workspace ? extHostWorkspace.workspace.name : undefined;
+			},
+			set name(value) {
+				throw errors.readonly();
+			},
 			onDidChangeWorkspaceFolders: function (listener, thisArgs?, disposables?) {
 				return extHostWorkspace.onDidChangeWorkspace(listener, thisArgs, disposables);
 			},
@@ -489,6 +495,9 @@ export function createApiFactory(
 			get activeDebugSession() {
 				return extHostDebugService.activeDebugSession;
 			},
+			get console() {
+				return extHostDebugService.debugConsole;
+			},
 			startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration) {
 				return extHostDebugService.startDebugging(folder, nameOrConfig);
 			},
@@ -506,7 +515,7 @@ export function createApiFactory(
 			},
 			registerDebugConfigurationProvider(debugType: string, provider: vscode.DebugConfigurationProvider) {
 				return extHostDebugService.registerDebugConfigurationProvider(debugType, provider);
-			},
+			}
 		};
 
 		// namespace: credentials

@@ -33,7 +33,7 @@ import { IEditor as IBaseEditor, IEditorInput } from 'vs/platform/editor/common/
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService, IPickOpenEntry, IFilePickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { SUPPORTED_ENCODINGS, IFileService, IFilesConfiguration } from 'vs/platform/files/common/files';
+import { SUPPORTED_ENCODINGS, IFileService, IFilesConfiguration, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -785,8 +785,6 @@ export class ChangeModeAction extends Action {
 	public static ID = 'workbench.action.editor.changeLanguageMode';
 	public static LABEL = nls.localize('changeMode', "Change Language Mode");
 
-	private static FILE_ASSOCIATION_KEY = 'files.associations';
-
 	constructor(
 		actionId: string,
 		actionLabel: string,
@@ -964,7 +962,7 @@ export class ChangeModeAction extends Action {
 		TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */).done(() => {
 			this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickLanguageToConfigure', "Select Language Mode to Associate with '{0}'", extension || basename) }).done(language => {
 				if (language) {
-					const fileAssociationsConfig = this.configurationService.inspect(ChangeModeAction.FILE_ASSOCIATION_KEY);
+					const fileAssociationsConfig = this.configurationService.inspect(FILES_ASSOCIATIONS_CONFIG);
 
 					let associationKey: string;
 					if (extension && basename[0] !== '.') {
@@ -987,7 +985,7 @@ export class ChangeModeAction extends Action {
 
 					currentAssociations[associationKey] = language.id;
 
-					this.configurationService.updateValue(ChangeModeAction.FILE_ASSOCIATION_KEY, currentAssociations, target);
+					this.configurationService.updateValue(FILES_ASSOCIATIONS_CONFIG, currentAssociations, target);
 				}
 			});
 		});

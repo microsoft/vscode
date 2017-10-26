@@ -19,7 +19,6 @@
 	"ClearSearchResultsAction.label": "Limpar os Resultados da Pesquisa",
 	"FocusNextSearchResult.label": "Focalizar o Próximo Resultado da Pesquisa",
 	"FocusPreviousSearchResult.label": "Focalizar o Resultado da Pesquisa Anterior",
-	"RemoveAction.label": "Remover",
 	"file.replaceAll.label": "Substituir Tudo",
 	"match.replace.label": "Substituir"
 }

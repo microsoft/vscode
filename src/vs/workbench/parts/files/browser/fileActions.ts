@@ -44,9 +44,8 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { withFocusedFilesExplorer, revealInOSCommand, revealInExplorerCommand, copyPathCommand } from 'vs/workbench/parts/files/browser/fileCommands';
-import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
@@ -1824,27 +1823,6 @@ export class RefreshExplorerView extends Action {
 	}
 }
 
-export class OpenFileAction extends Action {
-
-	static ID = 'workbench.action.files.openFile';
-	static LABEL = nls.localize('openFile', "Open File...");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IWindowService private windowService: IWindowService
-	) {
-		super(id, label);
-	}
-
-	run(event?: any, data?: ITelemetryData): TPromise<any> {
-		const fileResource = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
-
-		return this.windowService.pickFileAndOpen({ telemetryExtraData: data, dialogOptions: { defaultPath: fileResource ? paths.dirname(fileResource.fsPath) : void 0 } });
-	}
-}
-
 export class ShowOpenedFileInNewWindow extends Action {
 
 	public static ID = 'workbench.action.files.showOpenedFileInNewWindow';
@@ -1982,18 +1960,26 @@ export function validateFileName(parent: IFileStat, name: string, allowOverwriti
 
 	// Invalid File name
 	if (!paths.isValidBasename(name)) {
-		return nls.localize('invalidFileNameError', "The name **{0}** is not valid as a file or folder name. Please choose a different name.", name);
+		return nls.localize('invalidFileNameError', "The name **{0}** is not valid as a file or folder name. Please choose a different name.", trimLongName(name));
 	}
 
 	// Max length restriction (on Windows)
 	if (isWindows) {
 		const fullPathLength = name.length + parent.resource.fsPath.length + 1 /* path segment */;
 		if (fullPathLength > 255) {
-			return nls.localize('filePathTooLongError', "The name **{0}** results in a path that is too long. Please choose a shorter name.", name);
+			return nls.localize('filePathTooLongError', "The name **{0}** results in a path that is too long. Please choose a shorter name.", trimLongName(name));
 		}
 	}
 
 	return null;
+}
+
+function trimLongName(name: string): string {
+	if (name && name.length > 255) {
+		return `${name.substr(0, 255)}...`;
+	}
+
+	return name;
 }
 
 export function getWellFormedFileName(filename: string): string {

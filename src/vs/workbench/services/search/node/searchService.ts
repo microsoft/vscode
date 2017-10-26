@@ -270,7 +270,8 @@ export class DiskSearch implements ISearchResultProvider {
 			sortByScore: query.sortByScore,
 			cacheKey: query.cacheKey,
 			useRipgrep: query.useRipgrep,
-			disregardIgnoreFiles: query.disregardIgnoreFiles
+			disregardIgnoreFiles: query.disregardIgnoreFiles,
+			ignoreSymlinks: query.ignoreSymlinks
 		};
 
 		if (query.folderQueries) {

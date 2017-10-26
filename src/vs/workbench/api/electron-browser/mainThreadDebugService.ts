@@ -11,6 +11,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
+import severity from 'vs/base/common/severity';
 
 @extHostNamedCustomer(MainContext.MainThreadDebugService)
 export class MainThreadDebugService implements MainThreadDebugServiceShape {
@@ -92,5 +93,11 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 			});
 		}
 		return TPromise.wrapError(new Error('debug session not found'));
+	}
+
+	public $appendDebugConsole(value: string): TPromise<any> {
+		// Use warning as severity to get the orange color for messages coming from the debug extension
+		this.debugService.logToRepl(value, severity.Warning);
+		return TPromise.as<void>(undefined);
 	}
 }

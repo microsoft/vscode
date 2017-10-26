@@ -804,6 +804,8 @@ export const EditorOpenPositioning = {
 	LAST: 'last'
 };
 
+export const OPEN_POSITIONING_CONFIG = 'workbench.editor.openPositioning';
+
 export interface IWorkbenchEditorConfiguration {
 	/* __GDPR__FRAGMENT__
 		"IWorkbenchEditorConfiguration" : {
