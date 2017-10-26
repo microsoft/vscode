@@ -68,9 +68,11 @@ export class VariablesView extends ViewsViewletPanel {
 		// Use scheduler to prevent unnecessary flashing
 		this.onFocusStackFrameScheduler = new RunOnceScheduler(() => {
 			// Remember expanded elements when there are some (otherwise don't override/erase the previous ones)
-			if (this.tree.getExpandedElements().length > 0) {
-				this.expandedElements = this.tree.getExpandedElements();
+			const expanded = this.tree.getExpandedElements();
+			if (expanded.length > 0) {
+				this.expandedElements = expanded;
 			}
+
 			// Always clear tree highlight to avoid ending up in a broken state #12203
 			this.tree.clearHighlight();
 			this.tree.refresh().then(() => {
