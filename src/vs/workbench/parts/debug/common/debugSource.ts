@@ -7,6 +7,7 @@ import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import uri from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/paths';
+import * as resources from 'vs/base/common/resources';
 import { DEBUG_SCHEME } from 'vs/workbench/parts/debug/common/debug';
 import { IRange } from 'vs/editor/common/core/range';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -67,5 +68,45 @@ export class Source {
 				pinned: !preserveFocus && !this.inMemory
 			}
 		}, sideBySide);
+	}
+
+	public static createRawSource(modelUri: uri): DebugProtocol.Source {
+
+		let name = resources.basenameOrAuthority(modelUri);
+		let path: string;
+		let sourceRef: number;
+
+		switch (modelUri.scheme) {
+			case 'file':
+				path = paths.normalize(modelUri.fsPath, true);
+				break;
+			case DEBUG_SCHEME:
+				path = modelUri.path;
+				if (modelUri.query) {
+					const keyvalues = modelUri.query.split('&');
+					for (let keyvalue of keyvalues) {
+						const pair = keyvalue.split('=');
+						if (pair.length === 2) {
+							switch (pair[0]) {
+								case 'session':
+									break;
+								case 'ref':
+									sourceRef = parseInt(pair[1]);
+									break;
+							}
+						}
+					}
+				}
+				break;
+			default:
+				path = modelUri.toString();
+				break;
+		}
+
+		const src: DebugProtocol.Source = { name, path };
+		if (sourceRef) {
+			src.sourceReference = sourceRef;
+		}
+		return src;
 	}
 }
