@@ -8,7 +8,6 @@ import { ImplementationProvider, TextDocument, Position, CancellationToken, Defi
 import DefinitionProviderBase from './definitionProviderBase';
 
 export default class TypeScriptImplementationProvider extends DefinitionProviderBase implements ImplementationProvider {
-
 	public provideImplementation(document: TextDocument, position: Position, token: CancellationToken | boolean): Promise<Definition | undefined> {
 		return this.getSymbolLocations('implementation', document, position, token);
 	}

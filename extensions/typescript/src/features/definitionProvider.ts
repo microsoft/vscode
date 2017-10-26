@@ -8,7 +8,6 @@ import { DefinitionProvider, TextDocument, Position, CancellationToken, Definiti
 import DefinitionProviderBase from './definitionProviderBase';
 
 export default class TypeScriptDefinitionProvider extends DefinitionProviderBase implements DefinitionProvider {
-
 	public provideDefinition(document: TextDocument, position: Position, token: CancellationToken | boolean): Promise<Definition | undefined> {
 		return this.getSymbolLocations('definition', document, position, token);
 	}
