@@ -216,6 +216,11 @@ let workbenchProperties: { [path: string]: IJSONSchema; } = {
 		'description': nls.localize('experimentalFuzzySearchKey', "Indicates the key to use for the experimental settings search."),
 		'default': ''
 	},
+	'workbench.settings.experimentalFuzzySearchBoost': {
+		'type': 'number',
+		'description': 'Indicates the amount to boost the "literal" component of the query. Temporary.',
+		'default': 10
+	},
 	'workbench.sideBar.location': {
 		'type': 'string',
 		'enum': ['left', 'right'],

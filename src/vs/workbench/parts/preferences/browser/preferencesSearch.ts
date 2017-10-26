@@ -18,6 +18,7 @@ import { IWorkspaceConfigurationService } from 'vs/workbench/services/configurat
 export interface IEndpointDetails {
 	urlBase: string;
 	key: string;
+	boost: number;
 }
 
 export class PreferencesSearchProvider {
@@ -37,7 +38,8 @@ export class PreferencesSearchProvider {
 		const workbenchSettings = this.configurationService.getConfiguration<IWorkbenchSettingsConfiguration>().workbench.settings;
 		return {
 			urlBase: workbenchSettings.experimentalFuzzySearchEndpoint,
-			key: workbenchSettings.experimentalFuzzySearchKey
+			key: workbenchSettings.experimentalFuzzySearchKey,
+			boost: workbenchSettings.experimentalFuzzySearchBoost
 		};
 	}
 
@@ -196,7 +198,8 @@ function escapeSpecialChars(query: string): string {
 
 function prepareUrl(query: string, endpoint: IEndpointDetails): string {
 	query = escapeSpecialChars(query);
-	const userQuery = query;
+	const boost = endpoint.boost || 1;
+	const userQuery = `(${query})^${boost}`;
 
 	// Appending Fuzzy after each word.
 	query = query.replace(/\ +/g, '~ ') + '~';
