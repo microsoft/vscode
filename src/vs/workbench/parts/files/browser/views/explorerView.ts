@@ -213,14 +213,16 @@ export class ExplorerView extends ViewsViewletPanel {
 		return this.doRefresh(targetsToExpand).then(() => {
 
 			// When the explorer viewer is loaded, listen to changes to the editor input
-			this.disposables.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
+			this.disposables.push(this.editorGroupService.onEditorsChanged(() => this.revealActiveFile()));
 
 			// Also handle configuration updates
 			this.disposables.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IFilesConfiguration>(), e)));
+
+			this.revealActiveFile();
 		});
 	}
 
-	private onEditorsChanged(): void {
+	private revealActiveFile(): void {
 		if (!this.autoReveal) {
 			return; // do not touch selection or focus if autoReveal === false
 		}
