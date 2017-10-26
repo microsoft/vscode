@@ -215,6 +215,7 @@ before(async function () {
 		userDataDir,
 		extensionsPath,
 		artifactsPath,
+		workspaceFilePath,
 		waitTime: parseInt(opts['wait-time'] || '0') || 20
 	});
 
@@ -232,7 +233,6 @@ import './areas/workbench/data-loss.test';
 import './areas/explorer/explorer.test';
 import './areas/preferences/preferences.test';
 import './areas/search/search.test';
-// import './areas/multiroot/multiroot.test';
 import './areas/css/css.test';
 import './areas/editor/editor.test';
 import './areas/debug/debug.test';
@@ -240,4 +240,5 @@ import './areas/git/git.test';
 // import './areas/terminal/terminal.test';
 import './areas/statusbar/statusbar.test';
 import './areas/extensions/extensions.test';
+import './areas/multiroot/multiroot.test';
 import './areas/workbench/localization.test';

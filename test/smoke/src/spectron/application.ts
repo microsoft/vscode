@@ -50,6 +50,7 @@ export interface SpectronApplicationOptions {
 	userDataDir: string;
 	extensionsPath: string;
 	artifactsPath: string;
+	workspaceFilePath: string;
 	waitTime: number;
 }
 
@@ -61,7 +62,7 @@ export class SpectronApplication {
 	private _client: SpectronClient;
 	private _workbench: Workbench;
 	private _screenCapturer: ScreenCapturer;
-	private spectron: Application;
+	private spectron: Application | undefined;
 	private keybindings: any[]; private stopLogCollection: (() => Promise<void>) | undefined;
 
 	constructor(
@@ -75,15 +76,15 @@ export class SpectronApplication {
 		return this.options.quality;
 	}
 
-	get app(): Application {
-		return this.spectron;
-	}
-
 	get client(): SpectronClient {
 		return this._client;
 	}
 
 	get webclient(): WebClient {
+		if (!this.spectron) {
+			throw new Error('Application not started');
+		}
+
 		return this.spectron.client;
 	}
 
@@ -105,6 +106,10 @@ export class SpectronApplication {
 
 	get userDataPath(): string {
 		return this.options.userDataDir;
+	}
+
+	get workspaceFilePath(): string {
+		return this.options.workspaceFilePath;
 	}
 
 	async start(testSuiteName: string, codeArgs: string[] = []): Promise<any> {
@@ -143,7 +148,7 @@ export class SpectronApplication {
 		if (this.spectron && this.spectron.isRunning()) {
 			await this.screenCapturer.capture('Stopping application');
 			await this.spectron.stop();
-			this.spectron = null;
+			this.spectron = undefined;
 		}
 	}
 
@@ -232,6 +237,10 @@ export class SpectronApplication {
 			const rendererProcessLogPath = path.join(testsuiteRootPath, 'renderer.log');
 
 			const flush = async () => {
+				if (!this.spectron) {
+					return;
+				}
+
 				const mainLogs = await this.spectron.client.getMainProcessLogs();
 				await new Promise((c, e) => fs.appendFile(mainProcessLogPath, mainLogs.join('\n'), { encoding: 'utf8' }, err => err ? e(err) : c()));
 

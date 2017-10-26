@@ -3,28 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// import * as assert from 'assert';
-// import { SpectronApplication, CODE_WORKSPACE_PATH, VSCODE_BUILD } from '../../spectron/application';
+import * as assert from 'assert';
+import { SpectronApplication } from '../../spectron/application';
 
-// describe('Multiroot', () => {
-// 	let app: SpectronApplication = new SpectronApplication(void 0, CODE_WORKSPACE_PATH);
-// 	if (app.quality === VSCODE_BUILD.STABLE) {
-// 		return;
-// 	}
+describe('Multiroot', () => {
 
-// 	before(() => app.start('Multi Root'));
-// 	after(() => app.stop());
+	before(async function () {
+		const app = this.app as SpectronApplication;
 
-// 	it('shows results from all folders', async function () {
-// 		await app.workbench.quickopen.openQuickOpen('*.*');
+		await app.restart([app.workspaceFilePath]);
 
-// 		await app.workbench.quickopen.waitForQuickOpenElements(names => names.length >= 6);
-// 		await app.workbench.quickopen.closeQuickOpen();
-// 	});
+		// for some reason Code opens 2 windows at this point
+		// so let's select the last one
+		await app.client.windowByIndex(2);
+	});
 
-// 	it('shows workspace name in title', async function () {
-// 		const title = await app.client.getTitle();
-// 		await app.screenCapturer.capture('window title');
-// 		assert.ok(title.indexOf('smoketest (Workspace)') >= 0);
-// 	});
-// });
+	it('shows results from all folders', async function () {
+		const app = this.app as SpectronApplication;
+		await app.workbench.quickopen.openQuickOpen('*.*');
+
+		await app.workbench.quickopen.waitForQuickOpenElements(names => names.length >= 6);
+		await app.workbench.quickopen.closeQuickOpen();
+	});
+
+	it('shows workspace name in title', async function () {
+		const app = this.app as SpectronApplication;
+		const title = await app.client.getTitle();
+		await app.screenCapturer.capture('window title');
+		assert.ok(title.indexOf('smoketest (Workspace)') >= 0);
+	});
+});
