@@ -354,8 +354,21 @@ export interface ITerminalInstance {
 	 *
 	 * @param listener The listener function which takes the processes' data stream (including
 	 * ANSI escape sequences).
+	 *
+	 * @deprecated onLineData will replace this.
 	 */
 	onData(listener: (data: string) => void): IDisposable;
+
+	/**
+	 * Attach a listener to listen for new lines added to this terminal instance.
+	 *
+	 * @param listener The listener function which takes new line strings added to the terminal,
+	 * excluding ANSI escape sequences. The line event will fire when an LF character is added to
+	 * the terminal (ie. the line is not wrapped), note that this means taht the line data will
+	 * never fire for the last line, until the line is ended with a LF character. The lineData
+	 * string will contain the fully wrapped line, not containing any LF/CR characters.
+	 */
+	onLineData(listener: (lineData: string) => void): IDisposable;
 
 	/**
 	 * Attach a listener that fires when the terminal's pty process exits.
