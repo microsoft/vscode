@@ -35,12 +35,18 @@ describe('Search', () => {
 
 	it('replaces first search result with a replace term', async function () {
 		const app = this.app as SpectronApplication;
-		await app.workbench.search.searchFor('body');
 
+		await app.workbench.search.searchFor('body');
+		await app.workbench.search.expandReplace();
 		await app.workbench.search.setReplaceText('ydob');
 		await app.workbench.search.replaceFileMatch(1);
 		await app.workbench.saveOpenedFile();
 
 		await app.workbench.search.waitForResultText('3 results in 3 files');
+
+		await app.workbench.search.searchFor('ydob');
+		await app.workbench.search.setReplaceText('body');
+		await app.workbench.search.replaceFileMatch(1);
+		await app.workbench.saveOpenedFile();
 	});
 });

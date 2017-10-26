@@ -107,10 +107,10 @@ export class SpectronApplication {
 		return this.options.userDataDir;
 	}
 
-	async start(testSuiteName: string, codeArgs: string[] = [], env = process.env): Promise<any> {
+	async start(testSuiteName: string, codeArgs: string[] = []): Promise<any> {
 		await this.retrieveKeybindings();
 		cp.execSync('git checkout .', { cwd: this.options.workspacePath });
-		await this.startApplication(testSuiteName, codeArgs, env);
+		await this.startApplication(testSuiteName, codeArgs);
 		await this.checkWindowReady();
 		await this.waitForWelcome();
 		await this.screenCapturer.capture('Application started');
@@ -135,7 +135,7 @@ export class SpectronApplication {
 		}
 	}
 
-	private async startApplication(testSuiteName: string, codeArgs: string[] = [], env = process.env): Promise<any> {
+	private async startApplication(testSuiteName: string, codeArgs: string[] = []): Promise<any> {
 
 		let args: string[] = [];
 		let chromeDriverArgs: string[] = [];
@@ -175,6 +175,11 @@ export class SpectronApplication {
 		// This works, but when one of the instances quits, it takes down
 		// chrome driver with it, leaving the other instance in DISPAIR!!! :(
 		const port = await findFreePort();
+
+		// We must get a different port for debugging the smoketest express app
+		// otherwise concurrent test runs will clash on those ports
+		const env = { PORT: String(await findFreePort()), ...process.env };
+
 		const opts: any = {
 			path: this.options.electronPath,
 			port,

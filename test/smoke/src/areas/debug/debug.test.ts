@@ -9,11 +9,11 @@ import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as stripJsonComments from 'strip-json-comments';
-import { SpectronApplication, Quality, findFreePort } from '../../spectron/application';
+import { SpectronApplication, Quality } from '../../spectron/application';
 
 describe('Debug', () => {
-	let port: number;
-	before(function () {
+
+	before(async function () {
 		const app = this.app as SpectronApplication;
 
 		if (app.quality === Quality.Dev) {
@@ -35,17 +35,15 @@ describe('Debug', () => {
 				return;
 			}
 
-			fs.symlinkSync(debugPath, path.join(app.extensionsPath, 'vscode-node-debug'));
-			fs.symlinkSync(debug2Path, path.join(app.extensionsPath, 'vscode-node-debug2'));
+			await new Promise((c, e) => fs.symlink(debugPath, path.join(app.extensionsPath, 'vscode-node-debug'), err => err ? e(err) : c()));
+			await new Promise((c, e) => fs.symlink(debug2Path, path.join(app.extensionsPath, 'vscode-node-debug2'), err => err ? e(err) : c()));
+			await app.reload();
 		}
 	});
 
-	// We must get a different port for our smoketest express app
-	// otherwise concurrent test runs will clash on those ports
-	before(async () => await app.start('Debug', [], { PORT: String(await findFreePort()), ...process.env }));
-	after(() => app.stop());
-
 	it('configure launch json', async function () {
+		const app = this.app as SpectronApplication;
+
 		await app.workbench.debug.openDebugViewlet();
 		await app.workbench.quickopen.openFile('app.js');
 		await app.workbench.debug.configure();
@@ -69,12 +67,17 @@ describe('Debug', () => {
 	});
 
 	it('breakpoints', async function () {
+		const app = this.app as SpectronApplication;
+
 		await app.workbench.quickopen.openFile('index.js');
 		await app.workbench.debug.setBreakpointOnLine(6);
 		await app.screenCapturer.capture('breakpoints are set');
 	});
 
+	let port: number;
 	it('start debugging', async function () {
+		const app = this.app as SpectronApplication;
+
 		port = await app.workbench.debug.startDebugging();
 		await app.screenCapturer.capture('debugging has started');
 
@@ -88,6 +91,8 @@ describe('Debug', () => {
 	});
 
 	it('focus stack frames and variables', async function () {
+		const app = this.app as SpectronApplication;
+
 		await app.client.waitFor(() => app.workbench.debug.getLocalVariableCount(), c => c === 4, 'there should be 4 local variables');
 
 		await app.workbench.debug.focusStackFrame('layer.js', 'looking for layer.js');
@@ -101,6 +106,8 @@ describe('Debug', () => {
 	});
 
 	it('stepOver, stepIn, stepOut', async function () {
+		const app = this.app as SpectronApplication;
+
 		await app.workbench.debug.stepIn();
 		await app.screenCapturer.capture('debugging has stepped in');
 
@@ -116,6 +123,8 @@ describe('Debug', () => {
 	});
 
 	it('continue', async function () {
+		const app = this.app as SpectronApplication;
+
 		await app.workbench.debug.continue();
 		await app.screenCapturer.capture('debugging has continued');
 
@@ -129,10 +138,14 @@ describe('Debug', () => {
 	});
 
 	it('debug console', async function () {
+		const app = this.app as SpectronApplication;
+
 		await app.workbench.debug.waitForReplCommand('2 + 2', r => r === '4');
 	});
 
 	it('stop debugging', async function () {
+		const app = this.app as SpectronApplication;
+
 		await app.workbench.debug.stopDebugging();
 		await app.screenCapturer.capture('debugging has stopped');
 	});
