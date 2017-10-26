@@ -368,7 +368,11 @@ export type SCMRawResource = [
 	string[] /*icons: light, dark*/,
 	string /*tooltip*/,
 	boolean /*strike through*/,
-	boolean /*faded*/
+	boolean /*faded*/,
+
+	string /*source*/,
+	string /*letter*/,
+	ThemeColor /*color*/
 ];
 
 export type SCMRawResourceSplice = [

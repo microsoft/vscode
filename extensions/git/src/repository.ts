@@ -177,8 +177,10 @@ export class Resource implements SourceControlResourceState {
 		const tooltip = this.tooltip;
 		const strikeThrough = this.strikeThrough;
 		const faded = this.faded;
+		const letter = this.letter;
+		const color = this.color;
 
-		return { strikeThrough, faded, tooltip, light, dark };
+		return { strikeThrough, faded, tooltip, light, dark, letter, color, source: 'git.resource' /*todo@joh*/ };
 	}
 
 	get letter(): string | undefined {

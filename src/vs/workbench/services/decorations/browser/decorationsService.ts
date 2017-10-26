@@ -110,27 +110,26 @@ class DecorationStyles {
 		}
 
 		return {
-			data,
 			labelClassName: rule.labelClassName,
 			badgeClassName: !onlyChildren ? rule.badgeClassName : '',
-			title: !onlyChildren ? data.filter(d => Boolean(d.title)).map(d => d.title).join(', ') : '',
-			update: replace => {
+			tooltip: !onlyChildren ? data.filter(d => Boolean(d.tooltip)).map(d => d.tooltip).join(', ') : '',
+			update: (source, insert) => {
 				let newData = data.slice();
-				if (!replace.source) {
+				if (!source) {
 					// add -> just append
-					newData.push(replace.data);
+					newData.push(insert);
 
 				} else {
 					// remove/replace -> require a walk
 					for (let i = 0; i < newData.length; i++) {
-						if (newData[i].source === replace.source) {
-							if (!replace.data) {
+						if (newData[i].source === source) {
+							if (!insert) {
 								// remove
 								newData.splice(i, 1);
 								i--;
 							} else {
 								// replace
-								newData[i] = replace.data;
+								newData[i] = insert;
 							}
 						}
 					}
@@ -361,22 +360,33 @@ export class FileDecorationsService implements IDecorationsService {
 		};
 	}
 
-	getDecoration(uri: URI, includeChildren: boolean): IDecoration {
+	getDecoration(uri: URI, includeChildren: boolean, overwrite?: IDecorationData): IDecoration {
 		let data: IDecorationData[] = [];
-		let onlyChildren = true;
+		let onlyChildren: boolean;
 		for (let iter = this._data.iterator(), next = iter.next(); !next.done; next = iter.next()) {
 			next.value.getOrRetrieve(uri, includeChildren, (deco, isChild) => {
 				if (!isChild || deco.bubble) {
 					data.push(deco);
-					onlyChildren = onlyChildren && isChild;
+					onlyChildren = onlyChildren === undefined ? isChild : onlyChildren && isChild;
 				}
 			});
 		}
 
 		if (data.length === 0) {
-			return undefined;
+			// nothing, maybe overwrite data
+			if (overwrite) {
+				return this._decorationStyles.asDecoration([overwrite], onlyChildren);
+			} else {
+				return undefined;
+			}
+		} else {
+			// result, maybe overwrite
+			let result = this._decorationStyles.asDecoration(data, onlyChildren);
+			if (overwrite) {
+				return result.update(overwrite.source, overwrite);
+			} else {
+				return result;
+			}
 		}
-
-		return this._decorationStyles.asDecoration(data, onlyChildren);
 	}
 }

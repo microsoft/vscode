@@ -181,6 +181,12 @@ declare module 'vscode' {
 		source?: string;
 	}
 
+	export interface SourceControlResourceDecorations {
+		source?: string;
+		letter?: string;
+		color?: ThemeColor;
+	}
+
 	export interface DecorationProvider {
 		onDidChangeDecorations: Event<undefined | Uri | Uri[]>;
 		provideDecoration(uri: Uri, token: CancellationToken): ProviderResult<DecorationData>;

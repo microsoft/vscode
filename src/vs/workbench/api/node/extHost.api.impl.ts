@@ -378,8 +378,8 @@ export function createApiFactory(
 			sampleFunction: proposedApiFunction(extension, () => {
 				return extHostMessageService.showMessage(extension, Severity.Info, 'Hello Proposed Api!', {}, []);
 			}),
-			registerDecorationProvider: proposedApiFunction(extension, (provider: vscode.DecorationProvider, source) => {
-				return extHostDecorations.registerDecorationProvider(provider, source);
+			registerDecorationProvider: proposedApiFunction(extension, (provider: vscode.DecorationProvider) => {
+				return extHostDecorations.registerDecorationProvider(provider, extension.id);
 			})
 		};
 

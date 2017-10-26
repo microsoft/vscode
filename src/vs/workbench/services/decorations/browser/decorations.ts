@@ -16,17 +16,16 @@ export interface IDecorationData {
 	readonly weight?: number;
 	readonly color?: ColorIdentifier;
 	readonly letter?: string;
-	readonly title?: string;
+	readonly tooltip?: string;
 	readonly bubble?: boolean;
 	readonly source?: string;
 }
 
 export interface IDecoration {
-	readonly title: string;
+	readonly tooltip: string;
 	readonly labelClassName: string;
 	readonly badgeClassName: string;
-	readonly data: IDecorationData[];
-	update(replace: { source?: string, data?: IDecorationData }): IDecoration;
+	update(source?: string, data?: IDecorationData): IDecoration;
 }
 
 export interface IDecorationsProvider {
@@ -47,5 +46,5 @@ export interface IDecorationsService {
 
 	registerDecorationsProvider(provider: IDecorationsProvider): IDisposable;
 
-	getDecoration(uri: URI, includeChildren: boolean): IDecoration;
+	getDecoration(uri: URI, includeChildren: boolean, overwrite?: IDecorationData): IDecoration;
 }
