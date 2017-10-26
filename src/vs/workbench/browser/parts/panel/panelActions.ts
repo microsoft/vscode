@@ -12,47 +12,11 @@ import { Action } from 'vs/base/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/actions';
-import { IPanelService, IPanelIdentifier } from 'vs/workbench/services/panel/common/panelService';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService, Parts, Position } from 'vs/workbench/services/part/common/partService';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ActivityAction } from 'vs/workbench/browser/parts/compositebar/compositeBarActions';
 import { IActivity } from 'vs/workbench/common/activity';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-
-export class OpenPanelAction extends Action {
-
-	constructor(
-		private panel: IPanelIdentifier,
-		@IKeybindingService private keybindingService: IKeybindingService,
-		@IPanelService private panelService: IPanelService
-	) {
-		super(panel.id, panel.name);
-
-		this.tooltip = nls.localize('panelActionTooltip', "{0} ({1})", panel.name, this.getKeybindingLabel(panel.commandId));
-	}
-
-	public run(event: any): TPromise<any> {
-		return this.panelService.openPanel(this.panel.id, true).then(() => this.activate());
-	}
-
-	public activate(): void {
-		if (!this.checked) {
-			this._setChecked(true);
-		}
-	}
-
-	public deactivate(): void {
-		if (this.checked) {
-			this._setChecked(false);
-		}
-	}
-
-	private getKeybindingLabel(id: string): string {
-		const keys = this.keybindingService.lookupKeybinding(id);
-
-		return keys ? keys.getLabel() : '';
-	}
-}
 
 export class ClosePanelAction extends Action {
 	static ID = 'workbench.action.closePanel';
@@ -170,7 +134,7 @@ export class PanelActivityAction extends ActivityAction {
 	}
 
 	public run(event: any): TPromise<any> {
-		return this.panelService.openPanel(this.activity.id, true).then(() => this.activate());
+		return this.panelService.openPanel(this.activity.id, true).then(() => this.activate());;
 	}
 }
 
