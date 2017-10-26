@@ -291,7 +291,7 @@ export interface MainThreadProgressShape extends IDisposable {
 }
 
 export interface MainThreadTerminalServiceShape extends IDisposable {
-	$createTerminal(name?: string, shellPath?: string, shellArgs?: string[], waitOnExit?: boolean): TPromise<number>;
+	$createTerminal(name?: string, shellPath?: string, shellArgs?: string[], env?: { [key: string]: string }, waitOnExit?: boolean): TPromise<number>;
 	$dispose(terminalId: number): void;
 	$hide(terminalId: number): void;
 	$sendText(terminalId: number, text: string, addNewLine: boolean): void;
@@ -554,6 +554,21 @@ export interface IExtHostSuggestResult {
 	incomplete?: boolean;
 }
 
+export interface IdObject {
+	_id: number;
+}
+
+export namespace IdObject {
+	let n = 0;
+	export function mixin<T extends object>(object: T): T & IdObject {
+		(<any>object)._id = n++;
+		return <any>object;
+	}
+}
+
+export type IWorkspaceSymbol = IdObject & modes.SymbolInformation;
+export interface IWorkspaceSymbols extends IdObject { symbols: IWorkspaceSymbol[]; };
+
 export interface ExtHostLanguageFeaturesShape {
 	$provideDocumentSymbols(handle: number, resource: URI): TPromise<modes.SymbolInformation[]>;
 	$provideCodeLenses(handle: number, resource: URI): TPromise<modes.ICodeLensSymbol[]>;
@@ -568,8 +583,9 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideDocumentFormattingEdits(handle: number, resource: URI, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]>;
 	$provideDocumentRangeFormattingEdits(handle: number, resource: URI, range: IRange, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]>;
 	$provideOnTypeFormattingEdits(handle: number, resource: URI, position: IPosition, ch: string, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]>;
-	$provideWorkspaceSymbols(handle: number, search: string): TPromise<modes.SymbolInformation[]>;
-	$resolveWorkspaceSymbol(handle: number, symbol: modes.SymbolInformation): TPromise<modes.SymbolInformation>;
+	$provideWorkspaceSymbols(handle: number, search: string): TPromise<IWorkspaceSymbols>;
+	$resolveWorkspaceSymbol(handle: number, symbol: modes.SymbolInformation): TPromise<IWorkspaceSymbol>;
+	$releaseWorkspaceSymbols(handle: number, id: number): void;
 	$provideRenameEdits(handle: number, resource: URI, position: IPosition, newName: string): TPromise<modes.WorkspaceEdit>;
 	$provideCompletionItems(handle: number, resource: URI, position: IPosition, context: modes.SuggestContext): TPromise<IExtHostSuggestResult>;
 	$resolveCompletionItem(handle: number, resource: URI, position: IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion>;

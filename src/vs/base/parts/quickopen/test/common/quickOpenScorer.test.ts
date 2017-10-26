@@ -728,6 +728,19 @@ suite('Quick Open Scorer', () => {
 		assert.equal(res[0], resourceB);
 	});
 
+	test('compareFilesByScore - avoid match scattering (bug #36810)', function () {
+		const resourceA = URI.file('Trilby.TrilbyTV.Web.Portal/Views/Systems/Index.cshtml');
+		const resourceB = URI.file('Trilby.TrilbyTV.Web.Portal/Areas/Admins/Views/Tips/Index.cshtml');
+
+		let query = 'tipsindex.cshtml';
+
+		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+
+		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+	});
+
 	test('compareFilesByScore - prefer shorter hit (bug #20546)', function () {
 		const resourceA = URI.file('editor/core/components/tests/list-view-spec.js');
 		const resourceB = URI.file('editor/core/components/list-view.js');

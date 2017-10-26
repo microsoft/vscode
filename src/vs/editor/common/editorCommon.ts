@@ -588,11 +588,6 @@ export interface ITextModel {
 	getLinesContent(): string[];
 
 	/**
-	 * @internal
-	 */
-	getIndentLevel(lineNumber: number): number;
-
-	/**
 	 * Get the end of line sequence predominantly used in the text buffer.
 	 * @return EOL char sequence (e.g.: '\n' or '\r\n').
 	 */
@@ -908,7 +903,7 @@ export interface ITokenizedModel extends ITextModel {
 	/**
 	 * @internal
 	 */
-	getLineIndentGuide(lineNumber: number): number;
+	getLinesIndentGuides(startLineNumber: number, endLineNumber: number): number[];
 }
 
 /**

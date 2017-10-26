@@ -122,6 +122,7 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 		viewDescriptors.push(this.createInstalledExtensionsListViewDescriptor());
 		viewDescriptors.push(this.createSearchInstalledExtensionsListViewDescriptor());
 		viewDescriptors.push(this.createRecommendedExtensionsListViewDescriptor());
+		viewDescriptors.push(this.createSearchRecommendedExtensionsListViewDescriptor());
 		ViewsRegistry.registerViews(viewDescriptors);
 	}
 
@@ -131,7 +132,7 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 			name: localize('marketPlace', "Marketplace"),
 			location: ViewLocation.Extensions,
 			ctor: ExtensionsListView,
-			when: ContextKeyExpr.and(ContextKeyExpr.has('searchExtensions'), ContextKeyExpr.not('searchInstalledExtensions')),
+			when: ContextKeyExpr.and(ContextKeyExpr.has('searchExtensions'), ContextKeyExpr.not('searchInstalledExtensions'), ContextKeyExpr.not('searchRecommendedExtensions')),
 			size: 100
 		};
 	}
@@ -165,6 +166,18 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 			location: ViewLocation.Extensions,
 			ctor: RecommendedExtensionsView,
 			when: ContextKeyExpr.and(ContextKeyExpr.not('searchExtensions')),
+			size: 50,
+			canToggleVisibility: true
+		};
+	}
+
+	private createSearchRecommendedExtensionsListViewDescriptor(): IViewDescriptor {
+		return {
+			id: 'extensions.searchrecommendedList',
+			name: localize('recommendedExtensions', "Recommended"),
+			location: ViewLocation.Extensions,
+			ctor: RecommendedExtensionsView,
+			when: ContextKeyExpr.and(ContextKeyExpr.has('searchExtensions'), ContextKeyExpr.has('searchRecommendedExtensions')),
 			size: 50,
 			canToggleVisibility: true
 		};

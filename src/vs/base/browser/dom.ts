@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as platform from 'vs/base/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -1053,4 +1054,24 @@ export function domContentLoaded(): TPromise<any> {
 export function computeScreenAwareSize(cssPx: number): number {
 	const screenPx = window.devicePixelRatio * cssPx;
 	return Math.max(1, Math.floor(screenPx)) / window.devicePixelRatio;
+}
+
+/**
+ * See https://github.com/Microsoft/monaco-editor/issues/601
+ * To protect against malicious code in the linked site, particularly phishing attempts,
+ * the window.opener should be set to null to prevent the linked site from having access
+ * to change the location of the current page.
+ * See https://mathiasbynens.github.io/rel-noopener/
+ */
+export function windowOpenNoOpener(url: string): void {
+	if (platform.isNative) {
+		// In VSCode, window.open() always returns null...
+		window.open(url);
+	} else {
+		let newTab = window.open();
+		if (newTab) {
+			newTab.opener = null;
+			newTab.location.href = url;
+		}
+	}
 }

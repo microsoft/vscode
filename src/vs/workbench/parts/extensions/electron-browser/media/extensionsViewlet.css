@@ -27,6 +27,19 @@
 	height: calc(100% - 38px);
 }
 
+.extensions-viewlet > .extensions .extensions-list > .monaco-list {
+	height: auto;
+}
+
+.extensions-viewlet > .extensions .extensions-list > .list-actionbar-container {
+	padding: 4px 7px;
+}
+
+.extensions-viewlet > .extensions .extensions-list > .list-actionbar-container.hidden,
+.extensions-viewlet > .extensions .extensions-list > .list-actionbar-container .monaco-action-bar .action-item.disabled  {
+	display: none;
+}
+
 .extensions-viewlet > .extensions .extensions-list.hidden,
 .extensions-viewlet > .extensions .message.hidden {
 	display: none;
@@ -103,12 +116,20 @@
 	overflow: hidden;
 }
 
-.extensions-viewlet > .extensions .extension > .details > .header-container > .header > .version {
+.extensions-viewlet > .extensions .extension > .details > .header-container > .header > .subtext-container {
 	opacity: 0.85;
 	font-size: 80%;
 	padding-left: 6px;
 	flex: 1;
 	min-width: fit-content;
+}
+
+.extensions-viewlet > .extensions .extension > .details > .header-container > .header > .subtext-container > span.subtext.recommended {
+	color: white;
+	background-color: green;
+	border: solid 1px green;
+	border-radius: 10px;
+	padding: 0 5px;
 }
 
 .extensions-viewlet > .extensions .extension > .details > .header-container > .header > .install-count:not(:empty) {

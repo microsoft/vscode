@@ -59,7 +59,12 @@ class ExtensionManifestParser extends ExtensionManifestHandler {
 	public parse(): TPromise<IExtensionDescription> {
 		return pfs.readFile(this._absoluteManifestPath).then((manifestContents) => {
 			try {
-				return JSON.parse(manifestContents.toString());
+				const manifest = JSON.parse(manifestContents.toString());
+				if (manifest.__metadata) {
+					manifest.uuid = manifest.__metadata.id;
+				}
+				delete manifest.__metadata;
+				return manifest;
 			} catch (e) {
 				this._log.error(this._absoluteFolderPath, nls.localize('jsonParseFail', "Failed to parse {0}: {1}.", this._absoluteManifestPath, getParseErrorMessage(e.message)));
 			}

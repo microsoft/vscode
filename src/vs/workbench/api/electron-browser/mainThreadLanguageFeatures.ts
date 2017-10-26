@@ -205,9 +205,17 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	// --- navigate type
 
 	$registerNavigateTypeSupport(handle: number): TPromise<any> {
+		let lastResultId: number;
 		this._registrations[handle] = WorkspaceSymbolProviderRegistry.register(<IWorkspaceSymbolProvider>{
 			provideWorkspaceSymbols: (search: string): TPromise<modes.SymbolInformation[]> => {
-				return this._heapService.trackRecursive(this._proxy.$provideWorkspaceSymbols(handle, search));
+
+				return this._proxy.$provideWorkspaceSymbols(handle, search).then(result => {
+					if (lastResultId !== undefined) {
+						this._proxy.$releaseWorkspaceSymbols(handle, lastResultId);
+					}
+					lastResultId = result._id;
+					return result.symbols;
+				});
 			},
 			resolveWorkspaceSymbol: (item: modes.SymbolInformation): TPromise<modes.SymbolInformation> => {
 				return this._proxy.$resolveWorkspaceSymbol(handle, item);

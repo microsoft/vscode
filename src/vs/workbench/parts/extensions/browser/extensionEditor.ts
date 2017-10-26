@@ -25,7 +25,7 @@ import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionGalleryService, IExtensionManifest, IKeyBinding, IView } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, IExtensionManifest, IKeyBinding, IView, IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ResolvedKeybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension, IExtensionDependencies } from 'vs/workbench/parts/extensions/common/extensions';
@@ -163,7 +163,8 @@ export class ExtensionEditor extends BaseEditor {
 	private extensionActionBar: ActionBar;
 	private navbar: NavBar;
 	private content: HTMLElement;
-
+	private recommendation: HTMLElement;
+	private header: HTMLElement;
 	private _highlight: ITemplateData;
 	private highlightDisposable: IDisposable;
 
@@ -195,6 +196,7 @@ export class ExtensionEditor extends BaseEditor {
 		@IPartService private partService: IPartService,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IExtensionTipsService private extensionTipsService: IExtensionTipsService
 	) {
 		super(ExtensionEditor.ID, telemetryService, themeService);
 		this._highlight = null;
@@ -212,11 +214,11 @@ export class ExtensionEditor extends BaseEditor {
 		const container = parent.getHTMLElement();
 
 		const root = append(container, $('.extension-editor'));
-		const header = append(root, $('.header'));
+		this.header = append(root, $('.header'));
 
-		this.icon = append(header, $<HTMLImageElement>('img.icon', { draggable: false }));
+		this.icon = append(this.header, $<HTMLImageElement>('img.icon', { draggable: false }));
 
-		const details = append(header, $('.details'));
+		const details = append(this.header, $('.details'));
 		const title = append(details, $('.title'));
 		this.name = append(title, $('span.name.clickable', { title: localize('name', "Extension name") }));
 		this.identifier = append(title, $('span.identifier', { title: localize('extension id', "Extension identifier") }));
@@ -248,6 +250,8 @@ export class ExtensionEditor extends BaseEditor {
 			}
 		});
 		this.disposables.push(this.extensionActionBar);
+
+		this.recommendation = append(details, $('.recommendation'));
 
 		chain(fromEventEmitter<{ error?: any; }>(this.extensionActionBar, 'run'))
 			.map(({ error }) => error)
@@ -288,6 +292,14 @@ export class ExtensionEditor extends BaseEditor {
 
 		this.publisher.textContent = extension.publisherDisplayName;
 		this.description.textContent = extension.description;
+
+		const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
+		this.recommendation.textContent = extRecommendations[extension.id.toLowerCase()];
+		if (extRecommendations[extension.id.toLowerCase()]) {
+			addClass(this.header, 'recommended');
+		} else {
+			removeClass(this.header, 'recommended');
+		}
 
 		if (extension.url) {
 			this.name.onclick = finalHandler(() => window.open(extension.url));

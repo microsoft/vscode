@@ -23,8 +23,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Queue } from 'vs/base/common/async';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
 
 export abstract class AbstractSettingsModel extends EditorModel {
 
@@ -897,16 +895,9 @@ export function defaultKeybindingsContents(keybindingService: IKeybindingService
 export class DefaultKeybindingsEditorModel implements IKeybindingsEditorModel<any> {
 
 	private _content: string;
-	private _model: IModel;
 
 	constructor(private _uri: URI,
-		@IKeybindingService private keybindingService: IKeybindingService,
-		@IModeService private modeService: IModeService,
-		@IModelService private modelService: IModelService) {
-	}
-
-	public get model(): IModel {
-		return this._model;
+		@IKeybindingService private keybindingService: IKeybindingService) {
 	}
 
 	public get uri(): URI {

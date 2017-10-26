@@ -7,6 +7,7 @@
 import URI from 'vs/base/common/uri';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 
 
 export interface HtmlInputOptions {
@@ -25,8 +26,9 @@ export class HtmlInput extends ResourceEditorInput {
 		description: string,
 		resource: URI,
 		public readonly options: HtmlInputOptions,
-		@ITextModelService textModelResolverService: ITextModelService
+		@ITextModelService textModelResolverService: ITextModelService,
+		@IHashService hashService: IHashService
 	) {
-		super(name, description, resource, textModelResolverService);
+		super(name, description, resource, textModelResolverService, hashService);
 	}
 }

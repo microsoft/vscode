@@ -78,13 +78,13 @@ class InsertSnippetAction extends EditorAction {
 		return new TPromise<Snippet>(async (resolve, reject) => {
 
 			if (snippet) {
-				return resolve({
-					codeSnippet: snippet,
-					description: undefined,
-					name: undefined,
-					source: undefined,
-					prefix: undefined
-				});
+				return resolve(new Snippet(
+					undefined,
+					undefined,
+					undefined,
+					snippet,
+					undefined
+				));
 			}
 
 			let languageId: LanguageId;

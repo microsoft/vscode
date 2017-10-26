@@ -330,7 +330,7 @@ suite('Folding with regions', () => {
 			lines.push('#endregion');
 		}
 		let model = Model.createFromString(lines.join('\n'));
-		let actual = computeRanges(model, false, markers);
+		let actual = computeRanges(model, false, markers, MAX_FOLDING_REGIONS);
 		assert.equal(actual.length, nRegions, 'len');
 		for (let i = 0; i < nRegions; i++) {
 			assert.equal(actual.getStartLineNumber(i), i + 1, 'start' + i);

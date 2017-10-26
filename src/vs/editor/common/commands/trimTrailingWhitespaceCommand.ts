@@ -15,13 +15,15 @@ export class TrimTrailingWhitespaceCommand implements editorCommon.ICommand {
 
 	private selection: Selection;
 	private selectionId: string;
+	private cursors: Position[];
 
-	constructor(selection: Selection) {
+	constructor(selection: Selection, cursors: Position[]) {
 		this.selection = selection;
+		this.cursors = cursors;
 	}
 
 	public getEditOperations(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder): void {
-		let ops = trimTrailingWhitespace(model, []);
+		let ops = trimTrailingWhitespace(model, this.cursors);
 		for (let i = 0, len = ops.length; i < len; i++) {
 			let op = ops[i];
 

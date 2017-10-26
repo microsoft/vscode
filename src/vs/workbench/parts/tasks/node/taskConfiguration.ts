@@ -1246,6 +1246,9 @@ namespace CustomTask {
 			return undefined;
 		}
 		let taskName = external.taskName;
+		if (Types.isString(external.label) && context.schemaVersion === Tasks.JsonSchemaVersion.V2_0_0) {
+			taskName = external.label;
+		}
 		if (!taskName) {
 			context.problemReporter.error(nls.localize('ConfigurationParser.noTaskName', 'Error: tasks must provide a taskName property. The task will be ignored.\n{0}\n', JSON.stringify(external, null, 4)));
 			return undefined;

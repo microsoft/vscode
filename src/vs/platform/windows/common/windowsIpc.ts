@@ -9,9 +9,10 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { buffer } from 'vs/base/common/event';
 import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
 import { IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult } from './windows';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ICommandAction } from 'vs/platform/actions/common/actions';
+import URI from 'vs/base/common/uri';
 
 export interface IWindowsChannel extends IChannel {
 	call(command: 'event:onWindowOpen'): TPromise<number>;
@@ -24,7 +25,7 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'reloadWindow', arg: number): TPromise<void>;
 	call(command: 'toggleDevTools', arg: number): TPromise<void>;
 	call(command: 'closeWorkspace', arg: number): TPromise<void>;
-	call(command: 'createAndEnterWorkspace', arg: [number, string[], string]): TPromise<IEnterWorkspaceResult>;
+	call(command: 'createAndEnterWorkspace', arg: [number, IWorkspaceFolderCreationData[], string]): TPromise<IEnterWorkspaceResult>;
 	call(command: 'saveAndEnterWorkspace', arg: [number, string]): TPromise<IEnterWorkspaceResult>;
 	call(command: 'toggleFullScreen', arg: number): TPromise<void>;
 	call(command: 'setRepresentedFilename', arg: [number, string]): TPromise<void>;
@@ -87,7 +88,20 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'openDevTools': return this.service.openDevTools(arg);
 			case 'toggleDevTools': return this.service.toggleDevTools(arg);
 			case 'closeWorkspace': return this.service.closeWorkspace(arg);
-			case 'createAndEnterWorkspace': return this.service.createAndEnterWorkspace(arg[0], arg[1], arg[2]);
+			case 'createAndEnterWorkspace': {
+				const rawFolders: IWorkspaceFolderCreationData[] = arg[1];
+				let folders: IWorkspaceFolderCreationData[];
+				if (Array.isArray(rawFolders)) {
+					folders = rawFolders.map(rawFolder => {
+						return {
+							uri: URI.revive(rawFolder.uri), // convert raw URI back to real URI
+							name: rawFolder.name
+						} as IWorkspaceFolderCreationData;
+					});
+				}
+
+				return this.service.createAndEnterWorkspace(arg[0], folders, arg[2]);
+			};
 			case 'saveAndEnterWorkspace': return this.service.saveAndEnterWorkspace(arg[0], arg[1]);
 			case 'toggleFullScreen': return this.service.toggleFullScreen(arg);
 			case 'setRepresentedFilename': return this.service.setRepresentedFilename(arg[0], arg[1]);
@@ -174,8 +188,8 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('closeWorkspace', windowId);
 	}
 
-	createAndEnterWorkspace(windowId: number, folderPaths?: string[], path?: string): TPromise<IEnterWorkspaceResult> {
-		return this.channel.call('createAndEnterWorkspace', [windowId, folderPaths, path]);
+	createAndEnterWorkspace(windowId: number, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult> {
+		return this.channel.call('createAndEnterWorkspace', [windowId, folders, path]);
 	}
 
 	saveAndEnterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult> {

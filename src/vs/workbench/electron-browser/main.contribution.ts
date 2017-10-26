@@ -216,11 +216,22 @@ let workbenchProperties: { [path: string]: IJSONSchema; } = {
 		'description': nls.localize('experimentalFuzzySearchKey', "Indicates the key to use for the experimental settings search."),
 		'default': ''
 	},
+	'workbench.settings.experimentalFuzzySearchBoost': {
+		'type': 'number',
+		'description': 'Indicates the amount to boost the "literal" component of the query. Temporary.',
+		'default': 10
+	},
 	'workbench.sideBar.location': {
 		'type': 'string',
 		'enum': ['left', 'right'],
 		'default': 'left',
 		'description': nls.localize('sideBarLocation', "Controls the location of the sidebar. It can either show on the left or right of the workbench.")
+	},
+	'workbench.panel.location': {
+		'type': 'string',
+		'enum': ['bottom', 'right'],
+		'default': 'bottom',
+		'description': nls.localize('panelLocation', "Controls the location of the panel. It can either show on the bottom or right of the workbench.")
 	},
 	'workbench.statusBar.visible': {
 		'type': 'boolean',

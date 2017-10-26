@@ -13,6 +13,7 @@ import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ICommandAction } from 'vs/platform/actions/common/actions';
 import { isMacintosh } from 'vs/base/common/platform';
 import { normalizeNFC } from 'vs/base/common/strings';
+import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 
 export class WindowService implements IWindowService {
 
@@ -73,8 +74,8 @@ export class WindowService implements IWindowService {
 		return this.windowsService.closeWorkspace(this.windowId);
 	}
 
-	createAndEnterWorkspace(folderPaths?: string[], path?: string): TPromise<IEnterWorkspaceResult> {
-		return this.windowsService.createAndEnterWorkspace(this.windowId, folderPaths, path);
+	createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult> {
+		return this.windowsService.createAndEnterWorkspace(this.windowId, folders, path);
 	}
 
 	saveAndEnterWorkspace(path: string): TPromise<IEnterWorkspaceResult> {

@@ -202,15 +202,16 @@ export class ResourceLabel extends IconLabel {
 				this.options.fileKind !== FileKind.FILE
 			);
 
-			if (deco && this.options.fileDecorations.colors) {
-				iconLabelOptions.extraClasses.push(deco.labelClassName);
-			}
-
-			if (deco && deco.badgeClassName && this.options.fileDecorations.badges) {
-				iconLabelOptions.badge = {
-					title: deco.title,
-					className: deco.badgeClassName,
-				};
+			if (deco) {
+				if (deco.title) {
+					iconLabelOptions.title = `${deco.title}, ${iconLabelOptions.title}`;
+				}
+				if (this.options.fileDecorations.colors) {
+					iconLabelOptions.extraClasses.push(deco.labelClassName);
+				}
+				if (this.options.fileDecorations.badges) {
+					iconLabelOptions.extraClasses.push(deco.badgeClassName);
+				}
 			}
 		}
 

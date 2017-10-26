@@ -778,7 +778,18 @@ export class TerminalInstance implements ITerminalInstance {
 	// TODO: This should be private/protected
 	// TODO: locale should not be optional
 	public static createTerminalEnv(parentEnv: IStringDictionary<string>, shell: IShellLaunchConfig, cwd: string, locale?: string, cols?: number, rows?: number): IStringDictionary<string> {
-		const env = shell.env ? shell.env : TerminalInstance._cloneEnv(parentEnv);
+		const env = TerminalInstance._cloneEnv(parentEnv);
+		if (shell.env) {
+			Object.keys(shell.env).forEach((key) => {
+				const value = shell.env[key];
+				if (typeof value === 'string') {
+					env[key] = value;
+				} else {
+					delete env[key];
+				}
+			});
+		}
+
 		env['PTYPID'] = process.pid.toString();
 		env['PTYSHELL'] = shell.executable;
 		env['TERM_PROGRAM'] = 'vscode';
