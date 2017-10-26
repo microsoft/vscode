@@ -336,10 +336,13 @@ export class PanelView implements IDisposable {
 	private _onDidDrop = new Emitter<{ from: Panel, to: Panel }>();
 	readonly onDidDrop: Event<{ from: Panel, to: Panel }> = this._onDidDrop.event;
 
+	readonly onDidSashChange: Event<void>;
+
 	constructor(private container: HTMLElement, options: IPanelViewOptions = {}) {
 		this.dnd = !!options.dnd;
 		this.el = append(container, $('.monaco-panel-view'));
 		this.splitview = new SplitView(this.el);
+		this.onDidSashChange = this.splitview.onDidSashChange;
 	}
 
 	addPanel(panel: Panel, size: number, index = this.splitview.length): void {

@@ -7,7 +7,7 @@
 
 import 'vs/css!./splitview';
 import { IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import Event, { fromEventEmitter, mapEvent } from 'vs/base/common/event';
+import Event, { fromEventEmitter, mapEvent, Emitter } from 'vs/base/common/event';
 import types = require('vs/base/common/types');
 import dom = require('vs/base/browser/dom');
 import { clamp } from 'vs/base/common/numbers';
@@ -70,6 +70,9 @@ export class SplitView implements IDisposable {
 	private sashDragState: ISashDragState;
 	private state: State = State.Idle;
 
+	private _onDidSashChange = new Emitter<void>();
+	readonly onDidSashChange = this._onDidSashChange.event;
+
 	get length(): number {
 		return this.viewItems.length;
 	}
@@ -129,7 +132,10 @@ export class SplitView implements IDisposable {
 			const onStartDisposable = onStart(this.onSashStart, this);
 			const onChange = mapEvent(fromEventEmitter<IBaseSashEvent>(sash, 'change'), sashEventMapper);
 			const onSashChangeDisposable = onChange(this.onSashChange, this);
-			const disposable = combinedDisposable([onStartDisposable, onSashChangeDisposable, sash]);
+			const onEnd = mapEvent<IBaseSashEvent, void>(fromEventEmitter<IBaseSashEvent>(sash, 'end'), () => null);
+			const onEndDisposable = onEnd(() => this._onDidSashChange.fire());
+
+			const disposable = combinedDisposable([onStartDisposable, onSashChangeDisposable, onEndDisposable, sash]);
 			const sashItem: ISashItem = { sash, disposable };
 
 			this.sashItems.splice(index - 1, 0, sashItem);
