@@ -218,7 +218,7 @@ export class AddRootFolderAction extends BaseWorkspacesAction {
 		}
 
 		// Add and show Files Explorer viewlet
-		return this.workspaceEditingService.addFolders(folders.map(folder => URI.file(folder))).then(() => this.viewletService.openViewlet(this.viewletService.getDefaultViewletId(), true));
+		return this.workspaceEditingService.addFolders(folders.map(folder => ({ uri: URI.file(folder) }))).then(() => this.viewletService.openViewlet(this.viewletService.getDefaultViewletId(), true));
 	}
 }
 
@@ -322,8 +322,8 @@ export class SaveWorkspaceAsAction extends BaseWorkspacesAction {
 			switch (this.contextService.getWorkbenchState()) {
 				case WorkbenchState.EMPTY:
 				case WorkbenchState.FOLDER:
-					const workspaceFolders = this.contextService.getWorkspace().folders.map(root => root.uri.fsPath);
-					return this.workspaceEditingService.createAndEnterWorkspace(workspaceFolders, configPath);
+					const folders = this.contextService.getWorkspace().folders.map(folder => ({ uri: folder.uri }));
+					return this.workspaceEditingService.createAndEnterWorkspace(folders, configPath);
 
 				case WorkbenchState.WORKSPACE:
 					return this.workspaceEditingService.saveAndEnterWorkspace(configPath);
@@ -419,7 +419,7 @@ export class OpenFolderAsWorkspaceInNewWindowAction extends Action {
 				return void 0; // need at least one folder
 			}
 
-			return this.workspacesService.createWorkspace([folder.uri]).then(newWorkspace => {
+			return this.workspacesService.createWorkspace([{ uri: folder.uri }]).then(newWorkspace => {
 				return this.workspaceEditingService.copyWorkspaceSettings(newWorkspace).then(() => {
 					return this.windowsService.openWindow([newWorkspace.configPath], { forceNewWindow: true });
 				});

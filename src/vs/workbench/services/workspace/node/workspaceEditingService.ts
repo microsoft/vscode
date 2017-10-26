@@ -12,7 +12,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWindowService, IEnterWorkspaceResult } from 'vs/platform/windows/common/windows';
 import { IJSONEditingService, JSONEditingError, JSONEditingErrorCode } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
 import { migrateStorageToMultiRootWorkspace } from 'vs/platform/storage/common/migration';
@@ -51,24 +51,16 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	) {
 	}
 
-	public addFolders(foldersToAdd: URI[]): TPromise<void>;
-	public addFolders(foldersToAdd: { uri: URI, name?: string }[]): TPromise<void>;
-	public addFolders(foldersToAdd: any[]): TPromise<void> {
+	public addFolders(foldersToAdd: IWorkspaceFolderCreationData[]): TPromise<void> {
 		const state = this.contextService.getWorkbenchState();
 
 		// If we are in no-workspace or single-folder workspace, adding folders has to
 		// enter a workspace.
 		if (state !== WorkbenchState.WORKSPACE) {
-			const newWorkspaceFolders = distinct([
-				...this.contextService.getWorkspace().folders.map(folder => folder.uri),
-				...foldersToAdd.map(folder => {
-					if (URI.isUri(folder)) {
-						return folder;
-					}
-
-					return folder.uri;
-				})
-			].map(folder => folder.fsPath), folder => isLinux ? folder : folder.toLowerCase());
+			const newWorkspaceFolders: IWorkspaceFolderCreationData[] = distinct([
+				...this.contextService.getWorkspace().folders.map(folder => ({ uri: folder.uri } as IWorkspaceFolderCreationData)),
+				...foldersToAdd
+			] as IWorkspaceFolderCreationData[], folder => isLinux ? folder.uri.toString() : folder.uri.toString().toLowerCase());
 
 			if (state === WorkbenchState.EMPTY && newWorkspaceFolders.length === 0 || state === WorkbenchState.FOLDER && newWorkspaceFolders.length === 1) {
 				return TPromise.as(void 0); // return if the operation is a no-op for the current state
@@ -98,8 +90,8 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 			.then(() => null, error => this.handleWorkspaceConfigurationEditingError(error));
 	}
 
-	public createAndEnterWorkspace(folderPaths?: string[], path?: string): TPromise<void> {
-		return this.doEnterWorkspace(() => this.windowService.createAndEnterWorkspace(folderPaths, path));
+	public createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<void> {
+		return this.doEnterWorkspace(() => this.windowService.createAndEnterWorkspace(folders, path));
 	}
 
 	public saveAndEnterWorkspace(path: string): TPromise<void> {

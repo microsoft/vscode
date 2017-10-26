@@ -400,7 +400,7 @@ export class ElectronWindow extends Themable {
 	}
 
 	private onAddFolders(request: IAddFoldersRequest): void {
-		const foldersToAdd = request.foldersToAdd.map(folderToAdd => URI.file(folderToAdd.filePath));
+		const foldersToAdd = request.foldersToAdd.map(folderToAdd => ({ uri: URI.file(folderToAdd.filePath) }));
 
 		this.workspaceEditingService.addFolders(foldersToAdd).done(null, errors.onUnexpectedError);
 	}

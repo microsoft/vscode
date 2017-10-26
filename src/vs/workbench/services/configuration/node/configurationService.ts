@@ -28,7 +28,7 @@ import { ConfigurationService as GlobalConfigurationService } from 'vs/platform/
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationNode, IConfigurationRegistry, Extensions, ConfigurationScope, settingsSchema, resourceSettingsSchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { createHash } from 'crypto';
-import { getWorkspaceLabel, IWorkspacesService, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IStoredWorkspaceFolder, isStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
+import { getWorkspaceLabel, IWorkspacesService, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -106,11 +106,9 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		return this.workspace.getFolder(resource);
 	}
 
-	public addFolders(foldersToAdd: URI[]): TPromise<void>;
-	public addFolders(foldersToAdd: { uri: URI, name?: string }[]): TPromise<void>;
-	public addFolders(folders: URI[] | { uri: URI, name?: string }[]): TPromise<void> {
+	public addFolders(foldersToAdd: IWorkspaceFolderCreationData[]): TPromise<void> {
 		assert.ok(this.jsonEditingService, 'Workbench is not initialized yet');
-		return this.workspaceEditingQueue.queue(() => this.doAddFolders(folders));
+		return this.workspaceEditingQueue.queue(() => this.doAddFolders(foldersToAdd));
 	}
 
 	public removeFolders(foldersToRemove: URI[]): TPromise<void> {
@@ -132,7 +130,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		return false;
 	}
 
-	private doAddFolders(foldersToAdd: (URI | { uri: URI, name?: string })[]): TPromise<void> {
+	private doAddFolders(foldersToAdd: IWorkspaceFolderCreationData[]): TPromise<void> {
 		if (this.getWorkbenchState() !== WorkbenchState.WORKSPACE) {
 			return TPromise.as(void 0); // we need a workspace to begin with
 		}
@@ -146,37 +144,28 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		const workspaceConfigFolder = dirname(this.getWorkspace().configuration.fsPath);
 
 		foldersToAdd.forEach(folderToAdd => {
-			let folderResource: URI;
-			let folderName: string;
-			if (URI.isUri(folderToAdd)) {
-				folderResource = folderToAdd;
-			} else {
-				folderResource = folderToAdd.uri;
-				folderName = folderToAdd.name;
-			}
-
-			if (this.contains(currentWorkspaceFolderUris, folderResource)) {
+			if (this.contains(currentWorkspaceFolderUris, folderToAdd.uri)) {
 				return; // already existing
 			}
 
 			let storedFolder: IStoredWorkspaceFolder;
 
 			// File resource: use "path" property
-			if (folderResource.scheme === Schemas.file) {
+			if (folderToAdd.uri.scheme === Schemas.file) {
 				storedFolder = {
-					path: massageFolderPathForWorkspace(folderResource.fsPath, workspaceConfigFolder, currentStoredFolders)
+					path: massageFolderPathForWorkspace(folderToAdd.uri.fsPath, workspaceConfigFolder, currentStoredFolders)
 				};
 			}
 
 			// Any other resource: use "uri" property
 			else {
 				storedFolder = {
-					uri: folderResource.toString(true)
+					uri: folderToAdd.uri.toString(true)
 				};
 			}
 
-			if (folderName) {
-				storedFolder.name = folderName;
+			if (folderToAdd.name) {
+				storedFolder.name = folderToAdd.name;
 			}
 
 			storedFoldersToAdd.push(storedFolder);

@@ -193,7 +193,7 @@ suite('WorkspaceContextService - Workspace', () => {
 
 	test('add folders', () => {
 		const workspaceDir = path.dirname(testObject.getWorkspace().folders[0].uri.fsPath);
-		return testObject.addFolders([URI.file(path.join(workspaceDir, 'd')), URI.file(path.join(workspaceDir, 'c'))])
+		return testObject.addFolders([{ uri: URI.file(path.join(workspaceDir, 'd')) }, { uri: URI.file(path.join(workspaceDir, 'c')) }])
 			.then(() => {
 				const actual = testObject.getWorkspace().folders;
 
@@ -225,7 +225,7 @@ suite('WorkspaceContextService - Workspace', () => {
 		const target = sinon.spy();
 		testObject.onDidChangeWorkspaceFolders(target);
 		const workspaceDir = path.dirname(testObject.getWorkspace().folders[0].uri.fsPath);
-		return testObject.addFolders([URI.file(path.join(workspaceDir, 'd')), URI.file(path.join(workspaceDir, 'c'))])
+		return testObject.addFolders([{ uri: URI.file(path.join(workspaceDir, 'd')) }, { uri: URI.file(path.join(workspaceDir, 'c')) }])
 			.then(() => assert.ok(target.called));
 	});
 
