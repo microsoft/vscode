@@ -167,13 +167,13 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	}
 
 	private informUserOnce(): void {
-		// if (product.quality !== 'stable') {
-		// 	return; // only for stable
-		// }
+		if (product.quality !== 'stable') {
+			return; // only for stable
+		}
 
-		// if (this.storageService.getBoolean(WorkspaceEditingService.INFO_MESSAGE_KEY)) {
-		// 	return; // user does not want to see it again
-		// }
+		if (this.storageService.getBoolean(WorkspaceEditingService.INFO_MESSAGE_KEY)) {
+			return; // user does not want to see it again
+		}
 
 		const closeAction = new Action(
 			'enterWorkspace.close',
