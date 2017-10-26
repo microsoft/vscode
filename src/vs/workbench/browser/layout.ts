@@ -424,9 +424,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		const panelPosition = this.partService.getPanelPosition();
 
 		// Sidebar
-		if (this.sidebarWidth !== -1) {
-			this.sidebarWidth = Math.max(this.partLayoutInfo.sidebar.minWidth, this.sidebarWidth);
-		} else {
+		if (this.sidebarWidth === -1) {
 			this.sidebarWidth = this.workbenchSize.width / 5;
 		}
 
