@@ -120,8 +120,38 @@ export class TogglePanelPositionAction extends Action {
 	}
 }
 
-class ToggleMaximizedPanelAction extends TogglePanelPositionAction {
+export class ToggleMaximizedPanelAction extends Action {
+
 	public static ID = 'workbench.action.toggleMaximizedPanel';
+	public static LABEL = nls.localize('toggleMaximizedPanel', "Toggle Maximized Panel");
+	private static MAXIMIZE_LABEL = nls.localize('maximizePanel', "Maximize Panel Size");
+	private static RESTORE_LABEL = nls.localize('minimizePanel', "Restore Panel Size");
+	private toDispose: IDisposable[];
+
+	constructor(
+		id: string,
+		label: string,
+		@IPartService private partService: IPartService
+	) {
+		super(id, label, partService.isPanelMaximized() ? 'minimize-panel-action' : 'maximize-panel-action');
+		this.toDispose = [];
+		this.toDispose.push(partService.onEditorLayout(() => {
+			const maximized = this.partService.isPanelMaximized();
+			this.class = maximized ? 'minimize-panel-action' : 'maximize-panel-action';
+			this.label = maximized ? ToggleMaximizedPanelAction.RESTORE_LABEL : ToggleMaximizedPanelAction.MAXIMIZE_LABEL;
+		}));
+	}
+
+	public run(): TPromise<any> {
+		// Show panel
+		return this.partService.setPanelHidden(false)
+			.then(() => this.partService.toggleMaximizedPanel());
+	}
+
+	public dispose(): void {
+		super.dispose();
+		this.toDispose = dispose(this.toDispose);
+	}
 }
 
 export class PanelActivityAction extends ActivityAction {
@@ -141,6 +171,7 @@ export class PanelActivityAction extends ActivityAction {
 const actionRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchExtensions.WorkbenchActions);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(TogglePanelAction, TogglePanelAction.ID, TogglePanelAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_J }), 'View: Toggle Panel', nls.localize('view', "View"));
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusPanelAction, FocusPanelAction.ID, FocusPanelAction.LABEL), 'View: Focus into Panel', nls.localize('view', "View"));
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMaximizedPanelAction, ToggleMaximizedPanelAction.ID, ToggleMaximizedPanelAction.LABEL), 'View: Toggle Maximized Panel', nls.localize('view', "View"));
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ClosePanelAction, ClosePanelAction.ID, ClosePanelAction.LABEL), 'View: Close Panel', nls.localize('view', "View"));
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(TogglePanelPositionAction, TogglePanelPositionAction.ID, TogglePanelPositionAction.LABEL), 'View: Toggle Panel Position', nls.localize('view', "View"));
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMaximizedPanelAction, ToggleMaximizedPanelAction.ID, undefined), 'View: Toggle Panel Position', nls.localize('view', "View"));

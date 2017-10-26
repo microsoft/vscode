@@ -11,7 +11,7 @@ import { Part } from 'vs/workbench/browser/part';
 import { QuickOpenController } from 'vs/workbench/browser/parts/quickopen/quickOpenController';
 import { Sash, ISashEvent, IVerticalSashLayoutProvider, IHorizontalSashLayoutProvider, Orientation } from 'vs/base/browser/ui/sash/sash';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IPartService, Position, Parts } from 'vs/workbench/services/part/common/partService';
+import { IPartService, Position, ILayoutOptions, Parts } from 'vs/workbench/services/part/common/partService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -26,6 +26,7 @@ const MIN_EDITOR_PART_WIDTH = 220;
 const MIN_PANEL_PART_HEIGHT = 77;
 const MIN_PANEL_PART_WIDTH = 300;
 const DEFAULT_PANEL_SIZE_COEFFICIENT = 0.4;
+const PANEL_SIZE_BEFORE_MAXIMIZED_BOUNDARY = 0.7;
 const HIDE_SIDEBAR_WIDTH_THRESHOLD = 50;
 const HIDE_PANEL_HEIGHT_THRESHOLD = 50;
 const HIDE_PANEL_WIDTH_THRESHOLD = 100;
@@ -70,6 +71,8 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	private sidebarHeight: number;
 	private titlebarHeight: number;
 	private statusbarHeight: number;
+	private panelSizeBeforeMaximized: number;
+	private panelMaximized: boolean;
 	private _panelHeight: number;
 	private _panelWidth: number;
 	private layoutEditorGroupsVertically: boolean;
@@ -106,6 +109,8 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		this.quickopen = quickopen;
 		this.toUnbind = [];
 		this.partLayoutInfo = this.getPartLayoutInfo();
+		this.panelSizeBeforeMaximized = 0;
+		this.panelMaximized = false;
 
 		this.sashXOne = new Sash(this.workbenchContainer.getHTMLElement(), this, {
 			baseSize: 5
@@ -412,7 +417,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		}
 	}
 
-	public layout(): void {
+	public layout(options?: ILayoutOptions): void {
 		this.workbenchSize = this.parent.getClientArea();
 
 		const isActivityBarHidden = !this.partService.isVisible(Parts.ACTIVITYBAR_PART);
@@ -442,8 +447,9 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		let panelHeight: number;
 		let panelWidth: number;
 		const editorCountForHeight = this.editorGroupService.getGroupOrientation() === 'horizontal' ? this.editorGroupService.getStacksModel().groups.length : 1;
+		const editorCountForWidth = this.editorGroupService.getGroupOrientation() === 'vertical' ? this.editorGroupService.getStacksModel().groups.length : 1;
 		const maxPanelHeight = sidebarSize.height - editorCountForHeight * MIN_EDITOR_PART_HEIGHT;
-		const maxPanelWidth = this.workbenchSize.width - activityBarSize.width - sidebarSize.width - editorCountForHeight * MIN_EDITOR_PART_WIDTH;
+		const maxPanelWidth = this.workbenchSize.width - activityBarSize.width - sidebarSize.width - editorCountForWidth * MIN_EDITOR_PART_WIDTH;
 
 		if (isPanelHidden) {
 			panelHeight = 0;
@@ -456,14 +462,31 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			} else {
 				panelHeight = sidebarSize.height * DEFAULT_PANEL_SIZE_COEFFICIENT;
 			}
-
 			panelWidth = this.workbenchSize.width - sidebarSize.width - activityBarSize.width;
+
+			if (options && options.toggleMaximizedPanel) {
+				panelHeight = this.panelMaximized ? Math.max(this.partLayoutInfo.panel.minHeight, Math.min(this.panelSizeBeforeMaximized, maxPanelHeight)) : maxPanelHeight;
+			}
+
+			this.panelMaximized = panelHeight === maxPanelHeight;
+			if (panelHeight / maxPanelHeight < PANEL_SIZE_BEFORE_MAXIMIZED_BOUNDARY) {
+				this.panelSizeBeforeMaximized = panelHeight;
+			}
 		} else {
 			panelHeight = sidebarSize.height;
 			if (this.panelWidth > 0) {
 				panelWidth = Math.min(maxPanelWidth, Math.max(this.partLayoutInfo.panel.minWidth, this.panelWidth));
 			} else {
 				panelWidth = (this.workbenchSize.width - activityBarSize.width - sidebarSize.width) * DEFAULT_PANEL_SIZE_COEFFICIENT;
+			}
+
+			if (options && options.toggleMaximizedPanel) {
+				panelWidth = this.panelMaximized ? Math.max(this.partLayoutInfo.panel.minWidth, Math.min(this.panelSizeBeforeMaximized, maxPanelWidth)) : maxPanelWidth;
+			}
+
+			this.panelMaximized = panelWidth === maxPanelWidth;
+			if (panelWidth / maxPanelWidth < PANEL_SIZE_BEFORE_MAXIMIZED_BOUNDARY) {
+				this.panelSizeBeforeMaximized = panelWidth;
 			}
 		}
 		const panelDimension = new Dimension(panelWidth, panelHeight);
@@ -661,6 +684,10 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 
 	public getHorizontalSashWidth(sash: Sash): number {
 		return this.panelWidth;
+	}
+
+	public isPanelMaximized(): boolean {
+		return this.panelMaximized;
 	}
 
 	// change part size along the main axis
