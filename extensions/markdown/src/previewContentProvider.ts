@@ -59,7 +59,7 @@ class MarkdownPreviewConfig {
 	private constructor(resource: vscode.Uri) {
 		const editorConfig = vscode.workspace.getConfiguration('editor', resource);
 		const markdownConfig = vscode.workspace.getConfiguration('markdown', resource);
-		const markdownEditorConfig = vscode.workspace.getConfiguration('[markdown]', resource);
+		const markdownEditorConfig = vscode.workspace.getConfiguration('[markdown]');
 
 		this.scrollBeyondLastLine = editorConfig.get<boolean>('scrollBeyondLastLine', false);
 
@@ -107,9 +107,41 @@ class MarkdownPreviewConfig {
 	[key: string]: any;
 }
 
+class PreviewConfigManager {
+	private previewConfigurationsForWorkspaces = new Map<string, MarkdownPreviewConfig>();
+
+	public loadAndCacheConfiguration(
+		resource: vscode.Uri
+	) {
+		const config = MarkdownPreviewConfig.getConfigForResource(resource);
+		this.previewConfigurationsForWorkspaces.set(this.getKey(resource), config);
+		return config;
+	}
+
+	public shouldUpdateConfiguration(
+		resource: vscode.Uri
+	): boolean {
+		const key = this.getKey(resource);
+		const currentConfig = this.previewConfigurationsForWorkspaces.get(key);
+		const newConfig = MarkdownPreviewConfig.getConfigForResource(resource);
+		return (!currentConfig || !currentConfig.isEqualTo(newConfig));
+	}
+
+	private getKey(
+		resource: vscode.Uri
+	): string {
+		const folder = vscode.workspace.getWorkspaceFolder(resource);
+		if (!folder) {
+			return '';
+		}
+		return folder.uri.toString();
+	}
+}
+
 export class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 	private _onDidChange = new vscode.EventEmitter<vscode.Uri>();
 	private _waiting: boolean = false;
+	private previewConfigurations = new PreviewConfigManager();
 
 	private extraStyles: Array<vscode.Uri> = [];
 	private extraScripts: Array<vscode.Uri> = [];
@@ -206,7 +238,7 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 		}
 
 		const document = await vscode.workspace.openTextDocument(sourceUri);
-		const config = MarkdownPreviewConfig.getConfigForResource(sourceUri);
+		const config = this.previewConfigurations.loadAndCacheConfiguration(sourceUri);
 
 		const initialData = {
 			previewUri: uri.toString(),
@@ -247,7 +279,10 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 		// update all generated md documents
 		for (const document of vscode.workspace.textDocuments) {
 			if (document.uri.scheme === 'markdown') {
-				this.update(document.uri);
+				const sourceUri = vscode.Uri.parse(document.uri.query);
+				if (this.previewConfigurations.shouldUpdateConfiguration(sourceUri)) {
+					this.update(document.uri);
+				}
 			}
 		}
 	}
