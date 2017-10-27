@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace as Workspace, FormattingOptions, TextDocument, CancellationToken, WorkspaceConfiguration, window } from 'vscode';
+import { workspace as Workspace, FormattingOptions, TextDocument, CancellationToken, WorkspaceConfiguration, window, Disposable } from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
@@ -58,6 +58,7 @@ namespace FormattingConfiguration {
 }
 
 export default class FormattingConfigurationManager {
+	private onDidCloseTextDocumentSub: Disposable | undefined;
 	private config: FormattingConfiguration = FormattingConfiguration.def;
 
 	private formatOptions: { [key: string]: Proto.FormatCodeSettings | undefined; } = Object.create(null);
@@ -65,14 +66,21 @@ export default class FormattingConfigurationManager {
 	public constructor(
 		private client: ITypescriptServiceClient
 	) {
-		Workspace.onDidCloseTextDocument((textDocument) => {
-			let key = textDocument.uri.toString();
+		this.onDidCloseTextDocumentSub = Workspace.onDidCloseTextDocument((textDocument) => {
+			const key = textDocument.uri.toString();
 			// When a document gets closed delete the cached formatting options.
-			// This is necessary sine the tsserver now closed a project when its
+			// This is necessary since the tsserver now closed a project when its
 			// last file in it closes which drops the stored formatting options
 			// as well.
 			delete this.formatOptions[key];
 		});
+	}
+
+	public dispose() {
+		if (this.onDidCloseTextDocumentSub) {
+			this.onDidCloseTextDocumentSub.dispose();
+			this.onDidCloseTextDocumentSub = undefined;
+		}
 	}
 
 	public async ensureFormatOptionsForDocument(
