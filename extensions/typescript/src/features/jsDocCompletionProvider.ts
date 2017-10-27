@@ -14,11 +14,6 @@ const localize = nls.loadMessageBundle();
 
 const configurationNamespace = 'jsDocCompletion';
 
-
-interface Configuration {
-	enabled: boolean;
-}
-
 namespace Configuration {
 	export const enabled = 'enabled';
 }
@@ -51,20 +46,16 @@ class JsDocCompletionItem extends CompletionItem {
 }
 
 export class JsDocCompletionProvider implements CompletionItemProvider {
-	private config: Configuration;
 
 	constructor(
 		private client: ITypescriptServiceClient,
-	) {
-		this.config = { enabled: true };
-	}
+	) { }
 
-	public updateConfiguration(): void {
-		const jsDocCompletionConfig = workspace.getConfiguration(configurationNamespace);
-		this.config.enabled = jsDocCompletionConfig.get(Configuration.enabled, true);
-	}
-
-	public provideCompletionItems(document: TextDocument, position: Position, _token: CancellationToken): ProviderResult<CompletionItem[]> {
+	public provideCompletionItems(
+		document: TextDocument,
+		position: Position,
+		_token: CancellationToken
+	): ProviderResult<CompletionItem[]> {
 		const file = this.client.normalizePath(document.uri);
 		if (!file) {
 			return [];
@@ -75,7 +66,8 @@ export class JsDocCompletionProvider implements CompletionItemProvider {
 		const line = document.lineAt(position.line).text;
 		const prefix = line.slice(0, position.character);
 		if (prefix.match(/^\s*$|\/\*\*\s*$|^\s*\/\*\*+\s*$/)) {
-			return [new JsDocCompletionItem(document, position, this.config.enabled)];
+			const enableJsDocCompletions = workspace.getConfiguration(configurationNamespace).get<boolean>(Configuration.enabled, true);
+			return [new JsDocCompletionItem(document, position, enableJsDocCompletions)];
 		}
 		return [];
 	}
