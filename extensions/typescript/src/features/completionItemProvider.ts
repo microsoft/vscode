@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, TextEdit, Range, SnippetString, workspace, ProviderResult, CompletionContext, commands } from 'vscode';
+import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, TextEdit, Range, SnippetString, workspace, ProviderResult, CompletionContext, commands, Uri } from 'vscode';
 
 import { ITypescriptServiceClient } from '../typescriptService';
 import TypingsStatus from '../utils/typingsStatus';
@@ -21,17 +21,18 @@ let localize = nls.loadMessageBundle();
 
 class MyCompletionItem extends CompletionItem {
 	constructor(
-		public position: Position,
-		public document: TextDocument,
+		public readonly position: Position,
+		public readonly document: TextDocument,
 		entry: CompletionEntry,
 		enableDotCompletions: boolean,
-		enableCallCompletions: boolean
+		public readonly useCodeSnippetsOnMethodSuggest: boolean
 	) {
 		super(entry.name);
 		this.sortText = entry.sortText;
 		this.kind = MyCompletionItem.convertKind(entry.kind);
 		this.position = position;
-		this.commitCharacters = MyCompletionItem.getCommitCharacters(enableDotCompletions, enableCallCompletions, entry.kind);
+		this.commitCharacters = MyCompletionItem.getCommitCharacters(enableDotCompletions, !useCodeSnippetsOnMethodSuggest, entry.kind);
+
 		if (entry.replacementSpan) {
 			let span: protocol.TextSpan = entry.replacementSpan;
 			// The indexing for the range returned by the server uses 1-based indexing.
@@ -137,12 +138,6 @@ namespace Configuration {
 export default class TypeScriptCompletionItemProvider implements CompletionItemProvider {
 	private readonly commandId: string;
 
-	private config: Configuration = {
-		useCodeSnippetsOnMethodSuggest: false,
-		nameSuggestions: true,
-		quickSuggestionsForPaths: true
-	};
-
 	constructor(
 		private client: ITypescriptServiceClient,
 		mode: string,
@@ -150,16 +145,6 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 	) {
 		this.commandId = `_typescript.applyCompletionCodeAction.${mode}`;
 		commands.registerCommand(this.commandId, this.applyCompletionCodeAction, this);
-	}
-
-	public updateConfiguration(): void {
-		// Use shared setting for js and ts
-		const typeScriptConfig = workspace.getConfiguration('typescript');
-
-		this.config.useCodeSnippetsOnMethodSuggest = typeScriptConfig.get<boolean>(Configuration.useCodeSnippetsOnMethodSuggest, false);
-		this.config.quickSuggestionsForPaths = typeScriptConfig.get<boolean>(Configuration.quickSuggestionsForPaths, true);
-
-		this.config.nameSuggestions = workspace.getConfiguration('javascript').get(Configuration.nameSuggestions, true);
 	}
 
 	public async provideCompletionItems(
@@ -184,8 +169,10 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 			return [];
 		}
 
+		const config = this.getConfiguration(document.uri);
+
 		if (context.triggerCharacter === '"' || context.triggerCharacter === '\'') {
-			if (!this.config.quickSuggestionsForPaths) {
+			if (!config.quickSuggestionsForPaths) {
 				return [];
 			}
 
@@ -197,7 +184,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 		}
 
 		if (context.triggerCharacter === '/') {
-			if (!this.config.quickSuggestionsForPaths) {
+			if (!config.quickSuggestionsForPaths) {
 				return [];
 			}
 
@@ -252,10 +239,10 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 				}
 
 				for (const element of body) {
-					if (element.kind === PConst.Kind.warning && !this.config.nameSuggestions) {
+					if (element.kind === PConst.Kind.warning && !config.nameSuggestions) {
 						continue;
 					}
-					const item = new MyCompletionItem(position, document, element, enableDotCompletions, !this.config.useCodeSnippetsOnMethodSuggest);
+					const item = new MyCompletionItem(position, document, element, enableDotCompletions, config.useCodeSnippetsOnMethodSuggest);
 					completionItems.push(item);
 				}
 			}
@@ -296,7 +283,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 				};
 			}
 
-			if (detail && this.config.useCodeSnippetsOnMethodSuggest && (item.kind === CompletionItemKind.Function || item.kind === CompletionItemKind.Method)) {
+			if (detail && item.useCodeSnippetsOnMethodSuggest && (item.kind === CompletionItemKind.Function || item.kind === CompletionItemKind.Method)) {
 				return this.isValidFunctionCompletionContext(filepath, item.position).then(shouldCompleteFunction => {
 					if (shouldCompleteFunction) {
 						item.insertText = this.snippetForFunctionCall(detail);
@@ -365,5 +352,16 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 			}
 		}
 		return true;
+	}
+
+
+	private getConfiguration(resource: Uri): Configuration {
+		// Use shared setting for js and ts
+		const typeScriptConfig = workspace.getConfiguration('typescript', resource);
+		return {
+			useCodeSnippetsOnMethodSuggest: typeScriptConfig.get<boolean>(Configuration.useCodeSnippetsOnMethodSuggest, false),
+			quickSuggestionsForPaths: typeScriptConfig.get<boolean>(Configuration.quickSuggestionsForPaths, true),
+			nameSuggestions: workspace.getConfiguration('javascript', resource).get(Configuration.nameSuggestions, true)
+		};
 	}
 }
