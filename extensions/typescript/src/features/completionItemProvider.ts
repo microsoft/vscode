@@ -231,7 +231,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 				// TODO: Workaround for https://github.com/Microsoft/TypeScript/issues/13456
 				// Only enable dot completions when previous character is an identifier.
 				// Prevents incorrectly completing while typing spread operators.
-				if (position.character > 0) {
+				if (position.character > 1) {
 					const preText = document.getText(new Range(
 						position.line, 0,
 						position.line, position.character - 1));
