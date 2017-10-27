@@ -132,8 +132,8 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 		const scope = this._configurationScopes.get(key);
 		const extensionIdText = extensionId ? `[${extensionId}] ` : '';
 		if (ConfigurationScope.RESOURCE === scope) {
-			if (!resource) {
-				console.warn(`${extensionIdText}Accessing a resource scoped configuration without providing a resource is not expected. To get the effective value for '${key}', provide the resource for which the value is needed. If you would like to look up all values, use 'inspect' method instead.`);
+			if (resource === void 0) {
+				console.warn(`${extensionIdText}Accessing a resource scoped configuration without providing a resource is not expected. To get the effective value for '${key}', provide the URI of a resource or 'null' for any resource.`);
 			}
 			return;
 		}

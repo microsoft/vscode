@@ -466,7 +466,8 @@ export function createApiFactory(
 			onDidChangeConfiguration: (listener: (_: any) => any, thisArgs?: any, disposables?: extHostTypes.Disposable[]) => {
 				return extHostConfiguration.onDidChangeConfiguration(listener, thisArgs, disposables);
 			},
-			getConfiguration: (section?: string, resource?: vscode.Uri): vscode.WorkspaceConfiguration => {
+			getConfiguration(section?: string, resource?: vscode.Uri): vscode.WorkspaceConfiguration {
+				resource = arguments.length === 1 ? void 0 : resource;
 				return extHostConfiguration.getConfiguration(section, resource, extension.id);
 			},
 			registerTextDocumentContentProvider(scheme: string, provider: vscode.TextDocumentContentProvider) {
