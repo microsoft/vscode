@@ -25,7 +25,7 @@ import API from './utils/api';
 
 import * as nls from 'vscode-nls';
 import { TypeScriptServiceConfiguration, TsServerLogLevel } from './utils/configuration';
-import { TypeScriptVersionProvider } from './utils/versionProvider';
+import { TypeScriptVersionProvider, TypeScriptVersion } from './utils/versionProvider';
 import { TypeScriptVersionPicker } from './utils/versionPicker';
 const localize = nls.loadMessageBundle();
 
@@ -326,66 +326,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					execArgv: [] // [`--debug-brk=5859`]
 				};
 
-				const args: string[] = [];
-				if (this.apiVersion.has206Features()) {
-					if (this.apiVersion.has250Features()) {
-						args.push('--useInferredProjectPerProjectRoot');
-					} else {
-						args.push('--useSingleInferredProject');
-					}
-
-					if (this._configuration.disableAutomaticTypeAcquisition) {
-						args.push('--disableAutomaticTypingAcquisition');
-					}
-				}
-				if (this.apiVersion.has208Features()) {
-					args.push('--enableTelemetry');
-				}
-				if (this.apiVersion.has222Features()) {
-					this.cancellationPipeName = electron.getTempFile(`tscancellation-${electron.makeRandomHexString(20)}`);
-					args.push('--cancellationPipeName', this.cancellationPipeName + '*');
-				}
-
-				if (this.apiVersion.has222Features()) {
-					if (this._configuration.tsServerLogLevel !== TsServerLogLevel.Off) {
-						try {
-							const logDir = fs.mkdtempSync(path.join(os.tmpdir(), `vscode-tsserver-log-`));
-							this.tsServerLogFile = path.join(logDir, `tsserver.log`);
-							this.info(`TSServer log file: ${this.tsServerLogFile}`);
-						} catch (e) {
-							this.error('Could not create TSServer log directory');
-						}
-
-						if (this.tsServerLogFile) {
-							args.push('--logVerbosity', TsServerLogLevel.toString(this._configuration.tsServerLogLevel));
-							args.push('--logFile', this.tsServerLogFile);
-						}
-					}
-				}
-
-				if (this.apiVersion.has230Features()) {
-					if (this.plugins.length) {
-						args.push('--globalPlugins', this.plugins.map(x => x.name).join(','));
-						if (currentVersion.path === this.versionProvider.defaultVersion.path) {
-							args.push('--pluginProbeLocations', this.plugins.map(x => x.path).join(','));
-						}
-					}
-				}
-
-				if (this.apiVersion.has234Features()) {
-					if (this._configuration.npmLocation) {
-						args.push('--npmLocation', `"${this._configuration.npmLocation}"`);
-					}
-				}
-
-				if (this.apiVersion.has260Features()) {
-					const tsLocale = getTsLocale(this._configuration);
-					if (tsLocale) {
-						args.push('--locale', tsLocale);
-					}
-				}
-
-				electron.fork(currentVersion.tsServerPath, args, options, this.logger, (err: any, childProcess: cp.ChildProcess | null) => {
+				electron.fork(currentVersion.tsServerPath, this.getTsServerArgs(currentVersion), options, this.logger, (err: any, childProcess: cp.ChildProcess | null) => {
 					if (err || !childProcess) {
 						this.lastError = err;
 						this.error('Starting TSServer failed with error.', err);
@@ -860,6 +801,71 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		*/
 		// __GDPR__COMMENT__: Other events are defined by TypeScript.
 		this.logTelemetry(telemetryData.telemetryEventName, properties);
+	}
+
+	private getTsServerArgs(currentVersion: TypeScriptVersion): string[] {
+		const args: string[] = [];
+
+		if (this.apiVersion.has206Features()) {
+			if (this.apiVersion.has250Features()) {
+				args.push('--useInferredProjectPerProjectRoot');
+			} else {
+				args.push('--useSingleInferredProject');
+			}
+
+			if (this._configuration.disableAutomaticTypeAcquisition) {
+				args.push('--disableAutomaticTypingAcquisition');
+			}
+		}
+
+		if (this.apiVersion.has208Features()) {
+			args.push('--enableTelemetry');
+		}
+
+		if (this.apiVersion.has222Features()) {
+			this.cancellationPipeName = electron.getTempFile(`tscancellation-${electron.makeRandomHexString(20)}`);
+			args.push('--cancellationPipeName', this.cancellationPipeName + '*');
+		}
+
+		if (this.apiVersion.has222Features()) {
+			if (this._configuration.tsServerLogLevel !== TsServerLogLevel.Off) {
+				try {
+					const logDir = fs.mkdtempSync(path.join(os.tmpdir(), `vscode-tsserver-log-`));
+					this.tsServerLogFile = path.join(logDir, `tsserver.log`);
+					this.info(`TSServer log file: ${this.tsServerLogFile}`);
+				} catch (e) {
+					this.error('Could not create TSServer log directory');
+				}
+
+				if (this.tsServerLogFile) {
+					args.push('--logVerbosity', TsServerLogLevel.toString(this._configuration.tsServerLogLevel));
+					args.push('--logFile', this.tsServerLogFile);
+				}
+			}
+		}
+
+		if (this.apiVersion.has230Features()) {
+			if (this.plugins.length) {
+				args.push('--globalPlugins', this.plugins.map(x => x.name).join(','));
+				if (currentVersion.path === this.versionProvider.defaultVersion.path) {
+					args.push('--pluginProbeLocations', this.plugins.map(x => x.path).join(','));
+				}
+			}
+		}
+
+		if (this.apiVersion.has234Features()) {
+			if (this._configuration.npmLocation) {
+				args.push('--npmLocation', `"${this._configuration.npmLocation}"`);
+			}
+		}
+
+		if (this.apiVersion.has260Features()) {
+			const tsLocale = getTsLocale(this._configuration);
+			if (tsLocale) {
+				args.push('--locale', tsLocale);
+			}
+		}
+		return args;
 	}
 }
 
