@@ -170,13 +170,13 @@
           "type": "boolean",
           "default": true,
           "description": "%typescript.validate.enable%",
-          "scope": "resource"
+          "scope": "window"
         },
         "typescript.format.enable": {
           "type": "boolean",
           "default": true,
           "description": "%typescript.format.enable%",
-          "scope": "resource"
+          "scope": "window"
         },
         "typescript.format.insertSpaceAfterCommaDelimiter": {
           "type": "boolean",
@@ -272,13 +272,13 @@
           "type": "boolean",
           "default": true,
           "description": "%javascript.validate.enable%",
-          "scope": "resource"
+          "scope": "window"
         },
         "javascript.format.enable": {
           "type": "boolean",
           "default": true,
           "description": "%javascript.format.enable%",
-          "scope": "resource"
+          "scope": "window"
         },
         "javascript.format.insertSpaceAfterCommaDelimiter": {
           "type": "boolean",
