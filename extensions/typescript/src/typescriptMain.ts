@@ -320,7 +320,6 @@ class LanguageProvider {
 	private configurationChanged(): void {
 		const config = workspace.getConfiguration(this.id);
 		this.updateValidate(config.get(validateSetting, true));
-		this.formattingOptionsManager.updateConfiguration(config);
 
 		for (const toUpdate of this.toUpdateOnConfigurationChanged) {
 			toUpdate.updateConfiguration();
@@ -367,6 +366,7 @@ class LanguageProvider {
 		this.syntaxDiagnostics = Object.create(null);
 		this.bufferSyncSupport.reOpenDocuments();
 		this.bufferSyncSupport.requestAllDiagnostics();
+		this.formattingOptionsManager.reset();
 		this.registerVersionDependentProviders();
 	}
 
