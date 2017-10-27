@@ -8,9 +8,10 @@ import { ITypescriptServiceClient } from '../typescriptService';
 import { loadMessageBundle } from 'vscode-nls';
 import { dirname } from 'path';
 import { openOrCreateConfigFile, isImplicitProjectConfigFile } from './tsconfig';
+import * as languageModeIds from '../utils/languageModeIds';
 
 const localize = loadMessageBundle();
-const selector = ['javascript', 'javascriptreact'];
+const selector = [languageModeIds.javascript, languageModeIds.javascriptreact];
 
 
 interface Hint {

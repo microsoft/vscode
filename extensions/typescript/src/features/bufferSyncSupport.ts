@@ -9,6 +9,7 @@ import { workspace, TextDocument, TextDocumentChangeEvent, TextDocumentContentCh
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
 import { Delayer } from '../utils/async';
+import * as languageModeIds from '../utils/languageModeIds';
 
 interface IDiagnosticRequestor {
 	requestDiagnostic(filepath: string): void;
@@ -16,10 +17,10 @@ interface IDiagnosticRequestor {
 
 function mode2ScriptKind(mode: string): 'TS' | 'TSX' | 'JS' | 'JSX' | undefined {
 	switch (mode) {
-		case 'typescript': return 'TS';
-		case 'typescriptreact': return 'TSX';
-		case 'javascript': return 'JS';
-		case 'javascriptreact': return 'JSX';
+		case languageModeIds.typescript: return 'TS';
+		case languageModeIds.typescriptreact: return 'TSX';
+		case languageModeIds.javascript: return 'JS';
+		case languageModeIds.javascriptreact: return 'JSX';
 	}
 	return undefined;
 }

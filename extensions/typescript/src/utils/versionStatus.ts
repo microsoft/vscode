@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import { TypeScriptVersion } from './versionProvider';
+import * as languageModeIds from './languageModeIds';
 
 export default class VersionStatus {
 	private onChangeEditorSub: vscode.Disposable;
@@ -37,7 +38,7 @@ export default class VersionStatus {
 		}
 
 		const doc = vscode.window.activeTextEditor.document;
-		if (vscode.languages.match('typescript', doc) || vscode.languages.match('typescriptreact', doc)) {
+		if (vscode.languages.match([languageModeIds.typescript, languageModeIds.typescriptreact], doc)) {
 			this.versionBarEntry.show();
 			return;
 		}

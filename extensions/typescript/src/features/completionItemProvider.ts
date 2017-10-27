@@ -15,6 +15,8 @@ import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/conver
 
 import * as nls from 'vscode-nls';
 import { applyCodeAction } from '../utils/codeAction';
+import * as languageModeIds from '../utils/languageModeIds';
+
 let localize = nls.loadMessageBundle();
 
 class MyCompletionItem extends CompletionItem {
@@ -236,7 +238,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 			const body = msg.body;
 			if (body) {
 				// Only enable dot completions in TS files for now
-				let enableDotCompletions = document && (document.languageId === 'typescript' || document.languageId === 'typescriptreact');
+				let enableDotCompletions = document && (document.languageId === languageModeIds.typescript || document.languageId === languageModeIds.typescriptreact);
 
 				// TODO: Workaround for https://github.com/Microsoft/TypeScript/issues/13456
 				// Only enable dot completions when previous character is an identifier.
