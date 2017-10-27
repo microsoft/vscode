@@ -79,11 +79,13 @@ export default class FormattingConfigurationManager {
 		document: TextDocument,
 		token: CancellationToken | undefined
 	): Promise<void> {
-		for (const editor of window.visibleTextEditors) {
-			if (editor.document.fileName === document.fileName) {
-				const formattingOptions = { tabSize: editor.options.tabSize, insertSpaces: editor.options.insertSpaces } as FormattingOptions;
-				return this.ensureFormatOptions(document, formattingOptions, token);
-			}
+		const editor = window.visibleTextEditors.find(editor => editor.document.fileName === document.fileName);
+		if (editor) {
+			const formattingOptions = {
+				tabSize: editor.options.tabSize,
+				insertSpaces: editor.options.insertSpaces
+			} as FormattingOptions;
+			return this.ensureFormatOptions(document, formattingOptions, token);
 		}
 	}
 
@@ -99,8 +101,9 @@ export default class FormattingConfigurationManager {
 		}
 		const absPath = this.client.normalizePath(document.uri);
 		if (!absPath) {
-			return Object.create(null);
+			return;
 		}
+
 		const formatOptions = this.getFormatOptions(options);
 		const args: Proto.ConfigureRequestArguments = {
 			file: absPath,

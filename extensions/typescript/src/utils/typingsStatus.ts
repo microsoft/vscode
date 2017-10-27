@@ -110,12 +110,10 @@ export class AtaProgressReporter {
 				), {
 					title: localize('typesInstallerInitializationFailed.moreInformation', "More Information"),
 					id: 1
-				},
-				{
+				}, {
 					title: localize('typesInstallerInitializationFailed.doNotCheckAgain', "Don't Check Again"),
 					id: 2
-				},
-				{
+				}, {
 					title: localize('typesInstallerInitializationFailed.close', 'Close'),
 					id: 3,
 					isCloseAffordance: true
