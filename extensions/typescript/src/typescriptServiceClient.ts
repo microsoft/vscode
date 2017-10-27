@@ -245,6 +245,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					this.info('Killing TS Server');
 					this.isRestarting = true;
 					cp.kill();
+					this.resetServiceVersions();
 				}
 			}).then(start);
 		} else {
@@ -411,6 +412,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 							}
 						*/
 						this.logTelemetry('error', { message: err.message });
+						this.resetServiceVersions();
 						return;
 					}
 
@@ -567,7 +569,10 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this.tsServerLogFile = null;
 		this.callbacks.destroy(new Error('Service died.'));
 		this.callbacks = new CallbackMap();
-		if (restart) {
+		if (!restart) {
+			this.resetServiceVersions();
+		}
+		else {
 			const diff = Date.now() - this.lastStart;
 			this.numberRestarts++;
 			let startService = true;
@@ -588,6 +593,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 						"serviceExited" : {}
 					*/
 					this.logTelemetry('serviceExited');
+					this.resetServiceVersions();
 				} else if (diff < 60 * 1000 /* 1 Minutes */) {
 					this.lastStart = Date.now();
 					prompt = window.showWarningMessage<MyMessageItem>(
@@ -887,6 +893,11 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		*/
 		// __GDPR__COMMENT__: Other events are defined by TypeScript.
 		this.logTelemetry(telemetryData.telemetryEventName, properties);
+	}
+
+	private resetServiceVersions() {
+		this._apiVersion = API.defaultVersion;
+		this._tsserverVersion = undefined;
 	}
 }
 
