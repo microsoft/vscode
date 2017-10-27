@@ -70,11 +70,10 @@ export class Source {
 		}, sideBySide);
 	}
 
-	public static createRawSource(modelUri: uri): DebugProtocol.Source {
-
-		let name = resources.basenameOrAuthority(modelUri);
+	public static getEncodedDebugData(modelUri: uri): { name: string, path: string, processId: string, sourceReference: number } {
 		let path: string;
-		let sourceRef: number;
+		let sourceReference: number;
+		let processId: string;
 
 		switch (modelUri.scheme) {
 			case 'file':
@@ -89,9 +88,10 @@ export class Source {
 						if (pair.length === 2) {
 							switch (pair[0]) {
 								case 'session':
+									processId = decodeURIComponent(pair[1]);
 									break;
 								case 'ref':
-									sourceRef = parseInt(pair[1]);
+									sourceReference = parseInt(pair[1]);
 									break;
 							}
 						}
@@ -103,10 +103,11 @@ export class Source {
 				break;
 		}
 
-		const src: DebugProtocol.Source = { name, path };
-		if (sourceRef) {
-			src.sourceReference = sourceRef;
-		}
-		return src;
+		return {
+			name: resources.basenameOrAuthority(modelUri),
+			path,
+			sourceReference,
+			processId
+		};
 	}
 }

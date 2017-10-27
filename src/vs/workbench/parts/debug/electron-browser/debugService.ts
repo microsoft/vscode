@@ -1110,7 +1110,14 @@ export class DebugService implements debug.IDebugService {
 			const breakpointsToSend = this.model.getBreakpoints().filter(bp => this.model.areBreakpointsActivated() && bp.enabled && bp.uri.toString() === modelUri.toString());
 
 			const source = process.sources.get(modelUri.toString());
-			const rawSource = source ? source.raw : Source.createRawSource(modelUri);
+			let rawSource: DebugProtocol.Source;
+			if (source) {
+				rawSource = source.raw;
+			} else {
+				const data = Source.getEncodedDebugData(modelUri);
+				rawSource = { name: data.name, path: data.path, sourceReference: data.sourceReference };
+			}
+
 			if (breakpointsToSend.length && !rawSource.adapterData) {
 				rawSource.adapterData = breakpointsToSend[0].adapterData;
 			}
