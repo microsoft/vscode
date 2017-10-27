@@ -65,7 +65,6 @@ class WindowManager {
 
 	public onDidChangeFullscreen: Event<void> = this._onDidChangeFullscreen.event;
 	public setFullscreen(fullscreen: boolean): void {
-		let x = '';
 		if (this._fullscreen === fullscreen) {
 			return;
 		}
