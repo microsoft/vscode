@@ -469,9 +469,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		const args: Proto.SetCompilerOptionsForInferredProjectsArgs = {
 			options: this.getCompilerOptionsForInferredProjects(configuration)
 		};
-		this.execute('compilerOptionsForInferredProjects', args, true).catch((err) => {
-			this.error(`'compilerOptionsForInferredProjects' request failed with error.`, err);
-		});
+		this.execute('compilerOptionsForInferredProjects', args, true);
 	}
 
 	private getCompilerOptionsForInferredProjects(configuration: TypeScriptServiceConfiguration): Proto.ExternalProjectCompilerOptions {
