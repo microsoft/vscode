@@ -135,7 +135,7 @@ async function provideNpmScriptsForFolder(folder: vscode.WorkspaceFolder): Promi
 			result.push(task);
 		});
 		// always add npm install (without a problem matcher)
-		result.push(createTask('install', 'install', rootPath, folder, []));
+		// result.push(createTask('install', 'install', rootPath, folder, []));
 		return result;
 	} catch (e) {
 		return emptyTasks;
@@ -148,11 +148,12 @@ function createTask(script: string, cmd: string, rootPath: string, folder: vscod
 		return script;
 	}
 
-	function getNpmCommandLine(folder: vscode.WorkspaceFolder, cmd: string): string {
+	function getCommandLine(folder: vscode.WorkspaceFolder, cmd: string): string {
+		let packageManager = vscode.workspace.getConfiguration('npm', folder.uri).get<string>('packageManager', 'npm');
 		if (vscode.workspace.getConfiguration('npm', folder.uri).get<boolean>('runSilent')) {
-			return `npm --silent ${cmd}`;
+			return `${packageManager} --silent ${cmd}`;
 		}
-		return `npm ${cmd}`;
+		return `${packageManager} ${cmd}`;
 	}
 
 	let kind: NpmTaskDefinition = {
@@ -160,5 +161,5 @@ function createTask(script: string, cmd: string, rootPath: string, folder: vscod
 		script: script
 	};
 	let taskName = getTaskName(script);
-	return new vscode.Task(kind, folder, taskName, 'npm', new vscode.ShellExecution(getNpmCommandLine(folder, cmd), { cwd: rootPath }), matcher);
+	return new vscode.Task(kind, folder, taskName, 'npm', new vscode.ShellExecution(getCommandLine(folder, cmd), { cwd: rootPath }), matcher);
 }

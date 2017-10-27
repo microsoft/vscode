@@ -41,17 +41,29 @@
           "description": "%config.npm.autoDetect%"
         },
         "npm.runSilent": {
-					"type": "boolean",
+          "type": "boolean",
           "default": false,
           "scope": "resource",
-					"description": "%config.npm.runSilent%"
+          "description": "%config.npm.runSilent%"
+        },
+        "npm.packageManager": {
+          "scope": "resource",
+          "type": "string",
+          "enum": [
+            "npm",
+            "yarn"
+          ],
+          "default": "npm",
+          "description": "The package manager used to run scripts"
         }
       }
     },
     "taskDefinitions": [
       {
         "type": "npm",
-        "required": ["script"],
+        "required": [
+          "script"
+        ],
         "properties": {
           "script": {
             "type": "string",
