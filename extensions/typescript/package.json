@@ -374,7 +374,13 @@
           "type": "boolean",
           "default": false,
           "description": "%javascript.implicitProjectConfig.checkJs%",
-          "scope": "window"
+          "scope": "resource"
+        },
+        "javascript.implicitProjectConfig.experimentalDecorators": {
+          "type": "boolean",
+          "default": false,
+          "description": "%javascript.implicitProjectConfig.experimentalDecorators%",
+          "scope": "resource"
         },
         "javascript.nameSuggestions": {
           "type": "boolean",

@@ -188,8 +188,10 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			this.tracer.updateConfiguration();
 
 			if (this.servicePromise) {
-				if (this.configuration.checkJs !== oldConfiguration.checkJs) {
-					this.setCompilerOptionsForInferredProjects();
+				if (this.configuration.checkJs !== oldConfiguration.checkJs
+					|| this.configuration.experimentalDecorators !== oldConfiguration.experimentalDecorators
+				) {
+					this.setCompilerOptionsForInferredProjects(this.configuration);
 				}
 
 				if (!this.configuration.isEqualTo(oldConfiguration)) {
@@ -515,13 +517,13 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			hostInfo: 'vscode'
 		};
 		this.execute('configure', configureOptions);
-		this.setCompilerOptionsForInferredProjects();
+		this.setCompilerOptionsForInferredProjects(this.configuration);
 		if (resendModels) {
 			this.host.populateService();
 		}
 	}
 
-	private setCompilerOptionsForInferredProjects(): void {
+	private setCompilerOptionsForInferredProjects(configuration: TypeScriptServiceConfiguration): void {
 		if (!this.apiVersion.has206Features()) {
 			return;
 		}
@@ -536,7 +538,8 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		};
 
 		if (this.apiVersion.has230Features()) {
-			compilerOptions.checkJs = workspace.getConfiguration('javascript').get<boolean>('implicitProjectConfig.checkJs', false);
+			compilerOptions.checkJs = configuration.checkJs;
+			compilerOptions.experimentalDecorators = configuration.experimentalDecorators;
 		}
 
 		const args: Proto.SetCompilerOptionsForInferredProjectsArgs = {
