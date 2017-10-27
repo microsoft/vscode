@@ -9,7 +9,7 @@ import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
-import { MainThreadConfigurationShape } from 'vs/workbench/api/node/extHost.protocol';
+import { MainThreadConfigurationShape, IConfigurationInitData } from 'vs/workbench/api/node/extHost.protocol';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { TestThreadService } from './testThreadService';
@@ -34,12 +34,13 @@ suite('ExtHostConfiguration', function () {
 		return new ExtHostConfiguration(shape, new ExtHostWorkspace(new TestThreadService(), null), createConfigurationData(contents));
 	}
 
-	function createConfigurationData(contents: any) {
+	function createConfigurationData(contents: any): IConfigurationInitData {
 		return {
 			defaults: new ConfigurationModel(contents),
 			user: new ConfigurationModel(contents),
 			workspace: new ConfigurationModel(),
-			folders: Object.create(null)
+			folders: Object.create(null),
+			configurationScopes: []
 		};
 	}
 
@@ -106,7 +107,8 @@ suite('ExtHostConfiguration', function () {
 					}
 				}, ['editor.wordWrap']),
 				workspace: new ConfigurationModel({}, []),
-				folders: Object.create(null)
+				folders: Object.create(null),
+				configurationScopes: []
 			}
 		);
 
@@ -151,7 +153,8 @@ suite('ExtHostConfiguration', function () {
 					}
 				}, ['editor.wordWrap']),
 				workspace,
-				folders
+				folders,
+				configurationScopes: []
 			}
 		);
 
@@ -224,7 +227,8 @@ suite('ExtHostConfiguration', function () {
 					}
 				}, ['editor.wordWrap']),
 				workspace,
-				folders
+				folders,
+				configurationScopes: []
 			}
 		);
 

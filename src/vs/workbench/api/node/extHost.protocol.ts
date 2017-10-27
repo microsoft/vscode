@@ -49,6 +49,7 @@ import { SerializedError } from 'vs/base/common/errors';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { IWorkspaceFolderData } from 'vs/platform/workspace/common/workspace';
 import { IStat, IFileChange } from 'vs/platform/files/common/files';
+import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -73,8 +74,12 @@ export interface IInitData {
 	environment: IEnvironment;
 	workspace: IWorkspaceData;
 	extensions: IExtensionDescription[];
-	configuration: IConfigurationData;
+	configuration: IConfigurationInitData;
 	telemetryInfo: ITelemetryInfo;
+}
+
+export interface IConfigurationInitData extends IConfigurationData {
+	configurationScopes: ConfigurationScope[];
 }
 
 export interface IWorkspaceConfigurationChangeEventData {

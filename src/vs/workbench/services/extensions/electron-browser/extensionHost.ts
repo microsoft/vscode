@@ -27,7 +27,7 @@ import { generateRandomPipeName, Protocol } from 'vs/base/parts/ipc/node/ipc.net
 import { createServer, Server, Socket } from 'net';
 import Event, { Emitter, debounceEvent, mapEvent, anyEvent } from 'vs/base/common/event';
 import { fromEventEmitter } from 'vs/base/node/event';
-import { IInitData, IWorkspaceData } from 'vs/workbench/api/node/extHost.protocol';
+import { IInitData, IWorkspaceData, IConfigurationInitData } from 'vs/workbench/api/node/extHost.protocol';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { ICrashReporterService } from 'vs/workbench/services/crashReporter/common/crashReporterService';
@@ -36,6 +36,7 @@ import { isEqual } from 'vs/base/common/paths';
 import { EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL, EXTENSION_RELOAD_BROADCAST_CHANNEL, EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL } from 'vs/platform/extensions/common/extensionHost';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IRemoteConsoleLog, log, parse } from 'vs/base/node/console';
+import { getScopes } from 'vs/platform/configuration/common/configurationRegistry';
 
 export class ExtensionHostProcessWorker {
 
@@ -344,6 +345,7 @@ export class ExtensionHostProcessWorker {
 
 	private _createExtHostInitData(): TPromise<IInitData> {
 		return TPromise.join<any>([this._telemetryService.getTelemetryInfo(), this._extensionService.getExtensions()]).then(([telemetryInfo, extensionDescriptions]) => {
+			const configurationData: IConfigurationInitData = { ...this._configurationService.getConfigurationData(), configurationScopes: [] };
 			const r: IInitData = {
 				parentPid: process.pid,
 				environment: {
@@ -360,7 +362,8 @@ export class ExtensionHostProcessWorker {
 				},
 				workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : <IWorkspaceData>this._contextService.getWorkspace(),
 				extensions: extensionDescriptions,
-				configuration: this._configurationService.getConfigurationData(),
+				// Send configurations scopes only in development mode.
+				configuration: !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment ? { ...configurationData, configurationScopes: getScopes(this._configurationService.keys().default) } : configurationData,
 				telemetryInfo
 			};
 			return r;

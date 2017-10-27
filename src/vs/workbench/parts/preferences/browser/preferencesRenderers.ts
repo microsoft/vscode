@@ -33,6 +33,7 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDeco
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { overrideIdentifierFromKey, IConfigurationService, ConfigurationTarget, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export interface IPreferencesRenderer<T> extends IDisposable {
 	preferencesModel: IPreferencesEditorModel<T>;
@@ -1150,6 +1151,7 @@ class UnsupportedWorkbenchSettingsRenderer extends Disposable {
 
 	constructor(private editor: editorCommon.ICommonCodeEditor, private workspaceSettingsEditorModel: SettingsEditorModel,
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super();
 		this._register(this.editor.getModel().onDidChangeContent(() => this.renderingDelayer.trigger(() => this.render())));
@@ -1182,10 +1184,17 @@ class UnsupportedWorkbenchSettingsRenderer extends Disposable {
 		hoverMessage: new MarkdownString().appendText(nls.localize('unsupportedWorkbenchSetting', "This setting cannot be applied now. It will be applied when you open this folder directly."))
 	});
 
+	private static _DIM_CONFIGUARATION_DEV_MODE = ModelDecorationOptions.register({
+		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		inlineClassName: 'dim-configuration',
+		beforeContentClassName: 'unsupportedWorkbenhSettingInfo',
+		hoverMessage: new MarkdownString().appendText(nls.localize('unsupportedWorkbenchSettingDevMode', "This setting cannot be applied now. It will be applied if you change its scope to 'resource' scope or when you open this folder directly."))
+	});
+
 	private createDecoration(range: IRange, model: editorCommon.IModel): editorCommon.IModelDeltaDecoration {
 		return {
 			range,
-			options: UnsupportedWorkbenchSettingsRenderer._DIM_CONFIGUARATION_
+			options: !this.environmentService.isBuilt || this.environmentService.isExtensionDevelopment ? UnsupportedWorkbenchSettingsRenderer._DIM_CONFIGUARATION_DEV_MODE : UnsupportedWorkbenchSettingsRenderer._DIM_CONFIGUARATION_
 		};
 	}
 
