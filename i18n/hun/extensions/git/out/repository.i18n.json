@@ -21,8 +21,6 @@
 	"deleted by us": "Általunk törölt",
 	"both added": "Mindkettő hozzáadta",
 	"both modified": "Mindkettő módosította",
-	"untracked, short": "N",
-	"modified, short": "M",
 	"commit": "Commit",
 	"merge changes": "Módosítások összeolvasztása",
 	"staged changes": "Beadásra előjegyzett módosítások",

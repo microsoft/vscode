@@ -47,5 +47,6 @@
 	"typescript.tsc.autoDetect": "控制 tsc 任务的自动检测。\"off\" 关闭此功能。\"build\" 仅创建单次运行编译任务。\"watch\" 仅创建编译及监视任务。\"on\" 创建构建及监视任务。默认值为 \"on\"。",
 	"typescript.problemMatchers.tsc.label": "TypeScript 问题",
 	"typescript.problemMatchers.tscWatch.label": "TypeScript 问题(观看模式)",
-	"typescript.quickSuggestionsForPaths": "当输入导入路径时启用或禁用快速建议。"
+	"typescript.quickSuggestionsForPaths": "当输入导入路径时启用或禁用快速建议。",
+	"typescript.locale": "设置报告 TypeScript 错误时使用的区域设置。要求 TypeScript >= 2.6.0。默认 (\"null\") 将使用 VS Code 的区域设置。"
 }

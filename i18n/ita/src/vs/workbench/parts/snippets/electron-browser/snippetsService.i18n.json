@@ -10,7 +10,6 @@
 	"vscode.extension.contributes.snippets": "Frammenti per contributes.",
 	"vscode.extension.contributes.snippets-language": "Identificatore di linguaggio per cui si aggiunge come contributo questo frammento.",
 	"vscode.extension.contributes.snippets-path": "Percorso del file snippets. È relativo alla cartella delle estensioni e in genere inizia con './snippets/'.",
-	"badVariableUse": "Il frammento \"{0}\" molto probabilmente confonde variabili-frammento con segnaposti-frammento. Vedere https://code.visualstudio.com/docs/editor/userdefinedsnippets#_snippet-syntax per ulteriori dettagli.",
 	"badFile": "Non è stato possibile leggere il file di frammento \"{0}\".",
 	"source.snippet": "Frammento utente",
 	"detail.snippet": "{0} ({1})",

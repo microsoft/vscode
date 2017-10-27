@@ -34,7 +34,6 @@
 	"postDisableMessage": "이 창을 다시 로드하여 '{0}' 확장을 비활성화하시겠습니까?",
 	"postUninstallTooltip": "비활성화하려면 다시 로드",
 	"postUninstallMessage": "이 창을 다시 로드하여 제거된 확장 '{0}'을(를) 비활성화하시겠습니까?",
-	"reload": "창 다시 로드(&&R)",
 	"toggleExtensionsViewlet": "확장 표시",
 	"installExtensions": "확장 설치",
 	"showEnabledExtensions": "사용 확장자 표시",

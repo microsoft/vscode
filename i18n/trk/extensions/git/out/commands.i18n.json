@@ -14,6 +14,7 @@
 	"proposeopen": "Kopyalanan depoyu açmak ister misiniz?",
 	"init repo": "Depo Oluştur",
 	"create repo": "Depo Oluştur",
+	"are you sure": "Bu, '{0}' dizininde bir Git deposu oluşturacak. Devam etmek istediğinizden emin misiniz?",
 	"HEAD not available": "'{0}'e ait HEAD sürümü mevcut değil.",
 	"confirm stage files with merge conflicts": "Birleştirme çakışmaları bulunan {0} dosyayı hazırlamak istediğinizden emin misiniz?",
 	"confirm stage file with merge conflicts": "Birleştirme çakışmaları bulunan {0} klasörünü hazırlamak istediğinizden emin misiniz?",

@@ -16,10 +16,10 @@
 	"debugRequesMissing": "`{0}` özniteliği seçilen hata ayıklama yapılandırılmasında eksik.",
 	"debugTypeNotSupported": "Yapılandırılan hata ayıklama türü '{0}', desteklenmiyor.",
 	"debugTypeMissing": "Seçilen başlatma yapılandırmasında `type` özelliği eksik.",
+	"debugAnyway": "Yine de Hata Ayıkla",
 	"preLaunchTaskErrors": "'{0}' ön başlatma görevi sırasında derleme hataları algılandı.",
 	"preLaunchTaskError": "'{0}' ön başlatma görevi sırasında derleme hatası algılandı.",
 	"preLaunchTaskExitCode": "'{0}' ön başlatma görevi {1} çıkış koduyla sonlandı.",
-	"debugAnyway": "Yine de Hata Ayıkla",
 	"noFolderWorkspaceDebugError": "Aktif dosyada hata ayıklama yapılamıyor. Lütfen, dosyanın diskte kayıtlı olduğundan ve bu dosya türü için hata ayıklama eklentinizin olduğundan emin olun.",
 	"NewLaunchConfig": "Lütfen uygulamanızın başlatma yapılandırması dosyasını ayarlayın. {0}",
 	"DebugTaskNotFound": "'{0}' ön başlatma görevi bulunamadı."

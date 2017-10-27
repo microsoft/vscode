@@ -47,5 +47,6 @@
 	"typescript.tsc.autoDetect": "Meghatározza a tsc-s feladatok automatikus felderítésének működését. 'off' érték esetén a funkció ki van kapcsolva. 'build' esetén egyszer lefutó, fordítást végző feladatok jönnek létre. 'watch' esetén csak fordítást és figyelést végző feladatok jönnek létre. 'on' esetén buildelési és figyelési feladatok is keletkeznek. Az alapértelmezett érték: 'on'.",
 	"typescript.problemMatchers.tsc.label": "TypeScript-problémák",
 	"typescript.problemMatchers.tscWatch.label": "TypeScript-problémák (figyelő módban)",
-	"typescript.quickSuggestionsForPaths": "Kiegészítési javaslatok engedélyezése importált elérési utak beírásakor."
+	"typescript.quickSuggestionsForPaths": "Kiegészítési javaslatok engedélyezése importált elérési utak beírásakor.",
+	"typescript.locale": "Meghatározza a TypeScript-hibák jelentésénél használt lokalizációt. TypeScript >= 2.6.0-t igényel. Az alapértelmezett 'null' érték esetén a VS Code-ban beállított nyelven jelennek meg a TypeScript-hibák."
 }
