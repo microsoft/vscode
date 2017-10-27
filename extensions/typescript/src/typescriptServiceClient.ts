@@ -133,8 +133,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private tsServerLogFile: string | null = null;
 	private servicePromise: Thenable<cp.ChildProcess> | null;
 	private lastError: Error | null;
-	private reader: Reader<Proto.Response>;
-	private firstStart: number;
 	private lastStart: number;
 	private numberRestarts: number;
 	private isRestarting: boolean = false;
@@ -171,7 +169,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 		this.servicePromise = null;
 		this.lastError = null;
-		this.firstStart = Date.now();
 		this.numberRestarts = 0;
 
 		this.requestQueue = new RequestQueue();
@@ -370,9 +367,9 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				if (this.apiVersion.has230Features()) {
 					if (this.plugins.length) {
 						args.push('--globalPlugins', this.plugins.map(x => x.name).join(','));
-						if (currentVersion.path === this.versionProvider.defaultVersion.path) {
-							args.push('--pluginProbeLocations', this.plugins.map(x => x.path).join(','));
-						}
+						//	if (currentVersion.path === this.versionProvider.defaultVersion.path) {
+						args.push('--pluginProbeLocations', this.plugins.map(x => x.path).join(','));
+						//	}
 					}
 				}
 
@@ -389,8 +386,8 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					}
 				}
 
-				electron.fork(currentVersion.tsServerPath, args, options, this.logger, (err: any, childProcess: cp.ChildProcess) => {
-					if (err) {
+				electron.fork(currentVersion.tsServerPath, args, options, this.logger, (err: any, childProcess: cp.ChildProcess | null) => {
+					if (err || !childProcess) {
 						this.lastError = err;
 						this.error('Starting TSServer failed with error.', err);
 						window.showErrorMessage(localize('serverCouldNotBeStarted', 'TypeScript language server couldn\'t be started. Error message is: {0}', err.message || err));
@@ -438,7 +435,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 						this.isRestarting = false;
 					});
 
-					this.reader = new Reader<Proto.Response>(
+					new Reader<Proto.Response>(
 						childProcess.stdout,
 						(msg) => { this.dispatchMessage(msg); },
 						error => { this.error('ReaderError', error); });

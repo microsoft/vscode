@@ -122,7 +122,7 @@ export class TryCompleteJsDocCommand {
 		const args = vsPositionToTsFileLocation(file, position);
 		return Promise.race([
 			this.lazyClient().execute('docCommentTemplate', args),
-			new Promise((_, reject) => setTimeout(reject, 250))
+			new Promise<DocCommandTemplateResponse>((_, reject) => setTimeout(reject, 250))
 		]).then((res: DocCommandTemplateResponse) => {
 			if (!res || !res.body) {
 				return false;
