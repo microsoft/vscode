@@ -107,6 +107,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _preLaunchInputQueue: string;
 	private _initialCwd: string;
 	private _windowsShellHelper: WindowsShellHelper;
+	private _onLineDataListeners: ((lineData: string) => void)[];
 
 	private _widgetManager: TerminalWidgetManager;
 	private _linkHandler: TerminalLinkHandler;
@@ -140,6 +141,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._instanceDisposables = [];
 		this._processDisposables = [];
 		this._skipTerminalCommands = [];
+		this._onLineDataListeners = [];
 		this._isExiting = false;
 		this._hadFocusOnExit = false;
 		this._processState = ProcessState.UNINITIALIZED;
@@ -272,6 +274,7 @@ export class TerminalInstance implements ITerminalInstance {
 		if (this._shellLaunchConfig.initialText) {
 			this._xterm.writeln(this._shellLaunchConfig.initialText);
 		}
+		this._xterm.on('lineFeed', () => this._onLineFeed());
 		this._process.on('message', (message) => this._sendPtyDataToXterm(message));
 		this._xterm.on('data', (data) => {
 			if (this._processId) {
@@ -451,6 +454,8 @@ export class TerminalInstance implements ITerminalInstance {
 			this._wrapperElement = null;
 		}
 		if (this._xterm) {
+			const buffer = (<any>this._xterm.buffer);
+			this._sendLineData(buffer, buffer.ybase + buffer.y);
 			this._xterm.destroy();
 			this._xterm = null;
 		}
@@ -828,29 +833,34 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public onLineData(listener: (lineData: string) => void): lifecycle.IDisposable {
-		if (!this._xterm) {
-			throw new Error('xterm must be initialized');
-		}
-		const lineFeedListener = () => {
-			const buffer = (<any>this._xterm.buffer);
-			const newLine = buffer.lines.get(buffer.ybase + buffer.y);
-			if (!newLine.isWrapped) {
-				let i = buffer.ybase + buffer.y - 1;
-				let lineData = buffer.translateBufferLineToString(i, true);
-				while (i >= 0 && buffer.lines.get(i--).isWrapped) {
-					lineData = buffer.translateBufferLineToString(i, true) + lineData;
-				}
-				listener(lineData);
-			}
-		};
-		this._xterm.on('lineFeed', lineFeedListener);
+		this._onLineDataListeners.push(listener);
 		return {
 			dispose: () => {
-				if (this._xterm) {
-					this._xterm.off('lineFeed', lineFeedListener);
+				const i = this._onLineDataListeners.indexOf(listener);
+				if (i >= 0) {
+					this._onLineDataListeners.splice(i, 1);
 				}
 			}
 		};
+	}
+
+	private _onLineFeed(): void {
+		if (this._onLineDataListeners.length === 0) {
+			return;
+		}
+		const buffer = (<any>this._xterm.buffer);
+		const newLine = buffer.lines.get(buffer.ybase + buffer.y);
+		if (!newLine.isWrapped) {
+			this._sendLineData(buffer, buffer.ybase + buffer.y - 1);
+		}
+	}
+
+	private _sendLineData(buffer: any, lineIndex: number): void {
+		let lineData = buffer.translateBufferLineToString(lineIndex, true);
+		while (lineIndex >= 0 && buffer.lines.get(lineIndex--).isWrapped) {
+			lineData = buffer.translateBufferLineToString(lineIndex, true) + lineData;
+		}
+		this._onLineDataListeners.forEach(listener => listener(lineData));
 	}
 
 	public onExit(listener: (exitCode: number) => void): lifecycle.IDisposable {
