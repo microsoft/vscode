@@ -877,10 +877,7 @@ export class ReloadAction extends Action {
 	}
 
 	run(): TPromise<any> {
-		if (this.messageService.confirmSync({ message: this.reloadMessaage, type: 'question', primaryButton: localize('reload', "&&Reload Window") })) {
-			return this.windowService.reloadWindow();
-		}
-		return TPromise.wrap(null);
+		return this.windowService.reloadWindow();
 	}
 }
 
