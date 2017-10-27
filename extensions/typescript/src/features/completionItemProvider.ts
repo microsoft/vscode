@@ -162,7 +162,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 		this.config.nameSuggestions = workspace.getConfiguration('javascript').get(Configuration.nameSuggestions, true);
 	}
 
-	public provideCompletionItems(
+	public async provideCompletionItems(
 		document: TextDocument,
 		position: Position,
 		token: CancellationToken,
@@ -181,30 +181,30 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 
 		const file = this.client.normalizePath(document.uri);
 		if (!file) {
-			return Promise.resolve<CompletionItem[]>([]);
+			return [];
 		}
 
 		if (context.triggerCharacter === '"' || context.triggerCharacter === '\'') {
 			if (!this.config.quickSuggestionsForPaths) {
-				return Promise.resolve<CompletionItem[]>([]);
+				return [];
 			}
 
 			// make sure we are in something that looks like the start of an import
 			const line = document.lineAt(position.line).text.slice(0, position.character);
 			if (!line.match(/\b(from|import)\s*["']$/) && !line.match(/\b(import|require)\(['"]$/)) {
-				return Promise.resolve<CompletionItem[]>([]);
+				return [];
 			}
 		}
 
 		if (context.triggerCharacter === '/') {
 			if (!this.config.quickSuggestionsForPaths) {
-				return Promise.resolve<CompletionItem[]>([]);
+				return [];
 			}
 
 			// make sure we are in something that looks like an import path
 			const line = document.lineAt(position.line).text.slice(0, position.character);
 			if (!line.match(/\bfrom\s*["'][^'"]*$/) && !line.match(/\b(import|require)\(['"][^'"]*$/)) {
-				return Promise.resolve<CompletionItem[]>([]);
+				return [];
 			}
 		}
 
@@ -212,12 +212,13 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 			// make sure we are in something that looks like the start of a jsdoc comment
 			const line = document.lineAt(position.line).text.slice(0, position.character);
 			if (!line.match(/^\s*\*[ ]?@/) && !line.match(/\/\*\*+[ ]?@/)) {
-				return Promise.resolve<CompletionItem[]>([]);
+				return [];
 			}
 		}
 
-		const args: CompletionsRequestArgs = vsPositionToTsFileLocation(file, position);
-		return this.client.execute('completions', args, token).then((msg) => {
+		try {
+			const args: CompletionsRequestArgs = vsPositionToTsFileLocation(file, position);
+			const msg = await this.client.execute('completions', args, token);
 			// This info has to come from the tsserver. See https://github.com/Microsoft/TypeScript/issues/2831
 			// let isMemberCompletion = false;
 			// let requestColumn = position.character;
@@ -260,9 +261,9 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 			}
 
 			return completionItems;
-		}, () => {
+		} catch {
 			return [];
-		});
+		}
 	}
 
 	public resolveCompletionItem(item: CompletionItem, token: CancellationToken): ProviderResult<CompletionItem> {
