@@ -325,9 +325,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				const options: electron.IForkOptions = {
 					execArgv: [] // [`--debug-brk=5859`]
 				};
-				if (this.mainWorkspaceRootPath) {
-					options.cwd = this.mainWorkspaceRootPath;
-				}
 
 				const args: string[] = [];
 				if (this.apiVersion.has206Features()) {
@@ -628,14 +625,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			return Uri.parse(filepath);
 		}
 		return Uri.file(filepath);
-	}
-
-	private get mainWorkspaceRootPath(): string | undefined {
-		if (workspace.workspaceFolders && workspace.workspaceFolders.length) {
-			return workspace.workspaceFolders[0].uri.fsPath;
-		}
-
-		return undefined;
 	}
 
 	public getWorkspaceRootForResource(resource: Uri): string | undefined {
