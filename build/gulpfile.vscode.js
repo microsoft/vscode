@@ -209,7 +209,7 @@ function computeChecksum(filename) {
 	return hash;
 }
 
-const buildNumber = getBuildNumber();
+const settingsSearchBuildId = getBuildNumber();
 function packageTask(platform, arch, opts) {
 	opts = opts || {};
 
@@ -276,7 +276,7 @@ function packageTask(platform, arch, opts) {
 
 		const date = new Date().toISOString();
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
-			.pipe(json({ commit, date, checksums, buildNumber }));
+			.pipe(json({ commit, date, checksums, settingsSearchBuildId }));
 
 		const license = gulp.src(['LICENSES.chromium.html', 'LICENSE.txt', 'ThirdPartyNotices.txt', 'licenses/**'], { base: '.' });
 
@@ -461,7 +461,7 @@ gulp.task('upload-vscode-configuration', ['generate-vscode-configuration'], () =
 		return;
 	}
 
-	if (!buildNumber) {
+	if (!settingsSearchBuildId) {
 		console.error('Failed to compute build number');
 		return;
 	}
@@ -471,7 +471,7 @@ gulp.task('upload-vscode-configuration', ['generate-vscode-configuration'], () =
 			account: process.env.AZURE_STORAGE_ACCOUNT,
 			key: process.env.AZURE_STORAGE_ACCESS_KEY,
 			container: 'configuration',
-			prefix: `${buildNumber}/${commit}/`
+			prefix: `${settingsSearchBuildId}/${commit}/`
 		}));
 });
 
