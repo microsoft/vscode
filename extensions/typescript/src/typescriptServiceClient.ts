@@ -365,9 +365,9 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				if (this.apiVersion.has230Features()) {
 					if (this.plugins.length) {
 						args.push('--globalPlugins', this.plugins.map(x => x.name).join(','));
-						//	if (currentVersion.path === this.versionProvider.defaultVersion.path) {
-						args.push('--pluginProbeLocations', this.plugins.map(x => x.path).join(','));
-						//	}
+						if (currentVersion.path === this.versionProvider.defaultVersion.path) {
+							args.push('--pluginProbeLocations', this.plugins.map(x => x.path).join(','));
+						}
 					}
 				}
 
