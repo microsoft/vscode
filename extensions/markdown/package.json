@@ -47,7 +47,6 @@
 					"source.js": "javascript",
 					"source.css": "css",
 					"meta.embedded.block.frontmatter": "yaml",
-
 					"meta.embedded.block.css": "css",
 					"meta.embedded.block.ini": "ini",
 					"meta.embedded.block.java": "java",
@@ -212,7 +211,8 @@
 				"markdown.styles": {
 					"type": "array",
 					"default": [],
-					"description": "%markdown.styles.dec%"
+					"description": "%markdown.styles.dec%",
+					"scope": "resource"
 				},
 				"markdown.previewFrontMatter": {
 					"type": "string",
@@ -221,52 +221,62 @@
 						"show"
 					],
 					"default": "hide",
-					"description": "%markdown.previewFrontMatter.dec%"
+					"description": "%markdown.previewFrontMatter.dec%",
+					"scope": "resource"
 				},
 				"markdown.preview.breaks": {
 					"type": "boolean",
 					"default": false,
-					"description": "%markdown.preview.breaks.desc%"
+					"description": "%markdown.preview.breaks.desc%",
+					"scope": "resource"
 				},
 				"markdown.preview.linkify": {
 					"type": "boolean",
 					"default": true,
-					"description": "%markdown.preview.linkify%"
+					"description": "%markdown.preview.linkify%",
+					"scope": "resource"
 				},
 				"markdown.preview.fontFamily": {
 					"type": "string",
 					"default": "-apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', 'HelveticaNeue-Light', 'Ubuntu', 'Droid Sans', sans-serif",
-					"description": "%markdown.preview.fontFamily.desc%"
+					"description": "%markdown.preview.fontFamily.desc%",
+					"scope": "resource"
 				},
 				"markdown.preview.fontSize": {
 					"type": "number",
 					"default": 14,
-					"description": "%markdown.preview.fontSize.desc%"
+					"description": "%markdown.preview.fontSize.desc%",
+					"scope": "resource"
 				},
 				"markdown.preview.lineHeight": {
 					"type": "number",
 					"default": 1.6,
-					"description": "%markdown.preview.lineHeight.desc%"
+					"description": "%markdown.preview.lineHeight.desc%",
+					"scope": "resource"
 				},
 				"markdown.preview.scrollPreviewWithEditorSelection": {
 					"type": "boolean",
 					"default": true,
-					"description": "%markdown.preview.scrollPreviewWithEditorSelection.desc%"
+					"description": "%markdown.preview.scrollPreviewWithEditorSelection.desc%",
+					"scope": "resource"
 				},
 				"markdown.preview.markEditorSelection": {
 					"type": "boolean",
 					"default": true,
-					"description": "%markdown.preview.markEditorSelection.desc%"
+					"description": "%markdown.preview.markEditorSelection.desc%",
+					"scope": "resource"
 				},
 				"markdown.preview.scrollEditorWithPreview": {
 					"type": "boolean",
 					"default": true,
-					"description": "%markdown.preview.scrollEditorWithPreview.desc%"
+					"description": "%markdown.preview.scrollEditorWithPreview.desc%",
+					"scope": "resource"
 				},
 				"markdown.preview.doubleClickToSwitchToEditor": {
 					"type": "boolean",
 					"default": true,
-					"description": "%markdown.preview.doubleClickToSwitchToEditor.desc%"
+					"description": "%markdown.preview.doubleClickToSwitchToEditor.desc%",
+					"scope": "resource"
 				},
 				"markdown.trace": {
 					"type": "string",
@@ -275,7 +285,8 @@
 						"verbose"
 					],
 					"default": "off",
-					"description": "%markdown.trace.desc%"
+					"description": "%markdown.trace.desc%",
+					"scope": "window"
 				}
 			}
 		},
