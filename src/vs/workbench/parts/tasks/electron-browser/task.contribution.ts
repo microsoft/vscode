@@ -1368,9 +1368,16 @@ class TaskService extends EventEmitter implements ITaskService {
 						resolve(result);
 					}
 				};
-				let error = () => {
-					if (--counter === 0) {
-						resolve(result);
+				let error = (error: any) => {
+					try {
+						if (Types.isString(error.message)) {
+							this._outputChannel.append(error.message);
+							this._outputChannel.show(true);
+						}
+					} finally {
+						if (--counter === 0) {
+							resolve(result);
+						}
 					}
 				};
 				if (this.schemaVersion === JsonSchemaVersion.V2_0_0 && this._providers.size > 0) {
