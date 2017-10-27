@@ -90,14 +90,14 @@ export class EditorWorkerServiceImpl extends Disposable implements IEditorWorker
 		return this._workerManager.withWorker().then(client => client.computeDirtyDiff(original, modified, ignoreTrimWhitespace));
 	}
 
-	public computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[], ranges: IRange[]): TPromise<modes.TextEdit[]> {
+	public computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[]): TPromise<modes.TextEdit[]> {
 		if (!Array.isArray(edits) || edits.length === 0) {
 			return TPromise.as(edits);
 		} else {
 			if (!canSyncModel(this._modelService, resource)) {
 				return TPromise.as(edits); // File too large
 			}
-			return this._workerManager.withWorker().then(client => client.computeMoreMinimalEdits(resource, edits, ranges));
+			return this._workerManager.withWorker().then(client => client.computeMoreMinimalEdits(resource, edits));
 		}
 	}
 
@@ -395,9 +395,9 @@ export class EditorWorkerClient extends Disposable {
 		});
 	}
 
-	public computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[], ranges: IRange[]): TPromise<modes.TextEdit[]> {
+	public computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[]): TPromise<modes.TextEdit[]> {
 		return this._withSyncedResources([resource]).then(proxy => {
-			return proxy.computeMoreMinimalEdits(resource.toString(), edits, ranges);
+			return proxy.computeMoreMinimalEdits(resource.toString(), edits);
 		});
 	}
 

@@ -23,7 +23,7 @@ export interface IEditorWorkerService {
 	canComputeDirtyDiff(original: URI, modified: URI): boolean;
 	computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): TPromise<IChange[]>;
 
-	computeMoreMinimalEdits(resource: URI, edits: TextEdit[], ranges: IRange[]): TPromise<TextEdit[]>;
+	computeMoreMinimalEdits(resource: URI, edits: TextEdit[]): TPromise<TextEdit[]>;
 
 	canNavigateValueSet(resource: URI): boolean;
 	navigateValueSet(resource: URI, range: IRange, up: boolean): TPromise<IInplaceReplaceSupportResult>;
