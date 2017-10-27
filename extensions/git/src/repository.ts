@@ -629,11 +629,7 @@ export class Repository implements Disposable {
 
 	@throttle
 	async fetch(): Promise<void> {
-		try {
-			await this.run(Operation.Fetch, () => this.repository.fetch());
-		} catch (err) {
-			// noop
-		}
+		await this.run(Operation.Fetch, () => this.repository.fetch());
 	}
 
 	@throttle
