@@ -1371,7 +1371,9 @@ class TaskService extends EventEmitter implements ITaskService {
 				let error = (error: any) => {
 					try {
 						if (Types.isString(error.message)) {
+							this._outputChannel.append('Error: ');
 							this._outputChannel.append(error.message);
+							this._outputChannel.append('\n');
 							this._outputChannel.show(true);
 						}
 					} finally {
