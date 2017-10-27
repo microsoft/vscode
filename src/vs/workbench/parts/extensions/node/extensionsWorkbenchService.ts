@@ -177,7 +177,10 @@ class Extension implements IExtension {
 
 	getManifest(): TPromise<IExtensionManifest> {
 		if (this.gallery) {
-			return this.galleryService.getManifest(this.gallery);
+			if (this.gallery.assets.manifest) {
+				return this.galleryService.getManifest(this.gallery);
+			}
+			this.telemetryService.publicLog('extensions:NotFoundManifest', this.telemetryData);
 		}
 
 		return TPromise.as(this.local.manifest);
@@ -188,7 +191,7 @@ class Extension implements IExtension {
 			if (this.gallery.assets.readme) {
 				return this.galleryService.getReadme(this.gallery);
 			}
-			this.telemetryService.publicLog('extensions:NotFoundReadMe', this.telemetryData); // TODO: Sandy - check for such extensions
+			this.telemetryService.publicLog('extensions:NotFoundReadMe', this.telemetryData);
 		}
 
 		if (this.local && this.local.readmeUrl) {
