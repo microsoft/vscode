@@ -398,7 +398,7 @@
             "watch"
           ],
           "description": "%typescript.tsc.autoDetect%",
-          "scope": "resource"
+          "scope": "window"
         },
         "typescript.quickSuggestionsForPaths": {
           "type": "boolean",
