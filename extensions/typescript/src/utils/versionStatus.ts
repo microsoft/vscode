@@ -5,16 +5,12 @@
 
 import * as vscode from 'vscode';
 
-
-export default class VersionStatus extends vscode.Disposable {
-	onChangeEditorSub: any;
+export default class VersionStatus {
+	private onChangeEditorSub: any;
 	private versionBarEntry: vscode.StatusBarItem;
 
 	constructor() {
-		super(() => this.dispose());
-
 		this.versionBarEntry = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, Number.MIN_VALUE);
-
 		this.onChangeEditorSub = vscode.window.onDidChangeActiveTextEditor(this.showHideStatus, this);
 	}
 
@@ -32,7 +28,7 @@ export default class VersionStatus extends vscode.Disposable {
 			return;
 		}
 
-		let doc = vscode.window.activeTextEditor.document;
+		const doc = vscode.window.activeTextEditor.document;
 		if (vscode.languages.match('typescript', doc) || vscode.languages.match('typescriptreact', doc)) {
 			this.versionBarEntry.show();
 			return;

@@ -34,7 +34,6 @@ export function openOrCreateConfigFile(
 			const editor = await vscode.window.showTextDocument(doc, col);
 			if (editor.document.getText().length === 0) {
 				await editor.insertSnippet(emptyConfig);
-				return editor;
 			}
 			return editor;
 		});
