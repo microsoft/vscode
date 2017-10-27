@@ -5,24 +5,38 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
+import { TypeScriptServiceConfiguration } from './configuration';
 
 export function isImplicitProjectConfigFile(configFileName: string) {
 	return configFileName.indexOf('/dev/null/') === 0;
 }
 
-const emptyConfig = new vscode.SnippetString(`{
+function getEmptyConfig(
+	isTypeScriptProject: boolean,
+	config: TypeScriptServiceConfiguration
+) {
+	const compilerOptions = ['"target": "ES6"'];
+	if (!isTypeScriptProject && config.checkJs) {
+		compilerOptions.push('"checkJs": true');
+	}
+	if (!isTypeScriptProject && config.experimentalDecorators) {
+		compilerOptions.push('"experimentalDecorators": true');
+	}
+	return new vscode.SnippetString(`{
 	"compilerOptions": {
-		"target": "ES6"$0
+		${compilerOptions.join(',\n\t\t')}$0
 	},
 	"exclude": [
 		"node_modules",
 		"**/node_modules/*"
 	]
 }`);
+}
 
 export function openOrCreateConfigFile(
 	isTypeScriptProject: boolean,
-	rootPath: string
+	rootPath: string,
+	config: TypeScriptServiceConfiguration
 ): Thenable<vscode.TextEditor | null> {
 	const configFile = vscode.Uri.file(path.join(rootPath, isTypeScriptProject ? 'tsconfig.json' : 'jsconfig.json'));
 	const col = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn : undefined;
@@ -33,7 +47,7 @@ export function openOrCreateConfigFile(
 			const doc = await vscode.workspace.openTextDocument(configFile.with({ scheme: 'untitled' }));
 			const editor = await vscode.window.showTextDocument(doc, col);
 			if (editor.document.getText().length === 0) {
-				await editor.insertSnippet(emptyConfig);
+				await editor.insertSnippet(getEmptyConfig(isTypeScriptProject, config));
 			}
 			return editor;
 		});

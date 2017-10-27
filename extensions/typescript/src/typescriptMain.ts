@@ -570,7 +570,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 
 		switch (selected && selected.id) {
 			case ProjectConfigAction.CreateConfig:
-				openOrCreateConfigFile(isTypeScriptProject, rootPath);
+				openOrCreateConfigFile(isTypeScriptProject, rootPath, this.client.configuration);
 				return;
 
 			case ProjectConfigAction.LearnMore:
