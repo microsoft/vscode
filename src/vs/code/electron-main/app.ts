@@ -388,6 +388,7 @@ export class CodeApplication {
 			}
 
 			try {
+				// tslint:disable-next-line:no-unused-expression
 				<any>require.__$__nodeRequire('windows-foreground-love');
 			} catch (e) {
 				if (!this.environmentService.isBuilt) {
