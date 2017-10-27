@@ -688,7 +688,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				this.tracer.logTrace(`TypeScript Service: trying to cancel ongoing request with sequence number ${seq}`);
 				try {
 					fs.writeFileSync(this.cancellationPipeName + seq, '');
-				} catch (e) {
+				} catch {
 					// noop
 				}
 				return true;
@@ -750,30 +750,25 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 			case 'projectLanguageServiceState':
 				if (event.body) {
-					const data = (event as Proto.ProjectLanguageServiceStateEvent).body;
-
-					this._onProjectLanguageServiceStateChanged.fire(data);
+					this._onProjectLanguageServiceStateChanged.fire((event as Proto.ProjectLanguageServiceStateEvent).body);
 				}
 				break;
 
 			case 'beginInstallTypes':
 				if (event.body) {
-					const data = (event as Proto.BeginInstallTypesEvent).body;
-					this._onDidBeginInstallTypings.fire(data);
+					this._onDidBeginInstallTypings.fire((event as Proto.BeginInstallTypesEvent).body);
 				}
 				break;
 
 			case 'endInstallTypes':
 				if (event.body) {
-					const data = (event as Proto.EndInstallTypesEvent).body;
-					this._onDidEndInstallTypings.fire(data);
+					this._onDidEndInstallTypings.fire((event as Proto.EndInstallTypesEvent).body);
 				}
 				break;
 
 			case 'typesInstallerInitializationFailed':
 				if (event.body) {
-					const data = (event as Proto.TypesInstallerInitializationFailedEvent).body;
-					this._onTypesInstallerInitializationFailed.fire(data);
+					this._onTypesInstallerInitializationFailed.fire((event as Proto.TypesInstallerInitializationFailedEvent).body);
 				}
 				break;
 		}
