@@ -27,9 +27,10 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 namespace mapset {
 
 	export function newSet<E>(from: Set<E>): Set<E> {
-		let ret = new Set<E>();
-		from.forEach(ret.add, ret);
-		return ret;
+		return new (<any>Set)(from);
+		// let ret = new Set<E>();
+		// from.forEach(ret.add, ret);
+		// return ret;
 	}
 
 	export function setValues<T>(set: Set<T>): T[] {
@@ -166,7 +167,7 @@ class MainThreadDocumentAndEditorStateComputer {
 		@ICodeEditorService private _codeEditorService: ICodeEditorService,
 		@IWorkbenchEditorService private _workbenchEditorService: IWorkbenchEditorService
 	) {
-		this._modelService.onModelAdded(this._updateState, this, this._toDispose);
+		this._modelService.onModelAdded(this._updateStateOnModelAdd, this, this._toDispose);
 		this._modelService.onModelRemoved(this._updateState, this, this._toDispose);
 
 		this._codeEditorService.onCodeEditorAdd(this._onDidAddEditor, this, this._toDispose);
@@ -194,6 +195,32 @@ class MainThreadDocumentAndEditorStateComputer {
 			sub.dispose();
 			this._updateState();
 		}
+	}
+
+	private _updateStateOnModelAdd(model: IModel): void {
+		if (model.isTooLargeForHavingARichMode()) {
+			// ignore
+			return;
+		}
+
+		if (!this._currentState) {
+			// too early
+			this._updateState();
+			return;
+		}
+
+		// small (fast) delta
+		this._currentState = new DocumentAndEditorState(
+			this._currentState.documents.add(model),
+			this._currentState.editors,
+			this._currentState.activeEditor
+		);
+
+		this._onDidChangeState(new DocumentAndEditorStateDelta(
+			[], [model],
+			[], [],
+			this._currentState.activeEditor, this._currentState.activeEditor
+		));
 	}
 
 	private _updateState(): void {
