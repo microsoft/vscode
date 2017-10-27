@@ -19,6 +19,9 @@ import { createMonacoEditorAPI } from 'vs/editor/standalone/browser/standaloneEd
 import { createMonacoLanguagesAPI } from 'vs/editor/standalone/browser/standaloneLanguages';
 import { EDITOR_DEFAULTS, WrappingIndent } from 'vs/editor/common/config/editorOptions';
 
+var global: any = self;
+global.monaco = exports;
+
 // When missing, polyfill the native promise
 // with our winjs-based polyfill
 import { PolyfillPromise } from 'vs/base/common/winjs.polyfill.promise';
@@ -40,9 +43,6 @@ for (let prop in base) {
 }
 exports.editor = createMonacoEditorAPI();
 exports.languages = createMonacoLanguagesAPI();
-
-var global: any = self;
-global.monaco = exports;
 
 if (typeof global.require !== 'undefined' && typeof global.require.config === 'function') {
 	global.require.config({
