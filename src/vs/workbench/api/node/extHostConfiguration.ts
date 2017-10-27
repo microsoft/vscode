@@ -98,7 +98,6 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 			},
 			update: (key: string, value: any, arg: ExtHostConfigurationTarget | boolean) => {
 				key = section ? `${section}.${key}` : key;
-				this._validateConfigurationAccess(key, resource, extensionId);
 				const target = parseConfigurationTarget(arg);
 				if (value !== void 0) {
 					return this._proxy.$updateConfigurationOption(target, key, value, resource);
