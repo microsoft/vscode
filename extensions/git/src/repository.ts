@@ -338,6 +338,7 @@ function isReadOnly(operation: Operation): boolean {
 function shouldShowProgress(operation: Operation): boolean {
 	switch (operation) {
 		case Operation.Fetch:
+		case Operation.CheckIgnore:
 			return false;
 		default:
 			return true;
