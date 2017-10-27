@@ -148,8 +148,15 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private readonly _onDidEndInstallTypings = new EventEmitter<Proto.EndInstallTypesEventBody>();
 	private readonly _onTypesInstallerInitializationFailed = new EventEmitter<Proto.TypesInstallerInitializationFailedEventBody>();
 
-	private _apiVersion: API;
 	private telemetryReporter: TelemetryReporter;
+	/**
+	 * API version obtained from the version picker after checking the corresponding path exists.
+	 */
+	private _apiVersion: API;
+	/**
+	 * Version reported by currently-running tsserver.
+	 */
+	private _tsserverVersion: string | undefined;
 
 	private readonly disposables: Disposable[] = [];
 
@@ -178,6 +185,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this.versionPicker = new TypeScriptVersionPicker(this.versionProvider, this.workspaceState);
 
 		this._apiVersion = API.defaultVersion;
+		this._tsserverVersion = undefined;
 		this.tracer = new Tracer(this.logger);
 
 		workspace.onDidChangeConfiguration(() => {
@@ -199,7 +207,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				}
 			}
 		}, this, this.disposables);
-		this.telemetryReporter = new TelemetryReporter();
+		this.telemetryReporter = new TelemetryReporter(this);
 		this.disposables.push(this.telemetryReporter);
 		this.startService();
 	}
@@ -266,6 +274,10 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 	public get apiVersion(): API {
 		return this._apiVersion;
+	}
+
+	public get tsserverVersion(): string | undefined {
+		return this._tsserverVersion;
 	}
 
 	public onReady(): Promise<void> {
@@ -846,6 +858,10 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					properties['typingsInstallerVersion'] = typingsInstalledPayload.typingsInstallerVersion;
 				}
 				break;
+
+			case 'projectinfo':
+				this._tsserverVersion = properties['version'];
+			// fallthrough
 
 			default:
 				const payload = telemetryData.payload;
