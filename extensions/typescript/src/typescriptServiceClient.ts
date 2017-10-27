@@ -405,17 +405,17 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		});
 	}
 
-	public openTsServerLogFile(): Thenable<boolean> {
+	public async openTsServerLogFile(): Promise<boolean> {
 		if (!this.apiVersion.has222Features()) {
-			return window.showErrorMessage(
+			window.showErrorMessage(
 				localize(
 					'typescript.openTsServerLog.notSupported',
-					'TS Server logging requires TS 2.2.2+'))
-				.then(() => false);
+					'TS Server logging requires TS 2.2.2+'));
+			return false;
 		}
 
 		if (this._configuration.tsServerLogLevel === TsServerLogLevel.Off) {
-			return window.showErrorMessage<MessageItem>(
+			window.showErrorMessage<MessageItem>(
 				localize(
 					'typescript.openTsServerLog.loggingNotEnabled',
 					'TS Server logging is off. Please set `typescript.tsserver.log` and restart the TS server to enable logging'),
@@ -428,26 +428,29 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					if (selection) {
 						return workspace.getConfiguration().update('typescript.tsserver.log', 'verbose', true).then(() => {
 							this.restartTsServer();
-							return false;
 						});
 					}
-					return false;
+					return undefined;
 				});
+			return false;
 		}
 
 		if (!this.tsServerLogFile) {
-			return window.showWarningMessage(localize(
+			window.showWarningMessage(localize(
 				'typescript.openTsServerLog.noLogFile',
-				'TS Server has not started logging.')).then(() => false);
+				'TS Server has not started logging.'));
+			return false;
 		}
 
-		return commands.executeCommand('_workbench.action.files.revealInOS', Uri.parse(this.tsServerLogFile))
-			.then(() => true, () => {
-				window.showWarningMessage(localize(
-					'openTsServerLog.openFileFailedFailed',
-					'Could not open TS Server log file'));
-				return false;
-			});
+		try {
+			await commands.executeCommand('_workbench.action.files.revealInOS', Uri.parse(this.tsServerLogFile));
+			return true;
+		} catch {
+			window.showWarningMessage(localize(
+				'openTsServerLog.openFileFailedFailed',
+				'Could not open TS Server log file'));
+			return false;
+		}
 	}
 
 	private serviceStarted(resendModels: boolean): void {
@@ -552,7 +555,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		if (resource.scheme !== 'file') {
 			return null;
 		}
-		let result = resource.fsPath;
+		const result = resource.fsPath;
 		if (!result) {
 			return null;
 		}
