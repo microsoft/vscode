@@ -37,8 +37,10 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 		}));
 		this._toDispose.push(debugService.onDidCustomEvent(event => {
 			if (event && event.sessionId) {
-				const process = this.debugService.findProcessByUUID(event.sessionId);
-				this._proxy.$acceptDebugSessionCustomEvent(event.sessionId, process.configuration.type, process.configuration.name, event);
+				const process = this.debugService.getModel().getProcesses().filter(p => p.getId() === event.sessionId).pop();
+				if (process) {
+					this._proxy.$acceptDebugSessionCustomEvent(event.sessionId, process.configuration.type, process.configuration.name, event);
+				}
 			}
 		}));
 	}
@@ -82,7 +84,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 	}
 
 	public $customDebugAdapterRequest(sessionId: DebugSessionUUID, request: string, args: any): TPromise<any> {
-		const process = this.debugService.findProcessByUUID(sessionId);
+		const process = this.debugService.getModel().getProcesses().filter(p => p.getId() === sessionId).pop();
 		if (process) {
 			return process.session.custom(request, args).then(response => {
 				if (response.success) {

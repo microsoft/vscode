@@ -54,7 +54,8 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 				if (pair.length === 2) {
 					switch (pair[0]) {
 						case 'session':
-							process = this.debugService.findProcessByUUID(decodeURIComponent(pair[1]));
+							const processId = decodeURIComponent(pair[1]);
+							process = this.debugService.getModel().getProcesses().filter(p => p.getId() === processId).pop();
 							break;
 						case 'ref':
 							sourceRef = parseInt(pair[1]);
