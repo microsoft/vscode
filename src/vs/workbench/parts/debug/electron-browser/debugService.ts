@@ -748,6 +748,11 @@ export class DebugService implements debug.IDebugService {
 					return TPromise.wrapError(errors.create(message, { actions: [this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL), CloseAction] }));
 				}
 
+				const debugAnywayAction = new Action('debug.continue', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
+					this.messageService.hideAll();
+					return this.doCreateProcess(root, resolvedConfig, sessionId);
+				});
+
 				return this.runPreLaunchTask(root, resolvedConfig.preLaunchTask).then((taskSummary: ITaskSummary) => {
 					const errorCount = resolvedConfig.preLaunchTask ? this.markerService.getStatistics().errors : 0;
 					const successExitCode = taskSummary && taskSummary.exitCode === 0;
@@ -761,10 +766,7 @@ export class DebugService implements debug.IDebugService {
 							errorCount === 1 ? nls.localize('preLaunchTaskError', "Build error has been detected during preLaunchTask '{0}'.", resolvedConfig.preLaunchTask) :
 								nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", resolvedConfig.preLaunchTask, taskSummary.exitCode),
 						actions: [
-							new Action('debug.continue', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
-								this.messageService.hideAll();
-								return this.doCreateProcess(root, resolvedConfig, sessionId);
-							}),
+							debugAnywayAction,
 							this.instantiationService.createInstance(ToggleMarkersPanelAction, ToggleMarkersPanelAction.ID, ToggleMarkersPanelAction.LABEL),
 							CloseAction
 						]
@@ -774,6 +776,7 @@ export class DebugService implements debug.IDebugService {
 					this.messageService.show(err.severity, {
 						message: err.message,
 						actions: [
+							debugAnywayAction,
 							this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL),
 							this.taskService.configureAction(),
 							CloseAction
@@ -948,7 +951,7 @@ export class DebugService implements debug.IDebugService {
 				return TPromise.wrapError(errors.create(nls.localize('DebugTaskNotFound', "Could not find the preLaunchTask \'{0}\'.", taskName)));
 			}
 
-			return this.taskService.getActiveTasks().then(tasks => {
+			const promise = this.taskService.getActiveTasks().then(tasks => {
 				if (tasks.filter(t => t._id === task._id).length) {
 					// task is already running - nothing to do.
 					return TPromise.as(null);
@@ -956,10 +959,26 @@ export class DebugService implements debug.IDebugService {
 
 				const taskPromise = this.taskService.run(task);
 				if (task.isBackground) {
-					return new TPromise((c, e) => this.taskService.addOneTimeListener(TaskServiceEvents.Inactive, () => c(null)));
+					return new TPromise((c, e) => this.toDispose.push(this.taskService.addOneTimeListener(TaskServiceEvents.Inactive, () => c(null))));
 				}
 
 				return taskPromise;
+			});
+
+			return new TPromise((c, e) => {
+				// If a task is missing the problem matcher the promise will never complete, so we need to have a workaround #35340
+				let taskStarted = false;
+				promise.then(result => {
+					taskStarted = true;
+					c(result);
+				}, error => e(error));
+
+				this.toDispose.push(this.taskService.addOneTimeListener(TaskServiceEvents.Active, () => taskStarted = true));
+				setTimeout(() => {
+					if (!taskStarted) {
+						e({ severity: severity.Error, message: nls.localize('taskNotTracked', "Prelaunch task ${0} cannot be tracked.", taskName) });
+					}
+				}, 10000);
 			});
 		});
 	}
