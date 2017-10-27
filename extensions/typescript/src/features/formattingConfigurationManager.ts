@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace as Workspace, FormattingOptions, TextDocument, CancellationToken, window, Disposable, workspace, Uri } from 'vscode';
+import { workspace as Workspace, FormattingOptions, TextDocument, CancellationToken, window, Disposable, workspace } from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
+import * as languageIds from '../utils/languageModeIds';
 
 namespace FormattingConfiguration {
 	export function equals(a: Proto.FormatCodeSettings, b: Proto.FormatCodeSettings): boolean {
@@ -71,7 +72,7 @@ export default class FormattingConfigurationManager {
 
 		const key = document.uri.toString();
 		const cachedOptions = this.formatOptions[key];
-		const formatOptions = this.getFormatOptions(document.uri, options);
+		const formatOptions = this.getFormatOptions(document, options);
 
 		if (cachedOptions && FormattingConfiguration.equals(cachedOptions, formatOptions)) {
 			return;
@@ -90,10 +91,14 @@ export default class FormattingConfigurationManager {
 	}
 
 	private getFormatOptions(
-		resource: Uri,
+		document: TextDocument,
 		options: FormattingOptions
 	): Proto.FormatCodeSettings {
-		const config = workspace.getConfiguration('typescript', resource);
+		const config = workspace.getConfiguration(
+			document.languageId === languageIds.typescript || document.languageId === languageIds.typescriptreact
+				? 'typescript.format'
+				: 'javascript.format',
+			document.uri);
 		return {
 			tabSize: options.tabSize,
 			indentSize: options.tabSize,
