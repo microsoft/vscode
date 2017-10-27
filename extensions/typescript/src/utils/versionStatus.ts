@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { TypeScriptVersion } from './versionProvider';
 
 export default class VersionStatus {
-	private onChangeEditorSub: any;
+	private onChangeEditorSub: vscode.Disposable;
 	private versionBarEntry: vscode.StatusBarItem;
 
 	constructor() {
@@ -19,7 +20,14 @@ export default class VersionStatus {
 		this.onChangeEditorSub.dispose();
 	}
 
-	showHideStatus() {
+	public onDidChangeTypeScriptVersion(version: TypeScriptVersion) {
+		this.showHideStatus();
+		this.versionBarEntry.text = version.versionString;
+		this.versionBarEntry.tooltip = version.path;
+		this.versionBarEntry.command = 'typescript.selectTypeScriptVersion';
+	}
+
+	private showHideStatus() {
 		if (!this.versionBarEntry) {
 			return;
 		}
@@ -41,11 +49,5 @@ export default class VersionStatus {
 		}
 
 		this.versionBarEntry.hide();
-	}
-
-	public setInfo(message: string, tooltip: string) {
-		this.versionBarEntry.text = message;
-		this.versionBarEntry.tooltip = tooltip;
-		this.versionBarEntry.command = 'typescript.selectTypeScriptVersion';
 	}
 }

@@ -311,11 +311,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			}
 
 			this._apiVersion = this.versionPicker.currentVersion.version || API.defaultVersion;
-
-			const label = this._apiVersion.versionString;
-			const tooltip = currentVersion.path;
-			this.versionStatus.showHideStatus();
-			this.versionStatus.setInfo(label, tooltip);
+			this.versionStatus.onDidChangeTypeScriptVersion(currentVersion);
 
 			this.requestQueue = new RequestQueue();
 			this.callbacks = new CallbackMap();
