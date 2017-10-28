@@ -127,12 +127,15 @@ interface Configuration {
 	useCodeSnippetsOnMethodSuggest: boolean;
 	nameSuggestions: boolean;
 	quickSuggestionsForPaths: boolean;
+	autoImportSuggestions: boolean;
 }
 
 namespace Configuration {
 	export const useCodeSnippetsOnMethodSuggest = 'useCodeSnippetsOnMethodSuggest';
 	export const nameSuggestions = 'nameSuggestions';
 	export const quickSuggestionsForPaths = 'quickSuggestionsForPaths';
+	export const autoImportSuggestions = 'autoImportSuggestions.enabled';
+
 }
 
 export default class TypeScriptCompletionItemProvider implements CompletionItemProvider {
@@ -240,6 +243,9 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 
 				for (const element of body) {
 					if (element.kind === PConst.Kind.warning && !config.nameSuggestions) {
+						continue;
+					}
+					if (!config.autoImportSuggestions && element.hasAction) {
 						continue;
 					}
 					const item = new MyCompletionItem(position, document, element, enableDotCompletions, config.useCodeSnippetsOnMethodSuggest);
@@ -361,6 +367,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 		return {
 			useCodeSnippetsOnMethodSuggest: typeScriptConfig.get<boolean>(Configuration.useCodeSnippetsOnMethodSuggest, false),
 			quickSuggestionsForPaths: typeScriptConfig.get<boolean>(Configuration.quickSuggestionsForPaths, true),
+			autoImportSuggestions: typeScriptConfig.get<boolean>(Configuration.autoImportSuggestions, true),
 			nameSuggestions: workspace.getConfiguration('javascript', resource).get(Configuration.nameSuggestions, true)
 		};
 	}
