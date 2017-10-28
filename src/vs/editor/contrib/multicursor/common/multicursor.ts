@@ -457,7 +457,7 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 	public moveSelectionToPreviousFindMatch(findController: CommonFindController): void {
 		this._beginSessionIfNeeded(findController);
 		if (this._session) {
-			this._applySessionResult(this._session.addSelectionToPreviousFindMatch());
+			this._applySessionResult(this._session.moveSelectionToPreviousFindMatch());
 		}
 	}
 
