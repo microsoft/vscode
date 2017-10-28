@@ -33,7 +33,6 @@ import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import product from 'vs/platform/node/product';
-import pkg from 'vs/platform/node/package';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ConfigurationEditingService } from 'vs/workbench/services/configuration/node/configurationEditingService';
 import { WorkspaceConfiguration, FolderConfiguration } from 'vs/workbench/services/configuration/node/configuration';
@@ -662,7 +661,7 @@ interface IConfigurationExport {
 	settings: IExportedConfigurationNode[];
 	buildTime: number;
 	commit: string;
-	version: number;
+	buildNumber: number;
 }
 
 export class DefaultConfigurationExportHelper {
@@ -727,19 +726,9 @@ export class DefaultConfigurationExportHelper {
 			settings: settings.sort((a, b) => a.name.localeCompare(b.name)),
 			buildTime: Date.now(),
 			commit: product.commit,
-			version: versionStringToNumber(pkg.version)
+			buildNumber: product.settingsSearchBuildId
 		};
 
 		return result;
 	}
-}
-
-function versionStringToNumber(versionStr: string): number {
-	const semverRegex = /(\d+)\.(\d+)\.(\d+)/;
-	const match = versionStr.match(semverRegex);
-	if (!match) {
-		return 0;
-	}
-
-	return parseInt(match[1], 10) * 10000 + parseInt(match[2], 10) * 100 + parseInt(match[3], 10);
 }
