@@ -865,10 +865,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				}
 				break;
 
-			case 'projectinfo':
-				this._tsserverVersion = properties['version'];
-			// fallthrough
-
 			default:
 				const payload = telemetryData.payload;
 				if (payload) {
@@ -884,6 +880,10 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				}
 				break;
 		}
+		if (telemetryData.telemetryEventName === 'projectInfo') {
+			this._tsserverVersion = properties['version'];
+		}
+
 		/* __GDPR__
 			"typingsInstalled" : {
 				"installedPackages" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },

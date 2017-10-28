@@ -29,13 +29,11 @@ export default class TelemetryReporter {
 
 	public logTelemetry(eventName: string, properties?: { [prop: string]: string }) {
 		if (this.reporter) {
-			const tsserverVersion = this.client.tsserverVersion;
-			if (tsserverVersion) {
-				if (!properties) {
-					properties = {};
-				}
-				properties['tsserverVersion'] = tsserverVersion;
+			if (!properties) {
+				properties = {};
 			}
+			properties['version'] = this.client.tsserverVersion || this.client.apiVersion.versionString;
+
 			this.reporter.sendTelemetryEvent(eventName, properties);
 		}
 	}
