@@ -401,7 +401,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public hasSelection(): boolean {
-		return this._xterm.hasSelection();
+		return this._xterm && this._xterm.hasSelection();
 	}
 
 	public copySelection(): void {
