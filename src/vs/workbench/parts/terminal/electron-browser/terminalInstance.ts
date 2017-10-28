@@ -598,23 +598,14 @@ export class TerminalInstance implements ITerminalInstance {
 			this._configHelper.mergeDefaultShellPathAndArgs(this._shellLaunchConfig);
 		}
 		this._initialCwd = this._getCwd(this._shellLaunchConfig, this._historyService.getLastActiveWorkspaceRoot('file'));
-		let envFromConfig: IStringDictionary<string>;
-		if (platform.isWindows) {
-			envFromConfig = { ...process.env };
-			for (let configKey in this._configHelper.config.env['windows']) {
-				let actualKey = configKey;
-				for (let envKey in envFromConfig) {
-					if (configKey.toLowerCase() === envKey.toLowerCase()) {
-						actualKey = envKey;
-						break;
-					}
-				}
-				envFromConfig[actualKey] = this._configHelper.config.env['windows'][configKey];
-			}
-		} else {
-			const platformKey = platform.isMacintosh ? 'osx' : 'linux';
-			envFromConfig = { ...process.env, ...this._configHelper.config.env[platformKey] };
-		}
+
+		// Merge process env with the env from config
+		const envFromConfig = { ...process.env };
+		const envSettingKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
+		TerminalInstance.mergeEnvironments(envFromConfig, this._configHelper.config.env[envSettingKey]);
+
+		// Continue env initialization, merging in the env from the launch
+		// config and adding keys that are needed to create the process
 		const env = TerminalInstance.createTerminalEnv(envFromConfig, this._shellLaunchConfig, this._initialCwd, locale, this._cols, this._rows);
 		this._process = cp.fork(Uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=terminal'], {
 			env,
@@ -780,19 +771,47 @@ export class TerminalInstance implements ITerminalInstance {
 		this._shellLaunchConfig = shell;
 	}
 
+	public static mergeEnvironments(parent: IStringDictionary<string>, other: IStringDictionary<string>) {
+		if (!other) {
+			return;
+		}
+
+		// On Windows apply the new values ignoring case, while still retaining
+		// the case of the original key.
+		if (platform.isWindows) {
+			for (let configKey in other) {
+				let actualKey = configKey;
+				for (let envKey in parent) {
+					if (configKey.toLowerCase() === envKey.toLowerCase()) {
+						actualKey = envKey;
+						break;
+					}
+				}
+				const value = other[configKey];
+				TerminalInstance._mergeEnvironmentValue(parent, actualKey, value);
+			}
+		} else {
+			Object.keys(other).forEach((key) => {
+				const value = other[key];
+				TerminalInstance._mergeEnvironmentValue(parent, key, value);
+			});
+		}
+	}
+
+	private static _mergeEnvironmentValue(env: IStringDictionary<string>, key: string, value: string | null) {
+		if (typeof value === 'string') {
+			env[key] = value;
+		} else {
+			delete env[key];
+		}
+	}
+
 	// TODO: This should be private/protected
 	// TODO: locale should not be optional
 	public static createTerminalEnv(parentEnv: IStringDictionary<string>, shell: IShellLaunchConfig, cwd: string, locale?: string, cols?: number, rows?: number): IStringDictionary<string> {
-		const env = TerminalInstance._cloneEnv(parentEnv);
+		const env = { ...parentEnv };
 		if (shell.env) {
-			Object.keys(shell.env).forEach((key) => {
-				const value = shell.env[key];
-				if (typeof value === 'string') {
-					env[key] = value;
-				} else {
-					delete env[key];
-				}
-			});
+			TerminalInstance.mergeEnvironments(env, shell.env);
 		}
 
 		env['PTYPID'] = process.pid.toString();
@@ -882,14 +901,6 @@ export class TerminalInstance implements ITerminalInstance {
 			return cwd[0].toUpperCase() + cwd.substr(1);
 		}
 		return cwd;
-	}
-
-	private static _cloneEnv(env: IStringDictionary<string>): IStringDictionary<string> {
-		const newEnv: IStringDictionary<string> = Object.create(null);
-		Object.keys(env).forEach((key) => {
-			newEnv[key] = env[key];
-		});
-		return newEnv;
 	}
 
 	private static _getLangEnvVariable(locale?: string) {

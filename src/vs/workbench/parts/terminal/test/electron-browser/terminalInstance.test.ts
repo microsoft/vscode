@@ -7,6 +7,7 @@
 
 import * as assert from 'assert';
 import * as os from 'os';
+import * as platform from 'vs/base/common/platform';
 import Uri from 'vs/base/common/uri';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IStringDictionary } from 'vs/base/common/collections';
@@ -39,7 +40,7 @@ suite('Workbench - TerminalInstance', () => {
 		instantiationService.stub(IHistoryService, new TestHistoryService());
 	});
 
-	test('TerminalInstance - createTerminalEnv', function () {
+	test('createTerminalEnv', function () {
 		const shell1 = {
 			executable: '/bin/foosh',
 			args: ['-bar', 'baz']
@@ -75,6 +76,69 @@ suite('Workbench - TerminalInstance', () => {
 
 		const env4 = TerminalInstance.createTerminalEnv(parentEnv2, shell1, '/', null);
 		assert.equal(env4['LANG'], 'en_US.UTF-8', 'LANG is equal to the parent environment\'s LANG');
+	});
+
+	suite('mergeEnvironments', () => {
+		test('should add keys', () => {
+			const parent = {
+				a: 'b'
+			};
+			const other = {
+				c: 'd'
+			};
+			TerminalInstance.mergeEnvironments(parent, other);
+			assert.deepEqual(parent, {
+				a: 'b',
+				c: 'd'
+			});
+		});
+
+		test('should add keys ignoring case on Windows', () => {
+			if (!platform.isWindows) {
+				return;
+			}
+			const parent = {
+				a: 'b'
+			};
+			const other = {
+				A: 'c'
+			};
+			TerminalInstance.mergeEnvironments(parent, other);
+			assert.deepEqual(parent, {
+				a: 'c'
+			});
+		});
+
+		test('null values should delete keys from the parent env', () => {
+			const parent = {
+				a: 'b',
+				c: 'd'
+			};
+			const other = {
+				a: null
+			};
+			TerminalInstance.mergeEnvironments(parent, other);
+			assert.deepEqual(parent, {
+				c: 'd'
+			});
+		});
+
+		test('null values should delete keys from the parent env ignoring case on Windows', () => {
+			if (!platform.isWindows) {
+				return;
+			}
+			const parent = {
+				a: 'b',
+				c: 'd'
+			};
+			const other = {
+				A: null
+			};
+			TerminalInstance.mergeEnvironments(parent, other);
+			assert.deepEqual(parent, {
+				c: 'd'
+			});
+		});
 	});
 
 	suite('_getCwd', () => {
