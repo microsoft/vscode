@@ -9,7 +9,6 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKey, IContextKeyServiceTarget, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { CommonEditorConfiguration } from 'vs/editor/common/config/commonEditorConfig';
@@ -121,8 +120,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		domElement: IContextKeyServiceTarget,
 		options: editorOptions.IEditorOptions,
 		instantiationService: IInstantiationService,
-		contextKeyService: IContextKeyService,
-		clipboardService: IClipboardService
+		contextKeyService: IContextKeyService
 	) {
 		super();
 		this.domElement = domElement;

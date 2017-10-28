@@ -16,6 +16,7 @@ import { CommonFindController, FindStartFocusAction, IFindStartOptions, NextMatc
 import { withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
 import { HistoryNavigator } from 'vs/base/common/history';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { Delayer } from 'vs/base/common/async';
@@ -28,8 +29,8 @@ export class TestFindController extends CommonFindController {
 
 	private _delayedUpdateHistoryEvent: Emitter<void> = new Emitter<void>();
 
-	constructor(editor: ICommonCodeEditor, @IContextKeyService contextKeyService: IContextKeyService, @IStorageService storageService: IStorageService) {
-		super(editor, contextKeyService, storageService);
+	constructor(editor: ICommonCodeEditor, @IContextKeyService contextKeyService: IContextKeyService, @IStorageService storageService: IStorageService, @IClipboardService clipboardService: IClipboardService) {
+		super(editor, contextKeyService, storageService, clipboardService);
 		this._updateHistoryDelayer = new Delayer<void>(50);
 	}
 

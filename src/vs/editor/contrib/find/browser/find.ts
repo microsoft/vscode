@@ -8,6 +8,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { FindWidget, IFindController } from 'vs/editor/contrib/find/browser/findWidget';
 import { FindOptionsWidget } from 'vs/editor/contrib/find/browser/findOptionsWidget';
@@ -29,9 +30,9 @@ export class FindController extends CommonFindController implements IFindControl
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
-		@IClipboardService clipBoardService: IClipboardService
+		@optional(IClipboardService) clipboardService: IClipboardService
 	) {
-		super(editor, contextKeyService, storageService, clipBoardService);
+		super(editor, contextKeyService, storageService, clipboardService);
 
 		this._widget = this._register(new FindWidget(editor, this, this._state, contextViewService, keybindingService, contextKeyService, themeService));
 		this._findOptionsWidget = this._register(new FindOptionsWidget(editor, this._state, keybindingService, themeService));
