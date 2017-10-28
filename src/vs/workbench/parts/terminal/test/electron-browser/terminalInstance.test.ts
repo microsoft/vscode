@@ -93,7 +93,7 @@ suite('Workbench - TerminalInstance', () => {
 			});
 		});
 
-		test('keys should ignore case on Windows', () => {
+		test('should add keys ignoring case on Windows', () => {
 			if (!platform.isWindows) {
 				return;
 			}
@@ -116,6 +116,23 @@ suite('Workbench - TerminalInstance', () => {
 			};
 			const other = {
 				a: null
+			};
+			TerminalInstance.mergeEnvironments(parent, other);
+			assert.deepEqual(parent, {
+				c: 'd'
+			});
+		});
+
+		test('null values should delete keys from the parent env ignoring case on Windows', () => {
+			if (!platform.isWindows) {
+				return;
+			}
+			const parent = {
+				a: 'b',
+				c: 'd'
+			};
+			const other = {
+				A: null
 			};
 			TerminalInstance.mergeEnvironments(parent, other);
 			assert.deepEqual(parent, {
