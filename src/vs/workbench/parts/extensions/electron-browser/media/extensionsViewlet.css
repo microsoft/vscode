@@ -31,12 +31,14 @@
 	height: auto;
 }
 
-.extensions-viewlet > .extensions .extensions-list > .list-actionbar-container {
-	padding: 4px 7px;
+.extensions-viewlet > .extensions .list-actionbar-container .monaco-action-bar .action-item > .octicon {
+	font-size: 12px;
+	line-height: 1;
+	margin-right: 10px;
 }
 
-.extensions-viewlet > .extensions .extensions-list > .list-actionbar-container.hidden,
-.extensions-viewlet > .extensions .extensions-list > .list-actionbar-container .monaco-action-bar .action-item.disabled  {
+.extensions-viewlet > .extensions .list-actionbar-container.hidden,
+.extensions-viewlet > .extensions .list-actionbar-container .monaco-action-bar .action-item.disabled  {
 	display: none;
 }
 

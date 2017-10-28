@@ -1090,47 +1090,6 @@ export class ShowRecommendedExtensionsAction extends Action {
 	}
 }
 
-export class ShowWorkspaceRecommendedExtensionsAction extends Action {
-
-	static ID = 'workbench.extensions.action.showWorkspaceRecommendedExtensions';
-	static LABEL = localize('showWorkspaceRecommendedExtensions', "Show Workspace Recommended Extensions");
-
-	private disposables: IDisposable[] = [];
-
-	constructor(
-		id: string,
-		label: string,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IViewletService private viewletService: IViewletService
-	) {
-		super(id, label, null);
-		this.contextService.onDidChangeWorkbenchState(() => this.update(), this, this.disposables);
-		this.update();
-	}
-
-	private update(): void {
-		this.enabled = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY;
-	}
-
-	run(): TPromise<void> {
-		return this.viewletService.openViewlet(VIEWLET_ID, true)
-			.then(viewlet => viewlet as IExtensionsViewlet)
-			.then(viewlet => {
-				viewlet.search('@recommended:workspace ');
-				viewlet.focus();
-			});
-	}
-
-	protected isEnabled(): boolean {
-		return true;
-	}
-
-	dispose(): void {
-		this.disposables = dispose(this.disposables);
-		super.dispose();
-	}
-}
-
 export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 
 	static ID = 'workbench.extensions.action.installWorkspaceRecommendedExtensions';
@@ -1165,7 +1124,7 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 		this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
-				viewlet.search('@recommended:workspace ');
+				viewlet.search('@recommended');
 				viewlet.focus();
 			});
 
