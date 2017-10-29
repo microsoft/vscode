@@ -13,6 +13,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Configur
 import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, Action } from 'vs/base/common/actions';
+import * as objects from 'vs/base/common/objects';
 import { explorerItemToFileResource } from 'vs/workbench/parts/files/common/files';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -273,9 +274,26 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.FocusPre
 
 registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.ReplaceInFilesAction, searchActions.ReplaceInFilesAction.ID, searchActions.ReplaceInFilesAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_H }), 'Replace in Files', category);
 
-registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.ToggleCaseSensitiveAction, Constants.ToggleCaseSensitiveActionId, '', ToggleCaseSensitiveKeybinding, ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.SearchInputBoxFocusedKey)), '');
-registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.ToggleWholeWordAction, Constants.ToggleWholeWordActionId, '', ToggleWholeWordKeybinding, ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.SearchInputBoxFocusedKey)), '');
-registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.ToggleRegexAction, Constants.ToggleRegexActionId, '', ToggleRegexKeybinding, ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.SearchInputBoxFocusedKey)), '');
+KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
+	id: Constants.ToggleCaseSensitiveActionId,
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	when: ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.SearchInputBoxFocusedKey),
+	handler: searchActions.toggleCaseSensitiveCommand
+}, ToggleCaseSensitiveKeybinding));
+
+KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
+	id: Constants.ToggleWholeWordActionId,
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	when: ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.SearchInputBoxFocusedKey),
+	handler: searchActions.toggleWholeWordCommand
+}, ToggleWholeWordKeybinding));
+
+KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
+	id: Constants.ToggleRegexActionId,
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	when: ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.SearchInputBoxFocusedKey),
+	handler: searchActions.toggleRegexCommand
+}, ToggleRegexKeybinding));
 
 // Terms navigation actions
 registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.ShowNextSearchTermAction, searchActions.ShowNextSearchTermAction.ID, searchActions.ShowNextSearchTermAction.LABEL, ShowNextFindTermKeybinding, searchActions.ShowNextSearchTermAction.CONTEXT_KEY_EXPRESSION), 'Search: Show Next Search Term', category);

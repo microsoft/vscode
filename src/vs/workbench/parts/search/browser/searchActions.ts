@@ -48,44 +48,23 @@ function doAppendKeyBindingLabel(label: string, keyBinding: ResolvedKeybinding):
 	return keyBinding ? label + ' (' + keyBinding.getLabel() + ')' : label;
 }
 
-export class ToggleCaseSensitiveAction extends Action {
+export const toggleCaseSensitiveCommand = (accessor: ServicesAccessor) => {
+	const viewletService = accessor.get<IViewletService>(IViewletService);
+	let searchViewlet = <SearchViewlet>viewletService.getActiveViewlet();
+	searchViewlet.toggleCaseSensitive();
+};
 
-	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
-		super(id, label);
-	}
+export const toggleWholeWordCommand = (accessor: ServicesAccessor) => {
+	const viewletService = accessor.get<IViewletService>(IViewletService);
+	let searchViewlet = <SearchViewlet>viewletService.getActiveViewlet();
+	searchViewlet.toggleWholeWords();
+};
 
-	public run(): TPromise<any> {
-		let searchViewlet = <SearchViewlet>this.viewletService.getActiveViewlet();
-		searchViewlet.toggleCaseSensitive();
-		return TPromise.as(null);
-	}
-}
-
-export class ToggleWholeWordAction extends Action {
-
-	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		let searchViewlet = <SearchViewlet>this.viewletService.getActiveViewlet();
-		searchViewlet.toggleWholeWords();
-		return TPromise.as(null);
-	}
-}
-
-export class ToggleRegexAction extends Action {
-
-	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		let searchViewlet = <SearchViewlet>this.viewletService.getActiveViewlet();
-		searchViewlet.toggleRegex();
-		return TPromise.as(null);
-	}
-}
+export const toggleRegexCommand = (accessor: ServicesAccessor) => {
+	const viewletService = accessor.get<IViewletService>(IViewletService);
+	let searchViewlet = <SearchViewlet>viewletService.getActiveViewlet();
+	searchViewlet.toggleRegex();
+};
 
 export class ShowNextSearchIncludeAction extends Action {
 
