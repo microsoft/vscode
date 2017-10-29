@@ -467,12 +467,12 @@ export class TreeView extends HeightMap {
 		this.wrapper.className = 'monaco-tree-wrapper';
 		this.scrollableElement = new ScrollableElement(this.wrapper, {
 			alwaysConsumeMouseWheel: true,
-			horizontal: ScrollbarVisibility.Hidden,
+			horizontal: ScrollbarVisibility.Auto,
 			vertical: (typeof context.options.verticalScrollMode !== 'undefined' ? context.options.verticalScrollMode : ScrollbarVisibility.Auto),
 			useShadows: context.options.useShadows
 		});
 		this.scrollableElement.onScroll((e) => {
-			this.render(e.scrollTop, e.height);
+			this.render(e.scrollTop, e.height, e.scrollLeft);
 			this.emit('scroll', e); // TODO@Joao: is anyone interested in this event?
 		});
 
@@ -676,7 +676,7 @@ export class TreeView extends HeightMap {
 		this.viewHeight = height || DOM.getContentHeight(this.wrapper); // render
 	}
 
-	private render(scrollTop: number, viewHeight: number): void {
+	private render(scrollTop: number, viewHeight: number, scrollLeft: number): void {
 		var i: number;
 		var stop: number;
 
@@ -712,6 +712,13 @@ export class TreeView extends HeightMap {
 
 		this.lastRenderTop = renderTop;
 		this.lastRenderHeight = renderBottom - renderTop;
+
+		// Horizontal Scroll
+		this.rowsContainer.style.left = -scrollLeft + 'px';
+		this.scrollableElement.setScrollDimensions({
+			width: DOM.getContentWidth(this.wrapper),
+			scrollWidth: DOM.getContentWidth(this.rowsContainer)
+		});
 	}
 
 	public setModel(newModel: Model.TreeModel): void {
