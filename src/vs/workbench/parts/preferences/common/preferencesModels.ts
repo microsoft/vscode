@@ -672,23 +672,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 
 	public filterSettings(filter: string, groupFilter: IGroupFilter, settingFilter: ISettingFilter, mostRelevantSettings?: string[]): IFilterResult {
 		if (mostRelevantSettings) {
-			const builder = new SettingsContentBuilder(this._mostRelevantLineOffset - 1);
-			builder.pushLine(',');
-			const mostRelevantGroup = this.getMostRelevantSettings(mostRelevantSettings);
-			builder.pushGroups([mostRelevantGroup]);
-			builder.pushLine('');
-
-			// note: 1-indexed line numbers here
-			const mostRelevantContent = builder.getContent();
-			const mostRelevantEndLine = this._model.getLineCount();
-			this._model.applyEdits([
-				{
-					text: mostRelevantContent,
-					forceMoveMarkers: false,
-					range: new Range(this._mostRelevantLineOffset, 1, mostRelevantEndLine, 1),
-					identifier: { major: 1, minor: 0 }
-				}
-			]);
+			const mostRelevantGroup = this.renderMostRelevantSettings(mostRelevantSettings);
 
 			return {
 				allGroups: [...this.settingsGroups, mostRelevantGroup],
@@ -697,9 +681,34 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 				query: filter
 			};
 		} else {
-			// local
-			return this.doFilterSettings(filter, groupFilter, settingFilter);
+			// Do local search and add empty 'most relevant' group
+			const mostRelevantGroup = this.renderMostRelevantSettings([]);
+			const result = this.doFilterSettings(filter, groupFilter, settingFilter);
+			result.allGroups = [...result.allGroups, mostRelevantGroup];
+			return result;
 		}
+	}
+
+	private renderMostRelevantSettings(mostRelevantSettings: string[]): ISettingsGroup {
+		const builder = new SettingsContentBuilder(this._mostRelevantLineOffset - 1);
+		builder.pushLine(',');
+		const mostRelevantGroup = this.getMostRelevantSettings(mostRelevantSettings);
+		builder.pushGroups([mostRelevantGroup]);
+		builder.pushLine('');
+
+		// note: 1-indexed line numbers here
+		const mostRelevantContent = builder.getContent();
+		const mostRelevantEndLine = this._model.getLineCount();
+		this._model.applyEdits([
+			{
+				text: mostRelevantContent,
+				forceMoveMarkers: false,
+				range: new Range(this._mostRelevantLineOffset, 1, mostRelevantEndLine, 1),
+				identifier: { major: 1, minor: 0 }
+			}
+		]);
+
+		return mostRelevantGroup;
 	}
 
 	public findValueMatches(filter: string, setting: ISetting): IRange[] {
