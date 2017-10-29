@@ -317,7 +317,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	}
 
 	public setGlobalBufferTerm(text: string) {
-		if (text && this._clipboardService && platform.isMacintosh) {
+		if (this._clipboardService && platform.isMacintosh) {
 			this._clipboardService.writeFindText(text);
 		}
 	}
@@ -353,7 +353,7 @@ export class StartFindAction extends EditorAction {
 				shouldAnimate: true
 			});
 
-			controller.setGlobalBufferTerm(getSelectionSearchString(editor));
+			controller.setGlobalBufferTerm(controller.getState().searchString);
 		}
 	}
 }
@@ -394,20 +394,10 @@ export class NextMatchFindAction extends MatchFindAction {
 
 	protected _run(controller: CommonFindController): boolean {
 		let selectionSearchString = controller.getGlobalBufferTerm();
-		if (controller.getState().searchString === selectionSearchString) {
-			return controller.moveToNextMatch();
-		}
-		if (selectionSearchString) {
+		if (selectionSearchString && controller.getState().searchString !== selectionSearchString) {
 			controller.setSearchString(selectionSearchString);
-			controller.start({
-				forceRevealReplace: false,
-				seedSearchStringFromSelection: false,
-				shouldFocus: FindStartFocusAction.NoFocusChange,
-				shouldAnimate: true
-			});
-			return true;
 		}
-		return false;
+		return controller.moveToNextMatch();
 	}
 }
 
@@ -430,20 +420,10 @@ export class PreviousMatchFindAction extends MatchFindAction {
 
 	protected _run(controller: CommonFindController): boolean {
 		let selectionSearchString = controller.getGlobalBufferTerm();
-		if (controller.getState().searchString === selectionSearchString) {
-			return controller.moveToPrevMatch();
-		}
-		if (selectionSearchString) {
+		if (selectionSearchString && controller.getState().searchString !== selectionSearchString) {
 			controller.setSearchString(selectionSearchString);
-			controller.start({
-				forceRevealReplace: false,
-				seedSearchStringFromSelection: false,
-				shouldFocus: FindStartFocusAction.NoFocusChange,
-				shouldAnimate: true
-			});
-			return true;
 		}
-		return false;
+		return controller.moveToPrevMatch();
 	}
 }
 
