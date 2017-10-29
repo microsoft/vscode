@@ -47,6 +47,7 @@ import { isLinux } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 
 export interface IExplorerViewOptions extends IViewletViewOptions {
 	viewletState: FileViewletState;
@@ -434,7 +435,8 @@ export class ExplorerView extends ViewsViewletPanel {
 				ariaLabel: nls.localize('treeAriaLabel', "Files Explorer"),
 				twistiePixels: 12,
 				showTwistie: false,
-				keyboardSupport: false
+				keyboardSupport: false,
+				horizontalScrollMode: ScrollbarVisibility.Auto
 			});
 
 		// Theme styler

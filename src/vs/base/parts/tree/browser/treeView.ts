@@ -467,7 +467,7 @@ export class TreeView extends HeightMap {
 		this.wrapper.className = 'monaco-tree-wrapper';
 		this.scrollableElement = new ScrollableElement(this.wrapper, {
 			alwaysConsumeMouseWheel: true,
-			horizontal: ScrollbarVisibility.Auto,
+			horizontal: (typeof context.options.horizontalScrollMode !== 'undefined' ? context.options.verticalScrollMode : ScrollbarVisibility.Hidden),
 			vertical: (typeof context.options.verticalScrollMode !== 'undefined' ? context.options.verticalScrollMode : ScrollbarVisibility.Auto),
 			useShadows: context.options.useShadows
 		});
@@ -487,6 +487,9 @@ export class TreeView extends HeightMap {
 		this.rowsContainer.className = 'monaco-tree-rows';
 		if (context.options.showTwistie) {
 			this.rowsContainer.className += ' show-twisties';
+		}
+		if (context.options.horizontalScrollMode) {
+			this.rowsContainer.className += ' scrolling';
 		}
 
 		var focusTracker = DOM.trackFocus(this.domNode);
@@ -668,12 +671,13 @@ export class TreeView extends HeightMap {
 		return this.onHiddenScrollTop === null;
 	}
 
-	public layout(height?: number): void {
+	public layout(height?: number, width?: number): void {
 		if (!this.isTreeVisible()) {
 			return;
 		}
-
-		this.viewHeight = height || DOM.getContentHeight(this.wrapper); // render
+		// render
+		this.viewHeight = height || DOM.getContentHeight(this.wrapper);
+		this.viewWidth = width || DOM.getContentWidth(this.wrapper);
 	}
 
 	private render(scrollTop: number, viewHeight: number, scrollLeft: number): void {
@@ -715,10 +719,7 @@ export class TreeView extends HeightMap {
 
 		// Horizontal Scroll
 		this.rowsContainer.style.left = -scrollLeft + 'px';
-		this.scrollableElement.setScrollDimensions({
-			width: DOM.getContentWidth(this.wrapper),
-			scrollWidth: DOM.getContentWidth(this.rowsContainer)
-		});
+		this.viewWidth = DOM.getContentWidth(this.wrapper);
 	}
 
 	public setModel(newModel: Model.TreeModel): void {
@@ -862,6 +863,18 @@ export class TreeView extends HeightMap {
 		this.scrollableElement.setScrollDimensions({
 			height: viewHeight,
 			scrollHeight: this.getTotalHeight()
+		});
+	}
+
+	public get viewWidth() {
+		const scrollDimensions = this.scrollableElement.getScrollDimensions();
+		return scrollDimensions.width;
+	}
+
+	public set viewWidth(viewWidth: number) {
+		this.scrollableElement.setScrollDimensions({
+			width: viewWidth,
+			scrollWidth: DOM.getContentWidth(this.rowsContainer)
 		});
 	}
 

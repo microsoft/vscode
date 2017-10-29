@@ -27,8 +27,13 @@
 
 .monaco-tree .monaco-tree-rows {
 	position: absolute;
-	min-width: 100%;
+	width: 100%;
 	height: 100%;
+}
+
+.monaco-tree .monaco-tree-rows.scrolling {
+	min-width: 100%;
+	width: auto;
 }
 
 .monaco-tree .monaco-tree-rows > .monaco-tree-row {

@@ -33,6 +33,7 @@ import { EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
 import { attachListStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 
 const $ = dom.$;
 
@@ -135,7 +136,8 @@ export class OpenEditorsView extends ViewsViewletPanel {
 				twistiePixels: 22,
 				ariaLabel: nls.localize({ key: 'treeAriaLabel', comment: ['Open is an adjective'] }, "Open Editors: List of Active Files"),
 				showTwistie: false,
-				keyboardSupport: false
+				keyboardSupport: false,
+				horizontalScrollMode: ScrollbarVisibility.Auto
 			});
 
 		// Theme styler

@@ -664,6 +664,7 @@ export interface ITreeOptions extends ITreeStyles {
 	showTwistie?: boolean;
 	indentPixels?: number;
 	verticalScrollMode?: ScrollbarVisibility;
+	horizontalScrollMode?: ScrollbarVisibility;
 	alwaysFocused?: boolean;
 	autoExpandSingleChildren?: boolean;
 	useShadows?: boolean;
