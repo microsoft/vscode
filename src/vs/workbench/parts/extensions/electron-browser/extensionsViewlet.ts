@@ -48,7 +48,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ViewsRegistry, ViewLocation, IViewDescriptor } from 'vs/workbench/browser/parts/views/viewsRegistry';
 import { PersistentViewsViewlet, ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService, ContextKeyExpr, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 
@@ -57,7 +57,7 @@ interface SearchInputEvent extends Event {
 	immediate?: boolean;
 }
 
-const ExtensionsViewletVisibleContext = new RawContextKey<boolean>('extensionsViewletVisible', false);
+const NonEmptyWorkspaceContext = new RawContextKey<boolean>('nonEmptyWorkspace', false);
 const SearchExtensionsContext = new RawContextKey<boolean>('searchExtensions', false);
 const SearchInstalledExtensionsContext = new RawContextKey<boolean>('searchInstalledExtensions', false);
 const RecommendedExtensionsContext = new RawContextKey<boolean>('recommendedExtensions', false);
@@ -65,7 +65,7 @@ const RecommendedExtensionsContext = new RawContextKey<boolean>('recommendedExte
 export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtensionsViewlet {
 
 	private onSearchChange: EventOf<string>;
-	private extensionsViewletVisibleContextKey: IContextKey<boolean>;
+	private nonEmptyWorkspaceContextKey: IContextKey<boolean>;
 	private searchExtensionsContextKey: IContextKey<boolean>;
 	private searchInstalledExtensionsContextKey: IContextKey<boolean>;
 	private recommendedExtensionsContextKey: IContextKey<boolean>;
@@ -101,7 +101,7 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 
 		this.registerViews();
 		this.searchDelayer = new ThrottledDelayer(500);
-		this.extensionsViewletVisibleContextKey = ExtensionsViewletVisibleContext.bindTo(contextKeyService);
+		this.nonEmptyWorkspaceContextKey = NonEmptyWorkspaceContext.bindTo(contextKeyService);
 		this.searchExtensionsContextKey = SearchExtensionsContext.bindTo(contextKeyService);
 		this.searchInstalledExtensionsContextKey = SearchInstalledExtensionsContext.bindTo(contextKeyService);
 		this.recommendedExtensionsContextKey = RecommendedExtensionsContext.bindTo(contextKeyService);
@@ -175,7 +175,7 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 	private createOtherRecommendedExtensionsListViewDescriptor(): IViewDescriptor {
 		return {
 			id: 'extensions.otherrecommendedList',
-			name: localize('otherRecommendedExtensions', "Recommended for you"),
+			name: localize('otherRecommendedExtensions', "Other Recommendations"),
 			location: ViewLocation.Extensions,
 			ctor: RecommendedExtensionsView,
 			when: ContextKeyExpr.and(ContextKeyExpr.has('recommendedExtensions')),
@@ -188,10 +188,10 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 	private createWorkspaceRecommendedExtensionsListViewDescriptor(): IViewDescriptor {
 		return {
 			id: 'extensions.workspaceRecommendedList',
-			name: localize('workspaceRecommendedExtensions', "Workspace Recommended"),
+			name: localize('workspaceRecommendedExtensions', "Workspace Recommendations"),
 			location: ViewLocation.Extensions,
 			ctor: WorkspaceRecommendedExtensionsView,
-			when: ContextKeyExpr.and(ContextKeyExpr.has('recommendedExtensions')),
+			when: ContextKeyExpr.and(ContextKeyExpr.has('recommendedExtensions'), ContextKeyExpr.has('nonEmptyWorkspace')),
 			size: 50,
 			canToggleVisibility: true,
 			order: 1
@@ -253,7 +253,6 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 		const isVisibilityChanged = this.isVisible() !== visible;
 		return super.setVisible(visible).then(() => {
 			if (isVisibilityChanged) {
-				this.extensionsViewletVisibleContextKey.set(visible);
 				if (visible) {
 					this.searchBox.focus();
 					this.searchBox.setSelectionRange(0, this.searchBox.value.length);
@@ -328,6 +327,7 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 		this.searchExtensionsContextKey.set(!!value);
 		this.searchInstalledExtensionsContextKey.set(InstalledExtensionsView.isInsalledExtensionsQuery(value));
 		this.recommendedExtensionsContextKey.set(ExtensionsListView.isRecommendedExtensionsQuery(value));
+		this.nonEmptyWorkspaceContextKey.set(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY);
 
 		await this.updateViews([], !!value);
 	}
