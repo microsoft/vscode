@@ -231,6 +231,10 @@ export function regExpLeadsToEndlessLoop(regexp: RegExp): boolean {
 	return (match && <any>regexp.lastIndex === 0);
 }
 
+export function regExpContainsBackreference(regexpValue: string): boolean {
+	return !!regexpValue.match(/([^\\]|^)(\\\\)*\\\d+/);
+}
+
 /**
  * The normalize() method returns the Unicode Normalization Form of a given string. The form will be
  * the Normalization Form Canonical Composition.
