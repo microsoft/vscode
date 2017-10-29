@@ -16,10 +16,10 @@ export const CancelActionId = 'search.action.cancel';
 export const RemoveActionId = 'search.action.remove';
 export const ReplaceActionId = 'search.action.replace';
 export const ReplaceAllInFileActionId = 'search.action.replaceAllInFile';
-export const ToggleCaseSensitiveActionId = 'toggleSearchCaseSensitive';
-export const ToggleWholeWordActionId = 'toggleSearchWholeWord';
-export const ToggleRegexActionId = 'toggleSearchRegex';
 export const CloseReplaceWidgetActionId = 'closeReplaceInFilesWidget';
+export const ToggleCaseSensitiveCommandId = 'toggleSearchCaseSensitive';
+export const ToggleWholeWordCommandId = 'toggleSearchWholeWord';
+export const ToggleRegexCommandId = 'toggleSearchRegex';
 
 export const SearchViewletVisibleKey = new RawContextKey<boolean>('searchViewletVisible', true);
 export const InputBoxFocusedKey = new RawContextKey<boolean>('inputBoxFocus', false);
