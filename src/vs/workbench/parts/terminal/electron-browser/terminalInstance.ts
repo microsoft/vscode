@@ -44,6 +44,8 @@ const LAUNCHING_DURATION = 500;
 
 // Enable search functionality in xterm.js instance
 XTermTerminal.loadAddon('search');
+// Enable the winpty compatibility addon which will simulate wraparound mode
+XTermTerminal.loadAddon('winptyCompat');
 
 class StandardTerminalProcessFactory implements ITerminalProcessFactory {
 	public create(env: { [key: string]: string }): cp.ChildProcess {
@@ -274,6 +276,7 @@ export class TerminalInstance implements ITerminalInstance {
 		if (this._shellLaunchConfig.initialText) {
 			this._xterm.writeln(this._shellLaunchConfig.initialText);
 		}
+		this._xterm.winptyCompatInit();
 		this._xterm.on('lineFeed', () => this._onLineFeed());
 		this._process.on('message', (message) => this._sendPtyDataToXterm(message));
 		this._xterm.on('data', (data) => {
