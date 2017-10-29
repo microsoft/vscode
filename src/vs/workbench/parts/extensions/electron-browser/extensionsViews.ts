@@ -40,7 +40,7 @@ import { IProgressService } from 'vs/platform/progress/common/progress';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { EventType } from 'vs/base/common/events';
-import { InstallWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceRecommendedExtensionsAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
+import { InstallWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 
 export class ExtensionsListView extends ViewsViewletPanel {
 
@@ -82,13 +82,13 @@ export class ExtensionsListView extends ViewsViewletPanel {
 		});
 		actionbar.addListener(EventType.RUN, ({ error }) => error && this.messageService.show(Severity.Error, error));
 		const installAllAction = this.instantiationService.createInstance(InstallWorkspaceRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsAction.ID, InstallWorkspaceRecommendedExtensionsAction.LABEL);
-		const configureAllAction = this.instantiationService.createInstance(ConfigureWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceRecommendedExtensionsAction.ID, ConfigureWorkspaceRecommendedExtensionsAction.LABEL);
+		const configureWorkspaceFolderAction = this.instantiationService.createInstance(ConfigureWorkspaceFolderRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction.ID, ConfigureWorkspaceFolderRecommendedExtensionsAction.LABEL);
 
 		installAllAction.class = 'octicon octicon-cloud-download';
-		configureAllAction.class = 'octicon octicon-pencil';
+		configureWorkspaceFolderAction.class = 'octicon octicon-pencil';
 
 		actionbar.push([installAllAction], { icon: true, label: false });
-		actionbar.push([configureAllAction], { icon: true, label: false });
+		actionbar.push([configureWorkspaceFolderAction], { icon: true, label: false });
 
 		this.disposables.push(actionbar);
 
