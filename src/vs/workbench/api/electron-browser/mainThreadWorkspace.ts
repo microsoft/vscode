@@ -72,13 +72,19 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			return folderConfig.search.useRipgrep;
 		});
 
+		const ignoreSymlinks = folderQueries.every(folderQuery => {
+			const folderConfig = this._configurationService.getConfiguration<ISearchConfiguration>({ resource: folderQuery.folder });
+			return !folderConfig.search.followSymlinks;
+		});
+
 		const query: ISearchQuery = {
 			folderQueries,
 			type: QueryType.File,
 			maxResults,
 			includePattern: { [typeof include === 'string' ? include : !!include ? include.pattern : undefined]: true },
 			excludePattern: { [typeof exclude === 'string' ? exclude : !!exclude ? exclude.pattern : undefined]: true },
-			useRipgrep
+			useRipgrep,
+			ignoreSymlinks
 		};
 		this._searchService.extendQuery(query);
 
