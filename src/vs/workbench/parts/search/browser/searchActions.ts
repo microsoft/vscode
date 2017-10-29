@@ -246,21 +246,14 @@ export class OpenSearchViewletAction extends ToggleViewletAction {
 
 }
 
-export class FocusActiveEditorAction extends Action {
-
-	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
-		super(id, label);
+export const FocusActiveEditorCommand = (accessor: ServicesAccessor) => {
+	const editorService = accessor.get(IWorkbenchEditorService);
+	const editor = editorService.getActiveEditor();
+	if (editor) {
+		editor.focus();
 	}
-
-	public run(): TPromise<any> {
-		let editor = this.editorService.getActiveEditor();
-		if (editor) {
-			editor.focus();
-		}
-		return TPromise.as(true);
-	}
-
-}
+	return TPromise.as(true);
+};
 
 export abstract class FindOrReplaceInFilesAction extends Action {
 

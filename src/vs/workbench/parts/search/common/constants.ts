@@ -8,7 +8,7 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 export const VIEWLET_ID = 'workbench.view.search';
 
 export const FindInFilesActionId = 'workbench.action.findInFiles';
-export const FocusActiveEditorActionId = 'search.action.focusActiveEditor';
+export const FocusActiveEditorCommandId = 'search.action.focusActiveEditor';
 
 export const FocusSearchFromResults = 'search.action.focusSearchFromResults';
 export const OpenMatchToSide = 'search.action.openResultToSide';
