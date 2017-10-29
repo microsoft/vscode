@@ -1,5 +1,5 @@
 {
 	"config.npm.autoDetect": "Controls whether auto detection of npm scripts is on or off. Default is on.",
 	"config.npm.runSilent": "Run npm commands with the `--silent` option",
-	"npm.parseError": "Npm task detection could not parse the {0}"
+	"npm.parseError": "Npm task detection: failed to parse the file {0}"
 }
