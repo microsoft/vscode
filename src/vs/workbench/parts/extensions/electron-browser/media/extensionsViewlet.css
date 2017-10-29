@@ -37,7 +37,6 @@
 	margin-right: 10px;
 }
 
-.extensions-viewlet > .extensions .list-actionbar-container.hidden,
 .extensions-viewlet > .extensions .list-actionbar-container .monaco-action-bar .action-item.disabled  {
 	display: none;
 }
