@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
+import * as path from 'path';
 import { SpectronApplication } from '../../spectron/application';
 
 export enum ActivityBarPosition {
@@ -19,6 +21,7 @@ export class SettingsEditor {
 
 	async addUserSetting(setting: string, value: string): Promise<void> {
 		await this.spectron.runCommand('workbench.action.openGlobalSettings');
+		await this.spectron.client.waitAndClick(SEARCH_INPUT);
 		await this.spectron.client.waitForActiveElement(SEARCH_INPUT);
 
 		await this.spectron.client.keys(['ArrowDown', 'NULL']);
@@ -31,5 +34,12 @@ export class SettingsEditor {
 		await this.spectron.workbench.saveOpenedFile();
 
 		await this.spectron.screenCapturer.capture('user settings has changed');
+	}
+
+	async clearUserSettings(): Promise<void> {
+		const settingsPath = path.join(this.spectron.userDataPath, 'User', 'settings.json');
+		await new Promise((c, e) => fs.writeFile(settingsPath, '{}', 'utf8', err => err ? e(err) : c()));
+
+		await this.spectron.workbench.editor.waitForEditorContents('settings.json', c => c.length === 0, '.editable-preferences-editor-container');
 	}
 }
