@@ -95,6 +95,10 @@ suite('FindController', () => {
 			'ABC'
 		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 			clipboardState = '';
+			if (!platform.isMacintosh) {
+				assert.ok(true);
+				return;
+			}
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
 			let startFindAction = new StartFindAction();
 			// I select ABC on the first line
@@ -115,6 +119,11 @@ suite('FindController', () => {
 			'ABC'
 		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 			clipboardState = 'ABC';
+
+			if (!platform.isMacintosh) {
+				assert.ok(true);
+				return;
+			}
 
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
 			let findState = findController.getState();
@@ -137,6 +146,11 @@ suite('FindController', () => {
 			'ABC'
 		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 			clipboardState = '';
+			if (!platform.isMacintosh) {
+				assert.ok(true);
+				return;
+			}
+
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
 			let findState = findController.getState();
 
