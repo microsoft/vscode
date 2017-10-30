@@ -17,6 +17,9 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import URI from 'vs/base/common/uri';
+import { isEqual } from 'vs/base/common/resources';
+import { isLinux } from 'vs/base/common/platform';
 
 interface IConfiguration extends IWindowsConfiguration {
 	update: { channel: string; };
@@ -32,7 +35,7 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 	private updateChannel: string;
 	private enableCrashReporter: boolean;
 
-	private firstFolderPath: string;
+	private firstFolderResource: URI;
 	private extensionHostRestarter: RunOnceScheduler;
 
 	private onDidChangeWorkspaceFoldersUnbind: IDisposable;
@@ -48,7 +51,7 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		@IExtensionService private extensionService: IExtensionService
 	) {
 		const workspace = this.contextService.getWorkspace();
-		this.firstFolderPath = workspace.folders.length > 0 ? workspace.folders[0].uri.fsPath : void 0;
+		this.firstFolderResource = workspace.folders.length > 0 ? workspace.folders[0].uri : void 0;
 		this.extensionHostRestarter = new RunOnceScheduler(() => this.extensionService.restartExtensionHost(), 10);
 
 		this.onConfigurationChange(configurationService.getConfiguration<IConfiguration>(), false);
@@ -107,7 +110,7 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 
 			// Update our known first folder path if we entered workspace
 			const workspace = this.contextService.getWorkspace();
-			this.firstFolderPath = workspace.folders.length > 0 ? workspace.folders[0].uri.fsPath : void 0;
+			this.firstFolderResource = workspace.folders.length > 0 ? workspace.folders[0].uri : void 0;
 
 			// Install workspace folder listener
 			if (!this.onDidChangeWorkspaceFoldersUnbind) {
@@ -125,9 +128,9 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		const workspace = this.contextService.getWorkspace();
 
 		// Restart extension host if first root folder changed (impact on deprecated workspace.rootPath API)
-		const newFirstFolderPath = workspace.folders.length > 0 ? workspace.folders[0].uri.fsPath : void 0;
-		if (this.firstFolderPath !== newFirstFolderPath) {
-			this.firstFolderPath = newFirstFolderPath;
+		const newFirstFolderResource = workspace.folders.length > 0 ? workspace.folders[0].uri : void 0;
+		if (!isEqual(this.firstFolderResource, newFirstFolderResource, !isLinux)) {
+			this.firstFolderResource = newFirstFolderResource;
 
 			this.extensionHostRestarter.schedule(); // buffer calls to extension host restart
 		}
