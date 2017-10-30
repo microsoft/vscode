@@ -9,7 +9,7 @@ import { doComplete, isStyleSheet, getEmmetMode, extractAbbreviation } from 'vsc
 import { isValidLocationForEmmetAbbreviation } from './abbreviationActions';
 import { getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, getEmmetConfiguration } from './util';
 
-const allowedMimeTypesInScriptTag = ['text/html', 'text/plain', 'text/x-template'];
+const allowedMimeTypesInScriptTag = ['text/html', 'text/plain', 'text/x-template', 'text/template'];
 
 export class DefaultCompletionItemProvider implements vscode.CompletionItemProvider {
 
