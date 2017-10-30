@@ -19,6 +19,7 @@ export interface IProductConfiguration {
 	updateUrl?: string;
 	quality?: string;
 	commit?: string;
+	settingsSearchBuildId?: number;
 	date: string;
 	extensionsGallery: {
 		serviceUrl: string;

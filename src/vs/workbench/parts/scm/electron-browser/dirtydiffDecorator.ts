@@ -843,6 +843,10 @@ export class DirtyDiffModel {
 	}
 
 	private async getOriginalResource(): TPromise<URI> {
+		if (!this._editorModel) {
+			return null;
+		}
+
 		for (const repository of this.scmService.repositories) {
 			const result = repository.provider.getOriginalResource(this._editorModel.uri);
 

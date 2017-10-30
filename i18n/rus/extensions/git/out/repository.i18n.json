@@ -21,8 +21,6 @@
 	"deleted by us": "Удалено нами",
 	"both added": "Добавлено обеими сторонами",
 	"both modified": "Изменено обеими сторонами",
-	"untracked, short": "U",
-	"modified, short": "M",
 	"commit": "Commit",
 	"merge changes": "Объединить изменения",
 	"staged changes": "Промежуточно сохраненные изменения",

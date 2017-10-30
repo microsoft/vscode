@@ -21,8 +21,6 @@
 	"deleted by us": "Bizim Tarafımızdan Silindi",
 	"both added": "Her İkimiz de Ekledik",
 	"both modified": "Her İkimiz de Değiştirdik",
-	"untracked, short": "Z",
-	"modified, short": "D",
 	"commit": "Commit'le",
 	"merge changes": "Değişiklikleri Birleştir",
 	"staged changes": "Hazırlanmış Değişiklikler",

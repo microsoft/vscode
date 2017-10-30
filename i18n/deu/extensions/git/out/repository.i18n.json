@@ -21,8 +21,6 @@
 	"deleted by us": "Gelöscht von uns",
 	"both added": "Beide hinzugefügt",
 	"both modified": "Beide geändert",
-	"untracked, short": "U",
-	"modified, short": "M",
 	"commit": "Commit",
 	"merge changes": "Änderungen zusammenführen",
 	"staged changes": "Bereitgestellte Änderungen",

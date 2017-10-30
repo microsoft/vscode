@@ -331,6 +331,8 @@ export interface MainThreadWorkspaceShape extends IDisposable {
 	$startSearch(include: string | IRelativePattern, exclude: string | IRelativePattern, maxResults: number, requestId: number): Thenable<URI[]>;
 	$cancelSearch(requestId: number): Thenable<boolean>;
 	$saveAll(includeUntitled?: boolean): Thenable<boolean>;
+	$addFolder(extensioName: string, uri: URI, name?: string): Thenable<boolean>;
+	$removeFolder(extensioName: string, uri: URI): Thenable<boolean>;
 }
 
 export interface MainThreadFileSystemShape extends IDisposable {

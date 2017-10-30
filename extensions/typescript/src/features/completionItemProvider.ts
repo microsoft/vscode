@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, TextEdit, Range, SnippetString, workspace, ProviderResult, CompletionContext, commands } from 'vscode';
+import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, TextEdit, Range, SnippetString, workspace, ProviderResult, CompletionContext, commands, Uri } from 'vscode';
 
 import { ITypescriptServiceClient } from '../typescriptService';
 import TypingsStatus from '../utils/typingsStatus';
@@ -21,17 +21,18 @@ let localize = nls.loadMessageBundle();
 
 class MyCompletionItem extends CompletionItem {
 	constructor(
-		public position: Position,
-		public document: TextDocument,
+		public readonly position: Position,
+		public readonly document: TextDocument,
 		entry: CompletionEntry,
 		enableDotCompletions: boolean,
-		enableCallCompletions: boolean
+		public readonly useCodeSnippetsOnMethodSuggest: boolean
 	) {
 		super(entry.name);
 		this.sortText = entry.sortText;
 		this.kind = MyCompletionItem.convertKind(entry.kind);
 		this.position = position;
-		this.commitCharacters = MyCompletionItem.getCommitCharacters(enableDotCompletions, enableCallCompletions, entry.kind);
+		this.commitCharacters = MyCompletionItem.getCommitCharacters(enableDotCompletions, !useCodeSnippetsOnMethodSuggest, entry.kind);
+
 		if (entry.replacementSpan) {
 			let span: protocol.TextSpan = entry.replacementSpan;
 			// The indexing for the range returned by the server uses 1-based indexing.
@@ -126,22 +127,19 @@ interface Configuration {
 	useCodeSnippetsOnMethodSuggest: boolean;
 	nameSuggestions: boolean;
 	quickSuggestionsForPaths: boolean;
+	autoImportSuggestions: boolean;
 }
 
 namespace Configuration {
 	export const useCodeSnippetsOnMethodSuggest = 'useCodeSnippetsOnMethodSuggest';
 	export const nameSuggestions = 'nameSuggestions';
 	export const quickSuggestionsForPaths = 'quickSuggestionsForPaths';
+	export const autoImportSuggestions = 'autoImportSuggestions.enabled';
+
 }
 
 export default class TypeScriptCompletionItemProvider implements CompletionItemProvider {
 	private readonly commandId: string;
-
-	private config: Configuration = {
-		useCodeSnippetsOnMethodSuggest: false,
-		nameSuggestions: true,
-		quickSuggestionsForPaths: true
-	};
 
 	constructor(
 		private client: ITypescriptServiceClient,
@@ -152,17 +150,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 		commands.registerCommand(this.commandId, this.applyCompletionCodeAction, this);
 	}
 
-	public updateConfiguration(): void {
-		// Use shared setting for js and ts
-		const typeScriptConfig = workspace.getConfiguration('typescript');
-
-		this.config.useCodeSnippetsOnMethodSuggest = typeScriptConfig.get<boolean>(Configuration.useCodeSnippetsOnMethodSuggest, false);
-		this.config.quickSuggestionsForPaths = typeScriptConfig.get<boolean>(Configuration.quickSuggestionsForPaths, true);
-
-		this.config.nameSuggestions = workspace.getConfiguration('javascript').get(Configuration.nameSuggestions, true);
-	}
-
-	public provideCompletionItems(
+	public async provideCompletionItems(
 		document: TextDocument,
 		position: Position,
 		token: CancellationToken,
@@ -181,30 +169,32 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 
 		const file = this.client.normalizePath(document.uri);
 		if (!file) {
-			return Promise.resolve<CompletionItem[]>([]);
+			return [];
 		}
 
+		const config = this.getConfiguration(document.uri);
+
 		if (context.triggerCharacter === '"' || context.triggerCharacter === '\'') {
-			if (!this.config.quickSuggestionsForPaths) {
-				return Promise.resolve<CompletionItem[]>([]);
+			if (!config.quickSuggestionsForPaths) {
+				return [];
 			}
 
 			// make sure we are in something that looks like the start of an import
 			const line = document.lineAt(position.line).text.slice(0, position.character);
 			if (!line.match(/\b(from|import)\s*["']$/) && !line.match(/\b(import|require)\(['"]$/)) {
-				return Promise.resolve<CompletionItem[]>([]);
+				return [];
 			}
 		}
 
 		if (context.triggerCharacter === '/') {
-			if (!this.config.quickSuggestionsForPaths) {
-				return Promise.resolve<CompletionItem[]>([]);
+			if (!config.quickSuggestionsForPaths) {
+				return [];
 			}
 
 			// make sure we are in something that looks like an import path
 			const line = document.lineAt(position.line).text.slice(0, position.character);
 			if (!line.match(/\bfrom\s*["'][^'"]*$/) && !line.match(/\b(import|require)\(['"][^'"]*$/)) {
-				return Promise.resolve<CompletionItem[]>([]);
+				return [];
 			}
 		}
 
@@ -212,12 +202,13 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 			// make sure we are in something that looks like the start of a jsdoc comment
 			const line = document.lineAt(position.line).text.slice(0, position.character);
 			if (!line.match(/^\s*\*[ ]?@/) && !line.match(/\/\*\*+[ ]?@/)) {
-				return Promise.resolve<CompletionItem[]>([]);
+				return [];
 			}
 		}
 
-		const args: CompletionsRequestArgs = vsPositionToTsFileLocation(file, position);
-		return this.client.execute('completions', args, token).then((msg) => {
+		try {
+			const args: CompletionsRequestArgs = vsPositionToTsFileLocation(file, position);
+			const msg = await this.client.execute('completions', args, token);
 			// This info has to come from the tsserver. See https://github.com/Microsoft/TypeScript/issues/2831
 			// let isMemberCompletion = false;
 			// let requestColumn = position.character;
@@ -243,7 +234,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 				// TODO: Workaround for https://github.com/Microsoft/TypeScript/issues/13456
 				// Only enable dot completions when previous character is an identifier.
 				// Prevents incorrectly completing while typing spread operators.
-				if (position.character > 0) {
+				if (position.character > 1) {
 					const preText = document.getText(new Range(
 						position.line, 0,
 						position.line, position.character - 1));
@@ -251,18 +242,21 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 				}
 
 				for (const element of body) {
-					if (element.kind === PConst.Kind.warning && !this.config.nameSuggestions) {
+					if (element.kind === PConst.Kind.warning && !config.nameSuggestions) {
 						continue;
 					}
-					const item = new MyCompletionItem(position, document, element, enableDotCompletions, !this.config.useCodeSnippetsOnMethodSuggest);
+					if (!config.autoImportSuggestions && element.hasAction) {
+						continue;
+					}
+					const item = new MyCompletionItem(position, document, element, enableDotCompletions, config.useCodeSnippetsOnMethodSuggest);
 					completionItems.push(item);
 				}
 			}
 
 			return completionItems;
-		}, () => {
+		} catch {
 			return [];
-		});
+		}
 	}
 
 	public resolveCompletionItem(item: CompletionItem, token: CancellationToken): ProviderResult<CompletionItem> {
@@ -295,7 +289,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 				};
 			}
 
-			if (detail && this.config.useCodeSnippetsOnMethodSuggest && (item.kind === CompletionItemKind.Function || item.kind === CompletionItemKind.Method)) {
+			if (detail && item.useCodeSnippetsOnMethodSuggest && (item.kind === CompletionItemKind.Function || item.kind === CompletionItemKind.Method)) {
 				return this.isValidFunctionCompletionContext(filepath, item.position).then(shouldCompleteFunction => {
 					if (shouldCompleteFunction) {
 						item.insertText = this.snippetForFunctionCall(detail);
@@ -364,5 +358,17 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 			}
 		}
 		return true;
+	}
+
+
+	private getConfiguration(resource: Uri): Configuration {
+		// Use shared setting for js and ts
+		const typeScriptConfig = workspace.getConfiguration('typescript', resource);
+		return {
+			useCodeSnippetsOnMethodSuggest: typeScriptConfig.get<boolean>(Configuration.useCodeSnippetsOnMethodSuggest, false),
+			quickSuggestionsForPaths: typeScriptConfig.get<boolean>(Configuration.quickSuggestionsForPaths, true),
+			autoImportSuggestions: typeScriptConfig.get<boolean>(Configuration.autoImportSuggestions, true),
+			nameSuggestions: workspace.getConfiguration('javascript', resource).get(Configuration.nameSuggestions, true)
+		};
 	}
 }

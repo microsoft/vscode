@@ -9,5 +9,7 @@
 	"numberBadge": "{0} ({1})",
 	"manageExtension": "Administrar extensión",
 	"titleKeybinding": "{0} ({1})",
+	"hide": "Ocultar",
+	"keep": "Mantener",
 	"toggle": "Alternar vista fijada"
 }

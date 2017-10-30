@@ -40,7 +40,7 @@ class GitIgnoreDecorationProvider implements DecorationProvider {
 			if (ignored) {
 				return <DecorationData>{
 					priority: 3,
-					color: new ThemeColor('git.color.ignored')
+					color: new ThemeColor('git.ignoredForeground')
 				};
 			}
 		});

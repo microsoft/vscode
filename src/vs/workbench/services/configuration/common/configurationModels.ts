@@ -20,13 +20,12 @@ export class WorkspaceConfigurationModel extends CustomConfigurationModel {
 
 	private _raw: any;
 	private _folders: IStoredWorkspaceFolder[];
-	private _worksapaceSettings: ConfigurationModel;
-	private _workspaceConfiguration: ConfigurationModel;
+	private _worksapaceSettings: WorkspaceSettingsModel;
 
 	public update(content: string): void {
 		super.update(content);
-		this._worksapaceSettings = new ConfigurationModel(this._worksapaceSettings.contents, this._worksapaceSettings.keys, this.overrides);
-		this._workspaceConfiguration = this.consolidate();
+		this._folders = (this._raw['folders'] || []) as IStoredWorkspaceFolder[];
+		this._worksapaceSettings = new WorkspaceSettingsModel(this._raw['settings'] || {});
 	}
 
 	get folders(): IStoredWorkspaceFolder[] {
@@ -34,26 +33,41 @@ export class WorkspaceConfigurationModel extends CustomConfigurationModel {
 	}
 
 	get workspaceConfiguration(): ConfigurationModel {
-		return this._workspaceConfiguration;
+		return this._worksapaceSettings || new WorkspaceSettingsModel({});
+	}
+
+	get workspaceSettingsModel(): WorkspaceSettingsModel {
+		return this._worksapaceSettings || new WorkspaceSettingsModel({});
 	}
 
 	protected processRaw(raw: any): void {
 		this._raw = raw;
-
-		this._folders = (this._raw['folders'] || []) as IStoredWorkspaceFolder[];
-		this._worksapaceSettings = this.parseConfigurationModel('settings');
-
 		super.processRaw(raw);
 	}
 
-	private parseConfigurationModel(section: string): ConfigurationModel {
-		const rawSection = this._raw[section] || {};
-		const contents = toValuesTree(rawSection, message => console.error(`Conflict in section '${section}' of workspace configuration file ${message}`));
-		return new ConfigurationModel(contents, Object.keys(rawSection));
+
+}
+
+export class WorkspaceSettingsModel extends ConfigurationModel {
+
+	private _raw: any;
+	private _unsupportedKeys: string[];
+
+	constructor(raw: any) {
+		super();
+		this._raw = raw;
+		this.update();
 	}
 
-	private consolidate(): ConfigurationModel {
-		return this._worksapaceSettings;
+	public get unsupportedKeys(): string[] {
+		return this._unsupportedKeys || [];
+	}
+
+	update(): void {
+		const { unsupportedKeys, contents } = processWorkspaceSettings(this._raw);
+		this._unsupportedKeys = unsupportedKeys;
+		this._contents = toValuesTree(contents, message => console.error(`Conflict in workspace settings file: ${message}`));
+		this._keys = Object.keys(contents);
 	}
 }
 
@@ -73,6 +87,28 @@ export class ScopedConfigurationModel extends CustomConfigurationModel {
 
 }
 
+function processWorkspaceSettings(content: any): { unsupportedKeys: string[], contents: any } {
+	const isNotExecutable = (key: string, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema }): boolean => {
+		const propertySchema = configurationProperties[key];
+		if (!propertySchema) {
+			return true; // Unknown propertis are ignored from checks
+		}
+		return !propertySchema.isExecutable;
+	};
+
+	const unsupportedKeys = [];
+	const contents = {};
+	const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
+	for (let key in content) {
+		if (isNotExecutable(key, configurationProperties)) {
+			contents[key] = content[key];
+		} else {
+			unsupportedKeys.push(key);
+		}
+	}
+	return { contents, unsupportedKeys };
+}
+
 export class FolderSettingsModel extends CustomConfigurationModel {
 
 	private _raw: any;
@@ -80,17 +116,9 @@ export class FolderSettingsModel extends CustomConfigurationModel {
 
 	protected processRaw(raw: any): void {
 		this._raw = raw;
-		const processedRaw = {};
-		this._unsupportedKeys = [];
-		const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
-		for (let key in raw) {
-			if (this.isNotExecutable(key, configurationProperties)) {
-				processedRaw[key] = raw[key];
-			} else {
-				this._unsupportedKeys.push(key);
-			}
-		}
-		return super.processRaw(processedRaw);
+		const { unsupportedKeys, contents } = processWorkspaceSettings(raw);
+		this._unsupportedKeys = unsupportedKeys;
+		return super.processRaw(contents);
 	}
 
 	public reprocess(): void {
@@ -99,14 +127,6 @@ export class FolderSettingsModel extends CustomConfigurationModel {
 
 	public get unsupportedKeys(): string[] {
 		return this._unsupportedKeys || [];
-	}
-
-	private isNotExecutable(key: string, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema }): boolean {
-		const propertySchema = configurationProperties[key];
-		if (!propertySchema) {
-			return true; // Unknown propertis are ignored from checks
-		}
-		return !propertySchema.isExecutable;
 	}
 
 	public createWorkspaceConfigurationModel(): ConfigurationModel {

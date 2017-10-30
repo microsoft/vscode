@@ -147,7 +147,7 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 		this._revealTemporarily();
 	}
 
-	private _hideSoon = this._register(new RunOnceScheduler(() => this._hide(), 1000));
+	private _hideSoon = this._register(new RunOnceScheduler(() => this._hide(), 2000));
 
 	private _revealTemporarily(): void {
 		this._show();

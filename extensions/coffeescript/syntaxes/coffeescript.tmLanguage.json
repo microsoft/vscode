@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-coffee-script/commit/3f0b6b0e28d64cd6d5a720bf7a25c969be636e7b",
+	"version": "https://github.com/atom/language-coffee-script/commit/c0dbeede971ff5391ec1d94d4ea5d94e60d7e3e3",
 	"scopeName": "source.coffee",
 	"name": "CoffeeScript",
 	"fileTypes": [
@@ -17,22 +17,22 @@
 	"firstLineMatch": "(?x)\n# Hashbang\n^\\#!.*(?:\\s|\\/)\n  coffee\n(?:$|\\s)\n|\n# Modeline\n(?i:\n  # Emacs\n  -\\*-(?:\\s*(?=[^:;\\s]+\\s*-\\*-)|(?:.*?[;\\s]|(?<=-\\*-))mode\\s*:\\s*)\n    coffee\n  (?=[\\s;]|(?<![-*])-\\*-).*?-\\*-\n  |\n  # Vim\n  (?:(?:\\s|^)vi(?:m[<=>]?\\d+|m)?|\\sex)(?=:(?=\\s*set?\\s[^\\n:]+:)|:(?!\\s*set?\\s))(?:(?:\\s|\\s*:\\s*)\\w*(?:\\s*=(?:[^\\n\\\\\\s]|\\\\.)*)?)*[\\s:](?:filetype|ft|syntax)\\s*=\n    coffee\n  (?=\\s|:|$)\n)",
 	"patterns": [
 		{
+			"match": "(new)\\s+(?:(?:(class)\\s+(\\w+(?:\\.\\w*)*)?)|(\\w+(?:\\.\\w*)*))",
+			"name": "meta.class.instance.constructor.coffee",
 			"captures": {
 				"1": {
 					"name": "keyword.operator.new.coffee"
 				},
-				"4": {
+				"2": {
 					"name": "storage.type.class.coffee"
 				},
-				"6": {
+				"3": {
 					"name": "entity.name.type.instance.coffee"
 				},
-				"7": {
+				"4": {
 					"name": "entity.name.type.instance.coffee"
 				}
-			},
-			"match": "(new)\\s+(((class)(\\s+(\\w+(?:\\.\\w*)*))?)|(\\w+(?:\\.\\w*)*))",
-			"name": "meta.class.instance.constructor"
+			}
 		},
 		{
 			"begin": "'''",

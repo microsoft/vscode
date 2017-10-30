@@ -50,7 +50,8 @@ const options: minimist.Opts = {
 		'skip-getting-started',
 		'sticky-quickopen',
 		'disable-telemetry',
-		'disable-updates'
+		'disable-updates',
+		'disable-crash-reporter'
 	],
 	alias: {
 		add: 'a',

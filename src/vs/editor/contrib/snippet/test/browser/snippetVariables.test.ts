@@ -165,11 +165,47 @@ suite('Snippet Variables Resolver', function () {
 		assertVariableResolve2('${foobarfoobar/(foo)/${2:+FAR}/g}', 'barbar'); // bad group reference
 	});
 
-	// test('Snippet transforms do not handle regex with alternatives or optional matches, #36089', function () {
-	// 	assertVariableResolve2(
-	// 		'${TM_FILENAME/^(.)|(?:-(.))|(\\.js)/${1:+/upcase}${2:+/upcase}/g}',
-	// 		'MyClass',
-	// 		'my-class.js'
-	// 	);
-	// });
+	test('Snippet transforms do not handle regex with alternatives or optional matches, #36089', function () {
+
+		assertVariableResolve2(
+			'${TM_FILENAME/^(.)|(?:-(.))|(\\.js)/${1:/upcase}${2:/upcase}/g}',
+			'MyClass',
+			'my-class.js'
+		);
+
+		// no hyphens
+		assertVariableResolve2(
+			'${TM_FILENAME/^(.)|(?:-(.))|(\\.js)/${1:/upcase}${2:/upcase}/g}',
+			'Myclass',
+			'myclass.js'
+		);
+
+		// none matching suffix
+		assertVariableResolve2(
+			'${TM_FILENAME/^(.)|(?:-(.))|(\\.js)/${1:/upcase}${2:/upcase}/g}',
+			'Myclass.foo',
+			'myclass.foo'
+		);
+
+		// more than one hyphen
+		assertVariableResolve2(
+			'${TM_FILENAME/^(.)|(?:-(.))|(\\.js)/${1:/upcase}${2:/upcase}/g}',
+			'ThisIsAFile',
+			'this-is-a-file.js'
+		);
+
+		// KEBAB CASE
+		assertVariableResolve2(
+			'${TM_FILENAME_BASE/([A-Z][a-z]+)([A-Z][a-z]+$)?/${1:/downcase}-${2:/downcase}/g}',
+			'capital-case',
+			'CapitalCase'
+		);
+
+		assertVariableResolve2(
+			'${TM_FILENAME_BASE/([A-Z][a-z]+)([A-Z][a-z]+$)?/${1:/downcase}-${2:/downcase}/g}',
+			'capital-case-more',
+			'CapitalCaseMore'
+		);
+	});
+
 });

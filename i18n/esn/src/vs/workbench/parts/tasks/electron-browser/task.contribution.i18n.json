@@ -14,6 +14,7 @@
 	"runningTasks": "Mostrar tareas en ejecución",
 	"tasks": "Tareas",
 	"TaskSystem.noHotSwap": "Cambiar el motor de ejecución de tareas con una tarea activa ejecutandose, requiere recargar la ventana",
+	"TaskServer.folderIgnored": "La carpeta {0} se pasa por alto puesto que utiliza la versión 0.1.0 de las tareas",
 	"TaskService.noBuildTask1": "No se ha definido ninguna tarea de compilación. Marque una tarea con \"isBuildCommand\" en el archivo tasks.json.",
 	"TaskService.noBuildTask2": "No se ha definido ninguna tarea de compilación. Marque una tarea con un grupo \"build\" en el archivo tasks.json. ",
 	"TaskService.noTestTask1": "No se ha definido ninguna tarea de prueba. Marque una tarea con \"isTestCommand\" en el archivo tasks.json.",

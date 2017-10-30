@@ -229,12 +229,15 @@ export class ExtensionHostMain {
 			return folderConfig.get('useRipgrep', true);
 		});
 
+		const followSymlinks = this._extHostConfiguration.getConfiguration('search').get('followSymlinks', true);
+
 		const query: ISearchQuery = {
 			folderQueries,
 			type: QueryType.File,
 			exists: true,
 			includePattern: includes,
-			useRipgrep
+			useRipgrep,
+			ignoreSymlinks: !followSymlinks
 		};
 
 		let result = await this._diskSearch.search(query);

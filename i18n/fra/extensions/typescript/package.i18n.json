@@ -47,5 +47,6 @@
 	"typescript.tsc.autoDetect": "Contrôle la détection automatique des tâches tsc. 'off' désactive cette fonctionnalité. 'build' crée uniquement des tâches de compilation à exécution unique. 'watch' crée uniquement des tâches de compilation et de watch. 'on' crée les deux les tâches build et watch. La valeur par défaut est 'on'.",
 	"typescript.problemMatchers.tsc.label": "Problèmes liés à TypeScript",
 	"typescript.problemMatchers.tscWatch.label": "Problèmes liés à TypeScript (mode espion)",
-	"typescript.quickSuggestionsForPaths": "Activer/désactiver les suggestions rapides lorsque vous saisissez un chemin d’import."
+	"typescript.quickSuggestionsForPaths": "Activer/désactiver les suggestions rapides lorsque vous saisissez un chemin d’import.",
+	"typescript.locale": "Définit les paramètres locaux utilisés pour signaler les erreurs TypeScript . Nécessite TypeScript >= 2.6.0. Par défaut 'null' utilise les paramètres locaux de VS Code pour les erreurs TypeScript."
 }

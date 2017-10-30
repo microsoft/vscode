@@ -7,6 +7,7 @@
 	"reallyRecommended2": "L'extension '{0}' est recommandée pour ce type de fichier.",
 	"reallyRecommendedExtensionPack": "Le pack d’extensions '{0}' est recommandé pour ce type de fichier.",
 	"showRecommendations": "Afficher les recommandations",
+	"install": "Installer",
 	"neverShowAgain": "Ne plus afficher",
 	"close": "Fermer",
 	"workspaceRecommended": "Cet espace de travail a des recommandations d'extension.",

@@ -101,6 +101,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.toDispose.push(this._onDidContentChange);
 		this.toDispose.push(this._onDidStateChange);
 		this.preferredEncoding = preferredEncoding;
+		this.inOrphanMode = false;
 		this.dirty = false;
 		this.versionId = 0;
 		this.lastSaveAttemptTime = 0;
