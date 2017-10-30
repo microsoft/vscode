@@ -557,9 +557,9 @@
       "resolved": "https://registry.npmjs.org/vscode-ripgrep/-/vscode-ripgrep-0.6.0-patch.0.tgz"
     },
     "vscode-textmate": {
-      "version": "3.1.5",
-      "from": "vscode-textmate@3.1.5",
-      "resolved": "https://registry.npmjs.org/vscode-textmate/-/vscode-textmate-3.1.5.tgz"
+      "version": "3.2.0",
+      "from": "vscode-textmate@3.2.0",
+      "resolved": "https://registry.npmjs.org/vscode-textmate/-/vscode-textmate-3.2.0.tgz"
     },
     "winreg": {
       "version": "1.2.0",
