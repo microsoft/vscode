@@ -14,6 +14,7 @@ import strings = require('vs/base/common/strings');
 import filters = require('vs/base/common/filters');
 import DOM = require('vs/base/browser/dom');
 import URI from 'vs/base/common/uri';
+import * as resources from 'vs/base/common/resources';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import types = require('vs/base/common/types');
 import { Action, IAction } from 'vs/base/common/actions';
@@ -1276,7 +1277,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 			const resourceInput = input as IResourceInput;
 			this.resource = resourceInput.resource;
 			this.label = paths.basename(resourceInput.resource.fsPath);
-			this.description = labels.getPathLabel(paths.dirname(this.resource.fsPath), contextService, environmentService);
+			this.description = labels.getPathLabel(resources.dirname(this.resource), contextService, environmentService);
 			this.dirty = this.resource && this.textFileService.isDirty(this.resource);
 
 			if (this.dirty && this.textFileService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
