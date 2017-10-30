@@ -346,19 +346,20 @@ export class FormatString extends Marker {
 	}
 
 	resolve(value: string): string {
-		if (this.shorthandName === 'upcase') {
-			return value.toLocaleUpperCase();
-		} else if (this.shorthandName === 'downcase') {
-			return value.toLocaleLowerCase();
-		} else if (this.shorthandName === 'capitalize') {
-			return value[0].toLocaleUpperCase() + value.substr(1);
-		} else if (Boolean(value) && typeof this.ifValue === 'string') {
-			return this.ifValue;
-		} else if (!Boolean(value) && typeof this.elseValue === 'string') {
-			return this.elseValue;
-		} else {
-			return value || '';
+		if (value) {
+			if (this.shorthandName === 'upcase') {
+				return value.toLocaleUpperCase();
+			} else if (this.shorthandName === 'downcase') {
+				return value.toLocaleLowerCase();
+			} else if (this.shorthandName === 'capitalize') {
+				return value[0].toLocaleUpperCase() + value.substr(1);
+			} else if (Boolean(value) && typeof this.ifValue === 'string') {
+				return this.ifValue;
+			} else if (!Boolean(value) && typeof this.elseValue === 'string') {
+				return this.elseValue;
+			}
 		}
+		return value || '';
 	}
 
 	toTextmateString(): string {
