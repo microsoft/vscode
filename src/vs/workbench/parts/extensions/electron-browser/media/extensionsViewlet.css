@@ -69,7 +69,7 @@
 	height: 20px;
 	width: 20px;
 	border-right: 20px solid transparent;
-	border-top: 20px solid grey;
+	border-top: 20px solid;
 	box-sizing: border-box;
 }
 
