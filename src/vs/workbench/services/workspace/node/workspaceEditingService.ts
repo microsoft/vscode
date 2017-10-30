@@ -51,7 +51,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	) {
 	}
 
-	public addFolders(foldersToAdd: IWorkspaceFolderCreationData[]): TPromise<void> {
+	public addFolders(foldersToAdd: IWorkspaceFolderCreationData[], donotNotifyError: boolean = false): TPromise<void> {
 		const state = this.contextService.getWorkbenchState();
 
 		// If we are in no-workspace or single-folder workspace, adding folders has to
@@ -71,10 +71,10 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 		// Delegate addition of folders to workspace service otherwise
 		return this.contextService.addFolders(foldersToAdd)
-			.then(() => null, error => this.handleWorkspaceConfigurationEditingError(error));
+			.then(() => null, error => donotNotifyError ? TPromise.wrapError(error) : this.handleWorkspaceConfigurationEditingError(error));
 	}
 
-	public removeFolders(foldersToRemove: URI[]): TPromise<void> {
+	public removeFolders(foldersToRemove: URI[], donotNotifyError: boolean = false): TPromise<void> {
 
 		// If we are in single-folder state and the opened folder is to be removed,
 		// we close the workspace and enter the empty workspace state for the window.
@@ -87,7 +87,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 		// Delegate removal of folders to workspace service otherwise
 		return this.contextService.removeFolders(foldersToRemove)
-			.then(() => null, error => this.handleWorkspaceConfigurationEditingError(error));
+			.then(() => null, error => donotNotifyError ? TPromise.wrapError(error) : this.handleWorkspaceConfigurationEditingError(error));
 	}
 
 	public createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<void> {

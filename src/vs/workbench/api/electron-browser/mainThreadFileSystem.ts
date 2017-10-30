@@ -45,7 +45,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	}
 
 	$onDidAddFileSystemRoot(uri: URI): void {
-		this._workspaceEditingService.addFolders([{ uri }]);
+		this._workspaceEditingService.addFolders([{ uri }], true);
 	}
 
 	$onFileSystemChange(handle: number, changes: IFileChange[]): void {
