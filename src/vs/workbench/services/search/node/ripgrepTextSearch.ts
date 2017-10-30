@@ -422,6 +422,9 @@ function globExprsToRgGlobs(patterns: glob.IExpression, folder?: string, exclude
 			const value = patterns[key];
 			key = trimTrailingSlash(folder ? getAbsoluteGlob(folder, key) : key);
 
+			// glob.ts requires forward slashes
+			key = key.replace(/\\/g, '/');
+
 			if (typeof value === 'boolean' && value) {
 				globArgs.push(fixDriveC(key));
 			} else if (value && value.when) {

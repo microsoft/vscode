@@ -47,5 +47,6 @@
 	"typescript.tsc.autoDetect": "tsc タスクの自動検出を制御します。'off' はこの機能を無効にします。'build' は 1 つのコンパイル実行タスクのみを表示します。'watch' はコンパイルとウォッチ タスクのみを表示します。'on' はビルド タスクとウォッチ タスクの両方を表示します。既定値は 'on' です。",
 	"typescript.problemMatchers.tsc.label": "TypeScript の問題",
 	"typescript.problemMatchers.tscWatch.label": "TypeScript の問題 (ウォッチ モード)",
-	"typescript.quickSuggestionsForPaths": "Import パスを入力するときのクイック候補を有効/無効にします。"
+	"typescript.quickSuggestionsForPaths": "Import パスを入力するときのクイック候補を有効/無効にします。",
+	"typescript.locale": "TypeScript のエラーを報告するために使用するロケールを設定します。TypeScript 2.6.0 以上が必要です。'null' の規定値は TypeScript のエラーに VS Code のロケールを使用します。"
 }

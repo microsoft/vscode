@@ -19,12 +19,12 @@
     },
     "vscode-languageserver": {
       "version": "3.5.0-next.2",
-      "from": "vscode-languageserver@next",
+      "from": "vscode-languageserver@3.5.0-next.2",
       "resolved": "https://registry.npmjs.org/vscode-languageserver/-/vscode-languageserver-3.5.0-next.2.tgz"
     },
     "vscode-languageserver-protocol": {
       "version": "3.5.0-next.3",
-      "from": "vscode-languageserver-protocol@>=3.5.0-next.2 <4.0.0",
+      "from": "vscode-languageserver-protocol@3.5.0-next.3",
       "resolved": "https://registry.npmjs.org/vscode-languageserver-protocol/-/vscode-languageserver-protocol-3.5.0-next.3.tgz"
     },
     "vscode-languageserver-types": {

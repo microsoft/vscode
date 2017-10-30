@@ -365,7 +365,8 @@ suite('BackupMainService', () => {
 			assert.deepEqual(service.getEmptyWindowBackupPaths(), []);
 		});
 
-		test('getEmptyWorkspaceBackupPaths() should return [] when folderWorkspaces in workspaces.json is not a string array', () => {
+		test('getEmptyWorkspaceBackupPaths() should return [] when folderWorkspaces in workspaces.json is not a string array', function () {
+			this.timeout(5000);
 			fs.writeFileSync(backupWorkspacesPath, '{"emptyWorkspaces":{}}');
 			service.loadSync();
 			assert.deepEqual(service.getEmptyWindowBackupPaths(), []);

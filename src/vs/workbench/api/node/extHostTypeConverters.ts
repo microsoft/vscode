@@ -180,6 +180,13 @@ export namespace MarkdownString {
 		ret.isTrusted = value.isTrusted;
 		return ret;
 	}
+
+	export function fromStrict(value: string | types.MarkdownString): undefined | string | htmlContent.IMarkdownString {
+		if (!value) {
+			return undefined;
+		}
+		return typeof value === 'string' ? value : MarkdownString.from(value);
+	}
 }
 
 export function fromRangeOrRangeWithMessage(ranges: vscode.Range[] | vscode.DecorationOptions[]): IDecorationOptions[] {
@@ -409,7 +416,7 @@ export namespace ParameterInformation {
 	export function from(info: types.ParameterInformation): modes.ParameterInformation {
 		return {
 			label: info.label,
-			documentation: info.documentation && MarkdownString.from(info.documentation)
+			documentation: MarkdownString.fromStrict(info.documentation)
 		};
 	}
 	export function to(info: modes.ParameterInformation): types.ParameterInformation {
@@ -425,7 +432,7 @@ export namespace SignatureInformation {
 	export function from(info: types.SignatureInformation): modes.SignatureInformation {
 		return {
 			label: info.label,
-			documentation: info.documentation && MarkdownString.from(info.documentation),
+			documentation: MarkdownString.fromStrict(info.documentation),
 			parameters: info.parameters && info.parameters.map(ParameterInformation.from)
 		};
 	}

@@ -10,7 +10,6 @@
 	"vscode.extension.contributes.snippets": "Aporta fragmentos de código.",
 	"vscode.extension.contributes.snippets-language": "Identificador del lenguaje al que se aporta este fragmento de código.",
 	"vscode.extension.contributes.snippets-path": "Ruta de acceso del archivo de fragmentos de código. La ruta es relativa a la carpeta de extensión y normalmente empieza por \"./snippets/\".",
-	"badVariableUse": "Es muy probable que el fragmento de código \"{0}\" confunda las variables de fragmento de código y los marcadores de posición de fragmento de código. Consulte https://code.visualstudio.com/docs/editor/userdefinedsnippets#_snippet-syntax para más informacion.",
 	"badFile": "No se pudo leer el archivo del fragmento \"{0}\".",
 	"source.snippet": "Fragmento de código del usuario",
 	"detail.snippet": "{0} ({1})",

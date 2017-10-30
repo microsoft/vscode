@@ -35,6 +35,7 @@ import { getContributedTypeScriptServerPlugins, TypeScriptServerPlugin } from '.
 import { openOrCreateConfigFile, isImplicitProjectConfigFile } from './utils/tsconfig';
 import { tsLocationToVsPosition } from './utils/convert';
 import FormattingConfigurationManager from './features/formattingConfigurationManager';
+import * as languageModeIds from './utils/languageModeIds';
 
 interface LanguageDescription {
 	id: string;
@@ -54,21 +55,16 @@ interface ProjectConfigMessageItem extends MessageItem {
 	id: ProjectConfigAction;
 }
 
-const MODE_ID_TS = 'typescript';
-const MODE_ID_TSX = 'typescriptreact';
-const MODE_ID_JS = 'javascript';
-const MODE_ID_JSX = 'javascriptreact';
-
 const standardLanguageDescriptions: LanguageDescription[] = [
 	{
 		id: 'typescript',
 		diagnosticSource: 'ts',
-		modeIds: [MODE_ID_TS, MODE_ID_TSX],
+		modeIds: [languageModeIds.typescript, languageModeIds.typescriptreact],
 		configFile: 'tsconfig.json'
 	}, {
 		id: 'javascript',
 		diagnosticSource: 'js',
-		modeIds: [MODE_ID_JS, MODE_ID_JSX],
+		modeIds: [languageModeIds.javascript, languageModeIds.javascriptreact],
 		configFile: 'jsconfig.json'
 	}
 ];
@@ -240,8 +236,6 @@ class LanguageProvider {
 		const config = workspace.getConfiguration(this.id);
 
 		const completionItemProvider = new (await import('./features/completionItemProvider')).default(client, this.description.id, this.typingsStatus);
-		completionItemProvider.updateConfiguration();
-		this.toUpdateOnConfigurationChanged.push(completionItemProvider);
 		this.disposables.push(languages.registerCompletionItemProvider(selector, completionItemProvider, '.', '"', '\'', '/', '@'));
 
 		this.disposables.push(languages.registerCompletionItemProvider(selector, new (await import('./features/directiveCommentCompletionProvider')).default(client), '@'));
@@ -256,10 +250,7 @@ class LanguageProvider {
 		this.disposables.push(formattingProviderManager);
 		this.toUpdateOnConfigurationChanged.push(formattingProviderManager);
 
-		const jsDocCompletionProvider = new JsDocCompletionProvider(client);
-		jsDocCompletionProvider.updateConfiguration();
-		this.disposables.push(languages.registerCompletionItemProvider(selector, jsDocCompletionProvider, '*'));
-
+		this.disposables.push(languages.registerCompletionItemProvider(selector, new JsDocCompletionProvider(client), '*'));
 		this.disposables.push(languages.registerHoverProvider(selector, new (await import('./features/hoverProvider')).default(client)));
 		this.disposables.push(languages.registerDefinitionProvider(selector, new (await import('./features/definitionProvider')).default(client)));
 		this.disposables.push(languages.registerDocumentHighlightProvider(selector, new (await import('./features/documentHighlightProvider')).default(client)));
@@ -326,7 +317,6 @@ class LanguageProvider {
 	private configurationChanged(): void {
 		const config = workspace.getConfiguration(this.id);
 		this.updateValidate(config.get(validateSetting, true));
-		this.formattingOptionsManager.updateConfiguration(config);
 
 		for (const toUpdate of this.toUpdateOnConfigurationChanged) {
 			toUpdate.updateConfiguration();
@@ -373,6 +363,7 @@ class LanguageProvider {
 		this.syntaxDiagnostics = Object.create(null);
 		this.bufferSyncSupport.reOpenDocuments();
 		this.bufferSyncSupport.requestAllDiagnostics();
+		this.formattingOptionsManager.reset();
 		this.registerVersionDependentProviders();
 	}
 
@@ -570,7 +561,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 
 		switch (selected && selected.id) {
 			case ProjectConfigAction.CreateConfig:
-				openOrCreateConfigFile(isTypeScriptProject, rootPath);
+				openOrCreateConfigFile(isTypeScriptProject, rootPath, this.client.configuration);
 				return;
 
 			case ProjectConfigAction.LearnMore:

@@ -20,7 +20,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { IDecorationsService, IResourceDecorationChangeEvent } from 'vs/workbench/services/decorations/browser/decorations';
+import { IDecorationsService, IResourceDecorationChangeEvent, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
 import { Schemas } from 'vs/base/common/network';
 import { FileKind, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
 import { IModel } from 'vs/editor/common/editorCommon';
@@ -34,7 +34,7 @@ export interface IResourceLabel {
 
 export interface IResourceLabelOptions extends IIconLabelOptions {
 	fileKind?: FileKind;
-	fileDecorations?: { colors: boolean, badges: boolean };
+	fileDecorations?: { colors: boolean, badges: boolean, data?: IDecorationData };
 }
 
 export class ResourceLabel extends IconLabel {
@@ -199,12 +199,13 @@ export class ResourceLabel extends IconLabel {
 		if (this.options && this.options.fileDecorations && resource) {
 			let deco = this.decorationsService.getDecoration(
 				resource,
-				this.options.fileKind !== FileKind.FILE
+				this.options.fileKind !== FileKind.FILE,
+				this.options.fileDecorations.data
 			);
 
 			if (deco) {
-				if (deco.title) {
-					iconLabelOptions.title = `${deco.title}, ${iconLabelOptions.title}`;
+				if (deco.tooltip) {
+					iconLabelOptions.title = `${deco.tooltip}, ${iconLabelOptions.title}`;
 				}
 				if (this.options.fileDecorations.colors) {
 					iconLabelOptions.extraClasses.push(deco.labelClassName);

@@ -450,7 +450,7 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 		const theme = this.themeService.getTheme();
 		const icon = theme.type === LIGHT ? resource.decorations.icon : resource.decorations.iconDark;
 
-		template.fileLabel.setFile(resource.sourceUri, { fileDecorations: { colors: false, badges: !icon } });
+		template.fileLabel.setFile(resource.sourceUri, { fileDecorations: { colors: false, badges: !icon, data: resource.decorations } });
 		template.actionBar.clear();
 		template.actionBar.context = resource;
 		template.actionBar.push(this.scmMenus.getResourceActions(resource), { icon: true, label: false });

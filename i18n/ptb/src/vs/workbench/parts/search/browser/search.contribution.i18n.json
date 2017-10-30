@@ -19,5 +19,6 @@
 	"exclude.when": "Verificação adicional nos irmãos de um arquivo correspondente. Use $(basename) como variável para o nome do arquivo correspondente.",
 	"useRipgrep": "Controla se utiliza ripgrep em buscas de texto e de arquivo",
 	"useIgnoreFilesByDefault": "Controla se deve utilizar arquivos .gitignore e .ignore por padrão ao fazer pesquisas em um novo espaço de trabalho.",
-	"search.quickOpen.includeSymbols": "Configurar para incluir resultados de uma pesquisa símbolo global nos resultados do arquivo para Abertura Rápida."
+	"search.quickOpen.includeSymbols": "Configurar para incluir resultados de uma pesquisa símbolo global nos resultados do arquivo para Abertura Rápida.",
+	"search.followSymlinks": "Controla quando seguir symlinks ao realizar uma busca."
 }

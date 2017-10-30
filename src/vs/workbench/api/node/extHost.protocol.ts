@@ -49,6 +49,7 @@ import { SerializedError } from 'vs/base/common/errors';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { IWorkspaceFolderData } from 'vs/platform/workspace/common/workspace';
 import { IStat, IFileChange } from 'vs/platform/files/common/files';
+import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -73,8 +74,12 @@ export interface IInitData {
 	environment: IEnvironment;
 	workspace: IWorkspaceData;
 	extensions: IExtensionDescription[];
-	configuration: IConfigurationData;
+	configuration: IConfigurationInitData;
 	telemetryInfo: ITelemetryInfo;
+}
+
+export interface IConfigurationInitData extends IConfigurationData {
+	configurationScopes: ConfigurationScope[];
 }
 
 export interface IWorkspaceConfigurationChangeEventData {
@@ -370,7 +375,11 @@ export type SCMRawResource = [
 	string[] /*icons: light, dark*/,
 	string /*tooltip*/,
 	boolean /*strike through*/,
-	boolean /*faded*/
+	boolean /*faded*/,
+
+	string /*source*/,
+	string /*letter*/,
+	ThemeColor /*color*/
 ];
 
 export type SCMRawResourceSplice = [
@@ -627,7 +636,7 @@ export interface ExtHostDebugServiceShape {
 }
 
 
-export type DecorationData = [number, boolean, string, string, ThemeColor];
+export type DecorationData = [number, boolean, string, string, ThemeColor, string];
 
 export interface ExtHostDecorationsShape {
 	$providerDecorations(handle: number, uri: URI): TPromise<DecorationData>;

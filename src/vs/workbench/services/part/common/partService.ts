@@ -23,6 +23,10 @@ export enum Position {
 	BOTTOM
 }
 
+export interface ILayoutOptions {
+	toggleMaximizedPanel?: boolean;
+}
+
 export const IPartService = createDecorator<IPartService>('partService');
 
 export interface IPartService {
@@ -41,7 +45,7 @@ export interface IPartService {
 	/**
 	 * Asks the part service to layout all parts.
 	 */
-	layout(): void;
+	layout(options?: ILayoutOptions): void;
 
 	/**
 	 * Asks the part service to if all parts have been created.
@@ -87,6 +91,17 @@ export interface IPartService {
 	 * Set panel part hidden or not
 	 */
 	setPanelHidden(hidden: boolean): TPromise<void>;
+
+	/**
+	 * Maximizes the panel height if the panel is not already maximized.
+	 * Shrinks the panel to the default starting size if the panel is maximized.
+	 */
+	toggleMaximizedPanel(): void;
+
+	/**
+	 * Returns true if the panel is maximized.
+	 */
+	isPanelMaximized(): boolean;
 
 	/**
 	 * Gets the current side bar position. Note that the sidebar can be hidden too.

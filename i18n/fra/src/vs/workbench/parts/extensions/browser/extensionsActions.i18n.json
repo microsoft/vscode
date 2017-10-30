@@ -34,7 +34,6 @@
 	"postDisableMessage": "Recharger cette fenêtre pour désactiver l'extension '{0}' ?",
 	"postUninstallTooltip": "Recharger pour désactiver",
 	"postUninstallMessage": "Recharger cette fenêtre pour désactiver l'extension désinstallée '{0}' ?",
-	"reload": "&&Recharger la fenêtre",
 	"toggleExtensionsViewlet": "Afficher les extensions",
 	"installExtensions": "Installer les extensions",
 	"showEnabledExtensions": "Afficher les Extensions activées",

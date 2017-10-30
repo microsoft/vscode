@@ -9,7 +9,6 @@
 	"emptyFolderSettingsHeader": "ワークスペースの設定を上書きするには、このファイル内にフォルダーの設定を挿入します。",
 	"defaultFolderSettingsTitle": "既定のフォルダー設定",
 	"defaultSettingsTitle": "既定の設定",
-	"noSettingsFound": "設定が見つかりません。",
 	"editTtile": "編集",
 	"replaceDefaultValue": "設定を置換",
 	"copyDefaultValue": "設定にコピー",

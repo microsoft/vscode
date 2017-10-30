@@ -7,6 +7,7 @@
 	"reallyRecommended2": "建議對此檔案類型使用 '{0}' 延伸模組。",
 	"reallyRecommendedExtensionPack": "建議對此檔案類型使用 '{0}' 延伸模組套件。",
 	"showRecommendations": "顯示建議",
+	"install": "安裝",
 	"neverShowAgain": "不要再顯示",
 	"close": "關閉",
 	"workspaceRecommended": "此工作區具有擴充功能建議。",

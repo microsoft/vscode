@@ -8,9 +8,10 @@ import { ITypescriptServiceClient } from '../typescriptService';
 import { loadMessageBundle } from 'vscode-nls';
 import { dirname } from 'path';
 import { openOrCreateConfigFile, isImplicitProjectConfigFile } from './tsconfig';
+import * as languageModeIds from '../utils/languageModeIds';
 
 const localize = loadMessageBundle();
-const selector = ['javascript', 'javascriptreact'];
+const selector = [languageModeIds.javascript, languageModeIds.javascriptreact];
 
 
 interface Hint {
@@ -152,7 +153,10 @@ function createLargeProjectMonitorFromTypeScript(item: ExcludeHintItem, client: 
 	});
 }
 
-function onConfigureExcludesSelected(client: ITypescriptServiceClient, configFileName: string) {
+function onConfigureExcludesSelected(
+	client: ITypescriptServiceClient,
+	configFileName: string
+) {
 	if (!isImplicitProjectConfigFile(configFileName)) {
 		vscode.workspace.openTextDocument(configFileName)
 			.then(vscode.window.showTextDocument);
@@ -161,12 +165,17 @@ function onConfigureExcludesSelected(client: ITypescriptServiceClient, configFil
 		if (root) {
 			openOrCreateConfigFile(
 				configFileName.match(/tsconfig\.?.*\.json/) !== null,
-				root);
+				root,
+				client.configuration);
 		}
 	}
 }
 
-export function create(client: ITypescriptServiceClient, isOpen: (path: string) => Promise<boolean>, memento: vscode.Memento) {
+export function create(
+	client: ITypescriptServiceClient,
+	isOpen: (path: string) => Promise<boolean>,
+	memento: vscode.Memento
+) {
 	const toDispose: vscode.Disposable[] = [];
 
 	const item = new ExcludeHintItem(client);

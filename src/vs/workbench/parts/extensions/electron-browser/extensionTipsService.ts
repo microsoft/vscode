@@ -17,7 +17,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import product from 'vs/platform/node/product';
 import { IChoiceService, IMessageService } from 'vs/platform/message/common/message';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsAction, InstallRecommendedExtensionAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
+import { ShowRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsAction, InstallRecommendedExtensionAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import Severity from 'vs/base/common/severity';
 import { IWorkspaceContextService, IWorkspaceFolder, IWorkspace, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { Schemas } from 'vs/base/common/network';
@@ -81,7 +81,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 	getAllRecommendationsWithReason(): { [id: string]: string; } {
 		let output: { [id: string]: string; } = Object.create(null);
-		this.getFileBasedRecommendations().forEach(x => output[x.toLowerCase()] = localize('fileBasedRecommendation', "Based on your recent file history, we recommend this extension."));
+		Object.keys(this._fileBasedRecommendations).forEach(x => output[x.toLowerCase()] = localize('fileBasedRecommendation', "Based on your recent file history, we recommend this extension."));
 		this._allWorkspaceRecommendedExtensions.forEach(x => output[x.toLowerCase()] = localize('workspaceRecommendation', "Your team recommends this extension."));
 		return output;
 	}
@@ -356,7 +356,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				}
 
 				const message = localize('workspaceRecommended', "This workspace has extension recommendations.");
-				const showAction = this.instantiationService.createInstance(ShowWorkspaceRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction.ID, localize('showRecommendations', "Show Recommendations"));
+				const showAction = this.instantiationService.createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, localize('showRecommendations', "Show Recommendations"));
 				const installAllAction = this.instantiationService.createInstance(InstallWorkspaceRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsAction.ID, localize('installAll', "Install All"));
 
 				const options = [

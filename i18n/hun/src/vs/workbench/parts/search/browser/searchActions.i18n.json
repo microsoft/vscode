@@ -19,6 +19,7 @@
 	"ClearSearchResultsAction.label": "Keresési eredmények törlése",
 	"FocusNextSearchResult.label": "Váltás a következő keresési eredményre",
 	"FocusPreviousSearchResult.label": "Váltás az előző keresési eredményre",
+	"RemoveAction.label": "Elvetés",
 	"file.replaceAll.label": "Összes cseréje",
 	"match.replace.label": "Csere"
 }

@@ -175,9 +175,9 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 			return; // user does not want to see it again
 		}
 
-		const okAction = new Action(
-			'enterWorkspace.ok',
-			nls.localize('integrity.ok', "OK"),
+		const closeAction = new Action(
+			'enterWorkspace.close',
+			nls.localize('enterWorkspace.close', "Close"),
 			null,
 			true,
 			() => TPromise.as(true)
@@ -200,7 +200,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 			null,
 			true,
 			() => {
-				const uri = URI.parse(product.documentationUrl);
+				const uri = URI.parse('https://go.microsoft.com/fwlink/?linkid=861970');
 				window.open(uri.toString(true));
 
 				return TPromise.as(true);
@@ -208,8 +208,8 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		);
 
 		this.messageService.show(Severity.Info, {
-			message: nls.localize('enterWorkspace.prompt', "The opened workspace changed into a multi-root workspace."),
-			actions: [okAction, moreInfoAction, dontShowAgainAction]
+			message: nls.localize('enterWorkspace.prompt', "Learn more about working with multiple folders in VS Code."),
+			actions: [moreInfoAction, dontShowAgainAction, closeAction]
 		});
 	}
 

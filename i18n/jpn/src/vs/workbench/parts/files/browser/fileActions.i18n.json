@@ -54,7 +54,6 @@
 	"openFileToShow": "エクスプローラーでファイルを表示するには、ファイルをまず開く必要があります",
 	"collapseExplorerFolders": "エクスプローラーのフォルダーを折りたたむ",
 	"refreshExplorer": "エクスプローラーを最新表示する",
-	"openFile": "ファイルを開く...",
 	"openFileInNewWindow": "新しいウィンドウでアクティブ ファイルを開く",
 	"openFileToShowInNewWindow": "まずファイルを開いてから新しいウィンドウで開きます",
 	"revealInWindows": "エクスプローラーで表示",

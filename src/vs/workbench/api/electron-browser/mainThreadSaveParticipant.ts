@@ -24,6 +24,7 @@ import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textF
 import { ExtHostContext, ExtHostDocumentSaveParticipantShape, IExtHostContext } from '../node/extHost.protocol';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { extHostCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 
 export interface INamedSaveParticpant extends ISaveParticipant {
 	readonly name: string;
@@ -180,6 +181,7 @@ class FormatOnSaveParticipant implements INamedSaveParticpant {
 
 	constructor(
 		@ICodeEditorService private _editorService: ICodeEditorService,
+		@IEditorWorkerService private _editorWorkerService: IEditorWorkerService,
 		@IConfigurationService private _configurationService: IConfigurationService
 	) {
 		// Nothing
@@ -198,7 +200,9 @@ class FormatOnSaveParticipant implements INamedSaveParticpant {
 
 		return new TPromise<ISingleEditOperation[]>((resolve, reject) => {
 			setTimeout(reject, 750);
-			getDocumentFormattingEdits(model, { tabSize, insertSpaces }).then(resolve, reject);
+			getDocumentFormattingEdits(model, { tabSize, insertSpaces })
+				.then(edits => this._editorWorkerService.computeMoreMinimalEdits(model.uri, edits))
+				.then(resolve, reject);
 
 		}).then(edits => {
 			if (edits && versionNow === model.getVersionId()) {
@@ -277,12 +281,13 @@ export class SaveParticipant implements ISaveParticipant {
 		@ITelemetryService private _telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@ICodeEditorService codeEditorService: ICodeEditorService
+		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
 
 		this._saveParticipants = [
 			new TrimWhitespaceParticipant(configurationService, codeEditorService),
-			new FormatOnSaveParticipant(codeEditorService, configurationService),
+			new FormatOnSaveParticipant(codeEditorService, editorWorkerService, configurationService),
 			new FinalNewLineParticipant(configurationService, codeEditorService),
 			new TrimFinalNewLinesParticipant(configurationService, codeEditorService),
 			new ExtHostSaveParticipant(extHostContext)

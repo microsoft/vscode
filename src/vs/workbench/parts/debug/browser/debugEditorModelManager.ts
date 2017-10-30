@@ -209,8 +209,10 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		const data: IRawBreakpoint[] = [];
 
 		const lineToBreakpointDataMap = new Map<number, IBreakpoint>();
-		this.debugService.getModel().getBreakpoints().filter(bp => bp.uri.toString() === modelUrlStr).forEach(bp => {
-			lineToBreakpointDataMap.set(bp.lineNumber, bp);
+		this.debugService.getModel().getBreakpoints().forEach(bp => {
+			if (bp.uri.toString() === modelUrlStr) {
+				lineToBreakpointDataMap.set(bp.lineNumber, bp);
+			}
 		});
 
 		const modelUri = modelData.model.uri;

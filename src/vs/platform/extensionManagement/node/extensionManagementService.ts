@@ -123,11 +123,17 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 				this._onInstallExtension.fire({ identifier, zipPath });
 
-				return this.installExtension({ zipPath, id: identifier.id, metadata: null })
-					.then(
-					local => this._onDidInstallExtension.fire({ identifier, zipPath, local }),
-					error => { this._onDidInstallExtension.fire({ identifier, zipPath, error }); return TPromise.wrapError(error); }
-					);
+				return this.galleryService.query({ names: [getGalleryExtensionId(manifest.publisher, manifest.name)], pageSize: 1 })
+					.then(galleryResult => {
+						const galleryExtension = galleryResult.firstPage[0];
+						const metadata = galleryExtension ? <IGalleryMetadata>{ id: galleryExtension.identifier.uuid, publisherDisplayName: galleryExtension.publisherDisplayName, publisherId: galleryExtension.publisherId } : null;
+						return this.installExtension({ zipPath, id: identifier.id, metadata })
+							.then(
+							local => this._onDidInstallExtension.fire({ identifier, zipPath, local }),
+							error => { this._onDidInstallExtension.fire({ identifier, zipPath, error }); return TPromise.wrapError(error); }
+							);
+					});
+
 			});
 		});
 	}
@@ -253,12 +259,8 @@ export class ExtensionManagementService implements IExtensionManagementService {
 						const identifier = { id, uuid: metadata ? metadata.id : null };
 
 						const local: ILocalExtension = { type, identifier, manifest, metadata, path: extensionPath, readmeUrl, changelogUrl };
-						const manifestPath = path.join(extensionPath, 'package.json');
 
-						return pfs.readFile(manifestPath, 'utf8')
-							.then(raw => parseManifest(raw))
-							.then(({ manifest }) => assign(manifest, { __metadata: metadata }))
-							.then(manifest => pfs.writeFile(manifestPath, JSON.stringify(manifest, null, '\t')))
+						return this.saveMetadataForLocalExtension(local)
 							.then(() => this.checkForRename(current, local))
 							.then(() => local);
 					});
@@ -277,6 +279,23 @@ export class ExtensionManagementService implements IExtensionManagementService {
 						return TPromise.join(promises).then(null, error => TPromise.wrapError(Array.isArray(error) ? this.joinErrors(error) : error));
 					}))
 			.then(() => { /* drop resolved value */ });
+	}
+
+	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): TPromise<ILocalExtension> {
+		local.metadata = metadata;
+		return this.saveMetadataForLocalExtension(local);
+	}
+
+	private saveMetadataForLocalExtension(local: ILocalExtension): TPromise<ILocalExtension> {
+		if (!local.metadata) {
+			return TPromise.as(local);
+		}
+		const manifestPath = path.join(this.extensionsPath, local.identifier.id, 'package.json');
+		return pfs.readFile(manifestPath, 'utf8')
+			.then(raw => parseManifest(raw))
+			.then(({ manifest }) => assign(manifest, { __metadata: local.metadata }))
+			.then(manifest => pfs.writeFile(manifestPath, JSON.stringify(manifest, null, '\t')))
+			.then(() => local);
 	}
 
 	private checkForRename(currentExtension: ILocalExtension, newExtension: ILocalExtension): TPromise<void> {
@@ -440,7 +459,10 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 	private async postUninstallExtension(extension: ILocalExtension, error?: string): TPromise<void> {
 		if (!error) {
-			await this.galleryService.reportStatistic(extension.manifest.publisher, extension.manifest.name, extension.manifest.version, StatisticType.Uninstall);
+			// only report if extension has a mapped gallery extension. UUID identifies the gallery extension.
+			if (extension.identifier.uuid) {
+				await this.galleryService.reportStatistic(extension.manifest.publisher, extension.manifest.name, extension.manifest.version, StatisticType.Uninstall);
+			}
 		}
 
 		this._onDidUninstallExtension.fire({ identifier: extension.identifier, error });

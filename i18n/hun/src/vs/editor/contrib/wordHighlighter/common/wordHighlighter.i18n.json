@@ -7,5 +7,7 @@
 	"wordHighlight": "Szimbólumok háttérszíne olvasási hozzáférés, páldául változó olvasása esetén.",
 	"wordHighlightStrong": "Szimbólumok háttérszíne írási hozzáférés, páldául változó írása esetén.",
 	"overviewRulerWordHighlightForeground": "A kiemelt szimbólumokat jelölő jelzések színe az áttekintősávon.",
-	"overviewRulerWordHighlightStrongForeground": "A kiemelt, írási hozzáférésű szimbólumokat jelölő jelzések színe az áttekintősávon."
+	"overviewRulerWordHighlightStrongForeground": "A kiemelt, írási hozzáférésű szimbólumokat jelölő jelzések színe az áttekintősávon.",
+	"wordHighlight.next.label": "Ugrás a következő kiemelt szimbólumhoz",
+	"wordHighlight.previous.label": "Ugrás az előző kiemelt szimbólumhoz"
 }

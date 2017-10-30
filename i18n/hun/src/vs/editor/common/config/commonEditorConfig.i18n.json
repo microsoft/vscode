@@ -47,7 +47,6 @@
 	"autoClosingBrackets": "Meghatározza, hogy a szerkesztő automatikusan beszúrja-e a nyitó zárójelek záró párját",
 	"formatOnType": "Meghatározza, hogy a szerkesztő automatikusan formázza-e a sort a gépelés után",
 	"formatOnPaste": "Meghatározza, hogy a szerkesztő automatikusan formázza-e a beillesztett tartalmat. Ehhez szükség van egy formázóra, illetve a formázónak tudnia kell a dokumentum egy részét formázni.",
-	"autoIndent": "Meghatározza, hogy a szerkesztőablak automatikusan állítsa-e az indentálást miközben a felhasználó gépel, beilleszt vagy mozgatja a sorokat. Az adott nyelv indentálási szabályainak rendelkezésre kell állnia.",
 	"suggestOnTriggerCharacters": "Itt adható meg, hogy eseményindító karakterek beírásakor automatikusan megjelenjenek-e a javaslatok",
 	"acceptSuggestionOnEnter": "Meghatározza, hogy a javaslatok az 'Enter' gomb leütésére is el legyenek fogadva a 'Tab' mellett. Segít feloldani a bizonytalanságot az új sorok beillesztése és a javaslatok elfogadása között. A 'smart' érték azt jelenti, hogy csak akkor fogadja el a javaslatot az Enter leütése esetén, ha az módosítja a szöveget.",
 	"acceptSuggestionOnCommitCharacter": "Meghatározza, hogy a javaslaok a zárókarakterek leütésére is el legyenek fogadva. A JavaScriptben például a pontosvessző (';') számít zárókarakternek, leütésére a javaslat elfogadásra kerül és beillesztődik az adott karakter. ",

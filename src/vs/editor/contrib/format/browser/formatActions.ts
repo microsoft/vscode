@@ -151,7 +151,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 			tabSize: modelOpts.tabSize,
 			insertSpaces: modelOpts.insertSpaces
 		}).then(edits => {
-			return this.workerService.computeMoreMinimalEdits(model.uri, edits, []);
+			return this.workerService.computeMoreMinimalEdits(model.uri, edits);
 		}).then(edits => {
 
 			unbind.dispose();
@@ -239,7 +239,7 @@ class FormatOnPaste implements editorCommon.IEditorContribution {
 		const state = new EditorState(this.editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position);
 
 		getDocumentRangeFormattingEdits(model, range, { tabSize, insertSpaces }).then(edits => {
-			return this.workerService.computeMoreMinimalEdits(model.uri, edits, []);
+			return this.workerService.computeMoreMinimalEdits(model.uri, edits);
 		}).then(edits => {
 			if (!state.validate(this.editor) || isFalsyOrEmpty(edits)) {
 				return;
@@ -275,7 +275,7 @@ export abstract class AbstractFormatAction extends EditorAction {
 		const state = new EditorState(editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position);
 
 		// Receive formatted value from worker
-		return formattingPromise.then(edits => workerService.computeMoreMinimalEdits(editor.getModel().uri, edits, editor.getSelections())).then(edits => {
+		return formattingPromise.then(edits => workerService.computeMoreMinimalEdits(editor.getModel().uri, edits)).then(edits => {
 			if (!state.validate(editor) || isFalsyOrEmpty(edits)) {
 				return;
 			}

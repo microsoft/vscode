@@ -21,8 +21,6 @@
 	"deleted by us": "こちら側による削除",
 	"both added": "双方とも追加",
 	"both modified": "双方とも変更",
-	"untracked, short": "U",
-	"modified, short": "M",
 	"commit": "コミット",
 	"merge changes": "変更のマージ",
 	"staged changes": "ステージング済みの変更",

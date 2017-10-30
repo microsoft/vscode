@@ -11,7 +11,7 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { Action } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { FindInput, IFindInputOptions } from 'vs/base/browser/ui/findinput/findInput';
-import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import { InputBox, IMessage } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -220,11 +220,11 @@ export class SearchWidget extends Widget {
 	private renderSearchInput(parent: HTMLElement, options: ISearchWidgetOptions): void {
 		let inputOptions: IFindInputOptions = {
 			label: nls.localize('label.Search', 'Search: Type Search Term and press Enter to search or Escape to cancel'),
-			validation: (value: string) => this.validatSearchInput(value),
+			validation: (value: string) => this.validateSearchInput(value),
 			placeholder: nls.localize('search.placeHolder', "Search"),
-			appendCaseSensitiveLabel: appendKeyBindingLabel('', this.keyBindingService2.lookupKeybinding(Constants.ToggleCaseSensitiveActionId), this.keyBindingService2),
-			appendWholeWordsLabel: appendKeyBindingLabel('', this.keyBindingService2.lookupKeybinding(Constants.ToggleWholeWordActionId), this.keyBindingService2),
-			appendRegexLabel: appendKeyBindingLabel('', this.keyBindingService2.lookupKeybinding(Constants.ToggleRegexActionId), this.keyBindingService2)
+			appendCaseSensitiveLabel: appendKeyBindingLabel('', this.keyBindingService2.lookupKeybinding(Constants.ToggleCaseSensitiveCommandId), this.keyBindingService2),
+			appendWholeWordsLabel: appendKeyBindingLabel('', this.keyBindingService2.lookupKeybinding(Constants.ToggleWholeWordCommandId), this.keyBindingService2),
+			appendRegexLabel: appendKeyBindingLabel('', this.keyBindingService2.lookupKeybinding(Constants.ToggleRegexCommandId), this.keyBindingService2)
 		};
 
 		let searchInputContainer = dom.append(parent, dom.$('.search-container.input-box'));
@@ -309,7 +309,7 @@ export class SearchWidget extends Widget {
 		}
 	}
 
-	private validatSearchInput(value: string): any {
+	private validateSearchInput(value: string): IMessage {
 		if (value.length === 0) {
 			return null;
 		}
@@ -325,6 +325,12 @@ export class SearchWidget extends Widget {
 		if (strings.regExpLeadsToEndlessLoop(regExp)) {
 			return { content: nls.localize('regexp.validationFailure', "Expression matches everything") };
 		}
+
+		if (strings.regExpContainsBackreference(value)) {
+			return { content: nls.localize('regexp.backreferenceValidationFailure', "Backreferences are not supported") };
+		}
+
+		return null;
 	}
 
 	private onSearchInputChanged(): void {

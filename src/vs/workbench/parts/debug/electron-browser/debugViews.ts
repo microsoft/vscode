@@ -47,6 +47,7 @@ export class VariablesView extends ViewsViewletPanel {
 	private onFocusStackFrameScheduler: RunOnceScheduler;
 	private variablesFocusedContext: IContextKey<boolean>;
 	private settings: any;
+	private expandedElements: any[];
 
 	constructor(
 		private options: IViewletViewOptions,
@@ -63,14 +64,20 @@ export class VariablesView extends ViewsViewletPanel {
 
 		this.settings = options.viewletSettings;
 		this.variablesFocusedContext = CONTEXT_VARIABLES_FOCUSED.bindTo(contextKeyService);
+		this.expandedElements = [];
 		// Use scheduler to prevent unnecessary flashing
 		this.onFocusStackFrameScheduler = new RunOnceScheduler(() => {
+			// Remember expanded elements when there are some (otherwise don't override/erase the previous ones)
+			const expanded = this.tree.getExpandedElements();
+			if (expanded.length > 0) {
+				this.expandedElements = expanded;
+			}
+
 			// Always clear tree highlight to avoid ending up in a broken state #12203
 			this.tree.clearHighlight();
-			const expanded = this.tree.getExpandedElements();
 			this.tree.refresh().then(() => {
 				const stackFrame = this.debugService.getViewModel().focusedStackFrame;
-				return sequence(expanded.map(e => () => this.tree.expand(e))).then(() => {
+				return sequence(this.expandedElements.map(e => () => this.tree.expand(e))).then(() => {
 					// If there is no preserved expansion state simply expand the first scope
 					if (stackFrame && this.tree.getExpandedElements().length === 0) {
 						return stackFrame.getScopes().then(scopes => {

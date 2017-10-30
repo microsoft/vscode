@@ -19,6 +19,7 @@
 	"ClearSearchResultsAction.label": "Effacer les résultats de la recherche",
 	"FocusNextSearchResult.label": "Focus sur le résultat de la recherche suivant",
 	"FocusPreviousSearchResult.label": "Focus sur le résultat de la recherche précédent",
+	"RemoveAction.label": "Rejeter",
 	"file.replaceAll.label": "Tout remplacer",
 	"match.replace.label": "Remplacer"
 }

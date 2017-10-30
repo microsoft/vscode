@@ -185,9 +185,9 @@ function getSettingsFromBing(filter: string, endpoint: IEndpointDetails): TPromi
 	return TPromise.as(p as any);
 }
 
-const API_VERSION = 'api-version=2015-02-28-Preview';
+const API_VERSION = 'api-version=2016-09-01-Preview';
 const QUERY_TYPE = 'querytype=full';
-const SCORING_PROFILE = 'scoringProfile=ranking1';
+const SCORING_PROFILE = 'scoringProfile=ranking';
 
 function escapeSpecialChars(query: string): string {
 	return query.replace(/\./g, ' ')

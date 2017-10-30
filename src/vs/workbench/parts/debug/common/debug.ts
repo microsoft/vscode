@@ -592,11 +592,6 @@ export interface IDebugService {
 	startDebugging(root: IWorkspaceFolder, configOrName?: IConfig | string, noDebug?: boolean): TPromise<any>;
 
 	/**
-	 * Find process by ID.
-	 */
-	findProcessByUUID(uuid: string): IProcess | null;
-
-	/**
 	 * Restarts a process or creates a new one if there is no active session.
 	 */
 	restartProcess(process: IProcess): TPromise<any>;

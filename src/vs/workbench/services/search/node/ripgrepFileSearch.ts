@@ -8,7 +8,7 @@ import { rgPath } from 'vscode-ripgrep';
 
 import { isMacintosh as isMac } from 'vs/base/common/platform';
 import * as glob from 'vs/base/common/glob';
-import { normalizeNFD } from 'vs/base/common/strings';
+import { normalizeNFD, startsWith } from 'vs/base/common/strings';
 
 import { IFolderSearch, IRawSearch } from './search';
 import { foldersToIncludeGlobs, foldersToRgExcludeGlobs } from './ripgrepTextSearch';
@@ -26,14 +26,14 @@ function getRgArgs(config: IRawSearch, folderQuery: IFolderSearch, includePatter
 
 	// includePattern can't have siblingClauses
 	foldersToIncludeGlobs([folderQuery], includePattern, false).forEach(globArg => {
-		args.push('-g', isMac ? normalizeNFD(globArg) : globArg);
+		args.push('-g', anchor(isMac ? normalizeNFD(globArg) : globArg));
 	});
 
 	let siblingClauses: glob.IExpression;
 
 	const rgGlobs = foldersToRgExcludeGlobs([folderQuery], excludePattern, undefined, false);
 	rgGlobs.globArgs
-		.forEach(rgGlob => args.push('-g', `!${isMac ? normalizeNFD(rgGlob) : rgGlob}`));
+		.forEach(rgGlob => args.push('-g', `!${anchor(isMac ? normalizeNFD(rgGlob) : rgGlob)}`));
 	siblingClauses = rgGlobs.siblingClauses;
 
 	if (config.disregardIgnoreFiles) {
@@ -56,4 +56,8 @@ function getRgArgs(config: IRawSearch, folderQuery: IFolderSearch, includePatter
 	args.push('.');
 
 	return { globArgs: args, siblingClauses };
+}
+
+function anchor(glob: string) {
+	return startsWith(glob, '**') || startsWith(glob, '/') ? glob : `/${glob}`;
 }
