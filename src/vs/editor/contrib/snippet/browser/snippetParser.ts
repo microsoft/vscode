@@ -846,6 +846,7 @@ export class SnippetParser {
 			if (escaped = this._accept(TokenType.Backslash, true)) {
 				escaped = this._accept(TokenType.Forwardslash, true) || escaped;
 				regexValue += escaped;
+				continue;
 			}
 
 			if (this._token.type !== TokenType.EOF) {
