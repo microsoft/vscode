@@ -16,7 +16,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IPreferencesService, ISettingsGroup, ISetting, IPreferencesEditorModel, IFilterResult, ISettingsEditorModel } from 'vs/workbench/parts/preferences/common/preferences';
+import { IPreferencesService, ISettingsGroup, ISetting, IPreferencesEditorModel, IFilterResult, ISettingsEditorModel, IScoredResults } from 'vs/workbench/parts/preferences/common/preferences';
 import { SettingsEditorModel, DefaultSettingsEditorModel, WorkspaceConfigurationEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { IContextMenuService, ContextSubMenu } from 'vs/platform/contextview/browser/contextView';
@@ -589,13 +589,13 @@ export class FeedbackWidgetRenderer extends Disposable {
 		}
 
 		const result = this._currentResult;
-		const actualResults = result.filteredGroups[0] ? result.filteredGroups[0].sections[0].settings.map(setting => setting.key) : [];
+		const actualResultNames = Object.keys(result.metadata.scoredResults);
 
 		const feedbackQuery = {};
-		feedbackQuery['_comment'] = FeedbackWidgetRenderer.COMMENT_TEXT;
+		feedbackQuery['comment'] = FeedbackWidgetRenderer.COMMENT_TEXT;
 		feedbackQuery['queryString'] = result.query;
 		feedbackQuery['resultScores'] = {};
-		actualResults.forEach(settingKey => {
+		actualResultNames.forEach(settingKey => {
 			feedbackQuery['resultScores'][settingKey] = 10;
 		});
 
@@ -605,7 +605,7 @@ export class FeedbackWidgetRenderer extends Disposable {
 			sendFeedbackWidget.render();
 
 			this._register(sendFeedbackWidget.onClick(() => {
-				this.sendFeedback(feedbackEditor.getControl() as ICodeEditor, result, actualResults).then(() => {
+				this.sendFeedback(feedbackEditor.getControl() as ICodeEditor, result, result.metadata.scoredResults).then(() => {
 					sendFeedbackWidget.dispose();
 					this.messageService.show(Severity.Info, 'Feedback sent successfully');
 				}, err => {
@@ -615,35 +615,35 @@ export class FeedbackWidgetRenderer extends Disposable {
 		});
 	}
 
-	private sendFeedback(feedbackEditor: ICodeEditor, result: IFilterResult, actualResults: string[]): TPromise<void> {
+	private sendFeedback(feedbackEditor: ICodeEditor, result: IFilterResult, actualResults: IScoredResults): TPromise<void> {
 		const model = feedbackEditor.getModel();
 		const expectedQueryLines = model.getLinesContent();
-		let expectedQuery: string;
+		let expectedQuery: any;
 		try {
 			expectedQuery = JSON.parse(expectedQueryLines.join('\n'));
-			if (expectedQuery['_comment'] === FeedbackWidgetRenderer.COMMENT_TEXT) {
-				delete expectedQuery['_comment'];
-			}
 		} catch (e) {
 			// invalid JSON
 			return TPromise.wrapError(new Error('Invalid JSON: ' + e.message));
 		}
 
+		const userComment = expectedQuery.comment === FeedbackWidgetRenderer.COMMENT_TEXT ? undefined : expectedQuery.comment;
+
 		/* __GDPR__
-		"settingsSearchResultFeedback" : {
-			"query" : { "classification": "CustomContent", "purpose": "FeatureInsight" },
-			"userComment" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
-			"actualResults" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"expectedResults" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"url" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
-			"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"timestamp" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-		}
-			*/
+			"settingsSearchResultFeedback" : {
+				"query" : { "classification": "CustomContent", "purpose": "FeatureInsight" },
+				"userComment" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+				"actualResults" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"expectedResults" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"url" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+				"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"timestamp" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		return this.telemetryService.publicLog('settingsSearchResultFeedback', {
 			query: result.query,
+			userComment,
 			actualResults,
-			expectedQuery,
+			expectedResults: expectedQuery.resultScores,
 			url: result.metadata.remoteUrl,
 			duration: result.metadata.duration,
 			timestamp: result.metadata.timestamp
