@@ -366,7 +366,9 @@ export class ViewsViewlet extends PanelViewlet {
 
 			return result;
 
-		}, [[], [], unregisteredViews]);
+		}, [[], [], []]);
+
+		toRemove.push(...unregisteredViews.filter(viewDescriptor => this.isCurrentlyVisible(viewDescriptor)));
 
 		const toCreate: ViewsViewletPanel[] = [];
 
