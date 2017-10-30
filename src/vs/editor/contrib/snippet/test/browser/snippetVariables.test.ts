@@ -193,5 +193,19 @@ suite('Snippet Variables Resolver', function () {
 			'ThisIsAFile',
 			'this-is-a-file.js'
 		);
+
+		// KEBAB CASE
+		assertVariableResolve2(
+			'${TM_FILENAME_BASE/([A-Z][a-z]+)([A-Z][a-z]+$)?/${1:/downcase}-${2:/downcase}/g}',
+			'capital-case',
+			'CapitalCase'
+		);
+
+		assertVariableResolve2(
+			'${TM_FILENAME_BASE/([A-Z][a-z]+)([A-Z][a-z]+$)?/${1:/downcase}-${2:/downcase}/g}',
+			'capital-case-more',
+			'CapitalCaseMore'
+		);
 	});
+
 });
