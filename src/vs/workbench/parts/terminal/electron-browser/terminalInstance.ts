@@ -920,6 +920,7 @@ export class TerminalInstance implements ITerminalInstance {
 				de: 'DE',
 				en: 'US',
 				es: 'ES',
+				fi: 'FI',
 				fr: 'FR',
 				it: 'IT',
 				ja: 'JP',
