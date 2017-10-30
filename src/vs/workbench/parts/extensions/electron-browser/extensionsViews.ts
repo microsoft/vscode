@@ -383,8 +383,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 		const value = query.value.replace(/@recommended:workspace/g, '').trim().toLowerCase();
 		return this.tipsService.getWorkspaceRecommendations()
 			.then(recommendations => {
-				const installed = this.extensionsWorkbenchService.local.map(x => x.id.toLowerCase());
-				const names = recommendations.filter(name => name.toLowerCase().indexOf(value) > -1 && installed.indexOf(name.toLowerCase()) === -1);
+				const names = recommendations.filter(name => name.toLowerCase().indexOf(value) > -1);
 				/* __GDPR__
 			"extensionWorkspaceRecommendations:open" : {
 				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
