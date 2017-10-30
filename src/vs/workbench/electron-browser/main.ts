@@ -18,6 +18,8 @@ import uri from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import { IWorkspaceContextService, Workspace, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { realpath } from 'vs/base/node/pfs';
@@ -110,15 +112,20 @@ function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
 }
 
 function createAndInitializeWorkspaceService(configuration: IWindowConfiguration, environmentService: EnvironmentService, workspacesService: IWorkspacesService): TPromise<WorkspaceService> {
-	return validateWorkspacePath(configuration).then(() => {
+	return validateWorkspacePath(configuration, environmentService).then(() => {
 		const workspaceService = new WorkspaceService(environmentService, workspacesService);
 
 		return workspaceService.initialize(configuration.workspace || configuration.folderPath || configuration).then(() => workspaceService, error => workspaceService);
 	});
 }
 
-function validateWorkspacePath(configuration: IWindowConfiguration): TPromise<void> {
+function validateWorkspacePath(configuration: IWindowConfiguration, environmentService: EnvironmentService): TPromise<void> {
 	if (!configuration.folderPath) {
+		return TPromise.as(null);
+	}
+
+	const configurationService: IConfigurationService = new ConfigurationService(environmentService);
+	if (!configurationService.getValue<boolean>('workbench.dereferenceSymbolicLink')) {
 		return TPromise.as(null);
 	}
 
