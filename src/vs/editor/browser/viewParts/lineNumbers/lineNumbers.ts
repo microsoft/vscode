@@ -115,8 +115,6 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 	}
 
 	public prepareRender(ctx: RenderingContext): void {
-		console.log('Preparing');
-
 		if (!this._renderLineNumbers) {
 			this._renderResult = null;
 			return;
@@ -151,13 +149,11 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		let inInterval = false;
 
 		if (typeof this._lineNumberInterval === 'object') {
-			console.log(this._lineNumberInterval);
 			inInterval = lineNumber % this._lineNumberInterval.interval === 0
 				|| (this._lineNumberInterval.showCurrentLineNumber && this._lastCursorModelPosition.lineNumber === lineNumber);
 		} else if (typeof this._lineNumberInterval === 'number') {
 			inInterval = lineNumber % this._lineNumberInterval === 0;
 		}
-		console.log(inInterval);
 		return inInterval;
 	}
 
