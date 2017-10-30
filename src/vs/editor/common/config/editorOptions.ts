@@ -1832,7 +1832,6 @@ export class InternalEditorOptionsFactory {
 			showGlyphMargin: opts.viewInfo.glyphMargin,
 			lineHeight: env.fontInfo.lineHeight,
 			showLineNumbers: opts.viewInfo.renderLineNumbers,
-			lineNumberInterval: opts.viewInfo.lineNumberInterval,
 			lineNumbersMinChars: opts.lineNumbersMinChars,
 			lineNumbersDigitCount: env.lineNumbersDigitCount,
 			lineDecorationsWidth: lineDecorationsWidth,
@@ -1961,7 +1960,6 @@ export interface IEditorLayoutProviderOpts {
 	lineHeight: number;
 
 	showLineNumbers: boolean;
-	lineNumberInterval: number;
 	lineNumbersMinChars: number;
 	lineNumbersDigitCount: number;
 
