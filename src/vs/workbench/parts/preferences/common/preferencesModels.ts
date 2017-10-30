@@ -126,9 +126,7 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 		super();
 		this.settingsModel = reference.object.textEditorModel;
 		this._register(this.onDispose(() => reference.dispose()));
-		this._register(this.settingsModel.onDidChangeContent(() => {
-			this._settingsGroups = null;
-		}));
+		this._register(this.settingsModel.onDidChangeContent(() => this._settingsGroups = null));
 		this.queue = new Queue<void>();
 	}
 
@@ -163,176 +161,204 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 		return this.queue.queue(() => this.doSave());
 	}
 
+	protected isSettingsProperty(property: string, previousParents: string[]): boolean {
+		return previousParents.length === 0; // Settings is root
+	}
+
 	protected doSave(): TPromise<any> {
 		return this.textFileService.save(this.uri);
 	}
 
-	private parse() {
-		const model = this.settingsModel;
-		const settings: ISetting[] = [];
-		let overrideSetting: ISetting = null;
+	protected parse(): void {
+		this._settingsGroups = parse(this.settingsModel, (property: string, previousParents: string[]): boolean => this.isSettingsProperty(property, previousParents));
+	}
+}
 
-		let currentProperty: string = null;
-		let currentParent: any = [];
-		let previousParents: any[] = [];
-		let range = {
-			startLineNumber: 0,
-			startColumn: 0,
-			endLineNumber: 0,
-			endColumn: 0
-		};
+function parse(model: IModel, isSettingsProperty: (currentProperty: string, previousParents: string[]) => boolean): ISettingsGroup[] {
+	const settings: ISetting[] = [];
+	let overrideSetting: ISetting = null;
 
-		function onValue(value: any, offset: number, length: number) {
-			if (Array.isArray(currentParent)) {
-				(<any[]>currentParent).push(value);
-			} else if (currentProperty) {
-				currentParent[currentProperty] = value;
+	let currentProperty: string = null;
+	let currentParent: any = [];
+	let previousParents: any[] = [];
+	let settingsPropertyIndex: number = -1;
+	let range = {
+		startLineNumber: 0,
+		startColumn: 0,
+		endLineNumber: 0,
+		endColumn: 0
+	};
+
+	function onValue(value: any, offset: number, length: number) {
+		if (Array.isArray(currentParent)) {
+			(<any[]>currentParent).push(value);
+		} else if (currentProperty) {
+			currentParent[currentProperty] = value;
+		}
+		if (previousParents.length === settingsPropertyIndex + 1 || (previousParents.length === settingsPropertyIndex + 2 && overrideSetting !== null)) {
+			// settings value started
+			const setting = previousParents.length === settingsPropertyIndex + 1 ? settings[settings.length - 1] : overrideSetting.overrides[overrideSetting.overrides.length - 1];
+			if (setting) {
+				let valueStartPosition = model.getPositionAt(offset);
+				let valueEndPosition = model.getPositionAt(offset + length);
+				setting.value = value;
+				setting.valueRange = {
+					startLineNumber: valueStartPosition.lineNumber,
+					startColumn: valueStartPosition.column,
+					endLineNumber: valueEndPosition.lineNumber,
+					endColumn: valueEndPosition.column
+				};
+				setting.range = assign(setting.range, {
+					endLineNumber: valueEndPosition.lineNumber,
+					endColumn: valueEndPosition.column
+				});
 			}
-			if (previousParents.length === 1 || (previousParents.length === 2 && overrideSetting !== null)) {
-				// settings value started
-				const setting = previousParents.length === 1 ? settings[settings.length - 1] : overrideSetting.overrides[overrideSetting.overrides.length - 1];
+		}
+	}
+	let visitor: JSONVisitor = {
+		onObjectBegin: (offset: number, length: number) => {
+			if (isSettingsProperty(currentProperty, previousParents)) {
+				// Settings started
+				settingsPropertyIndex = previousParents.length;
+				let position = model.getPositionAt(offset);
+				range.startLineNumber = position.lineNumber;
+				range.startColumn = position.column;
+			}
+			let object = {};
+			onValue(object, offset, length);
+			currentParent = object;
+			currentProperty = null;
+			previousParents.push(currentParent);
+		},
+		onObjectProperty: (name: string, offset: number, length: number) => {
+			currentProperty = name;
+			if (previousParents.length === settingsPropertyIndex + 1 || (previousParents.length === settingsPropertyIndex + 2 && overrideSetting !== null)) {
+				// setting started
+				let settingStartPosition = model.getPositionAt(offset);
+				const setting: ISetting = {
+					description: [],
+					key: name,
+					keyRange: {
+						startLineNumber: settingStartPosition.lineNumber,
+						startColumn: settingStartPosition.column + 1,
+						endLineNumber: settingStartPosition.lineNumber,
+						endColumn: settingStartPosition.column + length
+					},
+					range: {
+						startLineNumber: settingStartPosition.lineNumber,
+						startColumn: settingStartPosition.column,
+						endLineNumber: 0,
+						endColumn: 0
+					},
+					value: null,
+					valueRange: null,
+					descriptionRanges: null,
+					overrides: [],
+					overrideOf: overrideSetting
+				};
+				if (previousParents.length === settingsPropertyIndex + 1) {
+					settings.push(setting);
+					if (OVERRIDE_PROPERTY_PATTERN.test(name)) {
+						overrideSetting = setting;
+					}
+				} else {
+					overrideSetting.overrides.push(setting);
+				}
+			}
+		},
+		onObjectEnd: (offset: number, length: number) => {
+			currentParent = previousParents.pop();
+			if (previousParents.length === settingsPropertyIndex + 1 || (previousParents.length === settingsPropertyIndex + 2 && overrideSetting !== null)) {
+				// setting ended
+				const setting = previousParents.length === settingsPropertyIndex + 1 ? settings[settings.length - 1] : overrideSetting.overrides[overrideSetting.overrides.length - 1];
 				if (setting) {
-					let valueStartPosition = model.getPositionAt(offset);
 					let valueEndPosition = model.getPositionAt(offset + length);
-					setting.value = value;
-					setting.valueRange = {
-						startLineNumber: valueStartPosition.lineNumber,
-						startColumn: valueStartPosition.column,
+					setting.valueRange = assign(setting.valueRange, {
 						endLineNumber: valueEndPosition.lineNumber,
 						endColumn: valueEndPosition.column
-					};
+					});
+					setting.range = assign(setting.range, {
+						endLineNumber: valueEndPosition.lineNumber,
+						endColumn: valueEndPosition.column
+					});
+				}
+
+				if (previousParents.length === settingsPropertyIndex + 1) {
+					overrideSetting = null;
+				}
+			}
+			if (previousParents.length === settingsPropertyIndex) {
+				// settings ended
+				let position = model.getPositionAt(offset);
+				range.endLineNumber = position.lineNumber;
+				range.endColumn = position.column;
+			}
+		},
+		onArrayBegin: (offset: number, length: number) => {
+			let array: any[] = [];
+			onValue(array, offset, length);
+			previousParents.push(currentParent);
+			currentParent = array;
+			currentProperty = null;
+		},
+		onArrayEnd: (offset: number, length: number) => {
+			currentParent = previousParents.pop();
+			if (previousParents.length === settingsPropertyIndex + 1 || (previousParents.length === settingsPropertyIndex + 2 && overrideSetting !== null)) {
+				// setting value ended
+				const setting = previousParents.length === settingsPropertyIndex + 1 ? settings[settings.length - 1] : overrideSetting.overrides[overrideSetting.overrides.length - 1];
+				if (setting) {
+					let valueEndPosition = model.getPositionAt(offset + length);
+					setting.valueRange = assign(setting.valueRange, {
+						endLineNumber: valueEndPosition.lineNumber,
+						endColumn: valueEndPosition.column
+					});
 					setting.range = assign(setting.range, {
 						endLineNumber: valueEndPosition.lineNumber,
 						endColumn: valueEndPosition.column
 					});
 				}
 			}
-		}
-		let visitor: JSONVisitor = {
-			onObjectBegin: (offset: number, length: number) => {
-				if (previousParents.length === 0) {
-					// Settings started
-					let position = model.getPositionAt(offset);
-					range.startLineNumber = position.lineNumber;
-					range.startColumn = position.column;
-				}
-				let object = {};
-				onValue(object, offset, length);
-				currentParent = object;
-				currentProperty = null;
-				previousParents.push(currentParent);
-			},
-			onObjectProperty: (name: string, offset: number, length: number) => {
-				currentProperty = name;
-				if (previousParents.length === 1 || (previousParents.length === 2 && overrideSetting !== null)) {
-					// setting started
-					let settingStartPosition = model.getPositionAt(offset);
-					const setting: ISetting = {
-						description: [],
-						key: name,
-						keyRange: {
-							startLineNumber: settingStartPosition.lineNumber,
-							startColumn: settingStartPosition.column + 1,
-							endLineNumber: settingStartPosition.lineNumber,
-							endColumn: settingStartPosition.column + length
-						},
-						range: {
-							startLineNumber: settingStartPosition.lineNumber,
-							startColumn: settingStartPosition.column,
-							endLineNumber: 0,
-							endColumn: 0
-						},
-						value: null,
-						valueRange: null,
-						descriptionRanges: null,
-						overrides: [],
-						overrideOf: overrideSetting
-					};
-					if (previousParents.length === 1) {
-						settings.push(setting);
-						if (OVERRIDE_PROPERTY_PATTERN.test(name)) {
-							overrideSetting = setting;
-						}
-					} else {
-						overrideSetting.overrides.push(setting);
-					}
-				}
-			},
-			onObjectEnd: (offset: number, length: number) => {
-				currentParent = previousParents.pop();
-				if (previousParents.length === 1 || (previousParents.length === 2 && overrideSetting !== null)) {
-					// setting ended
-					const setting = previousParents.length === 1 ? settings[settings.length - 1] : overrideSetting.overrides[overrideSetting.overrides.length - 1];
-					if (setting) {
-						let valueEndPosition = model.getPositionAt(offset + length);
-						setting.valueRange = assign(setting.valueRange, {
-							endLineNumber: valueEndPosition.lineNumber,
-							endColumn: valueEndPosition.column
-						});
-						setting.range = assign(setting.range, {
-							endLineNumber: valueEndPosition.lineNumber,
-							endColumn: valueEndPosition.column
-						});
-					}
-
-					if (previousParents.length === 1) {
-						overrideSetting = null;
-					}
-				}
-				if (previousParents.length === 0) {
-					// settings ended
-					let position = model.getPositionAt(offset);
-					range.endLineNumber = position.lineNumber;
-					range.endColumn = position.column;
-				}
-			},
-			onArrayBegin: (offset: number, length: number) => {
-				let array: any[] = [];
-				onValue(array, offset, length);
-				previousParents.push(currentParent);
-				currentParent = array;
-				currentProperty = null;
-			},
-			onArrayEnd: (offset: number, length: number) => {
-				currentParent = previousParents.pop();
-				if (previousParents.length === 1 || (previousParents.length === 2 && overrideSetting !== null)) {
-					// setting value ended
-					const setting = previousParents.length === 1 ? settings[settings.length - 1] : overrideSetting.overrides[overrideSetting.overrides.length - 1];
-					if (setting) {
-						let valueEndPosition = model.getPositionAt(offset + length);
-						setting.valueRange = assign(setting.valueRange, {
-							endLineNumber: valueEndPosition.lineNumber,
-							endColumn: valueEndPosition.column
-						});
-						setting.range = assign(setting.range, {
-							endLineNumber: valueEndPosition.lineNumber,
-							endColumn: valueEndPosition.column
-						});
-					}
-				}
-			},
-			onLiteralValue: onValue,
-			onError: (error) => {
-				const setting = settings[settings.length - 1];
-				if (setting && (!setting.range || !setting.keyRange || !setting.valueRange)) {
-					settings.pop();
-				}
+		},
+		onLiteralValue: onValue,
+		onError: (error) => {
+			const setting = settings[settings.length - 1];
+			if (setting && (!setting.range || !setting.keyRange || !setting.valueRange)) {
+				settings.pop();
 			}
-		};
-		if (!model.isDisposed()) {
-			visit(model.getValue(), visitor);
 		}
-		this._settingsGroups = settings.length > 0 ? [<ISettingsGroup>{
-			sections: [
-				{
-					settings
-				}
-			],
-			title: null,
-			titleRange: null,
-			range
-		}] : [];
+	};
+	if (!model.isDisposed()) {
+		visit(model.getValue(), visitor);
 	}
+	return settings.length > 0 ? [<ISettingsGroup>{
+		sections: [
+			{
+				settings
+			}
+		],
+		title: null,
+		titleRange: null,
+		range
+	}] : [];
+}
+
+export class WorkspaceConfigurationEditorModel extends SettingsEditorModel {
+
+	private _configurationGroups: ISettingsGroup[];
+
+	get configurationGroups(): ISettingsGroup[] {
+		return this._configurationGroups;
+	}
+
+	protected parse(): void {
+		super.parse();
+		this._configurationGroups = parse(this.settingsModel, (property: string, previousParents: string[]): boolean => previousParents.length === 0);
+	}
+
+	protected isSettingsProperty(property: string, previousParents: string[]): boolean {
+		return property === 'settings' && previousParents.length === 1;
+	}
+
 }
 
 export class WorkspaceConfigModel extends SettingsEditorModel implements ISettingsEditorModel {
