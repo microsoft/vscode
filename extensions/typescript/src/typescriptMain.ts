@@ -399,22 +399,22 @@ class LanguageProvider {
 		this.bufferSyncSupport.requestAllDiagnostics();
 	}
 
-	public syntaxDiagnosticsReceived(file: string, diagnostics: Diagnostic[]): void {
+	public syntaxDiagnosticsReceived(file: string, syntaxDiagnostics: Diagnostic[]): void {
 		if (!this._validate) {
 			return;
 		}
-		this.syntaxDiagnostics[file] = diagnostics;
+		this.syntaxDiagnostics[file] = syntaxDiagnostics;
 		const semanticDianostics = this.semanticDiagnostics[file] || [];
-		this.currentDiagnostics.set(this.client.asUrl(file), semanticDianostics.concat(diagnostics));
+		this.currentDiagnostics.set(this.client.asUrl(file), semanticDianostics.concat(syntaxDiagnostics));
 	}
 
-	public semanticDiagnosticsReceived(file: string, diagnostics: Diagnostic[]): void {
+	public semanticDiagnosticsReceived(file: string, semanticDiagnostics: Diagnostic[]): void {
 		if (!this._validate) {
 			return;
 		}
-		this.semanticDiagnostics[file] = diagnostics;
+		this.semanticDiagnostics[file] = semanticDiagnostics;
 		const syntaxDiagnostics = this.syntaxDiagnostics[file] || [];
-		this.currentDiagnostics.set(this.client.asUrl(file), diagnostics.concat(syntaxDiagnostics));
+		this.currentDiagnostics.set(this.client.asUrl(file), semanticDiagnostics.concat(syntaxDiagnostics));
 	}
 
 	public configFileDiagnosticsReceived(file: string, diagnostics: Diagnostic[]): void {
