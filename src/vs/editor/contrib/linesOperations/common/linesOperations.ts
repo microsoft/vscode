@@ -152,15 +152,16 @@ abstract class AbstractSortLinesAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+		const selections = editor.getSelections();
 
-		if (!SortLinesCommand.canRun(editor.getModel(), editor.getSelection(), this.descending)) {
+		if (!selections.every(selection => SortLinesCommand.canRun(editor.getModel(), selection, this.descending))) {
 			return;
 		}
 
-		var command = new SortLinesCommand(editor.getSelection(), this.descending);
+		const commands = selections.map(selection => new SortLinesCommand(selection, this.descending));
 
 		editor.pushUndoStop();
-		editor.executeCommands(this.id, [command]);
+		editor.executeCommands(this.id, commands);
 		editor.pushUndoStop();
 	}
 }
