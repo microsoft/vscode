@@ -247,6 +247,11 @@ let workbenchProperties: { [path: string]: IJSONSchema; } = {
 		'type': 'boolean',
 		'description': nls.localize('closeOnFileDelete', "Controls if editors showing a file should close automatically when the file is deleted or renamed by some other process. Disabling this will keep the editor open as dirty on such an event. Note that deleting from within the application will always close the editor and that dirty files will never close to preserve your data."),
 		'default': true
+	},
+	'workbench.dereferenceSymbolicLink': {
+		'type': 'boolean',
+		'description': nls.localize('dereferenceSymbolicLink', "Controls if while opening symbolic link we should dereference it in advance and actually open real location."),
+		'default': true
 	}
 };
 
