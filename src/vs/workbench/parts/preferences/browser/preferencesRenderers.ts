@@ -75,7 +75,6 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IMessageService private messageService: IMessageService,
 		@IInstantiationService protected instantiationService: IInstantiationService
 	) {
 		super();
@@ -183,10 +182,9 @@ export class WorkspaceSettingsRenderer extends UserSettingsRenderer implements I
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ITextFileService textFileService: ITextFileService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IMessageService messageService: IMessageService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(editor, preferencesModel, preferencesService, telemetryService, textFileService, configurationService, messageService, instantiationService);
+		super(editor, preferencesModel, preferencesService, telemetryService, textFileService, configurationService, instantiationService);
 		this.unsupportedSettingsRenderer = this._register(instantiationService.createInstance(UnsupportedSettingsRenderer, editor, preferencesModel));
 		this.workspaceConfigurationRenderer = this._register(instantiationService.createInstance(WorkspaceConfigurationRenderer, editor, preferencesModel));
 	}
@@ -211,10 +209,9 @@ export class FolderSettingsRenderer extends UserSettingsRenderer implements IPre
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ITextFileService textFileService: ITextFileService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IMessageService messageService: IMessageService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(editor, preferencesModel, preferencesService, telemetryService, textFileService, configurationService, messageService, instantiationService);
+		super(editor, preferencesModel, preferencesService, telemetryService, textFileService, configurationService, instantiationService);
 		this.unsupportedSettingsRenderer = this._register(instantiationService.createInstance(UnsupportedSettingsRenderer, editor, preferencesModel));
 	}
 
@@ -562,7 +559,8 @@ export class FeedbackWidgetRenderer extends Disposable {
 	constructor(private editor: ICodeEditor,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IMessageService private messageService: IMessageService
 	) {
 		super();
 	}
@@ -585,6 +583,11 @@ export class FeedbackWidgetRenderer extends Disposable {
 	}
 
 	private getFeedback(): void {
+		if (!this.telemetryService.isOptedIn) {
+			this.messageService.show(Severity.Error, 'Can\'t send feedback, user is opted out of telemetry');
+			return;
+		}
+
 		const result = this._currentResult;
 		const actualResults = result.filteredGroups[0] ? result.filteredGroups[0].sections[0].settings.map(setting => setting.key) : [];
 
@@ -597,19 +600,22 @@ export class FeedbackWidgetRenderer extends Disposable {
 		});
 
 		const contents = JSON.stringify(feedbackQuery, undefined, '    ');
-		this.editorService.openEditor({ contents }, /*sideBySide=*/true).then(feedbackEditor => {
+		this.editorService.openEditor({ contents, language: 'json' }, /*sideBySide=*/true).then(feedbackEditor => {
 			const sendFeedbackWidget = this._register(this.instantiationService.createInstance(FloatingClickWidget, feedbackEditor.getControl(), 'Send feedback', null));
 			sendFeedbackWidget.render();
 
 			this._register(sendFeedbackWidget.onClick(() => {
-				if (this.sendFeedback(feedbackEditor.getControl() as ICodeEditor, result, actualResults)) {
+				this.sendFeedback(feedbackEditor.getControl() as ICodeEditor, result, actualResults).then(() => {
 					sendFeedbackWidget.dispose();
-				}
+					this.messageService.show(Severity.Info, 'Feedback sent successfully');
+				}, err => {
+					this.messageService.show(Severity.Error, 'Error sending feedback: ' + err.message);
+				});
 			}));
 		});
 	}
 
-	private sendFeedback(feedbackEditor: ICodeEditor, result: IFilterResult, actualResults: string[]): boolean {
+	private sendFeedback(feedbackEditor: ICodeEditor, result: IFilterResult, actualResults: string[]): TPromise<void> {
 		const model = feedbackEditor.getModel();
 		const expectedQueryLines = model.getLinesContent();
 		let expectedQuery: string;
@@ -620,32 +626,28 @@ export class FeedbackWidgetRenderer extends Disposable {
 			}
 		} catch (e) {
 			// invalid JSON
+			return TPromise.wrapError(new Error('Invalid JSON: ' + e.message));
 		}
 
-		if (expectedQuery) {
-			/* __GDPR__
-			"settingsSearchResultFeedback" : {
-				"query" : { "classification": "CustomContent", "purpose": "FeatureInsight" },
-				"userComment" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
-				"actualResults" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"expectedResults" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"url" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
-				"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"timestamp" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-			 */
-			this.telemetryService.publicLog('settingsSearchResultFeedback', {
-				query: result.query,
-				actualResults,
-				expectedQuery,
-				url: result.metadata.remoteUrl,
-				duration: result.metadata.duration,
-				timestamp: result.metadata.timestamp
-			});
-			return true;
+		/* __GDPR__
+		"settingsSearchResultFeedback" : {
+			"query" : { "classification": "CustomContent", "purpose": "FeatureInsight" },
+			"userComment" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+			"actualResults" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"expectedResults" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"url" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+			"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"timestamp" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		}
-
-		return false;
+			*/
+		return this.telemetryService.publicLog('settingsSearchResultFeedback', {
+			query: result.query,
+			actualResults,
+			expectedQuery,
+			url: result.metadata.remoteUrl,
+			duration: result.metadata.duration,
+			timestamp: result.metadata.timestamp
+		});
 	}
 
 	private disposeWidget(): void {
