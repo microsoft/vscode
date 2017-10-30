@@ -200,7 +200,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 			null,
 			true,
 			() => {
-				const uri = URI.parse(product.documentationUrl);
+				const uri = URI.parse('https://go.microsoft.com/fwlink/?linkid=861970');
 				window.open(uri.toString(true));
 
 				return TPromise.as(true);
