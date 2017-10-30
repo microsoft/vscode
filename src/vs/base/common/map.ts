@@ -220,77 +220,120 @@ export class BoundedMap<T> {
 	}
 }
 
-export interface IKeySegements {
+export interface IKeyIterator {
 	reset(key: string): this;
-	join(segments: string[]): string;
+	next(): this;
+	join(parts: string[]): string;
+
 	hasNext(): boolean;
-	next(): string;
+	cmp(a: string): number;
+	value(): string;
 }
 
-export class StringSegments implements IKeySegements {
-	private _value: string;
-	private _pos: number;
+export class StringIterator implements IKeyIterator {
+
+	private _value: string = '';
+	private _pos: number = 0;
 
 	reset(key: string): this {
 		this._value = key;
 		this._pos = 0;
 		return this;
 	}
-	join(segments: string[]): string {
-		return segments.join('');
+
+	next(): this {
+		this._pos += 1;
+		return this;
 	}
+
+	join(parts: string[]): string {
+		return parts.join('');
+	}
+
 	hasNext(): boolean {
-		return this._pos < this._value.length;
+		return this._pos < this._value.length - 1;
 	}
-	next(): string {
-		return this._value[this._pos++];
+
+	cmp(a: string): number {
+		let aCode = a.charCodeAt(0);
+		let thisCode = this._value.charCodeAt(this._pos);
+		return aCode - thisCode;
+	}
+
+	value(): string {
+		return this._value[this._pos];
 	}
 }
 
-export class PathSegments implements IKeySegements {
+export class PathIterator implements IKeyIterator {
 
 	private static _fwd = '/'.charCodeAt(0);
 	private static _bwd = '\\'.charCodeAt(0);
 
 	private _value: string;
-	private _pos: number;
+	private _from: number;
+	private _to: number;
 
 	reset(key: string): this {
-		this._value = key;
-		this._pos = 0;
-		return this;
+		this._value = key.replace(/\\$|\/$/, '');
+		this._from = 0;
+		this._to = 0;
+		return this.next();
 	}
-	join(segments: string[]): string {
-		return segments.join('/');
-	}
+
 	hasNext(): boolean {
-		return this._pos < this._value.length;
+		return this._to < this._value.length;
 	}
-	next(): string {
+
+	join(parts: string[]): string {
+		return parts.join('/');
+	}
+
+	next(): this {
 		// this._data = key.split(/[\\/]/).filter(s => !!s);
-		let pos = this._pos;
-		loop: for (; pos < this._value.length; pos++) {
-			switch (this._value.charCodeAt(pos)) {
-				case PathSegments._fwd:
-				case PathSegments._bwd:
-					// found it
-					break loop;
+		this._from = this._to;
+		let justSeps = true;
+		for (; this._to < this._value.length; this._to++) {
+			const ch = this._value.charCodeAt(this._to);
+			if (ch === PathIterator._fwd || ch === PathIterator._bwd) {
+				if (justSeps) {
+					this._from++;
+				} else {
+					break;
+				}
+			} else {
+				justSeps = false;
 			}
 		}
+		return this;
+	}
 
-		if (pos > this._pos) {
-			// did advance
-			let ret = this._value.substring(this._pos, pos);
-			this._pos = pos + 1;
-			return ret;
+	cmp(a: string): number {
 
-		} else {
-			// maybe just separators in a row
-			this._pos += 1;
-			return this.hasNext()
-				? this.next()
-				: undefined;
+		let aPos = 0;
+		let aLen = a.length;
+		let thisPos = this._from;
+
+		while (aPos < aLen && thisPos < this._to) {
+			let cmp = a.charCodeAt(aPos) - this._value.charCodeAt(thisPos);
+			if (cmp !== 0) {
+				return cmp;
+			}
+			aPos += 1;
+			thisPos += 1;
 		}
+
+		if (aLen === this._to - this._from) {
+			return 0;
+		} else if (aPos < aLen) {
+			return -1;
+		} else {
+			return 1;
+		}
+	}
+
+	value(): string {
+		return this._value.substring(this._from, this._to);
 	}
 }
 
@@ -309,18 +352,18 @@ class TernarySearchTreeNode<E> {
 export class TernarySearchTree<E> {
 
 	static forPaths<E>(): TernarySearchTree<E> {
-		return new TernarySearchTree<E>(new PathSegments());
+		return new TernarySearchTree<E>(new PathIterator());
 	}
 
 	static forStrings<E>(): TernarySearchTree<E> {
-		return new TernarySearchTree<E>(new StringSegments());
+		return new TernarySearchTree<E>(new StringIterator());
 	}
 
-	private _segments: IKeySegements;
+	private _iter: IKeyIterator;
 	private _root: TernarySearchTreeNode<E>;
 
-	constructor(segments: IKeySegements) {
-		this._segments = segments;
+	constructor(segments: IKeyIterator) {
+		this._iter = segments;
 	}
 
 	clear(): void {
@@ -328,26 +371,26 @@ export class TernarySearchTree<E> {
 	}
 
 	set(key: string, element: E): void {
-		const segements = this._segments.reset(key);
-		this._root = this._set(this._root, segements.next(), segements, element);
+		this._root = this._set(this._root, this._iter.reset(key), element);
 	}
 
-	private _set(node: TernarySearchTreeNode<E>, key: string, segments: IKeySegements, element: E): TernarySearchTreeNode<E> {
+	private _set(node: TernarySearchTreeNode<E>, iter: IKeyIterator, element: E): TernarySearchTreeNode<E> {
 
 		if (!node) {
 			node = new TernarySearchTreeNode<E>();
-			node.str = key;
+			node.str = iter.value();
 		}
 
-		if (node.str > key) {
+		const cmp = iter.cmp(node.str);
+		if (cmp > 0) {
 			// left
-			node.left = this._set(node.left, key, segments, element);
-		} else if (node.str < key) {
+			node.left = this._set(node.left, iter, element);
+		} else if (cmp < 0) {
 			// right
-			node.right = this._set(node.right, key, segments, element);
-		} else if (segments.hasNext()) {
+			node.right = this._set(node.right, iter, element);
+		} else if (iter.hasNext()) {
 			// mid
-			node.mid = this._set(node.mid, segments.next(), segments, element);
+			node.mid = this._set(node.mid, iter.next(), element);
 		} else {
 			node.element = element;
 		}
@@ -356,44 +399,46 @@ export class TernarySearchTree<E> {
 	}
 
 	get(key: string): E {
-		const segements = this._segments.reset(key);
-		return this._get(this._root, segements.next(), segements);
+		return this._get(this._root, this._iter.reset(key));
 	}
 
-	private _get(node: TernarySearchTreeNode<E>, key: string, segments: IKeySegements): E {
+	private _get(node: TernarySearchTreeNode<E>, iter: IKeyIterator): E {
 		if (!node) {
 			return undefined;
-		} else if (node.str > key) {
+		}
+		const cmp = iter.cmp(node.str);
+		if (cmp > 0) {
 			// left
-			return this._get(node.left, key, segments);
-		} else if (node.str < key) {
+			return this._get(node.left, iter);
+		} else if (cmp < 0) {
 			// right
-			return this._get(node.right, key, segments);
-		} else if (segments.hasNext()) {
+			return this._get(node.right, iter);
+		} else if (iter.hasNext()) {
 			// mid
-			return this._get(node.mid, segments.next(), segments);
+			return this._get(node.mid, iter.next());
 		} else {
 			return node.element;
 		}
 	}
 
 	delete(key: string): void {
-		const segments = this._segments.reset(key);
-		this._delete(this._root, segments.next(), segments);
+		this._delete(this._root, this._iter.reset(key));
 	}
 
-	private _delete(node: TernarySearchTreeNode<E>, key: string, segments: IKeySegements): TernarySearchTreeNode<E> {
+	private _delete(node: TernarySearchTreeNode<E>, iter: IKeyIterator): TernarySearchTreeNode<E> {
 		if (!node) {
 			return undefined;
-		} else if (node.str > key) {
+		}
+		const cmp = iter.cmp(node.str);
+		if (cmp > 0) {
 			// left
-			node.left = this._delete(node.left, key, segments);
-		} else if (node.str < key) {
+			node.left = this._delete(node.left, iter);
+		} else if (cmp < 0) {
 			// right
-			node.right = this._delete(node.right, key, segments);
-		} else if (segments.hasNext()) {
+			node.right = this._delete(node.right, iter);
+		} else if (iter.hasNext()) {
 			// mid
-			node.mid = this._delete(node.mid, segments.next(), segments);
+			node.mid = this._delete(node.mid, iter.next());
 		} else {
 			// remove element
 			node.element = undefined;
@@ -403,50 +448,52 @@ export class TernarySearchTree<E> {
 	}
 
 	findSubstr(key: string): E {
-		const segements = this._segments.reset(key);
-		return this._findSubstr(this._root, segements.next(), segements, undefined);
+		return this._findSubstr(this._root, this._iter.reset(key), undefined);
 	}
 
-	private _findSubstr(node: TernarySearchTreeNode<E>, key: string, segments: IKeySegements, candidate: E): E {
+	private _findSubstr(node: TernarySearchTreeNode<E>, iter: IKeyIterator, candidate: E): E {
 		if (!node) {
 			return candidate;
-		} else if (node.str > key) {
+		}
+		const cmp = iter.cmp(node.str);
+		if (cmp > 0) {
 			// left
-			return this._findSubstr(node.left, key, segments, candidate);
-		} else if (node.str < key) {
+			return this._findSubstr(node.left, iter, candidate);
+		} else if (cmp < 0) {
 			// right
-			return this._findSubstr(node.right, key, segments, candidate);
-		} else if (segments.hasNext()) {
+			return this._findSubstr(node.right, iter, candidate);
+		} else if (iter.hasNext()) {
 			// mid
-			return this._findSubstr(node.mid, segments.next(), segments, node.element || candidate);
+			return this._findSubstr(node.mid, iter.next(), node.element || candidate);
 		} else {
 			return node.element || candidate;
 		}
 	}
 
 	findSuperstr(key: string): TernarySearchTree<E> {
-		const segements = this._segments.reset(key);
-		return this._findSuperstr(this._root, segements.next(), segements);
+		return this._findSuperstr(this._root, this._iter.reset(key));
 	}
 
-	private _findSuperstr(node: TernarySearchTreeNode<E>, key: string, segments: IKeySegements): TernarySearchTree<E> {
+	private _findSuperstr(node: TernarySearchTreeNode<E>, iter: IKeyIterator): TernarySearchTree<E> {
 		if (!node) {
 			return undefined;
-		} else if (node.str > key) {
+		}
+		const cmp = iter.cmp(node.str);
+		if (cmp > 0) {
 			// left
-			return this._findSuperstr(node.left, key, segments);
-		} else if (node.str < key) {
+			return this._findSuperstr(node.left, iter);
+		} else if (cmp < 0) {
 			// right
-			return this._findSuperstr(node.right, key, segments);
-		} else if (segments.hasNext()) {
+			return this._findSuperstr(node.right, iter);
+		} else if (iter.hasNext()) {
 			// mid
-			return this._findSuperstr(node.mid, segments.next(), segments);
+			return this._findSuperstr(node.mid, iter.next());
 		} else {
 			// collect
 			if (!node.mid) {
 				return undefined;
 			}
-			let ret = new TernarySearchTree<E>(this._segments);
+			let ret = new TernarySearchTree<E>(this._iter);
 			ret._root = node.mid;
 			return ret;
 		}
@@ -465,7 +512,7 @@ export class TernarySearchTree<E> {
 		let newParts = parts.slice();
 		newParts.push(node.str);
 		if (node.element) {
-			callback(node.element, this._segments.join(newParts));
+			callback(node.element, this._iter.join(newParts));
 		}
 		this._forEach(node.mid, newParts, callback);
 	}
