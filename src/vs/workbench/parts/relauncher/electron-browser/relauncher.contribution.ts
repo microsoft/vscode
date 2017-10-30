@@ -97,7 +97,7 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 			this.doConfirm(
 				localize('relaunchSettingMessage', "A setting has changed that requires a restart to take effect."),
 				localize('relaunchSettingDetail', "Press the restart button to restart {0} and enable the setting.", this.envService.appNameLong),
-				localize('restart', "Restart"),
+				localize('restart', "&&Restart"),
 				() => this.windowsService.relaunch(Object.create(null))
 			);
 		}

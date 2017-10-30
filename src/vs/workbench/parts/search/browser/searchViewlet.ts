@@ -384,7 +384,7 @@ export class SearchViewlet extends Viewlet {
 		let confirmation: IConfirmation = {
 			title: nls.localize('replaceAll.confirmation.title', "Replace All"),
 			message: this.buildReplaceAllConfirmationMessage(occurrences, fileCount, replaceValue),
-			primaryButton: nls.localize('replaceAll.confirm.button', "Replace"),
+			primaryButton: nls.localize('replaceAll.confirm.button', "&&Replace"),
 			type: 'question'
 		};
 
