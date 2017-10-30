@@ -27,8 +27,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 	private _renderRelativeLineNumbers: boolean;
 	private _lineNumbersLeft: number;
 	private _lineNumbersWidth: number;
-	private _lineNumberInterval: number;
-
+	private _lineNumberInterval: number | { interval: number, showCurrentLineNumber: boolean };
 	private _lastCursorModelPosition: Position;
 	private _renderResult: string[];
 
@@ -70,11 +69,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		const primaryViewPosition = e.selections[0].getPosition();
 		this._lastCursorModelPosition = this._context.model.coordinatesConverter.convertViewPositionToModelPosition(primaryViewPosition);
-
-		if (this._renderRelativeLineNumbers) {
-			return true;
-		}
-		return false;
+		return true;
 	}
 	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
 		return true;
@@ -120,6 +115,8 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 	}
 
 	public prepareRender(ctx: RenderingContext): void {
+		console.log('Preparing');
+
 		if (!this._renderLineNumbers) {
 			this._renderResult = null;
 			return;
@@ -135,7 +132,8 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 			let lineIndex = lineNumber - visibleStartLineNumber;
 
 			let renderLineNumber = this._getLineRenderLineNumber(lineNumber);
-			if (renderLineNumber && lineNumber % this._lineNumberInterval === 0) {
+
+			if (renderLineNumber && this._inInterval(lineNumber)) {
 				output[lineIndex] = (
 					common
 					+ renderLineNumber
@@ -147,6 +145,20 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		}
 
 		this._renderResult = output;
+	}
+
+	private _inInterval(lineNumber: number): boolean {
+		let inInterval = false;
+
+		if (typeof this._lineNumberInterval === 'object') {
+			console.log(this._lineNumberInterval);
+			inInterval = lineNumber % this._lineNumberInterval.interval === 0
+				|| (this._lineNumberInterval.showCurrentLineNumber && this._lastCursorModelPosition.lineNumber === lineNumber);
+		} else if (typeof this._lineNumberInterval === 'number') {
+			inInterval = lineNumber % this._lineNumberInterval === 0;
+		}
+		console.log(inInterval);
+		return inInterval;
 	}
 
 	public render(startLineNumber: number, lineNumber: number): string {

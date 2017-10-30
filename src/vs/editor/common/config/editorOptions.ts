@@ -165,7 +165,7 @@ export interface IEditorOptions {
 	 * Controls the interval at which line numbers are rendered.
 	 * Defaults to 1.
 	 */
-	lineNumberInterval?: number;
+	lineNumberInterval?: number | { interval: number, showCurrentLineNumber: boolean };
 	/**
 	 * Should the corresponding line be selected when clicking on the line number?
 	 * Defaults to true.
@@ -767,7 +767,7 @@ export interface InternalEditorViewOptions {
 	readonly renderCustomLineNumbers: (lineNumber: number) => string;
 	readonly renderRelativeLineNumbers: boolean;
 	readonly selectOnLineNumbers: boolean;
-	readonly lineNumberInterval: number;
+	readonly lineNumberInterval: number | { interval: number, showCurrentLineNumber: boolean };
 	readonly glyphMargin: boolean;
 	readonly revealHorizontalRightPadding: number;
 	readonly roundedSelection: boolean;
@@ -1037,7 +1037,7 @@ export class InternalEditorOptions {
 			&& a.renderCustomLineNumbers === b.renderCustomLineNumbers
 			&& a.renderRelativeLineNumbers === b.renderRelativeLineNumbers
 			&& a.selectOnLineNumbers === b.selectOnLineNumbers
-			&& a.lineNumberInterval === b.lineNumberInterval
+			&& this._equalsLineNumberInterval(a.lineNumberInterval, b.lineNumberInterval)
 			&& a.glyphMargin === b.glyphMargin
 			&& a.revealHorizontalRightPadding === b.revealHorizontalRightPadding
 			&& a.roundedSelection === b.roundedSelection
@@ -1181,6 +1181,22 @@ export class InternalEditorOptions {
 			a.comments === b.comments
 			&& a.other === b.other
 			&& a.strings === b.strings
+		);
+	}
+
+	private static _equalsLineNumberInterval(a: number | { interval: number, showCurrentLineNumber: boolean }, b: number | { interval: number, showCurrentLineNumber: boolean }): boolean {
+		if (typeof a === 'number') {
+			if (typeof b !== 'number') {
+				return false;
+			}
+			return a === b;
+		}
+		if (typeof b === 'number') {
+			return false;
+		}
+		return (
+			a.interval === b.interval
+			&& a.showCurrentLineNumber === b.showCurrentLineNumber
 		);
 	}
 }
@@ -1623,6 +1639,16 @@ export class EditorOptionsValidator {
 			renderLineHighlight = _stringSet<'none' | 'gutter' | 'line' | 'all'>(opts.renderLineHighlight, defaults.renderLineHighlight, ['none', 'gutter', 'line', 'all']);
 		}
 
+		let lineNumberInterval: number | { interval: number, showCurrentLineNumber: boolean };
+		if (typeof opts.lineNumberInterval === 'object') {
+			lineNumberInterval = {
+				interval: _clampedInt(opts.lineNumberInterval, 1, 1, Constants.MAX_UINT_32),
+				...opts.lineNumberInterval
+			};
+		} else {
+			lineNumberInterval = _clampedInt(opts.lineNumberInterval, 1, 1, Constants.MAX_UINT_32)
+		}
+
 		const mouseWheelScrollSensitivity = _float(opts.mouseWheelScrollSensitivity, defaults.scrollbar.mouseWheelScrollSensitivity);
 		const scrollbar = this._sanitizeScrollbarOpts(opts.scrollbar, defaults.scrollbar, mouseWheelScrollSensitivity);
 		const minimap = this._sanitizeMinimapOpts(opts.minimap, defaults.minimap);
@@ -1636,7 +1662,7 @@ export class EditorOptionsValidator {
 			renderCustomLineNumbers: renderCustomLineNumbers,
 			renderRelativeLineNumbers: renderRelativeLineNumbers,
 			selectOnLineNumbers: _boolean(opts.selectOnLineNumbers, defaults.selectOnLineNumbers),
-			lineNumberInterval: _clampedInt(opts.lineNumberInterval, defaults.lineNumberInterval, defaults.lineNumberInterval, Constants.MAX_UINT_32),
+			lineNumberInterval: lineNumberInterval,
 			glyphMargin: _boolean(opts.glyphMargin, defaults.glyphMargin),
 			revealHorizontalRightPadding: _clampedInt(opts.revealHorizontalRightPadding, defaults.revealHorizontalRightPadding, 0, 1000),
 			roundedSelection: _boolean(opts.roundedSelection, defaults.roundedSelection),
@@ -2165,7 +2191,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		renderCustomLineNumbers: null,
 		renderRelativeLineNumbers: false,
 		selectOnLineNumbers: true,
-		lineNumberInterval: 1,
+		lineNumberInterval: { interval: 1, showCurrentLineNumber: false },
 		glyphMargin: true,
 		revealHorizontalRightPadding: 30,
 		roundedSelection: true,

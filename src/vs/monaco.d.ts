@@ -2750,7 +2750,10 @@ declare module monaco.editor {
 		 * Controls the interval at which line numbers are rendered.
 		 * Defaults to 1.
 		 */
-		lineNumberInterval?: number;
+		lineNumberInterval?: number | {
+			interval: number;
+			showCurrentLineNumber: boolean;
+		};
 		/**
 		 * Should the corresponding line be selected when clicking on the line number?
 		 * Defaults to true.
@@ -3285,7 +3288,10 @@ declare module monaco.editor {
 		readonly renderCustomLineNumbers: (lineNumber: number) => string;
 		readonly renderRelativeLineNumbers: boolean;
 		readonly selectOnLineNumbers: boolean;
-		readonly lineNumberInterval: number;
+		readonly lineNumberInterval: number | {
+			interval: number;
+			showCurrentLineNumber: boolean;
+		};
 		readonly glyphMargin: boolean;
 		readonly revealHorizontalRightPadding: number;
 		readonly roundedSelection: boolean;

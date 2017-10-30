@@ -208,10 +208,30 @@ const editorConfiguration: IConfigurationNode = {
 			'description': nls.localize('lineNumbers', "Controls the display of line numbers. Possible values are 'on', 'off', and 'relative'. 'relative' shows the line count from the current cursor position.")
 		},
 		'editor.lineNumberInterval': {
-			'type': 'number',
+			'anyOf': [
+				{
+					type: 'number',
+					'minimum': 1,
+				},
+				{
+					type: 'object',
+					properties: {
+						interval: {
+							type: 'number',
+							'minimum': 1,
+							default: EDITOR_DEFAULTS.viewInfo.lineNumberInterval,
+							description: nls.localize('lineNumberInterval.interval', "Controls the interval at which line numbers are shown.")
+						},
+						showCurrentLineNumber: {
+							type: 'boolean',
+							default: false,
+							description: nls.localize('lineNumberInterval.showCurrentLineNumber', "Display the line number for the current cursor position.")
+						}
+					}
+				}
+			],
 			'default': EDITOR_DEFAULTS.viewInfo.lineNumberInterval,
-			'minimum': 1,
-			'description': nls.localize('lineNumberInterval', "Controls the interval at which line numbers are shown. Should be a positive integer.")
+			'description': nls.localize('lineNumberInterval', "Controls the interval at which line numbers are shown..")
 		},
 		'editor.rulers': {
 			'type': 'array',
