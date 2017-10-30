@@ -190,6 +190,15 @@ export class ExtensionsListView extends ViewsViewletPanel {
 			return new PagedModel(result);
 		}
 
+		const idMatch = /@id:([a-z0-9][a-z0-9\-]*\.[a-z0-9][a-z0-9\-]*)/.exec(value);
+
+		if (idMatch) {
+			const name = idMatch[1];
+
+			return this.extensionsWorkbenchService.queryGallery({ names: [name] })
+				.then(pager => new PagedModel(pager));
+		}
+
 		if (/@outdated/i.test(value)) {
 			value = value.replace(/@outdated/g, '').trim().toLowerCase();
 
