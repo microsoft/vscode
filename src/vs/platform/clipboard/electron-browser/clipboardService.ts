@@ -7,6 +7,7 @@
 
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { clipboard } from 'electron';
+import * as platform from 'vs/base/common/platform';
 
 export class ClipboardService implements IClipboardService {
 
@@ -17,10 +18,15 @@ export class ClipboardService implements IClipboardService {
 	}
 
 	public readFindText(): string {
-		return clipboard.readFindText();
+		if (platform.isMacintosh) {
+			return clipboard.readFindText();
+		}
+		return '';
 	}
 
 	public writeFindText(text: string): void {
-		clipboard.writeFindText(text);
+		if (platform.isMacintosh) {
+			clipboard.writeFindText(text);
+		}
 	}
 }

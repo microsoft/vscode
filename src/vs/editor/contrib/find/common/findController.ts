@@ -10,7 +10,6 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ContextKeyExpr, RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import * as strings from 'vs/base/common/strings';
-import * as platform from 'vs/base/common/platform';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { FIND_IDS, FindModelBoundToEditorModel, ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding, ToggleSearchScopeKeybinding, ShowPreviousFindTermKeybinding, ShowNextFindTermKeybinding } from 'vs/editor/contrib/find/common/findModel';
@@ -310,14 +309,14 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	}
 
 	public getGlobalBufferTerm(): string {
-		if (this._clipboardService && platform.isMacintosh) {
+		if (this._clipboardService) {
 			return this._clipboardService.readFindText();
 		}
 		return '';
 	}
 
 	public setGlobalBufferTerm(text: string) {
-		if (this._clipboardService && platform.isMacintosh) {
+		if (this._clipboardService) {
 			this._clipboardService.writeFindText(text);
 		}
 	}
