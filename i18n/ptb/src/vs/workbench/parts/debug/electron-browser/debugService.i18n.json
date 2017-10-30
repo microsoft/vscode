@@ -16,10 +16,10 @@
 	"debugRequesMissing": "Atributo '{0}' está faltando na configuração de depuração escolhida.",
 	"debugTypeNotSupported": "Tipo de depuração configurado '{0}' não é suportado.",
 	"debugTypeMissing": "Falta a propriedade 'tipo' para a configuração de lançamento escolhida.",
+	"debugAnyway": "Depurar mesmo assim",
 	"preLaunchTaskErrors": "Erros de build foram detectados durante a preLaunchTask '{0}'.",
 	"preLaunchTaskError": "Erro de build foi detectado durante a preLaunchTask '{0}'.",
 	"preLaunchTaskExitCode": "A preLaunchTask '{0}' encerrada com código de saída {1}.",
-	"debugAnyway": "Depurar mesmo assim",
 	"noFolderWorkspaceDebugError": "O arquivo ativo não pode ser depurado. Certifique-se de que ele está salvo no disco e que tem uma extensão de depuração instalada para esse tipo de arquivo.",
 	"NewLaunchConfig": "Por favor, configure o arquivo de configuração de lançamento para seu aplicativo. {0}",
 	"DebugTaskNotFound": "Não foi possível encontrar o preLaunchTask '{0}'."

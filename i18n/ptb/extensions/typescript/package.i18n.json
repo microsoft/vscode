@@ -47,5 +47,6 @@
 	"typescript.tsc.autoDetect": "Controla a auto deteção das tarefas de tsc. 'off' desativa esse recurso. 'build' só cria tarefas de compilação de execução única. 'watch' cria apenas tarefas de compilação e monitoramento. 'on' cria ambas as tarefas de compilar e monitoramento. Padrão é 'on'.",
 	"typescript.problemMatchers.tsc.label": "Problemas TypeScript",
 	"typescript.problemMatchers.tscWatch.label": "Problemas TypeScript (modo observação)",
-	"typescript.quickSuggestionsForPaths": "Ativar/desativar sugestões rápidas quando estiver digitando um caminho de importação."
+	"typescript.quickSuggestionsForPaths": "Ativar/desativar sugestões rápidas quando estiver digitando um caminho de importação.",
+	"typescript.locale": "Define a localidade usada para relatar erros TypeScript. Requer TypeScript > = 2.6.0. Padrão 'null' usa a localidade do VS Code para erros TypeScript."
 }

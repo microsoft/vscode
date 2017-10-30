@@ -15,6 +15,7 @@ import { createStyleSheet, createCSSRule, removeCSSRulesContainingSelector } fro
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { IIterator } from 'vs/base/common/iterator';
+import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 
 class DecorationRule {
 
@@ -63,7 +64,7 @@ class DecorationRule {
 		createCSSRule(`.${this.labelClassName}`, `color: ${theme.getColor(color) || 'inherit'};`, element);
 
 		// badge
-		const letters = data.filter(d => Boolean(d)).map(d => d.letter);
+		const letters = data.filter(d => !isFalsyOrWhitespace(d.letter)).map(d => d.letter);
 		if (letters.length) {
 			createCSSRule(`.${this.badgeClassName}::after`, `content: "${letters.join(', ')}"; color: ${theme.getColor(color) || 'inherit'};`, element);
 		}
@@ -112,7 +113,7 @@ class DecorationStyles {
 		return {
 			labelClassName: rule.labelClassName,
 			badgeClassName: !onlyChildren ? rule.badgeClassName : '',
-			tooltip: !onlyChildren ? data.filter(d => Boolean(d.tooltip)).map(d => d.tooltip).join(', ') : '',
+			tooltip: !onlyChildren ? data.filter(d => !isFalsyOrWhitespace(d.tooltip)).map(d => d.tooltip).join(', ') : '',
 			update: (source, insert) => {
 				let newData = data.slice();
 				if (!source) {
@@ -362,12 +363,12 @@ export class FileDecorationsService implements IDecorationsService {
 
 	getDecoration(uri: URI, includeChildren: boolean, overwrite?: IDecorationData): IDecoration {
 		let data: IDecorationData[] = [];
-		let onlyChildren: boolean;
+		let containsChildren: boolean;
 		for (let iter = this._data.iterator(), next = iter.next(); !next.done; next = iter.next()) {
 			next.value.getOrRetrieve(uri, includeChildren, (deco, isChild) => {
 				if (!isChild || deco.bubble) {
 					data.push(deco);
-					onlyChildren = onlyChildren === undefined ? isChild : onlyChildren && isChild;
+					containsChildren = isChild || containsChildren;
 				}
 			});
 		}
@@ -375,13 +376,13 @@ export class FileDecorationsService implements IDecorationsService {
 		if (data.length === 0) {
 			// nothing, maybe overwrite data
 			if (overwrite) {
-				return this._decorationStyles.asDecoration([overwrite], onlyChildren);
+				return this._decorationStyles.asDecoration([overwrite], containsChildren);
 			} else {
 				return undefined;
 			}
 		} else {
 			// result, maybe overwrite
-			let result = this._decorationStyles.asDecoration(data, onlyChildren);
+			let result = this._decorationStyles.asDecoration(data, containsChildren);
 			if (overwrite) {
 				return result.update(overwrite.source, overwrite);
 			} else {

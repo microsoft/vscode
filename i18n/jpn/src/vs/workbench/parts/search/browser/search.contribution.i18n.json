@@ -19,5 +19,6 @@
 	"exclude.when": "一致するファイルの兄弟をさらにチェックします。一致するファイル名の変数として $(basename) を使用します。",
 	"useRipgrep": "テキストとファイル検索で ripgrep を使用するかどうかを制御します",
 	"useIgnoreFilesByDefault": "新しいワークスペースで検索するときに、既定で .gitignore ファイルを使用するか .ignore ファイルを使用するかを制御します。",
-	"search.quickOpen.includeSymbols": "グローバル シンボル検索の結果を、Quick Open の結果ファイルに含めるように構成します。"
+	"search.quickOpen.includeSymbols": "グローバル シンボル検索の結果を、Quick Open の結果ファイルに含めるように構成します。",
+	"search.followSymlinks": "検索中にシンボリック リンクを追跡するかどうかを制御します。"
 }

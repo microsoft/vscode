@@ -54,6 +54,7 @@ export class ResourceContextKey implements IContextKey<URI> {
 		this._schemeKey.reset();
 		this._langIdKey.reset();
 		this._resourceKey.reset();
+		this._langIdKey.reset();
 		this._extensionKey.reset();
 	}
 

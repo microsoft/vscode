@@ -33,6 +33,7 @@ import { BoundedMap, ISerializedBoundedLinkedMap } from 'vs/base/common/map';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
 
 export const ALL_COMMANDS_PREFIX = '>';
 
@@ -263,9 +264,13 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 		return nls.localize('entryAriaLabel', "{0}, commands", this.getLabel());
 	}
 
-	protected onError(error?: Error): void;
-	protected onError(messagesWithAction?: IMessageWithAction): void;
-	protected onError(arg1?: any): void {
+	private onError(error?: Error): void;
+	private onError(messagesWithAction?: IMessageWithAction): void;
+	private onError(arg1?: any): void {
+		if (isPromiseCanceledError(arg1)) {
+			return;
+		}
+
 		const messagesWithAction: IMessageWithAction = arg1;
 		if (messagesWithAction && typeof messagesWithAction.message === 'string' && Array.isArray(messagesWithAction.actions)) {
 			this.messageService.show(Severity.Error, messagesWithAction);

@@ -87,6 +87,7 @@ export class SnippetController2 {
 		this._updateState();
 
 		this._snippetListener = [
+			this._editor.onDidChangeModelContent(e => e.isFlush && this.cancel()),
 			this._editor.onDidChangeModel(() => this.cancel()),
 			this._editor.onDidChangeCursorSelection(() => this._updateState())
 		];

@@ -384,7 +384,7 @@ export class SearchViewlet extends Viewlet {
 		let confirmation: IConfirmation = {
 			title: nls.localize('replaceAll.confirmation.title', "Replace All"),
 			message: this.buildReplaceAllConfirmationMessage(occurrences, fileCount, replaceValue),
-			primaryButton: nls.localize('replaceAll.confirm.button', "Replace"),
+			primaryButton: nls.localize('replaceAll.confirm.button', "&&Replace"),
 			type: 'question'
 		};
 
@@ -655,15 +655,14 @@ export class SearchViewlet extends Viewlet {
 	public focus(): void {
 		super.focus();
 
-		// If focus is inside the search viewlet, don't add the selected text to the search widget
-		if (!(document.activeElement.compareDocumentPosition(this.domNode.getHTMLElement()) & Node.DOCUMENT_POSITION_CONTAINS)) {
-			const selectedText = this.getSearchTextFromEditor();
-			if (selectedText) {
-				this.searchWidget.searchInput.setValue(selectedText);
-			}
-		}
-
 		this.searchWidget.focus();
+	}
+
+	public takeEditorText(): void {
+		const selectedText = this.getSearchTextFromEditor();
+		if (selectedText) {
+			this.searchWidget.searchInput.setValue(selectedText);
+		}
 	}
 
 	public focusNextInputBox(): void {

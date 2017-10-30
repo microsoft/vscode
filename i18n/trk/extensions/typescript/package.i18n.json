@@ -45,5 +45,6 @@
 	"typescript.check.npmIsInstalled": "Otomatik Tür Kazanımı için NPM'in yüklü olup olmadığını kontrol et.",
 	"javascript.nameSuggestions": "JavaScript öneri listelerindeki dosyadan benzersiz adları eklemeyi etkinleştir veya devre dışı bırak.",
 	"typescript.problemMatchers.tsc.label": "TypeScript sorunları",
-	"typescript.problemMatchers.tscWatch.label": "TypeScript sorunları (izleme modu)"
+	"typescript.problemMatchers.tscWatch.label": "TypeScript sorunları (izleme modu)",
+	"typescript.quickSuggestionsForPaths": "Bir içe aktarım yolu girerken hızlı önerileri etkinleştir/devre dışı bırak."
 }

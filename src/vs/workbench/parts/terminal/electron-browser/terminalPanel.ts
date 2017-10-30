@@ -103,11 +103,16 @@ export class TerminalPanel extends Panel {
 				this._updateTheme();
 			} else {
 				return super.setVisible(visible).then(() => {
-					const instance = this._terminalService.createInstance();
-					if (instance) {
-						this._updateFont();
-						this._updateTheme();
-					}
+					// Allow time for the panel to display if it is being shown
+					// for the first time. If there is not wait here the initial
+					// dimensions of the pty could be wrong.
+					setTimeout(() => {
+						const instance = this._terminalService.createInstance();
+						if (instance) {
+							this._updateFont();
+							this._updateTheme();
+						}
+					}, 0);
 					return TPromise.as(void 0);
 				});
 			}

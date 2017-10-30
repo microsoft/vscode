@@ -8,6 +8,8 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import * as vscode from 'vscode';
+import * as nls from 'vscode-nls';
+let localize = nls.loadMessageBundle();
 
 type AutoDetect = 'on' | 'off';
 let taskProvider: vscode.Disposable | undefined;
@@ -89,14 +91,17 @@ async function provideNpmScripts(): Promise<vscode.Task[]> {
 	if (!folders) {
 		return emptyTasks;
 	}
-
-	for (let i = 0; i < folders.length; i++) {
-		if (isEnabled(folders[i])) {
-			let tasks = await provideNpmScriptsForFolder(folders[i]);
-			allTasks.push(...tasks);
+	try {
+		for (let i = 0; i < folders.length; i++) {
+			if (isEnabled(folders[i])) {
+				let tasks = await provideNpmScriptsForFolder(folders[i]);
+				allTasks.push(...tasks);
+			}
 		}
+		return allTasks;
+	} catch (error) {
+		return Promise.reject(error);
 	}
-	return allTasks;
 }
 
 function isEnabled(folder: vscode.WorkspaceFolder): boolean {
@@ -138,7 +143,8 @@ async function provideNpmScriptsForFolder(folder: vscode.WorkspaceFolder): Promi
 		// result.push(createTask('install', 'install', rootPath, folder, []));
 		return result;
 	} catch (e) {
-		return emptyTasks;
+		let localizedParseError = localize('npm.parseerror', 'Npm task detection: failed to parse the file {0}', packageJson);
+		throw new Error(localizedParseError);
 	}
 }
 

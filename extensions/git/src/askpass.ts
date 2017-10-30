@@ -27,6 +27,10 @@ function getIPCHandlePath(nonce: string): string {
 		return `\\\\.\\pipe\\vscode-git-askpass-${nonce}-sock`;
 	}
 
+	if (process.env['XDG_RUNTIME_DIR']) {
+		return path.join(process.env['XDG_RUNTIME_DIR'], `vscode-git-askpass-${nonce}.sock`);
+	}
+
 	return path.join(os.tmpdir(), `vscode-git-askpass-${nonce}.sock`);
 }
 

@@ -89,7 +89,7 @@
 
 .monaco-workbench .panel .monaco-action-bar .action-item .select-box {
 	cursor: pointer;
-	min-width: 100px;
+	min-width: 110px;
 }
 
 .monaco-workbench .hide-panel-action {

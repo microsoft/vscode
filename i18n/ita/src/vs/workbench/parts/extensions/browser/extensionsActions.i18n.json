@@ -34,7 +34,6 @@
 	"postDisableMessage": "Ricaricare questa finestra per disattivare l'estensione '{0}'?",
 	"postUninstallTooltip": "Ricaricare per disattivare",
 	"postUninstallMessage": "Ricaricare questa finestra per disattivare l'estensione disinstallata '{0}'?",
-	"reload": "&&Ricarica finestra",
 	"toggleExtensionsViewlet": "Mostra estensioni",
 	"installExtensions": "Installa estensioni",
 	"showEnabledExtensions": "Mostra estensioni abilitate",

@@ -34,7 +34,6 @@
 	"postDisableMessage": "Обновить это окно, чтобы отключить расширение \"{0}\"?",
 	"postUninstallTooltip": "Перезагрузка для деактивации",
 	"postUninstallMessage": "Обновить это окно, чтобы отключить удаленное расширение \"{0}\"?",
-	"reload": "&&Перезагрузить окно",
 	"toggleExtensionsViewlet": "Показать расширения",
 	"installExtensions": "Установить расширения",
 	"showEnabledExtensions": "Показать включенные расширения",

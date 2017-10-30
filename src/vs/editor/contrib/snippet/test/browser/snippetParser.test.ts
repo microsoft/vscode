@@ -240,6 +240,10 @@ suite('SnippetParser', () => {
 
 	});
 
+	test('No way to escape forward slash in snippet regex #36715', function () {
+		assertMarker('${TM_DIRECTORY/src\\//$1/}', Variable);
+	});
+
 	test('Parser, placeholder with choice', () => {
 
 		assertTextAndMarker('${1|one,two,three|}', 'one', Placeholder);

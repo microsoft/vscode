@@ -236,8 +236,6 @@ class LanguageProvider {
 		const config = workspace.getConfiguration(this.id);
 
 		const completionItemProvider = new (await import('./features/completionItemProvider')).default(client, this.description.id, this.typingsStatus);
-		completionItemProvider.updateConfiguration();
-		this.toUpdateOnConfigurationChanged.push(completionItemProvider);
 		this.disposables.push(languages.registerCompletionItemProvider(selector, completionItemProvider, '.', '"', '\'', '/', '@'));
 
 		this.disposables.push(languages.registerCompletionItemProvider(selector, new (await import('./features/directiveCommentCompletionProvider')).default(client), '@'));
@@ -252,10 +250,7 @@ class LanguageProvider {
 		this.disposables.push(formattingProviderManager);
 		this.toUpdateOnConfigurationChanged.push(formattingProviderManager);
 
-		const jsDocCompletionProvider = new JsDocCompletionProvider(client);
-		jsDocCompletionProvider.updateConfiguration();
-		this.disposables.push(languages.registerCompletionItemProvider(selector, jsDocCompletionProvider, '*'));
-
+		this.disposables.push(languages.registerCompletionItemProvider(selector, new JsDocCompletionProvider(client), '*'));
 		this.disposables.push(languages.registerHoverProvider(selector, new (await import('./features/hoverProvider')).default(client)));
 		this.disposables.push(languages.registerDefinitionProvider(selector, new (await import('./features/definitionProvider')).default(client)));
 		this.disposables.push(languages.registerDocumentHighlightProvider(selector, new (await import('./features/documentHighlightProvider')).default(client)));
@@ -322,7 +317,6 @@ class LanguageProvider {
 	private configurationChanged(): void {
 		const config = workspace.getConfiguration(this.id);
 		this.updateValidate(config.get(validateSetting, true));
-		this.formattingOptionsManager.updateConfiguration(config);
 
 		for (const toUpdate of this.toUpdateOnConfigurationChanged) {
 			toUpdate.updateConfiguration();
@@ -369,6 +363,7 @@ class LanguageProvider {
 		this.syntaxDiagnostics = Object.create(null);
 		this.bufferSyncSupport.reOpenDocuments();
 		this.bufferSyncSupport.requestAllDiagnostics();
+		this.formattingOptionsManager.reset();
 		this.registerVersionDependentProviders();
 	}
 

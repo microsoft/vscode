@@ -16,7 +16,7 @@ import { FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files
 import { isLinux } from 'vs/base/common/platform';
 import { ConfigWatcher } from 'vs/base/node/config';
 import { CustomConfigurationModel, ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
-import { WorkspaceConfigurationModel, ScopedConfigurationModel, FolderConfigurationModel, FolderSettingsModel } from 'vs/workbench/services/configuration/common/configurationModels';
+import { WorkspaceConfigurationModel, ScopedConfigurationModel, FolderConfigurationModel, FolderSettingsModel, WorkspaceSettingsModel } from 'vs/workbench/services/configuration/common/configurationModels';
 import { WORKSPACE_STANDALONE_CONFIGURATIONS, WORKSPACE_CONFIG_DEFAULT_PATH, TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY } from 'vs/workbench/services/configuration/common/configuration';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IStoredWorkspace, IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
@@ -125,6 +125,10 @@ export class WorkspaceConfiguration extends Disposable {
 
 	getConfiguration(): ConfigurationModel {
 		return this.workspaceConfigurationModel.workspaceConfiguration;
+	}
+
+	getWorkspaceSettings(): WorkspaceSettingsModel {
+		return this.workspaceConfigurationModel.workspaceSettingsModel;
 	}
 
 	private listenToWatcher() {

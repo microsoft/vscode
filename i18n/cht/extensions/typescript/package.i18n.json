@@ -44,6 +44,9 @@
 	"typescript.npm": "指定用於自動類型取得的 NPM 可執行檔路徑。TypeScript 必須 >= 2.3.4.",
 	"typescript.check.npmIsInstalled": "檢查是否已安裝NPM用以取得自動類型擷取.",
 	"javascript.nameSuggestions": "從JavaScript推薦表檔案中啟用/停用包含唯一檔名",
+	"typescript.tsc.autoDetect": "控制自動偵測 tsc 任務。 'off' 停用此功能。 'build' 僅建立單次編譯任務。 'watch'  僅建立編譯並監看任務。 'on' 同時建立編譯及監看任務。預設值為 'on'。",
 	"typescript.problemMatchers.tsc.label": "TypeScript 問題",
-	"typescript.problemMatchers.tscWatch.label": " TypeScript 問題 (監看模式)"
+	"typescript.problemMatchers.tscWatch.label": " TypeScript 問題 (監看模式)",
+	"typescript.quickSuggestionsForPaths": "啟用/停用在輸入匯入路徑顯示即時建議。",
+	"typescript.locale": "設定報告 TypeScript 錯誤的語系。需要 TypeScript >= 2.6.0。預設值 'null' 則使用 VS Code 的語系來顯示 TypeScript 錯誤。"
 }

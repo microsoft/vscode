@@ -12,6 +12,7 @@
 	"errorUnknownKey": "Nem sikerült írni a következőbe: {0}. A(z) {1} nem regisztrált beállítás.",
 	"errorInvalidFolderConfiguration": "Nem sikerült írni a mappa beállításaiba, mert a(z) {0} nem támogatott mappa típusú erőforrások hatókörében.",
 	"errorInvalidUserTarget": "Nem sikerült írni a felhasználói beállításokba, mert a(z) {0} nem támogatott globális hatókörben.",
+	"errorInvalidWorkspaceTarget": "Nem sikerült írni a munkaterület beállításaiba, mert a(z) {0} nem támogatott munkaterületi hatókörben egy több mappát tartalmazó munkaterületen.",
 	"errorInvalidFolderTarget": "Nem sikerült írni a mappa beállításaiba, mert nincs erőforrás megadva.",
 	"errorNoWorkspaceOpened": "Nem sikerült írni a következőbe: {0}. Nincs munkaterület megnyitva. Nyisson meg egy munkaterületet, majd próbálja újra!",
 	"errorInvalidTaskConfiguration": "Nem sikerült írni a feladatkonfigurációs fájlba. Nyissa meg az **Feladatkonfigurációs** fájlt, javítsa a hibákat és figyelmeztetéseket a fájlban, majd próbálja újra!",
