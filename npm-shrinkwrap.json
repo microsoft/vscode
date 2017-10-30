@@ -254,9 +254,9 @@
       "resolved": "https://registry.npmjs.org/jschardet/-/jschardet-1.5.1.tgz"
     },
     "keytar": {
-      "version": "4.0.3",
+      "version": "4.0.5",
       "from": "keytar@latest",
-      "resolved": "https://registry.npmjs.org/keytar/-/keytar-4.0.3.tgz",
+      "resolved": "https://registry.npmjs.org/keytar/-/keytar-4.0.5.tgz",
       "dependencies": {
         "nan": {
           "version": "2.5.1",
