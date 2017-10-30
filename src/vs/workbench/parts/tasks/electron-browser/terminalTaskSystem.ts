@@ -10,7 +10,6 @@ import path = require('path');
 import * as nls from 'vs/nls';
 import * as Objects from 'vs/base/common/objects';
 import * as Types from 'vs/base/common/types';
-import { CharCode } from 'vs/base/common/charCode';
 import * as Platform from 'vs/base/common/platform';
 import * as Async from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -38,53 +37,6 @@ import {
 	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, ITaskResolver,
 	TelemetryEvent, Triggers, TaskSystemEvents, TaskEvent, TaskType, TaskTerminateResponse
 } from 'vs/workbench/parts/tasks/common/taskSystem';
-
-class TerminalDecoder {
-	// See https://en.wikipedia.org/wiki/ANSI_escape_code & http://stackoverflow.com/questions/25189651/how-to-remove-ansi-control-chars-vt100-from-a-java-string &
-	// https://www.npmjs.com/package/strip-ansi
-	private static ANSI_CONTROL_SEQUENCE: RegExp = /\x1b[[()#;?]*(?:\d{1,4}(?:;\d{0,4})*)?[0-9A-ORZcf-nqry=><]/g;
-	private static OPERATING_SYSTEM_COMMAND_SEQUENCE: RegExp = /\x1b[\]](?:.*)(?:\x07|\x1b\\)/g;
-
-	private remaining: string;
-
-	public write(data: string): string[] {
-		let result: string[] = [];
-		data = data.replace(TerminalDecoder.ANSI_CONTROL_SEQUENCE, '');
-		data = data.replace(TerminalDecoder.OPERATING_SYSTEM_COMMAND_SEQUENCE, '');
-		let value = this.remaining
-			? this.remaining + data
-			: data;
-
-		if (value.length < 1) {
-			return result;
-		}
-		let start = 0;
-		let ch: number;
-		while (start < value.length && ((ch = value.charCodeAt(start)) === CharCode.CarriageReturn || ch === CharCode.LineFeed)) {
-			start++;
-		}
-		let idx = start;
-		while (idx < value.length) {
-			ch = value.charCodeAt(idx);
-			if (ch === CharCode.CarriageReturn || ch === CharCode.LineFeed) {
-				result.push(value.substring(start, idx));
-				idx++;
-				while (idx < value.length && ((ch = value.charCodeAt(idx)) === CharCode.CarriageReturn || ch === CharCode.LineFeed)) {
-					idx++;
-				}
-				start = idx;
-			} else {
-				idx++;
-			}
-		}
-		this.remaining = start < value.length ? value.substr(start) : undefined;
-		return result;
-	}
-
-	public end(): string {
-		return this.remaining;
-	}
-}
 
 interface PrimaryTerminal {
 	terminal: ITerminalInstance;
@@ -303,20 +255,17 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 					this.emit(TaskSystemEvents.Inactive, event);
 				}));
 				watchingProblemMatcher.aboutToStart();
-				let delayer: Async.Delayer<any> = null;
-				let decoder = new TerminalDecoder();
+				let delayer: Async.Delayer<any> = undefined;
 				[terminal, executedCommand] = this.createTerminal(task);
 				const registeredLinkMatchers = this.registerLinkMatchers(terminal, problemMatchers);
-				const onData = terminal.onData((data: string) => {
-					decoder.write(data).forEach(line => {
-						watchingProblemMatcher.processLine(line);
-						if (delayer === null) {
-							delayer = new Async.Delayer(3000);
-						}
-						delayer.trigger(() => {
-							watchingProblemMatcher.forceDelivery();
-							delayer = null;
-						});
+				const onData = terminal.onLineData((line) => {
+					watchingProblemMatcher.processLine(line);
+					if (!delayer) {
+						delayer = new Async.Delayer(3000);
+					}
+					delayer.trigger(() => {
+						watchingProblemMatcher.forceDelivery();
+						delayer = undefined;
 					});
 				});
 				const onExit = terminal.onExit((exitCode) => {
@@ -332,10 +281,6 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 						case PanelKind.Shared:
 							this.idleTaskTerminals.set(key, terminal.id.toString(), Touch.First);
 							break;
-					}
-					let remaining = decoder.end();
-					if (remaining) {
-						watchingProblemMatcher.processLine(remaining);
 					}
 					watchingProblemMatcher.dispose();
 					registeredLinkMatchers.forEach(handle => terminal.deregisterLinkMatcher(handle));
@@ -358,14 +303,11 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 				[terminal, executedCommand] = this.createTerminal(task);
 				let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.SingleRun, group: task.group, __task: task };
 				this.emit(TaskSystemEvents.Active, event);
-				let decoder = new TerminalDecoder();
 				let problemMatchers = this.resolveMatchers(task, task.problemMatchers);
 				let startStopProblemMatcher = new StartStopProblemCollector(problemMatchers, this.markerService, this.modelService);
 				const registeredLinkMatchers = this.registerLinkMatchers(terminal, problemMatchers);
-				const onData = terminal.onData((data: string) => {
-					decoder.write(data).forEach((line) => {
-						startStopProblemMatcher.processLine(line);
-					});
+				const onData = terminal.onLineData((line) => {
+					startStopProblemMatcher.processLine(line);
 				});
 				const onExit = terminal.onExit((exitCode) => {
 					onData.dispose();
@@ -380,10 +322,6 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 						case PanelKind.Shared:
 							this.idleTaskTerminals.set(key, terminal.id.toString(), Touch.First);
 							break;
-					}
-					let remaining = decoder.end();
-					if (remaining) {
-						startStopProblemMatcher.processLine(remaining);
 					}
 					startStopProblemMatcher.done();
 					startStopProblemMatcher.dispose();
