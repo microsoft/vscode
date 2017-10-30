@@ -14,6 +14,7 @@ import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostC
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { ISearchResultProvider, ISearchQuery, ISearchComplete, ISearchProgressItem, QueryType, IFileMatch, ISearchService } from 'vs/platform/search/common/search';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 @extHostNamedCustomer(MainContext.MainThreadFileSystem)
 export class MainThreadFileSystem implements MainThreadFileSystemShape {
@@ -45,7 +46,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	}
 
 	$onDidAddFileSystemRoot(uri: URI): void {
-		this._workspaceEditingService.addFolders([{ uri }], true);
+		this._workspaceEditingService.addFolders([{ uri }], true).done(null, onUnexpectedError);
 	}
 
 	$onFileSystemChange(handle: number, changes: IFileChange[]): void {

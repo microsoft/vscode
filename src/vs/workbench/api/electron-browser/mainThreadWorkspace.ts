@@ -63,7 +63,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 				return TPromise.as(false);
 			}
 
-			return this._workspaceEditingService.addFolders([{ uri, name }]).then(() => true);
+			return this._workspaceEditingService.addFolders([{ uri, name }], true).then(() => true);
 		});
 	}
 
@@ -73,7 +73,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 				return TPromise.as(false);
 			}
 
-			return this._workspaceEditingService.removeFolders([uri]).then(() => true);
+			return this._workspaceEditingService.removeFolders([uri], true).then(() => true);
 		});
 	}
 
