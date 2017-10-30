@@ -28,7 +28,7 @@ export class QuickFixOracle {
 	) {
 		this._disposables.push(
 			debounceEvent(this._markerService.onMarkerChanged, (last, cur) => last ? last.concat(cur) : cur, delay / 2)(e => this._onMarkerChanges(e)),
-			debounceEvent(this._editor.onDidChangeCursorPosition, last => last, delay)(e => this._onCursorChange())
+			debounceEvent(this._editor.onDidChangeCursorPosition, (last, cur) => cur, delay)(e => this._onCursorChange())
 		);
 	}
 
