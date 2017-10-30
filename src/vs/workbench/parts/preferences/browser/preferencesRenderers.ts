@@ -32,7 +32,7 @@ import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorE
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { overrideIdentifierFromKey, IConfigurationService, ConfigurationTarget, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
+import { overrideIdentifierFromKey, IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export interface IPreferencesRenderer<T> extends IDisposable {
@@ -175,7 +175,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 
 export class WorkspaceSettingsRenderer extends UserSettingsRenderer implements IPreferencesRenderer<ISetting> {
 
-	private untrustedSettingRenderer: UnsupportedWorkspaceSettingsRenderer;
+	private unsupportedSettingsRenderer: UnsupportedSettingsRenderer;
 	private workspaceConfigurationRenderer: WorkspaceConfigurationRenderer;
 
 	constructor(editor: ICodeEditor, preferencesModel: SettingsEditorModel,
@@ -187,7 +187,7 @@ export class WorkspaceSettingsRenderer extends UserSettingsRenderer implements I
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super(editor, preferencesModel, preferencesService, telemetryService, textFileService, configurationService, messageService, instantiationService);
-		this.untrustedSettingRenderer = this._register(instantiationService.createInstance(UnsupportedWorkspaceSettingsRenderer, editor, preferencesModel));
+		this.unsupportedSettingsRenderer = this._register(instantiationService.createInstance(UnsupportedSettingsRenderer, editor, preferencesModel));
 		this.workspaceConfigurationRenderer = this._register(instantiationService.createInstance(WorkspaceConfigurationRenderer, editor, preferencesModel));
 	}
 
@@ -197,14 +197,14 @@ export class WorkspaceSettingsRenderer extends UserSettingsRenderer implements I
 
 	public render(): void {
 		super.render();
-		this.untrustedSettingRenderer.render();
+		this.unsupportedSettingsRenderer.render();
 		this.workspaceConfigurationRenderer.render();
 	}
 }
 
 export class FolderSettingsRenderer extends UserSettingsRenderer implements IPreferencesRenderer<ISetting> {
 
-	private unsupportedWorkbenchSettingsRenderer: UnsupportedWorkbenchSettingsRenderer;
+	private unsupportedSettingsRenderer: UnsupportedSettingsRenderer;
 
 	constructor(editor: ICodeEditor, preferencesModel: SettingsEditorModel,
 		@IPreferencesService preferencesService: IPreferencesService,
@@ -215,7 +215,7 @@ export class FolderSettingsRenderer extends UserSettingsRenderer implements IPre
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super(editor, preferencesModel, preferencesService, telemetryService, textFileService, configurationService, messageService, instantiationService);
-		this.unsupportedWorkbenchSettingsRenderer = this._register(instantiationService.createInstance(UnsupportedWorkbenchSettingsRenderer, editor, preferencesModel));
+		this.unsupportedSettingsRenderer = this._register(instantiationService.createInstance(UnsupportedSettingsRenderer, editor, preferencesModel));
 	}
 
 	protected createHeader(): void {
@@ -224,7 +224,7 @@ export class FolderSettingsRenderer extends UserSettingsRenderer implements IPre
 
 	public render(): void {
 		super.render();
-		this.unsupportedWorkbenchSettingsRenderer.render();
+		this.unsupportedSettingsRenderer.render();
 	}
 }
 
@@ -1088,14 +1088,69 @@ class SettingHighlighter extends Disposable {
 	}
 }
 
-class UnsupportedWorkspaceSettingsRenderer extends Disposable {
+class UnsupportedSettingsRenderer extends Disposable {
 
-	constructor(private editor: editorCommon.ICommonCodeEditor, private workspaceSettingsEditorModel: SettingsEditorModel,
+	private decorationIds: string[] = [];
+	private renderingDelayer: Delayer<void> = new Delayer<void>(200);
+
+	constructor(
+		private editor: editorCommon.ICommonCodeEditor,
+		private settingsEditorModel: SettingsEditorModel,
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
-		@IMarkerService private markerService: IMarkerService
+		@IMarkerService private markerService: IMarkerService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super();
-		this._register(this.configurationService.onDidChangeConfiguration(e => this.onDidConfigurationChange(e)));
+		this._register(this.editor.getModel().onDidChangeContent(() => this.renderingDelayer.trigger(() => this.render())));
+	}
+
+	public render(): void {
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
+		const ranges: IRange[] = [];
+		const markerData: IMarkerData[] = [];
+		for (const settingsGroup of this.settingsEditorModel.settingsGroups) {
+			for (const section of settingsGroup.sections) {
+				for (const setting of section.settings) {
+					if (this.settingsEditorModel.configurationTarget === ConfigurationTarget.WORKSPACE || this.settingsEditorModel.configurationTarget === ConfigurationTarget.WORKSPACE_FOLDER) {
+						// Show warnings for executable settings
+						if (configurationRegistry[setting.key] && configurationRegistry[setting.key].isExecutable) {
+							markerData.push({
+								severity: Severity.Warning,
+								startLineNumber: setting.keyRange.startLineNumber,
+								startColumn: setting.keyRange.startColumn,
+								endLineNumber: setting.keyRange.endLineNumber,
+								endColumn: setting.keyRange.endColumn,
+								message: this.getMarkerMessage(setting.key)
+							});
+						}
+					}
+					if (this.settingsEditorModel.configurationTarget === ConfigurationTarget.WORKSPACE_FOLDER) {
+						// Dim and show information for window settings
+						if (configurationRegistry[setting.key] && configurationRegistry[setting.key].scope === ConfigurationScope.WINDOW) {
+							ranges.push({
+								startLineNumber: setting.keyRange.startLineNumber,
+								startColumn: setting.keyRange.startColumn - 1,
+								endLineNumber: setting.valueRange.endLineNumber,
+								endColumn: setting.valueRange.endColumn
+							});
+						}
+					}
+				}
+			}
+		}
+		if (markerData.length) {
+			this.markerService.changeOne('preferencesEditor', this.settingsEditorModel.uri, markerData);
+		} else {
+			this.markerService.remove('preferencesEditor', [this.settingsEditorModel.uri]);
+		}
+		this.editor.changeDecorations(changeAccessor => this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, ranges.map(range => this.createDecoration(range, this.editor.getModel()))));
+	}
+
+	private createDecoration(range: IRange, model: editorCommon.IModel): editorCommon.IModelDeltaDecoration {
+		return {
+			range,
+			options: !this.environmentService.isBuilt || this.environmentService.isExtensionDevelopment ? UnsupportedSettingsRenderer._DIM_CONFIGUARATION_DEV_MODE : UnsupportedSettingsRenderer._DIM_CONFIGUARATION_
+		};
 	}
 
 	private getMarkerMessage(settingKey: string): string {
@@ -1107,74 +1162,14 @@ class UnsupportedWorkspaceSettingsRenderer extends Disposable {
 		}
 	}
 
-	public render(): void {
-		const unsupportedWorkspaceKeys = this.configurationService.getUnsupportedWorkspaceKeys();
-		if (unsupportedWorkspaceKeys.length) {
-			const markerData: IMarkerData[] = [];
-			for (const unsupportedKey of unsupportedWorkspaceKeys) {
-				const setting = this.workspaceSettingsEditorModel.getPreference(unsupportedKey);
-				if (setting) {
-					markerData.push({
-						severity: Severity.Warning,
-						startLineNumber: setting.keyRange.startLineNumber,
-						startColumn: setting.keyRange.startColumn,
-						endLineNumber: setting.keyRange.endLineNumber,
-						endColumn: setting.keyRange.endColumn,
-						message: this.getMarkerMessage(unsupportedKey)
-					});
-				}
-			}
-			if (markerData.length) {
-				this.markerService.changeOne('preferencesEditor', this.workspaceSettingsEditorModel.uri, markerData);
-			} else {
-				this.markerService.remove('preferencesEditor', [this.workspaceSettingsEditorModel.uri]);
-			}
-		}
-	}
-
-	private onDidConfigurationChange(event: IConfigurationChangeEvent): void {
-		if (event.source === ConfigurationTarget.DEFAULT || event.source === ConfigurationTarget.WORKSPACE || event.source === ConfigurationTarget.WORKSPACE_FOLDER) {
-			this.render();
-		}
-	}
-
 	public dispose(): void {
-		this.markerService.remove('preferencesEditor', [this.workspaceSettingsEditorModel.uri]);
-		super.dispose();
-	}
-}
-
-class UnsupportedWorkbenchSettingsRenderer extends Disposable {
-
-	private decorationIds: string[] = [];
-	private renderingDelayer: Delayer<void> = new Delayer<void>(200);
-
-	constructor(private editor: editorCommon.ICommonCodeEditor, private workspaceSettingsEditorModel: SettingsEditorModel,
-		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
-		@IEnvironmentService private environmentService: IEnvironmentService
-	) {
-		super();
-		this._register(this.editor.getModel().onDidChangeContent(() => this.renderingDelayer.trigger(() => this.render())));
-	}
-
-	public render(): void {
-		const ranges: IRange[] = [];
-		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
-		for (const settingsGroup of this.workspaceSettingsEditorModel.settingsGroups) {
-			for (const section of settingsGroup.sections) {
-				for (const setting of section.settings) {
-					if (configurationRegistry[setting.key] && configurationRegistry[setting.key].scope === ConfigurationScope.WINDOW) {
-						ranges.push({
-							startLineNumber: setting.keyRange.startLineNumber,
-							startColumn: setting.keyRange.startColumn - 1,
-							endLineNumber: setting.valueRange.endLineNumber,
-							endColumn: setting.valueRange.endColumn
-						});
-					}
-				}
-			}
+		this.markerService.remove('preferencesEditor', [this.settingsEditorModel.uri]);
+		if (this.decorationIds) {
+			this.decorationIds = this.editor.changeDecorations(changeAccessor => {
+				return changeAccessor.deltaDecorations(this.decorationIds, []);
+			});
 		}
-		this.editor.changeDecorations(changeAccessor => this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, ranges.map(range => this.createDecoration(range, this.editor.getModel()))));
+		super.dispose();
 	}
 
 	private static _DIM_CONFIGUARATION_ = ModelDecorationOptions.register({
@@ -1190,22 +1185,6 @@ class UnsupportedWorkbenchSettingsRenderer extends Disposable {
 		beforeContentClassName: 'unsupportedWorkbenhSettingInfo',
 		hoverMessage: new MarkdownString().appendText(nls.localize('unsupportedWorkbenchSettingDevMode', "This setting cannot be applied now. It will be applied if you define it's scope as 'resource' while registering, or when you open this folder directly."))
 	});
-
-	private createDecoration(range: IRange, model: editorCommon.IModel): editorCommon.IModelDeltaDecoration {
-		return {
-			range,
-			options: !this.environmentService.isBuilt || this.environmentService.isExtensionDevelopment ? UnsupportedWorkbenchSettingsRenderer._DIM_CONFIGUARATION_DEV_MODE : UnsupportedWorkbenchSettingsRenderer._DIM_CONFIGUARATION_
-		};
-	}
-
-	public dispose(): void {
-		if (this.decorationIds) {
-			this.decorationIds = this.editor.changeDecorations(changeAccessor => {
-				return changeAccessor.deltaDecorations(this.decorationIds, []);
-			});
-		}
-		super.dispose();
-	}
 }
 
 class WorkspaceConfigurationRenderer extends Disposable {

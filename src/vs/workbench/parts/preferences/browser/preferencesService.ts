@@ -40,6 +40,7 @@ import { IJSONEditingService } from 'vs/workbench/services/configuration/common/
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { parse } from 'vs/base/common/json';
 
 const emptyEditableSettingsContent = '{\n}';
 
@@ -327,9 +328,13 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	private createSettingsIfNotExists(target: ConfigurationTarget, resource: URI): TPromise<void> {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && target === ConfigurationTarget.WORKSPACE) {
-			if (!this.configurationService.keys().workspace.length) {
-				return this.jsonEditingService.write(resource, { key: 'settings', value: {} }, true).then(null, () => { });
-			}
+			return this.fileService.resolveContent(this.contextService.getWorkspace().configuration)
+				.then(content => {
+					if (Object.keys(parse(content.value)).indexOf('settings') === -1) {
+						return this.jsonEditingService.write(resource, { key: 'settings', value: {} }, true).then(null, () => { });
+					}
+					return null;
+				});
 		}
 		return this.createIfNotExists(resource, emptyEditableSettingsContent).then(() => { });
 	}
