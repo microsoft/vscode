@@ -14,16 +14,6 @@ import * as path from 'path';
 import * as mkdirp from 'mkdirp';
 import { sanitize } from '../helpers/utilities';
 
-// export const LATEST_PATH = process.env.VSCODE_PATH as string;
-// export const STABLE_PATH = process.env.VSCODE_STABLE_PATH || '';
-// export const WORKSPACE_PATH = process.env.SMOKETEST_REPO as string;
-// export const CODE_WORKSPACE_PATH = process.env.VSCODE_WORKSPACE_PATH as string;
-// export const USER_DIR = process.env.VSCODE_USER_DIR as string;
-// export const EXTENSIONS_DIR = process.env.VSCODE_EXTENSIONS_DIR as string;
-// export const VSCODE_EDITION = process.env.VSCODE_EDITION as string;
-// export const ARTIFACTS_DIR = process.env.ARTIFACTS_DIR as string;
-// export const WAIT_TIME = parseInt(process.env.WAIT_TIME as string);
-
 // Just hope random helps us here, cross your fingers!
 export async function findFreePort(): Promise<number> {
 	for (let i = 0; i < 10; i++) {
@@ -69,9 +59,6 @@ export class SpectronApplication {
 
 	constructor(
 		private options: SpectronApplicationOptions
-		// private _electronPath: string = LATEST_PATH,
-		// private _workspace: string = WORKSPACE_PATH,
-		// private _userDir: string = USER_DIR
 	) { }
 
 	get quality(): Quality {
