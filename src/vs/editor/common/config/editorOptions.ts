@@ -162,6 +162,11 @@ export interface IEditorOptions {
 	 */
 	lineNumbers?: 'on' | 'off' | 'relative' | ((lineNumber: number) => string);
 	/**
+	 * Controls the interval at which line numbers are rendered.
+	 * Defaults to 1.
+	 */
+	lineNumberInterval?: number;
+	/**
 	 * Should the corresponding line be selected when clicking on the line number?
 	 * Defaults to true.
 	 */
@@ -762,6 +767,7 @@ export interface InternalEditorViewOptions {
 	readonly renderCustomLineNumbers: (lineNumber: number) => string;
 	readonly renderRelativeLineNumbers: boolean;
 	readonly selectOnLineNumbers: boolean;
+	readonly lineNumberInterval: number;
 	readonly glyphMargin: boolean;
 	readonly revealHorizontalRightPadding: number;
 	readonly roundedSelection: boolean;
@@ -1031,6 +1037,7 @@ export class InternalEditorOptions {
 			&& a.renderCustomLineNumbers === b.renderCustomLineNumbers
 			&& a.renderRelativeLineNumbers === b.renderRelativeLineNumbers
 			&& a.selectOnLineNumbers === b.selectOnLineNumbers
+			&& a.lineNumberInterval === b.lineNumberInterval
 			&& a.glyphMargin === b.glyphMargin
 			&& a.revealHorizontalRightPadding === b.revealHorizontalRightPadding
 			&& a.roundedSelection === b.roundedSelection
@@ -1629,6 +1636,7 @@ export class EditorOptionsValidator {
 			renderCustomLineNumbers: renderCustomLineNumbers,
 			renderRelativeLineNumbers: renderRelativeLineNumbers,
 			selectOnLineNumbers: _boolean(opts.selectOnLineNumbers, defaults.selectOnLineNumbers),
+			lineNumberInterval: _clampedInt(opts.lineNumberInterval, defaults.lineNumberInterval, defaults.lineNumberInterval, Constants.MAX_UINT_32),
 			glyphMargin: _boolean(opts.glyphMargin, defaults.glyphMargin),
 			revealHorizontalRightPadding: _clampedInt(opts.revealHorizontalRightPadding, defaults.revealHorizontalRightPadding, 0, 1000),
 			roundedSelection: _boolean(opts.roundedSelection, defaults.roundedSelection),
@@ -1732,6 +1740,7 @@ export class InternalEditorOptionsFactory {
 				renderCustomLineNumbers: opts.viewInfo.renderCustomLineNumbers,
 				renderRelativeLineNumbers: opts.viewInfo.renderRelativeLineNumbers,
 				selectOnLineNumbers: opts.viewInfo.selectOnLineNumbers,
+				lineNumberInterval: opts.viewInfo.lineNumberInterval,
 				glyphMargin: opts.viewInfo.glyphMargin,
 				revealHorizontalRightPadding: opts.viewInfo.revealHorizontalRightPadding,
 				roundedSelection: (accessibilityIsOn ? false : opts.viewInfo.roundedSelection), // DISABLED WHEN SCREEN READER IS ATTACHED
@@ -1823,6 +1832,7 @@ export class InternalEditorOptionsFactory {
 			showGlyphMargin: opts.viewInfo.glyphMargin,
 			lineHeight: env.fontInfo.lineHeight,
 			showLineNumbers: opts.viewInfo.renderLineNumbers,
+			lineNumberInterval: opts.viewInfo.lineNumberInterval,
 			lineNumbersMinChars: opts.lineNumbersMinChars,
 			lineNumbersDigitCount: env.lineNumbersDigitCount,
 			lineDecorationsWidth: lineDecorationsWidth,
@@ -1951,6 +1961,7 @@ export interface IEditorLayoutProviderOpts {
 	lineHeight: number;
 
 	showLineNumbers: boolean;
+	lineNumberInterval: number;
 	lineNumbersMinChars: number;
 	lineNumbersDigitCount: number;
 
@@ -1980,6 +1991,7 @@ export class EditorLayoutProvider {
 		const showGlyphMargin = _opts.showGlyphMargin;
 		const lineHeight = _opts.lineHeight | 0;
 		const showLineNumbers = _opts.showLineNumbers;
+		const lineNumberInterval = _opts.lineNumberInterval;
 		const lineNumbersMinChars = _opts.lineNumbersMinChars | 0;
 		const lineNumbersDigitCount = _opts.lineNumbersDigitCount | 0;
 		const lineDecorationsWidth = _opts.lineDecorationsWidth | 0;
@@ -2156,6 +2168,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		renderCustomLineNumbers: null,
 		renderRelativeLineNumbers: false,
 		selectOnLineNumbers: true,
+		lineNumberInterval: 1,
 		glyphMargin: true,
 		revealHorizontalRightPadding: 30,
 		roundedSelection: true,

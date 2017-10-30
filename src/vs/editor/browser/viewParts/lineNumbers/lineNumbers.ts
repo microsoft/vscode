@@ -27,6 +27,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 	private _renderRelativeLineNumbers: boolean;
 	private _lineNumbersLeft: number;
 	private _lineNumbersWidth: number;
+	private _lineNumberInterval: number;
 
 	private _lastCursorModelPosition: Position;
 	private _renderResult: string[];
@@ -50,6 +51,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		this._renderRelativeLineNumbers = config.viewInfo.renderRelativeLineNumbers;
 		this._lineNumbersLeft = config.layoutInfo.lineNumbersLeft;
 		this._lineNumbersWidth = config.layoutInfo.lineNumbersWidth;
+		this._lineNumberInterval = config.viewInfo.lineNumberInterval;
 	}
 
 	public dispose(): void {
@@ -133,7 +135,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 			let lineIndex = lineNumber - visibleStartLineNumber;
 
 			let renderLineNumber = this._getLineRenderLineNumber(lineNumber);
-			if (renderLineNumber) {
+			if (renderLineNumber && lineIndex % this._lineNumberInterval === 0) {
 				output[lineIndex] = (
 					common
 					+ renderLineNumber
