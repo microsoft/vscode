@@ -5,7 +5,7 @@
 
 import * as path from 'path';
 import VsCodeTelemetryReporter from 'vscode-extension-telemetry';
-import TypeScriptServiceClient from '../typescriptServiceClient';
+import { IClientVersion } from '../typescriptServiceClient';
 
 interface IPackageInfo {
 	name: string;
@@ -24,7 +24,7 @@ export default class TelemetryReporter {
 		}
 	}
 
-	constructor(private client: TypeScriptServiceClient) {
+	constructor(private client: IClientVersion) {
 	}
 
 	public logTelemetry(eventName: string, properties?: { [prop: string]: string }) {
@@ -32,7 +32,7 @@ export default class TelemetryReporter {
 			if (!properties) {
 				properties = {};
 			}
-			properties['version'] = this.client.tsserverVersion || this.client.apiVersion.versionString;
+			properties['version'] = this.client.clientVersion;
 
 			this.reporter.sendTelemetryEvent(eventName, properties);
 		}

@@ -116,8 +116,11 @@ class RequestQueue {
 	}
 }
 
+export interface IClientVersion {
+	readonly clientVersion: string;
+}
 
-export default class TypeScriptServiceClient implements ITypescriptServiceClient {
+export default class TypeScriptServiceClient implements ITypescriptServiceClient, IClientVersion {
 	private static readonly WALK_THROUGH_SNIPPET_SCHEME = 'walkThroughSnippet';
 	private static readonly WALK_THROUGH_SNIPPET_SCHEME_COLON = `${TypeScriptServiceClient.WALK_THROUGH_SNIPPET_SCHEME}:`;
 
@@ -245,7 +248,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					this.info('Killing TS Server');
 					this.isRestarting = true;
 					cp.kill();
-					this.resetServiceVersions();
+					this.resetClientVersion();
 				}
 			}).then(start);
 		} else {
@@ -277,8 +280,8 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		return this._apiVersion;
 	}
 
-	public get tsserverVersion(): string | undefined {
-		return this._tsserverVersion;
+	public get clientVersion(): string {
+		return this._tsserverVersion || this._apiVersion.versionString;
 	}
 
 	public onReady(): Promise<void> {
@@ -350,7 +353,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 							}
 						*/
 						this.logTelemetry('error', { message: err.message });
-						this.resetServiceVersions();
+						this.resetClientVersion();
 						return;
 					}
 
@@ -512,7 +515,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this.callbacks.destroy(new Error('Service died.'));
 		this.callbacks = new CallbackMap();
 		if (!restart) {
-			this.resetServiceVersions();
+			this.resetClientVersion();
 		}
 		else {
 			const diff = Date.now() - this.lastStart;
@@ -535,7 +538,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 						"serviceExited" : {}
 					*/
 					this.logTelemetry('serviceExited');
-					this.resetServiceVersions();
+					this.resetClientVersion();
 				} else if (diff < 60 * 1000 /* 1 Minutes */) {
 					this.lastStart = Date.now();
 					prompt = window.showWarningMessage<MyMessageItem>(
@@ -906,7 +909,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		return args;
 	}
 
-	private resetServiceVersions() {
+	private resetClientVersion() {
 		this._apiVersion = API.defaultVersion;
 		this._tsserverVersion = undefined;
 	}
