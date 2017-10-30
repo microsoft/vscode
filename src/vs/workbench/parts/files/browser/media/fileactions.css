@@ -21,7 +21,7 @@
 }
 
 .vs-dark .monaco-workbench .explorer-action.save-all,
-.hc-blck .monaco-workbench .explorer-action.save-all {
+.hc-black .monaco-workbench .explorer-action.save-all {
 	background: url('saveall_inverse.svg') center center no-repeat;
 }
 
