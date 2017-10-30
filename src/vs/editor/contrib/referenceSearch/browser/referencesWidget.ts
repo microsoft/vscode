@@ -355,11 +355,15 @@ class FileReferencesTemplate {
 		const parent = document.createElement('div');
 		dom.addClass(parent, 'reference-file');
 		container.appendChild(parent);
-
 		this.file = new FileLabel(parent, URI.parse('no:file'), this._contextService, this._environmentService);
-		this.badge = new CountBadge(parent);
+
+		this.badge = new CountBadge($('.count').appendTo(parent).getHTMLElement());
 		const styler = attachBadgeStyler(this.badge, themeService);
-		this.dispose = () => styler.dispose();
+
+		this.dispose = () => {
+			this.file.dispose();
+			styler.dispose();
+		};
 	}
 
 	set(element: FileReferences) {
