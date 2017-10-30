@@ -67,11 +67,12 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 	renderTemplate(root: HTMLElement): ITemplateData {
 		const bookmark = append(root, $('span.bookmark'));
 		append(bookmark, $('span.octicon.octicon-star'));
-
-		let borderColor = this.themeService.getTheme().getColor(extensionButtonProminentBackground);
-		if (borderColor) {
-			bookmark.style.borderTopColor = borderColor.toString();
-		}
+		const applyBookmarkStyle = (theme) => {
+			const borderColor = theme.getColor(extensionButtonProminentBackground);
+			bookmark.style.borderTopColor = borderColor ? borderColor.toString() : 'transparent';
+		};
+		applyBookmarkStyle(this.themeService.getTheme());
+		const bookmarkStyler = this.themeService.onThemeChange(applyBookmarkStyle.bind(this));
 
 		const element = append(root, $('.extension'));
 		const icon = append(element, $<HTMLImageElement>('img.icon'));
@@ -107,7 +108,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const manageAction = this.instantiationService.createInstance(ManageExtensionAction);
 
 		actionbar.push([reloadAction, updateAction, installAction, builtinStatusAction, manageAction], actionOptions);
-		const disposables = [versionWidget, installCountWidget, ratingsWidget, builtinStatusAction, updateAction, reloadAction, manageAction, actionbar];
+		const disposables = [versionWidget, installCountWidget, ratingsWidget, builtinStatusAction, updateAction, reloadAction, manageAction, actionbar, bookmarkStyler];
 
 		return {
 			root, element, icon, name, installCount, ratings, author, description, disposables,
