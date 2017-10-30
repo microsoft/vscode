@@ -403,6 +403,12 @@ export function createApiFactory(
 			set name(value) {
 				throw errors.readonly();
 			},
+			addWorkspaceFolder(uri, name) {
+				return extHostWorkspace.addWorkspaceFolder(extension.displayName || extension.name, uri, name);
+			},
+			removeWorkspaceFolder(folder) {
+				return extHostWorkspace.removeWorkspaceFolder(extension.displayName || extension.name, folder);
+			},
 			onDidChangeWorkspaceFolders: function (listener, thisArgs?, disposables?) {
 				return extHostWorkspace.onDidChangeWorkspace(listener, thisArgs, disposables);
 			},
