@@ -135,7 +135,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 			let lineIndex = lineNumber - visibleStartLineNumber;
 
 			let renderLineNumber = this._getLineRenderLineNumber(lineNumber);
-			if (renderLineNumber && lineIndex % this._lineNumberInterval === 0) {
+			if (renderLineNumber && lineNumber % this._lineNumberInterval === 0) {
 				output[lineIndex] = (
 					common
 					+ renderLineNumber

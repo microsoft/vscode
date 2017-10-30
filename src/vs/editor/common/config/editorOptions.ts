@@ -1991,7 +1991,6 @@ export class EditorLayoutProvider {
 		const showGlyphMargin = _opts.showGlyphMargin;
 		const lineHeight = _opts.lineHeight | 0;
 		const showLineNumbers = _opts.showLineNumbers;
-		const lineNumberInterval = _opts.lineNumberInterval;
 		const lineNumbersMinChars = _opts.lineNumbersMinChars | 0;
 		const lineNumbersDigitCount = _opts.lineNumbersDigitCount | 0;
 		const lineDecorationsWidth = _opts.lineDecorationsWidth | 0;
