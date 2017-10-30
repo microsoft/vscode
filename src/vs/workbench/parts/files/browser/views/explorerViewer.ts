@@ -955,7 +955,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 
 			// Check for confirmation checkbox
 			let updateConfirmSettingsPromise: TPromise<void> = TPromise.as(void 0);
-			if (confirmation.checkboxChecked === true) {
+			if (confirmation.confirmed && confirmation.checkboxChecked === true) {
 				updateConfirmSettingsPromise = this.configurationService.updateValue(FileDragAndDrop.CONFIRM_DND_SETTING_KEY, false, ConfigurationTarget.USER);
 			}
 
