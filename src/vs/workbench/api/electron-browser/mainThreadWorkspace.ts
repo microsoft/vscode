@@ -30,7 +30,10 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
 		@IConfigurationService private _configurationService: IConfigurationService,
-		@IFileService private readonly _fileService: IFileService
+		//@ts-ignore unused injected service
+		@IFileService private readonly _fileService: IFileService,
+		@IWorkspaceEditingService private _workspaceEditingService: IWorkspaceEditingService,
+		@IMessageService private _messageService: IMessageService
 	) {
 		this._proxy = extHostContext.get(ExtHostContext.ExtHostWorkspace);
 		this._contextService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspace, this, this._toDispose);

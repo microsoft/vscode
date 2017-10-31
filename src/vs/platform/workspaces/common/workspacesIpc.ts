@@ -34,7 +34,7 @@ export class WorkspacesChannel implements IWorkspacesChannel {
 				}
 
 				return this.service.createWorkspace(folders);
-			};
+			}
 		}
 
 		return void 0;

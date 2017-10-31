@@ -440,7 +440,7 @@ export class CodeWindow implements ICodeWindow {
 				this._win.removeAllListeners('swipe');
 			}
 		}
-	};
+	}
 
 	private registerNavigationListenerOn(command: 'swipe' | 'app-command', back: 'left' | 'browser-backward', forward: 'right' | 'browser-forward', acrossEditors: boolean) {
 		this._win.on(command as 'swipe' /* | 'app-command' */, (e: Electron.Event, cmd: string) => {
@@ -810,7 +810,7 @@ export class CodeWindow implements ICodeWindow {
 
 				if (notify) {
 					this.send('vscode:showInfoMessage', nls.localize('hiddenMenuBar', "You can still access the menu bar by pressing the **Alt** key."));
-				};
+				}
 				break;
 
 			case ('hidden'):
@@ -824,7 +824,7 @@ export class CodeWindow implements ICodeWindow {
 					this._win.setAutoHideMenuBar(false);
 				});
 				break;
-		};
+		}
 	}
 
 	public onWindowTitleDoubleClick(): void {

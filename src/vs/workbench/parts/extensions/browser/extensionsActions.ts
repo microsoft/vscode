@@ -809,6 +809,7 @@ export class ReloadAction extends Action {
 
 	constructor(
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		//@ts-ignore unused injected service
 		@IMessageService private messageService: IMessageService,
 		@IWindowService private windowService: IWindowService,
 		@IExtensionService private extensionService: IExtensionService

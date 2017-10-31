@@ -86,6 +86,7 @@ class TerminalDecoder {
 	}
 }
 
+//@ts-ignore unused type
 interface PrimaryTerminal {
 	terminal: ITerminalInstance;
 	busy: boolean;

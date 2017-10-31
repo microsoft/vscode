@@ -154,7 +154,7 @@ export function activate(context: ExtensionContext): void {
 			return true;
 		}
 		return false;
-	};
+	}
 	const openListener = workspace.onDidOpenTextDocument(didOpenTextDocument);
 	for (let textDocument of workspace.textDocuments) {
 		if (didOpenTextDocument(textDocument)) {

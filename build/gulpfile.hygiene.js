@@ -210,6 +210,17 @@ const hygiene = exports.hygiene = (some, options) => {
 		});
 	});
 
+	function reportFailures(failures) {
+		failures.forEach(failure => {
+			const name = failure.name || failure.fileName;
+			const position = failure.startPosition;
+			const line = position.lineAndCharacter ? position.lineAndCharacter.line : position.line;
+			const character = position.lineAndCharacter ? position.lineAndCharacter.character : position.character;
+
+			console.error(`${name}:${line + 1}:${character + 1}:${failure.failure}`);
+		});
+	}
+	
 	const tsl = es.through(function (file) {
 		const configuration = tslint.Configuration.findConfiguration(null, '.');
 		const options = { formatter: 'json', rulesDirectory: 'build/lib/tslint' };

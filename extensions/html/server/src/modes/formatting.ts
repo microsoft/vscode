@@ -73,7 +73,7 @@ export function format(languageModes: LanguageModes, document: TextDocument, for
 					embeddedEdits.push(edit);
 				}
 			}
-		};
+		}
 
 		if (embeddedEdits.length === 0) {
 			pushAll(result, htmlEdits);

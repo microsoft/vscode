@@ -175,7 +175,7 @@ export class PackageJSONContribution implements IJSONContribution {
 				}
 				return null;
 			});
-		};
+		}
 		return null;
 	}
 

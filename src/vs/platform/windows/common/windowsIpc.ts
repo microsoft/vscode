@@ -101,7 +101,7 @@ export class WindowsChannel implements IWindowsChannel {
 				}
 
 				return this.service.createAndEnterWorkspace(arg[0], folders, arg[2]);
-			};
+			}
 			case 'saveAndEnterWorkspace': return this.service.saveAndEnterWorkspace(arg[0], arg[1]);
 			case 'toggleFullScreen': return this.service.toggleFullScreen(arg);
 			case 'setRepresentedFilename': return this.service.setRepresentedFilename(arg[0], arg[1]);

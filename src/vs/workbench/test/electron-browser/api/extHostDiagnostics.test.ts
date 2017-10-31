@@ -24,7 +24,7 @@ suite('ExtHostDiagnostics', () => {
 		$clear(owner: string): TPromise<any> {
 			return TPromise.as(null);
 		}
-	};
+	}
 
 	test('disposeCheck', function () {
 
@@ -35,7 +35,7 @@ suite('ExtHostDiagnostics', () => {
 		assert.throws(() => collection.name);
 		assert.throws(() => collection.clear());
 		assert.throws(() => collection.delete(URI.parse('aa:bb')));
-		assert.throws(() => collection.forEach(() => { ; }));
+		assert.throws(() => collection.forEach(() => {  }));
 		assert.throws(() => collection.get(URI.parse('aa:bb')));
 		assert.throws(() => collection.has(URI.parse('aa:bb')));
 		assert.throws(() => collection.set(URI.parse('aa:bb'), []));

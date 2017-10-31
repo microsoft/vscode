@@ -99,7 +99,9 @@ export class ExplorerView extends ViewsViewletPanel {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		//@ts-ignore unused injected service
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IDecorationsService decorationService: IDecorationsService
 	) {
 		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService);
 

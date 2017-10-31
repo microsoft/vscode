@@ -44,10 +44,6 @@
 		{
 			"type": "gulp",
 			"task": "compile",
-			"group": {
-				"kind": "build",
-				"isDefault": true
-			},
 			"isBackground": true,
 			"problemMatcher": {
 				"owner": "typescript",

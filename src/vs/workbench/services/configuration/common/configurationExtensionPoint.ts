@@ -78,7 +78,7 @@ configurationExtPoint.setHandler(extensions => {
 
 		configuration.id = id;
 		configurations.push(configuration);
-	};
+	}
 
 	for (let extension of extensions) {
 		const collector = extension.collector;

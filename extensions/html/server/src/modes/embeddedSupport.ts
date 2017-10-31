@@ -22,7 +22,7 @@ export interface HTMLDocumentRegions {
 
 export var CSS_STYLE_RULE = '__';
 
-interface EmbeddedRegion { languageId: string; start: number; end: number; attributeValue?: boolean; };
+interface EmbeddedRegion { languageId: string; start: number; end: number; attributeValue?: boolean; }
 
 
 export function getDocumentRegions(languageService: LanguageService, document: TextDocument): HTMLDocumentRegions {

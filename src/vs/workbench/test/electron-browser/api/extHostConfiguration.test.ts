@@ -25,7 +25,7 @@ suite('ExtHostConfiguration', function () {
 			this.lastArgs = [target, key, value];
 			return TPromise.as(void 0);
 		}
-	};
+	}
 
 	function createExtHostConfiguration(contents: any = Object.create(null), shape?: MainThreadConfigurationShape) {
 		if (!shape) {

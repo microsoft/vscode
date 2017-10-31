@@ -40,7 +40,7 @@ suite('SnippetController', () => {
 				'\t',
 				'}'
 			];
-		};
+		}
 
 		withMockCodeEditor(lines, {}, (editor, cursor) => {
 			editor.getModel().updateOptions({

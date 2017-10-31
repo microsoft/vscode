@@ -232,7 +232,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 			if (subNodes) {
 				subNodes.forEach(register);
 			}
-		};
+		}
 		register(configuration);
 	}
 

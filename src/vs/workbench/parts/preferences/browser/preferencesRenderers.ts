@@ -1155,8 +1155,11 @@ class UnsupportedWorkbenchSettingsRenderer extends Disposable {
 	private decorationIds: string[] = [];
 	private renderingDelayer: Delayer<void> = new Delayer<void>(200);
 
-	constructor(private editor: editorCommon.ICommonCodeEditor, private workspaceSettingsEditorModel: SettingsEditorModel,
-		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
+	constructor(
+		private editor: editorCommon.ICommonCodeEditor,
+		private workspaceSettingsEditorModel: SettingsEditorModel,
+		//@ts-ignore unused injected service
+		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
 	) {
 		super();
 		this._register(this.editor.getModel().onDidChangeContent(() => this.renderingDelayer.trigger(() => this.render())));

@@ -30,7 +30,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 				instance.findNext(val);
 			}
 		}
-	};
+	}
 
 	public hide() {
 		super.hide();

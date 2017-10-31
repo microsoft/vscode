@@ -425,7 +425,7 @@ function adjustMarkerBeforeColumn(markerOffset: number, markerStickToPreviousCha
 		return true;
 	}
 	return markerStickToPreviousCharacter;
-};
+}
 
 /**
  * This is a lot more complicated than strictly necessary to maintain the same behaviour

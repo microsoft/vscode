@@ -89,6 +89,7 @@ export class SearchViewlet extends Viewlet {
 	private actionRegistry: { [key: string]: Action; };
 	private tree: ITree;
 	private viewletSettings: any;
+	//@ts-ignore unused property
 	private domNode: Builder;
 	private messages: Builder;
 	private searchWidgetsContainer: Builder;

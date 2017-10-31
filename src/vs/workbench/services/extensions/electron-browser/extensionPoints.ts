@@ -201,7 +201,7 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 			if (literal.hasOwnProperty(key)) {
 				processEntry(literal, key);
 			}
-		};
+		}
 	}
 }
 
