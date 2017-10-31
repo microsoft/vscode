@@ -225,6 +225,11 @@
 	padding: 4px 0 4px 5px;
 }
 
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .type.highlighted {
+	opacity: 1;
+	white-space: pre-wrap;
+}
+
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .docs {
 	margin: 0;
 	padding: 4px 5px;

@@ -1996,13 +1996,18 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Code-block that provides a language and a code snippet.
+	 */
+	type CodeblockString = { language: string; value: string };
+
+	/**
 	 * ~~MarkedString can be used to render human readable text. It is either a markdown string
 	 * or a code-block that provides a language and a code snippet. Note that
 	 * markdown strings will be sanitized - that means html will be escaped.~~
 	 *
 	 * @deprecated This type is deprecated, please use [`MarkdownString`](#MarkdownString) instead.
 	 */
-	export type MarkedString = MarkdownString | string | { language: string; value: string };
+	export type MarkedString = MarkdownString | string | CodeblockString;
 
 	/**
 	 * A hover represents additional information for a symbol or word. Hovers are
@@ -2754,7 +2759,7 @@ declare module 'vscode' {
 		 * A human-readable string with additional information
 		 * about this item, like type or symbol information.
 		 */
-		detail?: string;
+		detail?: string | CodeblockString;
 
 		/**
 		 * A human-readable string that represents a doc-comment.
