@@ -450,8 +450,8 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		let panelWidth: number;
 		const editorCountForHeight = this.editorGroupService.getGroupOrientation() === 'horizontal' ? this.editorGroupService.getStacksModel().groups.length : 1;
 		const editorCountForWidth = this.editorGroupService.getGroupOrientation() === 'vertical' ? this.editorGroupService.getStacksModel().groups.length : 1;
-		const maxPanelHeight = sidebarSize.height - editorCountForHeight * MIN_EDITOR_PART_HEIGHT;
-		const maxPanelWidth = this.workbenchSize.width - activityBarSize.width - sidebarSize.width - editorCountForWidth * MIN_EDITOR_PART_WIDTH;
+		const maxPanelHeight = Math.max(this.partLayoutInfo.panel.minHeight, sidebarSize.height - editorCountForHeight * MIN_EDITOR_PART_HEIGHT);
+		const maxPanelWidth = Math.max(this.partLayoutInfo.panel.minWidth, this.workbenchSize.width - activityBarSize.width - sidebarSize.width - editorCountForWidth * MIN_EDITOR_PART_WIDTH);
 
 		if (isPanelHidden) {
 			panelHeight = 0;
@@ -522,7 +522,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			} else if (panelDimension.width >= diff) {
 				const oldWidth = panelDimension.width;
 				panelDimension.width = Math.max(MIN_PANEL_PART_WIDTH, panelDimension.width - diff);
-				diff = oldWidth - panelDimension.width;
+				diff = diff - (oldWidth - panelDimension.width);
 			}
 
 			if (sidebarSize.width >= diff) {
