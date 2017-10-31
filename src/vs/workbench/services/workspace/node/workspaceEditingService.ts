@@ -145,8 +145,10 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 			if (result) {
 				return this.migrate(result.workspace).then(() => {
 
-					// Show message to user (once)
-					this.informUserOnce(); // TODO@Ben remove me after a couple of releases
+					// Show message to user (once) if entering workspace state
+					if (this.contextService.getWorkbenchState() !== WorkbenchState.WORKSPACE) {
+						this.informUserOnce(); // TODO@Ben remove me after a couple of releases
+					}
 
 					// Reinitialize backup service
 					const backupFileService = this.backupFileService as BackupFileService; // TODO@Ben ugly cast
