@@ -9,12 +9,305 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
 import { Handler, IModel, DefaultEndOfLine } from 'vs/editor/common/editorCommon';
 import { withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
-import { DeleteAllLeftAction, JoinLinesAction, TransposeAction, UpperCaseAction, LowerCaseAction, DeleteAllRightAction, InsertLineBeforeAction, InsertLineAfterAction, IndentLinesAction } from 'vs/editor/contrib/linesOperations/common/linesOperations';
+import { DeleteAllLeftAction, JoinLinesAction, TransposeAction, UpperCaseAction, LowerCaseAction, DeleteAllRightAction, InsertLineBeforeAction, InsertLineAfterAction, IndentLinesAction, SortLinesAscendingAction, SortLinesDescendingAction } from 'vs/editor/contrib/linesOperations/common/linesOperations';
 import { Cursor } from 'vs/editor/common/controller/cursor';
 import { Model } from 'vs/editor/common/model/model';
 import { CoreEditingCommands } from 'vs/editor/common/controller/coreCommands';
 
 suite('Editor Contrib - Line Operations', () => {
+	suite('SortLinesAscendingAction', () => {
+		test('should sort selected lines in ascending order', function () {
+			withMockCodeEditor(
+				[
+					'omicron',
+					'beta',
+					'alpha'
+				], {}, (editor, cursor) => {
+					let model = editor.getModel();
+					let sortLinesAscendingAction = new SortLinesAscendingAction();
+
+					editor.setSelection(new Selection(1, 1, 3, 5));
+					sortLinesAscendingAction.run(null, editor);
+					assert.deepEqual(model.getLinesContent(), [
+						'alpha',
+						'beta',
+						'omicron'
+					]);
+					assert.deepEqual(editor.getSelection().toString(), new Selection(1, 1, 3, 7).toString());
+				});
+		});
+
+		test('should sort multiple selections in ascending order', function () {
+			withMockCodeEditor(
+				[
+					'omicron',
+					'beta',
+					'alpha',
+					'',
+					'omicron',
+					'beta',
+					'alpha'
+				], {}, (editor, cursor) => {
+					let model = editor.getModel();
+					let sortLinesAscendingAction = new SortLinesAscendingAction();
+
+					editor.setSelections([new Selection(1, 1, 3, 5), new Selection(5, 1, 7, 5)]);
+					sortLinesAscendingAction.run(null, editor);
+					assert.deepEqual(model.getLinesContent(), [
+						'alpha',
+						'beta',
+						'omicron',
+						'',
+						'alpha',
+						'beta',
+						'omicron'
+					]);
+					let expectedSelections = [
+						new Selection(1, 1, 3, 7),
+						new Selection(5, 1, 7, 7)
+					];
+					editor.getSelections().forEach((actualSelection, index) => {
+						assert.deepEqual(actualSelection.toString(), expectedSelections[index].toString());
+					});
+				});
+		});
+	});
+
+	suite('SortLinesDescendingAction', () => {
+		test('should sort selected lines in descending order', function () {
+			withMockCodeEditor(
+				[
+					'alpha',
+					'beta',
+					'omicron'
+				], {}, (editor, cursor) => {
+					let model = editor.getModel();
+					let sortLinesDescendingAction = new SortLinesDescendingAction();
+
+					editor.setSelection(new Selection(1, 1, 3, 7));
+					sortLinesDescendingAction.run(null, editor);
+					assert.deepEqual(model.getLinesContent(), [
+						'omicron',
+						'beta',
+						'alpha'
+					]);
+					assert.deepEqual(editor.getSelection().toString(), new Selection(1, 1, 3, 5).toString());
+				});
+		});
+
+		test('should sort multiple selections in descending order', function () {
+			withMockCodeEditor(
+				[
+					'alpha',
+					'beta',
+					'omicron',
+					'',
+					'alpha',
+					'beta',
+					'omicron'
+				], {}, (editor, cursor) => {
+					let model = editor.getModel();
+					let sortLinesDescendingAction = new SortLinesDescendingAction();
+
+					editor.setSelections([new Selection(1, 1, 3, 7), new Selection(5, 1, 7, 7)]);
+					sortLinesDescendingAction.run(null, editor);
+					assert.deepEqual(model.getLinesContent(), [
+						'omicron',
+						'beta',
+						'alpha',
+						'',
+						'omicron',
+						'beta',
+						'alpha'
+					]);
+					let expectedSelections = [
+						new Selection(1, 1, 3, 5),
+						new Selection(5, 1, 7, 5)
+					];
+					editor.getSelections().forEach((actualSelection, index) => {
+						assert.deepEqual(actualSelection.toString(), expectedSelections[index].toString());
+					});
+				});
+		});
+	});
+
+	suite('DeleteAllRightAction', () => {
+		test('should be noop on empty', () => {
+			withMockCodeEditor([''], {}, (editor, cursor) => {
+				const model = editor.getModel();
+				const action = new DeleteAllRightAction();
+
+				action.run(null, editor);
+				assert.deepEqual(model.getLinesContent(), ['']);
+				assert.deepEqual(editor.getSelections(), [new Selection(1, 1, 1, 1)]);
+
+				editor.setSelection(new Selection(1, 1, 1, 1));
+				action.run(null, editor);
+				assert.deepEqual(model.getLinesContent(), ['']);
+				assert.deepEqual(editor.getSelections(), [new Selection(1, 1, 1, 1)]);
+
+				editor.setSelections([new Selection(1, 1, 1, 1), new Selection(1, 1, 1, 1), new Selection(1, 1, 1, 1)]);
+				action.run(null, editor);
+				assert.deepEqual(model.getLinesContent(), ['']);
+				assert.deepEqual(editor.getSelections(), [new Selection(1, 1, 1, 1)]);
+			});
+		});
+
+		test('should delete selected range', () => {
+			withMockCodeEditor([
+				'hello',
+				'world'
+			], {}, (editor, cursor) => {
+				const model = editor.getModel();
+				const action = new DeleteAllRightAction();
+
+				editor.setSelection(new Selection(1, 2, 1, 5));
+				action.run(null, editor);
+				assert.deepEqual(model.getLinesContent(), ['ho', 'world']);
+				assert.deepEqual(editor.getSelections(), [new Selection(1, 2, 1, 2)]);
+
+				editor.setSelection(new Selection(1, 1, 2, 4));
+				action.run(null, editor);
+				assert.deepEqual(model.getLinesContent(), ['ld']);
+				assert.deepEqual(editor.getSelections(), [new Selection(1, 1, 1, 1)]);
+
+				editor.setSelection(new Selection(1, 1, 1, 3));
+				action.run(null, editor);
+				assert.deepEqual(model.getLinesContent(), ['']);
+				assert.deepEqual(editor.getSelections(), [new Selection(1, 1, 1, 1)]);
+			});
+		});
+
+		test('should delete to the right of the cursor', () => {
+			withMockCodeEditor([
+				'hello',
+				'world'
+			], {}, (editor, cursor) => {
+				const model = editor.getModel();
+				const action = new DeleteAllRightAction();
+
+				editor.setSelection(new Selection(1, 3, 1, 3));
+				action.run(null, editor);
+				assert.deepEqual(model.getLinesContent(), ['he', 'world']);
+				assert.deepEqual(editor.getSelections(), [new Selection(1, 3, 1, 3)]);
+
+				editor.setSelection(new Selection(2, 1, 2, 1));
+				action.run(null, editor);
+				assert.deepEqual(model.getLinesContent(), ['he', '']);
+				assert.deepEqual(editor.getSelections(), [new Selection(2, 1, 2, 1)]);
+			});
+		});
+
+		test('should join two lines, if at the end of the line', () => {
+			withMockCodeEditor([
+				'hello',
+				'world'
+			], {}, (editor, cursor) => {
+				const model = editor.getModel();
+				const action = new DeleteAllRightAction();
+
+				editor.setSelection(new Selection(1, 6, 1, 6));
+				action.run(null, editor);
+				assert.deepEqual(model.getLinesContent(), ['helloworld']);
+				assert.deepEqual(editor.getSelections(), [new Selection(1, 6, 1, 6)]);
+
+				editor.setSelection(new Selection(1, 6, 1, 6));
+				action.run(null, editor);
+				assert.deepEqual(model.getLinesContent(), ['hello']);
+				assert.deepEqual(editor.getSelections(), [new Selection(1, 6, 1, 6)]);
+
+				editor.setSelection(new Selection(1, 6, 1, 6));
+				action.run(null, editor);
+				assert.deepEqual(model.getLinesContent(), ['hello']);
+				assert.deepEqual(editor.getSelections(), [new Selection(1, 6, 1, 6)]);
+			});
+		});
+
+		test('should work with multiple cursors', () => {
+			withMockCodeEditor([
+				'hello',
+				'there',
+				'world'
+			], {}, (editor, cursor) => {
+				const model = editor.getModel();
+				const action = new DeleteAllRightAction();
+
+				editor.setSelections([
+					new Selection(1, 3, 1, 3),
+					new Selection(1, 6, 1, 6),
+					new Selection(3, 4, 3, 4),
+				]);
+				action.run(null, editor);
+				assert.deepEqual(model.getLinesContent(), ['hethere', 'wor']);
+				assert.deepEqual(editor.getSelections(), [
+					new Selection(1, 3, 1, 3),
+					new Selection(2, 4, 2, 4)
+				]);
+
+				action.run(null, editor);
+				assert.deepEqual(model.getLinesContent(), ['he', 'wor']);
+				assert.deepEqual(editor.getSelections(), [
+					new Selection(1, 3, 1, 3),
+					new Selection(2, 4, 2, 4)
+				]);
+
+				action.run(null, editor);
+				assert.deepEqual(model.getLinesContent(), ['hewor']);
+				assert.deepEqual(editor.getSelections(), [
+					new Selection(1, 3, 1, 3),
+					new Selection(1, 6, 1, 6)
+				]);
+
+				action.run(null, editor);
+				assert.deepEqual(model.getLinesContent(), ['he']);
+				assert.deepEqual(editor.getSelections(), [
+					new Selection(1, 3, 1, 3)
+				]);
+
+				action.run(null, editor);
+				assert.deepEqual(model.getLinesContent(), ['he']);
+				assert.deepEqual(editor.getSelections(), [
+					new Selection(1, 3, 1, 3)
+				]);
+			});
+		});
+
+		test('should work with undo/redo', () => {
+			withMockCodeEditor([
+				'hello',
+				'there',
+				'world'
+			], {}, (editor, cursor) => {
+				const model = editor.getModel();
+				const action = new DeleteAllRightAction();
+
+				editor.setSelections([
+					new Selection(1, 3, 1, 3),
+					new Selection(1, 6, 1, 6),
+					new Selection(3, 4, 3, 4),
+				]);
+				action.run(null, editor);
+				assert.deepEqual(model.getLinesContent(), ['hethere', 'wor']);
+				assert.deepEqual(editor.getSelections(), [
+					new Selection(1, 3, 1, 3),
+					new Selection(2, 4, 2, 4)
+				]);
+
+				editor.trigger('tests', Handler.Undo, {});
+				assert.deepEqual(editor.getSelections(), [
+					new Selection(1, 3, 1, 3),
+					new Selection(1, 6, 1, 6),
+					new Selection(3, 4, 3, 4)
+				]);
+				editor.trigger('tests', Handler.Redo, {});
+				assert.deepEqual(editor.getSelections(), [
+					new Selection(1, 3, 1, 3),
+					new Selection(2, 4, 2, 4)
+				]);
+			});
+		});
+	});
+
 	suite('DeleteAllLeftAction', () => {
 		test('should delete to the left of the cursor', function () {
 			withMockCodeEditor(
@@ -365,183 +658,6 @@ suite('Editor Contrib - Line Operations', () => {
 				assert.deepEqual(editor.getSelection().toString(), new Selection(2, 2, 2, 2).toString(), '020');
 			}
 		);
-	});
-
-	suite('DeleteAllRightAction', () => {
-		test('should be noop on empty', () => {
-			withMockCodeEditor([''], {}, (editor, cursor) => {
-				const model = editor.getModel();
-				const action = new DeleteAllRightAction();
-
-				action.run(null, editor);
-				assert.deepEqual(model.getLinesContent(), ['']);
-				assert.deepEqual(editor.getSelections(), [new Selection(1, 1, 1, 1)]);
-
-				editor.setSelection(new Selection(1, 1, 1, 1));
-				action.run(null, editor);
-				assert.deepEqual(model.getLinesContent(), ['']);
-				assert.deepEqual(editor.getSelections(), [new Selection(1, 1, 1, 1)]);
-
-				editor.setSelections([new Selection(1, 1, 1, 1), new Selection(1, 1, 1, 1), new Selection(1, 1, 1, 1)]);
-				action.run(null, editor);
-				assert.deepEqual(model.getLinesContent(), ['']);
-				assert.deepEqual(editor.getSelections(), [new Selection(1, 1, 1, 1)]);
-			});
-		});
-
-		test('should delete selected range', () => {
-			withMockCodeEditor([
-				'hello',
-				'world'
-			], {}, (editor, cursor) => {
-				const model = editor.getModel();
-				const action = new DeleteAllRightAction();
-
-				editor.setSelection(new Selection(1, 2, 1, 5));
-				action.run(null, editor);
-				assert.deepEqual(model.getLinesContent(), ['ho', 'world']);
-				assert.deepEqual(editor.getSelections(), [new Selection(1, 2, 1, 2)]);
-
-				editor.setSelection(new Selection(1, 1, 2, 4));
-				action.run(null, editor);
-				assert.deepEqual(model.getLinesContent(), ['ld']);
-				assert.deepEqual(editor.getSelections(), [new Selection(1, 1, 1, 1)]);
-
-				editor.setSelection(new Selection(1, 1, 1, 3));
-				action.run(null, editor);
-				assert.deepEqual(model.getLinesContent(), ['']);
-				assert.deepEqual(editor.getSelections(), [new Selection(1, 1, 1, 1)]);
-			});
-		});
-
-		test('should delete to the right of the cursor', () => {
-			withMockCodeEditor([
-				'hello',
-				'world'
-			], {}, (editor, cursor) => {
-				const model = editor.getModel();
-				const action = new DeleteAllRightAction();
-
-				editor.setSelection(new Selection(1, 3, 1, 3));
-				action.run(null, editor);
-				assert.deepEqual(model.getLinesContent(), ['he', 'world']);
-				assert.deepEqual(editor.getSelections(), [new Selection(1, 3, 1, 3)]);
-
-				editor.setSelection(new Selection(2, 1, 2, 1));
-				action.run(null, editor);
-				assert.deepEqual(model.getLinesContent(), ['he', '']);
-				assert.deepEqual(editor.getSelections(), [new Selection(2, 1, 2, 1)]);
-			});
-		});
-
-		test('should join two lines, if at the end of the line', () => {
-			withMockCodeEditor([
-				'hello',
-				'world'
-			], {}, (editor, cursor) => {
-				const model = editor.getModel();
-				const action = new DeleteAllRightAction();
-
-				editor.setSelection(new Selection(1, 6, 1, 6));
-				action.run(null, editor);
-				assert.deepEqual(model.getLinesContent(), ['helloworld']);
-				assert.deepEqual(editor.getSelections(), [new Selection(1, 6, 1, 6)]);
-
-				editor.setSelection(new Selection(1, 6, 1, 6));
-				action.run(null, editor);
-				assert.deepEqual(model.getLinesContent(), ['hello']);
-				assert.deepEqual(editor.getSelections(), [new Selection(1, 6, 1, 6)]);
-
-				editor.setSelection(new Selection(1, 6, 1, 6));
-				action.run(null, editor);
-				assert.deepEqual(model.getLinesContent(), ['hello']);
-				assert.deepEqual(editor.getSelections(), [new Selection(1, 6, 1, 6)]);
-			});
-		});
-
-		test('should work with multiple cursors', () => {
-			withMockCodeEditor([
-				'hello',
-				'there',
-				'world'
-			], {}, (editor, cursor) => {
-				const model = editor.getModel();
-				const action = new DeleteAllRightAction();
-
-				editor.setSelections([
-					new Selection(1, 3, 1, 3),
-					new Selection(1, 6, 1, 6),
-					new Selection(3, 4, 3, 4),
-				]);
-				action.run(null, editor);
-				assert.deepEqual(model.getLinesContent(), ['hethere', 'wor']);
-				assert.deepEqual(editor.getSelections(), [
-					new Selection(1, 3, 1, 3),
-					new Selection(2, 4, 2, 4)
-				]);
-
-				action.run(null, editor);
-				assert.deepEqual(model.getLinesContent(), ['he', 'wor']);
-				assert.deepEqual(editor.getSelections(), [
-					new Selection(1, 3, 1, 3),
-					new Selection(2, 4, 2, 4)
-				]);
-
-				action.run(null, editor);
-				assert.deepEqual(model.getLinesContent(), ['hewor']);
-				assert.deepEqual(editor.getSelections(), [
-					new Selection(1, 3, 1, 3),
-					new Selection(1, 6, 1, 6)
-				]);
-
-				action.run(null, editor);
-				assert.deepEqual(model.getLinesContent(), ['he']);
-				assert.deepEqual(editor.getSelections(), [
-					new Selection(1, 3, 1, 3)
-				]);
-
-				action.run(null, editor);
-				assert.deepEqual(model.getLinesContent(), ['he']);
-				assert.deepEqual(editor.getSelections(), [
-					new Selection(1, 3, 1, 3)
-				]);
-			});
-		});
-
-		test('should work with undo/redo', () => {
-			withMockCodeEditor([
-				'hello',
-				'there',
-				'world'
-			], {}, (editor, cursor) => {
-				const model = editor.getModel();
-				const action = new DeleteAllRightAction();
-
-				editor.setSelections([
-					new Selection(1, 3, 1, 3),
-					new Selection(1, 6, 1, 6),
-					new Selection(3, 4, 3, 4),
-				]);
-				action.run(null, editor);
-				assert.deepEqual(model.getLinesContent(), ['hethere', 'wor']);
-				assert.deepEqual(editor.getSelections(), [
-					new Selection(1, 3, 1, 3),
-					new Selection(2, 4, 2, 4)
-				]);
-
-				editor.trigger('tests', Handler.Undo, {});
-				assert.deepEqual(editor.getSelections(), [
-					new Selection(1, 3, 1, 3),
-					new Selection(1, 6, 1, 6),
-					new Selection(3, 4, 3, 4)
-				]);
-				editor.trigger('tests', Handler.Redo, {});
-				assert.deepEqual(editor.getSelections(), [
-					new Selection(1, 3, 1, 3),
-					new Selection(2, 4, 2, 4)
-				]);
-			});
-		});
 	});
 
 	test('InsertLineBeforeAction', function () {

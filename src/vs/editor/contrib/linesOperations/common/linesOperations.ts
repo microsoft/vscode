@@ -143,7 +143,7 @@ class MoveLinesDownAction extends AbstractMoveLinesAction {
 	}
 }
 
-abstract class AbstractSortLinesAction extends EditorAction {
+export abstract class AbstractSortLinesAction extends EditorAction {
 	private descending: boolean;
 
 	constructor(descending: boolean, opts: IActionOptions) {
@@ -167,7 +167,7 @@ abstract class AbstractSortLinesAction extends EditorAction {
 }
 
 @editorAction
-class SortLinesAscendingAction extends AbstractSortLinesAction {
+export class SortLinesAscendingAction extends AbstractSortLinesAction {
 	constructor() {
 		super(false, {
 			id: 'editor.action.sortLinesAscending',
@@ -179,7 +179,7 @@ class SortLinesAscendingAction extends AbstractSortLinesAction {
 }
 
 @editorAction
-class SortLinesDescendingAction extends AbstractSortLinesAction {
+export class SortLinesDescendingAction extends AbstractSortLinesAction {
 	constructor() {
 		super(true, {
 			id: 'editor.action.sortLinesDescending',
