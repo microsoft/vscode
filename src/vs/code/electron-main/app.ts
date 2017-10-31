@@ -372,9 +372,10 @@ export class CodeApplication {
 	private afterWindowOpen(accessor: ServicesAccessor): void {
 		const appInstantiationService = accessor.get(IInstantiationService);
 
-		// Setup Windows mutex
 		let windowsMutex: Mutex = null;
 		if (platform.isWindows) {
+
+			// Setup Windows mutex
 			try {
 				const Mutex = (require.__$__nodeRequire('windows-mutex') as any).Mutex;
 				windowsMutex = new Mutex(product.win32MutexName);
@@ -382,20 +383,27 @@ export class CodeApplication {
 			} catch (e) {
 				if (!this.environmentService.isBuilt) {
 					dialog.showMessageBox({
-						message: 'Failed to load windows-mutex',
-						detail: e.toString()
+						title: product.nameLong,
+						type: 'warning',
+						message: 'Failed to load windows-mutex!',
+						detail: e.toString(),
+						noLink: true
 					});
 				}
 			}
 
+			// Ensure Windows foreground love module
 			try {
 				// tslint:disable-next-line:no-unused-expression
 				<any>require.__$__nodeRequire('windows-foreground-love');
 			} catch (e) {
 				if (!this.environmentService.isBuilt) {
 					dialog.showMessageBox({
-						message: 'Failed to load windows-foreground-love',
-						detail: e.toString()
+						title: product.nameLong,
+						type: 'warning',
+						message: 'Failed to load windows-foreground-love!',
+						detail: e.toString(),
+						noLink: true
 					});
 				}
 			}

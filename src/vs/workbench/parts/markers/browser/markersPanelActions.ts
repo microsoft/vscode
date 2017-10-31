@@ -50,6 +50,27 @@ export class ToggleMarkersPanelAction extends TogglePanelAction {
 	}
 }
 
+export class ShowProblemsPanelAction extends Action {
+
+	public static ID = 'workbench.action.problems.show';
+	public static LABEL = Messages.MARKERS_PANEL_SHOW_LABEL;
+
+	constructor(id: string, label: string,
+		@IPanelService private panelService: IPanelService,
+		@ITelemetryService private telemetryService: ITelemetryService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		/* __GDPR__
+			"problems.used" : {}
+		*/
+		this.telemetryService.publicLog('problems.used');
+		return this.panelService.openPanel(Constants.MARKERS_PANEL_ID, true);
+	}
+}
+
 export class ToggleErrorsAndWarningsAction extends TogglePanelAction {
 
 	public static ID: string = 'workbench.action.showErrorsWarnings';

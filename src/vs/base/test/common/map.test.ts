@@ -6,7 +6,7 @@
 'use strict';
 
 
-import { BoundedMap, ResourceMap, TernarySearchTree, StringSegments, PathSegments } from 'vs/base/common/map';
+import { BoundedMap, ResourceMap, TernarySearchTree, PathIterator, StringIterator } from 'vs/base/common/map';
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 
@@ -311,6 +311,47 @@ suite('Map', () => {
 		assert.ok(!map.has('4'));
 	});
 
+	test('PathIterator', function () {
+		const iter = new PathIterator();
+		iter.reset('file:///usr/bin/file.txt');
+
+		assert.equal(iter.value(), 'file:');
+		assert.equal(iter.hasNext(), true);
+		assert.equal(iter.cmp('file:'), 0);
+		assert.ok(iter.cmp('a') < 0);
+		assert.ok(iter.cmp('aile:') < 0);
+		assert.ok(iter.cmp('z') > 0);
+		assert.ok(iter.cmp('zile:') > 0);
+
+		iter.next();
+		assert.equal(iter.value(), 'usr');
+		assert.equal(iter.hasNext(), true);
+
+		iter.next();
+		assert.equal(iter.value(), 'bin');
+		assert.equal(iter.hasNext(), true);
+
+		iter.next();
+		assert.equal(iter.value(), 'file.txt');
+		assert.equal(iter.hasNext(), false);
+
+		iter.next();
+		assert.equal(iter.value(), '');
+		assert.equal(iter.hasNext(), false);
+		iter.next();
+		assert.equal(iter.value(), '');
+		assert.equal(iter.hasNext(), false);
+
+		//
+		iter.reset('/foo/bar/');
+		assert.equal(iter.value(), 'foo');
+		assert.equal(iter.hasNext(), true);
+
+		iter.next();
+		assert.equal(iter.value(), 'bar');
+		assert.equal(iter.hasNext(), false);
+	});
+
 	function assertTernarySearchTree<E>(trie: TernarySearchTree<E>, ...elements: [string, E][]) {
 		const map = new Map<string, E>();
 		for (const [key, value] of elements) {
@@ -377,7 +418,7 @@ suite('Map', () => {
 	});
 
 	test('TernarySearchTree - basics', function () {
-		let trie = new TernarySearchTree<number>(new StringSegments());
+		let trie = new TernarySearchTree<number>(new StringIterator());
 
 		trie.set('foo', 1);
 		trie.set('bar', 2);
@@ -407,7 +448,7 @@ suite('Map', () => {
 	});
 
 	test('TernarySearchTree (PathSegments) - basics', function () {
-		let trie = new TernarySearchTree<number>(new PathSegments());
+		let trie = new TernarySearchTree<number>(new PathIterator());
 
 		trie.set('/user/foo/bar', 1);
 		trie.set('/user/foo', 2);
@@ -431,7 +472,7 @@ suite('Map', () => {
 
 	test('TernarySearchTree (PathSegments) - lookup', function () {
 
-		const map = new TernarySearchTree<number>(new PathSegments());
+		const map = new TernarySearchTree<number>(new PathIterator());
 		map.set('/user/foo/bar', 1);
 		map.set('/user/foo', 2);
 		map.set('/user/foo/flip/flop', 3);
@@ -445,7 +486,7 @@ suite('Map', () => {
 
 	test('TernarySearchTree (PathSegments) - superstr', function () {
 
-		const map = new TernarySearchTree<number>(new PathSegments());
+		const map = new TernarySearchTree<number>(new PathIterator());
 		map.set('/user/foo/bar', 1);
 		map.set('/user/foo', 2);
 		map.set('/user/foo/flip/flop', 3);

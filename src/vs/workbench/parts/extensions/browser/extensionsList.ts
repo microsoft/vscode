@@ -16,14 +16,14 @@ import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { once } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IExtension, IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
-import { InstallAction, UpdateAction, BuiltinStatusLabelAction, ManageExtensionAction, ReloadAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
+import { InstallAction, UpdateAction, BuiltinStatusLabelAction, ManageExtensionAction, ReloadAction, extensionButtonProminentBackground } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { RatingsWidget, InstallWidget } from 'vs/workbench/parts/extensions/browser/extensionsWidgets';
+import { Label, RatingsWidget, InstallWidget } from 'vs/workbench/parts/extensions/browser/extensionsWidgets';
 import { EventType } from 'vs/base/common/events';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { localize } from 'vs/nls';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export interface ITemplateData {
 	root: HTMLElement;
@@ -34,7 +34,6 @@ export interface ITemplateData {
 	ratings: HTMLElement;
 	author: HTMLElement;
 	description: HTMLElement;
-	subText: HTMLElement;
 	extension: IExtension;
 	disposables: IDisposable[];
 	extensionDisposables: IDisposable[];
@@ -58,7 +57,8 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		@IMessageService private messageService: IMessageService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionService private extensionService: IExtensionService,
-		@IExtensionTipsService private extensionTipsService: IExtensionTipsService
+		@IExtensionTipsService private extensionTipsService: IExtensionTipsService,
+		@IThemeService private themeService: IThemeService
 	) {
 		this.showRecommendedLabel = showRecommendedLabel;
 	}
@@ -66,14 +66,22 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 	get templateId() { return 'extension'; }
 
 	renderTemplate(root: HTMLElement): ITemplateData {
+		const bookmark = append(root, $('span.bookmark'));
+		append(bookmark, $('span.octicon.octicon-star'));
+		const applyBookmarkStyle = (theme) => {
+			const borderColor = theme.getColor(extensionButtonProminentBackground);
+			bookmark.style.borderTopColor = borderColor ? borderColor.toString() : 'transparent';
+		};
+		applyBookmarkStyle(this.themeService.getTheme());
+		const bookmarkStyler = this.themeService.onThemeChange(applyBookmarkStyle.bind(this));
+
 		const element = append(root, $('.extension'));
 		const icon = append(element, $<HTMLImageElement>('img.icon'));
 		const details = append(element, $('.details'));
 		const headerContainer = append(details, $('.header-container'));
 		const header = append(headerContainer, $('.header'));
 		const name = append(header, $('span.name'));
-		const subTextContainer = append(header, $('span.subtext-container'));
-		const subText = append(subTextContainer, $('span.subtext'));
+		const version = append(header, $('span.version'));
 		const installCount = append(header, $('span.install-count'));
 		const ratings = append(header, $('span.ratings'));
 		const description = append(details, $('.description.ellipsis'));
@@ -90,6 +98,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		});
 		actionbar.addListener(EventType.RUN, ({ error }) => error && this.messageService.show(Severity.Error, error));
 
+		const versionWidget = this.instantiationService.createInstance(Label, version, (e: IExtension) => e.version);
 		const installCountWidget = this.instantiationService.createInstance(InstallWidget, installCount, { small: true });
 		const ratingsWidget = this.instantiationService.createInstance(RatingsWidget, ratings, { small: true });
 
@@ -100,12 +109,13 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const manageAction = this.instantiationService.createInstance(ManageExtensionAction);
 
 		actionbar.push([reloadAction, updateAction, installAction, builtinStatusAction, manageAction], actionOptions);
-		const disposables = [installCountWidget, ratingsWidget, builtinStatusAction, updateAction, reloadAction, manageAction, actionbar];
+		const disposables = [versionWidget, installCountWidget, ratingsWidget, builtinStatusAction, updateAction, reloadAction, manageAction, actionbar, bookmarkStyler];
 
 		return {
-			root, element, icon, name, installCount, ratings, author, description, subText, disposables,
+			root, element, icon, name, installCount, ratings, author, description, disposables,
 			extensionDisposables: [],
 			set extension(extension: IExtension) {
+				versionWidget.extension = extension;
 				installCountWidget.extension = extension;
 				ratingsWidget.extension = extension;
 				builtinStatusAction.extension = extension;
@@ -154,17 +164,15 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			data.icon.style.visibility = 'inherit';
 		}
 
-		data.subText.textContent = isInstalled ? extension.version : '';
 		data.root.setAttribute('aria-label', extension.displayName);
-		removeClass(data.subText, 'recommended');
+		removeClass(data.root, 'recommended');
 
 		const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
 		if (extRecommendations[extension.id.toLowerCase()] && !isInstalled) {
 			data.root.setAttribute('aria-label', extension.displayName + '. ' + extRecommendations[extension.id]);
 			if (this.showRecommendedLabel) {
-				data.subText.textContent = localize('recommended', "Recommended");
-				addClass(data.subText, 'recommended');
-				data.subText.title = extRecommendations[extension.id.toLowerCase()];
+				addClass(data.root, 'recommended');
+				data.root.title = extRecommendations[extension.id.toLowerCase()];
 			}
 		}
 

@@ -5,11 +5,10 @@
 
 import * as vscode from 'vscode';
 import { HtmlNode } from 'EmmetNode';
-import { doComplete, isStyleSheet, getEmmetMode, extractAbbreviation } from 'vscode-emmet-helper';
 import { isValidLocationForEmmetAbbreviation } from './abbreviationActions';
-import { getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, getEmmetConfiguration } from './util';
+import { getEmmetHelper, getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, getEmmetConfiguration, getEmmetMode, isStyleSheet } from './util';
 
-const allowedMimeTypesInScriptTag = ['text/html', 'text/plain', 'text/x-template'];
+const allowedMimeTypesInScriptTag = ['text/html', 'text/plain', 'text/x-template', 'text/template'];
 
 export class DefaultCompletionItemProvider implements vscode.CompletionItemProvider {
 
@@ -33,13 +32,14 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 			return;
 		}
 
+		const helper = getEmmetHelper();
 		let noiseCheckPromise: Thenable<any> = Promise.resolve();
 
 		// Fix for https://github.com/Microsoft/vscode/issues/32647
 		// Check for document symbols in js/ts/jsx/tsx and avoid triggering emmet for abbreviations of the form symbolName.sometext
 		// Presence of > or * or + in the abbreviation denotes valid abbreviation that should trigger emmet
 		if (!isStyleSheet(syntax) && (document.languageId === 'javascript' || document.languageId === 'javascriptreact' || document.languageId === 'typescript' || document.languageId === 'typescriptreact')) {
-			let extractAbbreviationResults = extractAbbreviation(document, position);
+			let extractAbbreviationResults = helper.extractAbbreviation(document, position);
 			if (extractAbbreviationResults) {
 				let abbreviation: string = extractAbbreviationResults.abbreviation;
 				if (abbreviation.startsWith('this.')) {
@@ -57,7 +57,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 				return;
 			}
 
-			let result = doComplete(document, position, syntax, getEmmetConfiguration(syntax));
+			let result = helper.doComplete(document, position, syntax, getEmmetConfiguration(syntax));
 			let newItems: vscode.CompletionItem[] = [];
 			if (result && result.items) {
 				result.items.forEach(item => {

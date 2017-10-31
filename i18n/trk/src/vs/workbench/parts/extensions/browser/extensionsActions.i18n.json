@@ -34,7 +34,6 @@
 	"postDisableMessage": "'{0}' eklentisini devre dışı bırakmak için bu pencere yeniden yüklensin mi?",
 	"postUninstallTooltip": "Devre dışı bırakmak için yeniden yükleyin",
 	"postUninstallMessage": "Kaldırılan '{0}' eklentisini devre dışı bırakmak için bu pencere yeniden yüklensin mi?",
-	"reload": "Pencereyi &&Yeniden Yükle",
 	"toggleExtensionsViewlet": "Eklentileri Göster",
 	"installExtensions": "Eklenti Yükle",
 	"showEnabledExtensions": "Etkinleştirilmiş Eklentileri Göster",

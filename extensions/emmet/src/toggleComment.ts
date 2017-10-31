@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { getNodesInBetween, getNode, parseDocument, sameNodes } from './util';
+import { getNodesInBetween, getNode, parseDocument, sameNodes, isStyleSheet } from './util';
 import { Node, Stylesheet, Rule, HtmlNode } from 'EmmetNode';
-import { isStyleSheet } from 'vscode-emmet-helper';
 import parseStylesheet from '@emmetio/css-parser';
 import { DocumentStreamReader } from './bufferStream';
 

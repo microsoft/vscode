@@ -19,6 +19,7 @@
 	"ClearSearchResultsAction.label": "検索結果のクリア",
 	"FocusNextSearchResult.label": "次の検索結果にフォーカス",
 	"FocusPreviousSearchResult.label": "前の検索結果にフォーカス",
+	"RemoveAction.label": "却下",
 	"file.replaceAll.label": "すべて置換",
 	"match.replace.label": "置換"
 }

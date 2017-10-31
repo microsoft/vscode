@@ -7,6 +7,7 @@
 	"reallyRecommended2": "'{0}' eklentisi bu dosya türü için tavsiye edilir.",
 	"reallyRecommendedExtensionPack": "'{0}' eklenti paketi bu dosya türü için tavsiye edilir.",
 	"showRecommendations": "Tavsiyeleri Göster",
+	"install": "Yükle",
 	"neverShowAgain": "Tekrar gösterme",
 	"close": "Kapat",
 	"workspaceRecommended": "Bu çalışma alanı bazı eklentileri tavsiye ediyor.",

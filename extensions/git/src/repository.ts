@@ -217,16 +217,16 @@ export class Resource implements SourceControlResourceState {
 		switch (this.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.MODIFIED:
-				return new ThemeColor('git.color.modified');
+				return new ThemeColor('git.modifiedForeground');
 			case Status.INDEX_DELETED:
 			case Status.DELETED:
-				return new ThemeColor('git.color.deleted');
+				return new ThemeColor('git.deletedForeground');
 			case Status.INDEX_ADDED: // todo@joh - special color?
 			case Status.INDEX_RENAMED: // todo@joh - special color?
 			case Status.UNTRACKED:
-				return new ThemeColor('git.color.untracked');
+				return new ThemeColor('git.untrackedForeground');
 			case Status.IGNORED:
-				return new ThemeColor('git.color.ignored');
+				return new ThemeColor('git.ignoredForeground');
 			case Status.INDEX_COPIED:
 			case Status.BOTH_DELETED:
 			case Status.ADDED_BY_US:
@@ -235,7 +235,7 @@ export class Resource implements SourceControlResourceState {
 			case Status.DELETED_BY_US:
 			case Status.BOTH_ADDED:
 			case Status.BOTH_MODIFIED:
-				return new ThemeColor('git.color.conflict');
+				return new ThemeColor('git.conflictForeground');
 			default:
 				return undefined;
 		}
@@ -478,7 +478,7 @@ export class Repository implements Disposable {
 		const onRelevantGitChange = filterEvent(onRelevantRepositoryChange, uri => /\/\.git\//.test(uri.path));
 		onRelevantGitChange(this._onDidChangeRepository.fire, this._onDidChangeRepository, this.disposables);
 
-		this._sourceControl = scm.createSourceControl('git', 'Git', Uri.parse(repository.root));
+		this._sourceControl = scm.createSourceControl('git', 'Git', Uri.file(repository.root));
 		this._sourceControl.acceptInputCommand = { command: 'git.commitWithInput', title: localize('commit', "Commit"), arguments: [this._sourceControl] };
 		this._sourceControl.quickDiffProvider = this;
 		this.disposables.push(this._sourceControl);
@@ -629,11 +629,7 @@ export class Repository implements Disposable {
 
 	@throttle
 	async fetch(): Promise<void> {
-		try {
-			await this.run(Operation.Fetch, () => this.repository.fetch());
-		} catch (err) {
-			// noop
-		}
+		await this.run(Operation.Fetch, () => this.repository.fetch());
 	}
 
 	@throttle
@@ -679,7 +675,7 @@ export class Repository implements Disposable {
 	async show(ref: string, filePath: string): Promise<string> {
 		return await this.run(Operation.Show, async () => {
 			const relativePath = path.relative(this.repository.root, filePath).replace(/\\/g, '/');
-			const configFiles = workspace.getConfiguration('files');
+			const configFiles = workspace.getConfiguration('files', Uri.file(filePath));
 			const encoding = configFiles.get<string>('encoding');
 
 			return await this.repository.buffer(`${ref}:${relativePath}`, encoding);

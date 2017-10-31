@@ -33,13 +33,13 @@ import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import product from 'vs/platform/node/product';
-import pkg from 'vs/platform/node/package';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ConfigurationEditingService } from 'vs/workbench/services/configuration/node/configurationEditingService';
 import { WorkspaceConfiguration, FolderConfiguration } from 'vs/workbench/services/configuration/node/configuration';
 import { JSONEditingService } from 'vs/workbench/services/configuration/node/jsonEditingService';
 import { Schemas } from 'vs/base/common/network';
 import { massageFolderPathForWorkspace } from 'vs/platform/workspaces/node/workspaces';
+import { distinct } from 'vs/base/common/arrays';
 
 export class WorkspaceService extends Disposable implements IWorkspaceConfigurationService, IWorkspaceContextService {
 
@@ -280,13 +280,16 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	}
 
 	getUnsupportedWorkspaceKeys(): string[] {
-		return this.getWorkbenchState() === WorkbenchState.FOLDER ? this._configuration.getFolderConfigurationModel(this.workspace.folders[0].uri).workspaceSettingsConfig.unsupportedKeys : [];
+		const unsupportedWorkspaceKeys = [...this.workspaceConfiguration.getWorkspaceSettings().unsupportedKeys];
+		for (const folder of this.workspace.folders) {
+			unsupportedWorkspaceKeys.push(...this._configuration.getFolderConfigurationModel(folder.uri).workspaceSettingsConfig.unsupportedKeys);
+		}
+		return distinct(unsupportedWorkspaceKeys);
 	}
 
 	initialize(arg: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWindowConfiguration): TPromise<any> {
 		return this.createWorkspace(arg)
-			.then(workspace => this.setWorkspace(workspace))
-			.then(() => this.initializeConfiguration());
+			.then(workspace => this.updateWorkspaceAndInitializeConfiguration(workspace));
 	}
 
 	setInstantiationService(instantiationService: IInstantiationService): void {
@@ -343,32 +346,37 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		return TPromise.as(new Workspace(id));
 	}
 
-	private setWorkspace(workspace: Workspace): void {
-		if (!this.workspace) {
+	private updateWorkspaceAndInitializeConfiguration(workspace: Workspace): TPromise<void> {
+		let folderChanges: IWorkspaceFoldersChangeEvent;
+		if (this.workspace) {
+			const currentState = this.getWorkbenchState();
+			const currentWorkspacePath = this.workspace.configuration ? this.workspace.configuration.fsPath : void 0;
+			const currentFolders = this.workspace.folders;
+
+			this.workspace.update(workspace);
+
+			const newState = this.getWorkbenchState();
+			if (newState !== currentState) {
+				this._onDidChangeWorkbenchState.fire(newState);
+			}
+
+			const newWorkspacePath = this.workspace.configuration ? this.workspace.configuration.fsPath : void 0;
+			if (newWorkspacePath !== currentWorkspacePath || newState !== currentState) {
+				this._onDidChangeWorkspaceName.fire();
+			}
+
+			folderChanges = this.compareFolders(currentFolders, this.workspace.folders);
+
+		} else {
 			this.workspace = workspace;
-			return;
 		}
 
-		const currentState = this.getWorkbenchState();
-		const currentWorkspacePath = this.workspace.configuration ? this.workspace.configuration.fsPath : void 0;
-		const currentFolders = this.workspace.folders;
-
-		this.workspace.update(workspace);
-
-		const newState = this.getWorkbenchState();
-		if (newState !== currentState) {
-			this._onDidChangeWorkbenchState.fire(newState);
-		}
-
-		const newWorkspacePath = this.workspace.configuration ? this.workspace.configuration.fsPath : void 0;
-		if (newWorkspacePath !== currentWorkspacePath || newState !== currentState) {
-			this._onDidChangeWorkspaceName.fire();
-		}
-
-		const changes = this.compareFolders(currentFolders, this.workspace.folders);
-		if (changes.added.length || changes.removed.length || changes.changed.length) {
-			this._onDidChangeWorkspaceFolders.fire(changes);
-		}
+		return this.initializeConfiguration().then(() => {
+			// Trigger folders change after configuration initialization so that configuration is up to date.
+			if (folderChanges && (folderChanges.added.length || folderChanges.removed.length || folderChanges.changed.length)) {
+				this._onDidChangeWorkspaceFolders.fire(folderChanges);
+			}
+		});
 	}
 
 	private compareFolders(currentFolders: IWorkspaceFolder[], newFolders: IWorkspaceFolder[]): IWorkspaceFoldersChangeEvent {
@@ -459,6 +467,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	private onBaseConfigurationChanged(e: IConfigurationChangeEvent): void {
 		if (this.workspace && this._configuration) {
 			if (e.source === ConfigurationTarget.DEFAULT) {
+				this.workspaceConfiguration.getWorkspaceSettings().update();
 				this.workspace.folders.forEach(folder => this._configuration.getFolderConfigurationModel(folder.uri).update());
 				this._configuration.updateDefaultConfiguration(this.baseConfigurationService.configuration.defaults);
 				this.triggerConfigurationChange(new ConfigurationChangeEvent().change(e.affectedKeys), e.source);
@@ -663,7 +672,7 @@ interface IConfigurationExport {
 	settings: IExportedConfigurationNode[];
 	buildTime: number;
 	commit: string;
-	version: number;
+	buildNumber: number;
 }
 
 export class DefaultConfigurationExportHelper {
@@ -728,19 +737,9 @@ export class DefaultConfigurationExportHelper {
 			settings: settings.sort((a, b) => a.name.localeCompare(b.name)),
 			buildTime: Date.now(),
 			commit: product.commit,
-			version: versionStringToNumber(pkg.version)
+			buildNumber: product.settingsSearchBuildId
 		};
 
 		return result;
 	}
-}
-
-function versionStringToNumber(versionStr: string): number {
-	const semverRegex = /(\d+)\.(\d+)\.(\d+)/;
-	const match = versionStr.match(semverRegex);
-	if (!match) {
-		return 0;
-	}
-
-	return parseInt(match[1], 10) * 10000 + parseInt(match[2], 10) * 100 + parseInt(match[3], 10);
 }

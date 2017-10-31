@@ -16,14 +16,16 @@ export interface IWorkspaceEditingService {
 	_serviceBrand: ServiceIdentifier<any>;
 
 	/**
-	 * Add folders to the existing workspace
+	 * Add folders to the existing workspace.
+	 * When `donotNotifyError` is `true`, error will be bubbled up otherwise, the service handles the error with proper message and action
 	 */
-	addFolders(folders: IWorkspaceFolderCreationData[]): TPromise<void>;
+	addFolders(folders: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): TPromise<void>;
 
 	/**
 	 * Remove folders from the existing workspace
+	 * When `donotNotifyError` is `true`, error will be bubbled up otherwise, the service handles the error with proper message and action
 	 */
-	removeFolders(folders: URI[]): TPromise<void>;
+	removeFolders(folders: URI[], donotNotifyError?: boolean): TPromise<void>;
 
 	/**
 	 * creates a new workspace with the provided folders and opens it. if path is provided

@@ -84,6 +84,7 @@ export class DebugService implements debug.IDebugService {
 	private debugState: IContextKey<string>;
 	private breakpointsToSendOnResourceSaved: Set<string>;
 	private launchJsonChanged: boolean;
+	private previousState: debug.State;
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
@@ -520,7 +521,6 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	private updateStateAndEmit(sessionId?: string, newState?: debug.State): void {
-		const previousState = this.state;
 		if (sessionId) {
 			if (newState === debug.State.Inactive) {
 				this.sessionStates.delete(sessionId);
@@ -530,11 +530,12 @@ export class DebugService implements debug.IDebugService {
 		}
 
 		const state = this.state;
-		if (previousState !== state) {
+		if (this.previousState !== state) {
 			const stateLabel = debug.State[state];
 			if (stateLabel) {
 				this.debugState.set(stateLabel.toLowerCase());
 			}
+			this.previousState = state;
 			this._onDidChangeState.fire(state);
 		}
 	}

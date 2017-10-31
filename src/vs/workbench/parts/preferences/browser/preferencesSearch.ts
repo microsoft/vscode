@@ -97,18 +97,9 @@ class LocalSearchProvider {
 	}
 }
 
-export interface IRemoteScores {
-	[key: string]: number;
-}
-
-interface IRemoteResult {
-	metadata: IFilterMetadata;
-	scores: IRemoteScores;
-}
-
 class RemoteSearchProvider {
 	private _filter: string;
-	private _remoteSearchP: TPromise<IRemoteResult>;
+	private _remoteSearchP: TPromise<IFilterMetadata>;
 
 	constructor(filter: string, endpoint: IEndpointDetails) {
 		this._filter = filter;
@@ -118,7 +109,7 @@ class RemoteSearchProvider {
 	filterPreferences(preferencesModel: ISettingsEditorModel): TPromise<IFilterResult> {
 		return this._remoteSearchP.then(remoteResult => {
 			const settingFilter = (setting: ISetting) => {
-				if (!!remoteResult.scores[setting.key]) {
+				if (!!remoteResult.scoredResults[setting.key]) {
 					const settingMatches = new SettingMatches(this._filter, setting, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
 					if (settingMatches.length) {
 						return settingMatches;
@@ -131,9 +122,9 @@ class RemoteSearchProvider {
 			};
 
 			if (remoteResult) {
-				const sortedNames = Object.keys(remoteResult.scores).sort((a, b) => remoteResult.scores[b] - remoteResult.scores[a]);
+				const sortedNames = Object.keys(remoteResult.scoredResults).sort((a, b) => remoteResult.scoredResults[b] - remoteResult.scoredResults[a]);
 				const result = preferencesModel.filterSettings(this._filter, group => null, settingFilter, sortedNames);
-				result.metadata = remoteResult.metadata;
+				result.metadata = remoteResult;
 				return result;
 			} else {
 				return null;
@@ -142,7 +133,7 @@ class RemoteSearchProvider {
 	}
 }
 
-function getSettingsFromBing(filter: string, endpoint: IEndpointDetails): TPromise<IRemoteResult> {
+function getSettingsFromBing(filter: string, endpoint: IEndpointDetails): TPromise<IFilterMetadata> {
 	const url = prepareUrl(filter, endpoint);
 	console.log('fetching: ' + url);
 	const start = Date.now();
@@ -164,21 +155,19 @@ function getSettingsFromBing(filter: string, endpoint: IEndpointDetails): TPromi
 					score: r['@search.score']
 				}));
 
-			const scores = Object.create(null);
+			const scoredResults = Object.create(null);
 			suggestions.forEach(s => {
 				const name = s.name
 					.replace(/^"/, '')
 					.replace(/"$/, '');
-				scores[name] = s.score;
+				scoredResults[name] = s.score;
 			});
 
-			return <IRemoteResult>{
-				metadata: {
-					remoteUrl: url,
-					duration,
-					timestamp
-				},
-				scores
+			return <IFilterMetadata>{
+				remoteUrl: url,
+				duration,
+				timestamp,
+				scoredResults
 			};
 		});
 

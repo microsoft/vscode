@@ -62,10 +62,15 @@ export interface IFilterResult {
 	metadata?: IFilterMetadata;
 }
 
+export interface IScoredResults {
+	[key: string]: number;
+}
+
 export interface IFilterMetadata {
 	remoteUrl: string;
 	timestamp: number;
 	duration: number;
+	scoredResults: IScoredResults;
 }
 
 export interface IPreferencesEditorModel<T> {

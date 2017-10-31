@@ -317,3 +317,8 @@ export function validateProperty(property: string): string {
 	}
 	return null;
 }
+
+export function getScopes(keys: string[]): ConfigurationScope[] {
+	const configurationProperties = configurationRegistry.getConfigurationProperties();
+	return keys.map(key => configurationProperties[key].scope);
+}

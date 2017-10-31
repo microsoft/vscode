@@ -47,7 +47,6 @@
 	"autoClosingBrackets": "Controla se o editor deve fechar colchetes automaticamente depois de abri-los",
 	"formatOnType": "Controla se o editor deve formatar automaticamente a linha após a digitação",
 	"formatOnPaste": "Controla se o editor deve formatar automaticamente o conteúdo colado. Um formatador deve estar disponível e o formatador deve ser capaz de formatar apenas uma parte do documento.",
-	"autoIndent": "Controles se o editor deve ajustar automaticamente o recuo, quando os usuários digitam, colam ou movem linhas. Regras de recuo da língua devem estar disponíveis. ",
 	"suggestOnTriggerCharacters": "Controla se as sugestões devem aparecer automaticamente ao digitar caracteres de gatilho",
 	"acceptSuggestionOnEnter": "Controla se as sugestões devem ser aceitas com 'Enter' - em adição a 'Tab'. Ajuda a evitar a ambiguidade entre a inserção de novas linhas ou aceitar sugestões. O valor 'smart' significa apenas aceitar uma sugestão com Enter quando ela fizer uma mudança textual",
 	"acceptSuggestionOnCommitCharacter": "Controla se as sugestões devem ser aceitas em caracteres de confirmação. Por exemplo, em JavaScript, o ponto-e-vírgula (';') pode ser um caractere de confirmação que aceita uma sugestão e digita esse caractere.",

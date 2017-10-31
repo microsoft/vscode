@@ -34,7 +34,6 @@
 	"postDisableMessage": "要重新載入此視窗以停用延伸模組 '{0}' 嗎?",
 	"postUninstallTooltip": "重新載入以停用",
 	"postUninstallMessage": "要重新載入此視窗以停用已解除安裝的延伸模組 '{0}' 嗎?",
-	"reload": "重新載入視窗(&&R)",
 	"toggleExtensionsViewlet": "顯示擴充功能",
 	"installExtensions": "安裝擴充功能",
 	"showEnabledExtensions": "顯示啟用的延伸模組",

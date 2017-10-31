@@ -206,7 +206,6 @@ function getSchemaAssociation(context: ExtensionContext): ISchemaAssociations {
 
 function getSettings(): Settings {
 	let httpSettings = workspace.getConfiguration('http');
-	let jsonSettings = workspace.getConfiguration('json');
 
 	let settings: Settings = {
 		http: {
@@ -214,7 +213,7 @@ function getSettings(): Settings {
 			proxyStrictSSL: httpSettings.get('proxyStrictSSL')
 		},
 		json: {
-			format: jsonSettings.get('format'),
+			format: workspace.getConfiguration('json').get('format'),
 			schemas: [],
 		}
 	};
@@ -244,7 +243,7 @@ function getSettings(): Settings {
 	};
 
 	// merge global and folder settings. Qualify all file matches with the folder path.
-	let globalSettings = jsonSettings.get<JSONSchemaSettings[]>('schemas');
+	let globalSettings = workspace.getConfiguration('json', null).get<JSONSchemaSettings[]>('schemas');
 	if (Array.isArray(globalSettings)) {
 		collectSchemaSettings(globalSettings, workspace.rootPath);
 	}

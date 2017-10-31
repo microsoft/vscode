@@ -24,6 +24,7 @@
 	"panelActiveTitleForeground": "活动面板的标题颜色。面板显示在编辑器区域下方，并包含输出和集成终端等视图。",
 	"panelInactiveTitleForeground": "非活动面板的标题颜色。面板显示在编辑器区域下方，并包含输出和集成终端等视图。",
 	"panelActiveTitleBorder": "活动面板的边框颜色。面板显示在编辑器区域下方，包含输出和集成终端等视图。",
+	"panelDragAndDropBackground": "面板标题项在拖放时的反馈颜色。此颜色应有透明度，以便面板项仍能透过。面板显示在编辑器区域下方，包含输出和集成终端等视图。",
 	"statusBarForeground": "工作区打开时状态栏的前景色。状态栏显示在窗口底部。",
 	"statusBarNoFolderForeground": "没有打开文件夹时状态栏的前景色。状态栏显示在窗口底部。",
 	"statusBarBackground": "工作区打开时状态栏的背景色。状态栏显示在窗口底部。",

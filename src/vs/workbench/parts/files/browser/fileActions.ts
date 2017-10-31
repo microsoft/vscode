@@ -742,7 +742,7 @@ export class BaseDeleteFileAction extends BaseFileAction {
 
 				// Check for confirmation checkbox
 				let updateConfirmSettingsPromise: TPromise<void> = TPromise.as(void 0);
-				if (confirmation.checkboxChecked === true) {
+				if (confirmation.confirmed && confirmation.checkboxChecked === true) {
 					updateConfirmSettingsPromise = this.configurationService.updateValue(BaseDeleteFileAction.CONFIRM_DELETE_SETTING_KEY, false, ConfigurationTarget.USER);
 				}
 
@@ -1256,8 +1256,8 @@ export class CompareResourcesAction extends Action {
 			// If the file names are identical, add more context by looking at the parent folder
 			if (leftResourceName === rightResourceName) {
 				const folderPaths = labels.shorten([
-					labels.getPathLabel(paths.dirname(globalResourceToCompare.fsPath), contextService, environmentService),
-					labels.getPathLabel(paths.dirname(resource.fsPath), contextService, environmentService)
+					labels.getPathLabel(resources.dirname(globalResourceToCompare), contextService, environmentService),
+					labels.getPathLabel(resources.dirname(resource), contextService, environmentService)
 				]);
 
 				leftResourceName = paths.join(folderPaths[0], leftResourceName);

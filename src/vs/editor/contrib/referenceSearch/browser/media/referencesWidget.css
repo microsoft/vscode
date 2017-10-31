@@ -37,21 +37,18 @@
 }
 
 .monaco-editor .reference-zone-widget .ref-tree .reference-file {
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
+	display: inline-flex;
+	width: 100%;
+	height: 100%;
 }
 
-.monaco-editor .reference-zone-widget .monaco-count-badge {
-	margin-right: .5em;
-	height: 15px;
-	padding: 0 .5em .5em .5em
+.monaco-editor .reference-zone-widget .ref-tree .reference-file .count {
+	margin-right: 12px;
+	margin-left: auto;
 }
 
 /* High Contrast Theming */
 
 .monaco-editor.hc-black .reference-zone-widget .ref-tree .reference-file {
 	font-weight: bold;
-	display: flex;
-	justify-content: space-between;
 }

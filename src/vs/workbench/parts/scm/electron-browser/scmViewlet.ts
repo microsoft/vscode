@@ -936,10 +936,9 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 	}
 
 	private onSelectionChange(repositories: ISCMRepository[]): void {
-		// Remove unselected panels
-		this.repositoryPanels
-			.filter(p => repositories.every(r => p.repository !== r))
-			.forEach(panel => this.removePanel(panel));
+		// Collect unselected panels
+		const panelsToRemove = this.repositoryPanels
+			.filter(p => repositories.every(r => p.repository !== r));
 
 		// Collect panels still selected
 		const repositoryPanels = this.repositoryPanels
@@ -957,9 +956,12 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 			panel.repository.focus();
 		});
 
+		// Remove unselected panels
+		panelsToRemove.forEach(panel => this.removePanel(panel));
+
 		// Resize all panels equally
 		const height = typeof this.height === 'number' ? this.height : 1000;
-		const mainPanelHeight = this.mainPanel ? this.mainPanel.minimumSize : 0;
+		const mainPanelHeight = this.getPanelSize(this.mainPanel);
 		const size = (height - mainPanelHeight) / repositories.length;
 
 		for (const panel of this.repositoryPanels) {

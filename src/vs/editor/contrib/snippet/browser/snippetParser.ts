@@ -347,11 +347,11 @@ export class FormatString extends Marker {
 
 	resolve(value: string): string {
 		if (this.shorthandName === 'upcase') {
-			return value.toLocaleUpperCase();
+			return !value ? '' : value.toLocaleUpperCase();
 		} else if (this.shorthandName === 'downcase') {
-			return value.toLocaleLowerCase();
+			return !value ? '' : value.toLocaleLowerCase();
 		} else if (this.shorthandName === 'capitalize') {
-			return value[0].toLocaleUpperCase() + value.substr(1);
+			return !value ? '' : (value[0].toLocaleUpperCase() + value.substr(1));
 		} else if (Boolean(value) && typeof this.ifValue === 'string') {
 			return this.ifValue;
 		} else if (!Boolean(value) && typeof this.elseValue === 'string') {
@@ -846,6 +846,7 @@ export class SnippetParser {
 			if (escaped = this._accept(TokenType.Backslash, true)) {
 				escaped = this._accept(TokenType.Forwardslash, true) || escaped;
 				regexValue += escaped;
+				continue;
 			}
 
 			if (this._token.type !== TokenType.EOF) {

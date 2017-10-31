@@ -244,8 +244,7 @@ export class ViewsViewlet extends PanelViewlet {
 		// Update headers after and title contributed views after available, since we read from cache in the beginning to know if the viewlet has single view or not. Ref #29609
 		this.extensionService.onReady().then(() => {
 			this.areExtensionsReady = true;
-			this.updateViewHeaders();
-			this.updateTitleArea();
+			this.updateHeaders();
 		});
 
 		this.onViewsRegistered(ViewsRegistry.getViews(this.location));
@@ -367,7 +366,9 @@ export class ViewsViewlet extends PanelViewlet {
 
 			return result;
 
-		}, [[], [], unregisteredViews]);
+		}, [[], [], []]);
+
+		toRemove.push(...unregisteredViews.filter(viewDescriptor => this.isCurrentlyVisible(viewDescriptor)));
 
 		const toCreate: ViewsViewletPanel[] = [];
 
@@ -408,6 +409,8 @@ export class ViewsViewlet extends PanelViewlet {
 				const size = (viewState && viewState.size) || viewDescriptor.size || 200;
 				this.addPanel(view, size, index);
 				this.viewsViewletPanels.splice(index, 0, view);
+
+				this.viewsStates.set(view.id, this.updateViewStateSize(view));
 			}
 
 			return TPromise.join(toCreate.map(view => view.create()))
@@ -456,7 +459,13 @@ export class ViewsViewlet extends PanelViewlet {
 		this.viewsViewletPanels.splice(toIndex, 0, panel);
 
 		for (let order = 0; order < this.viewsViewletPanels.length; order++) {
-			this.viewsStates.get(this.viewsViewletPanels[order].id).order = order;
+			const view = this.viewsStates.get(this.viewsViewletPanels[order].id);
+
+			if (!view) {
+				continue;
+			}
+
+			view.order = order;
 		}
 	}
 
@@ -496,6 +505,13 @@ export class ViewsViewlet extends PanelViewlet {
 		return this.setVisible(this.isVisible());
 	}
 
+	private updateHeaders(): void {
+		if (this.viewsViewletPanels.length) {
+			this.updateTitleArea();
+			this.updateViewHeaders();
+		}
+	}
+
 	private onContextMenu(event: StandardMouseEvent, view: ViewsViewletPanel): void {
 		event.stopPropagation();
 		event.preventDefault();
@@ -516,11 +532,14 @@ export class ViewsViewlet extends PanelViewlet {
 		if (!this.showHeaderInTitleWhenSingleView) {
 			return false;
 		}
-		if (this.viewsViewletPanels.length > 1) {
+		if (this.getViewDescriptorsFromRegistry().length === 0) {
 			return false;
 		}
+		if (this.length > 1) {
+			return false;
+		}
+		// Check in cache so that view do not jump. See #29609
 		if (ViewLocation.getContributedViewLocation(this.location.id) && !this.areExtensionsReady) {
-			// Checks in cache so that view do not jump. See #29609
 			let visibleViewsCount = 0;
 			this.viewsStates.forEach((viewState, id) => {
 				if (!viewState.isHidden) {
@@ -529,7 +548,7 @@ export class ViewsViewlet extends PanelViewlet {
 			});
 			return visibleViewsCount === 1;
 		}
-		return true;
+		return super.isSingleView();
 	}
 
 	protected getViewDescriptorsFromRegistry(defaultOrder: boolean = false): IViewDescriptor[] {
@@ -596,7 +615,11 @@ export class PersistentViewsViewlet extends ViewsViewlet {
 		@IExtensionService extensionService: IExtensionService
 	) {
 		super(id, location, showHeaderInTitleWhenSingleView, telemetryService, storageService, instantiationService, themeService, contextKeyService, contextMenuService, extensionService);
+	}
+
+	create(parent: Builder): TPromise<void> {
 		this.loadViewsStates();
+		return super.create(parent);
 	}
 
 	shutdown(): void {
@@ -604,7 +627,7 @@ export class PersistentViewsViewlet extends ViewsViewlet {
 		super.shutdown();
 	}
 
-	private saveViewsStates(): void {
+	protected saveViewsStates(): void {
 		const viewsStates = {};
 		const registeredViewDescriptors = this.getViewDescriptorsFromRegistry();
 		this.viewsStates.forEach((viewState, id) => {
@@ -623,7 +646,7 @@ export class PersistentViewsViewlet extends ViewsViewlet {
 		this.storageService.store(this.viewletStateStorageId, JSON.stringify(viewsStates), this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? StorageScope.WORKSPACE : StorageScope.GLOBAL);
 	}
 
-	private loadViewsStates(): void {
+	protected loadViewsStates(): void {
 		const viewsStates = JSON.parse(this.storageService.get(this.viewletStateStorageId, this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? StorageScope.WORKSPACE : StorageScope.GLOBAL, '{}'));
 		Object.keys(viewsStates).forEach(id => this.viewsStates.set(id, <IViewState>viewsStates[id]));
 	}

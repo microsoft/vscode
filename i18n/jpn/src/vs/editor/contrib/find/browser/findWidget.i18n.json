@@ -15,6 +15,7 @@
 	"label.replaceButton": "置換",
 	"label.replaceAllButton": "すべて置換",
 	"label.toggleReplaceButton": "置換モードの切り替え",
+	"title.matchesCountLimit": "最初の {0} 件のみが強調表示されていますが、テキスト全体が検索されています。",
 	"label.matchesLocation": "{0} / {1} 件",
 	"label.noResults": "結果なし"
 }

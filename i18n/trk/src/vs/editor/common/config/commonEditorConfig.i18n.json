@@ -47,7 +47,6 @@
 	"autoClosingBrackets": "Düzenleyicinin köşeli ayracı açtıktan sonra otomatik olarak kapatıp kapatmayacağını denetler",
 	"formatOnType": "Düzenleyicinin satırı yazıldıktan sonra otomatik biçimlendirip biçimlendirmeyeceğini denetler",
 	"formatOnPaste": "Düzenleyicinin yapıştırılan içeriği otomatik olarak biçimlendirip biçimlendirmeyeceğini denetler. Bir biçimlendirici mevcut olmalı ve belgede bir aralığı biçimlendirebilmelidir.",
-	"autoIndent": "Düzenleyicinin, kullanıcılar tuşlara bastığında, satırları yapıştırdığında veya taşıdığında girintiyi otomatik olarak ayarlayıp ayarlamayacağını denetler. Dilin girintileme kuralları mevcut olmalıdır.",
 	"suggestOnTriggerCharacters": "Tetikleyici karakterler yazılırken otomatik olarak öneri gösterilip gösterilmeyeceğini denetler",
 	"acceptSuggestionOnEnter": "'Tab' tuşuna ek olarak - önerilerin 'Enter' tuşuna basıldığında kabul edilmesini denetler. Yeni satır ekleme ya da öneri kabul etme arasındaki belirsizlikten kaçınmaya yardımcı olur. 'smart' değeri, bir öneri metinsel değişiklik yapıyorsa, onu sadece Enter tuşu ile kabul etmeyi ifade eder",
 	"acceptSuggestionOnCommitCharacter": "Önerilerin tamamlama karakterlerinde kabul edilip edilmeyeceğini denetler. Örnek olarak; JavaScript'te noktalı virgül(';') öneri kabul eden ve o karakteri giren tamamlama karakteri olabilir.",

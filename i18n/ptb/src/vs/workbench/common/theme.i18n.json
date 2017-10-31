@@ -24,6 +24,7 @@
 	"panelActiveTitleForeground": "Cor do título para o painel ativo. Os painéis são mostrados abaixo da área do editor e contém visualizações como saída e terminal integrado.",
 	"panelInactiveTitleForeground": "Cor do título para o painel inativo. Os painéis são mostrados abaixo da área do editor e contém visualizações como saída e terminal integrado.",
 	"panelActiveTitleBorder": "Cor da borda para o título do painel ativo. Os painéis são mostrados abaixo da área do editor e contém visualizações como saída e terminal integrado.",
+	"panelDragAndDropBackground": "Cor de resposta ao arrastar e soltar itens de título de painel. A cor deve possuir transparência para que os registros no painel ainda possam brilhar através dela. Os painéis são exibidos abaixo da área do editor e contém visualizações como a saída e o terminal integrado.",
 	"statusBarForeground": "Cor de primeiro plano da barra de status quando um espaço de trabalho é aberto. A barra de status é mostrada na parte inferior da janela.",
 	"statusBarNoFolderForeground": "Cor do primeiro plano da barra de status quando nenhuma pasta está aberta. A barra de status é mostrada na parte inferior da janela.",
 	"statusBarBackground": "Cor de fundo da barra de status quando um espaço de trabalho é aberto. A barra de status é mostrada na parte inferior da janela.",

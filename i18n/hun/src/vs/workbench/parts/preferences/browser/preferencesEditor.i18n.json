@@ -13,5 +13,6 @@
 	"settingsFound": "{0} illeszkedő beállítás",
 	"fileEditorWithInputAriaLabel": "{0}. Szövegfájlszerkesztő.",
 	"fileEditorAriaLabel": "Szövegfájlszerkesztő",
+	"defaultEditorReadonly": "A jobb oldalon lévő szerkesztőablak tartalmának módosításával írhatja felül az alapértelmezett beállításokat.",
 	"preferencesAriaLabel": "Az alapértelmezett beállítások. Írásvédett szerkesztőablak."
 }

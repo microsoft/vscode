@@ -169,6 +169,8 @@ const validateSetting = 'validate.enable';
 class LanguageProvider {
 
 	private syntaxDiagnostics: ObjectMap<Diagnostic[]>;
+	private semanticDiagnostics: ObjectMap<Diagnostic[]>;
+
 	private readonly currentDiagnostics: DiagnosticCollection;
 	private readonly bufferSyncSupport: BufferSyncSupport;
 	private readonly formattingOptionsManager: FormattingConfigurationManager;
@@ -194,6 +196,7 @@ class LanguageProvider {
 			}
 		}, this._validate);
 		this.syntaxDiagnostics = Object.create(null);
+		this.semanticDiagnostics = Object.create(null);
 		this.currentDiagnostics = languages.createDiagnosticCollection(description.id);
 
 		this.typingsStatus = new TypingsStatus(client);
@@ -236,8 +239,6 @@ class LanguageProvider {
 		const config = workspace.getConfiguration(this.id);
 
 		const completionItemProvider = new (await import('./features/completionItemProvider')).default(client, this.description.id, this.typingsStatus);
-		completionItemProvider.updateConfiguration();
-		this.toUpdateOnConfigurationChanged.push(completionItemProvider);
 		this.disposables.push(languages.registerCompletionItemProvider(selector, completionItemProvider, '.', '"', '\'', '/', '@'));
 
 		this.disposables.push(languages.registerCompletionItemProvider(selector, new (await import('./features/directiveCommentCompletionProvider')).default(client), '@'));
@@ -252,10 +253,7 @@ class LanguageProvider {
 		this.disposables.push(formattingProviderManager);
 		this.toUpdateOnConfigurationChanged.push(formattingProviderManager);
 
-		const jsDocCompletionProvider = new JsDocCompletionProvider(client);
-		jsDocCompletionProvider.updateConfiguration();
-		this.disposables.push(languages.registerCompletionItemProvider(selector, jsDocCompletionProvider, '*'));
-
+		this.disposables.push(languages.registerCompletionItemProvider(selector, new JsDocCompletionProvider(client), '*'));
 		this.disposables.push(languages.registerHoverProvider(selector, new (await import('./features/hoverProvider')).default(client)));
 		this.disposables.push(languages.registerDefinitionProvider(selector, new (await import('./features/definitionProvider')).default(client)));
 		this.disposables.push(languages.registerDocumentHighlightProvider(selector, new (await import('./features/documentHighlightProvider')).default(client)));
@@ -322,7 +320,6 @@ class LanguageProvider {
 	private configurationChanged(): void {
 		const config = workspace.getConfiguration(this.id);
 		this.updateValidate(config.get(validateSetting, true));
-		this.formattingOptionsManager.updateConfiguration(config);
 
 		for (const toUpdate of this.toUpdateOnConfigurationChanged) {
 			toUpdate.updateConfiguration();
@@ -360,6 +357,7 @@ class LanguageProvider {
 			this.triggerAllDiagnostics();
 		} else {
 			this.syntaxDiagnostics = Object.create(null);
+			this.semanticDiagnostics = Object.create(null);
 			this.currentDiagnostics.clear();
 		}
 	}
@@ -367,8 +365,10 @@ class LanguageProvider {
 	public reInitialize(): void {
 		this.currentDiagnostics.clear();
 		this.syntaxDiagnostics = Object.create(null);
+		this.semanticDiagnostics = Object.create(null);
 		this.bufferSyncSupport.reOpenDocuments();
 		this.bufferSyncSupport.requestAllDiagnostics();
+		this.formattingOptionsManager.reset();
 		this.registerVersionDependentProviders();
 	}
 
@@ -399,21 +399,22 @@ class LanguageProvider {
 		this.bufferSyncSupport.requestAllDiagnostics();
 	}
 
-	public syntaxDiagnosticsReceived(file: string, diagnostics: Diagnostic[]): void {
-		if (this._validate) {
-			this.syntaxDiagnostics[file] = diagnostics;
+	public syntaxDiagnosticsReceived(file: string, syntaxDiagnostics: Diagnostic[]): void {
+		if (!this._validate) {
+			return;
 		}
+		this.syntaxDiagnostics[file] = syntaxDiagnostics;
+		const semanticDianostics = this.semanticDiagnostics[file] || [];
+		this.currentDiagnostics.set(this.client.asUrl(file), semanticDianostics.concat(syntaxDiagnostics));
 	}
 
-	public semanticDiagnosticsReceived(file: string, diagnostics: Diagnostic[]): void {
-		if (this._validate) {
-			const syntaxMarkers = this.syntaxDiagnostics[file];
-			if (syntaxMarkers) {
-				delete this.syntaxDiagnostics[file];
-				diagnostics = syntaxMarkers.concat(diagnostics);
-			}
-			this.currentDiagnostics.set(this.client.asUrl(file), diagnostics);
+	public semanticDiagnosticsReceived(file: string, semanticDiagnostics: Diagnostic[]): void {
+		if (!this._validate) {
+			return;
 		}
+		this.semanticDiagnostics[file] = semanticDiagnostics;
+		const syntaxDiagnostics = this.syntaxDiagnostics[file] || [];
+		this.currentDiagnostics.set(this.client.asUrl(file), semanticDiagnostics.concat(syntaxDiagnostics));
 	}
 
 	public configFileDiagnosticsReceived(file: string, diagnostics: Diagnostic[]): void {

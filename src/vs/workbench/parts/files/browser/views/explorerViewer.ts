@@ -314,12 +314,8 @@ export class FileRenderer implements IRenderer {
 		if (!editableData) {
 			templateData.label.element.style.display = 'flex';
 			const extraClasses = ['explorer-item'];
-			if (stat.nonexistentRoot) {
-				extraClasses.push('nonexistent-root');
-			}
 			templateData.label.setFile(stat.resource, {
 				hidePath: true,
-				title: stat.nonexistentRoot ? nls.localize('canNotResolve', "Can not resolve folder {0}", stat.resource.toString()) : undefined,
 				fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE,
 				extraClasses,
 				fileDecorations: this.configurationService.getConfiguration<IFilesConfiguration>().explorer.decorations
@@ -963,7 +959,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 
 			// Check for confirmation checkbox
 			let updateConfirmSettingsPromise: TPromise<void> = TPromise.as(void 0);
-			if (confirmation.checkboxChecked === true) {
+			if (confirmation.confirmed && confirmation.checkboxChecked === true) {
 				updateConfirmSettingsPromise = this.configurationService.updateValue(FileDragAndDrop.CONFIRM_DND_SETTING_KEY, false, ConfigurationTarget.USER);
 			}
 

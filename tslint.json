@@ -10,7 +10,8 @@
 		"curly": true,
 		"class-name": true,
 		"semicolon": [
-			true, "always"
+			true,
+			"always"
 		],
 		"triple-equals": true,
 		"no-unexternalized-strings": [

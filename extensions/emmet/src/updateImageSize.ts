@@ -10,8 +10,7 @@
 import { TextEditor, Range, Position, window, TextEdit } from 'vscode';
 import * as path from 'path';
 import { getImageSize } from './imageSizeHelper';
-import { isStyleSheet } from 'vscode-emmet-helper';
-import { parseDocument, getNode, iterateCSSToken, getCssPropertyFromRule } from './util';
+import { parseDocument, getNode, iterateCSSToken, getCssPropertyFromRule, isStyleSheet } from './util';
 import { HtmlNode, CssToken, HtmlToken, Attribute, Property } from 'EmmetNode';
 import { locateFile } from './locateFile';
 import parseStylesheet from '@emmetio/css-parser';

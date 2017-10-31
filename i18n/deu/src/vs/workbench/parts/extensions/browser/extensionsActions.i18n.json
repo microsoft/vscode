@@ -34,7 +34,6 @@
 	"postDisableMessage": "Dieses Fenster erneut laden, um die Erweiterung \"{0}\" zu deaktivieren?",
 	"postUninstallTooltip": "Zum Deaktivieren erneut laden",
 	"postUninstallMessage": "Dieses Fenster erneut laden, um die deinstallierte Erweiterung \"{0}\" zu deaktivieren?",
-	"reload": "Fenster &&erneut laden",
 	"toggleExtensionsViewlet": "Erweiterungen anzeigen",
 	"installExtensions": "Erweiterungen installieren",
 	"showEnabledExtensions": "Aktivierte Erweiterungen anzeigen",

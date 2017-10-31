@@ -34,7 +34,6 @@
 	"postDisableMessage": "¿Quiere recargar esta ventana para desactivar la extensión '{0}'?",
 	"postUninstallTooltip": "Recargar para desactivar",
 	"postUninstallMessage": "¿Quiere recargar esta ventana para desactivar la extensión desinstalada '{0}'?",
-	"reload": "&&Volver a cargar Window",
 	"toggleExtensionsViewlet": "Mostrar extensiones",
 	"installExtensions": "Instalar extensiones",
 	"showEnabledExtensions": "Mostrar extensiones habilitadas",
