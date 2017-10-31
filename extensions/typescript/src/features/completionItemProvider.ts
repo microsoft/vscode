@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, TextEdit, Range, SnippetString, workspace, ProviderResult, CompletionContext, commands, Uri } from 'vscode';
+import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, TextEdit, Range, SnippetString, workspace, ProviderResult, CompletionContext, commands, Uri, MarkdownString } from 'vscode';
 
 import { ITypescriptServiceClient } from '../typescriptService';
 import TypingsStatus from '../utils/typingsStatus';
@@ -20,6 +20,7 @@ import * as languageModeIds from '../utils/languageModeIds';
 let localize = nls.loadMessageBundle();
 
 class MyCompletionItem extends CompletionItem {
+	public readonly source: string | undefined;
 	constructor(
 		public readonly position: Position,
 		public readonly document: TextDocument,
@@ -28,6 +29,7 @@ class MyCompletionItem extends CompletionItem {
 		public readonly useCodeSnippetsOnMethodSuggest: boolean
 	) {
 		super(entry.name);
+		this.source = entry.source;
 		this.sortText = entry.sortText;
 		this.kind = MyCompletionItem.convertKind(entry.kind);
 		this.position = position;
@@ -270,7 +272,9 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 		}
 		const args: CompletionDetailsRequestArgs = {
 			...vsPositionToTsFileLocation(filepath, item.position),
-			entryNames: [item.label]
+			entryNames: [
+				item.source ? { name: item.label, source: item.source } : item.label
+			]
 		};
 		return this.client.execute('completionEntryDetails', args, token).then((response) => {
 			const details = response.body;
@@ -279,7 +283,14 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 			}
 			const detail = details[0];
 			item.detail = Previewer.plain(detail.displayParts);
-			item.documentation = Previewer.markdownDocumentation(detail.documentation, detail.tags);
+			const documentation = new MarkdownString();
+			if (item.source) {
+				documentation.appendMarkdown(localize('autoImportLabel', 'Auto import from \'{0}\'', item.source));
+				documentation.appendMarkdown('\n\n');
+			}
+
+			Previewer.addmarkdownDocumentation(documentation, detail.documentation, detail.tags);
+			item.documentation = documentation;
 
 			if (detail.codeActions && detail.codeActions.length) {
 				item.command = {

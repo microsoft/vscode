@@ -30,6 +30,15 @@ export function markdownDocumentation(
 	tags: Proto.JSDocTagInfo[]
 ): MarkdownString {
 	const out = new MarkdownString();
+	addmarkdownDocumentation(out, documentation, tags);
+	return out;
+}
+
+export function addmarkdownDocumentation(
+	out: MarkdownString,
+	documentation: Proto.SymbolDisplayPart[],
+	tags: Proto.JSDocTagInfo[]
+): MarkdownString {
 	out.appendMarkdown(plain(documentation));
 	const tagsPreview = tagsMarkdownPreview(tags);
 	if (tagsPreview) {
