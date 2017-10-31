@@ -945,7 +945,8 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 				checkbox: {
 					label: nls.localize('doNotAskAgain', "Do not ask me again")
 				},
-				type: 'question'
+				type: 'question',
+				primaryButton: nls.localize({ key: 'moveButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Move")
 			});
 		} else {
 			confirmPromise = TPromise.as({ confirmed: true } as IConfirmationResult);
