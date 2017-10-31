@@ -47,10 +47,6 @@ suite('Telemetry - common properties', function () {
 			// machine id et al
 			assert.ok('common.instanceId' in props, 'instanceId');
 			assert.ok('common.machineId' in props, 'machineId');
-			if (process.platform === 'win32') { // SQM only on windows
-				assert.ok('common.sqm.userid' in props, 'userid');
-				assert.ok('common.sqm.machineid' in props, 'machineid');
-			}
 
 		});
 	});
