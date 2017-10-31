@@ -395,9 +395,11 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		// input change that falls into this category.
 		if (this.workbenchSize && (this.sidebarWidth || this.panelHeight)) {
 			let visibleEditors = this.editorService.getVisibleEditors().length;
+			const panelVertical = this.partService.getPanelPosition() === Position.RIGHT;
 			if (visibleEditors > 1) {
 				const sidebarOverflow = this.layoutEditorGroupsVertically && (this.workbenchSize.width - this.sidebarWidth < visibleEditors * MIN_EDITOR_PART_WIDTH);
-				const panelOverflow = !this.layoutEditorGroupsVertically && (this.workbenchSize.height - this.panelHeight < visibleEditors * MIN_EDITOR_PART_HEIGHT);
+				const panelOverflow = !this.layoutEditorGroupsVertically && !panelVertical && (this.workbenchSize.height - this.panelHeight < visibleEditors * MIN_EDITOR_PART_HEIGHT) ||
+					panelVertical && this.layoutEditorGroupsVertically && (this.workbenchSize.width - this.panelWidth < visibleEditors * MIN_EDITOR_PART_WIDTH);
 
 				if (sidebarOverflow || panelOverflow) {
 					this.layout();
@@ -517,10 +519,16 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			editorSize.width = editorMinWidth;
 			if (panelPosition === Position.BOTTOM) {
 				panelDimension.width = editorMinWidth;
+			} else if (panelDimension.width >= diff) {
+				const oldWidth = panelDimension.width;
+				panelDimension.width = Math.max(MIN_PANEL_PART_WIDTH, panelDimension.width - diff);
+				diff = oldWidth - panelDimension.width;
 			}
 
-			sidebarSize.width -= diff;
-			sidebarSize.width = Math.max(MIN_SIDEBAR_PART_WIDTH, sidebarSize.width);
+			if (sidebarSize.width >= diff) {
+				sidebarSize.width -= diff;
+				sidebarSize.width = Math.max(MIN_SIDEBAR_PART_WIDTH, sidebarSize.width);
+			}
 		}
 
 		if (editorSize.height < editorMinHeight && panelPosition === Position.BOTTOM) {
