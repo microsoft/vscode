@@ -417,6 +417,19 @@
             "string",
             "null"
           ],
+          "enum": [
+            "de",
+            "es",
+            "en",
+            "fr",
+            "it",
+            "ja",
+            "ko",
+            "ru",
+            "zh-CN",
+            "zh-TW",
+            null
+          ],
           "default": null,
           "description": "%typescript.locale%",
           "scope": "window"
