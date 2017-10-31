@@ -116,11 +116,7 @@ class RequestQueue {
 	}
 }
 
-export interface IClientVersion {
-	readonly clientVersion: string;
-}
-
-export default class TypeScriptServiceClient implements ITypescriptServiceClient, IClientVersion {
+export default class TypeScriptServiceClient implements ITypescriptServiceClient {
 	private static readonly WALK_THROUGH_SNIPPET_SCHEME = 'walkThroughSnippet';
 	private static readonly WALK_THROUGH_SNIPPET_SCHEME_COLON = `${TypeScriptServiceClient.WALK_THROUGH_SNIPPET_SCHEME}:`;
 
@@ -210,7 +206,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				}
 			}
 		}, this, this.disposables);
-		this.telemetryReporter = new TelemetryReporter(this);
+		this.telemetryReporter = new TelemetryReporter(() => this._tsserverVersion || this._apiVersion.versionString);
 		this.disposables.push(this.telemetryReporter);
 		this.startService();
 	}
@@ -278,10 +274,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 	public get apiVersion(): API {
 		return this._apiVersion;
-	}
-
-	public get clientVersion(): string {
-		return this._tsserverVersion || this._apiVersion.versionString;
 	}
 
 	public onReady(): Promise<void> {
