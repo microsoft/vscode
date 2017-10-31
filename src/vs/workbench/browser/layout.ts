@@ -43,8 +43,6 @@ interface PartLayoutInfo {
 	statusbar: { height: number; };
 }
 
-interface ILayoutInternalOptions extends ILayoutOptions { };
-
 /**
  * The workbench layout is responsible to lay out all parts that make the Workbench.
  */

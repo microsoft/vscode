@@ -25,7 +25,7 @@ export enum Position {
 
 export interface ILayoutOptions {
 	toggleMaximizedPanel?: boolean;
-	source: Parts;
+	source?: Parts;
 }
 
 export const IPartService = createDecorator<IPartService>('partService');
