@@ -187,8 +187,8 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	private set sidebarWidth(value: number) {
 		const editorCountForWidth = this.editorGroupService.getGroupOrientation() === 'vertical' ? this.editorGroupService.getStacksModel().groups.length : 1;
 		const panelMinWidth = this.partService.getPanelPosition() === Position.RIGHT && this.partService.isVisible(Parts.PANEL_PART) ? MIN_PANEL_PART_WIDTH : 0;
-		const maxSidebarWidth = Math.max(this.partLayoutInfo.sidebar.minWidth, this.workbenchSize.width - this.activitybarWidth - editorCountForWidth * MIN_EDITOR_PART_WIDTH - panelMinWidth);
-		this._sidebarWidth = Math.min(maxSidebarWidth, Math.max(this.partLayoutInfo.sidebar.minWidth, value));
+		const maxSidebarWidth = this.workbenchSize.width - this.activitybarWidth - editorCountForWidth * MIN_EDITOR_PART_WIDTH - panelMinWidth;
+		this._sidebarWidth = Math.max(this.partLayoutInfo.sidebar.minWidth, Math.min(maxSidebarWidth, value));
 	}
 
 	private getPartLayoutInfo(): PartLayoutInfo {
