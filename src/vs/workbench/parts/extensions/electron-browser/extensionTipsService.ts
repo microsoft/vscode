@@ -293,7 +293,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 									*/
 									this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'show', extensionId: name });
 									return recommendationsAction.run();
-								case 1: this.importantRecommendationsIgnoreList.push(id);
+								case 2: this.importantRecommendationsIgnoreList.push(id);
 									this.storageService.store(
 										'extensionsAssistant/importantRecommendationsIgnore',
 										JSON.stringify(this.importantRecommendationsIgnoreList),
@@ -307,7 +307,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 									*/
 									this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'neverShowAgain', extensionId: name });
 									return this.ignoreExtensionRecommendations();
-								case 2:
+								case 3:
 									/* __GDPR__
 										"extensionRecommendations:popup" : {
 											"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
