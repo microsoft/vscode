@@ -43,6 +43,8 @@ interface PartLayoutInfo {
 	statusbar: { height: number; };
 }
 
+interface ILayoutInternalOptions extends ILayoutOptions { };
+
 /**
  * The workbench layout is responsible to lay out all parts that make the Workbench.
  */
@@ -275,7 +277,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			}
 
 			if (doLayout) {
-				promise.done(() => this.layout(), errors.onUnexpectedError);
+				promise.done(() => this.layout({ source: Parts.SIDEBAR_PART }), errors.onUnexpectedError);
 			}
 		}));
 
@@ -313,7 +315,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			}
 
 			if (doLayout) {
-				promise.done(() => this.layout(), errors.onUnexpectedError);
+				promise.done(() => this.layout({ source: Parts.PANEL_PART }), errors.onUnexpectedError);
 			}
 		}));
 
@@ -351,7 +353,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			}
 
 			if (doLayout) {
-				promise.done(() => this.layout(), errors.onUnexpectedError);
+				promise.done(() => this.layout({ source: Parts.PANEL_PART }), errors.onUnexpectedError);
 			}
 		}));
 
@@ -519,7 +521,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			editorSize.width = editorMinWidth;
 			if (panelPosition === Position.BOTTOM) {
 				panelDimension.width = editorMinWidth;
-			} else if (panelDimension.width >= diff) {
+			} else if (panelDimension.width >= diff && (!options || options.source !== Parts.PANEL_PART)) {
 				const oldWidth = panelDimension.width;
 				panelDimension.width = Math.max(MIN_PANEL_PART_WIDTH, panelDimension.width - diff);
 				diff = diff - (oldWidth - panelDimension.width);
