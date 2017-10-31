@@ -24,6 +24,7 @@ import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IMessageService } from 'vs/platform/message/common/message';
+import { getPathLabel } from 'vs/base/common/labels';
 
 // Commands
 
@@ -43,7 +44,7 @@ export const copyPathCommand = (accessor: ServicesAccessor, resource?: URI) => {
 
 	if (resource) {
 		const clipboardService = accessor.get(IClipboardService);
-		clipboardService.writeText(resource.scheme === 'file' ? resource.fsPath : resource.toString());
+		clipboardService.writeText(resource.scheme === 'file' ? getPathLabel(resource) : resource.toString());
 	} else {
 		const messageService = accessor.get(IMessageService);
 		messageService.show(severity.Info, nls.localize('openFileToCopy', "Open a file first to copy its path"));
