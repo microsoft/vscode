@@ -166,7 +166,7 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 
 	private resolveConfigVariable(root: IWorkspaceFolder, value: string, originalValue: string): string {
 		const replacer = (match: string, name: string) => {
-			let config = this.configurationService.getConfiguration<any>();
+			let config = this.configurationService.getConfiguration<any>({ resource: root.uri });
 			let newValue: any;
 			try {
 				const keys: string[] = name.split('.');
