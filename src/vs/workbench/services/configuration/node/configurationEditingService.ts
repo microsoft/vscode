@@ -109,6 +109,7 @@ interface IConfigurationEditOperation extends IConfigurationValue {
 
 }
 
+//@ts-ignore unused type
 interface IValidationResult {
 	error?: ConfigurationEditingErrorCode;
 	exists?: boolean;
@@ -308,7 +309,7 @@ export class ConfigurationEditingService {
 						return nls.localize('errorInvalidConfigurationFolder', "Unable to write into folder settings. Please open **Folder Settings** file under **{0}** folder to correct errors/warnings in it and try again.", workspaceFolderName);
 				}
 				return '';
-			};
+			}
 			case ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY: {
 				if (operation.workspaceStandAloneConfigurationKey === TASKS_CONFIGURATION_KEY) {
 					return nls.localize('errorTasksConfigurationFileDirty', "Unable to write into tasks file because the file is dirty. Please save the **Tasks Configuration** file and try again.");
@@ -326,7 +327,7 @@ export class ConfigurationEditingService {
 						return nls.localize('errorConfigurationFileDirtyFolder', "Unable to write into folder settings because the file is dirty. Please save the **Folder Settings** file under **{0}** folder and try again.", workspaceFolderName);
 				}
 				return '';
-			};
+			}
 		}
 	}
 

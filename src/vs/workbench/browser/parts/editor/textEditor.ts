@@ -31,7 +31,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 const TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'textEditorViewState';
-
+//@ts-ignore unused types
 interface ITextEditorViewState {
 	0?: IEditorViewState;
 	1?: IEditorViewState;
@@ -60,6 +60,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 		@IStorageService private storageService: IStorageService,
 		@ITextResourceConfigurationService private _configurationService: ITextResourceConfigurationService,
 		@IThemeService protected themeService: IThemeService,
+		//@ts-ignore unused injected service
 		@IModeService private modeService: IModeService,
 		@ITextFileService private _textFileService: ITextFileService,
 		@IEditorGroupService protected editorGroupService: IEditorGroupService

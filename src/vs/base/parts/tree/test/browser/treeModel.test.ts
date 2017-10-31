@@ -1421,7 +1421,7 @@ suite('TreeModel - Dynamic data model', () => {
 
 			var gotTimes = 0;
 			var gotListener = dataModel.addListener('gotChildren', (element) => { gotTimes++; });
-
+			//@ts-ignore unused property
 			var p1, p2;
 
 			var p1Completes = [];
@@ -1499,7 +1499,7 @@ suite('TreeModel - Dynamic data model', () => {
 			var gotTimes = 0;
 			var getListener = dataModel.addListener('getChildren', (element) => { getTimes++; });
 			var gotListener = dataModel.addListener('gotChildren', (element) => { gotTimes++; });
-
+			//@ts-ignore unused property
 			var p1, p2;
 
 			var p1Complete;
@@ -1723,7 +1723,7 @@ suite('TreeModel - bugs', () => {
 		}).done(() => {
 
 			// teardown
-			while (listeners.length > 0) { listeners.pop()(); };
+			while (listeners.length > 0) { listeners.pop()(); }
 			listeners = null;
 			model.dispose();
 			model = null;

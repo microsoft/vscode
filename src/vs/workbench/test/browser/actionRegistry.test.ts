@@ -10,7 +10,7 @@ import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { prepareActions } from 'vs/workbench/browser/actions';
 import { Action } from 'vs/base/common/actions';
 
-
+//@ts-ignore unused type
 class MyClass extends Action {
 	constructor(id: string, label: string) {
 		super(id, label);

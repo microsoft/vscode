@@ -50,10 +50,10 @@ export interface IProblemReporter {
 }
 
 export class NullProblemReporter implements IProblemReporter {
-	info(message: string): void { };
-	warn(message: string): void { };
-	error(message: string): void { };
-	fatal(message: string): void { };
+	info(message: string): void { }
+	warn(message: string): void { }
+	error(message: string): void { }
+	fatal(message: string): void { }
 	status: ValidationStatus = new ValidationStatus();
 }
 
@@ -163,6 +163,7 @@ export abstract class AbstractSystemVariables implements ISystemVariables {
 	}
 
 	resolveAny<T>(value: T): T;
+	// @ts-ignore unused generic parameter
 	resolveAny<T>(value: any): any {
 		if (Types.isString(value)) {
 			return this.resolveString(value);
@@ -197,6 +198,7 @@ export abstract class AbstractSystemVariables implements ISystemVariables {
 	}
 
 	private __resolveAnyLiteral<T>(values: T): T;
+	//@ts-ignore unused generic parameter
 	private __resolveAnyLiteral<T>(values: any): any {
 		let result: IStringDictionary<string | IStringDictionary<string> | string[]> = Object.create(null);
 		Object.keys(values).forEach(key => {

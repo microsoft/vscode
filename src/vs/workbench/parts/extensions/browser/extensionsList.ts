@@ -53,6 +53,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 	constructor(
 		showRecommendedLabel: boolean,
 		@IInstantiationService private instantiationService: IInstantiationService,
+		//@ts-ignore unused injected service
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IMessageService private messageService: IMessageService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,

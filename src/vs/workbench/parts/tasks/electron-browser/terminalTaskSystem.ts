@@ -116,6 +116,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		private markerService: IMarkerService, private modelService: IModelService,
 		private configurationResolverService: IConfigurationResolverService,
 		private telemetryService: ITelemetryService,
+		//@ts-ignore unused injected service
 		private workbenchEditorService: IWorkbenchEditorService,
 		private contextService: IWorkspaceContextService,
 		outputChannelId: string) {
@@ -200,7 +201,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		let activeTerminal = this.activeTasks[Task.getMapKey(task)];
 		if (!activeTerminal) {
 			return TPromise.as<TaskTerminateResponse>({ success: false, task: undefined });
-		};
+		}
 		return new TPromise<TaskTerminateResponse>((resolve, reject) => {
 			let terminal = activeTerminal.terminal;
 			const onExit = terminal.onExit(() => {
@@ -459,7 +460,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		let waitOnExit: boolean | string = false;
 		if (task.command.presentation.reveal !== RevealKind.Never || !task.isBackground) {
 			waitOnExit = nls.localize('reuseTerminal', 'Terminal will be reused by tasks, press any key to close it.');
-		};
+		}
 		let shellLaunchConfig: IShellLaunchConfig = undefined;
 		let isShellCommand = task.command.runtime === RuntimeType.Shell;
 		if (isShellCommand) {

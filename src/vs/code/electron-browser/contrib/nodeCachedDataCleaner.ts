@@ -13,6 +13,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import product from 'vs/platform/node/product';
 
 declare type OnNodeCachedDataArgs = [{ errorCode: string, path: string, detail?: string }, { path: string, length: number }];
+//@ts-ignore unused type
 declare const MonacoEnvironment: { onNodeCachedData: OnNodeCachedDataArgs[] };
 
 export class NodeCachedDataCleaner {

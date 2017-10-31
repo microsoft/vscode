@@ -67,6 +67,7 @@ export class TerminalLinkHandler {
 		private _platform: platform.Platform,
 		private _initialCwd: string,
 		@IOpenerService private _openerService: IOpenerService,
+		//@ts-ignore unused injected service
 		@IWorkbenchEditorService private _editorService: IWorkbenchEditorService,
 		@IConfigurationService private _configurationService: IConfigurationService,
 		@ITerminalService private _terminalService: ITerminalService
@@ -298,4 +299,4 @@ export class TerminalLinkHandler {
 export interface LineColumnInfo {
 	lineNumber?: string;
 	columnNumber?: string;
-};
+}

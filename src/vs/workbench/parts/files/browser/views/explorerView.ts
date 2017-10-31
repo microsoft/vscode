@@ -67,6 +67,7 @@ export class ExplorerView extends ViewsViewletPanel {
 	private viewletState: FileViewletState;
 
 	private explorerRefreshDelayer: ThrottledDelayer<void>;
+	//@ts-ignore unused property
 	private explorerImportDelayer: ThrottledDelayer<void>;
 
 	private resourceContext: ResourceContextKey;

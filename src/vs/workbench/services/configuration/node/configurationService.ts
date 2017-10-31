@@ -68,6 +68,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	private configurationEditingService: ConfigurationEditingService;
 	private jsonEditingService: JSONEditingService;
 
+	//@ts-ignore unused injected service
 	constructor(private environmentService: IEnvironmentService, private workspacesService: IWorkspacesService, private workspaceSettingsRootFolder: string = WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME) {
 		super();
 
@@ -222,10 +223,10 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		return this._configuration.toData();
 	}
 
-	getConfiguration<T>(): T
-	getConfiguration<T>(section: string): T
-	getConfiguration<T>(overrides: IConfigurationOverrides): T
-	getConfiguration<T>(section: string, overrides: IConfigurationOverrides): T
+	getConfiguration<T>(): T;
+	getConfiguration<T>(section: string): T;
+	getConfiguration<T>(overrides: IConfigurationOverrides): T;
+	getConfiguration<T>(section: string, overrides: IConfigurationOverrides): T;
 	getConfiguration(arg1?: any, arg2?: any): any {
 		const section = typeof arg1 === 'string' ? arg1 : void 0;
 		const overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : void 0;
@@ -236,11 +237,11 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		return this._configuration.getValue(key, overrides);
 	}
 
-	updateValue(key: string, value: any): TPromise<void>
-	updateValue(key: string, value: any, overrides: IConfigurationOverrides): TPromise<void>
-	updateValue(key: string, value: any, target: ConfigurationTarget): TPromise<void>
-	updateValue(key: string, value: any, overrides: IConfigurationOverrides, target: ConfigurationTarget): TPromise<void>
-	updateValue(key: string, value: any, overrides: IConfigurationOverrides, target: ConfigurationTarget, donotNotifyError: boolean): TPromise<void>
+	updateValue(key: string, value: any): TPromise<void>;
+	updateValue(key: string, value: any, overrides: IConfigurationOverrides): TPromise<void>;
+	updateValue(key: string, value: any, target: ConfigurationTarget): TPromise<void>;
+	updateValue(key: string, value: any, overrides: IConfigurationOverrides, target: ConfigurationTarget): TPromise<void>;
+	updateValue(key: string, value: any, overrides: IConfigurationOverrides, target: ConfigurationTarget, donotNotifyError: boolean): TPromise<void>;
 	updateValue(key: string, value: any, arg3?: any, arg4?: any, donotNotifyError?: any): TPromise<void> {
 		assert.ok(this.configurationEditingService, 'Workbench is not initialized yet');
 		const overrides = isConfigurationOverrides(arg3) ? arg3 : void 0;

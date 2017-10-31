@@ -618,6 +618,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 			{
 				let _charIndex = charIndex;
 				let _tabsCharDelta = tabsCharDelta;
+				//@ts-ignore unused property
 				let _charOffsetInPart = charOffsetInPart;
 
 				for (; _charIndex < partEndIndex; _charIndex++) {

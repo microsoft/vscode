@@ -92,6 +92,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 	constructor(
 		container: HTMLElement,
+		//@ts-ignore unused injected service
 		@IExtensionService private extensionService: IExtensionService,
 		@IStorageService private storageService: IStorageService,
 		@IBroadcastService private broadcastService: IBroadcastService,
@@ -178,7 +179,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		}, err => {
 			if (err && err.code === 'ENOENT') {
 				return TPromise.as<string>(null); // ignore, user config file doesn't exist yet
-			};
+			}
 			return TPromise.wrapError<string>(err);
 		});
 	}
@@ -346,7 +347,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		this.storageService.store(PERSISTED_THEME_STORAGE_KEY, newTheme.toStorageData());
 
 		return this.writeColorThemeConfiguration(settingsTarget);
-	};
+	}
 
 	private writeColorThemeConfiguration(settingsTarget: ConfigurationTarget): TPromise<IColorTheme> {
 		if (!types.isUndefinedOrNull(settingsTarget)) {
@@ -588,7 +589,7 @@ function tokenGroupSettings(description: string) {
 			colorThemeSchema.tokenColorizationSettingSchema
 		]
 	};
-};
+}
 
 configurationRegistry.registerConfiguration({
 	id: 'editor',

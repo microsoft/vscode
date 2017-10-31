@@ -18,7 +18,7 @@ import { MainContext, MainThreadTaskShape, ExtHostTaskShape, IMainContext } from
 import * as types from 'vs/workbench/api/node/extHostTypes';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import * as vscode from 'vscode';
-
+//@ts-ignore unused type
 interface StringMap<V> {
 	[key: string]: V;
 }
@@ -431,7 +431,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 		this._extHostWorkspace = extHostWorkspace;
 		this._handleCounter = 0;
 		this._handlers = new Map<number, HandlerData>();
-	};
+	}
 
 	public registerTaskProvider(extension: IExtensionDescription, provider: vscode.TaskProvider): vscode.Disposable {
 		if (!provider) {

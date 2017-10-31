@@ -30,7 +30,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 export class FileEditorTracker implements IWorkbenchContribution {
 
 	protected closeOnFileDelete: boolean;
-
+	//@ts-ignore unused property
 	private stacks: IEditorStacksModel;
 	private toUnbind: IDisposable[];
 	private modelLoadQueue: ResourceQueue<void>;

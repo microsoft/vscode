@@ -71,6 +71,7 @@ export class TestContextService implements IWorkspaceContextService {
 	public _serviceBrand: any;
 
 	private workspace: IWorkbenchWorkspace;
+	//@ts-ignore unused property
 	private id: string;
 	private options: any;
 
@@ -880,7 +881,7 @@ export class TestBackupFileService implements IBackupFileService {
 	public discardAllWorkspaceBackups(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
-};
+}
 
 export class TestWindowService implements IWindowService {
 

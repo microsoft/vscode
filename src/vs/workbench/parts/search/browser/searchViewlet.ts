@@ -70,10 +70,11 @@ export class SearchViewlet extends Viewlet {
 	private static SHOW_REPLACE_STORAGE_KEY = 'vs.search.show.replace';
 
 	private isDisposed: boolean;
-
+	//@ts-ignore unused property
 	private loading: boolean;
 	private queryBuilder: QueryBuilder;
 	private viewModel: SearchModel;
+	//@ts-ignore unused property
 	private callOnModelChange: lifecycle.IDisposable[];
 
 	private viewletVisible: IContextKey<boolean>;

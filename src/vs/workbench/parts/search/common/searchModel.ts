@@ -347,7 +347,7 @@ export class FolderMatch extends Disposable {
 	private _fileMatches: ResourceMap<FileMatch>;
 	private _unDisposedFileMatches: ResourceMap<FileMatch>;
 	private _replacingAll: boolean = false;
-
+	//@ts-ignore unused injected service
 	constructor(private _resource: URI, private _id: string, private _index: number, private _query: ISearchQuery, private _parent: SearchResult, private _searchModel: SearchModel, @IReplaceService private replaceService: IReplaceService, @ITelemetryService private telemetryService: ITelemetryService,
 		@IInstantiationService private instantiationService: IInstantiationService) {
 		super();
@@ -497,6 +497,7 @@ export class SearchResult extends Disposable {
 
 	private _folderMatches: FolderMatch[] = [];
 	private _folderMatchesMap: TernarySearchTree<FolderMatch> = TernarySearchTree.forPaths<FolderMatch>();
+	//@ts-ignore unused property
 	private _query: ISearchQuery = null;
 	private _showHighlights: boolean;
 

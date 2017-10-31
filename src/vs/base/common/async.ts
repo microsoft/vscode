@@ -510,6 +510,7 @@ export class Queue<T> extends Limiter<T> {
  * A helper to organize queues per resource. The ResourceQueue makes sure to manage queues per resource
  * by disposing them once the queue is empty.
  */
+// @ts-ignore unused generic parameter
 export class ResourceQueue<T> {
 	private queues: { [path: string]: Queue<void> };
 

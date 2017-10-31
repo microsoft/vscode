@@ -79,6 +79,7 @@ export class DebugQuickOpenHandler extends Quickopen.QuickOpenHandler {
 	public static readonly ID = 'workbench.picker.launch';
 
 	constructor(
+		//@ts-ignore unused injected service
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IDebugService private debugService: IDebugService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,

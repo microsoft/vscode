@@ -2,14 +2,53 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
-			"type": "npm",
-			"script": "watch",
-			"label": "Build VS Code",
-			"group": "build",
-			"isBackground": true,
-			"presentation": {
-				"reveal": "never"
+			"type": "gulp",
+			"task": "tslint",
+			"label": "Run tslint",
+			"problemMatcher": [
+				"$tslint5"
+			]
+		},
+		{
+			"label": "Run tests",
+			"type": "shell",
+			"command": "./scripts/test.sh",
+			"windows": {
+				"command": ".\\scripts\\test.bat"
 			},
+			"group": "test",
+			"presentation": {
+				"echo": true,
+				"reveal": "always"
+			}
+		},
+		{
+			"label": "Run Dev",
+			"type": "shell",
+			"command": "./scripts/code.sh",
+			"windows": {
+				"command": ".\\scripts\\code.bat"
+			},
+			"problemMatcher": []
+		},
+		{
+			"type": "gulp",
+			"task": "electron",
+			"label": "Download electron"
+		},
+		{
+			"type": "gulp",
+			"task": "hygiene",
+			"problemMatcher": []
+		},
+		{
+			"type": "gulp",
+			"task": "compile",
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"isBackground": true,
 			"problemMatcher": {
 				"owner": "typescript",
 				"applyTo": "closedDocuments",
@@ -27,46 +66,6 @@
 					"endsPattern": "Finished compilation"
 				}
 			}
-		},
-		{
-			"type": "gulp",
-			"task": "tslint",
-			"label": "Run tslint",
-			"problemMatcher": [
-				"$tslint4"
-			]
-		},
-		{
-			"taskName": "Run tests",
-			"type": "shell",
-			"command": "./scripts/test.sh",
-			"windows": {
-				"command": ".\\scripts\\test.bat"
-			},
-			"group": "test",
-			"presentation": {
-				"echo": true,
-				"reveal": "always"
-			}
-		},
-		{
-			"taskName": "Run Dev",
-			"type": "shell",
-			"command": "./scripts/code.sh",
-			"windows": {
-				"command": ".\\scripts\\code.bat"
-			},
-			"problemMatcher": []
-		},
-		{
-			"type": "gulp",
-			"task": "electron",
-			"label": "Download electron"
-		},
-		{
-			"type": "gulp",
-			"task": "hygiene",
-			"problemMatcher": []
 		}
 	]
 }

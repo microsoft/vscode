@@ -18,6 +18,7 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IEditorService } from 'vs/platform/editor/common/editor';
 import product from 'vs/platform/node/product';
 
+//@ts-ignore unused type
 interface ILegacyUse {
 	file: string;
 	lineNumber: number;
@@ -43,7 +44,7 @@ class InstallAction extends Action {
 		id: string,
 		label: string,
 		@IMessageService private messageService: IMessageService,
-		@IEditorService private editorService: IEditorService
+		@IEditorService editorService: IEditorService
 	) {
 		super(id, label);
 	}

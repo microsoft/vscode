@@ -121,7 +121,7 @@ class LanguageSurvey {
 }
 
 class LanguageSurveysContribution implements IWorkbenchContribution {
-
+	//@ts-ignore unused property
 	private surveys: LanguageSurvey[];
 
 	constructor(

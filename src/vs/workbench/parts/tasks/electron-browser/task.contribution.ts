@@ -97,6 +97,7 @@ namespace ConfigureTaskAction {
 	export const TEXT = nls.localize('ConfigureTaskRunnerAction.label', "Configure Task");
 }
 
+//@ts-ignore unused type
 namespace ConfigureBuildTaskAction {
 	export const ID = 'workbench.action.tasks.configureBuildTask';
 	export const TEXT = nls.localize('ConfigureBuildTaskAction.label', "Configure Build Task");
@@ -120,6 +121,7 @@ class CloseMessageAction extends Action {
 	}
 }
 
+//@ts-ignore unused type
 class ViewTerminalAction extends Action {
 
 	public static ID = 'workbench.action.build.viewTerminal';
@@ -144,6 +146,7 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 	constructor(
 		@IPanelService private panelService: IPanelService,
 		@IMarkerService private markerService: IMarkerService,
+		//@ts-ignore unused injected service
 		@IOutputService private outputService: IOutputService,
 		@ITaskService private taskService: ITaskService,
 		@IPartService private partService: IPartService,
@@ -335,12 +338,18 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 class TaskStatusBarItem extends Themable implements IStatusbarItem {
 
 	constructor(
+		//@ts-ignore unused injected service
 		@IPanelService private panelService: IPanelService,
+		//@ts-ignore unused injected service
 		@IMarkerService private markerService: IMarkerService,
+		//@ts-ignore unused injected service
 		@IOutputService private outputService: IOutputService,
+		//@ts-ignore unused injected service
 		@ITaskService private taskService: ITaskService,
+		//@ts-ignore unused injected service
 		@IPartService private partService: IPartService,
 		@IThemeService themeService: IThemeService,
+		//@ts-ignore unused injected service
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 	) {
 		super(themeService);
@@ -397,10 +406,12 @@ class TaskStatusBarItem extends Themable implements IStatusbarItem {
 	}
 }
 
+//@ts-ignore unused type
 interface TaskServiceEventData {
 	error?: any;
 }
 
+//@ts-ignore unused type
 class NullTaskSystem extends EventEmitter implements ITaskSystem {
 	public run(task: Task): ITaskExecuteResult {
 		return {
@@ -548,6 +559,7 @@ class TaskService extends EventEmitter implements ITaskService {
 	public static OutputChannelId: string = 'tasks';
 	public static OutputChannelLabel: string = nls.localize('tasks', "Tasks");
 
+	//@ts-ignore unused injected service
 	private modeService: IModeService;
 	private configurationService: IConfigurationService;
 	private markerService: IMarkerService;
@@ -588,6 +600,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IModelService modelService: IModelService, @IExtensionService extensionService: IExtensionService,
 		@IQuickOpenService quickOpenService: IQuickOpenService,
+		//@ts-ignore unused injected service
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService,
 		@ITerminalService private terminalService: ITerminalService,
@@ -806,14 +819,14 @@ class TaskService extends EventEmitter implements ITaskService {
 				if (Task.matches(task, alias)) {
 					return task;
 				}
-			};
+			}
 			return undefined;
 		});
 	}
 
 	public tasks(): TPromise<Task[]> {
 		return this.getGroupedTasks().then(result => result.all());
-	};
+	}
 
 	public createSorter(): TaskSorter {
 		return new TaskSorter(this.contextService.getWorkspace() ? this.contextService.getWorkspace().folders : []);
@@ -1124,7 +1137,7 @@ class TaskService extends EventEmitter implements ITaskService {
 				}
 				promise = this.writeConfiguration(workspaceFolder, 'tasks.tasks', fileConfig.tasks);
 			}
-		};
+		}
 		if (!promise) {
 			return TPromise.as(undefined);
 		}
@@ -2048,6 +2061,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		};
 		let promise = this.getTasksForGroup(TaskGroup.Build).then((tasks) => {
 			if (tasks.length > 0) {
+				//@ts-ignore unused local
 				let { none, defaults, users } = this.splitPerGroupType(tasks);
 				if (defaults.length === 1) {
 					this.run(defaults[0]);
@@ -2092,6 +2106,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		};
 		let promise = this.getTasksForGroup(TaskGroup.Test).then((tasks) => {
 			if (tasks.length > 0) {
+				//@ts-ignore unused local
 				let { none, defaults, users } = this.splitPerGroupType(tasks);
 				if (defaults.length === 1) {
 					this.run(defaults[0]);

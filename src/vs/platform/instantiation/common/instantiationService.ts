@@ -62,6 +62,7 @@ export class InstantiationService implements IInstantiationService {
 		}
 	}
 
+	//@ts-ignore generic parameter
 	createInstance<T>(param: any, ...rest: any[]): any {
 
 		if (param instanceof SyncDescriptor) {

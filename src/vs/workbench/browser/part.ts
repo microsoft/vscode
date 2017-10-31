@@ -110,6 +110,7 @@ export abstract class Part extends Component {
 const TITLE_HEIGHT = 35;
 
 export class PartLayout {
+	//@ts-ignore unused property
 
 	constructor(private container: Builder, private options: IPartOptions, private titleArea: Builder, private contentArea: Builder) {
 	}

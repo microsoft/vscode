@@ -25,6 +25,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 	let codeEditorService: MockCodeEditorService;
 	let textFileService: ITextFileService;
 	let workbenchEditorService: IWorkbenchEditorService;
+	//@ts-ignore unused local
 	let documentAndEditor: MainThreadDocumentsAndEditors;
 	let deltas: IDocumentsAndEditorsDelta[] = [];
 	const hugeModelString = new Array(2 + (50 * 1024 * 1024)).join('-');
@@ -36,7 +37,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 		modelService = new ModelServiceImpl(null, configService);
 		codeEditorService = new MockCodeEditorService();
 		textFileService = new class extends mock<ITextFileService>() {
-			isDirty() { return false; };
+			isDirty() { return false; }
 			models = <any>{
 				onModelSaved: Event.None,
 				onModelReverted: Event.None,

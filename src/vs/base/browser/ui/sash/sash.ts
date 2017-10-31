@@ -51,6 +51,7 @@ export enum Orientation {
 export class Sash extends EventEmitter {
 
 	private $e: Builder;
+	//@ts-ignore unused property
 	private gesture: Gesture;
 	private layoutProvider: ISashLayoutProvider;
 	private isDisabled: boolean;
@@ -140,8 +141,9 @@ export class Sash extends EventEmitter {
 
 		let $window = $(window);
 		let containerCSSClass = `${this.getOrientation()}-cursor-container${isMacintosh ? '-mac' : ''}`;
-
+		//@ts-ignore unused property
 		let lastCurrentX = startX;
+		//@ts-ignore unused property
 		let lastCurrentY = startY;
 
 		$window.on('mousemove', (e: MouseEvent) => {
@@ -190,8 +192,9 @@ export class Sash extends EventEmitter {
 			startY: startY,
 			currentY: startY
 		});
-
+		//@ts-ignore unused property
 		let lastCurrentX = startX;
+		//@ts-ignore unused property
 		let lastCurrentY = startY;
 
 		listeners.push(DOM.addDisposableListener(this.$e.getHTMLElement(), EventType.Change, (event: GestureEvent) => {

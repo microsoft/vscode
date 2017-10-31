@@ -121,6 +121,8 @@ class MainThreadSCMProvider implements ISCMProvider {
 		private _label: string,
 		private _rootUri: URI | undefined,
 		@ISCMService scmService: ISCMService,
+		//@ts-ignore unused injected service
+
 		@ICommandService private commandService: ICommandService
 	) { }
 
@@ -256,6 +258,8 @@ export class MainThreadSCM implements MainThreadSCMShape {
 
 	constructor(
 		extHostContext: IExtHostContext,
+		//@ts-ignore unused injected service
+
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ISCMService private scmService: ISCMService,
 		@ICommandService private commandService: ICommandService

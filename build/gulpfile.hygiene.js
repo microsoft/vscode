@@ -29,7 +29,7 @@ const all = [
 	'extensions/**/*',
 	'scripts/**/*',
 	'src/**/*',
-	'test/**/*'
+	// 'test/**/*'  // leads EIISDIR error
 ];
 
 const eolFilter = [
@@ -134,17 +134,6 @@ const copyrightHeader = [
 	' *--------------------------------------------------------------------------------------------*/'
 ].join('\n');
 
-function reportFailures(failures) {
-	failures.forEach(failure => {
-		const name = failure.name || failure.fileName;
-		const position = failure.startPosition;
-		const line = position.lineAndCharacter ? position.lineAndCharacter.line : position.line;
-		const character = position.lineAndCharacter ? position.lineAndCharacter.character : position.character;
-
-		console.error(`${name}:${line + 1}:${character + 1}:${failure.failure}`);
-	});
-}
-
 gulp.task('eslint', () => {
 	return gulp.src(all, { base: '.' })
 		.pipe(filter(eslintFilter))
@@ -154,12 +143,12 @@ gulp.task('eslint', () => {
 });
 
 gulp.task('tslint', () => {
-	const options = { summarizeFailureOutput: true };
+	const options = { emitError: false };
 
 	return gulp.src(all, { base: '.' })
 		.pipe(filter(tslintFilter))
 		.pipe(gulptslint({ rulesDirectory: 'build/lib/tslint' }))
-		.pipe(gulptslint.report(reportFailures, options));
+		.pipe(gulptslint.report(options));
 });
 
 const hygiene = exports.hygiene = (some, options) => {

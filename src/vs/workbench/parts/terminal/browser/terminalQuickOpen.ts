@@ -91,6 +91,8 @@ export class TerminalPickerHandler extends QuickOpenHandler {
 	constructor(
 		@ITerminalService private terminalService: ITerminalService,
 		@ICommandService private commandService: ICommandService,
+		//@ts-ignore unused injected service
+
 		@IPanelService private panelService: IPanelService
 	) {
 		super();

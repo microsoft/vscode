@@ -41,6 +41,7 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		@IWindowsService private windowsService: IWindowsService,
 		@IWindowService private windowService: IWindowService,
 		@IConfigurationService private configurationService: IConfigurationService,
+		//@ts-ignore unused injected service
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IEnvironmentService private envService: IEnvironmentService,
 		@IMessageService private messageService: IMessageService,
