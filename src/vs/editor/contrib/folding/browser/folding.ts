@@ -290,7 +290,7 @@ export class FoldingController {
 		this.getFoldingModel().then(foldingModel => {
 			if (foldingModel) {
 				let region = foldingModel.getRegionAtLine(lineNumber);
-				if (region) {
+				if (region && region.startLineNumber === lineNumber) {
 					if (iconClicked || region.isCollapsed) {
 						foldingModel.toggleCollapseState([region]);
 						this.reveal(lineNumber);
