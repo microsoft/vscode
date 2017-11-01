@@ -50,7 +50,7 @@
 }
 
 .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar {
-	line-height: 35px;
+	line-height: 32px;
 }
 
 .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:first-child .action-label {

@@ -289,7 +289,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const focusBorderColor = theme.getColor(focusBorder);
 	if (focusBorderColor) {
 		collector.addRule(`
-			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus {
+			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus .action-label {
 				color: ${titleActive};
 				border-bottom-color: ${focusBorderColor} !important;
 				border-bottom: 1px solid;
