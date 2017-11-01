@@ -385,8 +385,8 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		});
 	}
 
-	private async queryGallery(query: Query): TPromise<{ galleryExtensions: IRawGalleryExtension[], total: number; }> {
-		const commonHeaders = await this.commonHTTPHeaders;
+	private queryGallery(query: Query): TPromise<{ galleryExtensions: IRawGalleryExtension[], total: number; }> {
+		const commonHeaders = this.commonHTTPHeaders;
 		const data = JSON.stringify(query.raw);
 		const headers = assign({}, commonHeaders, {
 			'Content-Type': 'application/json',
@@ -395,45 +395,40 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			'Content-Length': data.length
 		});
 
-		const context = await this.requestService.request({
+		return this.requestService.request({
 			type: 'POST',
 			url: this.api('/extensionquery'),
 			data,
 			headers
+		}).then(context => {
+
+			if (context.res.statusCode >= 400 && context.res.statusCode < 500) {
+				return { galleryExtensions: [], total: 0 };
+			}
+
+			return asJson<IRawGalleryQueryResult>(context).then(result => {
+				const r = result.results[0];
+				const galleryExtensions = r.extensions;
+				const resultCount = r.resultMetadata && r.resultMetadata.filter(m => m.metadataType === 'ResultCount')[0];
+				const total = resultCount && resultCount.metadataItems.filter(i => i.name === 'TotalCount')[0].count || 0;
+
+				return { galleryExtensions, total };
+			});
 		});
-
-		if (context.res.statusCode >= 400 && context.res.statusCode < 500) {
-			return { galleryExtensions: [], total: 0 };
-		}
-
-		const result = await asJson<IRawGalleryQueryResult>(context);
-		const r = result.results[0];
-		const galleryExtensions = r.extensions;
-		const resultCount = r.resultMetadata && r.resultMetadata.filter(m => m.metadataType === 'ResultCount')[0];
-		const total = resultCount && resultCount.metadataItems.filter(i => i.name === 'TotalCount')[0].count || 0;
-
-		return { galleryExtensions, total };
 	}
 
-	async reportStatistic(publisher: string, name: string, version: string, type: StatisticType): TPromise<void> {
+	reportStatistic(publisher: string, name: string, version: string, type: StatisticType): TPromise<void> {
 		if (!this.isEnabled()) {
-			return;
+			return TPromise.as(null);
 		}
 
-		try {
-			const headers = {
-				...await this.commonHTTPHeaders,
-				Accept: '*/*;api-version=4.0-preview.1'
-			};
+		const headers = { ...this.commonHTTPHeaders, Accept: '*/*;api-version=4.0-preview.1' };
 
-			await this.requestService.request({
-				type: 'POST',
-				url: this.api(`/publishers/${publisher}/extensions/${name}/${version}/stats?statType=${type}`),
-				headers
-			});
-		} catch (err) {
-			// noop
-		}
+		return this.requestService.request({
+			type: 'POST',
+			url: this.api(`/publishers/${publisher}/extensions/${name}/${version}/stats?statType=${type}`),
+			headers
+		}).then(null, () => null);
 	}
 
 	download(extension: IGalleryExtension): TPromise<string> {
