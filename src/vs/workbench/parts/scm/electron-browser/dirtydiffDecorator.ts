@@ -213,7 +213,11 @@ class DirtyDiffWidget extends PeekViewWidget {
 		this.diffEditor.setModel(this.model);
 
 		const position = new Position(getModifiedEndLineNumber(change), 1);
-		const height = getChangeHeight(change) + /* padding */ 8;
+
+		const lineHeight = this.editor.getConfiguration().lineHeight;
+		const editorHeight = this.editor.getLayoutInfo().height;
+		const editorHeightInLines = Math.floor(editorHeight / lineHeight);
+		const height = Math.min(getChangeHeight(change) + /* padding */ 8, Math.floor(editorHeightInLines / 3));
 
 		this.renderTitle();
 
