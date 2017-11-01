@@ -531,7 +531,7 @@ function _applyRenderWhitespace(lineContent: string, len: number, tokens: LinePa
  */
 function _applyInlineDecorations(lineContent: string, len: number, tokens: LinePart[], _lineDecorations: LineDecoration[]): LinePart[] {
 	_lineDecorations.sort(LineDecoration.compare);
-	const lineDecorations = LineDecorationsNormalizer.normalize(_lineDecorations);
+	const lineDecorations = LineDecorationsNormalizer.normalize(lineContent, _lineDecorations);
 	const lineDecorationsLen = lineDecorations.length;
 
 	let lineDecorationIndex = 0;
