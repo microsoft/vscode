@@ -829,6 +829,11 @@
           "type": "boolean",
           "description": "%config.enableCommitSigning%",
           "default": false
+        },
+        "git.decorations.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.decorations.enabled%"
         }
       }
     },
