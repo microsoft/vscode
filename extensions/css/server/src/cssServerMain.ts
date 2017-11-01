@@ -217,7 +217,7 @@ connection.onRequest(ColorPresentationRequest.type, params => {
 	let document = documents.get(params.textDocument.uri);
 	if (document) {
 		let stylesheet = stylesheets.get(document);
-		return getLanguageService(document).getColorPresentations(document, stylesheet, params.colorInfo);
+		return getLanguageService(document).getColorPresentations(document, stylesheet, params.color, params.range);
 	}
 	return [];
 });

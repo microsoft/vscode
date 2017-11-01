@@ -3,29 +3,29 @@
   "version": "1.0.0",
   "dependencies": {
     "vscode-css-languageservice": {
-      "version": "2.1.11",
-      "from": "vscode-css-languageservice@next",
-      "resolved": "https://registry.npmjs.org/vscode-css-languageservice/-/vscode-css-languageservice-2.1.11.tgz"
+      "version": "3.0.0",
+      "from": "vscode-css-languageservice@3.0.0",
+      "resolved": "https://registry.npmjs.org/vscode-css-languageservice/-/vscode-css-languageservice-3.0.0.tgz"
     },
     "vscode-jsonrpc": {
-      "version": "3.5.0-next.1",
-      "from": "vscode-jsonrpc@>=3.5.0-next.1 <4.0.0",
-      "resolved": "https://registry.npmjs.org/vscode-jsonrpc/-/vscode-jsonrpc-3.5.0-next.1.tgz"
+      "version": "3.5.0-next.2",
+      "from": "vscode-jsonrpc@3.5.0-next.2",
+      "resolved": "https://registry.npmjs.org/vscode-jsonrpc/-/vscode-jsonrpc-3.5.0-next.2.tgz"
     },
     "vscode-languageserver": {
-      "version": "3.5.0-next.2",
-      "from": "vscode-languageserver@3.5.0-next.2",
-      "resolved": "https://registry.npmjs.org/vscode-languageserver/-/vscode-languageserver-3.5.0-next.2.tgz"
+      "version": "3.5.0-next.6",
+      "from": "vscode-languageserver@3.5.0-next.6",
+      "resolved": "https://registry.npmjs.org/vscode-languageserver/-/vscode-languageserver-3.5.0-next.6.tgz"
     },
     "vscode-languageserver-protocol": {
-      "version": "3.5.0-next.3",
-      "from": "vscode-languageserver-protocol@3.5.0-next.3",
-      "resolved": "https://registry.npmjs.org/vscode-languageserver-protocol/-/vscode-languageserver-protocol-3.5.0-next.3.tgz"
+      "version": "3.5.0-next.5",
+      "from": "vscode-languageserver-protocol@3.5.0-next.5",
+      "resolved": "https://registry.npmjs.org/vscode-languageserver-protocol/-/vscode-languageserver-protocol-3.5.0-next.5.tgz"
     },
     "vscode-languageserver-types": {
-      "version": "3.5.0-next.1",
-      "from": "vscode-languageserver-types@>=3.5.0-next.1 <4.0.0",
-      "resolved": "https://registry.npmjs.org/vscode-languageserver-types/-/vscode-languageserver-types-3.5.0-next.1.tgz"
+      "version": "3.5.0-next.2",
+      "from": "vscode-languageserver-types@3.5.0-next.2d",
+      "resolved": "https://registry.npmjs.org/vscode-languageserver-types/-/vscode-languageserver-types-3.5.0-next.2.tgz"
     },
     "vscode-nls": {
       "version": "2.0.2",
