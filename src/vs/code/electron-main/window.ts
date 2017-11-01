@@ -198,7 +198,7 @@ export class CodeWindow implements ICodeWindow {
 				if (screen.getAllDisplays().length > 1) {
 					const [x, y] = this._win.getPosition();
 					if (x !== this.windowState.x || y !== this.windowState.y) {
-						this._win.setPosition(x, y, false);
+						this._win.setPosition(this.windowState.x, this.windowState.y, false);
 					}
 				}
 			} catch (err) {
