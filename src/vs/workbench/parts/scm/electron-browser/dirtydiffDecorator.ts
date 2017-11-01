@@ -51,6 +51,7 @@ import { fillInActions, MenuItemActionItem } from 'vs/platform/actions/browser/m
 import { IChange, ICommonCodeEditor, IEditorModel, ScrollType, IEditorContribution, OverviewRulerLane, IModel } from 'vs/editor/common/editorCommon';
 import { sortedDiff, Splice, firstIndex } from 'vs/base/common/arrays';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
+import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 
 // TODO@Joao
 // Need to subclass MenuItemActionItem in order to respect
@@ -166,6 +167,18 @@ function getChangeTypeColor(theme: ITheme, changeType: ChangeType): Color {
 	}
 }
 
+function getOuterEditorFromDiffEditor(accessor: ServicesAccessor): ICommonCodeEditor {
+	const diffEditors = accessor.get(ICodeEditorService).listDiffEditors();
+
+	for (const diffEditor of diffEditors) {
+		if (diffEditor.isFocused() && diffEditor instanceof EmbeddedDiffEditorWidget) {
+			return diffEditor.getParentEditor();
+		}
+	}
+
+	return getOuterEditor(accessor);
+}
+
 class DirtyDiffWidget extends PeekViewWidget {
 
 	private diffEditor: EmbeddedDiffEditorWidget;
@@ -236,6 +249,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 
 		this._actionbarWidget.context = [this.model.modified.uri, this.model.changes, index];
 		this.show(position, height);
+		this.editor.focus();
 	}
 
 	private renderTitle(): void {
@@ -348,13 +362,19 @@ export class ShowPreviousChangeAction extends EditorAction {
 			id: 'editor.action.dirtydiff.previous',
 			label: nls.localize('show previous change', "Show Previous Change"),
 			alias: 'Show Previous Change',
-			precondition: ContextKeyExpr.and(EditorContextKeys.isInEmbeddedEditor.toNegated()),
+			precondition: null,
 			kbOpts: { kbExpr: EditorContextKeys.textFocus, primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F3 }
 		});
 	}
 
 	run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
-		const controller = DirtyDiffController.get(editor);
+		const outerEditor = getOuterEditorFromDiffEditor(accessor);
+
+		if (!outerEditor) {
+			return;
+		}
+
+		const controller = DirtyDiffController.get(outerEditor);
 
 		if (!controller) {
 			return;
@@ -372,13 +392,19 @@ export class ShowNextChangeAction extends EditorAction {
 			id: 'editor.action.dirtydiff.next',
 			label: nls.localize('show next change', "Show Next Change"),
 			alias: 'Show Next Change',
-			precondition: ContextKeyExpr.and(EditorContextKeys.isInEmbeddedEditor.toNegated()),
+			precondition: null,
 			kbOpts: { kbExpr: EditorContextKeys.textFocus, primary: KeyMod.Alt | KeyCode.F3 }
 		});
 	}
 
 	run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
-		const controller = DirtyDiffController.get(editor);
+		const outerEditor = getOuterEditorFromDiffEditor(accessor);
+
+		if (!outerEditor) {
+			return;
+		}
+
+		const controller = DirtyDiffController.get(outerEditor);
 
 		if (!controller) {
 			return;
@@ -393,14 +419,15 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: CommonEditorRegistry.commandWeight(50),
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape],
-	when: ContextKeyExpr.and(isDirtyDiffVisible, ContextKeyExpr.not('config.editor.stablePeek')),
+	when: ContextKeyExpr.and(isDirtyDiffVisible),
 	handler: (accessor: ServicesAccessor) => {
-		const editor = getOuterEditor(accessor);
-		if (!editor) {
+		const outerEditor = getOuterEditorFromDiffEditor(accessor);
+
+		if (!outerEditor) {
 			return;
 		}
 
-		const controller = DirtyDiffController.get(editor);
+		const controller = DirtyDiffController.get(outerEditor);
 
 		if (!controller) {
 			return;
@@ -428,6 +455,7 @@ export class DirtyDiffController implements IEditorContribution {
 	private readonly isDirtyDiffVisible: IContextKey<boolean>;
 	private session: IDisposable = EmptyDisposable;
 	private mouseDownInfo: { lineNumber: number } | null = null;
+	private enabled = false;
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -436,9 +464,13 @@ export class DirtyDiffController implements IEditorContribution {
 		@IThemeService private themeService: IThemeService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		this.isDirtyDiffVisible = isDirtyDiffVisible.bindTo(contextKeyService);
-		this.disposables.push(editor.onMouseDown(e => this.onEditorMouseDown(e)));
-		this.disposables.push(editor.onMouseUp(e => this.onEditorMouseUp(e)));
+		this.enabled = !contextKeyService.getContextKeyValue('isInDiffEditor');
+
+		if (this.enabled) {
+			this.isDirtyDiffVisible = isDirtyDiffVisible.bindTo(contextKeyService);
+			this.disposables.push(editor.onMouseDown(e => this.onEditorMouseDown(e)));
+			this.disposables.push(editor.onMouseUp(e => this.onEditorMouseUp(e)));
+		}
 	}
 
 	getId(): string {
@@ -482,9 +514,14 @@ export class DirtyDiffController implements IEditorContribution {
 	close(): void {
 		this.session.dispose();
 		this.session = EmptyDisposable;
+		this.editor.focus();
 	}
 
 	private assertWidget(): boolean {
+		if (!this.enabled) {
+			return false;
+		}
+
 		if (this.widget) {
 			if (this.model.changes.length === 0) {
 				this.close();
