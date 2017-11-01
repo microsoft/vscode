@@ -487,6 +487,7 @@ export class DirtyDiffController implements IEditorContribution {
 			this.isDirtyDiffVisible = isDirtyDiffVisible.bindTo(contextKeyService);
 			this.disposables.push(editor.onMouseDown(e => this.onEditorMouseDown(e)));
 			this.disposables.push(editor.onMouseUp(e => this.onEditorMouseUp(e)));
+			this.disposables.push(editor.onDidChangeModel(() => this.close()));
 		}
 	}
 
