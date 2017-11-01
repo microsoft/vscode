@@ -280,50 +280,28 @@ export class Resource implements SourceControlResourceState {
 }
 
 export enum Operation {
-	Status = 1 << 0,
-	Add = 1 << 1,
-	RevertFiles = 1 << 2,
-	Commit = 1 << 3,
-	Clean = 1 << 4,
-	Branch = 1 << 5,
-	Checkout = 1 << 6,
-	Reset = 1 << 7,
-	Fetch = 1 << 8,
-	Pull = 1 << 9,
-	Push = 1 << 10,
-	Sync = 1 << 11,
-	Show = 1 << 12,
-	Stage = 1 << 13,
-	GetCommitTemplate = 1 << 14,
-	DeleteBranch = 1 << 15,
-	Merge = 1 << 16,
-	Ignore = 1 << 17,
-	Tag = 1 << 18,
-	Stash = 1 << 19,
-	CheckIgnore = 1 << 20
+	Status = 'Status',
+	Add = 'Add',
+	RevertFiles = 'RevertFiles',
+	Commit = 'Commit',
+	Clean = 'Clean',
+	Branch = 'Branch',
+	Checkout = 'Checkout',
+	Reset = 'Reset',
+	Fetch = 'Fetch',
+	Pull = 'Pull',
+	Push = 'Push',
+	Sync = 'Sync',
+	Show = 'Show',
+	Stage = 'Stage',
+	GetCommitTemplate = 'GetCommitTemplate',
+	DeleteBranch = 'DeleteBranch',
+	Merge = 'Merge',
+	Ignore = 'Ignore',
+	Tag = 'Tag',
+	Stash = 'Stash',
+	CheckIgnore = 'CheckIgnore'
 }
-
-// function getOperationName(operation: Operation): string {
-// 	switch (operation) {
-// 		case Operation.Status: return 'Status';
-// 		case Operation.Add: return 'Add';
-// 		case Operation.RevertFiles: return 'RevertFiles';
-// 		case Operation.Commit: return 'Commit';
-// 		case Operation.Clean: return 'Clean';
-// 		case Operation.Branch: return 'Branch';
-// 		case Operation.Checkout: return 'Checkout';
-// 		case Operation.Reset: return 'Reset';
-// 		case Operation.Fetch: return 'Fetch';
-// 		case Operation.Pull: return 'Pull';
-// 		case Operation.Push: return 'Push';
-// 		case Operation.Sync: return 'Sync';
-// 		case Operation.Init: return 'Init';
-// 		case Operation.Show: return 'Show';
-// 		case Operation.Stage: return 'Stage';
-// 		case Operation.GetCommitTemplate: return 'GetCommitTemplate';
-// 		default: return 'unknown';
-// 	}
-// }
 
 function isReadOnly(operation: Operation): boolean {
 	switch (operation) {
@@ -353,24 +331,36 @@ export interface Operations {
 
 class OperationsImpl implements Operations {
 
-	constructor(private readonly operations: number = 0) {
-		// noop
+	private operations = new Map<Operation, number>();
+
+	start(operation: Operation): void {
+		this.operations.set(operation, (this.operations.get(operation) || 0) + 1);
 	}
 
-	start(operation: Operation): OperationsImpl {
-		return new OperationsImpl(this.operations | operation);
-	}
+	end(operation: Operation): void {
+		const count = (this.operations.get(operation) || 0) - 1;
 
-	end(operation: Operation): OperationsImpl {
-		return new OperationsImpl(this.operations & ~operation);
+		if (count <= 0) {
+			this.operations.delete(operation);
+		} else {
+			this.operations.set(operation, count);
+		}
 	}
 
 	isRunning(operation: Operation): boolean {
-		return (this.operations & operation) !== 0;
+		return this.operations.has(operation);
 	}
 
 	isIdle(): boolean {
-		return this.operations === 0;
+		const operations = this.operations.keys();
+
+		for (const operation of operations) {
+			if (!isReadOnly(operation)) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 }
 
@@ -770,7 +760,7 @@ export class Repository implements Disposable {
 		}
 
 		const run = async () => {
-			this._operations = this._operations.start(operation);
+			this._operations.start(operation);
 			this._onRunOperation.fire(operation);
 
 			try {
@@ -788,7 +778,7 @@ export class Repository implements Disposable {
 
 				throw err;
 			} finally {
-				this._operations = this._operations.end(operation);
+				this._operations.end(operation);
 				this._onDidRunOperation.fire(operation);
 			}
 		};
