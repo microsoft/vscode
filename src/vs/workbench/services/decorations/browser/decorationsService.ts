@@ -113,7 +113,7 @@ class DecorationStyles {
 		return {
 			labelClassName: rule.labelClassName,
 			badgeClassName: !onlyChildren ? rule.badgeClassName : '',
-			tooltip: !onlyChildren ? data.filter(d => !isFalsyOrWhitespace(d.tooltip)).map(d => d.tooltip).join(', ') : '',
+			tooltip: !onlyChildren ? data.filter(d => !isFalsyOrWhitespace(d.tooltip)).map(d => d.tooltip).join(' • ') : '',
 			update: (source, insert) => {
 				let newData = data.slice();
 				if (!source) {

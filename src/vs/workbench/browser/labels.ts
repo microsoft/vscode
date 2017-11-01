@@ -205,7 +205,7 @@ export class ResourceLabel extends IconLabel {
 
 			if (deco) {
 				if (deco.tooltip) {
-					iconLabelOptions.title = `${deco.tooltip}, ${iconLabelOptions.title}`;
+					iconLabelOptions.title = `${iconLabelOptions.title} • ${deco.tooltip}`;
 				}
 				if (this.options.fileDecorations.colors) {
 					iconLabelOptions.extraClasses.push(deco.labelClassName);
