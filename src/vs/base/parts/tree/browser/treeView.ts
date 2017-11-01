@@ -410,6 +410,8 @@ export class TreeView extends HeightMap {
 	private highlightedItemWasDraggable: boolean;
 	private onHiddenScrollTop: number;
 
+	private maxWidthContainer: number;
+
 	private _onDOMFocus: Emitter<void> = new Emitter<void>();
 	get onDOMFocus(): Event<void> { return this._onDOMFocus.event; }
 
@@ -549,6 +551,8 @@ export class TreeView extends HeightMap {
 		this.dragAndDropScrollTimeout = null;
 
 		this.onHiddenScrollTop = null;
+
+		this.maxWidthContainer = 0;
 
 		this.onRowsChanged();
 		this.layout();
@@ -872,10 +876,14 @@ export class TreeView extends HeightMap {
 	}
 
 	public set viewWidth(viewWidth: number) {
-		this.scrollableElement.setScrollDimensions({
-			width: viewWidth,
-			scrollWidth: DOM.getContentWidth(this.rowsContainer)
-		});
+		const currentWidthContainer = DOM.getContentWidth(this.rowsContainer);
+		if (currentWidthContainer > this.maxWidthContainer) {
+			this.maxWidthContainer = currentWidthContainer;
+			this.scrollableElement.setScrollDimensions({
+				width: viewWidth,
+				scrollWidth: currentWidthContainer
+			});
+		}
 	}
 
 	public get scrollTop(): number {
