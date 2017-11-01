@@ -74,6 +74,10 @@ class DecorationRule {
 		removeCSSRulesContainingSelector(this.labelClassName, element);
 		removeCSSRulesContainingSelector(this.badgeClassName, element);
 	}
+
+	isUnused(): boolean {
+		return !document.querySelector(`.${this.labelClassName}`) && !document.querySelector(`.${this.badgeClassName}`);
+	}
 }
 
 class DecorationStyles {
@@ -160,15 +164,17 @@ class DecorationStyles {
 		}
 		this._decorationRules.forEach((value, index) => {
 			const { data } = value;
-			let remove: boolean;
-			if (Array.isArray(data)) {
-				remove = data.some(data => !usedDecorations.has(DecorationRule.keyOf(data)));
-			} else if (!usedDecorations.has(DecorationRule.keyOf(data))) {
-				remove = true;
-			}
-			if (remove) {
-				value.removeCSSRules(this._styleElement);
-				this._decorationRules.delete(index);
+			if (value.isUnused()) {
+				let remove: boolean;
+				if (Array.isArray(data)) {
+					remove = data.some(data => !usedDecorations.has(DecorationRule.keyOf(data)));
+				} else if (!usedDecorations.has(DecorationRule.keyOf(data))) {
+					remove = true;
+				}
+				if (remove) {
+					value.removeCSSRules(this._styleElement);
+					this._decorationRules.delete(index);
+				}
 			}
 		});
 	}
