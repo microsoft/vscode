@@ -186,7 +186,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 	private menu: IMenu;
 	private index: number;
 	private change: IChange;
-	private didLayout = false;
+	private height: number | undefined = undefined;
 	private contextKeyService: IContextKeyService;
 
 	constructor(
@@ -311,14 +311,23 @@ class DirtyDiffWidget extends PeekViewWidget {
 		this.diffEditor = this.instantiationService.createInstance(EmbeddedDiffEditorWidget, container, options, this.editor);
 	}
 
-	protected _doLayoutBody(heightInPixel: number, widthInPixel: number): void {
-		super._doLayoutBody(heightInPixel, widthInPixel);
-		this.diffEditor.layout({ height: heightInPixel, width: widthInPixel });
-
-		if (!this.didLayout) {
-			this.revealChange(this.change);
-			this.didLayout = true;
+	_onWidth(width: number): void {
+		if (typeof this.height === 'undefined') {
+			return;
 		}
+
+		this.diffEditor.layout({ height: this.height, width });
+	}
+
+	protected _doLayoutBody(height: number, width: number): void {
+		super._doLayoutBody(height, width);
+		this.diffEditor.layout({ height, width });
+
+		if (typeof this.height === 'undefined') {
+			this.revealChange(this.change);
+		}
+
+		this.height = height;
 	}
 
 	private revealChange(change: IChange): void {
