@@ -99,10 +99,19 @@ function getChangeHeight(change: IChange): number {
 
 function getModifiedEndLineNumber(change: IChange): number {
 	if (change.modifiedEndLineNumber === 0) {
-		return change.modifiedStartLineNumber;
+		return change.modifiedStartLineNumber === 0 ? 1 : change.modifiedStartLineNumber;
 	} else {
 		return change.modifiedEndLineNumber;
 	}
+}
+
+function lineIntersectsChange(lineNumber: number, change: IChange): boolean {
+	// deletion at the beginning of the file
+	if (lineNumber === 1 && change.modifiedStartLineNumber === 0 && change.modifiedEndLineNumber === 0) {
+		return true;
+	}
+
+	return lineNumber >= change.modifiedStartLineNumber && lineNumber <= (change.modifiedEndLineNumber || change.modifiedStartLineNumber);
 }
 
 class UIEditorAction extends Action {
@@ -583,8 +592,22 @@ export class DirtyDiffController implements IEditorContribution {
 			return;
 		}
 
-		// const closestChangeIndex = this.findNextClosestChange(lineNumber);
-		// this.currentIndex = rot(closestChangeIndex - 1, this.model.changes.length);
+		const editorModel = this.editor.getModel();
+
+		if (!editorModel) {
+			return;
+		}
+
+		const model = this.modelRegistry.getModel(editorModel);
+
+		if (!model) {
+			return;
+		}
+
+		if (!model.changes.some(change => lineIntersectsChange(lineNumber, change))) {
+			return;
+		}
+
 		this.next(lineNumber);
 	}
 
@@ -592,7 +615,7 @@ export class DirtyDiffController implements IEditorContribution {
 		for (let i = 0; i < this.model.changes.length; i++) {
 			const change = this.model.changes[i];
 
-			if (getModifiedEndLineNumber(change) >= lineNumber) {
+			if (lineIntersectsChange(lineNumber, change)) {
 				return i;
 			}
 		}
