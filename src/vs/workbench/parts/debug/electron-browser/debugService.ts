@@ -977,7 +977,7 @@ export class DebugService implements debug.IDebugService {
 				this.toDispose.push(this.taskService.addOneTimeListener(TaskServiceEvents.Active, () => taskStarted = true));
 				setTimeout(() => {
 					if (!taskStarted) {
-						e({ severity: severity.Error, message: nls.localize('taskNotTracked', "Prelaunch task {0} cannot be tracked.", taskName) });
+						e({ severity: severity.Error, message: nls.localize('taskNotTracked', "The preLaunchTask '{0}' cannot be tracked.", taskName) });
 					}
 				}, 10000);
 			});
