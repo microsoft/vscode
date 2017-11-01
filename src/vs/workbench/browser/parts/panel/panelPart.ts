@@ -293,9 +293,13 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 				color: ${titleActive};
 				border-bottom-color: ${focusBorderColor} !important;
 				border-bottom: 1px solid;
+			}
+			`);
+		collector.addRule(`
+			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus {
 				outline: none;
 			}
-		`);
+			`);
 	}
 
 	// Styling with Outline color (e.g. high contrast theme)
