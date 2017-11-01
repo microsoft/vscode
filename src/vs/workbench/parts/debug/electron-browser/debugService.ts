@@ -721,7 +721,7 @@ export class DebugService implements debug.IDebugService {
 					})
 				).then(() => wrapUpState(), err => {
 					wrapUpState();
-					return TPromise.wrapError(err);
+					return <any>TPromise.wrapError(err);
 				});
 			})
 		)));
