@@ -380,6 +380,10 @@ export class ShowPreviousChangeAction extends EditorAction {
 			return;
 		}
 
+		if (!controller.canNavigate()) {
+			return;
+		}
+
 		controller.previous();
 	}
 }
@@ -407,6 +411,10 @@ export class ShowNextChangeAction extends EditorAction {
 		const controller = DirtyDiffController.get(outerEditor);
 
 		if (!controller) {
+			return;
+		}
+
+		if (!controller.canNavigate()) {
 			return;
 		}
 
@@ -475,6 +483,10 @@ export class DirtyDiffController implements IEditorContribution {
 
 	getId(): string {
 		return DirtyDiffController.ID;
+	}
+
+	canNavigate(): boolean {
+		return this.currentIndex === -1 || this.model.changes.length > 1;
 	}
 
 	next(lineNumber?: number): void {
