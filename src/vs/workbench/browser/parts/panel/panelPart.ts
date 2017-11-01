@@ -15,7 +15,7 @@ import { IPanel } from 'vs/workbench/common/panel';
 import { CompositePart, ICompositeTitleLabel } from 'vs/workbench/browser/parts/compositePart';
 import { Panel, PanelRegistry, Extensions as PanelExtensions } from 'vs/workbench/browser/panel';
 import { IPanelService, IPanelIdentifier } from 'vs/workbench/services/panel/common/panelService';
-import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
+import { IPartService, Parts, Position } from 'vs/workbench/services/part/common/partService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -214,9 +214,13 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	public layout(dimension: Dimension): Dimension[] {
 
-		// Pass to super
-		const sizes = super.layout(dimension);
-		this.dimension = dimension;
+		if (this.partService.getPanelPosition() === Position.RIGHT) {
+			// Take into account the 1px border when layouting
+			this.dimension = new Dimension(dimension.width - 1, dimension.height);
+		} else {
+			this.dimension = dimension;
+		}
+		const sizes = super.layout(this.dimension);
 		this.layoutCompositeBar();
 
 		return sizes;
