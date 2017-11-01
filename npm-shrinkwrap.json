@@ -561,11 +561,6 @@
       "from": "vscode-textmate@3.2.0",
       "resolved": "https://registry.npmjs.org/vscode-textmate/-/vscode-textmate-3.2.0.tgz"
     },
-    "winreg": {
-      "version": "1.2.0",
-      "from": "winreg@1.2.0",
-      "resolved": "https://registry.npmjs.org/winreg/-/winreg-1.2.0.tgz"
-    },
     "windows-foreground-love": {
       "version": "0.1.0",
       "from": "windows-foreground-love@0.1.0",
