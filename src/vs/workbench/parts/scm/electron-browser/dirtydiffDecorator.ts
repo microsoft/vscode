@@ -290,7 +290,8 @@ class DirtyDiffWidget extends PeekViewWidget {
 			overviewRulerLanes: 2,
 			fixedOverflowWidgets: true,
 			minimap: { enabled: false },
-			renderSideBySide: false
+			renderSideBySide: false,
+			readOnly: true
 		};
 
 		this.diffEditor = this.instantiationService.createInstance(EmbeddedDiffEditorWidget, container, options, this.editor);
