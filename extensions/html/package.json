@@ -92,7 +92,7 @@
             "null"
           ],
           "scope": "resource",
-          "default": "",
+          "default": "wbr",
           "description": "%html.format.unformatted.desc%"
         },
         "html.format.contentUnformatted": {
