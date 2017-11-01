@@ -19,6 +19,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { getZoomFactor } from 'vs/base/browser/browser';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { memoize } from 'vs/base/common/decorators';
 
 const MIN_SIDEBAR_PART_WIDTH = 170;
 const MIN_EDITOR_PART_HEIGHT = 70;
@@ -62,7 +63,6 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	private statusbar: Part;
 	private quickopen: QuickOpenController;
 	private toUnbind: IDisposable[];
-	private partLayoutInfo: PartLayoutInfo;
 	private workbenchSize: Dimension;
 	private sashXOne: Sash;
 	private sashXTwo: Sash;
@@ -108,7 +108,6 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		this.statusbar = parts.statusbar;
 		this.quickopen = quickopen;
 		this.toUnbind = [];
-		this.partLayoutInfo = this.getPartLayoutInfo();
 		this.panelSizeBeforeMaximized = 0;
 		this.panelMaximized = false;
 
@@ -164,7 +163,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	}
 
 	private set panelHeight(value: number) {
-		const maxPanelHeight = this.sidebarHeight - this.editorCountForHeight * MIN_EDITOR_PART_HEIGHT;
+		const maxPanelHeight = this.sidebarHeight - this.editorCountForHeight * this.partLayoutInfo.editor.minHeight;
 		this._panelHeight = Math.min(maxPanelHeight, Math.max(this.partLayoutInfo.panel.minHeight, value));
 	}
 
@@ -178,7 +177,8 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	}
 
 	private set panelWidth(value: number) {
-		const maxPanelWidth = this.workbenchSize.width - this.editorCountForWidth * MIN_EDITOR_PART_WIDTH - MIN_SIDEBAR_PART_WIDTH - this.activitybarWidth;
+		const sidebarVisible = this.partService.isVisible(Parts.SIDEBAR_PART) ? 1 : 0;
+		const maxPanelWidth = this.workbenchSize.width - this.editorCountForWidth * this.partLayoutInfo.editor.minWidth - this.partLayoutInfo.sidebar.minWidth * sidebarVisible - this.activitybarWidth;
 		this._panelWidth = Math.min(maxPanelWidth, Math.max(this.partLayoutInfo.panel.minWidth, value));
 	}
 
@@ -191,12 +191,13 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	}
 
 	private set sidebarWidth(value: number) {
-		const panelMinWidth = this.partService.getPanelPosition() === Position.RIGHT && this.partService.isVisible(Parts.PANEL_PART) ? MIN_PANEL_PART_WIDTH : 0;
-		const maxSidebarWidth = this.workbenchSize.width - this.activitybarWidth - this.editorCountForWidth * MIN_EDITOR_PART_WIDTH - panelMinWidth;
+		const panelMinWidth = this.partService.getPanelPosition() === Position.RIGHT && this.partService.isVisible(Parts.PANEL_PART) ? this.partLayoutInfo.panel.minWidth : 0;
+		const maxSidebarWidth = this.workbenchSize.width - this.activitybarWidth - this.editorCountForWidth * this.partLayoutInfo.editor.minWidth - panelMinWidth;
 		this._sidebarWidth = Math.max(this.partLayoutInfo.sidebar.minWidth, Math.min(maxSidebarWidth, value));
 	}
 
-	private getPartLayoutInfo(): PartLayoutInfo {
+	@memoize
+	private get partLayoutInfo(): PartLayoutInfo {
 		return {
 			titlebar: {
 				height: TITLE_BAR_HEIGHT
@@ -256,7 +257,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 
 				// Automatically hide side bar when a certain threshold is met
 				if (newSashWidth + HIDE_SIDEBAR_WIDTH_THRESHOLD < this.partLayoutInfo.sidebar.minWidth) {
-					let dragCompensation = MIN_SIDEBAR_PART_WIDTH - HIDE_SIDEBAR_WIDTH_THRESHOLD;
+					let dragCompensation = this.partLayoutInfo.sidebar.minWidth - HIDE_SIDEBAR_WIDTH_THRESHOLD;
 					promise = this.partService.setSideBarHidden(true);
 					startX = (sidebarPosition === Position.LEFT) ? Math.max(this.activitybarWidth, e.currentX - dragCompensation) : Math.min(e.currentX + dragCompensation, this.workbenchSize.width - this.activitybarWidth);
 					this.sidebarWidth = startSidebarWidth; // when restoring sidebar, restore to the sidebar width we started from
@@ -295,7 +296,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 
 				// Automatically hide panel when a certain threshold is met
 				if (newSashHeight + HIDE_PANEL_HEIGHT_THRESHOLD < this.partLayoutInfo.panel.minHeight) {
-					let dragCompensation = MIN_PANEL_PART_HEIGHT - HIDE_PANEL_HEIGHT_THRESHOLD;
+					let dragCompensation = this.partLayoutInfo.panel.minHeight - HIDE_PANEL_HEIGHT_THRESHOLD;
 					promise = this.partService.setPanelHidden(true);
 					startY = Math.min(this.sidebarHeight - this.statusbarHeight - this.titlebarHeight, e.currentY + dragCompensation);
 					this.panelHeight = startPanelHeight; // when restoring panel, restore to the panel height we started from
@@ -333,7 +334,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 
 				// Automatically hide panel when a certain threshold is met
 				if (newSashWidth + HIDE_PANEL_WIDTH_THRESHOLD < this.partLayoutInfo.panel.minWidth) {
-					let dragCompensation = MIN_PANEL_PART_WIDTH - HIDE_PANEL_WIDTH_THRESHOLD;
+					let dragCompensation = this.partLayoutInfo.panel.minWidth - HIDE_PANEL_WIDTH_THRESHOLD;
 					promise = this.partService.setPanelHidden(true);
 					startXTwo = Math.min(this.workbenchSize.width - this.activitybarWidth, e.currentX + dragCompensation);
 					this.panelWidth = startPanelWidth; // when restoring panel, restore to the panel height we started from
@@ -402,9 +403,9 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			let visibleEditors = this.editorService.getVisibleEditors().length;
 			const panelVertical = this.partService.getPanelPosition() === Position.RIGHT;
 			if (visibleEditors > 1) {
-				const sidebarOverflow = this.layoutEditorGroupsVertically && (this.workbenchSize.width - this.sidebarWidth < visibleEditors * MIN_EDITOR_PART_WIDTH);
-				const panelOverflow = !this.layoutEditorGroupsVertically && !panelVertical && (this.workbenchSize.height - this.panelHeight < visibleEditors * MIN_EDITOR_PART_HEIGHT) ||
-					panelVertical && this.layoutEditorGroupsVertically && (this.workbenchSize.width - this.panelWidth < visibleEditors * MIN_EDITOR_PART_WIDTH);
+				const sidebarOverflow = this.layoutEditorGroupsVertically && (this.workbenchSize.width - this.sidebarWidth < visibleEditors * this.partLayoutInfo.editor.minWidth);
+				const panelOverflow = !this.layoutEditorGroupsVertically && !panelVertical && (this.workbenchSize.height - this.panelHeight < visibleEditors * this.partLayoutInfo.editor.minHeight) ||
+					panelVertical && this.layoutEditorGroupsVertically && (this.workbenchSize.width - this.panelWidth < visibleEditors * this.partLayoutInfo.editor.minWidth);
 
 				if (sidebarOverflow || panelOverflow) {
 					this.layout();
@@ -443,7 +444,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		this.statusbarHeight = isStatusbarHidden ? 0 : this.partLayoutInfo.statusbar.height;
 		this.titlebarHeight = isTitlebarHidden ? 0 : this.partLayoutInfo.titlebar.height / getZoomFactor(); // adjust for zoom prevention
 
-		const previousMaxPanelHeight = this.sidebarHeight - MIN_EDITOR_PART_HEIGHT;
+		const previousMaxPanelHeight = this.sidebarHeight - this.partLayoutInfo.editor.minHeight;
 		this.sidebarHeight = this.workbenchSize.height - this.statusbarHeight - this.titlebarHeight;
 		let sidebarSize = new Dimension(this.sidebarWidth, this.sidebarHeight);
 
@@ -453,8 +454,8 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		// Panel part
 		let panelHeight: number;
 		let panelWidth: number;
-		const maxPanelHeight = Math.max(this.partLayoutInfo.panel.minHeight, sidebarSize.height - this.editorCountForHeight * MIN_EDITOR_PART_HEIGHT);
-		const maxPanelWidth = Math.max(this.partLayoutInfo.panel.minWidth, this.workbenchSize.width - activityBarSize.width - MIN_SIDEBAR_PART_WIDTH - this.editorCountForWidth * MIN_EDITOR_PART_WIDTH);
+		const maxPanelHeight = Math.max(this.partLayoutInfo.panel.minHeight, sidebarSize.height - this.editorCountForHeight * this.partLayoutInfo.editor.minHeight);
+		const maxPanelWidth = Math.max(this.partLayoutInfo.panel.minWidth, this.workbenchSize.width - activityBarSize.width - (isSidebarHidden ? 0 : this.partLayoutInfo.sidebar.minWidth) - this.editorCountForWidth * this.partLayoutInfo.editor.minWidth);
 
 		if (isPanelHidden) {
 			panelHeight = 0;
@@ -524,13 +525,13 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 				panelDimension.width = editorMinWidth;
 			} else if (panelDimension.width >= diff && (!options || options.source !== Parts.PANEL_PART)) {
 				const oldWidth = panelDimension.width;
-				panelDimension.width = Math.max(MIN_PANEL_PART_WIDTH, panelDimension.width - diff);
+				panelDimension.width = Math.max(this.partLayoutInfo.panel.minWidth, panelDimension.width - diff);
 				diff = diff - (oldWidth - panelDimension.width);
 			}
 
 			if (sidebarSize.width >= diff) {
 				sidebarSize.width -= diff;
-				sidebarSize.width = Math.max(MIN_SIDEBAR_PART_WIDTH, sidebarSize.width);
+				sidebarSize.width = Math.max(this.partLayoutInfo.sidebar.minWidth, sidebarSize.width);
 			}
 		}
 
@@ -539,7 +540,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			editorSize.height = editorMinHeight;
 
 			panelDimension.height -= diff;
-			panelDimension.height = Math.max(MIN_PANEL_PART_HEIGHT, panelDimension.height);
+			panelDimension.height = Math.max(this.partLayoutInfo.panel.minHeight, panelDimension.height);
 		}
 
 		if (!isSidebarHidden) {
