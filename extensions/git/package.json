@@ -334,8 +334,16 @@
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
+          "command": "git.stageChange",
+          "when": "false"
+        },
+        {
           "command": "git.revertSelectedRanges",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.revertChange",
+          "when": "false"
         },
         {
           "command": "git.unstage",
