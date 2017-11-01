@@ -9,7 +9,7 @@ import { Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ExtHostContext, MainContext, IExtHostContext, MainThreadDecorationsShape, ExtHostDecorationsShape } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
-import { IDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
+import { IDecorationsService, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
 
 @extHostNamedCustomer(MainContext.MainThreadDecorations)
 export class MainThreadDecorations implements MainThreadDecorationsShape {
@@ -39,12 +39,12 @@ export class MainThreadDecorations implements MainThreadDecorationsShape {
 					if (!data) {
 						return undefined;
 					}
-					const [weight, bubble, title, letter, themeColor, source] = data;
-					return {
+					const [weight, bubble, tooltip, letter, themeColor, source] = data;
+					return <IDecorationData>{
 						weight: weight || 0,
 						bubble: bubble || false,
 						color: themeColor && themeColor.id,
-						title,
+						tooltip,
 						letter,
 						source,
 					};
