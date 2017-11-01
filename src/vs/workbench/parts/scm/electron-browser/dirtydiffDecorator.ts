@@ -349,7 +349,7 @@ export class ShowPreviousChangeAction extends EditorAction {
 			label: nls.localize('show previous change', "Show Previous Change"),
 			alias: 'Show Previous Change',
 			precondition: ContextKeyExpr.and(EditorContextKeys.isInEmbeddedEditor.toNegated()),
-			kbOpts: { kbExpr: EditorContextKeys.textFocus, primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_S }
+			kbOpts: { kbExpr: EditorContextKeys.textFocus, primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F3 }
 		});
 	}
 
@@ -373,7 +373,7 @@ export class ShowNextChangeAction extends EditorAction {
 			label: nls.localize('show next change', "Show Next Change"),
 			alias: 'Show Next Change',
 			precondition: ContextKeyExpr.and(EditorContextKeys.isInEmbeddedEditor.toNegated()),
-			kbOpts: { kbExpr: EditorContextKeys.textFocus, primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_F }
+			kbOpts: { kbExpr: EditorContextKeys.textFocus, primary: KeyMod.Alt | KeyCode.F3 }
 		});
 	}
 
