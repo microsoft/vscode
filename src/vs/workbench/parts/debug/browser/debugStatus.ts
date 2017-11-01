@@ -10,7 +10,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
-import { IDebugService } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, State } from 'vs/workbench/parts/debug/common/debug';
 import { Themable, STATUS_BAR_FOREGROUND } from 'vs/workbench/common/theme';
 
 const $ = dom.$;
@@ -32,8 +32,8 @@ export class DebugStatus extends Themable implements IStatusbarItem {
 		this.toDispose.push(this.debugService.getConfigurationManager().onDidSelectConfiguration(e => {
 			this.setLabel();
 		}));
-		this.toDispose.push(this.debugService.onDidNewProcess(() => {
-			if (this.hidden) {
+		this.toDispose.push(this.debugService.onDidChangeState(state => {
+			if (state !== State.Inactive && this.hidden) {
 				this.hidden = false;
 				this.render(this.container);
 			}
