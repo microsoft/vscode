@@ -110,21 +110,24 @@ function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
 }
 
 function createAndInitializeWorkspaceService(configuration: IWindowConfiguration, environmentService: EnvironmentService, workspacesService: IWorkspacesService): TPromise<WorkspaceService> {
-	return validateWorkspacePath(configuration).then(() => {
+	return validateSingleFolderPath(configuration).then(() => {
 		const workspaceService = new WorkspaceService(environmentService, workspacesService);
 
 		return workspaceService.initialize(configuration.workspace || configuration.folderPath || configuration).then(() => workspaceService, error => workspaceService);
 	});
 }
 
-function validateWorkspacePath(configuration: IWindowConfiguration): TPromise<void> {
+function validateSingleFolderPath(configuration: IWindowConfiguration): TPromise<void> {
+
+	// Return early if we do not have a single folder path
 	if (!configuration.folderPath) {
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
+	// Otherwise: use realpath to resolve symbolic links to the truth
 	return realpath(configuration.folderPath).then(realFolderPath => {
 
-		// for some weird reason, node adds a trailing slash to UNC paths
+		// For some weird reason, node adds a trailing slash to UNC paths
 		// we never ever want trailing slashes as our workspace path unless
 		// someone opens root ("/").
 		// See also https://github.com/nodejs/io.js/issues/1765
@@ -132,12 +135,19 @@ function validateWorkspacePath(configuration: IWindowConfiguration): TPromise<vo
 			realFolderPath = strings.rtrim(realFolderPath, paths.nativeSep);
 		}
 
-		// update config
-		configuration.folderPath = realFolderPath;
+		return realFolderPath;
 	}, error => {
-		errors.onUnexpectedError(error);
+		if (configuration.verbose) {
+			errors.onUnexpectedError(error);
+		}
 
-		return null; // treat invalid paths as empty workspace
+		// Treat any error case as empty workbench case (no folder path)
+		return null;
+
+	}).then(realFolderPathOrNull => {
+
+		// Update config with real path if we have one
+		configuration.folderPath = realFolderPathOrNull;
 	});
 }
 
