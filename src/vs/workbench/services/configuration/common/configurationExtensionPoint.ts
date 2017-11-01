@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as objects from 'vs/base/common/objects';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
+import { ExtensionsRegistry, IExtensionPointUser } from 'vs/platform/extensions/common/extensionsRegistry';
 import { IConfigurationNode, IConfigurationRegistry, Extensions, editorConfigurationSchemaId, IDefaultConfigurationExtension, validateProperty, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { workspaceSettingsSchemaId } from 'vs/workbench/services/configuration/common/configuration';
@@ -67,27 +67,26 @@ const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigu
 configurationExtPoint.setHandler(extensions => {
 	const configurations: IConfigurationNode[] = [];
 
-	function handleConfiguration(node: IConfigurationNode, id: string, collector: ExtensionMessageCollector) {
+	function handleConfiguration(node: IConfigurationNode, id: string, extension: IExtensionPointUser<any>) {
 		let configuration = objects.clone(node);
 
 		if (configuration.title && (typeof configuration.title !== 'string')) {
-			collector.error(nls.localize('invalid.title', "'configuration.title' must be a string"));
+			extension.collector.error(nls.localize('invalid.title', "'configuration.title' must be a string"));
 		}
 
-		validateProperties(configuration, collector);
+		validateProperties(configuration, extension);
 
 		configuration.id = id;
 		configurations.push(configuration);
 	};
 
 	for (let extension of extensions) {
-		const collector = extension.collector;
 		const value = <IConfigurationNode | IConfigurationNode[]>extension.value;
 		const id = extension.description.id;
 		if (!Array.isArray(value)) {
-			handleConfiguration(value, id, collector);
+			handleConfiguration(value, id, extension);
 		} else {
-			value.forEach(v => handleConfiguration(v, id, collector));
+			value.forEach(v => handleConfiguration(v, id, extension));
 		}
 	}
 	configurationRegistry.registerConfigurations(configurations, false);
@@ -120,29 +119,29 @@ defaultConfigurationExtPoint.setHandler(extensions => {
 });
 // END VSCode extension point `configurationDefaults`
 
-function validateProperties(configuration: IConfigurationNode, collector: ExtensionMessageCollector): void {
+function validateProperties(configuration: IConfigurationNode, extension: IExtensionPointUser<any>): void {
 	let properties = configuration.properties;
 	if (properties) {
 		if (typeof properties !== 'object') {
-			collector.error(nls.localize('invalid.properties', "'configuration.properties' must be an object"));
+			extension.collector.error(nls.localize('invalid.properties', "'configuration.properties' must be an object"));
 			configuration.properties = {};
 		}
 		for (let key in properties) {
 			const message = validateProperty(key);
 			const propertyConfiguration = configuration.properties[key];
 			propertyConfiguration.scope = propertyConfiguration.scope && propertyConfiguration.scope.toString() === 'resource' ? ConfigurationScope.RESOURCE : ConfigurationScope.WINDOW;
-			propertyConfiguration.isFromExtensions = true;
+			propertyConfiguration.notMultiRootAdopted = !(Array.isArray(extension.description.keywords) && extension.description.keywords.indexOf('multi-root ready') !== -1);
 			if (message) {
-				collector.warn(message);
+				extension.collector.warn(message);
 				delete properties[key];
 			}
 		}
 	}
 	let subNodes = configuration.allOf;
 	if (subNodes) {
-		collector.error(nls.localize('invalid.allOf', "'configuration.allOf' is deprecated and should no longer be used. Instead, pass multiple configuration sections as an array to the 'configuration' contribution point."));
+		extension.collector.error(nls.localize('invalid.allOf', "'configuration.allOf' is deprecated and should no longer be used. Instead, pass multiple configuration sections as an array to the 'configuration' contribution point."));
 		for (let node of subNodes) {
-			validateProperties(node, collector);
+			validateProperties(node, extension);
 		}
 	}
 }

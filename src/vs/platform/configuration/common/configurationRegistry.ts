@@ -68,7 +68,7 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	overridable?: boolean;
 	isExecutable?: boolean;
 	scope?: ConfigurationScope;
-	isFromExtensions?: boolean;
+	notMultiRootAdopted?: boolean;
 }
 
 export interface IConfigurationNode {
