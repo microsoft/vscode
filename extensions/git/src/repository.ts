@@ -171,9 +171,10 @@ export class Resource implements SourceControlResourceState {
 	}
 
 	get decorations(): SourceControlResourceDecorations {
-		// TODO@joh
-		const light = { iconPath: this.getIconPath('light') } && undefined;
-		const dark = { iconPath: this.getIconPath('dark') } && undefined;
+		// TODO@joh, still requires restart/redraw in the SCM viewlet
+		const decorations = workspace.getConfiguration().get<boolean>('git.decorations.enabled');
+		const light = !decorations ? { iconPath: this.getIconPath('light') } : undefined;
+		const dark = !decorations ? { iconPath: this.getIconPath('dark') } : undefined;
 		const tooltip = this.tooltip;
 		const strikeThrough = this.strikeThrough;
 		const faded = this.faded;
