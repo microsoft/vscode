@@ -330,7 +330,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'explorer.confirmDragAndDrop': {
 			'type': 'boolean',
-			'description': nls.localize('confirmDragAndDrop', "Controls if the explorer should ask for confirmation when moving files or folders around via drag and drop."),
+			'description': nls.localize('confirmDragAndDrop', "Controls if the explorer should ask for confirmation to move files and folders via drag and drop."),
 			'default': true
 		},
 		'explorer.confirmDelete': {
