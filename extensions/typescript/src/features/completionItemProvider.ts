@@ -285,7 +285,20 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 			item.detail = Previewer.plain(detail.displayParts);
 			const documentation = new MarkdownString();
 			if (item.source) {
-				documentation.appendMarkdown(localize('autoImportLabel', 'Auto import from \'{0}\'', item.source));
+				let importPath = `'${item.source}'`;
+				// Try to resolve the real import name that will be added
+				if (detail.codeActions && detail.codeActions[0]) {
+					const action = detail.codeActions[0];
+					if (action.changes[0] && action.changes[0].textChanges[0]) {
+						const textChange = action.changes[0].textChanges[0];
+						const matchedImport = textChange.newText.match(/(['"])(.+?)\1/);
+						if (matchedImport) {
+							importPath = matchedImport[0];
+							item.detail += ` — from ${matchedImport[0]}`;
+						}
+					}
+				}
+				documentation.appendMarkdown(localize('autoImportLabel', 'Auto import from {0}', importPath));
 				documentation.appendMarkdown('\n\n');
 			}
 
