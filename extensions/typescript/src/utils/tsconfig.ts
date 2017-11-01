@@ -17,7 +17,7 @@ function getEmptyConfig(
 ) {
 	const compilerOptions = [
 		'"target": "ES6"',
-		'"module": "CommonJS"'
+		'"module": "commonjs"'
 	];
 	if (!isTypeScriptProject && config.checkJs) {
 		compilerOptions.push('"checkJs": true');
