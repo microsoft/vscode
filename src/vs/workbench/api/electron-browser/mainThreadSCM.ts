@@ -174,7 +174,8 @@ class MainThreadSCMProvider implements ISCMProvider {
 			const group = this._groupsByHandle[groupHandle];
 
 			if (!group) {
-				return;
+				console.warn(`SCM group ${groupHandle} not found in provider ${this.label}`);
+				continue;
 			}
 
 			// reverse the splices sequence in order to apply them correctly
