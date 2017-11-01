@@ -182,8 +182,8 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 		return this.model.collapse(element, recursive);
 	}
 
-	public collapseAll(elements: any[] = null, recursive: boolean = false): WinJS.Promise {
-		return this.model.collapseAll(elements, recursive);
+	public collapseDeepestExpandedLevel(): WinJS.Promise {
+		return this.model.collapseDeepestExpandedLevel();
 	}
 
 	public toggleExpansion(element: any, recursive: boolean = false): WinJS.Promise {

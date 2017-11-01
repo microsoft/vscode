@@ -614,7 +614,7 @@ suite('TreeModel - Expansion', () => {
 		});
 	});
 
-	test('collapseAll', (done) => {
+	test('collapseDeepestExpandedLevel', (done) => {
 		model.setInput(SAMPLE.DEEP2).done(() => {
 			model.expand(SAMPLE.DEEP2.children[0]).done(() => {
 				model.expand(SAMPLE.DEEP2.children[0].children[0]).done(() => {
@@ -622,13 +622,10 @@ suite('TreeModel - Expansion', () => {
 					assert(model.isExpanded(SAMPLE.DEEP2.children[0]));
 					assert(model.isExpanded(SAMPLE.DEEP2.children[0].children[0]));
 
-					model.collapseAll().done(() => {
-						assert(!model.isExpanded(SAMPLE.DEEP2.children[0]));
-
-						model.expand(SAMPLE.DEEP2.children[0]).done(() => {
-							assert(!model.isExpanded(SAMPLE.DEEP2.children[0].children[0]));
-							done();
-						});
+					model.collapseDeepestExpandedLevel().done(() => {
+						assert(model.isExpanded(SAMPLE.DEEP2.children[0]));
+						assert(!model.isExpanded(SAMPLE.DEEP2.children[0].children[0]));
+						done();
 					});
 				});
 			});
@@ -681,22 +678,6 @@ suite('TreeModel - Expansion', () => {
 				assert.equal(counter.count, 2);
 				done();
 			});
-		});
-	});
-
-	test('top level collapsed', (done) => {
-		model.setInput(SAMPLE.AB).done(() => {
-
-			model.collapseAll([{ id: 'a' }, { id: 'b' }, { id: 'c' }]);
-
-			var nav = model.getNavigator();
-			assert.equal(nav.next().id, 'a');
-			assert.equal(nav.next().id, 'b');
-			assert.equal(nav.next().id, 'c');
-			assert.equal(nav.previous().id, 'b');
-			assert.equal(nav.previous().id, 'a');
-			assert.equal(nav.previous() && false, null);
-			done();
 		});
 	});
 
