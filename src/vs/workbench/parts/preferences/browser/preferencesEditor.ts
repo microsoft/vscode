@@ -787,12 +787,13 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		const editor = this.instantiationService.createInstance(DefaultPreferencesCodeEditor, parent.getHTMLElement(), configuration);
 
 		// Inform user about editor being readonly if user starts type
-		this.toUnbind.push(editor.onDidType(() => this.onDidType(editor)));
+		this.toUnbind.push(editor.onDidType(() => this.showReadonlyHint(editor)));
+		this.toUnbind.push(editor.onDidPaste(() => this.showReadonlyHint(editor)));
 
 		return editor;
 	}
 
-	private onDidType(editor: editorCommon.ICommonCodeEditor): void {
+	private showReadonlyHint(editor: editorCommon.ICommonCodeEditor): void {
 		const messageController = MessageController.get(editor);
 		if (!messageController.isVisible()) {
 			messageController.showMessage(nls.localize('defaultEditorReadonly', "Edit in the right hand side editor to override defaults."), editor.getSelection().getPosition());
