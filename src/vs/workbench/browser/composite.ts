@@ -234,15 +234,17 @@ export abstract class CompositeDescriptor<T extends Composite> {
 	public name: string;
 	public cssClass: string;
 	public order: number;
+	public keybindingId;
 
 	private ctor: IConstructorSignature0<T>;
 
-	constructor(ctor: IConstructorSignature0<T>, id: string, name: string, cssClass?: string, order?: number) {
+	constructor(ctor: IConstructorSignature0<T>, id: string, name: string, cssClass?: string, order?: number, keybindingId?: string, ) {
 		this.ctor = ctor;
 		this.id = id;
 		this.name = name;
 		this.cssClass = cssClass;
 		this.order = order;
+		this.keybindingId = keybindingId;
 	}
 
 	public instantiate(instantiationService: IInstantiationService): T {

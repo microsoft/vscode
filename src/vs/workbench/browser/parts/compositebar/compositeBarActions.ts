@@ -400,8 +400,7 @@ export class CompositeActionItem extends ActivityActionItem {
 	protected get activity(): IActivity {
 		if (!this.compositeActivity) {
 			let activityName: string;
-
-			const keybinding = this.getKeybindingLabel(this.compositeActivityAction.activity.id);
+			const keybinding = this.getKeybindingLabel(this.compositeActivityAction.activity.keybindingId);
 			if (keybinding) {
 				activityName = nls.localize('titleKeybinding', "{0} ({1})", this.compositeActivityAction.activity.name, keybinding);
 			} else {
