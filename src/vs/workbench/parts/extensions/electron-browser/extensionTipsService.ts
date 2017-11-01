@@ -134,6 +134,14 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	getFileBasedRecommendations(): string[] {
 		const fileBased = Object.keys(this._fileBasedRecommendations)
 			.sort((a, b) => {
+				if (this._fileBasedRecommendations[a] === this._fileBasedRecommendations[b]) {
+					if (product.extensionImportantTips[a]) {
+						return -1;
+					}
+					if (product.extensionImportantTips[b]) {
+						return 1;
+					}
+				}
 				return this._fileBasedRecommendations[a] > this._fileBasedRecommendations[b] ? -1 : 1;
 			});
 		return fileBased;
