@@ -77,6 +77,7 @@ class StartDebugEntry extends Model.QuickOpenEntry {
 export class DebugQuickOpenHandler extends Quickopen.QuickOpenHandler {
 
 	public static readonly ID = 'workbench.picker.launch';
+	private autoFocusIndex: number;
 
 	constructor(
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
@@ -94,11 +95,17 @@ export class DebugQuickOpenHandler extends Quickopen.QuickOpenHandler {
 	public getResults(input: string): TPromise<Model.QuickOpenModel> {
 		const configurations: QuickOpenEntry[] = [];
 
-		const launches = this.debugService.getConfigurationManager().getLaunches();
+		const configManager = this.debugService.getConfigurationManager();
+		const launches = configManager.getLaunches();
 		for (let launch of launches) {
 			launch.getConfigurationNames().map(config => ({ config: config, highlights: Filters.matchesContiguousSubString(input, config) }))
 				.filter(({ highlights }) => !!highlights)
-				.forEach(({ config, highlights }) => configurations.push(new StartDebugEntry(this.debugService, this.contextService, launch, config, highlights)));
+				.forEach(({ config, highlights }) => {
+					if (launch === configManager.selectedLaunch && config === configManager.selectedName) {
+						this.autoFocusIndex = configurations.length;
+					}
+					configurations.push(new StartDebugEntry(this.debugService, this.contextService, launch, config, highlights));
+				});
 		}
 		launches.forEach((l, index) => {
 			const label = launches.length > 1 ? nls.localize("addConfigTo", "Add Config ({0})...", l.workspace.name) : nls.localize('addConfiguration', "Add Configuration...");
@@ -116,7 +123,8 @@ export class DebugQuickOpenHandler extends Quickopen.QuickOpenHandler {
 
 	public getAutoFocus(input: string): QuickOpen.IAutoFocus {
 		return {
-			autoFocusFirstEntry: !!input
+			autoFocusFirstEntry: !!input,
+			autoFocusIndex: this.autoFocusIndex
 		};
 	}
 
