@@ -772,7 +772,8 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 			} else {
 				// hit invisible line => flush request
 				if (reqStart !== null) {
-					result = result.concat(this.model.getDecorationsInRange(new Range(reqStart.lineNumber, reqStart.column, modelLineIndex + 1, 1), ownerId, filterOutValidation));
+					const maxLineColumn = this.model.getLineMaxColumn(modelLineIndex);
+					result = result.concat(this.model.getDecorationsInRange(new Range(reqStart.lineNumber, reqStart.column, modelLineIndex, maxLineColumn), ownerId, filterOutValidation));
 					reqStart = null;
 				}
 			}
