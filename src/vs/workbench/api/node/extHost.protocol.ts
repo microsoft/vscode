@@ -377,9 +377,9 @@ export type SCMRawResource = [
 	boolean /*strike through*/,
 	boolean /*faded*/,
 
-	string /*source*/,
-	string /*letter*/,
-	ThemeColor /*color*/
+	string | undefined /*source*/,
+	string | undefined /*letter*/,
+	ThemeColor | null /*color*/
 ];
 
 export type SCMRawResourceSplice = [

@@ -191,10 +191,9 @@ class MainThreadSCMProvider implements ISCMProvider {
 						tooltip,
 						strikeThrough,
 						faded,
-
 						source,
 						letter,
-						color: color.id
+						color: color && color.id
 					};
 
 					return new MainThreadSCMResource(
