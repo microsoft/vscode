@@ -326,9 +326,9 @@ connection.onRequest(DocumentColorRequest.type, params => {
 connection.onRequest(ColorPresentationRequest.type, params => {
 	let document = documents.get(params.textDocument.uri);
 	if (document) {
-		let mode = languageModes.getModeAtPosition(document, params.colorInfo.range.start);
+		let mode = languageModes.getModeAtPosition(document, params.range.start);
 		if (mode && mode.getColorPresentations) {
-			return mode.getColorPresentations(document, params.colorInfo);
+			return mode.getColorPresentations(document, params.color, params.range);
 		}
 	}
 	return [];

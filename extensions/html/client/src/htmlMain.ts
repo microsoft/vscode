@@ -86,7 +86,8 @@ export function activate(context: ExtensionContext) {
 			provideColorPresentations(color, context): Thenable<ColorPresentation[]> {
 				let params: ColorPresentationParams = {
 					textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(context.document),
-					colorInfo: { range: client.code2ProtocolConverter.asRange(context.range), color }
+					color,
+					range: client.code2ProtocolConverter.asRange(context.range)
 				};
 				return client.sendRequest(ColorPresentationRequest.type, params).then(presentations => {
 					return presentations.map(p => {
