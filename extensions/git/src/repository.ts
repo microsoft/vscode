@@ -218,16 +218,16 @@ export class Resource implements SourceControlResourceState {
 		switch (this.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.MODIFIED:
-				return new ThemeColor('git.modifiedForeground');
+				return new ThemeColor('gitDecoration.modifiedResourceForeground');
 			case Status.INDEX_DELETED:
 			case Status.DELETED:
-				return new ThemeColor('git.deletedForeground');
+				return new ThemeColor('gitDecoration.deletedResourceForeground');
 			case Status.INDEX_ADDED: // todo@joh - special color?
 			case Status.INDEX_RENAMED: // todo@joh - special color?
 			case Status.UNTRACKED:
-				return new ThemeColor('git.untrackedForeground');
+				return new ThemeColor('gitDecoration.untrackedResourceForeground');
 			case Status.IGNORED:
-				return new ThemeColor('git.ignoredForeground');
+				return new ThemeColor('gitDecoration.ignoredResourceForeground');
 			case Status.INDEX_COPIED:
 			case Status.BOTH_DELETED:
 			case Status.ADDED_BY_US:
@@ -236,7 +236,7 @@ export class Resource implements SourceControlResourceState {
 			case Status.DELETED_BY_US:
 			case Status.BOTH_ADDED:
 			case Status.BOTH_MODIFIED:
-				return new ThemeColor('git.conflictForeground');
+				return new ThemeColor('gitDecoration.conflictingResourceForeground');
 			default:
 				return undefined;
 		}

@@ -839,7 +839,7 @@
     },
     "colors": [
       {
-        "id": "git.modifiedForeground",
+        "id": "gitDecoration.modifiedResourceForeground",
         "description": "%colors.modified%",
         "defaults": {
           "light": "#a76e12",
@@ -848,7 +848,7 @@
         }
       },
       {
-        "id": "git.deletedForeground",
+        "id": "gitDecoration.deletedResourceForeground",
         "description": "%colors.deleted%",
         "defaults": {
           "light": "#ad0707",
@@ -857,7 +857,7 @@
         }
       },
       {
-        "id": "git.untrackedForeground",
+        "id": "gitDecoration.untrackedResourceForeground",
         "description": "%colors.untracked%",
         "defaults": {
           "light": "#019001",
@@ -866,7 +866,7 @@
         }
       },
       {
-        "id": "git.ignoredForeground",
+        "id": "gitDecoration.ignoredResourceForeground",
         "description": "%colors.ignored%",
         "defaults": {
           "light": "#8E8E90",
@@ -875,7 +875,7 @@
         }
       },
       {
-        "id": "git.conflictForeground",
+        "id": "gitDecoration.conflictingResourceForeground",
         "description": "%colors.conflict%",
         "defaults": {
           "light": "#6c6cc4",
