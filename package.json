@@ -44,7 +44,6 @@
     "vscode-debugprotocol": "1.24.0",
     "vscode-ripgrep": "0.6.0-patch.0",
     "vscode-textmate": "^3.2.0",
-    "winreg": "1.2.0",
     "xterm": "Tyriar/xterm.js#vscode-release/1.18",
     "yauzl": "2.8.0"
   },
@@ -55,7 +54,6 @@
     "@types/mocha": "2.2.39",
     "@types/semver": "5.3.30",
     "@types/sinon": "1.16.34",
-    "@types/winreg": "1.2.30",
     "azure-storage": "^0.3.1",
     "clean-css": "3.4.6",
     "coveralls": "^2.11.11",
