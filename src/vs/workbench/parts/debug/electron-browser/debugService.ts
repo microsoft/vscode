@@ -719,9 +719,9 @@ export class DebugService implements debug.IDebugService {
 
 						return <any>launch.openConfigFile(false, type); // cast to ignore weird compile error
 					})
-				).then(() => wrapUpState(), (err) => {
+				).then(() => wrapUpState(), err => {
 					wrapUpState();
-					return err;
+					return TPromise.wrapError(err);
 				});
 			})
 		)));
