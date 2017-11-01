@@ -196,29 +196,32 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 				valueSelection: options.valueSelection,
 				inputDecoration: currentDecoration,
 				onDidType: (value) => {
-					lastValue = value;
+					if (lastValue !== value) {
 
-					if (options.validateInput) {
-						if (currentValidation) {
-							currentValidation.cancel();
-						}
+						lastValue = value;
 
-						currentValidation = TPromise.timeout(100).then(() => {
-							return options.validateInput(value).then(message => {
-								currentDecoration = !!message ? Severity.Error : void 0;
-								const newPick = message || defaultMessage;
-								if (newPick !== currentPick) {
-									options.valueSelection = [lastValue.length, lastValue.length];
-									currentPick = newPick;
-									resolve(new TPromise<any>(init));
-								}
+						if (options.validateInput) {
+							if (currentValidation) {
+								currentValidation.cancel();
+							}
 
-								return !message;
+							currentValidation = TPromise.timeout(100).then(() => {
+								return options.validateInput(value).then(message => {
+									currentDecoration = !!message ? Severity.Error : void 0;
+									const newPick = message || defaultMessage;
+									if (newPick !== currentPick) {
+										options.valueSelection = [lastValue.length, lastValue.length];
+										currentPick = newPick;
+										resolve(new TPromise<any>(init));
+									}
+
+									return !message;
+								});
+							}, err => {
+								// ignore
+								return null;
 							});
-						}, err => {
-							// ignore
-							return null;
-						});
+						}
 					}
 				}
 			}, token).then(resolve, reject);
