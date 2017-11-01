@@ -105,14 +105,6 @@ function getModifiedEndLineNumber(change: IChange): number {
 	}
 }
 
-function getModifiedMiddleLineNumber(change: IChange): number {
-	if (change.modifiedEndLineNumber === 0) {
-		return change.modifiedStartLineNumber;
-	} else {
-		return Math.round((change.modifiedEndLineNumber + change.modifiedStartLineNumber) / 2);
-	}
-}
-
 class UIEditorAction extends Action {
 
 	private editor: ICommonCodeEditor;
@@ -302,8 +294,20 @@ class DirtyDiffWidget extends PeekViewWidget {
 	}
 
 	private revealChange(change: IChange): void {
-		const position = new Position(getModifiedMiddleLineNumber(this.change), 1);
-		this.diffEditor.revealPositionInCenter(position, ScrollType.Immediate);
+		let start: number, end: number;
+
+		if (change.modifiedEndLineNumber === 0) { // deletion
+			start = change.modifiedStartLineNumber;
+			end = change.modifiedStartLineNumber + 1;
+		} else if (change.originalEndLineNumber > 0) { // modification
+			start = change.modifiedStartLineNumber - 1;
+			end = change.modifiedEndLineNumber + 1;
+		} else { // insertion
+			start = change.modifiedStartLineNumber;
+			end = change.modifiedEndLineNumber;
+		}
+
+		this.diffEditor.revealLinesInCenter(start, end, ScrollType.Immediate);
 	}
 
 	private _applyTheme(theme: ITheme) {
