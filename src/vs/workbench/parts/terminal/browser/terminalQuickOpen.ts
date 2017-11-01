@@ -15,7 +15,6 @@ import { ContributableActionProvider } from 'vs/workbench/browser/actions';
 import { stripWildcards } from 'vs/base/common/strings';
 import { matchesFuzzy } from 'vs/base/common/filters';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { PICK_WORKSPACE_FOLDER_COMMAND } from 'vs/workbench/browser/actions/workspaceActions';
 
 export class TerminalEntry extends QuickOpenEntry {
 
@@ -67,16 +66,7 @@ export class CreateTerminal extends QuickOpenEntry {
 
 	public run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
-			setTimeout(() => {
-				return this.commandService.executeCommand(PICK_WORKSPACE_FOLDER_COMMAND).then(workspace => {
-					const instance = this.terminalService.createInstance({ cwd: workspace.uri.fsPath }, true);
-					if (!instance) {
-						return TPromise.as(void 0);
-					}
-					this.terminalService.setActiveInstance(instance);
-					return this.terminalService.showPanel(true);
-				});
-			}, 0);
+			setTimeout(() => this.commandService.executeCommand('workbench.action.terminal.new'), 0);
 			return true;
 		}
 
