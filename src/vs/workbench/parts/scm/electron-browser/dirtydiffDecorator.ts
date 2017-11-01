@@ -49,7 +49,7 @@ import { basename } from 'vs/base/common/paths';
 import { MenuId, IMenuService, IMenu, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { fillInActions, MenuItemActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IChange, ICommonCodeEditor, IEditorModel, ScrollType, IEditorContribution, OverviewRulerLane, IModel } from 'vs/editor/common/editorCommon';
-import { sortedDiff, Splice } from 'vs/base/common/arrays';
+import { sortedDiff, Splice, firstIndex } from 'vs/base/common/arrays';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 
 // TODO@Joao
@@ -524,8 +524,12 @@ export class DirtyDiffController implements IEditorContribution {
 
 		disposables.push(
 			this.widget,
-			toDisposable(() => this.model = this.widget = null),
-			toDisposable(() => this.isDirtyDiffVisible.set(false))
+			toDisposable(() => {
+				this.model = null;
+				this.widget = null;
+				this.currentIndex = -1;
+				this.isDirtyDiffVisible.set(false);
+			})
 		);
 
 		this.session = combinedDisposable(disposables);
@@ -592,6 +596,10 @@ export class DirtyDiffController implements IEditorContribution {
 			return;
 		}
 
+		if (!this.modelRegistry) {
+			return;
+		}
+
 		const editorModel = this.editor.getModel();
 
 		if (!editorModel) {
@@ -604,11 +612,17 @@ export class DirtyDiffController implements IEditorContribution {
 			return;
 		}
 
-		if (!model.changes.some(change => lineIntersectsChange(lineNumber, change))) {
+		const index = firstIndex(model.changes, change => lineIntersectsChange(lineNumber, change));
+
+		if (index < 0) {
 			return;
 		}
 
-		this.next(lineNumber);
+		if (index === this.currentIndex) {
+			this.close();
+		} else {
+			this.next(lineNumber);
+		}
 	}
 
 	private findNextClosestChange(lineNumber: number): number {
