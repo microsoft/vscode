@@ -232,7 +232,7 @@ export class FoldingController {
 				const gutterOffsetX = data.offsetX - data.glyphMarginWidth - data.lineNumbersWidth;
 
 				// TODO@joao TODO@alex TODO@martin this is such that we don't collide with dirty diff
-				if (gutterOffsetX <= 12) {
+				if (gutterOffsetX <= 10) {
 					return;
 				}
 
