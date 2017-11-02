@@ -8,7 +8,7 @@ import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Builder, $ } from 'vs/base/browser/builder';
 import URI from 'vs/base/common/uri';
-import { ThrottledDelayer, sequence } from 'vs/base/common/async';
+import { ThrottledDelayer, sequence, RunOnceScheduler } from 'vs/base/common/async';
 import errors = require('vs/base/common/errors');
 import paths = require('vs/base/common/paths');
 import resources = require('vs/base/common/resources');
@@ -789,6 +789,14 @@ export class ExplorerView extends ViewsViewletPanel {
 		}
 
 		// Load Root Stat with given target path configured
+		let statsToExpand: FileStat[] = [];
+		let refreshScheduler: RunOnceScheduler;
+		let refreshSchedulerPromise = new TPromise((c, e) => {
+			refreshScheduler = new RunOnceScheduler(() => {
+				this.explorerViewer.refresh().then(() => sequence(statsToExpand.map(e => () => this.explorerViewer.expand(e)))).then(result => c(result), error => e(error));
+			}, 100);
+		});
+
 		const promise = TPromise.join(targetsToResolve.map((target, index) => this.fileService.resolveFile(target.resource, target.options)
 			.then(result => FileStat.create(result, target.root, target.options.resolveTo), err => FileStat.create({
 				resource: target.resource,
@@ -803,18 +811,23 @@ export class ExplorerView extends ViewsViewletPanel {
 				FileStat.mergeLocalWithDisk(modelStat, this.model.roots[index]);
 
 				const input = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? this.model.roots[0] : this.model;
-				let statsToExpand: FileStat[] = this.explorerViewer.getExpandedElements().concat(targetsToExpand.map(target => this.model.findClosest(target)));
+				let toExpand: FileStat[] = this.explorerViewer.getExpandedElements().concat(targetsToExpand.map(target => this.model.findClosest(target)));
 				if (input === this.explorerViewer.getInput()) {
-					return this.explorerViewer.refresh().then(() => sequence(statsToExpand.map(e => () => this.explorerViewer.expand(e))));
+					statsToExpand = statsToExpand.concat(toExpand);
+					if (!refreshScheduler.isScheduled()) {
+						refreshScheduler.schedule();
+					}
+
+					return refreshSchedulerPromise;
 				}
 
 				// Display roots only when multi folder workspace
 				// Make sure to expand all folders that where expanded in the previous session
 				if (input === this.model) {
 					// We have transitioned into workspace view -> expand all roots
-					statsToExpand = this.model.roots.concat(statsToExpand);
+					toExpand = this.model.roots.concat(toExpand);
 				}
-				return this.explorerViewer.setInput(input).then(() => sequence(statsToExpand.map(e => () => this.explorerViewer.expand(e))));
+				return this.explorerViewer.setInput(input).then(() => sequence(toExpand.map(e => () => this.explorerViewer.expand(e))));
 			})));
 
 		this.progressService.showWhile(promise, this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */);
