@@ -130,7 +130,7 @@ function validateProperties(configuration: IConfigurationNode, extension: IExten
 			const message = validateProperty(key);
 			const propertyConfiguration = configuration.properties[key];
 			propertyConfiguration.scope = propertyConfiguration.scope && propertyConfiguration.scope.toString() === 'resource' ? ConfigurationScope.RESOURCE : ConfigurationScope.WINDOW;
-			propertyConfiguration.notMultiRootAdopted = !(Array.isArray(extension.description.keywords) && extension.description.keywords.indexOf('multi-root ready') !== -1);
+			propertyConfiguration.notMultiRootAdopted = !(extension.description.isBuiltin || (Array.isArray(extension.description.keywords) && extension.description.keywords.indexOf('multi-root ready') !== -1));
 			if (message) {
 				extension.collector.warn(message);
 				delete properties[key];
