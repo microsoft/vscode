@@ -277,6 +277,8 @@ export class FileRenderer implements IRenderer {
 	private static FILE_TEMPLATE_ID = 'file';
 
 	private state: FileViewletState;
+	private config: IFilesConfiguration;
+	private configListener: IDisposable;
 
 	constructor(
 		state: FileViewletState,
@@ -286,6 +288,16 @@ export class FileRenderer implements IRenderer {
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		this.state = state;
+		this.config = this.configurationService.getConfiguration<IFilesConfiguration>();
+		this.configListener = this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('explorer')) {
+				this.config = this.configurationService.getConfiguration();
+			}
+		});
+	}
+
+	dispose(): void {
+		this.configListener.dispose();
 	}
 
 	public getHeight(tree: ITree, element: any): number {
@@ -317,7 +329,7 @@ export class FileRenderer implements IRenderer {
 				hidePath: true,
 				fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE,
 				extraClasses,
-				fileDecorations: this.configurationService.getConfiguration<IFilesConfiguration>().explorer.decorations
+				fileDecorations: this.config.explorer.decorations
 			});
 		}
 
