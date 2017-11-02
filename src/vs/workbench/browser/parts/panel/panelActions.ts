@@ -146,7 +146,7 @@ export class ToggleMaximizedPanelAction extends Action {
 
 	public run(): TPromise<any> {
 		// Show panel
-		return this.partService.setPanelHidden(false)
+		return (!this.partService.isVisible(Parts.PANEL_PART) ? this.partService.setPanelHidden(false) : TPromise.as(null))
 			.then(() => this.partService.toggleMaximizedPanel());
 	}
 
