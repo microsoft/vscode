@@ -135,7 +135,9 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 	public $acceptTerminalProcessId(id: number, processId: number): void {
 		let terminal = this._getTerminalById(id);
-		terminal._setProcessId(processId);
+		if (terminal) {
+			terminal._setProcessId(processId);
+		}
 	}
 
 	private _getTerminalById(id: number): ExtHostTerminal {
