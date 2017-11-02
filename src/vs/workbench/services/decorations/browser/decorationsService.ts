@@ -16,6 +16,7 @@ import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { IIterator } from 'vs/base/common/iterator';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
+import { localize } from 'vs/nls';
 
 class DecorationRule {
 
@@ -127,7 +128,7 @@ class DecorationStyles {
 		if (onlyChildren) {
 			// show items from its children only
 			badgeClassName = rule.bubbleBadgeClassName;
-			tooltip = '';
+			tooltip = localize('bubbleTitle', "contains emphasized items");
 		}
 
 		return {
