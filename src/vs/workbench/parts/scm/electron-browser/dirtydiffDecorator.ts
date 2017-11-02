@@ -536,7 +536,6 @@ export class DirtyDiffController implements IEditorContribution {
 	close(): void {
 		this.session.dispose();
 		this.session = EmptyDisposable;
-		this.editor.focus();
 	}
 
 	private assertWidget(): boolean {
@@ -589,6 +588,7 @@ export class DirtyDiffController implements IEditorContribution {
 				this.widget = null;
 				this.currentIndex = -1;
 				this.isDirtyDiffVisible.set(false);
+				this.editor.focus();
 			})
 		);
 
