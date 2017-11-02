@@ -411,7 +411,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			if (visibleEditors > 1) {
 				const sidebarOverflow = this.layoutEditorGroupsVertically && (this.workbenchSize.width - this.sidebarWidth < visibleEditors * this.partLayoutInfo.editor.minWidth);
 				const panelOverflow = !this.layoutEditorGroupsVertically && !panelVertical && (this.workbenchSize.height - this.panelHeight < visibleEditors * this.partLayoutInfo.editor.minHeight) ||
-					panelVertical && this.layoutEditorGroupsVertically && (this.workbenchSize.width - this.panelWidth < visibleEditors * this.partLayoutInfo.editor.minWidth);
+					panelVertical && this.layoutEditorGroupsVertically && (this.workbenchSize.width - this.panelWidth - this.sidebarWidth < visibleEditors * this.partLayoutInfo.editor.minWidth);
 
 				if (sidebarOverflow || panelOverflow) {
 					this.layout();
