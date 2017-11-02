@@ -51,6 +51,9 @@ export abstract class AbstractThreadService implements IDispatcher {
 	private _createProxy<T>(proxyId: string): T {
 		let handler = {
 			get: (target, name) => {
+				if (name === 'toJSON') {
+					return undefined;
+				}
 				if (!target[name]) {
 					target[name] = (...myArgs: any[]) => {
 						return this._callOnRemote(proxyId, name, myArgs);
