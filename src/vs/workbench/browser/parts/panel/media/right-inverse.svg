@@ -9,11 +9,11 @@
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    viewBox="0 0 16 16"
    version="1.1"
-   id="svg3953"
+   id="svg3828"
    sodipodi:docname="right-inverse.svg"
    inkscape:version="0.92.2 5c3e80d, 2017-08-06">
   <style
-     id="style3946">.icon-canvas-transparent{opacity:0;fill:#2d2d30}.icon-vs-out{fill:#2d2d30}.icon-vs-bg{fill:#c5c5c5}</style>
+     id="style3821">.icon-canvas-transparent{opacity:0;fill:#2d2d30}.icon-vs-out{fill:#2d2d30}.icon-vs-bg{fill:#c5c5c5}</style>
   <path
      class="icon-canvas-transparent"
      d="M16 16H0V0h16v16z"
@@ -25,11 +25,11 @@
      style="display: none;" />
   <g
      id="iconBg"
-     transform="rotate(-90,8,8)">
+     transform="rotate(-90,8.1705757,8.1023454)">
     <path
        class="icon-vs-bg"
        d="M 7.967,11.827 1.793,5.652 3.207,4.238 l 4.76,4.761 4.826,-4.826 1.414,1.414 z"
-       id="path3950"
+       id="path3825"
        inkscape:connector-curvature="0"
        style="fill:#c5c5c5" />
   </g>
