@@ -59,7 +59,7 @@ import { touch } from 'vs/base/node/pfs';
 
 export class CodeApplication {
 
-	private static APP_ICON_REFRESH_KEY = 'macOSAppIconRefresh2';
+	private static APP_ICON_REFRESH_KEY = 'macOSAppIconRefresh3';
 
 	private toDispose: IDisposable[];
 	private windowsMainService: IWindowsMainService;
