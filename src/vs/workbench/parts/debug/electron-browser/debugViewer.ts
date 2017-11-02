@@ -143,7 +143,7 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 	inputBox.select();
 
 	let disposed = false;
-	const toDispose: [lifecycle.IDisposable] = [inputBox, styler];
+	const toDispose: lifecycle.IDisposable[] = [inputBox, styler];
 
 	const wrapUp = once((renamed: boolean) => {
 		if (!disposed) {
