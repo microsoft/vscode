@@ -8,7 +8,7 @@ import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Builder, $ } from 'vs/base/browser/builder';
 import URI from 'vs/base/common/uri';
-import { ThrottledDelayer, sequence, RunOnceScheduler } from 'vs/base/common/async';
+import { ThrottledDelayer, sequence, Delayer } from 'vs/base/common/async';
 import errors = require('vs/base/common/errors');
 import paths = require('vs/base/common/paths');
 import resources = require('vs/base/common/resources');
@@ -790,12 +790,8 @@ export class ExplorerView extends ViewsViewletPanel {
 
 		// Load Root Stat with given target path configured
 		let statsToExpand: FileStat[] = [];
-		let refreshScheduler: RunOnceScheduler;
-		let refreshSchedulerPromise = new TPromise((c, e) => {
-			refreshScheduler = new RunOnceScheduler(() => {
-				this.explorerViewer.refresh().then(() => sequence(statsToExpand.map(e => () => this.explorerViewer.expand(e)))).then(result => c(result), error => e(error));
-			}, 100);
-		});
+		let delayer = new Delayer(100);
+		let delayerPromise: TPromise;
 
 		const promise = TPromise.join(targetsToResolve.map((target, index) => this.fileService.resolveFile(target.resource, target.options)
 			.then(result => FileStat.create(result, target.root, target.options.resolveTo), err => FileStat.create({
@@ -814,11 +810,14 @@ export class ExplorerView extends ViewsViewletPanel {
 				let toExpand: FileStat[] = this.explorerViewer.getExpandedElements().concat(targetsToExpand.map(target => this.model.findClosest(target)));
 				if (input === this.explorerViewer.getInput()) {
 					statsToExpand = statsToExpand.concat(toExpand);
-					if (!refreshScheduler.isScheduled()) {
-						refreshScheduler.schedule();
+					if (!delayer.isTriggered()) {
+						delayerPromise = delayer.trigger(() => this.explorerViewer.refresh()
+							.then(() => sequence(statsToExpand.map(e => () => this.explorerViewer.expand(e))))
+							.then(() => statsToExpand = [])
+						);
 					}
 
-					return refreshSchedulerPromise;
+					return delayerPromise;
 				}
 
 				// Display roots only when multi folder workspace
