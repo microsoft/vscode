@@ -22,7 +22,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Configur
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
 import { ConfigurationEditingErrorCode } from 'vs/workbench/services/configuration/node/configurationEditingService';
 import { FileChangeType, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { workbenchInstantiationService, TestTextResourceConfigurationService, TestTextFileService } from 'vs/workbench/test/workbenchTestServices';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
@@ -228,8 +228,15 @@ suite('WorkspaceContextService - Workspace', () => {
 		const target = sinon.spy();
 		testObject.onDidChangeWorkspaceFolders(target);
 		const workspaceDir = path.dirname(testObject.getWorkspace().folders[0].uri.fsPath);
-		return testObject.addFolders([{ uri: URI.file(path.join(workspaceDir, 'd')) }, { uri: URI.file(path.join(workspaceDir, 'c')) }])
-			.then(() => assert.ok(target.called));
+		const addedFolders = [{ uri: URI.file(path.join(workspaceDir, 'd')) }, { uri: URI.file(path.join(workspaceDir, 'c')) }];
+		return testObject.addFolders(addedFolders)
+			.then(() => {
+				assert.ok(target.calledOnce);
+				const actual = <IWorkspaceFoldersChangeEvent>target.args[0][0];
+				assert.deepEqual(actual.added.map(r => r.uri.toString()), addedFolders.map(a => a.uri.toString()));
+				assert.deepEqual(actual.removed, []);
+				assert.deepEqual(actual.changed, []);
+			});
 	});
 
 	test('remove folders', () => {
@@ -244,8 +251,45 @@ suite('WorkspaceContextService - Workspace', () => {
 	test('remove folders triggers change event', () => {
 		const target = sinon.spy();
 		testObject.onDidChangeWorkspaceFolders(target);
-		return testObject.removeFolders([testObject.getWorkspace().folders[0].uri])
-			.then(() => assert.ok(target.called));
+		const removedFolder = testObject.getWorkspace().folders[0];
+		return testObject.removeFolders([removedFolder.uri])
+			.then(() => {
+				assert.ok(target.calledOnce);
+				const actual = <IWorkspaceFoldersChangeEvent>target.args[0][0];
+				assert.deepEqual(actual.added, []);
+				assert.deepEqual(actual.removed.map(r => r.uri.toString()), [removedFolder.uri.toString()]);
+				assert.deepEqual(actual.changed.map(c => c.uri.toString()), [testObject.getWorkspace().folders[0].uri.toString()]);
+			});
+	});
+
+	test('reorder folders trigger change event', () => {
+		const target = sinon.spy();
+		testObject.onDidChangeWorkspaceFolders(target);
+		const workspace = { folders: [{ path: testObject.getWorkspace().folders[1].uri.fsPath }, { path: testObject.getWorkspace().folders[0].uri.fsPath }] };
+		fs.writeFileSync(testObject.getWorkspace().configuration.fsPath, JSON.stringify(workspace, null, '\t'));
+		return testObject.reloadConfiguration()
+			.then(() => {
+				assert.ok(target.calledOnce);
+				const actual = <IWorkspaceFoldersChangeEvent>target.args[0][0];
+				assert.deepEqual(actual.added, []);
+				assert.deepEqual(actual.removed, []);
+				assert.deepEqual(actual.changed.map(c => c.uri.toString()), testObject.getWorkspace().folders.map(f => f.uri.toString()).reverse());
+			});
+	});
+
+	test('rename folders trigger change event', () => {
+		const target = sinon.spy();
+		testObject.onDidChangeWorkspaceFolders(target);
+		const workspace = { folders: [{ path: testObject.getWorkspace().folders[0].uri.fsPath, name: '1' }, { path: testObject.getWorkspace().folders[1].uri.fsPath }] };
+		fs.writeFileSync(testObject.getWorkspace().configuration.fsPath, JSON.stringify(workspace, null, '\t'));
+		return testObject.reloadConfiguration()
+			.then(() => {
+				assert.ok(target.calledOnce);
+				const actual = <IWorkspaceFoldersChangeEvent>target.args[0][0];
+				assert.deepEqual(actual.added, []);
+				assert.deepEqual(actual.removed, []);
+				assert.deepEqual(actual.changed.map(c => c.uri.toString()), [testObject.getWorkspace().folders[0].uri.toString()]);
+			});
 	});
 
 });

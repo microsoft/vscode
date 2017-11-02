@@ -380,11 +380,19 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 
 	private compareFolders(currentFolders: IWorkspaceFolder[], newFolders: IWorkspaceFolder[]): IWorkspaceFoldersChangeEvent {
 		const result = { added: [], removed: [], changed: [] };
-
 		result.added = newFolders.filter(newFolder => !currentFolders.some(currentFolder => newFolder.uri.toString() === currentFolder.uri.toString()));
-		result.removed = currentFolders.filter(currentFolder => !newFolders.some(newFolder => currentFolder.uri.toString() === newFolder.uri.toString()));
-		result.changed = newFolders.filter(newFolder => currentFolders.some(currentFolder => newFolder.uri.toString() === currentFolder.uri.toString() && newFolder.name !== currentFolder.name));
-
+		for (let currentIndex = 0; currentIndex < currentFolders.length; currentIndex++) {
+			let currentFolder = currentFolders[currentIndex];
+			let newIndex = 0;
+			for (newIndex = 0; newIndex < newFolders.length && currentFolder.uri.toString() !== newFolders[newIndex].uri.toString(); newIndex++) { }
+			if (newIndex < newFolders.length) {
+				if (currentIndex !== newIndex || currentFolder.name !== newFolders[newIndex].name) {
+					result.changed.push(currentFolder);
+				}
+			} else {
+				result.removed.push(currentFolder);
+			}
+		}
 		return result;
 	}
 
