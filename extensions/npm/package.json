@@ -54,7 +54,7 @@
             "yarn"
           ],
           "default": "npm",
-          "description": "The package manager used to run scripts"
+          "description": "%config.npm.packageManager%"
         }
       }
     },
