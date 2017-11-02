@@ -120,7 +120,7 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 
 		this.builder.on(DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			if (!enableDragging) {
-				DOM.EventHelper.stop(e); // do not run when dragging is on because that would disable it
+				DOM.EventHelper.stop(e, true); // do not run when dragging is on because that would disable it
 			}
 
 			if (this._action.enabled && e.button === 0) {
