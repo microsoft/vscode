@@ -393,9 +393,14 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 
 		this.editor.setSelection(where);
 
-		// Reveal the line above or below the zone widget, to get the zone widget in the viewport
-		const revealLineNumber = Math.min(this.editor.getModel().getLineCount(), Math.max(1, where.endLineNumber + 1));
-		this.revealLine(revealLineNumber);
+		// There are two points of interest that we want to reveal in ascending importance:
+		// 1. The line below the zone widget (to make sure that the bottom of the widget is visible).
+		// 2. The line above the zone widget (to make sure that the top of the widget is visible).
+		// We reveal them in this order so if they both can't fit on screen at once,
+		// then the top of the widget is visible.
+		const lineBelowZone = Math.min(this.editor.getModel().getLineCount(), Math.max(1, where.endLineNumber + 1));
+		this.revealLine(lineBelowZone);
+		this.revealLine(where.endLineNumber);
 	}
 
 	protected revealLine(lineNumber: number) {
