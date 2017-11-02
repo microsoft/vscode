@@ -338,12 +338,6 @@ export class TerminalInstance implements ITerminalInstance {
 			this._selectionStarted = true;
 		}));
 
-		this._instanceDisposables.push(dom.addDisposableListener(this._xterm.element, 'mouseup', (event: KeyboardEvent) => {
-			// Wait until mouseup has propagated through the DOM before
-			// evaluating the new selection state.
-			setTimeout(() => this._refreshSelectionContextKey(), 0);
-		}));
-
 		// We need to listen to the mouseup event up to the document since the user may release the mouse button anywhere
 		// outside of _xterm.element.
 		this._instanceDisposables.push(dom.addDisposableListener(document, 'mouseup', (event: KeyboardEvent) => {
