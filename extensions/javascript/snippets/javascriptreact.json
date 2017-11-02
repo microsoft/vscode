@@ -15,38 +15,28 @@
 	"For Loop": {
 		"prefix": "for",
 		"body": [
-			"for (var ${1:index} = 0; ${1:index} < ${2:array}.length; ${1:index}++) {",
-			"\tvar ${3:element} = ${2:array}[${1:index}];",
+			"for (let ${1:index} = 0; ${1:index} < ${2:array}.length; ${1:index}++) {",
+			"\tconst ${3:element} = ${2:array}[${1:index}];",
 			"\t$0",
 			"}"
 		],
 		"description": "For Loop"
 	},
-	"For Loop (let)": {
-		"prefix": "forl",
-		"body": [
-			"for (let ${1:index} = 0; ${1:index} < ${2:array}.length; ${1:index}++) {",
-			"\tlet ${3:element} = ${2:array}[${1:index}];",
-			"\t$0",
-			"}"
-		],
-		"description": "For Loop (let)"
-	},
 	"For-Each Loop": {
 		"prefix": "foreach",
 		"body": [
-			"${1:array}.forEach(function(${2:element}) {",
+			"${1:array}.forEach((${2:element}) => {",
 			"\t$0",
-			"}, this);"
+			"});"
 		],
 		"description": "For-Each Loop"
 	},
 	"For-In Loop": {
 		"prefix": "forin",
 		"body": [
-			"for (var ${1:key} in ${2:object}) {",
+			"for (let ${1:key} in ${2:object}) {",
 			"\tif (${2:object}.hasOwnProperty(${1:key})) {",
-			"\t\tvar ${3:element} = ${2:object}[${1:key}];",
+			"\t\tconst ${3:element} = ${2:object}[${1:key}];",
 			"\t\t$0",
 			"\t}",
 			"}"
@@ -56,7 +46,7 @@
 	"For-Of Loop": {
 		"prefix": "forof",
 		"body": [
-			"for (let ${1:iterator} of ${2:object}) {",
+			"for (const ${1:iterator} of ${2:object}) {",
 			"\t$0",
 			"}"
 		],
@@ -94,7 +84,7 @@
 	"New Statement": {
 		"prefix": "new",
 		"body": [
-			"var ${1:name} = new ${2:type}(${3:arguments});$0"
+			"const ${1:name} = new ${2:type}(${3:arguments});$0"
 		],
 		"description": "New Statement"
 	},
@@ -135,7 +125,7 @@
 		"body": [
 			"try {",
 			"\t$0",
-			"} catch (${2:error}) {",
+			"} catch (${1:error}) {",
 			"\t",
 			"}"
 		],
@@ -144,18 +134,11 @@
 	"Set Timeout Function": {
 		"prefix": "settimeout",
 		"body": [
-			"setTimeout(function() {",
+			"setTimeout(() => {",
 			"\t$0",
 			"}, ${1:timeout});"
 		],
 		"description": "Set Timeout Function"
-	},
-	"Relative Reference to another File": {
-		"prefix": "reference",
-		"body": [
-			"/// <reference path=\"$1\" />$0"
-		],
-		"description": "Relative Reference to another File"
 	},
 	"Import external module.": {
 		"prefix": "import statement",

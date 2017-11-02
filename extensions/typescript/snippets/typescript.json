@@ -136,7 +136,7 @@
 	"For Loop": {
 		"prefix": "for",
 		"body": [
-			"for (var ${1:index} = 0; ${1:index} < ${2:array}.length; ${1:index}++) {",
+			"for (let ${1:index} = 0; ${1:index} < ${2:array}.length; ${1:index}++) {",
 			"\tvar ${3:element} = ${2:array}[${1:index}];",
 			"\t$0",
 			"}"
@@ -163,6 +163,15 @@
 			"}"
 		],
 		"description": "For-In Loop"
+	},
+	"For-Of Loop": {
+		"prefix": "forof",
+		"body": [
+			"for (const ${1:iterator} of ${2:object}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "For-Of Loop"
 	},
 	"Function Statement": {
 		"prefix": "function",
@@ -196,7 +205,7 @@
 	"New Statement": {
 		"prefix": "new",
 		"body": [
-			"var ${1:name} = new ${2:type}(${3:arguments});$0"
+			"const ${1:name} = new ${2:type}(${3:arguments});$0"
 		],
 		"description": "New Statement"
 	},
@@ -246,7 +255,7 @@
 	"Set Timeout Function": {
 		"prefix": "settimeout",
 		"body": [
-			"setTimeout(function() {",
+			"setTimeout(() => {",
 			"\t$0",
 			"}, ${1:timeout});"
 		],
