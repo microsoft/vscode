@@ -429,7 +429,7 @@ export interface MainThreadWindowShape extends IDisposable {
 // -- extension host
 
 export interface ExtHostCommandsShape {
-	$executeContributedCommand<T>(id: string, ...args: any[]): Thenable<T>;
+	$executeContributedCommand<T>(id: string, ...args: any[]): Thenable<void>;
 	$getContributedCommandHandlerDescriptions(): TPromise<{ [id: string]: string | ICommandHandlerDescription }>;
 }
 

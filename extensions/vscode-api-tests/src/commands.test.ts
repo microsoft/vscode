@@ -56,6 +56,22 @@ suite('commands namespace tests', () => {
 		});
 	});
 
+	test('command with return-value', function () {
+
+		let registration = commands.registerCommand('t1', function () {
+			return new Set<number>().add(1).add(2);
+		});
+
+		return commands.executeCommand('t1', 'start').then(value => {
+			registration.dispose();
+
+			assert.ok(value instanceof Set);
+			assert.equal((<Set<number>>value).size, 2);
+			assert.equal((<Set<number>>value).has(1), true);
+			assert.equal((<Set<number>>value).has(2), true);
+		});
+	});
+
 	test('editorCommand with extra args', function () {
 
 		let args: IArguments;

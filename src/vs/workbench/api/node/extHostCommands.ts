@@ -74,7 +74,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		if (this._commands.has(id)) {
 			// we stay inside the extension host and support
 			// to pass any kind of parameters around
-			return this.$executeContributedCommand<T>(id, ...args);
+			return this._executeContributedCommand<T>(id, ...args);
 
 		} else {
 			// automagically convert some argument types
@@ -96,10 +96,9 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 			return this._proxy.$executeCommand<T>(id, args);
 		}
-
 	}
 
-	$executeContributedCommand<T>(id: string, ...args: any[]): Thenable<T> {
+	private _executeContributedCommand<T>(id: string, ...args: any[]): Thenable<T> {
 		let command = this._commands.get(id);
 		if (!command) {
 			return TPromise.wrapError<T>(new Error(`Contributed command '${id}' does not exist.`));
@@ -131,6 +130,10 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 			// }
 			return TPromise.wrapError<T>(new Error(`Running the contributed command:'${id}' failed.`));
 		}
+	}
+
+	$executeContributedCommand<T>(id: string, ...args: any[]): Thenable<void> {
+		return this._executeContributedCommand(id, ...args).then(result => void 0);
 	}
 
 	getCommands(filterUnderscoreCommands: boolean = false): Thenable<string[]> {
