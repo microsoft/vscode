@@ -80,7 +80,14 @@ export interface IWorkbenchSearchConfiguration extends ISearchConfiguration {
 		},
 		exclude: glob.IExpression,
 		useRipgrep: boolean,
+		/**
+		 * Use ignore file for text search.
+		 */
 		useIgnoreFilesByDefault: boolean,
+		/**
+		 * Use ignore file for file search.
+		 */
+		useIgnoreFiles: boolean,
 		followSymlinks: boolean;
 	};
 }

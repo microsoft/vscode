@@ -394,8 +394,14 @@ configurationRegistry.registerConfiguration({
 		},
 		'search.useIgnoreFilesByDefault': {
 			'type': 'boolean',
-			'description': nls.localize('useIgnoreFilesByDefault', "Controls whether to use .gitignore and .ignore files by default when searching in a new workspace."),
+			'description': nls.localize('useIgnoreFilesByDefault', "Controls whether to use .gitignore and .ignore files by default when searching for text in a new workspace."),
 			'default': false
+		},
+		'search.useIgnoreFiles': {
+			'type': 'boolean',
+			'description': nls.localize('useIgnoreFiles', "Controls whether to use .gitignore and .ignore files when searching for files."),
+			'default': false,
+			'scope': ConfigurationScope.RESOURCE
 		},
 		'search.quickOpen.includeSymbols': {
 			'type': 'boolean',

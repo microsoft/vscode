@@ -281,6 +281,7 @@ export class DiskSearch implements ISearchResultProvider {
 						excludePattern: q.excludePattern,
 						includePattern: q.includePattern,
 						fileEncoding: q.fileEncoding,
+						disregardIgnoreFiles: q.disregardIgnoreFiles,
 						folder: q.folder.fsPath
 					});
 				}
