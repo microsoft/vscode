@@ -79,6 +79,7 @@ export class ProxyAuthHandler {
 		const onWindowClose = () => cb('', '');
 		win.on('close', onWindowClose);
 
+		win.setMenu(null);
 		win.loadURL(url);
 		win.webContents.executeJavaScript(javascript, true).then(({ username, password }: Credentials) => {
 			cb(username, password);
