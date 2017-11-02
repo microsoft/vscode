@@ -48,9 +48,7 @@ const actionOptions = { icon: true, label: true };
 
 export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
-	private showRecommendedLabel: boolean;
 	constructor(
-		showRecommendedLabel: boolean,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IMessageService private messageService: IMessageService,
@@ -58,9 +56,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		@IExtensionService private extensionService: IExtensionService,
 		@IExtensionTipsService private extensionTipsService: IExtensionTipsService,
 		@IThemeService private themeService: IThemeService
-	) {
-		this.showRecommendedLabel = showRecommendedLabel;
-	}
+	) { }
 
 	get templateId() { return 'extension'; }
 
@@ -167,12 +163,10 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		removeClass(data.root, 'recommended');
 
 		const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
-		if (extRecommendations[extension.id.toLowerCase()] && !isInstalled) {
+		if (extRecommendations[extension.id.toLowerCase()]) {
 			data.root.setAttribute('aria-label', extension.displayName + '. ' + extRecommendations[extension.id]);
-			if (this.showRecommendedLabel) {
-				addClass(data.root, 'recommended');
-				data.root.title = extRecommendations[extension.id.toLowerCase()];
-			}
+			addClass(data.root, 'recommended');
+			data.root.title = extRecommendations[extension.id.toLowerCase()];
 		}
 
 		data.name.textContent = extension.displayName;

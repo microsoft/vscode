@@ -81,15 +81,11 @@ export class ExtensionsListView extends ViewsViewletPanel {
 		this.disposables.push(attachBadgeStyler(this.badge, this.themeService));
 	}
 
-	showRecommendedLabel() {
-		return true;
-	}
-
 	renderBody(container: HTMLElement): void {
 		this.extensionsList = append(container, $('.extensions-list'));
 		this.messageBox = append(container, $('.message'));
 		const delegate = new Delegate();
-		const renderer = this.instantiationService.createInstance(Renderer, this.showRecommendedLabel());
+		const renderer = this.instantiationService.createInstance(Renderer);
 		this.list = new PagedList(this.extensionsList, delegate, [renderer], {
 			ariaLabel: localize('extensions', "Extensions"),
 			keyboardSupport: false
@@ -541,11 +537,6 @@ export class InstalledExtensionsView extends ExtensionsListView {
 		searchInstalledQuery = query ? searchInstalledQuery + ' ' + query : searchInstalledQuery;
 		return super.show(searchInstalledQuery);
 	}
-
-	showRecommendedLabel() {
-		return false;
-	}
-
 }
 
 export class RecommendedExtensionsView extends ExtensionsListView {
@@ -553,11 +544,6 @@ export class RecommendedExtensionsView extends ExtensionsListView {
 	async show(query: string): TPromise<IPagedModel<IExtension>> {
 		return super.show(!query.trim() ? '@recommended:all' : '@recommended');
 	}
-
-	showRecommendedLabel() {
-		return false;
-	}
-
 }
 
 export class WorkspaceRecommendedExtensionsView extends ExtensionsListView {
@@ -588,10 +574,6 @@ export class WorkspaceRecommendedExtensionsView extends ExtensionsListView {
 		let model = await super.show('@recommended:workspace');
 		this.setExpanded(model.length > 0);
 		return model;
-	}
-
-	showRecommendedLabel() {
-		return false;
 	}
 
 }
