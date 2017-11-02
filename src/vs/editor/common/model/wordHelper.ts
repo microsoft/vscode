@@ -24,7 +24,7 @@ function createWordRegExp(allowInWords: string = ''): RegExp {
 		}
 		source += '\\' + usualSeparators[i];
 	}
-	source += '\\s]+)';
+	source += '[:^ascii:]\\s]+)';
 	return new RegExp(source, 'g');
 }
 
