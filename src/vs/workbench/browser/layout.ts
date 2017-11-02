@@ -163,8 +163,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	}
 
 	private set panelHeight(value: number) {
-		const maxPanelHeight = this.sidebarHeight - this.editorCountForHeight * this.partLayoutInfo.editor.minHeight;
-		this._panelHeight = Math.min(maxPanelHeight, Math.max(this.partLayoutInfo.panel.minHeight, value));
+		this._panelHeight = Math.min(this.computeMaxPanelHeight(), Math.max(this.partLayoutInfo.panel.minHeight, value));
 	}
 
 	private get panelWidth(): number {
@@ -177,9 +176,16 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	}
 
 	private set panelWidth(value: number) {
-		const sidebarVisible = this.partService.isVisible(Parts.SIDEBAR_PART) ? 1 : 0;
-		const maxPanelWidth = this.workbenchSize.width - this.editorCountForWidth * this.partLayoutInfo.editor.minWidth - this.partLayoutInfo.sidebar.minWidth * sidebarVisible - this.activitybarWidth;
-		this._panelWidth = Math.min(maxPanelWidth, Math.max(this.partLayoutInfo.panel.minWidth, value));
+		this._panelWidth = Math.min(this.computeMaxPanelWidth(), Math.max(this.partLayoutInfo.panel.minWidth, value));
+	}
+
+	private computeMaxPanelWidth(): number {
+		const minSidebarSize = this.partService.isVisible(Parts.SIDEBAR_PART) ? (this.partService.getSideBarPosition() === Position.LEFT ? this.partLayoutInfo.sidebar.minWidth : this.sidebarWidth) : 0;
+		return Math.max(this.partLayoutInfo.panel.minWidth, this.workbenchSize.width - this.editorCountForWidth * this.partLayoutInfo.editor.minWidth - minSidebarSize - this.activitybarWidth);
+	}
+
+	private computeMaxPanelHeight(): number {
+		return Math.max(this.partLayoutInfo.panel.minHeight, this.sidebarHeight - this.editorCountForHeight * this.partLayoutInfo.editor.minHeight);
 	}
 
 	private get sidebarWidth(): number {
@@ -454,8 +460,8 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		// Panel part
 		let panelHeight: number;
 		let panelWidth: number;
-		const maxPanelHeight = Math.max(this.partLayoutInfo.panel.minHeight, sidebarSize.height - this.editorCountForHeight * this.partLayoutInfo.editor.minHeight);
-		const maxPanelWidth = Math.max(this.partLayoutInfo.panel.minWidth, this.workbenchSize.width - activityBarSize.width - (isSidebarHidden ? 0 : this.partLayoutInfo.sidebar.minWidth) - this.editorCountForWidth * this.partLayoutInfo.editor.minWidth);
+		const maxPanelHeight = this.computeMaxPanelHeight();
+		const maxPanelWidth = this.computeMaxPanelWidth();
 
 		if (isPanelHidden) {
 			panelHeight = 0;
