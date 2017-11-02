@@ -73,7 +73,11 @@ class DecorationRule {
 		}
 
 		// bubble badge
-		createCSSRule(`.${this.bubbleBadgeClassName}::after`, `content: "●"; color: ${theme.getColor(color) || 'inherit'}; font-size: 75%; padding-right: 13px; opacity: 0.35;`, element);
+		createCSSRule(
+			`.${this.bubbleBadgeClassName}::after`,
+			`content: "\uf052"; color: ${theme.getColor(color) || 'inherit'}; font-family: octicons; font-size: 14px; padding-right: 14px; opacity: 0.4;`,
+			element
+		);
 	}
 
 	removeCSSRules(element: HTMLStyleElement): void {
