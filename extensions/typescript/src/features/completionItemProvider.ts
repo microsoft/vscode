@@ -209,7 +209,10 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 		}
 
 		try {
-			const args: CompletionsRequestArgs = vsPositionToTsFileLocation(file, position);
+			const args = {
+				...vsPositionToTsFileLocation(file, position),
+				includeExternalModuleExports: config.autoImportSuggestions
+			} as CompletionsRequestArgs;
 			const msg = await this.client.execute('completions', args, token);
 			// This info has to come from the tsserver. See https://github.com/Microsoft/TypeScript/issues/2831
 			// let isMemberCompletion = false;
