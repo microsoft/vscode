@@ -1712,7 +1712,7 @@
 			]
 		},
 		"variables": {
-			"match": "(\\$|\\-\\-)[A-Za-z0-9_-]+\\b",
+			"match": "(\\$|(?<!&)\\-\\-)[A-Za-z0-9_-]+\\b",
 			"name": "variable.scss"
 		}
 	}
