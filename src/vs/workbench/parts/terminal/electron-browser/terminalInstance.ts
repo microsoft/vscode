@@ -111,8 +111,6 @@ export class TerminalInstance implements ITerminalInstance {
 	private _widgetManager: TerminalWidgetManager;
 	private _linkHandler: TerminalLinkHandler;
 
-	private _selectionStarted: boolean;
-
 	public get id(): number { return this._id; }
 	public get processId(): number { return this._processId; }
 	public get onDisposed(): Event<ITerminalInstance> { return this._onDisposed.event; }
@@ -150,7 +148,6 @@ export class TerminalInstance implements ITerminalInstance {
 		this._id = TerminalInstance._idCounter++;
 		this._terminalHasTextContextKey = KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED.bindTo(this._contextKeyService);
 		this._preLaunchInputQueue = '';
-		this._selectionStarted = false;
 
 		this._onDisposed = new Emitter<TerminalInstance>();
 		this._onDataForApi = new Emitter<{ instance: ITerminalInstance, data: string }>();
@@ -333,18 +330,12 @@ export class TerminalInstance implements ITerminalInstance {
 		});
 
 		this._instanceDisposables.push(dom.addDisposableListener(this._xterm.element, 'mousedown', (event: KeyboardEvent) => {
-			// Track down the mousedown event since we may not have the corresponding mouseup:
-			// in case the mouse is released outside of _xterm.element.
-			this._selectionStarted = true;
-		}));
-
-		// We need to listen to the mouseup event up to the document since the user may release the mouse button anywhere
-		// outside of _xterm.element.
-		this._instanceDisposables.push(dom.addDisposableListener(document, 'mouseup', (event: KeyboardEvent) => {
-			// Only refresh selection if the mouseup event happened inside _xterm.element.
-			if (this._selectionStarted === true) {
+			// We need to listen to the mouseup event up to the document since the user may release the mouse button anywhere
+			// outside of _xterm.element.
+			const listener = dom.addDisposableListener(document, 'mouseup', (event: KeyboardEvent) => {
 				setTimeout(() => this._refreshSelectionContextKey(), 0);
-			}
+				listener.dispose();
+			});
 		}));
 
 		// xterm.js currently drops selection on keyup as we need to handle this case.
@@ -571,7 +562,6 @@ export class TerminalInstance implements ITerminalInstance {
 		const isActive = activePanel && activePanel.getId() === TERMINAL_PANEL_ID;
 
 		this._terminalHasTextContextKey.set(isActive && this.hasSelection());
-		this._selectionStarted = false;
 	}
 
 	protected _getCwd(shell: IShellLaunchConfig, root: Uri): string {
