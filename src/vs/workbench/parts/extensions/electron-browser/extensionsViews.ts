@@ -417,19 +417,10 @@ export class ExtensionsListView extends ViewsViewletPanel {
 
 	// Sorts the firsPage of the pager in the same order as given array of extension ids
 	private sortFirstPage(pager: IPager<IExtension>, ids: string[]) {
-		if (ids.length !== pager.pageSize) {
-			return;
-		}
 		ids = ids.map(x => x.toLowerCase());
-		let newFirstPage = new Array(pager.pageSize);
-		for (let i = 0; i < pager.pageSize; i++) {
-			let index = ids.indexOf(pager.firstPage[i].id.toLowerCase());
-			if (index === -1) {
-				return; // Something went wrong, Abort! Abort!
-			}
-			newFirstPage[index] = pager.firstPage[i];
-		}
-		pager.firstPage = newFirstPage;
+		pager.firstPage.sort((a, b) => {
+			return ids.indexOf(a.id.toLowerCase()) < ids.indexOf(b.id.toLowerCase()) ? -1 : 1;
+		});
 	}
 
 	private setModel(model: IPagedModel<IExtension>) {
