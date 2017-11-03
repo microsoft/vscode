@@ -425,11 +425,11 @@ class LanguageProvider {
 // Style check diagnostics that can be reported as warnings
 const styleCheckDiagnostics = [
 	6133, 	// variable is declared but never used
-	6138, 	// property is declared but is value is never read
+	6138, 	// property is declared but its value is never read
 	7027,	// unreachable code detected
 	7028,	// unused label
-	7029,	// fallthrough case in switch
-	7030	// not call code paths return a value
+	7029,	// fall through case in switch
+	7030	// not all code paths return a value
 ];
 
 class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
