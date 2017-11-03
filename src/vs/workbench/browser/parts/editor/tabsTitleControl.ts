@@ -576,13 +576,19 @@ export class TabsTitleControl extends TitleControl {
 			tab.blur();
 
 			if (e instanceof MouseEvent && e.button !== 0) {
-				return; // only for left mouse click
+				if (e.button === 1) {
+					return false; // required due to https://github.com/Microsoft/vscode/issues/16690
+				}
+
+				return void 0; // only for left mouse click
 			}
 
 			const { editor, position } = this.toTabContext(index);
 			if (!this.isTabActionBar((e.target || e.srcElement) as HTMLElement)) {
 				setTimeout(() => this.editorService.openEditor(editor, null, position).done(null, errors.onUnexpectedError)); // timeout to keep focus in editor after mouse up
 			}
+
+			return void 0;
 		};
 
 		const showContextMenu = (e: Event) => {
