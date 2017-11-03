@@ -1144,10 +1144,20 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 					return this.extensionsWorkbenchService.queryGallery({ names: toInstall, source: 'install-all-workspace-recommendations' }).then(pager => {
 						let installPromises = [];
 						let model = new PagedModel(pager);
-						for (let i = 0; i < pager.pageSize; i++) {
-							installPromises.push(model.resolve(i).then(e => this.extensionsWorkbenchService.install(e)));
+						let extensionsWithDependencies = [];
+						for (let i = 0; i < pager.total; i++) {
+							installPromises.push(model.resolve(i).then(e => {
+								if (e.dependencies && e.dependencies.length > 0) {
+									extensionsWithDependencies.push(e);
+									return TPromise.as(null);
+								} else {
+									return this.extensionsWorkbenchService.install(e);
+								}
+							}));
 						}
-						return TPromise.join(installPromises);
+						return TPromise.join(installPromises).then(() => {
+							return TPromise.join(extensionsWithDependencies.map(e => this.extensionsWorkbenchService.install(e)));
+						});
 					});
 				});
 		});
