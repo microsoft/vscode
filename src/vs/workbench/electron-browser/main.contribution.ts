@@ -206,21 +206,6 @@ let workbenchProperties: { [path: string]: IJSONSchema; } = {
 		'description': nls.localize('openDefaultSettings', "Controls if opening settings also opens an editor showing all default settings."),
 		'default': true
 	},
-	'workbench.settings.experimentalFuzzySearchEndpoint': {
-		'type': 'string',
-		'description': nls.localize('experimentalFuzzySearchEndpoint', "Indicates the endpoint to use for the experimental settings search."),
-		'default': ''
-	},
-	'workbench.settings.experimentalFuzzySearchKey': {
-		'type': 'string',
-		'description': nls.localize('experimentalFuzzySearchKey', "Indicates the key to use for the experimental settings search."),
-		'default': ''
-	},
-	'workbench.settings.experimentalFuzzySearchBoost': {
-		'type': 'number',
-		'description': 'Indicates the amount to boost the "literal" component of the query. Temporary.',
-		'default': 10
-	},
 	'workbench.sideBar.location': {
 		'type': 'string',
 		'enum': ['left', 'right'],
@@ -250,14 +235,34 @@ let workbenchProperties: { [path: string]: IJSONSchema; } = {
 	}
 };
 
+if (product.quality !== 'stable') {
+	workbenchProperties['workbench.settings.experimentalFuzzySearchEndpoint'] = {
+		'type': 'string',
+		'description': nls.localize('experimentalFuzzySearchEndpoint', "Indicates the endpoint to use for the experimental settings search."),
+		'default': ''
+	};
+
+	workbenchProperties['workbench.settings.experimentalFuzzySearchKey'] = {
+		'type': 'string',
+		'description': nls.localize('experimentalFuzzySearchKey', "Indicates the key to use for the experimental settings search."),
+		'default': ''
+	};
+
+	workbenchProperties['workbench.settings.experimentalFuzzySearchBoost'] = {
+		'type': 'number',
+		'description': 'Indicates the amount to boost the "literal" component of the query. Temporary.',
+		'default': 10
+	};
+}
+
 if (isMacintosh) {
 	workbenchProperties['workbench.fontAliasing'] = {
 		'type': 'string',
 		'enum': ['default', 'antialiased', 'none'],
 		'default': 'default',
 		'description':
-		nls.localize('fontAliasing',
-			`Controls font aliasing method in the workbench.
+			nls.localize('fontAliasing',
+				`Controls font aliasing method in the workbench.
 - default: Sub-pixel font smoothing. On most non-retina displays this will give the sharpest text
 - antialiased: Smooth the font on the level of the pixel, as opposed to the subpixel. Can make the font appear lighter overall
 - none: Disables font smoothing. Text will show with jagged sharp edges`),
@@ -297,13 +302,13 @@ let properties: { [path: string]: IJSONSchema; } = {
 		],
 		'default': 'off',
 		'description':
-		nls.localize('openFilesInNewWindow',
-			`Controls if files should open in a new window.
+			nls.localize('openFilesInNewWindow',
+				`Controls if files should open in a new window.
 - default: files will open in the window with the files' folder open or the last active window unless opened via the dock or from finder (macOS only)
 - on: files will open in a new window
 - off: files will open in the window with the files' folder open or the last active window
 Note that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).`
-		)
+			)
 	},
 	'window.openFoldersInNewWindow': {
 		'type': 'string',

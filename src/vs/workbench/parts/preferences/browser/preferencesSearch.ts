@@ -14,6 +14,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IMatch, or, matchesContiguousSubString, matchesPrefix, matchesCamelCase, matchesWords } from 'vs/base/common/filters';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export interface IEndpointDetails {
 	urlBase: string;
@@ -25,11 +26,18 @@ export class PreferencesSearchProvider {
 	private _onRemoteSearchEnablementChanged = new Emitter<boolean>();
 	public onRemoteSearchEnablementChanged: Event<boolean> = this._onRemoteSearchEnablementChanged.event;
 
-	constructor( @IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService) {
+	constructor(
+		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
+		@IEnvironmentService private environmentService: IEnvironmentService
+	) {
 		configurationService.onDidChangeConfiguration(() => this._onRemoteSearchEnablementChanged.fire(this.remoteSearchEnabled));
 	}
 
 	get remoteSearchEnabled(): boolean {
+		if (this.environmentService.appQuality === 'stable') {
+			return false;
+		}
+
 		const endpoint = this.endpoint;
 		return !!endpoint.urlBase && !!endpoint.key;
 	}
