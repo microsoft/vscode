@@ -116,7 +116,7 @@ export class FileStat implements IFileStat {
 	}
 
 	public get nonexistentRoot(): boolean {
-		return this.isRoot && !this.isDirectoryResolved;
+		return this.isRoot && !this.isDirectoryResolved && this.isDirectory;
 	}
 
 	public getId(): string {
