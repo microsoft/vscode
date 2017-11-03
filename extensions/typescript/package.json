@@ -166,6 +166,12 @@
           "description": "%typescript.useCodeSnippetsOnMethodSuggest.dec%",
           "scope": "resource"
         },
+        "typescript.reportStyleChecksAsWarnings": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.reportStyleChecksAsWarnings%",
+          "scope": "window"
+        },
         "typescript.validate.enable": {
           "type": "boolean",
           "default": true,
