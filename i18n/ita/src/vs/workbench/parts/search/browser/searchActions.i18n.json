@@ -12,6 +12,8 @@
 	"previousSearchTerm": "Mostra il termine di ricerca precedente",
 	"focusNextInputBox": "Sposta lo stato attivo sulla casella di input successiva",
 	"focusPreviousInputBox": "Sposta lo stato attivo sulla casella di input precedente",
+	"showSearchViewlet": "Mostra Cerca",
+	"findInFiles": "Cerca nei file",
 	"replaceInFiles": "Sostituisci nei file",
 	"findInWorkspace": "Trova nell'area di lavoro...",
 	"findInFolder": "Trova nella cartella...",

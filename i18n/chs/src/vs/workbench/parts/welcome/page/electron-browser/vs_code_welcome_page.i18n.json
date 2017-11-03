@@ -9,7 +9,6 @@
 	"welcomePage.start": "开始",
 	"welcomePage.newFile": "新建文件",
 	"welcomePage.openFolder": "打开文件夹...",
-	"welcomePage.cloneGitRepository": "克隆 Git 存储库...",
 	"welcomePage.addWorkspaceFolder": "添加工作区文件夹...",
 	"welcomePage.recent": "最近",
 	"welcomePage.moreRecent": "更多...",

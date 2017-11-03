@@ -20,7 +20,6 @@
 	"editorGroupBorder": "Farbe zum Trennen mehrerer Editor-Gruppen. Editor-Gruppen sind die Container der Editoren.",
 	"editorDragAndDropBackground": " Hintergrundfarbe beim Ziehen von Editoren. Die Farbe muss transparent sein, damit der Editor-Inhalt noch sichtbar sind.",
 	"panelBackground": "Hintergrundfarbe des Panels. Panels werden unter dem Editorbereich angezeigt und enthalten Ansichten wie die Ausgabe und das integrierte Terminal.",
-	"panelBorder": "Farbe des oberen Panelrahmens, der das Panel vom Editor abtrennt. Panels werden unter dem Editorbereich angezeigt und enthalten Ansichten wie die Ausgabe und das integrierten Terminal.",
 	"panelActiveTitleForeground": "Titelfarbe für den aktiven Bereich. Bereiche werden unter dem Editorbereich angezeigt und enthalten Ansichten wie Ausgabe und integriertes Terminal.",
 	"panelInactiveTitleForeground": "Titelfarbe für den inaktiven Bereich. Bereiche werden unter dem Editorbereich angezeigt und enthalten Ansichten wie Ausgabe und integriertes Terminal.",
 	"panelActiveTitleBorder": "Rahmenfarbe für den Titel des aktiven Bereichs. Bereiche werden unter dem Editorbereich angezeigt und enthalten Ansichten wie Ausgabe und integriertes Terminal.",

@@ -13,7 +13,7 @@
 	"compoundMustHaveConfigurations": "Composição deve ter o atributo \"configurations\" definido para iniciar várias configurações.",
 	"configMissing": "Configuração '{0}' não tem 'launch.json'.",
 	"debugRequestNotSupported": "Atributo '{0}' tem um valor sem suporte '{1}' na configuração de depuração escolhida.",
-	"debugRequesMissing": "Atributo '{0}' está faltando na configuração de depuração escolhida.",
+	"debugRequesMissing": "Atributo '{0}' está faltando para a configuração de depuração escolhida.",
 	"debugTypeNotSupported": "Tipo de depuração configurado '{0}' não é suportado.",
 	"debugTypeMissing": "Falta a propriedade 'tipo' para a configuração de lançamento escolhida.",
 	"debugAnyway": "Depurar mesmo assim",

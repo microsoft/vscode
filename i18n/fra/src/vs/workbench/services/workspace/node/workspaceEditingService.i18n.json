@@ -10,5 +10,6 @@
 	"close": "Fermer",
 	"enterWorkspace.close": "Fermer",
 	"enterWorkspace.dontShowAgain": "Ne plus afficher",
-	"enterWorkspace.moreInfo": "Informations"
+	"enterWorkspace.moreInfo": "Informations",
+	"enterWorkspace.prompt": "En savoir plus sur l’utilisation de dossiers multiples dans VS Code."
 }

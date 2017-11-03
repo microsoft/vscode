@@ -25,6 +25,8 @@
 	"preserveInput": "控制是否在再次打开命令面板时恢复上一次的输入内容。",
 	"closeOnFocusLost": "控制 Quick Open 是否应在失去焦点时自动关闭。",
 	"openDefaultSettings": "控制打开设置时是否打开显示所有默认设置的编辑器。",
+	"experimentalFuzzySearchEndpoint": "表示用于实验性设置搜索的端点。",
+	"experimentalFuzzySearchKey": "表示用于实验性设置搜索的密钥。",
 	"sideBarLocation": "控制边栏的位置。它可显示在工作台的左侧或右侧。",
 	"panelLocation": "控制面板的位置。它可显示在工作台的底部或右侧。",
 	"statusBarVisibility": "控制工作台底部状态栏的可见性。",

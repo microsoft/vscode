@@ -18,5 +18,6 @@
 	"saveWorkspace": "Çalışma Alanını Kaydet",
 	"openWorkspaceAction": "Çalışma Alanı Aç...",
 	"openWorkspaceConfigFile": "Çalışma Alanı Yapılandırma Dosyasını Aç",
+	"openFolderAsWorkspaceInNewWindow": "Klasörü Yeni Pencerede Çalışma Alanı Olarak Aç",
 	"workspaceFolderPickerPlaceholder": "Çalışma alanı klasörü seçin"
 }

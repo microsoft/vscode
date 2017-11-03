@@ -20,7 +20,6 @@
 	"editorGroupBorder": "Colore per separare più gruppi di editor l'uno dall'altro. I gruppi di editor sono i contenitori degli editor.",
 	"editorDragAndDropBackground": "Colore di sfondo quando si trascinano gli editor. Il colore dovrebbe avere una trasparenza impostata in modo che il contenuto dell'editor sia ancora visibile.",
 	"panelBackground": "Colore di sfondo dei pannelli. I pannelli sono visualizzati sotto l'area degli editor e contengono visualizzazioni quali quella di output e del terminale integrato.",
-	"panelBorder": "Colore del bordo dei pannelli nella parte superiore di separazione dall'editor. I pannelli sono visualizzati sotto l'area degli editor e contengono visualizzazioni quali quella di output e del terminale integrato.",
 	"panelActiveTitleForeground": "Colore del titolo del pannello attivo. I pannelli sono visualizzati sotto l'area degli editor e contengono visualizzazioni quali quella di output e quella del terminale integrato.",
 	"panelInactiveTitleForeground": "Colore del titolo del pannello inattivo. I pannelli sono visualizzati sotto l'area degli editor e contengono visualizzazioni quali quella di output e quella del terminale integrato.",
 	"panelActiveTitleBorder": "Colore del bordo del titolo del pannello attivo. I pannelli sono visualizzati sotto l'area degli editor e contengono visualizzazioni quali quella di output e del terminale integrato.",

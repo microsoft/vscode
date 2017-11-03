@@ -13,7 +13,6 @@
 	"compoundMustHaveConfigurations": "L'attribut \"configurations\" du composé doit être défini pour permettre le démarrage de plusieurs configurations.",
 	"configMissing": "Il manque la configuration '{0}' dans 'launch.json'.",
 	"debugRequestNotSupported": "L’attribut '{0}' a une valeur '{1}' non prise en charge dans la configuration de débogage sélectionnée.",
-	"debugRequesMissing": "L’attribut '{0}' est introuvable dans la configuration de débogage sélectionnée.",
 	"debugTypeNotSupported": "Le type de débogage '{0}' configuré n'est pas pris en charge.",
 	"debugTypeMissing": "La propriété 'type' est manquante pour la configuration de lancement sélectionnée.",
 	"debugAnyway": "Déboguer quand même",

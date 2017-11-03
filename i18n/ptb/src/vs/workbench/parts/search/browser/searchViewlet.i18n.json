@@ -10,7 +10,7 @@
 	"searchScope.excludes": "arquivos a serem excluídos",
 	"label.excludes": "Pesquisa de Padrões de Exclusão",
 	"replaceAll.confirmation.title": "Substituir Tudo",
-	"replaceAll.confirm.button": "Substituir",
+	"replaceAll.confirm.button": "&&Substituir",
 	"replaceAll.occurrence.file.message": "Substituída {0} ocorrência no arquivo {1} com '{2}'.",
 	"removeAll.occurrence.file.message": "Substituída {0} ocorrência no arquivo {1}'.",
 	"replaceAll.occurrence.files.message": "Substituída {0} ocorrência no arquivo {1} com '{2}'.",

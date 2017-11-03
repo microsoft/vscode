@@ -13,7 +13,6 @@
 	"compoundMustHaveConfigurations": "Bileşik, birden çok yapılandırmayı başlatmak için \"configurations\" özniteliği bulundurmalıdır.",
 	"configMissing": "'launch.json' dosyasında '{0}' yapılandırması eksik.",
 	"debugRequestNotSupported": "Seçilen hata ayıklama yapılandırılmasındaki `{0}` özniteliği desteklenmeyen `{1}` değeri içeriyor.",
-	"debugRequesMissing": "`{0}` özniteliği seçilen hata ayıklama yapılandırılmasında eksik.",
 	"debugTypeNotSupported": "Yapılandırılan hata ayıklama türü '{0}', desteklenmiyor.",
 	"debugTypeMissing": "Seçilen başlatma yapılandırmasında `type` özelliği eksik.",
 	"debugAnyway": "Yine de Hata Ayıkla",

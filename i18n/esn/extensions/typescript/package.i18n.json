@@ -44,6 +44,10 @@
 	"typescript.npm": "Especifica la ruta de acceso al archivo ejecutable de NPM usada para la adquisición automática de tipos. Requiere TypeScript >= 2.3.4.",
 	"typescript.check.npmIsInstalled": "Compruebe si NPM está instalado para la adquisición automática de tipos.",
 	"javascript.nameSuggestions": "Habilitar/deshabilitar nombres únicos de la lista de sugerencias en los archivos de JavaScript. ",
+	"typescript.tsc.autoDetect": "Controla la auto detección de tareas del CAC. 'off' inhabilita esta función. 'build' crea una ejecución de compilación de tareas. 'watch' sólo crea compilación y 'watch tasks' 'on' crea tanto construir y ver tareas. Por defecto = 'on'. ",
 	"typescript.problemMatchers.tsc.label": "Problemas de TypeScript",
-	"typescript.problemMatchers.tscWatch.label": "Problemas de TypeScript (modo de inspección)"
+	"typescript.problemMatchers.tscWatch.label": "Problemas de TypeScript (modo de inspección)",
+	"typescript.quickSuggestionsForPaths": "Activar o desactivar rápidas sugerencias al escribir una ruta de importación.",
+	"typescript.locale": "Establece la configuración regional para reportar errores de TypeScript. Requiere TypeScript > = 2.6.0. Por defecto, utiliza el valor 'null'  de VS Code para errores de TypeScript.",
+	"javascript.implicitProjectConfig.experimentalDecorators": "Activar/desactivar 'experimentalDecorators' para los archivos JavaScript que no son parte de un proyecto. Los archivos jsconfig.json o tsconfig.json reemplazan esta configuración. Requiere inicio > = 2.3.1. "
 }

@@ -11,6 +11,7 @@
 	"developer": "開發人員",
 	"showEditorTabs": "控制已開啟的編輯器是否應顯示在索引標籤中。",
 	"workbench.editor.labelFormat.short": "顯示檔案的名稱，並在名稱後接著該檔案的目錄名稱。",
+	"workbench.editor.labelFormat.medium": "顯示檔案的名稱，並在名稱後接著該檔案與工作區資料夾的相對路徑。",
 	"workbench.editor.labelFormat.long": "顯示檔案的名稱，並在名稱後接著該檔案的絕對路徑。",
 	"tabDescription": "控制編輯器的標籤格式。變更此設定具有多項優點，例如可讓檔案的位置更加清楚:\n-簡短: 'parent'\n-中等: 'workspace/src/parent'\n-完整: '/home/user/workspace/src/parent'\n-預設: '.../parent'，當另一個索引標籤共用相同的標題，或若路徑停用，卻共用相關的工作區路徑時",
 	"editorTabCloseButton": "控制編輯器的索引標籤關閉按鈕位置，或在設為 'off' 時將其停用。",

@@ -13,6 +13,7 @@
 	"compoundMustHaveConfigurations": "Für den Verbund muss das Attribut \"configurations\" festgelegt werden, damit mehrere Konfigurationen gestartet werden können.",
 	"configMissing": "Konfiguration \"{0}\" fehlt in \"launch.json\".",
 	"debugTypeNotSupported": "Der konfigurierte Debugtyp \"{0}\" wird nicht unterstützt.",
+	"debugTypeMissing": "Fehlende Eigenschaft `type` für die ausgewählte Startkonfiguration.",
 	"debugAnyway": "Trotzdem debuggen",
 	"preLaunchTaskErrors": "Buildfehler während preLaunchTask \"{0}\".",
 	"preLaunchTaskError": "Buildfehler während preLaunchTask \"{0}\".",

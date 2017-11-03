@@ -15,6 +15,8 @@
 	"command.stageAll": "Almacenar todos los cambios",
 	"command.stageSelectedRanges": "Realizar copia intermedia de los intervalos seleccionados",
 	"command.revertSelectedRanges": "Revertir los intervalos seleccionados",
+	"command.stageChange": "Cambio de la etapa",
+	"command.revertChange": "Revertir el cambio",
 	"command.unstage": "Cancelar almacenamiento provisional de los cambios",
 	"command.unstageAll": "Cancelar almacenamiento provisional de todos los cambios",
 	"command.unstageSelectedRanges": "Cancelar almacenamiento provisional de los intervalos seleccionados",
@@ -59,5 +61,10 @@
 	"config.defaultCloneDirectory": "La ubicación predeterminada en la que se clona un repositorio git",
 	"config.enableSmartCommit": "Confirmar todos los cambios cuando no hay elementos almacenados provisionalmente.",
 	"config.enableCommitSigning": "Habilitar confirmar firma con GPG.",
-	"config.discardAllScope": "Controla qué cambios son descartados por el comando 'Descartar todos los cambios'. 'all' descarta todos los cambios. 'tracked' descarta sólo los ficheros en seguimiento. 'prompt' muestra un cuadro de diálogo para confirmar cada vez la acción ejecutada."
+	"config.discardAllScope": "Controla qué cambios son descartados por el comando 'Descartar todos los cambios'. 'all' descarta todos los cambios. 'tracked' descarta sólo los ficheros en seguimiento. 'prompt' muestra un cuadro de diálogo para confirmar cada vez la acción ejecutada.",
+	"config.decorations.enabled": "Controla si Git contribuye los colores y distintivos al explorador y a los editores abiertos.",
+	"colors.modified": "Color para recursos modificados.",
+	"colors.untracked": "Color para los recursos a los que no se les hace seguimiento.",
+	"colors.ignored": "Color para los recursos ignorados.",
+	"colors.conflict": "Color para los recursos con conflictos."
 }
