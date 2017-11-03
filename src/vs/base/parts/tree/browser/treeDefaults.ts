@@ -427,7 +427,7 @@ export class CollapseAllAction extends Action {
 			return TPromise.as(null); // Global action disabled if user is in edit mode from another action
 		}
 
-		this.viewer.collapseDeepestExpandedLevel();
+		this.viewer.collapseAll();
 		this.viewer.clearSelection();
 		this.viewer.clearFocus();
 		this.viewer.DOMFocus();

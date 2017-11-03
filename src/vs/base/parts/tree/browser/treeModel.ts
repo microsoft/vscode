@@ -893,14 +893,24 @@ export class TreeModel extends Events.EventEmitter {
 		return item.collapse(recursive);
 	}
 
+	public collapseAll(elements: any[] = null, recursive: boolean = false): WinJS.Promise {
+		if (!elements) {
+			elements = [this.input];
+			recursive = true;
+		}
+		var promises = [];
+		for (var i = 0, len = elements.length; i < len; i++) {
+			promises.push(this.collapse(elements[i], recursive));
+		}
+		return WinJS.Promise.join(promises);
+	}
+
 	public collapseDeepestExpandedLevel(): WinJS.Promise {
 		var levelToCollapse = this.findDeepestExpandedLevel(this.input, 0);
 
 		var items = [this.input];
 		for (var i = 0; i < levelToCollapse; i++) {
-			items = items
-				.map(node => node.getChildren())
-				.reduce((prev, current) => prev.concat(current), []);
+			items = arrays.flatten(items.map(node => node.getChildren()));
 		}
 
 		var promises = items.map(child => this.collapse(child, false));

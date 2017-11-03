@@ -18,7 +18,6 @@ import { SearchViewlet } from 'vs/workbench/parts/search/browser/searchViewlet';
 import { Match, FileMatch, FileMatchOrMatch, FolderMatch, RenderableMatch } from 'vs/workbench/parts/search/common/searchModel';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
-import { CollapseAllAction as TreeCollapseAction } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ResolvedKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
@@ -431,11 +430,27 @@ export class RefreshAction extends Action {
 	}
 }
 
-export class CollapseAllAction extends TreeCollapseAction {
+export class CollapseDeepestExpandedLevelAction extends Action {
+	private viewer: ITree;
 
-	constructor(viewlet: SearchViewlet) {
-		super(viewlet.getControl(), false);
+	constructor(viewlet: SearchViewlet, enabled: boolean = false) {
+		super('vs.tree.collapse', nls.localize('collapse', "Collapse"), 'monaco-tree-action collapse-all', enabled);
+		this.viewer = viewlet.getControl();
 		this.class = 'search-action collapse';
+	}
+
+	public run(context?: any): TPromise<any> {
+		if (this.viewer.getHighlight()) {
+			return TPromise.as(null); // Global action disabled if user is in edit mode from another action
+		}
+
+		this.viewer.collapseDeepestExpandedLevel();
+		this.viewer.clearSelection();
+		this.viewer.clearFocus();
+		this.viewer.DOMFocus();
+		this.viewer.focusFirst();
+
+		return TPromise.as(null);
 	}
 }
 
