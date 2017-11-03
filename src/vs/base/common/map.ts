@@ -518,17 +518,22 @@ export class TernarySearchTree<E> {
 	}
 
 	private _forEach(node: TernarySearchTreeNode<E>, parts: string[], callback: (value: E, index: string) => any) {
-		if (!node) {
-			return;
+		if (node) {
+			// left
+			this._forEach(node.left, parts, callback);
+
+			// node
+			parts.push(node.str);
+			if (node.element) {
+				callback(node.element, this._iter.join(parts));
+			}
+			// mid
+			this._forEach(node.mid, parts, callback);
+			parts.pop();
+
+			// right
+			this._forEach(node.right, parts, callback);
 		}
-		this._forEach(node.left, parts, callback);
-		this._forEach(node.right, parts, callback);
-		let newParts = parts.slice();
-		newParts.push(node.str);
-		if (node.element) {
-			callback(node.element, this._iter.join(newParts));
-		}
-		this._forEach(node.mid, newParts, callback);
 	}
 }
 
