@@ -82,6 +82,7 @@ class GitDecorationProvider implements DecorationProvider {
 		let newDecorations = new Map<string, DecorationData>();
 		this.collectDecorationData(this.repository.indexGroup, newDecorations);
 		this.collectDecorationData(this.repository.workingTreeGroup, newDecorations);
+		this.collectDecorationData(this.repository.mergeGroup, newDecorations);
 
 		let uris: Uri[] = [];
 		newDecorations.forEach((value, uriString) => {
