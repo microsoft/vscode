@@ -162,7 +162,7 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 
 	private createDefaultRecommendedExtensionsListViewDescriptor(): IViewDescriptor {
 		return {
-			id: 'extensions.defaultRecommendedList',
+			id: 'extensions.recommendedList',
 			name: localize('recommendedExtensions', "Recommended"),
 			location: ViewLocation.Extensions,
 			ctor: RecommendedExtensionsView,
