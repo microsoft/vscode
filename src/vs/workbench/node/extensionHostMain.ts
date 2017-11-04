@@ -224,12 +224,9 @@ export class ExtensionHostMain {
 		});
 
 		const folderQueries = this._workspace.folders.map(folder => ({ folder: folder.uri }));
-		const useRipgrep = folderQueries.every(folderQuery => {
-			const folderConfig = this._extHostConfiguration.getConfiguration('search', folderQuery.folder);
-			return folderConfig.get('useRipgrep', true);
-		});
-
-		const followSymlinks = this._extHostConfiguration.getConfiguration('search').get('followSymlinks', true);
+		const config = this._extHostConfiguration.getConfiguration('search');
+		const useRipgrep = config.get('useRipgrep', true);
+		const followSymlinks = config.get('followSymlinks', true);
 
 		const query: ISearchQuery = {
 			folderQueries,
