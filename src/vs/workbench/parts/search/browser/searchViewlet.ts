@@ -48,7 +48,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { PatternInputWidget, ExcludePatternInputWidget } from 'vs/workbench/parts/search/browser/patternInputWidget';
 import { SearchRenderer, SearchDataSource, SearchSorter, SearchAccessibilityProvider, SearchFilter } from 'vs/workbench/parts/search/browser/searchResultsView';
 import { SearchWidget, ISearchWidgetOptions } from 'vs/workbench/parts/search/browser/searchWidget';
-import { RefreshAction, CollapseAllAction, ClearSearchResultsAction } from 'vs/workbench/parts/search/browser/searchActions';
+import { RefreshAction, CollapseDeepestExpandedLevelAction, ClearSearchResultsAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import Severity from 'vs/base/common/severity';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -255,7 +255,7 @@ export class SearchViewlet extends Viewlet {
 		this.createSearchResultsView(builder);
 
 		this.actionRegistry = <any>{};
-		let actions: Action[] = [new CollapseAllAction(this), new RefreshAction(this), new ClearSearchResultsAction(this)];
+		let actions: Action[] = [new CollapseDeepestExpandedLevelAction(this), new RefreshAction(this), new ClearSearchResultsAction(this)];
 		actions.forEach((action) => {
 			this.actionRegistry[action.id] = action;
 		});

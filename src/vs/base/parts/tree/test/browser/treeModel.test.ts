@@ -635,6 +635,24 @@ suite('TreeModel - Expansion', () => {
 		});
 	});
 
+	test('collapseDeepestExpandedLevel', (done) => {
+		model.setInput(SAMPLE.DEEP2).done(() => {
+			model.expand(SAMPLE.DEEP2.children[0]).done(() => {
+				model.expand(SAMPLE.DEEP2.children[0].children[0]).done(() => {
+
+					assert(model.isExpanded(SAMPLE.DEEP2.children[0]));
+					assert(model.isExpanded(SAMPLE.DEEP2.children[0].children[0]));
+
+					model.collapseDeepestExpandedLevel().done(() => {
+						assert(model.isExpanded(SAMPLE.DEEP2.children[0]));
+						assert(!model.isExpanded(SAMPLE.DEEP2.children[0].children[0]));
+						done();
+					});
+				});
+			});
+		});
+	});
+
 	test('auto expand single child folders', (done) => {
 		model.setInput(SAMPLE.DEEP).done(() => {
 			model.expand(SAMPLE.DEEP.children[0]).done(() => {
