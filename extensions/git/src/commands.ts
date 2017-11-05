@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Uri, commands, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn, ProgressLocation, TextEditor } from 'vscode';
+import { Uri, commands, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn, ProgressLocation, TextEditor, WorkspaceConfiguration } from 'vscode';
 import { Ref, RefType, Git, GitErrorCodes, Branch } from './git';
 import { Repository, Resource, Status, CommitOptions, ResourceGroupType } from './repository';
 import { Model } from './model';
@@ -859,42 +859,9 @@ export class CommandCenter {
 		getCommitMessage: () => Promise<string | undefined>,
 		opts?: CommitOptions
 	): Promise<boolean> {
-		const config = workspace.getConfiguration('git');
-		const enableSmartCommit = config.get<boolean>('enableSmartCommit') === true;
-		const enableCommitSigning = config.get<boolean>('enableCommitSigning') === true;
-		const noStagedChanges = repository.indexGroup.resourceStates.length === 0;
-		const noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0;
+		opts = this.fillCommitOptions(repository, opts);
 
-		// no changes, and the user has not configured to commit all in this case
-		if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit) {
-
-			// prompt the user if we want to commit all or not
-			const message = localize('no staged changes', "There are no staged changes to commit.\n\nWould you like to automatically stage all your changes and commit them directly?");
-			const yes = localize('yes', "Yes");
-			const always = localize('always', "Always");
-			const pick = await window.showWarningMessage(message, { modal: true }, yes, always);
-
-			if (pick === always) {
-				config.update('enableSmartCommit', true, true);
-			} else if (pick !== yes) {
-				return false; // do not commit on cancel
-			}
-		}
-
-		if (!opts) {
-			opts = { all: noStagedChanges };
-		}
-
-		// enable signing of commits if configurated
-		opts.signCommit = enableCommitSigning;
-
-		if (
-			// no changes
-			(noStagedChanges && noUnstagedChanges)
-			// or no staged changes and not `all`
-			|| (!opts.all && noStagedChanges)
-		) {
-			window.showInformationMessage(localize('no changes', "There are no changes to commit."));
+		if (!await this.commitChangesAreValid(repository, opts)) {
 			return false;
 		}
 
@@ -906,6 +873,67 @@ export class CommandCenter {
 
 		await repository.commit(message, opts);
 
+		return true;
+	}
+
+	private fillCommitOptions(repository: Repository, opts?: CommitOptions) {
+		const config = workspace.getConfiguration('git');
+		const enableCommitSigning = config.get<boolean>('enableCommitSigning') === true;
+		const noStagedChanges = repository.indexGroup.resourceStates.length === 0;
+
+		if (!opts) {
+			opts = { all: noStagedChanges };
+		}
+
+		// enable signing of commits if configurated
+		opts.signCommit = enableCommitSigning;
+
+		return opts;
+	}
+
+	private async commitChangesAreValid(repository: Repository, opts: CommitOptions) {
+		if (!await this.commitChangesAvailable(repository, opts)) {
+			return false;
+		}
+		return true;
+	}
+
+	private async commitChangesAvailable(repository: Repository, opts: CommitOptions) {
+		const config = workspace.getConfiguration('git');
+		const enableSmartCommit = config.get<boolean>('enableSmartCommit') === true;
+		const noStagedChanges = repository.indexGroup.resourceStates.length === 0;
+		const noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0;
+
+		// no changes, and the user has not configured to commit all in this case
+		if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit) {
+			if (!await this.userWantsSmartCommit(config)) {
+				return false;
+			}
+		}
+
+		if (
+			// no changes
+			(noStagedChanges && noUnstagedChanges)
+			// or no staged changes and not `all`
+			|| (!opts.all && noStagedChanges)
+		) {
+			window.showInformationMessage(localize('no changes', "There are no changes to commit."));
+			return false;
+		}
+	}
+
+	private async userWantsSmartCommit(config: WorkspaceConfiguration) {
+		// prompt the user if we want to commit all or not
+		const message = localize('no staged changes', "There are no staged changes to commit.\n\nWould you like to automatically stage all your changes and commit them directly?");
+		const yes = localize('yes', "Yes");
+		const always = localize('always', "Always");
+		const pick = await window.showWarningMessage(message, { modal: true }, yes, always);
+
+		if (pick === always) {
+			config.update('enableSmartCommit', true, true);
+		} else if (pick !== yes) {
+			return false; // do not commit on cancel
+		}
 		return true;
 	}
 
