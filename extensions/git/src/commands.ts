@@ -892,7 +892,7 @@ export class CommandCenter {
 	}
 
 	private async commitChangesAreValid(repository: Repository, opts: CommitOptions) {
-		if (!await this.commitChangesSaved()) {
+		if (!await this.areCommitChangesSaved()) {
 			return false;
 		}
 
@@ -902,10 +902,24 @@ export class CommandCenter {
 		return true;
 	}
 
-	private async commitChangesSaved() {
-		if (workspace.textDocuments.find(doc => doc.isDirty) !== undefined) {
-			await window.showWarningMessage(localize('commit with unsaved files', "You have unsaved work"));
+	private async areCommitChangesSaved() {
+		const config = workspace.getConfiguration('git');
+		const warningEnabled = config.get<boolean>('warnOnCommitWithUnsavedChanges', true) === true;
+		const unsavedChanges = workspace.textDocuments.find(doc => doc.isDirty) !== undefined;
+
+		if (unsavedChanges && warningEnabled) {
+			const message = localize('commit with unsaved changes', "You have unsaved changes.\n\nAre you sure you want to commit anyway?");
+			const yes = localize('yes', "Yes");
+			const always = localize('always', "Always");
+			const pick = await window.showWarningMessage(message, { modal: true }, yes, always);
+
+			if (pick === always) {
+				config.update('warnOnCommitWithUnsavedChanges', false, true);
+			} else if (pick !== yes) {
+				return false; // do not commit on cancel
+			}
 		}
+
 		return true;
 	}
 
@@ -931,6 +945,8 @@ export class CommandCenter {
 			window.showInformationMessage(localize('no changes', "There are no changes to commit."));
 			return false;
 		}
+
+		return true;
 	}
 
 	private async userWantsSmartCommit(config: WorkspaceConfiguration) {

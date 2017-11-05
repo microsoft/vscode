@@ -55,6 +55,7 @@
 	"config.ignoreLimitWarning": "Ignores the warning when there are too many changes in a repository",
 	"config.defaultCloneDirectory": "The default location where to clone a git repository",
 	"config.enableSmartCommit": "Commit all changes when there are no staged changes.",
+	"config.warnOnCommitWithUnsavedChanges": "Warn when committing with unsaved changes.",
 	"config.enableCommitSigning": "Enables commit signing with GPG.",
 	"config.discardAllScope": "Controls what changes are discarded by the `Discard all changes` command. `all` discards all changes. `tracked` discards only tracked files. `prompt` shows a prompt dialog every time the action is run.",
 	"config.decorations.enabled": "Controls if Git contributes colors and badges to the explorer and the open editors view.",
