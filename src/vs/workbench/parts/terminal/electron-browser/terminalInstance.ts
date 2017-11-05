@@ -534,7 +534,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public scrollDownLine(): void {
-		this._xterm.scrollDisp(1);
+		this._xterm.scrollLines(1);
 	}
 
 	public scrollDownPage(): void {
@@ -546,7 +546,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public scrollUpLine(): void {
-		this._xterm.scrollDisp(-1);
+		this._xterm.scrollLines(-1);
 	}
 
 	public scrollUpPage(): void {
