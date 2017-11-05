@@ -191,7 +191,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 		if (idMatch) {
 			const name = idMatch[1];
 
-			return this.extensionsWorkbenchService.queryGallery({ names: [name] })
+			return this.extensionsWorkbenchService.queryGallery({ names: [name], source: 'queryById' })
 				.then(pager => new PagedModel(pager));
 		}
 
@@ -273,7 +273,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 		}
 
 		if (text) {
-			options = assign(options, { text: text.substr(0, 350) });
+			options = assign(options, { text: text.substr(0, 350), source: 'searchText' });
 		} else {
 			options.source = 'viewlet';
 		}
