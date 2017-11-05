@@ -892,8 +892,19 @@ export class CommandCenter {
 	}
 
 	private async commitChangesAreValid(repository: Repository, opts: CommitOptions) {
+		if (!await this.commitChangesSaved()) {
+			return false;
+		}
+
 		if (!await this.commitChangesAvailable(repository, opts)) {
 			return false;
+		}
+		return true;
+	}
+
+	private async commitChangesSaved() {
+		if (workspace.textDocuments.find(doc => doc.isDirty) !== undefined) {
+			await window.showWarningMessage(localize('commit with unsaved files', "You have unsaved work"));
 		}
 		return true;
 	}
