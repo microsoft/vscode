@@ -154,15 +154,20 @@ function parseRegExp(pattern: string): string {
 				// Support brackets
 				if (char !== ']' && inBrackets) {
 					let res: string;
-					switch (char) {
-						case '-':		// allow the range operator
-							res = char;
-							break;
-						case '^':		// allow the negate operator
-							res = char;
-							break;
-						default:
-							res = strings.escapeRegExpCharacters(char);
+
+					// range operator
+					if (char === '-') {
+						res = char;
+					}
+
+					// negation operator (only valid on first index in bracket)
+					else if ((char === '^' || char === '!') && !bracketVal) {
+						res = '^';
+					}
+
+					// anything else gets escaped
+					else {
+						res = strings.escapeRegExpCharacters(char);
 					}
 
 					bracketVal += res;
