@@ -9,6 +9,7 @@ import { loadMessageBundle } from 'vscode-nls';
 import { dirname } from 'path';
 import { openOrCreateConfigFile, isImplicitProjectConfigFile } from './tsconfig';
 import * as languageModeIds from '../utils/languageModeIds';
+import TelemetryReporter from './telemetry';
 
 const localize = loadMessageBundle();
 const selector = [languageModeIds.javascript, languageModeIds.javascriptreact];
@@ -27,11 +28,11 @@ const fileLimit = 500;
 class ExcludeHintItem {
 	public configFileName?: string;
 	private _item: vscode.StatusBarItem;
-	private _client: ITypeScriptServiceClient;
 	private _currentHint: Hint;
 
-	constructor(client: ITypeScriptServiceClient) {
-		this._client = client;
+	constructor(
+		private readonly telemetryReporter: TelemetryReporter
+	) {
 		this._item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, Number.MIN_VALUE);
 		this._item.command = 'js.projectStatus.command';
 	}
@@ -58,7 +59,7 @@ class ExcludeHintItem {
 		/* __GDPR__
 			"js.hintProjectExcludes" : {}
 		*/
-		this._client.logTelemetry('js.hintProjectExcludes');
+		this.telemetryReporter.logTelemetry('js.hintProjectExcludes');
 	}
 }
 
@@ -173,12 +174,13 @@ function onConfigureExcludesSelected(
 
 export function create(
 	client: ITypeScriptServiceClient,
+	telemetryReporter: TelemetryReporter,
 	isOpen: (path: string) => Promise<boolean>,
 	memento: vscode.Memento
 ) {
 	const toDispose: vscode.Disposable[] = [];
 
-	const item = new ExcludeHintItem(client);
+	const item = new ExcludeHintItem(telemetryReporter);
 	toDispose.push(vscode.commands.registerCommand('js.projectStatus.command', () => {
 		if (item.configFileName) {
 			onConfigureExcludesSelected(client, item.configFileName);

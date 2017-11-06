@@ -81,7 +81,7 @@ export function activate(context: ExtensionContext): void {
 
 				const host = clientHost;
 				clientHost.serviceClient.onReady().then(() => {
-					context.subscriptions.push(ProjectStatus.create(host.serviceClient,
+					context.subscriptions.push(ProjectStatus.create(host.serviceClient, host.serviceClient.telemetryReporter,
 						path => new Promise<boolean>(resolve => setTimeout(() => resolve(host.handles(path)), 750)),
 						context.workspaceState));
 				}, () => {
