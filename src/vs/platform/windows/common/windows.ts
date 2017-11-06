@@ -14,6 +14,7 @@ import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IWorkspaceIdentifier, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ICommandAction } from 'vs/platform/actions/common/actions';
+import { PerformanceEntry } from 'vs/base/common/performance';
 
 export const IWindowsService = createDecorator<IWindowsService>('windowsService');
 
@@ -255,6 +256,7 @@ export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
 	backgroundColor?: string;
 	accessibilitySupport?: boolean;
 
+	perfEntries: PerformanceEntry[];
 	perfStartTime?: number;
 	perfAppReady?: number;
 	perfWindowLoadTime?: number;

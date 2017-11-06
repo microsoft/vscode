@@ -32,7 +32,7 @@ import { ExtHostCustomersRegistry } from 'vs/workbench/api/electron-browser/extH
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { Action } from 'vs/base/common/actions';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { startTimer } from 'vs/base/node/startupTimers';
+import { mark, time } from 'vs/base/common/performance';
 import { toPromise, filterEvent } from 'vs/base/common/event';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
@@ -336,14 +336,14 @@ export class ExtensionService implements IExtensionService {
 			let messageHandler = (msg: IMessage) => this._handleExtensionPointMessage(msg);
 
 			for (let i = 0, len = extensionPoints.length; i < len; i++) {
-				const clock = startTimer(`handleExtensionPoint:${extensionPoints[i].name}`);
+				const clock = time(`handleExtensionPoint:${extensionPoints[i].name}`);
 				try {
 					ExtensionService._handleExtensionPoint(extensionPoints[i], availableExtensions, messageHandler);
 				} finally {
 					clock.stop();
 				}
 			}
-
+			mark('extensionHostReady');
 			this._barrier.open();
 		});
 	}

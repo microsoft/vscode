@@ -14,7 +14,9 @@ if (window.location.search.indexOf('prof-startup') >= 0) {
 
 /*global window,document,define,Monaco_Loader_Init*/
 
-const startTimer = require('../../../base/node/startupTimers').startTimer;
+const perf = require('../../../base/common/performance');
+perf.mark('renderer/started');
+
 const path = require('path');
 const electron = require('electron');
 const remote = electron.remote;
@@ -124,6 +126,7 @@ function main() {
 
 	// Correctly inherit the parent's environment
 	assign(process.env, configuration.userEnv);
+	perf.importEntries(configuration.perfEntries);
 
 	// Get the nls configuration into the process.env as early as possible.
 	var nlsConfig = { availableLanguages: {} };
@@ -161,7 +164,6 @@ function main() {
 		window.nodeRequire = require.__$__nodeRequire;
 
 		define('fs', ['original-fs'], function (originalFS) { return originalFS; }); // replace the patched electron fs with the original node fs for all AMD code
-		loaderTimer.stop();
 
 		window.MonacoEnvironment = {};
 
@@ -191,13 +193,13 @@ function main() {
 			beforeLoadWorkbenchMain: Date.now()
 		};
 
-		const workbenchMainTimer = startTimer('load:workbench.main');
+		const workbenchMainClock = perf.time('loadWorkbenchMain');
 		require([
 			'vs/workbench/workbench.main',
 			'vs/nls!vs/workbench/workbench.main',
 			'vs/css!vs/workbench/workbench.main'
 		], function () {
-			workbenchMainTimer.stop();
+			workbenchMainClock.stop();
 			timers.afterLoadWorkbenchMain = Date.now();
 
 			process.lazyEnv.then(function () {
@@ -213,8 +215,6 @@ function main() {
 	}
 
 	// In the bundled version the nls plugin is packaged with the loader so the NLS Plugins
-	// loads as soon as the loader loads. To be able to have pseudo translation
-	const loaderTimer = startTimer('load:loader');
 	if (typeof Monaco_Loader_Init === 'function') {
 		const loader = Monaco_Loader_Init();
 		//eslint-disable-next-line no-global-assign

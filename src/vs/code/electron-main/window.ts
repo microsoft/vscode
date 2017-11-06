@@ -26,6 +26,7 @@ import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspaceIdentifier, IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { ICommandAction } from 'vs/platform/actions/common/actions';
+import { mark, getEntries } from 'vs/base/common/performance';
 
 export interface IWindowState {
 	width?: number;
@@ -507,6 +508,7 @@ export class CodeWindow implements ICodeWindow {
 		}
 
 		// Load URL
+		mark('main:loadWindow');
 		this._win.loadURL(this.getUrl(config));
 
 		// Make window visible if it did not open in N seconds because this indicates an error
@@ -578,6 +580,7 @@ export class CodeWindow implements ICodeWindow {
 		windowConfiguration.backgroundColor = this.getBackgroundColor();
 
 		// Perf Counters
+		windowConfiguration.perfEntries = getEntries();
 		windowConfiguration.perfStartTime = global.perfStartTime;
 		windowConfiguration.perfAppReady = global.perfAppReady;
 		windowConfiguration.perfWindowLoadTime = Date.now();

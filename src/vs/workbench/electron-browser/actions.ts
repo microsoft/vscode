@@ -45,7 +45,7 @@ import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifi
 import { FileKind } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
-import { ticks } from 'vs/base/node/startupTimers';
+import { getEntries } from 'vs/base/common/performance';
 
 // --- actions
 
@@ -367,9 +367,10 @@ export class ShowStartupPerformance extends Action {
 
 			(<any>console).group('Raw Startup Timers (CSV)');
 			let value = `Name\tStart\tDuration\n`;
-			let offset = ticks()[0].started;
-			for (const tick of ticks()) {
-				value += `${tick.name}\t${tick.started - offset}\t${tick.duration}\n`;
+			const entries = getEntries('measure');
+			let offset = entries[0].startTime;
+			for (const entry of entries) {
+				value += `${entry.name}\t${entry.startTime - offset}\t${entry.duration}\n`;
 			}
 			console.log(value);
 			(<any>console).groupEnd();

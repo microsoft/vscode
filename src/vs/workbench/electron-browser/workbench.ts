@@ -16,7 +16,7 @@ import { Builder, $ } from 'vs/base/browser/builder';
 import { Delayer, RunOnceScheduler } from 'vs/base/common/async';
 import * as browser from 'vs/base/browser/browser';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { startTimer } from 'vs/base/node/startupTimers';
+import { time } from 'vs/base/common/performance';
 import errors = require('vs/base/common/errors');
 import { BackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -320,9 +320,10 @@ export class Workbench implements IPartService {
 				}
 
 				viewletRestoreStopWatch = StopWatch.create();
-				const viewletTimer = startTimer('restore:viewlet');
-				compositeAndEditorPromises.push(viewletTimer.while(this.viewletService.openViewlet(viewletIdToRestore)).then(() => {
+				const viewletRestoreClock = time('restore:viewlet');
+				compositeAndEditorPromises.push(this.viewletService.openViewlet(viewletIdToRestore).then(() => {
 					viewletRestoreStopWatch.stop();
+					viewletRestoreClock.stop();
 				}));
 			}
 
@@ -335,9 +336,9 @@ export class Workbench implements IPartService {
 
 			// Load Editors
 			const editorRestoreStopWatch = StopWatch.create();
+			const editorRestoreClock = time('restore:editors');
 			const restoredEditors: string[] = [];
-			const editorsTimer = startTimer('restore:editors');
-			compositeAndEditorPromises.push(editorsTimer.while(this.resolveEditorsToOpen().then(inputs => {
+			compositeAndEditorPromises.push(this.resolveEditorsToOpen().then(inputs => {
 				let editorOpenPromise: TPromise<IEditor[]>;
 				if (inputs.length) {
 					editorOpenPromise = this.editorService.openEditors(inputs.map(input => { return { input, position: EditorPosition.ONE }; }));
@@ -347,8 +348,8 @@ export class Workbench implements IPartService {
 
 				return editorOpenPromise.then(editors => {
 					this.handleEditorBackground(); // make sure we show the proper background in the editor area
+					editorRestoreClock.stop();
 					editorRestoreStopWatch.stop();
-
 					for (const editor of editors) {
 						if (editor) {
 							if (editor.input) {
@@ -359,7 +360,7 @@ export class Workbench implements IPartService {
 						}
 					}
 				});
-			})));
+			}));
 
 			if (this.storageService.getBoolean(Workbench.zenModeActiveSettingKey, StorageScope.WORKSPACE, false)) {
 				this.toggleZenMode(true);
