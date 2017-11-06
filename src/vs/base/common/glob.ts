@@ -152,7 +152,7 @@ function parseRegExp(pattern: string): string {
 				}
 
 				// Support brackets
-				if (char !== ']' && inBrackets) {
+				if (inBrackets && (char !== ']' || !bracketVal) /* ] is literally only allowed as first character in brackets to match it */) {
 					let res: string;
 
 					// range operator
@@ -163,6 +163,12 @@ function parseRegExp(pattern: string): string {
 					// negation operator (only valid on first index in bracket)
 					else if ((char === '^' || char === '!') && !bracketVal) {
 						res = '^';
+					}
+
+					// glob split matching is not allowed within character ranges
+					// see http://man7.org/linux/man-pages/man7/glob.7.html
+					else if (char === GLOB_SPLIT) {
+						res = '';
 					}
 
 					// anything else gets escaped
