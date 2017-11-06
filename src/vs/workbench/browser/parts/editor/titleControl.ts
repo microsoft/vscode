@@ -39,7 +39,7 @@ import { IMenuService, MenuId, IMenu, ExecuteCommandAction } from 'vs/platform/a
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Themable } from 'vs/workbench/common/theme';
-import { IDraggedResource } from 'vs/base/browser/dnd';
+import { IDraggedResource } from 'vs/workbench/browser/editor';
 import { WORKSPACE_EXTENSION, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { extname } from 'vs/base/common/paths';
 import { IFileService } from 'vs/platform/files/common/files';
