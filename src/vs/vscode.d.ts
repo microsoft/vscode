@@ -5417,11 +5417,11 @@ declare module 'vscode' {
 	export interface ConfigurationChangeEvent {
 
 		/**
-		 * Returns `true` if the given section for the given resource (if provided) has affected.
+		 * Returns `true` if the given section for the given resource (if provided) is affected.
 		 *
 		 * @param section Configuration name, supports _dotted_ names.
 		 * @param resource A resource Uri.
-		 * @return `true` if the given section for the given resource (if provided) has affected.
+		 * @return `true` if the given section for the given resource (if provided) is affected.
 		 */
 		affectsConfiguration(section: string, resource?: Uri): boolean;
 	}
