@@ -876,7 +876,7 @@ export class DebugService implements debug.IDebugService {
 				// Open debug viewlet based on the visibility of the side bar and debugViewletOptions setting
 				if ((this.partService.isVisible(Parts.SIDEBAR_PART) || this.contextService.getWorkbenchState() === WorkbenchState.EMPTY)
 					&& ((debugViewletOptions === 'openOnSessionStart')
-						|| ((debugViewletOptions === 'openOnFirstSessionStart' && !this.viewModel.changedWorkbenchViewState)) {
+						|| (debugViewletOptions === 'openOnFirstSessionStart' && !this.viewModel.changedWorkbenchViewState))) {
 					this.viewModel.changedWorkbenchViewState = true;
 					this.viewletService.openViewlet(debug.VIEWLET_ID);
 				}
