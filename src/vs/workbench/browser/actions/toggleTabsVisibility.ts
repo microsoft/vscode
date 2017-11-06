@@ -11,33 +11,30 @@ import { Action } from 'vs/base/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 
-export class ToggleActivityBarVisibilityAction extends Action {
+export class ToggleTabsVisibilityAction extends Action {
 
-	public static ID = 'workbench.action.toggleActivityBarVisibility';
-	public static LABEL = nls.localize('toggleActivityBar', "Toggle Activity Bar Visibility");
+	public static ID = 'workbench.action.toggleTabsVisibility';
+	public static LABEL = nls.localize('toggleTabs', "Toggle Tab Visibility");
 
-	private static activityBarVisibleKey = 'workbench.activityBar.visible';
+	private static tabsVisibleKey = 'workbench.editor.showTabs';
 
 	constructor(
 		id: string,
 		label: string,
-		@IPartService private partService: IPartService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(id, label);
-
-		this.enabled = !!this.partService;
 	}
 
 	public run(): TPromise<any> {
-		const visibility = this.partService.isVisible(Parts.ACTIVITYBAR_PART);
+		const visibility = this.configurationService.getValue<string>(ToggleTabsVisibilityAction.tabsVisibleKey);
 		const newVisibilityValue = !visibility;
 
-		return this.configurationService.updateValue(ToggleActivityBarVisibilityAction.activityBarVisibleKey, newVisibilityValue, ConfigurationTarget.USER);
+		return this.configurationService.updateValue(ToggleTabsVisibilityAction.tabsVisibleKey, newVisibilityValue, ConfigurationTarget.USER);
 	}
 }
 
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
-registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleActivityBarVisibilityAction, ToggleActivityBarVisibilityAction.ID, ToggleActivityBarVisibilityAction.LABEL), 'View: Toggle Activity Bar Visibility', nls.localize('view', "View"));
+registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleTabsVisibilityAction, ToggleTabsVisibilityAction.ID, ToggleTabsVisibilityAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_W }), 'View: Toggle Tab Visibility', nls.localize('view', "View"));
