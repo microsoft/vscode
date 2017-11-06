@@ -25,7 +25,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { sequence, asWinJsPromise } from 'vs/base/common/async';
-import { WorkspaceEdit, RenameProviderRegistry } from 'vs/editor/common/modes';
+import { WorkspaceEdit, RenameProviderRegistry, RenameInitialValue } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { Range } from 'vs/editor/common/core/range';
@@ -79,6 +79,33 @@ export function rename(model: ITextModel, position: Position, newName: string): 
 	});
 }
 
+function resolveInitialRenameValue(model: IReadOnlyModel, position: Position): TPromise<RenameInitialValue> {
+	const supports = RenameProviderRegistry.ordered(model);
+	let hasResult = false;
+
+	const factory = supports.map(support => {
+		return (): TPromise<RenameInitialValue> => {
+			if (!hasResult) {
+				return asWinJsPromise((token) => {
+					return support.resolveInitialRenameValue(model, position, token);
+				}).then(result => {
+					if (!result) {
+						return undefined;
+					} else {
+						return result;
+					}
+				}, err => {
+					onUnexpectedExternalError(err);
+					return TPromise.wrapError<RenameInitialValue>(new Error('provider failed'));
+				});
+			}
+			return undefined;
+		};
+	});
+
+	return sequence(factory).then((values): RenameInitialValue => values[0]);
+
+}
 
 // ---  register actions and commands
 
@@ -116,34 +143,64 @@ class RenameController implements IEditorContribution {
 		return RenameController.ID;
 	}
 
-	public run(): TPromise<void> {
-
-		const selection = this.editor.getSelection(),
-			word = this.editor.getModel().getWordAtPosition(selection.getStartPosition());
-
-		if (!word) {
-			return undefined;
-		}
+	public async run(): TPromise<void> {
+		const selection = this.editor.getSelection();
 
 		let lineNumber = selection.startLineNumber,
 			selectionStart = 0,
-			selectionEnd = word.word.length,
-			wordRange: Range;
+			selectionEnd = 0,
+			wordRange: Range,
+			word: string;
 
-		wordRange = new Range(
-			lineNumber,
-			word.startColumn,
-			lineNumber,
-			word.endColumn
-		);
+		let initialValue = await resolveInitialRenameValue(this.editor.getModel(), this.editor.getPosition());
 
-		if (!selection.isEmpty() && selection.startLineNumber === selection.endLineNumber) {
-			selectionStart = Math.max(0, selection.startColumn - word.startColumn);
-			selectionEnd = Math.min(word.endColumn, selection.endColumn) - word.startColumn;
+		if(initialValue) {
+			lineNumber = initialValue.range.startLineNumber;
+			if(initialValue.text) {
+				word = initialValue.text;
+			}
+			else {
+				word = this.editor.getModel().getValueInRange(initialValue.range);
+			}
+			selectionEnd = word.length;
+
+			if (!selection.isEmpty() && selection.startLineNumber === selection.endLineNumber) {
+				selectionStart = Math.max(0, selection.startColumn - initialValue.range.startColumn);
+				selectionEnd = Math.min(initialValue.range.endColumn, selection.endColumn) - initialValue.range.startColumn;
+			}
+
+			wordRange = new Range(
+				lineNumber,
+				initialValue.range.startColumn,
+				lineNumber,
+				initialValue.range.endColumn
+			);
+
+		}
+		else {
+			const wordAtPosition = this.editor.getModel().getWordAtPosition(selection.getStartPosition());
+
+			if (!wordAtPosition) {
+				return undefined;
+			}
+			word = wordAtPosition.word;
+			selectionEnd = word.length;
+
+			if (!selection.isEmpty() && selection.startLineNumber === selection.endLineNumber) {
+				selectionStart = Math.max(0, selection.startColumn - wordAtPosition.startColumn);
+				selectionEnd = Math.min(wordAtPosition.endColumn, selection.endColumn) - wordAtPosition.startColumn;
+			}
+
+			wordRange = new Range(
+				lineNumber,
+				wordAtPosition.startColumn,
+				lineNumber,
+				wordAtPosition.endColumn
+			);
 		}
 
 		this._renameInputVisible.set(true);
-		return this._renameInputField.getInput(wordRange, word.word, selectionStart, selectionEnd).then(newName => {
+		return this._renameInputField.getInput(wordRange, word, selectionStart, selectionEnd).then(newName => {
 			this._renameInputVisible.reset();
 			this.editor.focus();
 
@@ -168,7 +225,7 @@ class RenameController implements IEditorContribution {
 						this.editor.setSelection(selection);
 					}
 					// alert
-					alert(nls.localize('aria', "Successfully renamed '{0}' to '{1}'. Summary: {2}", word.word, newName, edit.ariaMessage()));
+					alert(nls.localize('aria', "Successfully renamed '{0}' to '{1}'. Summary: {2}", word, newName, edit.ariaMessage()));
 				});
 
 			}, err => {
