@@ -22,6 +22,6 @@ export function activate(context: ExtensionContext): any {
 }
 
 function configureHttpRequest() {
-	let httpSettings = workspace.getConfiguration('http');
+	const httpSettings = workspace.getConfiguration('http');
 	httpRequest.configure(httpSettings.get<string>('proxy', ''), httpSettings.get<boolean>('proxyStrictSSL', true));
 }

@@ -31,7 +31,7 @@ export class BowerJSONContribution implements IJSONContribution {
 	}
 
 	public collectDefaultSuggestions(resource: string, collector: ISuggestionsCollector): Thenable<any> {
-		let defaultValue = {
+		const defaultValue = {
 			'name': '${1:name}',
 			'description': '${2:description}',
 			'authors': ['${3:author}'],
@@ -39,7 +39,7 @@ export class BowerJSONContribution implements IJSONContribution {
 			'main': '${5:pathToMain}',
 			'dependencies': {}
 		};
-		let proposal = new CompletionItem(localize('json.bower.default', 'Default bower.json'));
+		const proposal = new CompletionItem(localize('json.bower.default', 'Default bower.json'));
 		proposal.kind = CompletionItemKind.Class;
 		proposal.insertText = new SnippetString(JSON.stringify(defaultValue, null, '\t'));
 		collector.add(proposal);
@@ -49,27 +49,27 @@ export class BowerJSONContribution implements IJSONContribution {
 	public collectPropertySuggestions(resource: string, location: Location, currentWord: string, addValue: boolean, isLast: boolean, collector: ISuggestionsCollector): Thenable<any> | null {
 		if ((location.matches(['dependencies']) || location.matches(['devDependencies']))) {
 			if (currentWord.length > 0) {
-				let queryUrl = 'https://bower.herokuapp.com/packages/search/' + encodeURIComponent(currentWord);
+				const queryUrl = 'https://bower.herokuapp.com/packages/search/' + encodeURIComponent(currentWord);
 
 				return this.xhr({
 					url: queryUrl
 				}).then((success) => {
 					if (success.status === 200) {
 						try {
-							let obj = JSON.parse(success.responseText);
+							const obj = JSON.parse(success.responseText);
 							if (Array.isArray(obj)) {
-								let results = <{ name: string; description: string; }[]>obj;
+								const results = <{ name: string; description: string; }[]>obj;
 								for (let i = 0; i < results.length; i++) {
-									let name = results[i].name;
-									let description = results[i].description || '';
-									let insertText = new SnippetString().appendText(JSON.stringify(name));
+									const name = results[i].name;
+									const description = results[i].description || '';
+									const insertText = new SnippetString().appendText(JSON.stringify(name));
 									if (addValue) {
 										insertText.appendText(': ').appendPlaceholder('latest');
 										if (!isLast) {
 											insertText.appendText(',');
 										}
 									}
-									let proposal = new CompletionItem(name);
+									const proposal = new CompletionItem(name);
 									proposal.kind = CompletionItemKind.Property;
 									proposal.insertText = insertText;
 									proposal.filterText = JSON.stringify(name);
@@ -91,7 +91,7 @@ export class BowerJSONContribution implements IJSONContribution {
 				});
 			} else {
 				this.topRanked.forEach((name) => {
-					let insertText = new SnippetString().appendText(JSON.stringify(name));
+					const insertText = new SnippetString().appendText(JSON.stringify(name));
 					if (addValue) {
 						insertText.appendText(': ').appendPlaceholder('latest');
 						if (!isLast) {
@@ -99,7 +99,7 @@ export class BowerJSONContribution implements IJSONContribution {
 						}
 					}
 
-					let proposal = new CompletionItem(name);
+					const proposal = new CompletionItem(name);
 					proposal.kind = CompletionItemKind.Property;
 					proposal.insertText = insertText;
 					proposal.filterText = JSON.stringify(name);
@@ -116,7 +116,7 @@ export class BowerJSONContribution implements IJSONContribution {
 	public collectValueSuggestions(resource: string, location: Location, collector: ISuggestionsCollector): Thenable<any> {
 		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']))) {
 			// not implemented. Could be do done calling the bower command. Waiting for web API: https://github.com/bower/registry/issues/26
-			let proposal = new CompletionItem(localize('json.bower.latest.version', 'latest'));
+			const proposal = new CompletionItem(localize('json.bower.latest.version', 'latest'));
 			proposal.insertText = new SnippetString('"${1:latest}"');
 			proposal.filterText = '""';
 			proposal.kind = CompletionItemKind.Value;
@@ -140,13 +140,13 @@ export class BowerJSONContribution implements IJSONContribution {
 	}
 
 	private getInfo(pack: string): Thenable<string | undefined> {
-		let queryUrl = 'https://bower.herokuapp.com/packages/' + encodeURIComponent(pack);
+		const queryUrl = 'https://bower.herokuapp.com/packages/' + encodeURIComponent(pack);
 
 		return this.xhr({
 			url: queryUrl
 		}).then((success) => {
 			try {
-				let obj = JSON.parse(success.responseText);
+				const obj = JSON.parse(success.responseText);
 				if (obj && obj.url) {
 					let url: string = obj.url;
 					if (url.indexOf('git://') === 0) {
@@ -168,7 +168,7 @@ export class BowerJSONContribution implements IJSONContribution {
 
 	public getInfoContribution(resource: string, location: Location): Thenable<MarkedString[] | null> | null {
 		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']))) {
-			let pack = location.path[location.path.length - 1];
+			const pack = location.path[location.path.length - 1];
 			if (typeof pack === 'string') {
 				return this.getInfo(pack).then(documentation => {
 					if (documentation) {
