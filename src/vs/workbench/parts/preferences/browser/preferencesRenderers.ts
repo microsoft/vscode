@@ -551,7 +551,8 @@ export class HiddenAreasRenderer extends Disposable {
 }
 
 export class FeedbackWidgetRenderer extends Disposable {
-	private static COMMENT_TEXT = 'Modify the below results to match your expectations. Assign scores to indicate their relevance. Replace this comment with any text feedback.';
+	private static DEFAULT_COMMENT_TEXT = 'Modify the below results to match your expectations. Assign scores to indicate their relevance. Replace this comment with any text feedback.';
+	private static DEFAULT_ALTS = ['alt 1', 'alt 2'];
 
 	private _feedbackWidget: FloatingClickWidget;
 	private _currentResult: IFilterResult;
@@ -560,7 +561,8 @@ export class FeedbackWidgetRenderer extends Disposable {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IMessageService private messageService: IMessageService
+		@IMessageService private messageService: IMessageService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super();
 	}
@@ -592,12 +594,13 @@ export class FeedbackWidgetRenderer extends Disposable {
 		const actualResultNames = Object.keys(result.metadata.scoredResults);
 
 		const feedbackQuery = {};
-		feedbackQuery['comment'] = FeedbackWidgetRenderer.COMMENT_TEXT;
+		feedbackQuery['comment'] = FeedbackWidgetRenderer.DEFAULT_COMMENT_TEXT;
 		feedbackQuery['queryString'] = result.query;
 		feedbackQuery['resultScores'] = {};
 		actualResultNames.forEach(settingKey => {
 			feedbackQuery['resultScores'][settingKey] = 10;
 		});
+		feedbackQuery['alts'] = [FeedbackWidgetRenderer.DEFAULT_ALTS];
 
 		const contents = JSON.stringify(feedbackQuery, undefined, '    ');
 		this.editorService.openEditor({ contents, language: 'json' }, /*sideBySide=*/true).then(feedbackEditor => {
@@ -626,7 +629,15 @@ export class FeedbackWidgetRenderer extends Disposable {
 			return TPromise.wrapError(new Error('Invalid JSON: ' + e.message));
 		}
 
-		const userComment = expectedQuery.comment === FeedbackWidgetRenderer.COMMENT_TEXT ? undefined : expectedQuery.comment;
+		const userComment = expectedQuery.comment === FeedbackWidgetRenderer.DEFAULT_COMMENT_TEXT ? undefined : expectedQuery.comment;
+
+		// validate alts
+		if (!this.validateAlts(expectedQuery.alts)) {
+			return TPromise.wrapError(new Error('alts must be an array of 2-element string arrays'));
+		}
+
+		const altsAdded = expectedQuery.alts && expectedQuery.alts[0] && (expectedQuery.alts[0][0] !== FeedbackWidgetRenderer.DEFAULT_ALTS[0] || expectedQuery.alts[0][1] !== FeedbackWidgetRenderer.DEFAULT_ALTS[1]);
+		const alts = altsAdded ? expectedQuery.alts : undefined;
 
 		/* __GDPR__
 			"settingsSearchResultFeedback" : {
@@ -646,8 +657,30 @@ export class FeedbackWidgetRenderer extends Disposable {
 			expectedResults: expectedQuery.resultScores,
 			url: result.metadata.remoteUrl,
 			duration: result.metadata.duration,
-			timestamp: result.metadata.timestamp
+			timestamp: result.metadata.timestamp,
+			buildNumber: this.environmentService.debugSearch,
+			alts
 		});
+	}
+
+	private validateAlts(alts?: string[][]): boolean {
+		if (!alts) {
+			return true;
+		}
+
+		if (!Array.isArray(alts)) {
+			return false;
+		}
+
+		if (!alts.length) {
+			return true;
+		}
+
+		if (!alts.every(altPair => Array.isArray(altPair) && altPair.length === 2 && typeof altPair[0] === 'string' && typeof altPair[1] === 'string')) {
+			return false;
+		}
+
+		return true;
 	}
 
 	private disposeWidget(): void {
