@@ -16,7 +16,7 @@ let localize = nls.loadMessageBundle();
 
 export class LineDecoder {
 	private stringDecoder: NodeStringDecoder;
-	private remaining: string;
+	private remaining: string | null;
 
 	constructor(encoding: string = 'utf8') {
 		this.stringDecoder = new StringDecoder(encoding);
@@ -55,7 +55,7 @@ export class LineDecoder {
 		return result;
 	}
 
-	public end(): string {
+	public end(): string | null {
 		return this.remaining;
 	}
 }
@@ -88,17 +88,17 @@ export default class PHPValidationProvider {
 	private static FileArgs: string[] = ['-l', '-n', '-d', 'display_errors=On', '-d', 'log_errors=Off', '-f'];
 
 	private validationEnabled: boolean;
-	private executableIsUserDefined: boolean;
-	private executable: string;
+	private executableIsUserDefined: boolean | undefined;
+	private executable: string | undefined;
 	private trigger: RunTrigger;
 	private pauseValidation: boolean;
 
-	private documentListener: vscode.Disposable;
+	private documentListener: vscode.Disposable | null;
 	private diagnosticCollection: vscode.DiagnosticCollection;
 	private delayers: { [key: string]: ThrottledDelayer<void> };
 
 	constructor(private workspaceStore: vscode.Memento) {
-		this.executable = null;
+		this.executable = undefined;
 		this.validationEnabled = true;
 		this.trigger = RunTrigger.onSave;
 		this.pauseValidation = false;
@@ -145,7 +145,7 @@ export default class PHPValidationProvider {
 			}
 			this.trigger = RunTrigger.from(section.get<string>('validate.run', RunTrigger.strings.onSave));
 		}
-		if (this.executableIsUserDefined !== true && this.workspaceStore.get<string>(CheckedExecutablePath, undefined) !== void 0) {
+		if (this.executableIsUserDefined !== true && this.workspaceStore.get<string | undefined>(CheckedExecutablePath, undefined) !== void 0) {
 			vscode.commands.executeCommand('setContext', 'php.untrustValidationExecutableContext', true);
 		}
 		this.delayers = Object.create(null);
@@ -195,7 +195,7 @@ export default class PHPValidationProvider {
 		};
 
 		if (this.executableIsUserDefined !== void 0 && !this.executableIsUserDefined) {
-			let checkedExecutablePath = this.workspaceStore.get<string>(CheckedExecutablePath, undefined);
+			let checkedExecutablePath = this.workspaceStore.get<string | undefined>(CheckedExecutablePath, undefined);
 			if (!checkedExecutablePath || checkedExecutablePath !== this.executable) {
 				vscode.window.showInformationMessage<MessageItem>(
 					localize('php.useExecutablePath', 'Do you allow {0} (defined as a workspace setting) to be executed to lint PHP files?', this.executable),
@@ -286,7 +286,7 @@ export default class PHPValidationProvider {
 	}
 
 	private showError(error: any, executable: string): void {
-		let message: string = null;
+		let message: string | null = null;
 		if (error.code === 'ENOENT') {
 			if (this.executable) {
 				message = localize('wrongExecutable', 'Cannot validate since {0} is not a valid php executable. Use the setting \'php.validate.executablePath\' to configure the PHP executable.', executable);
@@ -296,6 +296,8 @@ export default class PHPValidationProvider {
 		} else {
 			message = error.message ? error.message : localize('unknownReason', 'Failed to run php using path: {0}. Reason is unknown.', executable);
 		}
-		vscode.window.showInformationMessage(message);
+		if (message) {
+			vscode.window.showInformationMessage(message);
+		}
 	}
 }
