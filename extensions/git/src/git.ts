@@ -118,9 +118,9 @@ function findSystemGitWin32(base: string): Promise<IGit> {
 }
 
 function findGitWin32(): Promise<IGit> {
-	return findSystemGitWin32(process.env['ProgramW6432'])
-		.then(void 0, () => findSystemGitWin32(process.env['ProgramFiles(x86)']))
-		.then(void 0, () => findSystemGitWin32(process.env['ProgramFiles']))
+	return findSystemGitWin32(process.env['ProgramW6432'] as string)
+		.then(void 0, () => findSystemGitWin32(process.env['ProgramFiles(x86)'] as string))
+		.then(void 0, () => findSystemGitWin32(process.env['ProgramFiles'] as string))
 		.then(void 0, () => findSpecificGit('git'));
 }
 
@@ -173,12 +173,12 @@ async function exec(child: cp.ChildProcess, options: SpawnOptions = {}): Promise
 
 	const disposables: IDisposable[] = [];
 
-	const once = (ee: NodeJS.EventEmitter, name: string, fn: Function) => {
+	const once = (ee: NodeJS.EventEmitter, name: string, fn: (...args: any[]) => void) => {
 		ee.once(name, fn);
 		disposables.push(toDisposable(() => ee.removeListener(name, fn)));
 	};
 
-	const on = (ee: NodeJS.EventEmitter, name: string, fn: Function) => {
+	const on = (ee: NodeJS.EventEmitter, name: string, fn: (...args: any[]) => void) => {
 		ee.on(name, fn);
 		disposables.push(toDisposable(() => ee.removeListener(name, fn)));
 	};
@@ -193,12 +193,12 @@ async function exec(child: cp.ChildProcess, options: SpawnOptions = {}): Promise
 		}),
 		new Promise<string>(c => {
 			const buffers: Buffer[] = [];
-			on(child.stdout, 'data', b => buffers.push(b));
+			on(child.stdout, 'data', (b: Buffer) => buffers.push(b));
 			once(child.stdout, 'close', () => c(iconv.decode(Buffer.concat(buffers), encoding)));
 		}),
 		new Promise<string>(c => {
 			const buffers: Buffer[] = [];
-			on(child.stderr, 'data', b => buffers.push(b));
+			on(child.stderr, 'data', (b: Buffer) => buffers.push(b));
 			once(child.stderr, 'close', () => c(Buffer.concat(buffers).toString('utf8')));
 		})
 	]);
@@ -891,7 +891,7 @@ export class Repository {
 			const env = { GIT_OPTIONAL_LOCKS: '0' };
 			const child = this.stream(['status', '-z', '-u'], { env });
 
-			const onExit = exitCode => {
+			const onExit = (exitCode: number) => {
 				if (exitCode !== 0) {
 					const stderr = stderrData.join('');
 					return e(new GitError({
@@ -953,7 +953,7 @@ export class Repository {
 	async getRefs(): Promise<Ref[]> {
 		const result = await this.run(['for-each-ref', '--format', '%(refname) %(objectname)']);
 
-		const fn = (line): Ref | null => {
+		const fn = (line: string): Ref | null => {
 			let match: RegExpExecArray | null;
 
 			if (match = /^refs\/heads\/([^ ]+) ([0-9a-f]{40})$/.exec(line)) {
@@ -978,7 +978,7 @@ export class Repository {
 		const regex = /^stash@{(\d+)}:(.+)$/;
 		const rawStashes = result.stdout.trim().split('\n')
 			.filter(b => !!b)
-			.map(line => regex.exec(line))
+			.map(line => regex.exec(line) as RegExpExecArray)
 			.filter(g => !!g)
 			.map(([, index, description]: RegExpExecArray) => ({ index: parseInt(index), description }));
 
@@ -990,7 +990,7 @@ export class Repository {
 		const regex = /^([^\s]+)\s+([^\s]+)\s/;
 		const rawRemotes = result.stdout.trim().split('\n')
 			.filter(b => !!b)
-			.map(line => regex.exec(line))
+			.map(line => regex.exec(line) as RegExpExecArray)
 			.filter(g => !!g)
 			.map((groups: RegExpExecArray) => ({ name: groups[1], url: groups[2] }));
 

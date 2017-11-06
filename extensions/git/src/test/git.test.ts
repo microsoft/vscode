@@ -5,6 +5,8 @@
 
 'use strict';
 
+import 'mocha';
+
 import { GitStatusParser } from '../git';
 import * as assert from 'assert';
 

@@ -6,6 +6,9 @@
 		],
 		"module": "commonjs",
 		"outDir": "./out",
+		"typeRoots": [
+			"./node_modules/@types"
+		],
 		"strict": true,
 		"experimentalDecorators": true
 	},
