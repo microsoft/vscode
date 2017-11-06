@@ -447,6 +447,16 @@ suite('Map', () => {
 		assert.equal(trie.get('bar'), undefined);
 	});
 
+	test('TernarySearchTree - delete & cleanup', function () {
+		let trie = new TernarySearchTree<number>(new StringIterator());
+		trie.set('foo', 1);
+		trie.set('foobar', 2);
+		trie.set('bar', 3);
+
+		trie.delete('foo');
+		trie.delete('foobar');
+	});
+
 	test('TernarySearchTree (PathSegments) - basics', function () {
 		let trie = new TernarySearchTree<number>(new PathIterator());
 

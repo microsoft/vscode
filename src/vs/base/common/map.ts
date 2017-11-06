@@ -436,29 +436,44 @@ export class TernarySearchTree<E> {
 	}
 
 	delete(key: string): void {
-		this._delete(this._root, this._iter.reset(key));
-	}
 
-	private _delete(node: TernarySearchTreeNode<E>, iter: IKeyIterator): TernarySearchTreeNode<E> {
-		if (!node) {
-			return undefined;
-		}
-		const cmp = iter.cmp(node.str);
-		if (cmp > 0) {
-			// left
-			node.left = this._delete(node.left, iter);
-		} else if (cmp < 0) {
-			// right
-			node.right = this._delete(node.right, iter);
-		} else if (iter.hasNext()) {
-			// mid
-			node.mid = this._delete(node.mid, iter.next());
-		} else {
-			// remove element
-			node.element = undefined;
+		let iter = this._iter.reset(key);
+		let stack: [-1 | 0 | 1, TernarySearchTreeNode<E>][] = [];
+		let node = this._root;
+
+		// find and unset node
+		while (node) {
+			let val = iter.cmp(node.str);
+			if (val > 0) {
+				// left
+				stack.push([1, node]);
+				node = node.left;
+			} else if (val < 0) {
+				// right
+				stack.push([-1, node]);
+				node = node.right;
+			} else if (iter.hasNext()) {
+				// mid
+				iter.next();
+				stack.push([0, node]);
+				node = node.mid;
+			} else {
+				// remove element
+				node.element = undefined;
+				break;
+			}
 		}
 
-		return node.isEmpty() ? undefined : node;
+		// clean up empty nodes
+		while (stack.length > 0 && node.isEmpty()) {
+			let [dir, parent] = stack.pop();
+			switch (dir) {
+				case 1: parent.left = undefined; break;
+				case 0: parent.mid = undefined; break;
+				case -1: parent.right = undefined; break;
+			}
+			node = parent;
+		}
 	}
 
 	findSubstr(key: string): E {
