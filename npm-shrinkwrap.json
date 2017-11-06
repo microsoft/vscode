@@ -179,9 +179,9 @@
       "resolved": "https://registry.npmjs.org/https-proxy-agent/-/https-proxy-agent-0.3.6.tgz"
     },
     "iconv-lite": {
-      "version": "0.4.15",
-      "from": "iconv-lite@0.4.15",
-      "resolved": "https://registry.npmjs.org/iconv-lite/-/iconv-lite-0.4.15.tgz"
+      "version": "0.4.19",
+      "from": "iconv-lite@0.4.19",
+      "resolved": "https://registry.npmjs.org/iconv-lite/-/iconv-lite-0.4.19.tgz"
     },
     "inherits": {
       "version": "2.0.1",

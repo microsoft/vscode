@@ -13,9 +13,9 @@
       "resolved": "https://registry.npmjs.org/byline/-/byline-5.0.0.tgz"
     },
     "iconv-lite": {
-      "version": "0.4.15",
-      "from": "iconv-lite@0.4.15",
-      "resolved": "https://registry.npmjs.org/iconv-lite/-/iconv-lite-0.4.15.tgz"
+      "version": "0.4.19",
+      "from": "iconv-lite@0.4.19",
+      "resolved": "https://registry.npmjs.org/iconv-lite/-/iconv-lite-0.4.19.tgz"
     },
     "vscode-extension-telemetry": {
       "version": "0.0.8",
