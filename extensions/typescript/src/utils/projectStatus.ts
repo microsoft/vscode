@@ -112,7 +112,7 @@ function createLargeProjectMonitorForProject(item: ExcludeHintItem, client: ITyp
 				}
 			});
 		}).catch(err => {
-			client.warn(err);
+			client.logger.warn(err);
 		});
 	}
 

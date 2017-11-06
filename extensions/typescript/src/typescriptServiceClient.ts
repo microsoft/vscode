@@ -128,7 +128,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	private versionPicker: TypeScriptVersionPicker;
 
 	private tracer: Tracer;
-	private readonly logger: Logger = new Logger();
+	public readonly logger: Logger = new Logger();
 	private tsServerLogFile: string | null = null;
 	private servicePromise: Thenable<cp.ChildProcess> | null;
 	private lastError: Error | null;

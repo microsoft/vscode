@@ -9,6 +9,7 @@ import * as Proto from './protocol';
 import API from './utils/api';
 import { TypeScriptServerPlugin } from './utils/plugins';
 import { TypeScriptServiceConfiguration } from './utils/configuration';
+import Logger from './utils/logger';
 
 export interface ITypeScriptServiceClientHost {
 	syntaxDiagnosticsReceived(event: Proto.DiagnosticEvent): void;
@@ -23,8 +24,6 @@ export interface ITypeScriptServiceClient {
 	asUrl(filepath: string): Uri;
 	getWorkspaceRootForResource(resource: Uri): string | undefined;
 
-	warn(message: string, data?: any): void;
-
 	onTsServerStarted: Event<void>;
 	onProjectLanguageServiceStateChanged: Event<Proto.ProjectLanguageServiceStateEventBody>;
 	onDidBeginInstallTypings: Event<Proto.BeginInstallTypesEventBody>;
@@ -32,10 +31,9 @@ export interface ITypeScriptServiceClient {
 	onTypesInstallerInitializationFailed: Event<Proto.TypesInstallerInitializationFailedEventBody>;
 
 	apiVersion: API;
-
 	plugins: TypeScriptServerPlugin[];
-
 	configuration: TypeScriptServiceConfiguration;
+	logger: Logger;
 
 	execute(command: 'configure', args: Proto.ConfigureRequestArguments, token?: CancellationToken): Promise<Proto.ConfigureResponse>;
 	execute(command: 'open', args: Proto.OpenRequestArgs, expectedResult: boolean, token?: CancellationToken): Promise<any>;
