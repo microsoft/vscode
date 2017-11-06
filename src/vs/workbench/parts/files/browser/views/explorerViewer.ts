@@ -914,7 +914,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 			this.windowService.focusWindow();
 
 			// Handle folders by adding to workspace if we are in workspace context
-			const folders = result.filter(result => result.stat.isDirectory).map(result => ({ uri: result.stat.resource }));
+			const folders = result.filter(r => r.success && r.stat.isDirectory).map(result => ({ uri: result.stat.resource }));
 			if (folders.length > 0) {
 
 				// If we are in no-workspace context, ask for confirmation to create a workspace
