@@ -46,6 +46,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { join } from 'vs/base/common/paths';
 import { isCommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { IEditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
+import { always } from 'vs/base/common/async';
 
 class ProgressMonitor {
 
@@ -70,6 +71,41 @@ interface IEditorReplacement extends EditorIdentifier {
 	editor: EditorInput;
 	replaceWith: EditorInput;
 	options?: EditorOptions;
+}
+
+class ThrottledEmitter<T> extends Emitter<T> {
+	private suspended: boolean;
+
+	private lastEvent: T;
+	private hasLastEvent: boolean;
+
+	public throttle<C>(promise: TPromise<C>): TPromise<C> {
+		this.suspended = true;
+
+		return always(promise, () => this.resume());
+	}
+
+	public fire(event?: T): any {
+		if (this.suspended) {
+			this.lastEvent = event;
+			this.hasLastEvent = true;
+
+			return;
+		}
+
+		return super.fire(event);
+	}
+
+	private resume(): void {
+		this.suspended = false;
+
+		if (this.hasLastEvent) {
+			this.fire(this.lastEvent);
+		}
+
+		this.hasLastEvent = false;
+		this.lastEvent = void 0;
+	}
 }
 
 /**
@@ -98,7 +134,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	private doNotFireTabOptionsChanged: boolean;
 	private revealIfOpen: boolean;
 
-	private _onEditorsChanged: Emitter<void>;
+	private _onEditorsChanged: ThrottledEmitter<void>;
 	private _onEditorOpening: Emitter<IEditorOpeningEvent>;
 	private _onEditorGroupMoved: Emitter<void>;
 	private _onEditorOpenFail: Emitter<EditorInput>;
@@ -132,7 +168,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	) {
 		super(id, { hasTitle: false }, themeService);
 
-		this._onEditorsChanged = new Emitter<void>();
+		this._onEditorsChanged = new ThrottledEmitter<void>();
 		this._onEditorOpening = new Emitter<IEditorOpeningEvent>();
 		this._onEditorGroupMoved = new Emitter<void>();
 		this._onEditorOpenFail = new Emitter<EditorInput>();
@@ -1137,7 +1173,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		const editorState: IEditorPartUIState = this.memento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
 
-		return this.doOpenEditors(editors, activePosition, editorState && editorState.ratio);
+		// Open editors (throttle editor change events)
+		return this._onEditorsChanged.throttle(this.doOpenEditors(editors, activePosition, editorState && editorState.ratio));
 	}
 
 	private doOpenEditors(editors: { input: EditorInput, position: Position, options?: EditorOptions }[], activePosition?: number, ratio?: number[]): TPromise<IEditor[]> {
