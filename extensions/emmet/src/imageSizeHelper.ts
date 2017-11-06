@@ -55,12 +55,12 @@ function getImageSizeFromFile(file: string) {
 /**
  * Get image size from given remove URL
  */
-function getImageSizeFromURL(url: string) {
+function getImageSizeFromURL(urlStr: string) {
 	return new Promise((resolve, reject) => {
-		url = parseUrl(url);
+		const url = parseUrl(urlStr);
 		const getTransport = url.protocol === 'https:' ? https.get : http.get;
 
-		getTransport(url, resp => {
+		getTransport(url as any, resp => {
 			const chunks = [];
 			let bufSize = 0;
 

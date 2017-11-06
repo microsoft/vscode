@@ -11,7 +11,7 @@ import { TextEditor, Range, Position, window, TextEdit } from 'vscode';
 import * as path from 'path';
 import { getImageSize } from './imageSizeHelper';
 import { parseDocument, getNode, iterateCSSToken, getCssPropertyFromRule, isStyleSheet } from './util';
-import { HtmlNode, CssToken, HtmlToken, Attribute, Property, Token, Node } from 'EmmetNode';
+import { HtmlNode, CssToken, HtmlToken, Attribute, Property, Token } from 'EmmetNode';
 import { locateFile } from './locateFile';
 import parseStylesheet from '@emmetio/css-parser';
 import { DocumentStreamReader } from './bufferStream';
@@ -244,7 +244,7 @@ function updateCSSNode(editor: TextEditor, srcProp: Property, width: number, hei
 /**
  * Returns attribute object with `attrName` name from given HTML node
  */
-function getAttribute(node: Node, attrName: string): Attribute {
+function getAttribute(node: HtmlNode, attrName: string): Attribute {
 	attrName = attrName.toLowerCase();
 	return node && node.open.attributes.find(attr => attr.name.value.toLowerCase() === attrName);
 }
@@ -262,7 +262,7 @@ function getAttributeQuote(editor: TextEditor, attr: any): string {
 /**
  * Finds 'url' token for given `pos` point in given CSS property `node`
  */
-function findUrlToken(node: Node, pos: Position): Token | undefined {
+function findUrlToken(node: Property, pos: Position): Token | undefined {
 	for (let i = 0, il = node.parsedValue.length, url; i < il; i++) {
 		iterateCSSToken(node.parsedValue[i], (token: CssToken) => {
 			if (token.type === 'url' && token.start.isBeforeOrEqual(pos) && token.end.isAfterOrEqual(pos)) {

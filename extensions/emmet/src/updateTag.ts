@@ -20,7 +20,7 @@ export function updateTag(tagName: string): Thenable<boolean> | undefined {
 		return;
 	}
 
-	const rangesToUpdate: vscode.Range[] = [];
+	let rangesToUpdate: vscode.Range[] = [];
 	editor.selections.reverse().forEach(selection => {
 		rangesToUpdate = rangesToUpdate.concat(getRangesToUpdate(editor, selection, rootNode));
 	});
