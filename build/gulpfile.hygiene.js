@@ -256,8 +256,16 @@ const hygiene = exports.hygiene = (some, options) => {
 		.pipe(gulpeslint.formatEach('compact'))
 		.pipe(gulpeslint.failAfterError());
 
+	let count = 0;
 	return es.merge(typescript, javascript)
-		.pipe(es.through(null, function () {
+		.pipe(es.through(function (data) {
+			count++;
+			if (count % 10 === 0) {
+				process.stdout.write('.');
+			}
+			this.emit('data', data);
+		}, function () {
+			process.stdout.write('\n');
 			if (errorCount > 0) {
 				this.emit('error', 'Hygiene failed with ' + errorCount + ' errors. Check \'build/gulpfile.hygiene.js\'.');
 			} else {
