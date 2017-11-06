@@ -41,6 +41,9 @@ before_install:
       sh -e /etc/init.d/xvfb start;
       sleep 3;
     fi
+  # Make npm logs less verbose
+  - npm config set depth 0
+  - npm config set loglevel warn
 
 install:
   - ./scripts/npm.sh install
