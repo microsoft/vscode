@@ -425,7 +425,8 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 		this.list = new List(this.listElement, this, [renderer], {
 			useShadows: false,
-			selectOnMouseDown: true
+			selectOnMouseDown: true,
+			focusOnMouseDown: false
 		});
 
 		this.toDispose = [
