@@ -422,6 +422,16 @@ class LanguageProvider {
 	}
 }
 
+// Style check diagnostics that can be reported as warnings
+const styleCheckDiagnostics = [
+	6133, 	// variable is declared but never used
+	6138, 	// property is declared but its value is never read
+	7027,	// unreachable code detected
+	7028,	// unused label
+	7029,	// fall through case in switch
+	7030	// not all code paths return a value
+];
+
 class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 	private client: TypeScriptServiceClient;
 	private languages: LanguageProvider[] = [];
@@ -701,6 +711,11 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 	}
 
 	private getDiagnosticSeverity(diagnostic: Proto.Diagnostic): DiagnosticSeverity {
+
+		if (this.reportStyleCheckAsWarnings() && this.isStyleCheckDiagnostic(diagnostic.code)) {
+			return DiagnosticSeverity.Warning;
+		}
+
 		switch (diagnostic.category) {
 			case PConst.DiagnosticCategory.error:
 				return DiagnosticSeverity.Error;
@@ -711,5 +726,14 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 			default:
 				return DiagnosticSeverity.Error;
 		}
+	}
+
+	private isStyleCheckDiagnostic(code: number | undefined): boolean {
+		return code ? styleCheckDiagnostics.indexOf(code) !== -1 : false;
+	}
+
+	private reportStyleCheckAsWarnings() {
+		const config = workspace.getConfiguration('typescript');
+		return config.get('reportStyleChecksAsWarnings', true);
 	}
 }
