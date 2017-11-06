@@ -36,14 +36,14 @@ interface CallbackItem {
 }
 
 class CallbackMap {
-	private callbacks: Map<number, CallbackItem> = new Map();
+	private readonly callbacks: Map<number, CallbackItem> = new Map();
 	public pendingResponses: number = 0;
 
 	public destroy(e: any): void {
 		for (const callback of this.callbacks.values()) {
 			callback.e(e);
 		}
-		this.callbacks = new Map();
+		this.callbacks.clear();
 		this.pendingResponses = 0;
 	}
 
@@ -69,15 +69,6 @@ interface RequestItem {
 	request: Proto.Request;
 	promise: Promise<any> | null;
 	callbacks: CallbackItem | null;
-}
-
-
-enum MessageAction {
-	reportIssue
-}
-
-interface MyMessageItem extends MessageItem {
-	id: MessageAction;
 }
 
 class RequestQueue {
@@ -502,6 +493,14 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	}
 
 	private serviceExited(restart: boolean): void {
+		enum MessageAction {
+			reportIssue
+		}
+
+		interface MyMessageItem extends MessageItem {
+			id: MessageAction;
+		}
+
 		this.servicePromise = null;
 		this.tsServerLogFile = null;
 		this.callbacks.destroy(new Error('Service died.'));
