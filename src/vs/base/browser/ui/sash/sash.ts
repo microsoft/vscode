@@ -69,9 +69,9 @@ export class Sash extends EventEmitter {
 
 		this.gesture = new Gesture(this.$e.getHTMLElement());
 
-		this.$e.on(DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => { this.onMouseDown(e); });
-		this.$e.on(DOM.EventType.DBLCLICK, (e: MouseEvent) => { this.emit('reset', e); });
-		this.$e.on(EventType.Start, (e: GestureEvent) => { this.onTouchStart(e); });
+		this.$e.on(DOM.EventType.MOUSE_DOWN, (e) => { this.onMouseDown(e as MouseEvent); });
+		this.$e.on(DOM.EventType.DBLCLICK, (e) => { this.emit('reset', e as MouseEvent); });
+		this.$e.on(EventType.Start, (e) => { this.onTouchStart(e as GestureEvent); });
 
 		this.size = options.baseSize || 5;
 
@@ -144,9 +144,9 @@ export class Sash extends EventEmitter {
 		let lastCurrentX = startX;
 		let lastCurrentY = startY;
 
-		$window.on('mousemove', (e: MouseEvent) => {
+		$window.on('mousemove', (e) => {
 			DOM.EventHelper.stop(e, false);
-			let mouseMoveEvent = new StandardMouseEvent(e);
+			let mouseMoveEvent = new StandardMouseEvent(e as MouseEvent);
 
 			let event: ISashEvent = {
 				startX: startX,
@@ -159,7 +159,7 @@ export class Sash extends EventEmitter {
 			lastCurrentY = mouseMoveEvent.posy;
 
 			this.emit('change', event);
-		}).once('mouseup', (e: MouseEvent) => {
+		}).once('mouseup', (e) => {
 			DOM.EventHelper.stop(e, false);
 			this.$e.removeClass('active');
 			this.emit('end');

@@ -493,7 +493,7 @@ function isRelativePattern(obj: any): obj is IRelativePattern {
  */
 export function parseToAsync(expression: IExpression, options?: IGlobOptions): ParsedExpression {
 	const parsedExpression = parse(expression, options);
-	return (path: string, basename?: string, siblingsFn?: () => TPromise<string[]>): TPromise<string> => {
+	return (path: string, basename?: string, siblingsFn?: () => string[] | TPromise<string[]>): string | TPromise<string> => {
 		const result = parsedExpression(path, basename, siblingsFn);
 		return result instanceof TPromise ? result : TPromise.as(result);
 	};

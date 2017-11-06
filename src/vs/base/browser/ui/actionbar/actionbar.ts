@@ -118,17 +118,18 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 
 		this.builder.on(EventType.Tap, e => this.onClick(e));
 
-		this.builder.on(DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
+		this.builder.on(DOM.EventType.MOUSE_DOWN, (e) => {
 			if (!enableDragging) {
 				DOM.EventHelper.stop(e, true); // do not run when dragging is on because that would disable it
 			}
 
-			if (this._action.enabled && e.button === 0) {
+			const mouseEvent = e as MouseEvent;
+			if (this._action.enabled && mouseEvent.button === 0) {
 				this.builder.addClass('active');
 			}
 		});
 
-		this.builder.on(DOM.EventType.CLICK, (e: MouseEvent) => {
+		this.builder.on(DOM.EventType.CLICK, (e) => {
 			DOM.EventHelper.stop(e, true);
 			// See https://developer.mozilla.org/en-US/Add-ons/WebExtensions/Interact_with_the_clipboard
 			// > Writing to the clipboard
@@ -145,7 +146,7 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 			}
 		});
 
-		this.builder.on([DOM.EventType.MOUSE_UP, DOM.EventType.MOUSE_OUT], (e: MouseEvent) => {
+		this.builder.on([DOM.EventType.MOUSE_UP, DOM.EventType.MOUSE_OUT], (e) => {
 			DOM.EventHelper.stop(e);
 			this.builder.removeClass('active');
 		});
@@ -447,8 +448,8 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 				break;
 		}
 
-		$(this.domNode).on(DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			let event = new StandardKeyboardEvent(e);
+		$(this.domNode).on(DOM.EventType.KEY_DOWN, (e) => {
+			let event = new StandardKeyboardEvent(e as KeyboardEvent);
 			let eventHandled = true;
 
 			if (event.equals(previousKey)) {
@@ -469,8 +470,8 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 			}
 		});
 
-		$(this.domNode).on(DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
-			let event = new StandardKeyboardEvent(e);
+		$(this.domNode).on(DOM.EventType.KEY_UP, (e) => {
+			let event = new StandardKeyboardEvent(e as KeyboardEvent);
 
 			// Run action on Enter/Space
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
