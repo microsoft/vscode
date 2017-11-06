@@ -292,7 +292,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerRangeFormattingSupport(handle: number, selector: vscode.DocumentSelector): void;
 	$registerOnTypeFormattingSupport(handle: number, selector: vscode.DocumentSelector, autoFormatTriggerCharacters: string[]): void;
 	$registerNavigateTypeSupport(handle: number): void;
-	$registerRenameSupport(handle: number, selector: vscode.DocumentSelector): void;
+	$registerRenameSupport(handle: number, selector: vscode.DocumentSelector, supportsResolveInitialValues: boolean): void;
 	$registerSuggestSupport(handle: number, selector: vscode.DocumentSelector, triggerCharacters: string[], supportsResolveDetails: boolean): void;
 	$registerSignatureHelpProvider(handle: number, selector: vscode.DocumentSelector, triggerCharacter: string[]): void;
 	$registerDocumentLinkProvider(handle: number, selector: vscode.DocumentSelector): void;
@@ -659,6 +659,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$resolveWorkspaceSymbol(handle: number, symbol: SymbolInformationDto): TPromise<SymbolInformationDto>;
 	$releaseWorkspaceSymbols(handle: number, id: number): void;
 	$provideRenameEdits(handle: number, resource: UriComponents, position: IPosition, newName: string): TPromise<WorkspaceEditDto>;
+	$resolveInitialRenameValue(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.RenameInitialValue>;
 	$provideCompletionItems(handle: number, resource: UriComponents, position: IPosition, context: modes.SuggestContext): TPromise<SuggestResultDto>;
 	$resolveCompletionItem(handle: number, resource: UriComponents, position: IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion>;
 	$releaseCompletionItems(handle: number, id: number): void;

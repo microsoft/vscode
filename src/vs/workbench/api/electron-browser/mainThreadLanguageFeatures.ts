@@ -263,11 +263,14 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	// --- rename
 
-	$registerRenameSupport(handle: number, selector: vscode.DocumentSelector): void {
+	$registerRenameSupport(handle: number, selector: vscode.DocumentSelector, supportsResolveInitialValues: boolean): void {
 		this._registrations[handle] = modes.RenameProviderRegistry.register(toLanguageSelector(selector), <modes.RenameProvider>{
 			provideRenameEdits: (model: ITextModel, position: EditorPosition, newName: string, token: CancellationToken): Thenable<modes.WorkspaceEdit> => {
 				return wireCancellationToken(token, this._proxy.$provideRenameEdits(handle, model.uri, position, newName)).then(MainThreadLanguageFeatures._reviveWorkspaceEditDto);
-			}
+			},
+			resolveInitialRenameValue: supportsResolveInitialValues
+				? (model: ITextModel, position: EditorPosition, token: CancellationToken): Thenable<modes.RenameInitialValue> => wireCancellationToken(token, this._proxy.$resolveInitialRenameValue(handle, model.uri, position))
+				: undefined
 		});
 	}
 
