@@ -168,10 +168,11 @@ export class TabsTitleControl extends TitleControl {
 
 		// Drag over
 		this.toUnbind.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DRAG_OVER, (e: DragEvent) => {
+			const draggedEditor = TabsTitleControl.getDraggedEditor();
 
 			// update the dropEffect, otherwise it would look like a "move" operation. but only if we are
 			// not dragging a tab actually because there we support both moving as well as copying
-			if (!TabsTitleControl.getDraggedEditor()) {
+			if (!draggedEditor) {
 				e.dataTransfer.dropEffect = 'copy';
 			}
 
@@ -179,7 +180,17 @@ export class TabsTitleControl extends TitleControl {
 
 			const target = e.target;
 			if (target instanceof HTMLElement && target.className.indexOf('tabs-container') === 0) {
-				this.updateDropFeedback(this.tabsContainer, true);
+
+				// Find out if the currently dragged editor is the last tab of this group and in that
+				// case we do not want to show any drop feedback because the drop would be a no-op
+				let draggedEditorIsLastTab = false;
+				if (draggedEditor && this.context === draggedEditor.group && this.context.indexOf(draggedEditor.editor) === this.context.count - 1) {
+					draggedEditorIsLastTab = true;
+				}
+
+				if (!draggedEditorIsLastTab) {
+					this.updateDropFeedback(this.tabsContainer, true);
+				}
 			}
 		}));
 
