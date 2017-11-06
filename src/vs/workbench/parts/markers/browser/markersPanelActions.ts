@@ -52,7 +52,7 @@ export class ToggleMarkersPanelAction extends TogglePanelAction {
 
 export class ShowProblemsPanelAction extends Action {
 
-	public static ID = 'workbench.action.problems.show';
+	public static ID = 'workbench.action.problems.focus';
 	public static LABEL = Messages.MARKERS_PANEL_SHOW_LABEL;
 
 	constructor(id: string, label: string,
