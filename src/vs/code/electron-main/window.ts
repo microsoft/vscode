@@ -620,6 +620,9 @@ export class CodeWindow implements ICodeWindow {
 	}
 
 	public serializeWindowState(): IWindowState {
+		if (!this._win) {
+			return defaultWindowState();
+		}
 
 		// fullscreen gets special treatment
 		if (this._win.isFullScreen()) {
