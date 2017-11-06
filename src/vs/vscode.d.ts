@@ -2550,7 +2550,7 @@ declare module 'vscode' {
 	}
 
 	export interface RenameInitialValue {
-		range?: Range
+		range: Range
 		text?: string
 	}
 

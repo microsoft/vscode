@@ -827,7 +827,7 @@ export interface WorkspaceEdit {
 	rejectReason?: string;
 }
 export interface RenameInitialValue {
-	range?: IRange;
+	range: IRange;
 	text?: string;
 }
 export interface RenameProvider {

@@ -4920,7 +4920,7 @@ declare module monaco.languages {
 	}
 
 	export interface RenameInitialValue {
-		range?: IRange;
+		range: IRange;
 		text?: string;
 	}
 
