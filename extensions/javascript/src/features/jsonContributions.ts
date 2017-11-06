@@ -24,11 +24,11 @@ export interface ISuggestionsCollector {
 
 export interface IJSONContribution {
 	getDocumentSelector(): DocumentSelector;
-	getInfoContribution(fileName: string, location: Location): Thenable<MarkedString[]>;
-	collectPropertySuggestions(fileName: string, location: Location, currentWord: string, addValue: boolean, isLast: boolean, result: ISuggestionsCollector): Thenable<any>;
-	collectValueSuggestions(fileName: string, location: Location, result: ISuggestionsCollector): Thenable<any>;
+	getInfoContribution(fileName: string, location: Location): Thenable<MarkedString[] | null> | null;
+	collectPropertySuggestions(fileName: string, location: Location, currentWord: string, addValue: boolean, isLast: boolean, result: ISuggestionsCollector): Thenable<any> | null;
+	collectValueSuggestions(fileName: string, location: Location, result: ISuggestionsCollector): Thenable<any> | null;
 	collectDefaultSuggestions(fileName: string, result: ISuggestionsCollector): Thenable<any>;
-	resolveSuggestion?(item: CompletionItem): Thenable<CompletionItem>;
+	resolveSuggestion?(item: CompletionItem): Thenable<CompletionItem | null> | null;
 }
 
 export function addJSONProviders(xhr: XHRRequest): Disposable {
@@ -47,18 +47,21 @@ export class JSONHoverProvider implements HoverProvider {
 	constructor(private jsonContribution: IJSONContribution) {
 	}
 
-	public provideHover(document: TextDocument, position: Position, token: CancellationToken): Thenable<Hover> {
+	public provideHover(document: TextDocument, position: Position, token: CancellationToken): Thenable<Hover> | null {
 		let fileName = basename(document.fileName);
 		let offset = document.offsetAt(position);
 		let location = getLocation(document.getText(), offset);
-		let node = location.previousNode;
+		if (!location.previousNode) {
+			return null;
+		}
+		const node = location.previousNode;
 		if (node && node.offset <= offset && offset <= node.offset + node.length) {
 			let promise = this.jsonContribution.getInfoContribution(fileName, location);
 			if (promise) {
 				return promise.then(htmlContent => {
 					let range = new Range(document.positionAt(node.offset), document.positionAt(node.offset + node.length));
 					let result: Hover = {
-						contents: htmlContent,
+						contents: htmlContent || [],
 						range: range
 					};
 					return result;
@@ -74,7 +77,7 @@ export class JSONCompletionItemProvider implements CompletionItemProvider {
 	constructor(private jsonContribution: IJSONContribution) {
 	}
 
-	public resolveCompletionItem(item: CompletionItem, token: CancellationToken): Thenable<CompletionItem> {
+	public resolveCompletionItem(item: CompletionItem, token: CancellationToken): Thenable<CompletionItem | null> {
 		if (this.jsonContribution.resolveSuggestion) {
 			let resolver = this.jsonContribution.resolveSuggestion(item);
 			if (resolver) {
@@ -84,7 +87,7 @@ export class JSONCompletionItemProvider implements CompletionItemProvider {
 		return Promise.resolve(item);
 	}
 
-	public provideCompletionItems(document: TextDocument, position: Position, token: CancellationToken): Thenable<CompletionList> {
+	public provideCompletionItems(document: TextDocument, position: Position, token: CancellationToken): Thenable<CompletionList | null> | null {
 
 		let fileName = basename(document.fileName);
 
@@ -118,7 +121,7 @@ export class JSONCompletionItemProvider implements CompletionItemProvider {
 			log: (message: string) => console.log(message)
 		};
 
-		let collectPromise: Thenable<any> = null;
+		let collectPromise: Thenable<any> | null = null;
 
 		if (location.isAtPropertyKey) {
 			let addValue = !location.previousNode || !location.previousNode.columnOffset;

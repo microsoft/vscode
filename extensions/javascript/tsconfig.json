@@ -5,7 +5,8 @@
 		"outDir": "./out",
 		"lib": [
 			"es2015"
-		]
+		],
+		"strict": true
 	},
 	"include": [
 		"src/**/*"

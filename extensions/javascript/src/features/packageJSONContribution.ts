@@ -54,7 +54,7 @@ export class PackageJSONContribution implements IJSONContribution {
 		addValue: boolean,
 		isLast: boolean,
 		collector: ISuggestionsCollector
-	): Thenable<any> {
+	): Thenable<any> | null {
 		if ((location.matches(['dependencies']) || location.matches(['devDependencies']) || location.matches(['optionalDependencies']) || location.matches(['peerDependencies']))) {
 			let queryUrl: string;
 			if (currentWord.length > 0) {
@@ -129,7 +129,7 @@ export class PackageJSONContribution implements IJSONContribution {
 		fileName: string,
 		location: Location,
 		result: ISuggestionsCollector
-	): Thenable<any> {
+	): Thenable<any> | null {
 		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']) || location.matches(['optionalDependencies', '*']) || location.matches(['peerDependencies', '*']))) {
 			let currentKey = location.path[location.path.length - 1];
 			if (typeof currentKey === 'string') {
@@ -174,7 +174,7 @@ export class PackageJSONContribution implements IJSONContribution {
 		return null;
 	}
 
-	public resolveSuggestion(item: CompletionItem): Thenable<CompletionItem> {
+	public resolveSuggestion(item: CompletionItem): Thenable<CompletionItem | null> | null {
 		if (item.kind === CompletionItemKind.Property && item.documentation === '') {
 			return this.getInfo(item.label).then(infos => {
 				if (infos.length > 0) {
@@ -218,7 +218,7 @@ export class PackageJSONContribution implements IJSONContribution {
 		});
 	}
 
-	public getInfoContribution(fileName: string, location: Location): Thenable<MarkedString[]> {
+	public getInfoContribution(fileName: string, location: Location): Thenable<MarkedString[] | null> | null {
 		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']) || location.matches(['optionalDependencies', '*']) || location.matches(['peerDependencies', '*']))) {
 			let pack = location.path[location.path.length - 1];
 			if (typeof pack === 'string') {

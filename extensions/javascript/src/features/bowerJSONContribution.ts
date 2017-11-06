@@ -46,7 +46,7 @@ export class BowerJSONContribution implements IJSONContribution {
 		return Promise.resolve(null);
 	}
 
-	public collectPropertySuggestions(resource: string, location: Location, currentWord: string, addValue: boolean, isLast: boolean, collector: ISuggestionsCollector): Thenable<any> {
+	public collectPropertySuggestions(resource: string, location: Location, currentWord: string, addValue: boolean, isLast: boolean, collector: ISuggestionsCollector): Thenable<any> | null {
 		if ((location.matches(['dependencies']) || location.matches(['devDependencies']))) {
 			if (currentWord.length > 0) {
 				let queryUrl = 'https://bower.herokuapp.com/packages/search/' + encodeURIComponent(currentWord);
@@ -126,7 +126,7 @@ export class BowerJSONContribution implements IJSONContribution {
 		return Promise.resolve(null);
 	}
 
-	public resolveSuggestion(item: CompletionItem): Thenable<CompletionItem> {
+	public resolveSuggestion(item: CompletionItem): Thenable<CompletionItem | null> | null {
 		if (item.kind === CompletionItemKind.Property && item.documentation === '') {
 			return this.getInfo(item.label).then(documentation => {
 				if (documentation) {
@@ -139,7 +139,7 @@ export class BowerJSONContribution implements IJSONContribution {
 		return null;
 	}
 
-	private getInfo(pack: string): Thenable<string> {
+	private getInfo(pack: string): Thenable<string | undefined> {
 		let queryUrl = 'https://bower.herokuapp.com/packages/' + encodeURIComponent(pack);
 
 		return this.xhr({
@@ -166,7 +166,7 @@ export class BowerJSONContribution implements IJSONContribution {
 		});
 	}
 
-	public getInfoContribution(resource: string, location: Location): Thenable<MarkedString[]> {
+	public getInfoContribution(resource: string, location: Location): Thenable<MarkedString[] | null> | null {
 		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']))) {
 			let pack = location.path[location.path.length - 1];
 			if (typeof pack === 'string') {
