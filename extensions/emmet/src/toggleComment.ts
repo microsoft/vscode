@@ -20,7 +20,7 @@ export function toggleComment(): Thenable<boolean> | undefined {
 		return;
 	}
 	const editor = vscode.window.activeTextEditor;
-	let toggleCommentInternal: (document: vscode.TextDocument, selection: vscode.Selection, rootNode: Stylesheet) => vscode.TextEdit[];
+	let toggleCommentInternal: (document: vscode.TextDocument, selection: vscode.Selection, rootNode: Node) => vscode.TextEdit[];
 
 	if (isStyleSheet(editor.document.languageId)) {
 		toggleCommentInternal = toggleCommentStylesheet;

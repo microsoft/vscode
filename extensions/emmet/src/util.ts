@@ -350,8 +350,8 @@ export function iterateCSSToken(token: CssToken, fn: (x: any) => any) {
 /**
  * Returns `name` CSS property from given `rule`
  */
-export function getCssPropertyFromRule(rule: Rule, name: string): Property {
-	return rule.children.find(node => node.type === 'property' && node.name === name);
+export function getCssPropertyFromRule(rule: Rule, name: string): Property | undefined {
+	return rule.children.find(node => node.type === 'property' && node.name === name) as Property;
 }
 
 /**
