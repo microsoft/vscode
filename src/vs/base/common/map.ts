@@ -460,19 +460,19 @@ export class TernarySearchTree<E> {
 			} else {
 				// remove element
 				node.element = undefined;
+
+				// clean up empty nodes
+				while (stack.length > 0 && node.isEmpty()) {
+					let [dir, parent] = stack.pop();
+					switch (dir) {
+						case 1: parent.left = undefined; break;
+						case 0: parent.mid = undefined; break;
+						case -1: parent.right = undefined; break;
+					}
+					node = parent;
+				}
 				break;
 			}
-		}
-
-		// clean up empty nodes
-		while (stack.length > 0 && node.isEmpty()) {
-			let [dir, parent] = stack.pop();
-			switch (dir) {
-				case 1: parent.left = undefined; break;
-				case 0: parent.mid = undefined; break;
-				case -1: parent.right = undefined; break;
-			}
-			node = parent;
 		}
 	}
 
