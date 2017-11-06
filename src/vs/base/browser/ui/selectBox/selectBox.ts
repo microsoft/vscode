@@ -5,6 +5,7 @@
 
 import 'vs/css!./selectBox';
 
+import * as nls from 'vs/nls';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Event, { Emitter, chain } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -16,7 +17,7 @@ import { Color } from 'vs/base/common/color';
 import { clone, mixin } from 'vs/base/common/objects';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { List, IListStyles } from 'vs/base/browser/ui/list/listWidget';
-import { IDelegate, IRenderer, IListEvent } from 'vs/base/browser/ui/list/list';
+import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { domEvent } from 'vs/base/browser/event';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 
@@ -26,6 +27,7 @@ export const SELECT_OPTION_ENTRY_TEMPLATE_ID = 'selectOption.entry.template';
 
 export interface ISelectOptionItem {
 	optionText: string;
+	optionDisabled: boolean;
 }
 
 interface ISelectListTemplateData {
@@ -52,8 +54,15 @@ class SelectListRenderer implements IRenderer<ISelectOptionItem, ISelectListTemp
 	renderElement(element: ISelectOptionItem, index: number, templateData: ISelectListTemplateData): void {
 		const data = <ISelectListTemplateData>templateData;
 		const optionText = (<ISelectOptionItem>element).optionText;
+		const optionDisabled = (<ISelectOptionItem>element).optionDisabled;
 
 		data.optionText.textContent = optionText;
+		data.root.setAttribute('aria-label', nls.localize('selectAriaOption', "{0}", optionText));
+
+		// pseudo-select disabled option
+		if (optionDisabled) {
+			dom.addClass((<HTMLElement>data.root), 'option-disabled');
+		}
 	}
 
 	disposeTemplate(templateData: ISelectListTemplateData): void {
@@ -66,7 +75,9 @@ export interface ISelectBoxStyles extends IListStyles {
 	selectForeground?: Color;
 	selectBorder?: Color;
 	selectOptionsBorder?: Color;
+	selectOptionCheckedForeground?: Color;
 	selectOptionCheckedBackground?: Color;
+	selectOptionHoverForeground?: Color;
 	selectOptionHoverBackground?: Color;
 	selectOptionCheckedOutline?: Color;
 	selectOptionHoverOutline?: Color;
@@ -77,7 +88,9 @@ export const defaultStyles = {
 	selectForeground: Color.fromHex('#F0F0F0'),
 	selectBorder: Color.fromHex('#3C3C3C'),
 	selectOptionsBorder: Color.fromHex('#3C3Ca0'),
+	selectOptionCheckedForeground: Color.fromHex('#ffffff'),
 	selectOptionCheckedBackground: Color.fromHex('#073655'),
+	selectOptionHoverForeground: Color.fromHex('#ffffff'),
 	selectOptionHoverBackground: Color.fromHex('#2A2D2E'),
 	selectOptionCheckedOutline: Color.fromHex('#F38518'),
 	selectOptionHoverOutline: Color.fromHex('#F38518')
@@ -123,9 +136,6 @@ export class SelectBox extends Widget implements IDelegate<ISelectOptionItem> {
 				this._useNativeSelect = false;
 				break;
 		}
-
-		// this._useNativeSelect = true;
-		// this._useNativeSelect = false;
 
 		this.selectElement = document.createElement('select');
 		this.selectElement.className = 'select-box';
@@ -191,6 +201,7 @@ export class SelectBox extends Widget implements IDelegate<ISelectOptionItem> {
 	}
 
 	private registerSelectDropDownListeners() {
+		// Have to implement both keyboard and mouse controllers to handle disabled options
 		// Intercept mouse events to override normal select actions on parents
 
 		this.toDispose.push(dom.addDisposableListener(this.selectElement, dom.EventType.CLICK, () => {
@@ -273,9 +284,12 @@ export class SelectBox extends Widget implements IDelegate<ISelectOptionItem> {
 				if (disabled !== undefined) {
 					this.disabledOptionIndex = disabled;
 				}
-				this.options.forEach(element => {
-					listEntries.push({ optionText: element });
-				});
+				for (let index = 0; index < this.options.length; index++) {
+					const element = this.options[index];
+					let optionDisabled: boolean;
+					index === this.disabledOptionIndex ? optionDisabled = true : optionDisabled = false;
+					listEntries.push({ optionText: element, optionDisabled: optionDisabled });
+				}
 
 				this.selectList.splice(0, this.selectList.length, listEntries);
 			}
@@ -325,13 +339,34 @@ export class SelectBox extends Widget implements IDelegate<ISelectOptionItem> {
 		// We can only style non-native select mode
 		if (!this._useNativeSelect) {
 
-			// Match quickOpen outline styles
+			if (this.styles.selectOptionCheckedBackground) {
+				content.push(`.monaco-shell .select-dropdown-container .selectbox-dropdown-list-container .monaco-list .monaco-list-row.focused:not(:hover) { background-color: ${this.styles.selectOptionCheckedBackground} !important; }`);
+			}
+
+			if (this.styles.selectOptionCheckedForeground) {
+				content.push(`.monaco-shell .select-dropdown-container .selectbox-dropdown-list-container .monaco-list .monaco-list-row.focused:not(:hover) { color: ${this.styles.selectOptionCheckedForeground} !important; }`);
+			}
+
+			// Hover foreground - ignore for disabled options
+			if (this.styles.selectOptionHoverForeground) {
+				content.push(`.monaco-shell .select-dropdown-container .selectbox-dropdown-list-container .monaco-list .monaco-list-row:hover { color: ${this.styles.selectOptionHoverForeground} !important; }`);
+				content.push(`.monaco-shell .select-dropdown-container .selectbox-dropdown-list-container .monaco-list .monaco-list-row.option-disabled:hover { background-color: ${this.styles.listActiveSelectionForeground} !important; }`);
+			}
+
+			// Hover background - ignore for disabled options
+			if (this.styles.selectOptionHoverBackground) {
+				content.push(`.monaco-shell .select-dropdown-container .selectbox-dropdown-list-container .monaco-list .monaco-list-row:not(.option-disabled):hover { background-color: ${this.styles.selectOptionHoverBackground} !important; }`);
+				content.push(`.monaco-shell .select-dropdown-container .selectbox-dropdown-list-container .monaco-list .monaco-list-row.option-disabled:hover { background-color: ${this.styles.selectBackground} !important; }`);
+			}
+
+			// Match quickOpen outline styles - ignore for disabled options
 			if (this.styles.selectOptionCheckedOutline) {
 				content.push(`.monaco-shell .select-dropdown-container .selectbox-dropdown-list-container .monaco-list .monaco-list-row.focused { outline: 1.6px dotted ${this.styles.selectOptionCheckedOutline} !important; outline-offset: -1.6px !important; }`);
 			}
 
 			if (this.styles.selectOptionHoverOutline) {
 				content.push(`.monaco-shell .select-dropdown-container .selectbox-dropdown-list-container .monaco-list .monaco-list-row:hover { outline: 1.6px dashed ${this.styles.selectOptionCheckedOutline} !important; outline-offset: -1.6px !important; }`);
+				content.push(`.monaco-shell .select-dropdown-container .selectbox-dropdown-list-container .monaco-list .monaco-list-row.option-disabled:hover { outline: none !important; }`);
 			}
 
 			this.styleElement.innerHTML = content.join('\n');
@@ -354,9 +389,12 @@ export class SelectBox extends Widget implements IDelegate<ISelectOptionItem> {
 		}
 
 		// Style drop down select list (non-native mode only)
+
 		if (this.selectList) {
 			this.selectList.style({
+				listFocusForeground: this.styles.selectOptionCheckedForeground,
 				listFocusBackground: this.styles.selectOptionCheckedBackground,
+				listHoverForeground: this.styles.selectOptionHoverForeground,
 				listHoverBackground: this.styles.selectOptionHoverBackground,
 				listFocusOutline: this.styles.selectOptionCheckedOutline,
 				listHoverOutline: this.styles.selectOptionHoverOutline
@@ -366,6 +404,7 @@ export class SelectBox extends Widget implements IDelegate<ISelectOptionItem> {
 			this.selectDropDownListContainer.style.backgroundColor = background;
 			const optionsBorder = this.styles.selectOptionsBorder ? this.styles.selectOptionsBorder.toString() : null;
 			this.selectDropDownContainer.style.outlineColor = optionsBorder;
+			this.selectDropDownContainer.style.outlineOffset = '-1px';
 		}
 	}
 
@@ -447,16 +486,9 @@ export class SelectBox extends Widget implements IDelegate<ISelectOptionItem> {
 			this.selectList.layout(listHeight);
 			this.selectList.domFocus();
 
-			// Trick to force scroll to nice focus position
-			this.selectList.scrollTop = 0;
-			this.selectList.setFocus([this.selected]);
-			const selectedPosition = (((1 + this.selected) * this.getHeight()));
-
-			if (this.selectList.contentHeight > (maxSelectDropDownHeight - totalVerticalListPadding) && selectedPosition > (maxSelectDropDownHeight - totalVerticalListPadding)) {
-				this.selectList.scrollTop = this.selected * this.getHeight();
-			}
 			// Finally set focus on selected item
 			this.selectList.setFocus([this.selected]);
+			this.selectList.reveal(this.selectList.getFocus()[0]);
 
 			// Set final container height after adjustments
 			this.selectDropDownContainer.style.height = (listHeight + totalVerticalListPadding) + 'px';
@@ -510,9 +542,10 @@ export class SelectBox extends Widget implements IDelegate<ISelectOptionItem> {
 
 		this.selectList = new List(this.selectDropDownListContainer, this, [this.listRenderer], {
 			useShadows: false,
-			selectOnMouseDown: true,
+			selectOnMouseDown: false,
 			verticalScrollMode: ScrollbarVisibility.Visible,
 			keyboardSupport: false,
+			mouseSupport: false
 		});
 
 		// SetUp list keyboard controller - control navigation, disabled items, focus
@@ -524,19 +557,26 @@ export class SelectBox extends Widget implements IDelegate<ISelectOptionItem> {
 		onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.Escape).on(e => this.onEscape(e), this, this.toDispose);
 		onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.UpArrow).on(this.onUpArrow, this, this.toDispose);
 		onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.DownArrow).on(this.onDownArrow, this, this.toDispose);
-		// Operate as Modal ContextView - prevent other keyboard actions
-		onSelectDropDownKeyDown.filter(e => true).on(e => { e.stopPropagation(); e.preventDefault(); }, this, this.toDispose);
 
-		this.toDispose.push(this.selectList.onSelectionChange(e => this.onListSelection(e)));
+		// SetUp list mouse controller - control navigation, disabled items, focus
+		chain(domEvent(this.selectDropDownListContainer, 'mousedown'))
+			.filter(() => this.selectList.length > 0)
+			.on(e => this.onMouseDown(e), this, this.toDispose);
+
 		this.toDispose.push(this.selectList.onDOMBlur(e => this.onListBlur()));
 	}
 
 	// List methods
 
-	private onListSelection(e: IListEvent<ISelectOptionItem>): void {
+	// List mouse controller - active exit, select option, fire onDidSelect, return focus to parent select
+	private onMouseDown(e: MouseEvent): void {
+		const listRowElement = e.toElement.parentElement;
+		const index = Number(listRowElement.getAttribute('data-index'));
+		const disabled = listRowElement.classList.contains('option-disabled');
 
-		if (e.indexes[0] !== undefined) {
-			this.selected = e.indexes[0];
+		// Ignore mouse selection of disabled options
+		if (index >= 0 && index < this.options.length && !disabled) {
+			this.selected = index;
 			this.select(this.selected);
 
 			this.selectList.setFocus([this.selected]);
@@ -547,11 +587,12 @@ export class SelectBox extends Widget implements IDelegate<ISelectOptionItem> {
 			});
 
 			this.hideSelectDropDown();
-			event.preventDefault();
-			event.stopPropagation();
 		}
+		e.stopPropagation();
+		e.preventDefault();
 	}
 
+	// List Exit - passive - hide drop-down, fire onDidSelect
 	private onListBlur(): void {
 
 		this._onDidSelect.fire({
@@ -562,7 +603,8 @@ export class SelectBox extends Widget implements IDelegate<ISelectOptionItem> {
 		this.hideSelectDropDown();
 	}
 
-	// List exit - hide ContextView dropdown, return focus to parent select
+	// List keyboard controller
+	// List exit - active - hide ContextView dropdown, return focus to parent select, fire onDidSelect
 	private onEscape(e: StandardKeyboardEvent): void {
 		e.preventDefault();
 		e.stopPropagation();
@@ -575,6 +617,7 @@ export class SelectBox extends Widget implements IDelegate<ISelectOptionItem> {
 		});
 	}
 
+	// List exit - active - hide ContextView dropdown, return focus to parent select, fire onDidSelect
 	private onEnter(e: StandardKeyboardEvent): void {
 		e.preventDefault();
 		e.stopPropagation();
@@ -589,7 +632,6 @@ export class SelectBox extends Widget implements IDelegate<ISelectOptionItem> {
 
 	// List navigation - have to handle a disabled option (jump over)
 	private onDownArrow(): void {
-
 		if (this.selected < this.options.length - 1) {
 			// Skip disabled options
 			if ((this.selected + 1) === this.disabledOptionIndex && this.options.length > this.selected + 2) {
@@ -597,15 +639,14 @@ export class SelectBox extends Widget implements IDelegate<ISelectOptionItem> {
 			} else {
 				this.selected++;
 			}
+			// Set focus/selection - only fire event when closing drop-down or on blur
 			this.select(this.selected);
-			// this.selectElement.selectedIndex = this.selected;
 			this.selectList.setFocus([this.selected]);
 			this.selectList.reveal(this.selectList.getFocus()[0]);
 		}
 	}
 
 	private onUpArrow(): void {
-
 		if (this.selected > 0) {
 			// Skip disabled options
 			if ((this.selected - 1) === this.disabledOptionIndex && this.selected > 1) {
@@ -613,8 +654,8 @@ export class SelectBox extends Widget implements IDelegate<ISelectOptionItem> {
 			} else {
 				this.selected--;
 			}
+			// Set focus/selection - only fire event when closing drop-down or on blur
 			this.select(this.selected);
-			// this.selectElement.selectedIndex = this.selected;
 			this.selectList.setFocus([this.selected]);
 			this.selectList.reveal(this.selectList.getFocus()[0]);
 		}
