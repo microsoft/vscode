@@ -906,7 +906,7 @@ export class ReportIssueAction extends Action {
 	public run(): TPromise<boolean> {
 		return this._optimisticIsPure().then(isPure => {
 			return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
-				extensions = extensions.filter( extension => this.extensionEnablementService.isEnabled(extension.identifier));
+				extensions = extensions.filter(extension => this.extensionEnablementService.isEnabled(extension.identifier));
 				const issueUrl = this.generateNewIssueUrl(product.reportIssueUrl, pkg.name, pkg.version, product.commit, product.date, isPure, extensions, this.environmentService.disableExtensions);
 
 				window.open(issueUrl);
