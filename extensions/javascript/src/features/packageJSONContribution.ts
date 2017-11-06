@@ -47,7 +47,14 @@ export class PackageJSONContribution implements IJSONContribution {
 		return Promise.resolve(null);
 	}
 
-	public collectPropertySuggestions(resource: string, location: Location, currentWord: string, addValue: boolean, isLast: boolean, collector: ISuggestionsCollector): Thenable<any> {
+	public collectPropertySuggestions(
+		resource: string,
+		location: Location,
+		currentWord: string,
+		addValue: boolean,
+		isLast: boolean,
+		collector: ISuggestionsCollector
+	): Thenable<any> {
 		if ((location.matches(['dependencies']) || location.matches(['devDependencies']) || location.matches(['optionalDependencies']) || location.matches(['peerDependencies']))) {
 			let queryUrl: string;
 			if (currentWord.length > 0) {
@@ -118,7 +125,11 @@ export class PackageJSONContribution implements IJSONContribution {
 		return null;
 	}
 
-	public collectValueSuggestions(fileName: string, location: Location, result: ISuggestionsCollector): Thenable<any> {
+	public collectValueSuggestions(
+		fileName: string,
+		location: Location,
+		result: ISuggestionsCollector
+	): Thenable<any> {
 		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']) || location.matches(['optionalDependencies', '*']) || location.matches(['peerDependencies', '*']))) {
 			let currentKey = location.path[location.path.length - 1];
 			if (typeof currentKey === 'string') {
