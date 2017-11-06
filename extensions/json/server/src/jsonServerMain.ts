@@ -7,7 +7,7 @@
 import {
 	createConnection, IConnection,
 	TextDocuments, TextDocument, InitializeParams, InitializeResult, NotificationType, RequestType,
-	DocumentRangeFormattingRequest, Disposable, ServerCapabilities
+	DocumentRangeFormattingRequest, Disposable, ServerCapabilities, CompletionList, CompletionItem
 } from 'vscode-languageserver';
 
 import { DocumentColorRequest, ServerCapabilities as CPServerCapabilities, ColorPresentationRequest } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
@@ -17,7 +17,7 @@ import fs = require('fs');
 import URI from 'vscode-uri';
 import * as URL from 'url';
 import Strings = require('./utils/strings');
-import { JSONDocument, JSONSchema, LanguageSettings, getLanguageService } from 'vscode-json-languageservice';
+import { JSONDocument, JSONSchema, LanguageSettings, getLanguageService, Thenable } from 'vscode-json-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
 
 import * as nls from 'vscode-nls';
@@ -60,7 +60,7 @@ let clientDynamicRegisterSupport = false;
 connection.onInitialize((params: InitializeParams): InitializeResult => {
 
 	function hasClientCapability(...keys: string[]) {
-		let c = params.capabilities;
+		let c: any = params.capabilities;
 		for (let i = 0; c && i < keys.length; i++) {
 			c = c[keys[i]];
 		}
@@ -72,7 +72,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	let capabilities: ServerCapabilities & CPServerCapabilities = {
 		// Tell the client that the server works in FULL text document sync mode
 		textDocumentSync: documents.syncKind,
-		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['"', ':'] } : null,
+		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['"', ':'] } : undefined,
 		hoverProvider: true,
 		documentSymbolProvider: true,
 		documentRangeFormattingProvider: false,
@@ -144,9 +144,9 @@ interface JSONSchemaSettings {
 	schema?: JSONSchema;
 }
 
-let jsonConfigurationSettings: JSONSchemaSettings[] = void 0;
-let schemaAssociations: ISchemaAssociations = void 0;
-let formatterRegistration: Thenable<Disposable> = null;
+let jsonConfigurationSettings: JSONSchemaSettings[] | undefined = void 0;
+let schemaAssociations: ISchemaAssociations | undefined = void 0;
+let formatterRegistration: Thenable<Disposable> | null = null;
 
 // The settings have changed. Is send on server activation as well.
 connection.onDidChangeConfiguration((change) => {
@@ -192,7 +192,7 @@ function updateConfiguration() {
 			let association = schemaAssociations[pattern];
 			if (Array.isArray(association)) {
 				association.forEach(uri => {
-					languageSettings.schemas.push({ uri, fileMatch: [pattern] });
+					languageSettings.schemas!.push({ uri, fileMatch: [pattern] });
 				});
 			}
 		}
@@ -204,7 +204,7 @@ function updateConfiguration() {
 				uri = schema.schema.id || `vscode://schemas/custom/${index}`;
 			}
 			if (uri) {
-				languageSettings.schemas.push({ uri, fileMatch: schema.fileMatch, schema: schema.schema });
+				languageSettings.schemas!.push({ uri, fileMatch: schema.fileMatch, schema: schema.schema });
 			}
 		});
 	}
@@ -284,7 +284,7 @@ function getJSONDocument(document: TextDocument): JSONDocument {
 	return jsonDocuments.get(document);
 }
 
-connection.onCompletion(textDocumentPosition => {
+connection.onCompletion((textDocumentPosition): Thenable<CompletionItem[] | CompletionList> => {
 	let document = documents.get(textDocumentPosition.textDocument.uri);
 	let jsonDocument = getJSONDocument(document);
 	return languageService.doComplete(document, textDocumentPosition.position, jsonDocument);
