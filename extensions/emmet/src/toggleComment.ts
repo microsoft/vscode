@@ -14,14 +14,13 @@ const endCommentStylesheet = '*/';
 const startCommentHTML = '<!--';
 const endCommentHTML = '-->';
 
-export function toggleComment(): Thenable<boolean> {
-	let editor = vscode.window.activeTextEditor;
-	if (!editor) {
+export function toggleComment(): Thenable<boolean> | undefined {
+	if (!vscode.window.activeTextEditor) {
 		vscode.window.showInformationMessage('No editor is active');
 		return;
 	}
-
-	let toggleCommentInternal;
+	const editor = vscode.window.activeTextEditor;
+	let toggleCommentInternal: (document: vscode.TextDocument, selection: vscode.Selection, rootNode: Stylesheet) => vscode.TextEdit[];
 
 	if (isStyleSheet(editor.document.languageId)) {
 		toggleCommentInternal = toggleCommentStylesheet;

@@ -12,7 +12,7 @@ const allowedMimeTypesInScriptTag = ['text/html', 'text/plain', 'text/x-template
 
 export class DefaultCompletionItemProvider implements vscode.CompletionItemProvider {
 
-	public provideCompletionItems(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): Thenable<vscode.CompletionList> {
+	public provideCompletionItems(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): Thenable<vscode.CompletionList | undefined> | undefined {
 		const mappedLanguages = getMappingForIncludedLanguages();
 		const emmetConfig = vscode.workspace.getConfiguration('emmet');
 
@@ -45,8 +45,8 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 				if (abbreviation.startsWith('this.')) {
 					noiseCheckPromise = Promise.resolve(true);
 				} else {
-					noiseCheckPromise = vscode.commands.executeCommand('vscode.executeDocumentSymbolProvider', document.uri).then((symbols: vscode.SymbolInformation[]) => {
-						return symbols.find(x => abbreviation === x.name || (abbreviation.startsWith(x.name + '.') && !/>|\*|\+/.test(abbreviation)));
+					noiseCheckPromise = vscode.commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeDocumentSymbolProvider', document.uri).then((symbols: vscode.SymbolInformation[] | undefined) => {
+						return symbols && symbols.find(x => abbreviation === x.name || (abbreviation.startsWith(x.name + '.') && !/>|\*|\+/.test(abbreviation)));
 					});
 				}
 			}
@@ -88,7 +88,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 	 * @param document vscode.Textdocument
 	 * @param position vscode.Position position of the abbreviation that needs to be expanded
 	 */
-	private syntaxHelper(syntax: string, document: vscode.TextDocument, position: vscode.Position): string {
+	private syntaxHelper(syntax: string | undefined, document: vscode.TextDocument, position: vscode.Position): string | undefined {
 		if (!syntax) {
 			return syntax;
 		}

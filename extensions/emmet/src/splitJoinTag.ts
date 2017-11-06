@@ -8,7 +8,11 @@ import { HtmlNode } from 'EmmetNode';
 import { getNode, parseDocument, validate } from './util';
 
 export function splitJoinTag() {
-	let editor = vscode.window.activeTextEditor;
+	if (!vscode.window.activeTextEditor) {
+		return;
+	}
+
+	const editor = vscode.window.activeTextEditor;
 	if (!validate(false)) {
 		return;
 	}
@@ -28,7 +32,7 @@ export function splitJoinTag() {
 	});
 }
 
-function getRangesToReplace(document: vscode.TextDocument, selection: vscode.Selection, rootNode: HtmlNode): vscode.TextEdit {
+function getRangesToReplace(document: vscode.TextDocument, selection: vscode.Selection, rootNode: HtmlNode): vscode.TextEdit | undefined {
 	let nodeToUpdate = <HtmlNode>getNode(rootNode, selection.start);
 	let rangeToReplace: vscode.Range;
 	let textToReplaceWith: string;

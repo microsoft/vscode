@@ -7,7 +7,10 @@ import * as vscode from 'vscode';
 import { HtmlNode } from 'EmmetNode';
 import { getNode, parseDocument, validate } from './util';
 
-export function updateTag(tagName: string): Thenable<boolean> {
+export function updateTag(tagName: string): Thenable<boolean> | undefined {
+	if (!vscode.window.activeTextEditor) {
+		return;
+	}
 	let editor = vscode.window.activeTextEditor;
 	if (!validate(false)) {
 		return;
@@ -17,7 +20,7 @@ export function updateTag(tagName: string): Thenable<boolean> {
 		return;
 	}
 
-	let rangesToUpdate = [];
+	const rangesToUpdate: vscode.Range[] = [];
 	editor.selections.reverse().forEach(selection => {
 		rangesToUpdate = rangesToUpdate.concat(getRangesToUpdate(editor, selection, rootNode));
 	});

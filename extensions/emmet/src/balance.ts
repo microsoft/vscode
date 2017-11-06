@@ -16,11 +16,10 @@ export function balanceIn() {
 }
 
 function balance(out: boolean) {
-	let editor = vscode.window.activeTextEditor;
-	if (!validate(false)) {
+	if (!vscode.window.activeTextEditor || !validate(false)) {
 		return;
 	}
-
+	const editor = vscode.window.activeTextEditor;
 	let rootNode = <HtmlNode>parseDocument(editor.document);
 	if (!rootNode) {
 		return;
@@ -37,7 +36,7 @@ function balance(out: boolean) {
 	editor.selections = newSelections;
 }
 
-function getRangeToBalanceOut(document: vscode.TextDocument, selection: vscode.Selection, rootNode: HtmlNode): vscode.Selection {
+function getRangeToBalanceOut(document: vscode.TextDocument, selection: vscode.Selection, rootNode: HtmlNode): vscode.Selection | undefined {
 	let nodeToBalance = <HtmlNode>getNode(rootNode, selection.start);
 	if (!nodeToBalance) {
 		return;
@@ -58,7 +57,7 @@ function getRangeToBalanceOut(document: vscode.TextDocument, selection: vscode.S
 	return;
 }
 
-function getRangeToBalanceIn(document: vscode.TextDocument, selection: vscode.Selection, rootNode: HtmlNode): vscode.Selection {
+function getRangeToBalanceIn(document: vscode.TextDocument, selection: vscode.Selection, rootNode: HtmlNode): vscode.Selection | undefined {
 	let nodeToBalance = <HtmlNode>getNode(rootNode, selection.start, true);
 	if (!nodeToBalance) {
 		return;

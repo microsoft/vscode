@@ -7,10 +7,10 @@ import * as vscode from 'vscode';
 import { validate } from './util';
 
 export function fetchEditPoint(direction: string): void {
-	let editor = vscode.window.activeTextEditor;
-	if (!validate()) {
+	if (!vscode.window.activeTextEditor || !validate()) {
 		return;
 	}
+	const editor = vscode.window.activeTextEditor;
 
 	let newSelections: vscode.Selection[] = [];
 	editor.selections.forEach(selection => {
@@ -21,7 +21,7 @@ export function fetchEditPoint(direction: string): void {
 	editor.revealRange(editor.selections[editor.selections.length - 1]);
 }
 
-function nextEditPoint(position: vscode.Position, editor: vscode.TextEditor): vscode.Selection {
+function nextEditPoint(position: vscode.Position, editor: vscode.TextEditor): vscode.Selection | undefined {
 	for (let lineNum = position.line; lineNum < editor.document.lineCount; lineNum++) {
 		let updatedSelection = findEditPoint(lineNum, editor, position, 'next');
 		if (updatedSelection) {
@@ -30,7 +30,7 @@ function nextEditPoint(position: vscode.Position, editor: vscode.TextEditor): vs
 	}
 }
 
-function prevEditPoint(position: vscode.Position, editor: vscode.TextEditor): vscode.Selection {
+function prevEditPoint(position: vscode.Position, editor: vscode.TextEditor): vscode.Selection | undefined {
 	for (let lineNum = position.line; lineNum >= 0; lineNum--) {
 		let updatedSelection = findEditPoint(lineNum, editor, position, 'prev');
 		if (updatedSelection) {
@@ -40,7 +40,7 @@ function prevEditPoint(position: vscode.Position, editor: vscode.TextEditor): vs
 }
 
 
-function findEditPoint(lineNum: number, editor: vscode.TextEditor, position: vscode.Position, direction: string): vscode.Selection {
+function findEditPoint(lineNum: number, editor: vscode.TextEditor, position: vscode.Position, direction: string): vscode.Selection | undefined {
 	let line = editor.document.lineAt(lineNum);
 	let lineContent = line.text;
 
