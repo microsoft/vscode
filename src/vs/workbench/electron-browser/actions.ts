@@ -22,7 +22,6 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IExtensionManagementService, LocalExtensionType, ILocalExtension, IExtensionEnablementService} from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import paths = require('vs/base/common/paths');
 import { isMacintosh, isLinux } from 'vs/base/common/platform';
