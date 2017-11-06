@@ -6,7 +6,7 @@
 import { workspace, window, Uri, WorkspaceSymbolProvider, SymbolInformation, SymbolKind, Location, CancellationToken } from 'vscode';
 
 import * as Proto from '../protocol';
-import { ITypescriptServiceClient } from '../typescriptService';
+import { ITypeScriptServiceClient } from '../typescriptService';
 import { tsTextSpanToVsRange } from '../utils/convert';
 
 function getSymbolKind(item: Proto.NavtoItem): SymbolKind {
@@ -23,7 +23,7 @@ function getSymbolKind(item: Proto.NavtoItem): SymbolKind {
 
 export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbolProvider {
 	public constructor(
-		private client: ITypescriptServiceClient,
+		private client: ITypeScriptServiceClient,
 		private modeId: string) { }
 
 	public async provideWorkspaceSymbols(search: string, token: CancellationToken): Promise<SymbolInformation[]> {

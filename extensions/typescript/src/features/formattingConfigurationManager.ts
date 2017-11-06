@@ -6,7 +6,7 @@
 import { workspace as Workspace, FormattingOptions, TextDocument, CancellationToken, window, Disposable, workspace } from 'vscode';
 
 import * as Proto from '../protocol';
-import { ITypescriptServiceClient } from '../typescriptService';
+import { ITypeScriptServiceClient } from '../typescriptService';
 import * as languageIds from '../utils/languageModeIds';
 
 namespace FormattingConfiguration {
@@ -27,7 +27,7 @@ export default class FormattingConfigurationManager {
 	private formatOptions: { [key: string]: Proto.FormatCodeSettings | undefined; } = Object.create(null);
 
 	public constructor(
-		private client: ITypescriptServiceClient
+		private client: ITypeScriptServiceClient
 	) {
 		this.onDidCloseTextDocumentSub = Workspace.onDidCloseTextDocument((textDocument) => {
 			const key = textDocument.uri.toString();

@@ -10,7 +10,7 @@ import API from './utils/api';
 import { TypeScriptServerPlugin } from './utils/plugins';
 import { TypeScriptServiceConfiguration } from './utils/configuration';
 
-export interface ITypescriptServiceClientHost {
+export interface ITypeScriptServiceClientHost {
 	syntaxDiagnosticsReceived(event: Proto.DiagnosticEvent): void;
 	semanticDiagnosticsReceived(event: Proto.DiagnosticEvent): void;
 	configFileDiagnosticsReceived(event: Proto.ConfigFileDiagnosticEvent): void;
@@ -18,7 +18,7 @@ export interface ITypescriptServiceClientHost {
 }
 
 
-export interface ITypescriptServiceClient {
+export interface ITypeScriptServiceClient {
 	normalizePath(resource: Uri): string | null;
 	asUrl(filepath: string): Uri;
 	getWorkspaceRootForResource(resource: Uri): string | undefined;

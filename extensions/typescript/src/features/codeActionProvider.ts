@@ -6,7 +6,7 @@
 import { CodeActionProvider, TextDocument, Range, CancellationToken, CodeActionContext, Command, commands } from 'vscode';
 
 import * as Proto from '../protocol';
-import { ITypescriptServiceClient } from '../typescriptService';
+import { ITypeScriptServiceClient } from '../typescriptService';
 import { vsRangeToTsFileRange } from '../utils/convert';
 import FormattingConfigurationManager from './formattingConfigurationManager';
 import { applyCodeAction } from '../utils/codeAction';
@@ -21,7 +21,7 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 	private _supportedCodeActions?: Thenable<NumberSet>;
 
 	constructor(
-		private readonly client: ITypescriptServiceClient,
+		private readonly client: ITypeScriptServiceClient,
 		private readonly formattingConfigurationManager: FormattingConfigurationManager,
 		mode: string
 	) {

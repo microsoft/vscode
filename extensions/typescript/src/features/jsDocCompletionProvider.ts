@@ -5,7 +5,7 @@
 
 import { Position, Range, CompletionItemProvider, CompletionItemKind, TextDocument, CancellationToken, CompletionItem, window, Uri, ProviderResult, TextEditor, SnippetString, workspace } from 'vscode';
 
-import { ITypescriptServiceClient } from '../typescriptService';
+import { ITypeScriptServiceClient } from '../typescriptService';
 import { DocCommandTemplateResponse } from '../protocol';
 
 import * as nls from 'vscode-nls';
@@ -48,7 +48,7 @@ class JsDocCompletionItem extends CompletionItem {
 export class JsDocCompletionProvider implements CompletionItemProvider {
 
 	constructor(
-		private client: ITypescriptServiceClient,
+		private client: ITypeScriptServiceClient,
 	) { }
 
 	public provideCompletionItems(
@@ -81,7 +81,7 @@ export class TryCompleteJsDocCommand {
 	static COMMAND_NAME = '_typeScript.tryCompleteJsDoc';
 
 	constructor(
-		private lazyClient: () => ITypescriptServiceClient
+		private lazyClient: () => ITypeScriptServiceClient
 	) { }
 
 	/**

@@ -13,7 +13,7 @@ import { Reader } from './utils/wireProtocol';
 
 import { workspace, window, Uri, CancellationToken, Disposable, Memento, MessageItem, EventEmitter, Event, commands, env } from 'vscode';
 import * as Proto from './protocol';
-import { ITypescriptServiceClient, ITypescriptServiceClientHost } from './typescriptService';
+import { ITypeScriptServiceClient, ITypeScriptServiceClientHost } from './typescriptService';
 import { TypeScriptServerPlugin } from './utils/plugins';
 import Logger from './utils/logger';
 
@@ -116,7 +116,7 @@ class RequestQueue {
 	}
 }
 
-export default class TypeScriptServiceClient implements ITypescriptServiceClient {
+export default class TypeScriptServiceClient implements ITypeScriptServiceClient {
 	private static readonly WALK_THROUGH_SNIPPET_SCHEME = 'walkThroughSnippet';
 	private static readonly WALK_THROUGH_SNIPPET_SCHEME_COLON = `${TypeScriptServiceClient.WALK_THROUGH_SNIPPET_SCHEME}:`;
 
@@ -160,7 +160,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private readonly disposables: Disposable[] = [];
 
 	constructor(
-		private readonly host: ITypescriptServiceClientHost,
+		private readonly host: ITypeScriptServiceClientHost,
 		private readonly workspaceState: Memento,
 		private readonly versionStatus: VersionStatus,
 		public readonly plugins: TypeScriptServerPlugin[]

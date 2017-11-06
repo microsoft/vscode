@@ -8,7 +8,7 @@
 import { CodeActionProvider, TextDocument, Range, CancellationToken, CodeActionContext, Command, commands, workspace, WorkspaceEdit, window, QuickPickItem, Selection } from 'vscode';
 
 import * as Proto from '../protocol';
-import { ITypescriptServiceClient } from '../typescriptService';
+import { ITypeScriptServiceClient } from '../typescriptService';
 import { tsTextSpanToVsRange, vsRangeToTsFileRange, tsLocationToVsPosition } from '../utils/convert';
 import FormattingOptionsManager from './formattingConfigurationManager';
 
@@ -17,7 +17,7 @@ export default class TypeScriptRefactorProvider implements CodeActionProvider {
 	private selectRefactorCommandId: string;
 
 	constructor(
-		private readonly client: ITypescriptServiceClient,
+		private readonly client: ITypeScriptServiceClient,
 		private formattingOptionsManager: FormattingOptionsManager,
 		mode: string
 	) {

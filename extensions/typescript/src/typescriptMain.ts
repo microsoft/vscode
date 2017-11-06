@@ -22,7 +22,7 @@ import * as Proto from './protocol';
 import * as PConst from './protocol.const';
 
 import TypeScriptServiceClient from './typescriptServiceClient';
-import { ITypescriptServiceClientHost } from './typescriptService';
+import { ITypeScriptServiceClientHost } from './typescriptService';
 
 import BufferSyncSupport from './features/bufferSyncSupport';
 import { JsDocCompletionProvider, TryCompleteJsDocCommand } from './features/jsDocCompletionProvider';
@@ -432,7 +432,7 @@ const styleCheckDiagnostics = [
 	7030	// not all code paths return a value
 ];
 
-class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
+class TypeScriptServiceClientHost implements ITypeScriptServiceClientHost {
 	private client: TypeScriptServiceClient;
 	private languages: LanguageProvider[] = [];
 	private languagePerId: Map<string, LanguageProvider>;

@@ -6,12 +6,12 @@
 import { RenameProvider, WorkspaceEdit, TextDocument, Position, CancellationToken } from 'vscode';
 
 import * as Proto from '../protocol';
-import { ITypescriptServiceClient } from '../typescriptService';
+import { ITypeScriptServiceClient } from '../typescriptService';
 import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/convert';
 
 export default class TypeScriptRenameProvider implements RenameProvider {
 	public constructor(
-		private client: ITypescriptServiceClient) { }
+		private client: ITypeScriptServiceClient) { }
 
 	public async provideRenameEdits(
 		document: TextDocument,

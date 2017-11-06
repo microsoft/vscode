@@ -5,7 +5,7 @@
 
 import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, TextEdit, Range, SnippetString, workspace, ProviderResult, CompletionContext, commands, Uri, MarkdownString } from 'vscode';
 
-import { ITypescriptServiceClient } from '../typescriptService';
+import { ITypeScriptServiceClient } from '../typescriptService';
 import TypingsStatus from '../utils/typingsStatus';
 
 import * as PConst from '../protocol.const';
@@ -144,7 +144,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 	private readonly commandId: string;
 
 	constructor(
-		private client: ITypescriptServiceClient,
+		private client: ITypeScriptServiceClient,
 		mode: string,
 		private typingsStatus: TypingsStatus
 	) {
