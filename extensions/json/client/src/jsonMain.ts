@@ -246,9 +246,9 @@ function getSettings(): Settings {
 	};
 
 	// merge global and folder settings. Qualify all file matches with the folder path.
-	let globalSettings = workspace.getConfiguration('json', undefined).get<JSONSchemaSettings[]>('schemas');
-	if (Array.isArray(globalSettings)) {
-		collectSchemaSettings(globalSettings, workspace.rootPath);
+	let globalSettings = workspace.getConfiguration('json').inspect<JSONSchemaSettings[]>('schemas');
+	if (globalSettings && Array.isArray(globalSettings.globalValue)) {
+		collectSchemaSettings(globalSettings.globalValue, workspace.rootPath);
 	}
 	let folders = workspace.workspaceFolders;
 	if (folders) {
