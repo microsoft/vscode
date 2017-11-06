@@ -307,11 +307,13 @@ if (require.main === module) {
 				.split(/\r?\n/)
 				.filter(l => !!l);
 
-			hygiene(some, { skipEOL: skipEOL }).on('error', err => {
-				console.error();
-				console.error(err);
-				process.exit(1);
-			});
+			if (some.length > 0) {
+				hygiene(some, { skipEOL: skipEOL }).on('error', err => {
+					console.error();
+					console.error(err);
+					process.exit(1);
+				});
+			}
 		});
 	});
 }
