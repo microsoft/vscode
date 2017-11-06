@@ -5,7 +5,8 @@
 		"outDir": "./out",
 		"lib": [
 			"es5"
-		]
+		],
+		"strict": true
 	},
 	"include": [
 		"src/**/*"
