@@ -45,6 +45,7 @@ import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifi
 import { FileKind } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { ticks } from 'vs/base/node/startupTimers';
 
 // --- actions
 
@@ -362,6 +363,15 @@ export class ShowStartupPerformance extends Action {
 
 			(<any>console).group('Extension Activation Stats');
 			(<any>console).table(this.extensionService.getExtensionsActivationTimes());
+			(<any>console).groupEnd();
+
+			(<any>console).group('Raw Startup Timers (CSV)');
+			let value = `Name\tStart\tDuration\n`;
+			let offset = ticks()[0].started;
+			for (const tick of ticks()) {
+				value += `${tick.name}\t${tick.started - offset}\t${tick.duration}\n`;
+			}
+			console.log(value);
 			(<any>console).groupEnd();
 		}, 1000);
 

@@ -29,8 +29,8 @@ define([], function () {
 
 	function Tick(name, started, stopped, profile) {
 		this.name = name;
-		this.started = started;
-		this.stopped = stopped;
+		this.started = Math.round((started[0] * 1e9 + started[1]) / 1e6);
+		this.stopped = Math.round((stopped[0] * 1e9 + stopped[1]) / 1e6);
 		this.duration = Math.round(((stopped[0] * 1.e9 + stopped[1]) - (started[0] * 1e9 + started[1])) / 1.e6);
 		this.profile = profile;
 	}
@@ -86,7 +86,7 @@ define([], function () {
 	function ticks() {
 		var ret = [];
 		_ticks.forEach(function (value) { ret.push(value); });
-		return ret;
+		return ret.sort((a, b) => a.started - b.started);
 	}
 
 	function tick(name) {
