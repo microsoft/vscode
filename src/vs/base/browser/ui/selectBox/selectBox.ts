@@ -198,6 +198,13 @@ export class SelectBox extends Widget implements IDelegate<ISelectOptionItem> {
 				selected: e.target.value
 			});
 		}));
+
+		this.toDispose.push(dom.addStandardDisposableListener(this.selectElement, 'keydown', (e) => {
+			if (e.equals(KeyCode.Space) || e.equals(KeyCode.Enter)) {
+				// Space is used to expand select box, do not propagate it (prevent action bar action run)
+				e.stopPropagation();
+			}
+		}));
 	}
 
 	private registerSelectDropDownListeners() {
@@ -235,13 +242,13 @@ export class SelectBox extends Widget implements IDelegate<ISelectOptionItem> {
 			// Create and drop down select list on keyboard select
 			switch (process.platform) {
 				case 'darwin':
-					if (event.keyCode === KeyCode.DownArrow || event.keyCode === KeyCode.UpArrow || event.keyCode === KeyCode.Space) {
+					if (event.keyCode === KeyCode.DownArrow || event.keyCode === KeyCode.UpArrow || event.keyCode === KeyCode.Space || event.keyCode === KeyCode.Enter) {
 						showDropDown = true;
 					}
 					break;
 				case 'win32':
 				default:
-					if (event.keyCode === KeyCode.DownArrow && event.altKey || event.keyCode === KeyCode.Space) {
+					if (event.keyCode === KeyCode.DownArrow && event.altKey || event.keyCode === KeyCode.Space || event.keyCode === KeyCode.Enter) {
 						showDropDown = true;
 					}
 					break;
