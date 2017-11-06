@@ -82,7 +82,7 @@ export class Resource implements SourceControlResourceState {
 	get original(): Uri { return this._resourceUri; }
 	get renameResourceUri(): Uri | undefined { return this._renameResourceUri; }
 
-	private static Icons = {
+	private static Icons: any = {
 		light: {
 			Modified: getIconUri('status-modified', 'light'),
 			Added: getIconUri('status-added', 'light'),
@@ -724,7 +724,7 @@ export class Repository implements Disposable {
 
 				const child = this.repository.stream(['check-ignore', ...filePaths]);
 
-				const onExit = exitCode => {
+				const onExit = (exitCode: number) => {
 					if (exitCode === 1) {
 						// nothing ignored
 						resolve(new Set<string>());
