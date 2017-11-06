@@ -33,6 +33,8 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { Action } from 'vs/base/common/actions';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { startTimer } from 'vs/base/node/startupTimers';
+import { toPromise, filterEvent } from 'vs/base/common/event';
+import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 const SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
 
@@ -82,7 +84,8 @@ export class ExtensionService implements IExtensionService {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IExtensionEnablementService private readonly _extensionEnablementService: IExtensionEnablementService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@IWindowService private readonly _windowService: IWindowService
+		@IWindowService private readonly _windowService: IWindowService,
+		@ILifecycleService lifecycleService: ILifecycleService
 	) {
 		this._registry = null;
 		this._barrier = new Barrier();
@@ -97,8 +100,12 @@ export class ExtensionService implements IExtensionService {
 		this._extensionHostProcessCustomers = [];
 		this._extensionHostProcessProxy = null;
 
-		this._startExtensionHostProcess([]);
-		this._scanAndHandleExtensions();
+		toPromise(filterEvent(lifecycleService.onDidChangePhase, phase => phase === LifecyclePhase.Running)).then(() => {
+			// delay extension host creation and extension scanning
+			// until after the editors/panels are restored
+			this._startExtensionHostProcess([]);
+			this._scanAndHandleExtensions();
+		});
 	}
 
 	public restartExtensionHost(): void {
