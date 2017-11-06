@@ -6,7 +6,7 @@
 		],
 		"module": "commonjs",
 		"outDir": "./out",
-		strict
+		"strict": true
 	},
 	"include": [
 		"src/**/*"
