@@ -338,8 +338,7 @@ export class PanelView implements IDisposable {
 
 	readonly onDidSashChange: Event<void>;
 
-	// @ts-ignore unused property
-	constructor(private container: HTMLElement, options: IPanelViewOptions = {}) {
+	constructor(container: HTMLElement, options: IPanelViewOptions = {}) {
 		this.dnd = !!options.dnd;
 		this.el = append(container, $('.monaco-panel-view'));
 		this.splitview = new SplitView(this.el);
