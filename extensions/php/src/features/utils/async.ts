@@ -53,7 +53,7 @@ export class Throttler<T> {
 					return result;
 				};
 
-				this.queuedPromise = new Promise<T>((resolve, reject) => {
+				this.queuedPromise = new Promise<T>((resolve) => {
 					this.activePromise!.then(onComplete, onComplete).then(resolve);
 				});
 			}
@@ -121,7 +121,7 @@ export class Delayer<T> {
 		this.cancelTimeout();
 
 		if (!this.completionPromise) {
-			this.completionPromise = new Promise<T>((resolve, reject) => {
+			this.completionPromise = new Promise<T>((resolve) => {
 				this.onResolve = resolve;
 			}).then(() => {
 				this.completionPromise = null;

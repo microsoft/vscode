@@ -224,7 +224,7 @@ export default class PHPValidationProvider {
 	}
 
 	private doValidate(textDocument: vscode.TextDocument): Promise<void> {
-		return new Promise<void>((resolve, reject) => {
+		return new Promise<void>((resolve) => {
 			let executable = this.executable || 'php';
 			let decoder = new LineDecoder();
 			let diagnostics: vscode.Diagnostic[] = [];

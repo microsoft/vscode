@@ -69,7 +69,7 @@ class BackwardIterator {
 
 export default class PHPSignatureHelpProvider implements SignatureHelpProvider {
 
-	public provideSignatureHelp(document: TextDocument, position: Position, token: CancellationToken): Promise<SignatureHelp> | null {
+	public provideSignatureHelp(document: TextDocument, position: Position, _token: CancellationToken): Promise<SignatureHelp> | null {
 		let enable = workspace.getConfiguration('php').get<boolean>('suggest.basic', true);
 		if (!enable) {
 			return null;
