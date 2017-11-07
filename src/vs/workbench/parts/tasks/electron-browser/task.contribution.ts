@@ -71,7 +71,7 @@ import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs
 
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 
-import { ITaskSystem, ITaskResolver, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TaskSystemEvents, TaskTerminateResponse } from 'vs/workbench/parts/tasks/common/taskSystem';
+import { ITaskSystem, ITaskResolver, ITaskSummary, TaskExecuteKind, TaskError, TaskErrors, TaskSystemEvents, TaskTerminateResponse } from 'vs/workbench/parts/tasks/common/taskSystem';
 import { Task, CustomTask, ConfiguringTask, ContributedTask, InMemoryTask, TaskSet, TaskGroup, GroupType, ExecutionEngine, JsonSchemaVersion, TaskSourceKind, TaskIdentifier, TaskSorter } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService, TaskServiceEvents, ITaskProvider, TaskEvent, RunOptions, CustomizationProperties } from 'vs/workbench/parts/tasks/common/taskService';
 import { templates as taskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
@@ -97,12 +97,6 @@ namespace ConfigureTaskAction {
 	export const TEXT = nls.localize('ConfigureTaskRunnerAction.label', "Configure Task");
 }
 
-// @ts-ignore unused type
-namespace ConfigureBuildTaskAction {
-	export const ID = 'workbench.action.tasks.configureBuildTask';
-	export const TEXT = nls.localize('ConfigureBuildTaskAction.label', "Configure Build Task");
-}
-
 class CloseMessageAction extends Action {
 
 	public static ID = 'workbench.action.build.closeMessage';
@@ -117,22 +111,6 @@ class CloseMessageAction extends Action {
 		if (this.closeFunction) {
 			this.closeFunction();
 		}
-		return TPromise.as(undefined);
-	}
-}
-
-// @ts-ignore unused type
-class ViewTerminalAction extends Action {
-
-	public static ID = 'workbench.action.build.viewTerminal';
-	public static TEXT = nls.localize('ShowTerminalAction.label', 'View Terminal');
-
-	constructor( @ITerminalService private terminalService: ITerminalService) {
-		super(ViewTerminalAction.ID, ViewTerminalAction.TEXT);
-	}
-
-	public run(): TPromise<void> {
-		this.terminalService.showPanel();
 		return TPromise.as(undefined);
 	}
 }
@@ -383,42 +361,6 @@ class TaskStatusBarItem extends Themable implements IStatusbarItem {
 				callOnDispose = dispose(callOnDispose);
 			}
 		};
-	}
-}
-
-// @ts-ignore unused type
-interface TaskServiceEventData {
-	error?: any;
-}
-
-// @ts-ignore unused type
-class NullTaskSystem extends EventEmitter implements ITaskSystem {
-	public run(task: Task): ITaskExecuteResult {
-		return {
-			kind: TaskExecuteKind.Started,
-			promise: TPromise.as<ITaskSummary>({})
-		};
-	}
-	public revealTask(task: Task): boolean {
-		return false;
-	}
-	public isActive(): TPromise<boolean> {
-		return TPromise.as(false);
-	}
-	public isActiveSync(): boolean {
-		return false;
-	}
-	public getActiveTasks(): Task[] {
-		return [];
-	}
-	public canAutoTerminate(): boolean {
-		return true;
-	}
-	public terminate(task: string | Task): TPromise<TaskTerminateResponse> {
-		return TPromise.as<TaskTerminateResponse>({ success: true, task: undefined });
-	}
-	public terminateAll(): TPromise<TaskTerminateResponse[]> {
-		return TPromise.as<TaskTerminateResponse[]>([]);
 	}
 }
 

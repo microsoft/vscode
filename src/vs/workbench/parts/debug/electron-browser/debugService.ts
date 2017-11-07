@@ -60,12 +60,6 @@ const DEBUG_FUNCTION_BREAKPOINTS_KEY = 'debug.functionbreakpoint';
 const DEBUG_EXCEPTION_BREAKPOINTS_KEY = 'debug.exceptionbreakpoint';
 const DEBUG_WATCH_EXPRESSIONS_KEY = 'debug.watchexpressions';
 
-// @ts-ignore unused type
-interface StartSessionResult {
-	status: 'ok' | 'initialConfiguration' | 'saveConfiguration';
-	content?: string;
-}
-
 export class DebugService implements debug.IDebugService {
 	public _serviceBrand: any;
 

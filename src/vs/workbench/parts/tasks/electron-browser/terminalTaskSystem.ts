@@ -38,12 +38,6 @@ import {
 	TelemetryEvent, Triggers, TaskSystemEvents, TaskEvent, TaskType, TaskTerminateResponse
 } from 'vs/workbench/parts/tasks/common/taskSystem';
 
-// @ts-ignore unused type
-interface PrimaryTerminal {
-	terminal: ITerminalInstance;
-	busy: boolean;
-}
-
 interface TerminalData {
 	terminal: ITerminalInstance;
 	lastTask: string;

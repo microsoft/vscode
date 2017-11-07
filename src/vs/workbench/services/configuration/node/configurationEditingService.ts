@@ -109,12 +109,6 @@ interface IConfigurationEditOperation extends IConfigurationValue {
 
 }
 
-// @ts-ignore unused type
-interface IValidationResult {
-	error?: ConfigurationEditingErrorCode;
-	exists?: boolean;
-}
-
 interface ConfigurationEditingOptions extends IConfigurationEditingOptions {
 	force?: boolean;
 }

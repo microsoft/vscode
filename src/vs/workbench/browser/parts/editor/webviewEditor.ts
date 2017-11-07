@@ -14,12 +14,6 @@ export interface HtmlPreviewEditorViewState {
 	scrollYPercentage: number;
 }
 
-// @ts-ignore unused type
-interface HtmlPreviewEditorViewStates {
-	0?: HtmlPreviewEditorViewState;
-	1?: HtmlPreviewEditorViewState;
-	2?: HtmlPreviewEditorViewState;
-}
 
 /**
  * This class is only intended to be subclassed and not instantiated.
