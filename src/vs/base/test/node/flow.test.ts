@@ -13,15 +13,15 @@ const sequence = flow.sequence;
 const parallel = flow.parallel;
 
 suite('Flow', () => {
-	function assertCounterEquals(counter, expected): void {
+	function assertCounterEquals(counter: number, expected: number): void {
 		assert.ok(counter === expected, 'Expected ' + expected + ' assertions, but got ' + counter);
 	}
 
-	function syncThrowsError(callback): void {
+	function syncThrowsError(callback: any): void {
 		callback(new Error('foo'), null);
 	}
 
-	function syncSequenceGetThrowsError(value, callback) {
+	function syncSequenceGetThrowsError(value: any, callback: any) {
 		sequence(
 			function onError(error) {
 				callback(error, null);
@@ -31,27 +31,27 @@ suite('Flow', () => {
 				syncThrowsError(this);
 			},
 
-			function handleFirst(first) {
+			function handleFirst(first: number) {
 				//Foo
 			}
 		);
 	}
 
-	function syncGet(value, callback): void {
+	function syncGet(value: any, callback: any): void {
 		callback(null, value);
 	}
 
-	function syncGetError(value, callback): void {
+	function syncGetError(value: any, callback: any): void {
 		callback(new Error(''), null);
 	}
 
-	function asyncGet(value, callback): void {
+	function asyncGet(value: any, callback: any): void {
 		process.nextTick(function () {
 			callback(null, value);
 		});
 	}
 
-	function asyncGetError(value, callback): void {
+	function asyncGetError(value: any, callback: any): void {
 		process.nextTick(function () {
 			callback(new Error(''), null);
 		});
@@ -72,7 +72,7 @@ suite('Flow', () => {
 	});
 
 	test('loopByFunctionSync', function (done: () => void) {
-		const elements = function (callback) {
+		const elements = function (callback: Function) {
 			callback(null, ['1', '2', '3']);
 		};
 
@@ -87,7 +87,7 @@ suite('Flow', () => {
 	});
 
 	test('loopByFunctionAsync', function (done: () => void) {
-		const elements = function (callback) {
+		const elements = function (callback: Function) {
 			process.nextTick(function () {
 				callback(null, ['1', '2', '3']);
 			});
@@ -180,19 +180,19 @@ suite('Flow', () => {
 				syncGet('1', this);
 			},
 
-			function handleFirst(this: any, first) {
+			function handleFirst(this: any, first: number) {
 				assert.deepEqual('1', first);
 				assertionCount++;
 				syncGet('2', this);
 			},
 
-			function handleSecond(this: any, second) {
+			function handleSecond(this: any, second: any) {
 				assert.deepEqual('2', second);
 				assertionCount++;
 				syncGet(null, this);
 			},
 
-			function handleThird(third) {
+			function handleThird(third: any) {
 				assert.ok(!third);
 				assertionCount++;
 
@@ -216,19 +216,19 @@ suite('Flow', () => {
 				asyncGet('1', this);
 			},
 
-			function handleFirst(this: any, first) {
+			function handleFirst(this: any, first: number) {
 				assert.deepEqual('1', first);
 				assertionCount++;
 				asyncGet('2', this);
 			},
 
-			function handleSecond(this: any, second) {
+			function handleSecond(this: any, second: number) {
 				assert.deepEqual('2', second);
 				assertionCount++;
 				asyncGet(null, this);
 			},
 
-			function handleThird(third) {
+			function handleThird(third: number) {
 				assert.ok(!third);
 				assertionCount++;
 
@@ -256,13 +256,13 @@ suite('Flow', () => {
 				syncGet('1', this);
 			},
 
-			function handleFirst(this: any, first) {
+			function handleFirst(this: any, first: number) {
 				assert.deepEqual('1', first);
 				assertionCount++;
 				syncGet('2', this);
 			},
 
-			function handleSecond(second) {
+			function handleSecond(second: number) {
 				if (true) {
 					throw new Error('');
 				}
@@ -270,7 +270,7 @@ suite('Flow', () => {
 				// syncGet(null, this);
 			},
 
-			function handleThird(third) {
+			function handleThird(third: number) {
 				throw new Error('We should not be here');
 			}
 		);
@@ -293,13 +293,13 @@ suite('Flow', () => {
 				syncGet('1', this);
 			},
 
-			function handleFirst(this: any, first) {
+			function handleFirst(this: any, first: number) {
 				assert.deepEqual('1', first);
 				assertionCount++;
 				syncGetError('2', this);
 			},
 
-			function handleSecond(second) {
+			function handleSecond(second: number) {
 				throw new Error('We should not be here');
 			}
 		);
@@ -322,13 +322,13 @@ suite('Flow', () => {
 				asyncGet('1', this);
 			},
 
-			function handleFirst(this: any, first) {
+			function handleFirst(this: any, first: number) {
 				assert.deepEqual('1', first);
 				assertionCount++;
 				asyncGet('2', this);
 			},
 
-			function handleSecond(second) {
+			function handleSecond(second: number) {
 				if (true) {
 					throw new Error('');
 				}
@@ -336,7 +336,7 @@ suite('Flow', () => {
 				// asyncGet(null, this);
 			},
 
-			function handleThird(third) {
+			function handleThird(third: number) {
 				throw new Error('We should not be here');
 			}
 		);
@@ -359,13 +359,13 @@ suite('Flow', () => {
 				asyncGet('1', this);
 			},
 
-			function handleFirst(this: any, first) {
+			function handleFirst(this: any, first: number) {
 				assert.deepEqual('1', first);
 				assertionCount++;
 				asyncGetError('2', this);
 			},
 
-			function handleSecond(second) {
+			function handleSecond(second: number) {
 				throw new Error('We should not be here');
 			}
 		);
@@ -396,12 +396,12 @@ suite('Flow', () => {
 				this(true);
 			},
 
-			function getSecond(this: any, result) {
+			function getSecond(this: any, result: boolean) {
 				assert.equal(result, true);
 				this(false);
 			},
 
-			function last(result) {
+			function last(result: boolean) {
 				assert.equal(result, false);
 				assertionCount++;
 
