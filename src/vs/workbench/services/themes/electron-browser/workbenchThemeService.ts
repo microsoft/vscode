@@ -477,7 +477,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	}
 }
 
-function _applyIconTheme(data: FileIconThemeData, onApply: (theme: FileIconThemeData) => TPromise<IFileIconTheme>): TPromise<IFileIconTheme> {
+function _applyIconTheme(this: any, data: FileIconThemeData, onApply: (theme: FileIconThemeData) => TPromise<IFileIconTheme>): TPromise<IFileIconTheme> {
 	if (!data) {
 		_applyRules('', iconThemeRulesClassName);
 		return TPromise.as(onApply(data));

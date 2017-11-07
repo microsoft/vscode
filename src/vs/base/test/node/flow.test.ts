@@ -27,7 +27,7 @@ suite('Flow', () => {
 				callback(error, null);
 			},
 
-			function getFirst() {
+			function getFirst(this: any) {
 				syncThrowsError(this);
 			},
 
@@ -176,17 +176,17 @@ suite('Flow', () => {
 				errorCount++;
 			},
 
-			function getFirst() {
+			function getFirst(this: any) {
 				syncGet('1', this);
 			},
 
-			function handleFirst(first) {
+			function handleFirst(this: any, first) {
 				assert.deepEqual('1', first);
 				assertionCount++;
 				syncGet('2', this);
 			},
 
-			function handleSecond(second) {
+			function handleSecond(this: any, second) {
 				assert.deepEqual('2', second);
 				assertionCount++;
 				syncGet(null, this);
@@ -212,17 +212,17 @@ suite('Flow', () => {
 				errorCount++;
 			},
 
-			function getFirst() {
+			function getFirst(this: any) {
 				asyncGet('1', this);
 			},
 
-			function handleFirst(first) {
+			function handleFirst(this: any, first) {
 				assert.deepEqual('1', first);
 				assertionCount++;
 				asyncGet('2', this);
 			},
 
-			function handleSecond(second) {
+			function handleSecond(this: any, second) {
 				assert.deepEqual('2', second);
 				assertionCount++;
 				asyncGet(null, this);
@@ -252,11 +252,11 @@ suite('Flow', () => {
 				done();
 			},
 
-			function getFirst() {
+			function getFirst(this: any) {
 				syncGet('1', this);
 			},
 
-			function handleFirst(first) {
+			function handleFirst(this: any, first) {
 				assert.deepEqual('1', first);
 				assertionCount++;
 				syncGet('2', this);
@@ -289,11 +289,11 @@ suite('Flow', () => {
 				done();
 			},
 
-			function getFirst() {
+			function getFirst(this: any) {
 				syncGet('1', this);
 			},
 
-			function handleFirst(first) {
+			function handleFirst(this: any, first) {
 				assert.deepEqual('1', first);
 				assertionCount++;
 				syncGetError('2', this);
@@ -318,11 +318,11 @@ suite('Flow', () => {
 				done();
 			},
 
-			function getFirst() {
+			function getFirst(this: any) {
 				asyncGet('1', this);
 			},
 
-			function handleFirst(first) {
+			function handleFirst(this: any, first) {
 				assert.deepEqual('1', first);
 				assertionCount++;
 				asyncGet('2', this);
@@ -355,11 +355,11 @@ suite('Flow', () => {
 				done();
 			},
 
-			function getFirst() {
+			function getFirst(this: any) {
 				asyncGet('1', this);
 			},
 
-			function handleFirst(first) {
+			function handleFirst(this: any, first) {
 				assert.deepEqual('1', first);
 				assertionCount++;
 				asyncGetError('2', this);
@@ -377,7 +377,7 @@ suite('Flow', () => {
 				done();
 			},
 
-			function getFirst() {
+			function getFirst(this: any) {
 				syncSequenceGetThrowsError('1', this);
 			}
 		);
@@ -392,11 +392,11 @@ suite('Flow', () => {
 				errorCount++;
 			},
 
-			function getFirst() {
+			function getFirst(this: any) {
 				this(true);
 			},
 
-			function getSecond(result) {
+			function getSecond(this: any, result) {
 				assert.equal(result, true);
 				this(false);
 			},
