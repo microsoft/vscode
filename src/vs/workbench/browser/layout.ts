@@ -701,8 +701,6 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	// change part size along the main axis
 	public resizePart(part: Parts, sizeChange: number): void {
 		const visibleEditorCount = this.editorService.getVisibleEditors().length;
-		const isSidebarVisible = this.partService.isVisible(Parts.SIDEBAR_PART);
-		const isPanelVisible = this.partService.isVisible(Parts.PANEL_PART);
 		const panelPosition = this.partService.getPanelPosition();
 		const sizeChangePxWidth = this.workbenchSize.width * (sizeChange / 100);
 		const sizeChangePxHeight = this.workbenchSize.height * (sizeChange / 100);
@@ -732,10 +730,10 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 				// If we have one editor we can cheat and resize sidebar with the negative delta
 				// If the sidebar is not visible and panel is, resize panel main axis with negative Delta
 				if (visibleEditorCount === 1) {
-					if (isSidebarVisible) {
+					if (this.partService.isVisible(Parts.SIDEBAR_PART)) {
 						this.sidebarWidth = this.sidebarWidth - sizeChangePxWidth;
 						doLayout = true;
-					} else if (isPanelVisible) {
+					} else if (this.partService.isVisible(Parts.PANEL_PART)) {
 						if (panelPosition === Position.BOTTOM) {
 							this.panelHeight = this.panelHeight - sizeChangePxHeight;
 						} else if (panelPosition === Position.RIGHT) {
