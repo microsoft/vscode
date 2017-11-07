@@ -158,6 +158,13 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 // Configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
+let nestingPattern = {
+	'type': 'string', // expression ({ "**/*.js": { "when": "$(basename).js" } })
+	// 'pattern': '\\w*\\$\\(basename\\)\\w*',
+	'default': '$(basename).ext',
+	'description': nls.localize('explorer.fileNesting.default.when', "File nesting rule. Use $(basename) as variable for the matching file name.")
+};
+
 configurationRegistry.registerConfiguration({
 	'id': 'files',
 	'order': 9,
@@ -282,6 +289,42 @@ configurationRegistry.registerConfiguration({
 		'files.defaultLanguage': {
 			'type': 'string',
 			'description': nls.localize('defaultLanguage', "The default language mode that is assigned to new files.")
+		},
+		'files.nesting.enable': {
+			'type': 'boolean',
+			'description': nls.localize('fileNesting', "Enables file nesting based on naming"),
+			'default': false
+		},
+		'files.nesting.rules': {
+			'description': nls.localize('fileNestingRules', "File nesting rules. Property names are treated as globs. If a file matches a glob, the value of `when` is used to find files that should be nested under it."),
+			'default': {
+				'*': { 'when': ['$(basename).*.$(ext)', '$(basename).$(ext).*'] },
+				'firebase.json': { 'when': '.firebaserc' },
+				'package.json': { 'when': 'package-lock.json' },
+				'Dockerfile': { 'when': '.dockerignore' }
+			},
+			'type': 'object',
+			'additionalProperties': {
+				'anyOf': [
+					{
+						'type': 'boolean'
+					},
+					{
+						'type': 'object',
+						'properties': {
+							'when': {
+								'anyOf': [
+									nestingPattern,
+									{
+										'type': 'array',
+										'items': nestingPattern
+									}
+								]
+							}
+						}
+					}
+				]
+			},
 		}
 	}
 });

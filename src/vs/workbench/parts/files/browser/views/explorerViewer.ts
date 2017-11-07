@@ -58,13 +58,38 @@ import { getPathLabel } from 'vs/base/common/labels';
 import { extractResources } from 'vs/workbench/browser/editor';
 
 export class FileDataSource implements IDataSource {
+	private toDispose: IDisposable[] = [];
+	private enableVirtualDirectories: boolean;
+	private virtualDirectoryPatterns: { [glob: string]: string[] };
+
 	constructor(
 		@IProgressService private progressService: IProgressService,
 		@IMessageService private messageService: IMessageService,
 		@IFileService private fileService: IFileService,
 		@IPartService private partService: IPartService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
-	) { }
+	) {
+		this.updateNesting();
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.updateNesting()));
+	}
+
+	private updateNesting(): void {
+		let patterns = this.virtualDirectoryPatterns = {};
+		let config = this.configurationService.getConfiguration<IFilesConfiguration>().files.nesting;
+		this.enableVirtualDirectories = config.enable && !!config.rules && Object.keys(config.rules).length > 0;
+
+		Object.keys(config.rules)
+			.map(key => {
+				let value = config.rules[key];
+				return {
+					key,
+					rule: typeof value === 'object' ? value.when : []
+				};
+			})
+			.filter(({ rule }) => rule.length)
+			.forEach(({ key, rule }) => patterns[key] = Array.isArray(rule) ? rule : [rule]);
+	}
 
 	public getId(tree: ITree, stat: FileStat | Model): string {
 		if (stat instanceof Model) {
@@ -75,7 +100,7 @@ export class FileDataSource implements IDataSource {
 	}
 
 	public hasChildren(tree: ITree, stat: FileStat | Model): boolean {
-		return stat instanceof Model || (stat instanceof FileStat && stat.isDirectory);
+		return stat instanceof Model || (stat instanceof FileStat && (stat.isDirectory || stat.isVirtualDirectory));
 	}
 
 	public getChildren(tree: ITree, stat: FileStat | Model): TPromise<FileStat[]> {
@@ -83,8 +108,19 @@ export class FileDataSource implements IDataSource {
 			return TPromise.as(stat.roots);
 		}
 
+		if (stat.isVirtualDirectory) {
+			this.resolveVirtualDirectories(stat.parent.children);
+			return TPromise.as(this.enableVirtualDirectories ? stat.children : []);
+		}
+
 		// Return early if stat is already resolved
 		if (stat.isDirectoryResolved) {
+			this.resolveVirtualDirectories(stat.children);
+
+			if (this.enableVirtualDirectories) {
+				return TPromise.as(stat.children.filter(x => !x.isVirtualDirectoryMember));
+			}
+
 			return TPromise.as(stat.children);
 		}
 
@@ -102,7 +138,13 @@ export class FileDataSource implements IDataSource {
 					stat.addChild(modelDirStat.children[i]);
 				}
 
+				this.resolveVirtualDirectories(stat.children);
+
 				stat.isDirectoryResolved = true;
+
+				if (this.enableVirtualDirectories) {
+					return stat.children.filter(x => !x.isVirtualDirectoryMember);
+				}
 
 				return stat.children;
 			}, (e: any) => {
@@ -116,6 +158,57 @@ export class FileDataSource implements IDataSource {
 
 			return promise;
 		}
+	}
+
+	private resolveVirtualDirectories(files: FileStat[]) {
+		files.forEach(x => x.isVirtualDirectory = x.isVirtualDirectoryMember = false);
+
+		if (!this.enableVirtualDirectories) {
+			return;
+		}
+
+		files = files.filter(x => !x.isDirectory);
+
+		let nesting = new Map<FileStat, FileStat[]>();
+		files.forEach(x => nesting.set(x, []));
+
+		files.filter(x => !x.isDirectory)
+			.map(x => ({
+				child: x,
+				parent: files.filter(y => x !== y && this.isVirtualDirectoryOf(y.name, x.name))[0]
+			}))
+			.filter(x => x.parent)
+			.forEach(({ parent, child }) => {
+				child.isVirtualDirectoryMember = true;
+				nesting.get(parent).push(child);
+			});
+
+		nesting.forEach((children, parent) => {
+			parent.children = children;
+			parent.isVirtualDirectory = !!children.length;
+		});
+	}
+
+	private isVirtualDirectoryOf(parent: string, file: string): boolean {
+		if (!parent || !file) {
+			return false;
+		}
+
+		let index = parent.lastIndexOf('.');
+		let basename = index < 0 ? parent : parent.substring(0, index);
+		let ext = index < 0 ? '' : parent.substring(index + 1);
+
+		return Object.keys(this.virtualDirectoryPatterns).some(g => {
+			if (!glob.match(g, parent)) {
+				return false;
+			}
+
+			let patterns = this.virtualDirectoryPatterns[g];
+			return patterns.some(p => {
+				let _p = p.replace('$(basename)', basename).replace('$(ext)', ext);
+				return glob.match(_p, file);
+			});
+		});
 	}
 
 	public getParent(tree: ITree, stat: FileStat | Model): TPromise<FileStat> {
