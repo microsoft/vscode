@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'mocha';
 import * as assert from 'assert';
 import { Selection } from 'vscode';
 import { withRandomFileEditor, closeAllEditors } from './testUtils';
@@ -18,7 +19,7 @@ suite('Tests for Next/Previous Select/Edit point and Balance actions', () => {
 	margin: 20px 10px;
 	background-image: url('tryme.png');
 }
-		
+
 .boo .hoo {
 	margin: 10px;
 }
@@ -45,7 +46,7 @@ suite('Tests for Next/Previous Select/Edit point and Balance actions', () => {
 </head>
 <body>
 	<div>
-		
+
 	</div>
 	<div class="header">
 		<ul class="nav main">

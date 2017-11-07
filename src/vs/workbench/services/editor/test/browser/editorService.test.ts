@@ -19,11 +19,11 @@ import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorIn
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 
-let activeEditor: BaseEditor = <any>{
+let activeEditor: BaseEditor = {
 	getSelection: function () {
 		return 'test.selection';
 	}
-};
+} as any;
 
 let openedEditorInput: EditorInput;
 let openedEditorOptions: EditorOptions;
