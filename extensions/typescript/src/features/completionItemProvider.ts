@@ -16,7 +16,7 @@ import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/conver
 import * as nls from 'vscode-nls';
 import { applyCodeAction } from '../utils/codeAction';
 import * as languageModeIds from '../utils/languageModeIds';
-import { CommandManager } from '../utils/commandManager';
+import { CommandManager, Command } from '../utils/commandManager';
 
 let localize = nls.loadMessageBundle();
 
@@ -126,6 +126,24 @@ class MyCompletionItem extends CompletionItem {
 	}
 }
 
+class ApplyCompletionCodeActionCommand implements Command {
+	public static readonly ID = '_typescript.applyCompletionCodeAction';
+	public readonly id = ApplyCompletionCodeActionCommand.ID;
+
+	public constructor(
+		private readonly client: ITypeScriptServiceClient
+	) { }
+
+	public async execute(file: string, codeActions: CodeAction[]): Promise<boolean> {
+		for (const action of codeActions) {
+			if (!(await applyCodeAction(this.client, action, file))) {
+				return false;
+			}
+		}
+		return true;
+	}
+}
+
 interface Configuration {
 	useCodeSnippetsOnMethodSuggest: boolean;
 	nameSuggestions: boolean;
@@ -142,16 +160,12 @@ namespace Configuration {
 }
 
 export default class TypeScriptCompletionItemProvider implements CompletionItemProvider {
-	private readonly commandId: string;
-
 	constructor(
 		private client: ITypeScriptServiceClient,
-		mode: string,
 		private readonly typingsStatus: TypingsStatus,
 		commandManager: CommandManager
 	) {
-		this.commandId = `_typescript.applyCompletionCodeAction.${mode}`;
-		commandManager.registerCommand(this.commandId, this.applyCompletionCodeAction, this);
+		commandManager.register(new ApplyCompletionCodeActionCommand(this.client));
 	}
 
 	public async provideCompletionItems(
@@ -313,7 +327,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 			if (detail.codeActions && detail.codeActions.length) {
 				item.command = {
 					title: '',
-					command: this.commandId,
+					command: ApplyCompletionCodeActionCommand.ID,
 					arguments: [filepath, detail.codeActions]
 				};
 			}
@@ -379,16 +393,6 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 
 		return new SnippetString(codeSnippet);
 	}
-
-	private async applyCompletionCodeAction(file: string, codeActions: CodeAction[]): Promise<boolean> {
-		for (const action of codeActions) {
-			if (!(await applyCodeAction(this.client, action, file))) {
-				return false;
-			}
-		}
-		return true;
-	}
-
 
 	private getConfiguration(resource: Uri): Configuration {
 		// Use shared setting for js and ts

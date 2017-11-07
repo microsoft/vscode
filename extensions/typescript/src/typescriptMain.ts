@@ -233,7 +233,7 @@ class LanguageProvider {
 		const selector = this.description.modeIds;
 		const config = workspace.getConfiguration(this.id);
 
-		const completionItemProvider = new (await import('./features/completionItemProvider')).default(client, this.description.id, this.typingsStatus, this.commandManager);
+		const completionItemProvider = new (await import('./features/completionItemProvider')).default(client, this.typingsStatus, this.commandManager);
 		this.disposables.push(languages.registerCompletionItemProvider(selector, completionItemProvider, '.', '"', '\'', '/', '@'));
 
 		this.disposables.push(languages.registerCompletionItemProvider(selector, new (await import('./features/directiveCommentCompletionProvider')).default(client), '@'));
