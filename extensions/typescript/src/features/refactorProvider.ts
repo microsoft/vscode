@@ -11,6 +11,7 @@ import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { tsTextSpanToVsRange, vsRangeToTsFileRange, tsLocationToVsPosition } from '../utils/convert';
 import FormattingOptionsManager from './formattingConfigurationManager';
+import { CommandManager } from '../utils/commandManager';
 
 export default class TypeScriptRefactorProvider implements CodeActionProvider {
 	private doRefactorCommandId: string;
@@ -19,13 +20,14 @@ export default class TypeScriptRefactorProvider implements CodeActionProvider {
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
 		private formattingOptionsManager: FormattingOptionsManager,
-		mode: string
+		mode: string,
+		commandManager: CommandManager
 	) {
 		this.doRefactorCommandId = `_typescript.applyRefactoring.${mode}`;
 		this.selectRefactorCommandId = `_typescript.selectRefactoring.${mode}`;
 
-		commands.registerCommand(this.doRefactorCommandId, this.doRefactoring, this);
-		commands.registerCommand(this.selectRefactorCommandId, this.selectRefactoring, this);
+		commandManager.registerCommand(this.doRefactorCommandId, this.doRefactoring, this);
+		commandManager.registerCommand(this.selectRefactorCommandId, this.selectRefactoring, this);
 	}
 
 	public async provideCodeActions(

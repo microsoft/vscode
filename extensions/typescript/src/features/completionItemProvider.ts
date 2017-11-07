@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, TextEdit, Range, SnippetString, workspace, ProviderResult, CompletionContext, commands, Uri, MarkdownString } from 'vscode';
+import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, TextEdit, Range, SnippetString, workspace, ProviderResult, CompletionContext, Uri, MarkdownString } from 'vscode';
 
 import { ITypeScriptServiceClient } from '../typescriptService';
 import TypingsStatus from '../utils/typingsStatus';
@@ -16,6 +16,7 @@ import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/conver
 import * as nls from 'vscode-nls';
 import { applyCodeAction } from '../utils/codeAction';
 import * as languageModeIds from '../utils/languageModeIds';
+import { CommandManager } from '../utils/commandManager';
 
 let localize = nls.loadMessageBundle();
 
@@ -146,10 +147,11 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 	constructor(
 		private client: ITypeScriptServiceClient,
 		mode: string,
-		private typingsStatus: TypingsStatus
+		private readonly typingsStatus: TypingsStatus,
+		commandManager: CommandManager
 	) {
 		this.commandId = `_typescript.applyCompletionCodeAction.${mode}`;
-		commands.registerCommand(this.commandId, this.applyCompletionCodeAction, this);
+		commandManager.registerCommand(this.commandId, this.applyCompletionCodeAction, this);
 	}
 
 	public async provideCompletionItems(

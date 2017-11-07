@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CodeActionProvider, TextDocument, Range, CancellationToken, CodeActionContext, Command, commands } from 'vscode';
+import { CodeActionProvider, TextDocument, Range, CancellationToken, CodeActionContext, Command } from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { vsRangeToTsFileRange } from '../utils/convert';
 import FormattingConfigurationManager from './formattingConfigurationManager';
 import { applyCodeAction } from '../utils/codeAction';
+import { CommandManager } from '../utils/commandManager';
 
 interface NumberSet {
 	[key: number]: boolean;
@@ -23,10 +24,11 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
 		private readonly formattingConfigurationManager: FormattingConfigurationManager,
-		mode: string
+		mode: string,
+		commandManager: CommandManager
 	) {
 		this.commandId = `_typescript.applyCodeAction.${mode}`;
-		commands.registerCommand(this.commandId, this.onCodeAction, this);
+		commandManager.registerCommand(this.commandId, this.onCodeAction, this);
 	}
 
 	public async provideCodeActions(
