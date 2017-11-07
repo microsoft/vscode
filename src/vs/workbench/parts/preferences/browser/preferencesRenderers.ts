@@ -16,7 +16,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IPreferencesService, ISettingsGroup, ISetting, IPreferencesEditorModel, IFilterResult, ISettingsEditorModel, IScoredResults } from 'vs/workbench/parts/preferences/common/preferences';
+import { IPreferencesService, ISettingsGroup, ISetting, IPreferencesEditorModel, IFilterResult, ISettingsEditorModel, IScoredResults, IWorkbenchSettingsConfiguration } from 'vs/workbench/parts/preferences/common/preferences';
 import { SettingsEditorModel, DefaultSettingsEditorModel, WorkspaceConfigurationEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { IContextMenuService, ContextSubMenu } from 'vs/platform/contextview/browser/contextView';
@@ -562,7 +562,8 @@ export class FeedbackWidgetRenderer extends Disposable {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IMessageService private messageService: IMessageService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super();
 	}
@@ -638,6 +639,8 @@ export class FeedbackWidgetRenderer extends Disposable {
 
 		const altsAdded = expectedQuery.alts && expectedQuery.alts[0] && (expectedQuery.alts[0][0] !== FeedbackWidgetRenderer.DEFAULT_ALTS[0] || expectedQuery.alts[0][1] !== FeedbackWidgetRenderer.DEFAULT_ALTS[1]);
 		const alts = altsAdded ? expectedQuery.alts : undefined;
+		const workbenchSettings = this.configurationService.getConfiguration<IWorkbenchSettingsConfiguration>().workbench.settings;
+		const autoIngest = workbenchSettings.experimentalFuzzySearchAutoIngestFeedback;
 
 		/* __GDPR__
 			"settingsSearchResultFeedback" : {
@@ -659,7 +662,8 @@ export class FeedbackWidgetRenderer extends Disposable {
 			duration: result.metadata.duration,
 			timestamp: result.metadata.timestamp,
 			buildNumber: this.environmentService.debugSearch,
-			alts
+			alts,
+			autoIngest
 		});
 	}
 
