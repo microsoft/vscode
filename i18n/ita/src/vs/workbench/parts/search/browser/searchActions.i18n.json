@@ -14,13 +14,16 @@
 	"focusPreviousInputBox": "Sposta lo stato attivo sulla casella di input precedente",
 	"showSearchViewlet": "Mostra Cerca",
 	"findInFiles": "Cerca nei file",
+	"findInFilesWithSelectedText": "Cerca nei file con il testo selezionato",
 	"replaceInFiles": "Sostituisci nei file",
+	"replaceInFilesWithSelectedText": "Sostituisci nei file con il testo selezionato",
 	"findInWorkspace": "Trova nell'area di lavoro...",
 	"findInFolder": "Trova nella cartella...",
 	"RefreshAction.label": "Aggiorna",
 	"ClearSearchResultsAction.label": "Cancella risultati della ricerca",
 	"FocusNextSearchResult.label": "Sposta lo stato attivo sul risultato della ricerca successivo",
 	"FocusPreviousSearchResult.label": "Sposta lo stato attivo sul risultato della ricerca precedente",
+	"RemoveAction.label": "Chiudi",
 	"file.replaceAll.label": "Sostituisci tutto",
 	"match.replace.label": "Sostituisci"
 }

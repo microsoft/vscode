@@ -17,6 +17,8 @@
 	"workspaceConfig.folders.description": "Список папок, которые будут загружены в рабочую область.",
 	"workspaceConfig.path.description": "Путь к файлу, например, \"/root/folderA\" или \"./folderA\" для пути по отношению к файлу рабочей области.",
 	"workspaceConfig.name.description": "Необязательное имя папки.",
+	"workspaceConfig.uri.description": "URI папки",
+	"workspaceConfig.settings.description": "Параметры рабочей области",
 	"workspaceConfig.extensions.description": "Расширения рабочей области",
 	"unknownWorkspaceProperty": "Неизвестное свойство рабочей области"
 }

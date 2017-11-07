@@ -16,6 +16,8 @@
 	"exclude.boolean": "Dosya yollarının eşleştirileceği glob deseni. Deseni etkinleştirmek veya devre dışı bırakmak için true veya false olarak ayarlayın.",
 	"exclude.when": "Eşleşen bir dosyanın eşdüzey dosyalarında ek denetim. Eşleşen dosya adı için değişken olarak $(basename) kullanın.",
 	"useRipgrep": "Metin ve dosya aramasında Ripgrep kullanılıp kullanılmayacağını denetler",
+	"useIgnoreFilesByDefault": "Yeni bir çalışma alanında arama yaparken .gitignore ve .ignore dosyalarının varsayılan olarak kullanılıp kullanılmayacağını denetler.",
+	"useIgnoreFiles": "Dosyaları ararken .gitignore ve .ignore dosyalarının kullanılıp kullanılmayacağını denetler.",
 	"search.quickOpen.includeSymbols": "Dosya sonuçlarındaki bir global sembol aramasının sonuçlarının Hızlı Aç'a dahil edilip edilmeyeceğini yapılandırın.",
 	"search.followSymlinks": "Arama yaparken sembolik linklerin takip edilip edilmeyeceğini denetler."
 }

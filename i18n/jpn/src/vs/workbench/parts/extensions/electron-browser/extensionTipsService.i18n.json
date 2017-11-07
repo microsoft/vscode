@@ -6,6 +6,7 @@
 {
 	"fileBasedRecommendation": "最近開いたファイルに基づいてこの拡張機能が推奨されます。",
 	"workspaceRecommendation": "現在のワークスペースのユーザーによってこの拡張機能が推奨されています。",
+	"exeBasedRecommendation": "{0} がインストールされているため、この拡張機能を推奨します。",
 	"reallyRecommended2": "このファイルの種類には拡張機能 '{0}' が推奨されます。",
 	"reallyRecommendedExtensionPack": "このファイルの種類には拡張機能パック '{0}' が推奨されます。",
 	"showRecommendations": "推奨事項を表示",

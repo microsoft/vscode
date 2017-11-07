@@ -20,6 +20,7 @@
 	"editorGroupBorder": "Birden fazla düzenleyici grubunu birbirinden ayıracak renk. Düzenleyici grupları, düzenleyicilerin kapsayıcılarıdır. ",
 	"editorDragAndDropBackground": "Düzenleyici grubunu sürüklerken gösterilecek arka plan rengi. Düzenleyici içeriğinin hâlâ iyi görünmeye devam edebilmesi için renk şeffaf olmalıdır.",
 	"panelBackground": "Panel arka plan rengi. Paneller düzenleyici alanının altında gösterilir ve çıktı ve entegre terminal gibi görünümler içerir.",
+	"panelBorder": "Paneli düzenleyiciden ayıran kenarlık rengi. Paneller düzenleyici alanının altında gösterilir ve çıktı ve entegre terminal gibi görünümler içerir.",
 	"panelActiveTitleForeground": "Aktif panelin başlık rengi. Paneller düzenleyici alanının altında gösterilir ve çıktı ve entegre terminal gibi görünümler içerir.",
 	"panelInactiveTitleForeground": "Pasif panelin başlık rengi. Paneller düzenleyici alanının altında gösterilir ve çıktı ve entegre terminal gibi görünümler içerir.",
 	"panelActiveTitleBorder": "Aktif başlığının kenarlık rengi. Paneller düzenleyici alanının altında gösterilir ve çıktı ve entegre terminal gibi görünümler içerir.",

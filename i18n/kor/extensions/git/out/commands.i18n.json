@@ -14,6 +14,7 @@
 	"proposeopen": "복제된 리포지토리를 여시겠습니까?",
 	"init repo": "리포지토리 초기화",
 	"create repo": "리포지토리 초기화",
+	"are you sure": "'{0}'에서 Git 리포지토리가 만들어집니다. 계속하시겠습니까?",
 	"HEAD not available": "'{0}'의 HEAD 버전이 없습니다.",
 	"confirm stage files with merge conflicts": "병합 충돌이 있는 {0} 파일을 스테이징하시겠습니까?",
 	"confirm stage file with merge conflicts": "병합 충돌이 있는 {0}을(를) 스테이징하시겠습니까?",

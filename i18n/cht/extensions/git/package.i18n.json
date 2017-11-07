@@ -61,5 +61,11 @@
 	"config.defaultCloneDirectory": "複製 Git 儲存庫的預設位置",
 	"config.enableSmartCommit": "無暫存變更時提交所有變更。",
 	"config.enableCommitSigning": "啟用 GPG 認可簽署。",
-	"config.discardAllScope": "控制 `Discard all changes` 命令會捨棄的變更。`all` 會捨棄所有變更。`tracked` 只會捨棄追蹤的檔案。`prompt` 會在每次動作執行時顯示提示對話方塊。"
+	"config.discardAllScope": "控制 `Discard all changes` 命令會捨棄的變更。`all` 會捨棄所有變更。`tracked` 只會捨棄追蹤的檔案。`prompt` 會在每次動作執行時顯示提示對話方塊。",
+	"config.decorations.enabled": "控制 Git 是否提供色彩及徽章給總管及開啟編輯器視窗。",
+	"colors.modified": "修改資源的顏色。",
+	"colors.deleted": "刪除資源的顏色",
+	"colors.untracked": "未追蹤資源的顏色。",
+	"colors.ignored": "忽略資源的顏色。",
+	"colors.conflict": "帶有衝突資源的顏色。"
 }

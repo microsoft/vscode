@@ -20,6 +20,7 @@
 	"editorGroupBorder": "Couleur séparant plusieurs groupes d'éditeurs les uns des autres. Les groupes d'éditeurs sont les conteneurs des éditeurs.",
 	"editorDragAndDropBackground": "Couleur d'arrière-plan lors du déplacement des éditeurs par glissement. La couleur doit avoir une transparence pour que le contenu de l'éditeur soit visible à travers.",
 	"panelBackground": "Couleur d'arrière-plan du panneau. Les panneaux s'affichent sous la zone d'éditeurs et contiennent des affichages tels que la sortie et le terminal intégré.",
+	"panelBorder": "Couleur de bordure du panneau pour séparer le panneau de l'éditeur. Les panneaux apparaissent sous la zone de l'éditeur et contiennent des vues comme la sortie et le terminal intégré.",
 	"panelActiveTitleForeground": "Couleur du titre du panneau actif. Les panneaux se situent sous la zone de l'éditeur et contiennent des affichages comme la sortie et le terminal intégré.",
 	"panelInactiveTitleForeground": "Couleur du titre du panneau inactif. Les panneaux se situent sous la zone de l'éditeur et contiennent des affichages comme la sortie et le terminal intégré.",
 	"panelActiveTitleBorder": "Couleur de la bordure du titre du panneau actif. Les panneaux se situent sous la zone de l'éditeur et contiennent des affichages comme la sortie et le terminal intégré.",
