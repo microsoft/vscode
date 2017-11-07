@@ -269,136 +269,135 @@ export class Workbench implements IPartService {
 	 * once. Use the shutdown function to free up resources created by the workbench on startup.
 	 */
 	public startup(callbacks?: IWorkbenchCallbacks): void {
-		try {
-			this.workbenchStarted = true;
-			this.callbacks = callbacks;
+		this.workbenchStarted = true;
+		this.callbacks = callbacks;
 
-			// Create Workbench
-			this.createWorkbench();
+		// Create Workbench
+		this.createWorkbench();
 
-			// Install some global actions
-			this.createGlobalActions();
+		// Install some global actions
+		this.createGlobalActions();
 
-			// Services
-			this.initServices();
-			if (this.callbacks && this.callbacks.onServicesCreated) {
-				this.callbacks.onServicesCreated();
+		// Services
+		this.initServices();
+		if (this.callbacks && this.callbacks.onServicesCreated) {
+			this.callbacks.onServicesCreated();
+		}
+
+		// Contexts
+		this.messagesVisibleContext = MessagesVisibleContext.bindTo(this.contextKeyService);
+		this.editorsVisibleContext = EditorsVisibleContext.bindTo(this.contextKeyService);
+		this.inZenMode = InZenModeContext.bindTo(this.contextKeyService);
+		this.sideBarVisibleContext = SidebarVisibleContext.bindTo(this.contextKeyService);
+
+		// Register Listeners
+		this.registerListeners();
+
+		// Settings
+		this.initSettings();
+
+		// Create Workbench and Parts
+		this.renderWorkbench();
+
+		// Workbench Layout
+		this.createWorkbenchLayout();
+
+		// Restore Parts
+		this.restoreParts().done(startedInfo => {
+			this.workbenchCreated = true;
+			this.creationPromiseComplete(true);
+
+			if (this.callbacks && this.callbacks.onWorkbenchStarted) {
+				this.callbacks.onWorkbenchStarted(startedInfo);
+			}
+		});
+	}
+
+	private restoreParts(): TPromise<IWorkbenchStartedInfo> {
+		const restorePromises: TPromise<any>[] = [];
+
+		// Restore Editors
+		const editorRestoreStopWatch = StopWatch.create();
+		const editorRestoreClock = time('restore:editors');
+		const restoredEditors: string[] = [];
+		restorePromises.push(this.resolveEditorsToOpen().then(inputs => {
+			this.lifecycleService.phase = LifecyclePhase.Restoring;
+
+			let editorOpenPromise: TPromise<IEditor[]>;
+			if (inputs.length) {
+				editorOpenPromise = this.editorService.openEditors(inputs.map(input => { return { input, position: EditorPosition.ONE }; }));
+			} else {
+				editorOpenPromise = this.editorPart.restoreEditors();
 			}
 
-			// Contexts
-			this.messagesVisibleContext = MessagesVisibleContext.bindTo(this.contextKeyService);
-			this.editorsVisibleContext = EditorsVisibleContext.bindTo(this.contextKeyService);
-			this.inZenMode = InZenModeContext.bindTo(this.contextKeyService);
-			this.sideBarVisibleContext = SidebarVisibleContext.bindTo(this.contextKeyService);
+			return editorOpenPromise.then(editors => {
+				this.handleEditorBackground(); // make sure we show the proper background in the editor area
 
-			// Register Listeners
-			this.registerListeners();
+				editorRestoreClock.stop();
+				editorRestoreStopWatch.stop();
 
-			// Settings
-			this.initSettings();
-
-			// Create Workbench and Parts
-			this.renderWorkbench();
-
-			// Workbench Layout
-			this.createWorkbenchLayout();
-
-			// Load composites and editors in parallel
-			const compositeAndEditorPromises: TPromise<any>[] = [];
-
-			// Restore last opened viewlet
-			let viewletRestoreStopWatch: StopWatch;
-			let viewletIdToRestore: string;
-			if (!this.sideBarHidden) {
-				this.sideBarVisibleContext.set(true);
-
-				if (this.shouldRestoreLastOpenedViewlet()) {
-					viewletIdToRestore = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE);
-				}
-
-				if (!viewletIdToRestore) {
-					viewletIdToRestore = this.viewletService.getDefaultViewletId();
-				}
-
-				viewletRestoreStopWatch = StopWatch.create();
-				const viewletRestoreClock = time('restore:viewlet');
-				compositeAndEditorPromises.push(this.viewletService.openViewlet(viewletIdToRestore).then(() => {
-					viewletRestoreStopWatch.stop();
-					viewletRestoreClock.stop();
-				}));
-			}
-
-			// Load Panel
-			const panelRegistry = Registry.as<PanelRegistry>(PanelExtensions.Panels);
-			const panelId = this.storageService.get(PanelPart.activePanelSettingsKey, StorageScope.WORKSPACE, panelRegistry.getDefaultPanelId());
-			if (!this.panelHidden && !!panelId) {
-				compositeAndEditorPromises.push(this.panelPart.openPanel(panelId, false));
-			}
-
-			// Load Editors
-			const editorRestoreStopWatch = StopWatch.create();
-			const editorRestoreClock = time('restore:editors');
-			const restoredEditors: string[] = [];
-			compositeAndEditorPromises.push(this.resolveEditorsToOpen().then(inputs => {
-				this.lifecycleService.phase = LifecyclePhase.Restoring;
-				let editorOpenPromise: TPromise<IEditor[]>;
-				if (inputs.length) {
-					editorOpenPromise = this.editorService.openEditors(inputs.map(input => { return { input, position: EditorPosition.ONE }; }));
-				} else {
-					editorOpenPromise = this.editorPart.restoreEditors();
-				}
-
-				return editorOpenPromise.then(editors => {
-					this.handleEditorBackground(); // make sure we show the proper background in the editor area
-					editorRestoreClock.stop();
-					editorRestoreStopWatch.stop();
-					for (const editor of editors) {
-						if (editor) {
-							if (editor.input) {
-								restoredEditors.push(editor.input.getName());
-							} else {
-								restoredEditors.push(`other:${editor.getId()}`);
-							}
+				for (const editor of editors) {
+					if (editor) {
+						if (editor.input) {
+							restoredEditors.push(editor.input.getName());
+						} else {
+							restoredEditors.push(`other:${editor.getId()}`);
 						}
 					}
-				});
-			}));
+				}
+			});
+		}));
 
-			if (this.storageService.getBoolean(Workbench.zenModeActiveSettingKey, StorageScope.WORKSPACE, false)) {
-				this.toggleZenMode(true);
+		// Restore Sidebar
+		let viewletRestoreStopWatch: StopWatch;
+		let viewletIdToRestore: string;
+		if (!this.sideBarHidden) {
+			this.sideBarVisibleContext.set(true);
+
+			if (this.shouldRestoreLastOpenedViewlet()) {
+				viewletIdToRestore = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE);
 			}
 
-			// Flag workbench as created once done
-			const workbenchDone = (error?: Error) => {
-				this.workbenchCreated = true;
-				this.creationPromiseComplete(true);
+			if (!viewletIdToRestore) {
+				viewletIdToRestore = this.viewletService.getDefaultViewletId();
+			}
 
-				if (this.callbacks && this.callbacks.onWorkbenchStarted) {
-					this.callbacks.onWorkbenchStarted({
-						customKeybindingsCount: this.keybindingService.customKeybindingsCount(),
-						restoreViewletDuration: viewletRestoreStopWatch ? Math.round(viewletRestoreStopWatch.elapsed()) : 0,
-						restoreEditorsDuration: Math.round(editorRestoreStopWatch.elapsed()),
-						pinnedViewlets: this.activitybarPart.getPinned(),
-						restoredViewlet: viewletIdToRestore,
-						restoredEditors
-					});
-				}
-
-				if (error) {
-					errors.onUnexpectedError(error);
-				}
-			};
-
-			// Join viewlet, panel and editor promises
-			TPromise.join(compositeAndEditorPromises).then(() => workbenchDone(), error => workbenchDone(error));
-		} catch (error) {
-
-			// Print out error
-			console.error(toErrorMessage(error, true));
-
-			// Rethrow
-			throw error;
+			viewletRestoreStopWatch = StopWatch.create();
+			const viewletRestoreClock = time('restore:viewlet');
+			restorePromises.push(this.viewletService.openViewlet(viewletIdToRestore).then(() => {
+				viewletRestoreStopWatch.stop();
+				viewletRestoreClock.stop();
+			}));
 		}
+
+		// Restore Panel
+		const panelRegistry = Registry.as<PanelRegistry>(PanelExtensions.Panels);
+		const panelId = this.storageService.get(PanelPart.activePanelSettingsKey, StorageScope.WORKSPACE, panelRegistry.getDefaultPanelId());
+		if (!this.panelHidden && !!panelId) {
+			restorePromises.push(this.panelPart.openPanel(panelId, false));
+		}
+
+		// Restore Zen Mode if active
+		if (this.storageService.getBoolean(Workbench.zenModeActiveSettingKey, StorageScope.WORKSPACE, false)) {
+			this.toggleZenMode(true);
+		}
+
+		const onRestored = (error?: Error): IWorkbenchStartedInfo => {
+			if (error) {
+				errors.onUnexpectedError(error);
+			}
+
+			return {
+				customKeybindingsCount: this.keybindingService.customKeybindingsCount(),
+				restoreViewletDuration: viewletRestoreStopWatch ? Math.round(viewletRestoreStopWatch.elapsed()) : 0,
+				restoreEditorsDuration: Math.round(editorRestoreStopWatch.elapsed()),
+				pinnedViewlets: this.activitybarPart.getPinned(),
+				restoredViewlet: viewletIdToRestore,
+				restoredEditors
+			};
+		};
+
+		return TPromise.join(restorePromises).then(() => onRestored(), error => onRestored(error));
 	}
 
 	private createGlobalActions(): void {
