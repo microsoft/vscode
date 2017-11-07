@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITerminalConfigHelper } from 'vs/workbench/parts/terminal/common/terminal';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export class TerminalWidgetManager {
@@ -14,8 +13,6 @@ export class TerminalWidgetManager {
 	private _messageListeners: IDisposable[] = [];
 
 	constructor(
-		// @ts-ignore unused property
-		private _configHelper: ITerminalConfigHelper,
 		terminalWrapper: HTMLElement
 	) {
 		this._container = document.createElement('div');

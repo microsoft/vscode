@@ -10,7 +10,6 @@ import { Mode, IEntryRunContext, IAutoFocus, IQuickNavigateConfiguration, IModel
 import { QuickOpenModel, QuickOpenEntry } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ContributableActionProvider } from 'vs/workbench/browser/actions';
 import { stripWildcards } from 'vs/base/common/strings';
 import { matchesFuzzy } from 'vs/base/common/filters';
@@ -50,8 +49,6 @@ export class CreateTerminal extends QuickOpenEntry {
 
 	constructor(
 		private label: string,
-		// @ts-ignore unused injected service
-		private terminalService: ITerminalService,
 		private commandService: ICommandService
 	) {
 		super();
@@ -82,8 +79,6 @@ export class TerminalPickerHandler extends QuickOpenHandler {
 	constructor(
 		@ITerminalService private terminalService: ITerminalService,
 		@ICommandService private commandService: ICommandService,
-		// @ts-ignore unused injected service
-		@IPanelService private panelService: IPanelService
 	) {
 		super();
 	}
@@ -93,7 +88,7 @@ export class TerminalPickerHandler extends QuickOpenHandler {
 		const normalizedSearchValueLowercase = stripWildcards(searchValue).toLowerCase();
 
 		const terminalEntries: QuickOpenEntry[] = this.getTerminals();
-		terminalEntries.push(new CreateTerminal(nls.localize("'workbench.action.terminal.newplus", "$(plus) Create New Integrated Terminal"), this.terminalService, this.commandService));
+		terminalEntries.push(new CreateTerminal(nls.localize("'workbench.action.terminal.newplus", "$(plus) Create New Integrated Terminal"), this.commandService));
 
 		const entries = terminalEntries.filter(e => {
 			if (!searchValue) {

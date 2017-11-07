@@ -21,9 +21,6 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
-import { ITerminalProcessFactory } from 'vs/workbench/parts/terminal/electron-browser/terminal';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
@@ -47,15 +44,6 @@ XTermTerminal.loadAddon('search');
 // Enable the winpty compatibility addon which will simulate wraparound mode
 XTermTerminal.loadAddon('winptyCompat');
 
-class StandardTerminalProcessFactory implements ITerminalProcessFactory {
-	public create(env: { [key: string]: string }): cp.ChildProcess {
-		return cp.fork('./terminalProcess', [], {
-			env,
-			cwd: Uri.parse(path.dirname(require.toUrl('./terminalProcess'))).fsPath
-		});
-	}
-}
-
 enum ProcessState {
 	// The process has not been initialized yet.
 	UNINITIALIZED,
@@ -78,8 +66,6 @@ enum ProcessState {
 export class TerminalInstance implements ITerminalInstance {
 	private static readonly EOL_REGEX = /\r?\n/g;
 
-	// @ts-ignore unused property
-	private static _terminalProcessFactory: ITerminalProcessFactory = new StandardTerminalProcessFactory();
 	private static _lastKnownDimensions: Dimension = null;
 	private static _idCounter = 1;
 
@@ -134,10 +120,6 @@ export class TerminalInstance implements ITerminalInstance {
 		@IKeybindingService private _keybindingService: IKeybindingService,
 		@IMessageService private _messageService: IMessageService,
 		@IPanelService private _panelService: IPanelService,
-		// @ts-ignore unused injected service
-		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
-		// @ts-ignore unused injected service
-		@IWorkbenchEditorService private _editorService: IWorkbenchEditorService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IClipboardService private _clipboardService: IClipboardService,
 		@IHistoryService private _historyService: IHistoryService,
@@ -173,7 +155,7 @@ export class TerminalInstance implements ITerminalInstance {
 		if (platform.isWindows) {
 			this._processReady.then(() => {
 				if (!this._isDisposed) {
-					this._windowsShellHelper = new WindowsShellHelper(this._processId, this._shellLaunchConfig.executable, this, this._xterm);
+					this._windowsShellHelper = new WindowsShellHelper(this._processId, this, this._xterm);
 				}
 			});
 		}
@@ -380,7 +362,7 @@ export class TerminalInstance implements ITerminalInstance {
 		}));
 
 		this._wrapperElement.appendChild(this._xtermElement);
-		this._widgetManager = new TerminalWidgetManager(this._configHelper, this._wrapperElement);
+		this._widgetManager = new TerminalWidgetManager(this._wrapperElement);
 		this._linkHandler.setWidgetManager(this._widgetManager);
 		this._container.appendChild(this._wrapperElement);
 
@@ -1020,10 +1002,6 @@ export class TerminalInstance implements ITerminalInstance {
 				}
 			}
 		});
-	}
-
-	public static setTerminalProcessFactory(factory: ITerminalProcessFactory): void {
-		this._terminalProcessFactory = factory;
 	}
 
 	public setTitle(title: string, eventFromProcess: boolean): void {

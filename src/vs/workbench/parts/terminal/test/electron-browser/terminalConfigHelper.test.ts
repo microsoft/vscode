@@ -7,7 +7,6 @@
 
 import * as assert from 'assert';
 import { IConfigurationService, getConfigurationValue, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
-import { Platform } from 'vs/base/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
@@ -48,7 +47,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 				}
 			}
 		});
-		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, null, null, null);
+		configHelper = new TerminalConfigHelper(configurationService, null, null, null);
 		configHelper.panelContainer = fixture;
 		assert.equal(configHelper.getFont().fontFamily, 'bar', 'terminal.integrated.fontFamily should be selected over editor.fontFamily');
 
@@ -62,7 +61,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 				}
 			}
 		});
-		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, null, null, null);
+		configHelper = new TerminalConfigHelper(configurationService, null, null, null);
 		configHelper.panelContainer = fixture;
 		if (isFedora) {
 			assert.equal(configHelper.getFont().fontFamily, '\'DejaVu Sans Mono\'', 'Fedora should have its font overridden when terminal.integrated.fontFamily not set');
@@ -87,7 +86,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 				}
 			}
 		});
-		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, null, null, null);
+		configHelper = new TerminalConfigHelper(configurationService, null, null, null);
 		configHelper.panelContainer = fixture;
 		assert.equal(configHelper.getFont().fontSize, 10, 'terminal.integrated.fontSize should be selected over editor.fontSize');
 
@@ -102,7 +101,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 				}
 			}
 		});
-		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, null, null, null);
+		configHelper = new TerminalConfigHelper(configurationService, null, null, null);
 		configHelper.panelContainer = fixture;
 		assert.equal(configHelper.getFont().fontSize, 6, 'The minimum terminal font size should be used when terminal.integrated.fontSize less than it');
 
@@ -117,7 +116,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 				}
 			}
 		});
-		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, null, null, null);
+		configHelper = new TerminalConfigHelper(configurationService, null, null, null);
 		configHelper.panelContainer = fixture;
 		assert.equal(configHelper.getFont().fontSize, EDITOR_FONT_DEFAULTS.fontSize, 'The default editor font size should be used when terminal.integrated.fontSize is not set');
 	});
@@ -138,7 +137,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 				}
 			}
 		});
-		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, null, null, null);
+		configHelper = new TerminalConfigHelper(configurationService, null, null, null);
 		configHelper.panelContainer = fixture;
 		assert.equal(configHelper.getFont().lineHeight, 2, 'terminal.integrated.lineHeight should be selected over editor.lineHeight');
 
@@ -154,7 +153,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 				}
 			}
 		});
-		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, null, null, null);
+		configHelper = new TerminalConfigHelper(configurationService, null, null, null);
 		configHelper.panelContainer = fixture;
 		assert.equal(configHelper.getFont().lineHeight, 1, 'editor.lineHeight should be 1 when terminal.integrated.lineHeight not set');
 	});

@@ -9,7 +9,6 @@ import * as platform from 'vs/base/common/platform';
 import * as pfs from 'vs/base/node/pfs';
 import Uri from 'vs/base/common/uri';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { TerminalWidgetManager } from 'vs/workbench/parts/terminal/browser/terminalWidgetManager';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -67,8 +66,6 @@ export class TerminalLinkHandler {
 		private _platform: platform.Platform,
 		private _initialCwd: string,
 		@IOpenerService private _openerService: IOpenerService,
-		// @ts-ignore unused injected service
-		@IWorkbenchEditorService private _editorService: IWorkbenchEditorService,
 		@IConfigurationService private _configurationService: IConfigurationService,
 		@ITerminalService private _terminalService: ITerminalService
 	) {
