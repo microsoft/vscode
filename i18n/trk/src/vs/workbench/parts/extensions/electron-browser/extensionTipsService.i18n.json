@@ -6,6 +6,7 @@
 {
 	"fileBasedRecommendation": "Bu eklenti yakınlarda açtığınız dosyalara dayanarak tavsiye ediliyor.",
 	"workspaceRecommendation": "Bu eklenti geçerli çalışma alanı kullanıcıları tarafından tavsiye ediliyor.",
+	"exeBasedRecommendation": "Bu eklenti, sizde {0} kurulu olduğu için tavsiye ediliyor.",
 	"reallyRecommended2": "'{0}' eklentisi bu dosya türü için tavsiye edilir.",
 	"reallyRecommendedExtensionPack": "'{0}' eklenti paketi bu dosya türü için tavsiye edilir.",
 	"showRecommendations": "Tavsiyeleri Göster",

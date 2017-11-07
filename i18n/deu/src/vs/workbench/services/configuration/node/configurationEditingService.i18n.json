@@ -12,6 +12,7 @@
 	"errorUnknownKey": "In {0} kann nicht geschrieben werden, weil {1} keine registrierte Konfiguration ist.",
 	"errorInvalidFolderConfiguration": "In die Ordnereinstellungen kann nicht geschrieben werden, weil {0} den Gültigkeitsbereich für Ordnerressourcen nicht unterstützt.",
 	"errorInvalidUserTarget": "In die Benutzereinstellungen kann nicht geschrieben werden, weil {0} den globalen Gültigkeitsbereich nicht unterstützt.",
+	"errorInvalidWorkspaceTarget": "In die Arbeitsbereichseinstellungen kann nicht geschrieben werden, da {0} den Arbeitsbereichsumfang in einem Arbeitsbereich mit mehreren Ordnern nicht unterstützt.",
 	"errorInvalidFolderTarget": "In die Ordnereinstellungen kann nicht geschrieben werden, weil keine Ressource angegeben ist.",
 	"errorNoWorkspaceOpened": "In {0} kann nicht geschrieben werden, weil kein Arbeitsbereich geöffnet ist. Öffnen Sie zuerst einen Arbeitsbereich, und versuchen Sie es noch mal.",
 	"errorInvalidTaskConfiguration": "In die Aufgabendatei kann nicht geschrieben werden. Öffnen Sie die Datei **Aufgaben**, um Fehler/Warnungen darin zu beheben, und versuchen Sie es noch mal.",

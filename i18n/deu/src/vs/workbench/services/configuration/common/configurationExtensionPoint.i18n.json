@@ -17,6 +17,8 @@
 	"workspaceConfig.folders.description": "Liste von Ordnern, die in den Arbeitsbereich geladen werden.",
 	"workspaceConfig.path.description": "Ein Dateipfad, z. B. \" /root/folderA\" oder \"./folderA\" bei einem relativen Pfad, der in Bezug auf den Speicherort der Arbeitsbereichsdatei  aufgelöst wird.",
 	"workspaceConfig.name.description": "Ein optionaler Name für den Ordner.",
+	"workspaceConfig.uri.description": "URI des Ordners",
+	"workspaceConfig.settings.description": "Arbeitsbereichseinstellungen",
 	"workspaceConfig.extensions.description": "Arbeitsbereichserweiterungen",
 	"unknownWorkspaceProperty": "Unbekannte Arbeitsbereichs-Konfigurationseigenschaft"
 }

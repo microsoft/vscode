@@ -61,5 +61,11 @@
 	"config.defaultCloneDirectory": "O local padrão onde clonar um repositório git",
 	"config.enableSmartCommit": "Confirme todas as alterações quando não há modificações planejadas.",
 	"config.enableCommitSigning": "Habilitar Commit assinando com GPG.",
-	"config.discardAllScope": "Controla as alterações que são descartadas pelo comando 'Descartar todas as alterações'. 'todos' descarta todas as alterações. 'rastreados' descarta somente arquivos rastreados. 'prompt' mostra uma caixa de diálogo de alerta cada vez que a ação é executada."
+	"config.discardAllScope": "Controla as alterações que são descartadas pelo comando 'Descartar todas as alterações'. 'todos' descarta todas as alterações. 'rastreados' descarta somente arquivos rastreados. 'prompt' mostra uma caixa de diálogo de alerta cada vez que a ação é executada.",
+	"config.decorations.enabled": "Controla se o Git contribui cores e emblemas para o explorer e visualizador de editores abertos.",
+	"colors.modified": "Cor para recursos modificados.",
+	"colors.deleted": "Cor para recursos excluídos.",
+	"colors.untracked": "Cor para recursos não controlados.",
+	"colors.ignored": "Cor para recursos ignorados.",
+	"colors.conflict": "Cor para recursos com conflitos."
 }

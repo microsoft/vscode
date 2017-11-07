@@ -49,5 +49,6 @@
 	"typescript.problemMatchers.tscWatch.label": "Problemas de TypeScript (modo de inspección)",
 	"typescript.quickSuggestionsForPaths": "Activar o desactivar rápidas sugerencias al escribir una ruta de importación.",
 	"typescript.locale": "Establece la configuración regional para reportar errores de TypeScript. Requiere TypeScript > = 2.6.0. Por defecto, utiliza el valor 'null'  de VS Code para errores de TypeScript.",
-	"javascript.implicitProjectConfig.experimentalDecorators": "Activar/desactivar 'experimentalDecorators' para los archivos JavaScript que no son parte de un proyecto. Los archivos jsconfig.json o tsconfig.json reemplazan esta configuración. Requiere inicio > = 2.3.1. "
+	"javascript.implicitProjectConfig.experimentalDecorators": "Activar/desactivar 'experimentalDecorators' para los archivos JavaScript que no son parte de un proyecto. Los archivos jsconfig.json o tsconfig.json reemplazan esta configuración. Requiere inicio > = 2.3.1. ",
+	"typescript.autoImportSuggestions.enabled": "Habilita o deshabilita sugerencias de importación automática.  Requiere TypeScript >= 2.6.1."
 }

@@ -61,5 +61,11 @@
 	"config.defaultCloneDirectory": "Emplacement par défaut où cloner un dépôt git",
 	"config.enableSmartCommit": "Validez toutes les modifications en l'absence de modifications en attente.",
 	"config.enableCommitSigning": "Permet de valider en signant avec GPG.",
-	"config.discardAllScope": "Contrôle les modifications ignorées par la commande 'Ignorer toutes les modifications'. 'all' ignore toutes les modifications. 'tracked' ignore uniquement les fichiers suivis. 'prompt' affiche un message d'invite chaque fois que l’action est exécutée."
+	"config.discardAllScope": "Contrôle les modifications ignorées par la commande 'Ignorer toutes les modifications'. 'all' ignore toutes les modifications. 'tracked' ignore uniquement les fichiers suivis. 'prompt' affiche un message d'invite chaque fois que l’action est exécutée.",
+	"config.decorations.enabled": "Contrôle si Git contribue aux couleurs et aux badges de l’Explorateur et à l'affichage des éditeurs ouverts.",
+	"colors.modified": "Couleur pour les ressources modifiées.",
+	"colors.deleted": "Couleur pour les ressources supprimées.",
+	"colors.untracked": "Couleur pour les ressources non tracées.",
+	"colors.ignored": "Couleur des ressources ignorées.",
+	"colors.conflict": "Couleur pour les ressources avec des conflits."
 }

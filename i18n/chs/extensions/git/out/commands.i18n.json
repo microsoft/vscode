@@ -68,7 +68,7 @@
 	"no changes stash": "没有要储藏的更改。",
 	"provide stash message": "提供储藏消息(可选)",
 	"stash message": "储藏消息",
-	"no stashes": "没有可以恢复的存储。",
+	"no stashes": "没有可以恢复的储藏。",
 	"pick stash to pop": "选择要弹出的储藏",
 	"clean repo": "在签出前，请清理存储库工作树。",
 	"cant push": "无法推送 refs 到远端。请先运行“拉取”功能以整合你的更改。",

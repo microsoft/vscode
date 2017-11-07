@@ -14,5 +14,6 @@
 	"copyDefaultValue": "Copia nelle impostazioni",
 	"unsupportedPHPExecutablePathSetting": "Questa deve essere un'impostazione utente. Per configurare PHP per l'area di lavoro, aprire un file PHP e fare clic su 'Percorso PHP' nella barra di stato.",
 	"unsupportedWorkspaceSetting": "Questa deve essere un'impostazione utente.",
-	"unsupportedWorkbenchSetting": "Non è possibile applicare ora questa impostazione. Verrà applicata direttamente all'apertura della cartella."
+	"unsupportedWorkbenchSetting": "Non è possibile applicare ora questa impostazione. Verrà applicata direttamente all'apertura della cartella.",
+	"unsupportedWorkbenchSettingDevMode": "L'impostazione non può essere applicata in questo momento. Essa verrà applicata se il suo ambito sarà definito come 'risorsa' durante la registrazione, o quando si aprirà questa cartella direttamente."
 }

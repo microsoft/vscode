@@ -22,5 +22,6 @@
 	"preLaunchTaskExitCode": "A preLaunchTask '{0}' encerrada com código de saída {1}.",
 	"noFolderWorkspaceDebugError": "O arquivo ativo não pode ser depurado. Certifique-se de que ele está salvo no disco e que tem uma extensão de depuração instalada para esse tipo de arquivo.",
 	"NewLaunchConfig": "Por favor, configure o arquivo de configuração de lançamento para seu aplicativo. {0}",
-	"DebugTaskNotFound": "Não foi possível encontrar o preLaunchTask '{0}'."
+	"DebugTaskNotFound": "Não foi possível encontrar o preLaunchTask '{0}'.",
+	"taskNotTracked": "Tarefa de pré-lançamento ${0} não pode ser rastreada."
 }

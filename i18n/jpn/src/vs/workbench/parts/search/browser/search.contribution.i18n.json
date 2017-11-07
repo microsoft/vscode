@@ -16,6 +16,8 @@
 	"exclude.boolean": "ファイル パスの照合基準となる glob パターン。これを true または false に設定すると、パターンがそれぞれ有効/無効になります。",
 	"exclude.when": "一致するファイルの兄弟をさらにチェックします。一致するファイル名の変数として $(basename) を使用します。",
 	"useRipgrep": "テキストとファイル検索で ripgrep を使用するかどうかを制御します",
+	"useIgnoreFilesByDefault": "新しいワークスペースでテキストを検索するときに、既定で .gitignore ファイルと .ignore ファイルを使用するかどうかを制御します。",
+	"useIgnoreFiles": "ファイルを検索するときに、.gitignore ファイルを使用するか .ignore ファイルを使用するかを制御します。",
 	"search.quickOpen.includeSymbols": "グローバル シンボル検索の結果を、Quick Open の結果ファイルに含めるように構成します。",
 	"search.followSymlinks": "検索中にシンボリック リンクを追跡するかどうかを制御します。"
 }
