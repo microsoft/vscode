@@ -18,7 +18,7 @@ interface ExpandAbbreviationInput {
 }
 
 export function wrapWithAbbreviation(args: any) {
-	if (!vscode.window.activeTextEditor || !validate(false)) {
+	if (!validate(false) || !vscode.window.activeTextEditor) {
 		return;
 	}
 
@@ -51,7 +51,7 @@ export function wrapWithAbbreviation(args: any) {
 }
 
 export function wrapIndividualLinesWithAbbreviation(args: any) {
-	if (!vscode.window.activeTextEditor || !validate(false)) {
+	if (!validate(false) || !vscode.window.activeTextEditor) {
 		return;
 	}
 

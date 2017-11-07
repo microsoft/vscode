@@ -10,7 +10,7 @@
 import { TextEditor, Range, Position, window, TextEdit } from 'vscode';
 import * as path from 'path';
 import { getImageSize } from './imageSizeHelper';
-import { parseDocument, getNode, iterateCSSToken, getCssPropertyFromRule, isStyleSheet } from './util';
+import { parseDocument, getNode, iterateCSSToken, getCssPropertyFromRule, isStyleSheet, validate } from './util';
 import { HtmlNode, CssToken, HtmlToken, Attribute, Property } from 'EmmetNode';
 import { locateFile } from './locateFile';
 import parseStylesheet from '@emmetio/css-parser';
@@ -20,8 +20,7 @@ import { DocumentStreamReader } from './bufferStream';
  * Updates size of context image in given editor
  */
 export function updateImageSize() {
-	if (!window.activeTextEditor) {
-		window.showInformationMessage('No editor is active.');
+	if (!validate() || !window.activeTextEditor) {
 		return;
 	}
 	const editor = window.activeTextEditor;

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { getNodesInBetween, getNode, parseDocument, sameNodes, isStyleSheet } from './util';
+import { getNodesInBetween, getNode, parseDocument, sameNodes, isStyleSheet, validate } from './util';
 import { Node, Stylesheet, Rule, HtmlNode } from 'EmmetNode';
 import parseStylesheet from '@emmetio/css-parser';
 import { DocumentStreamReader } from './bufferStream';
@@ -15,8 +15,7 @@ const startCommentHTML = '<!--';
 const endCommentHTML = '-->';
 
 export function toggleComment(): Thenable<boolean> | undefined {
-	if (!vscode.window.activeTextEditor) {
-		vscode.window.showInformationMessage('No editor is active');
+	if (!validate() || !vscode.window.activeTextEditor) {
 		return;
 	}
 	const editor = vscode.window.activeTextEditor;

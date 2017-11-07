@@ -163,7 +163,7 @@ export class DocumentStreamReader {
 	 * Repeatedly calls <code>eat</code> with the given argument, until it
 	 * fails. Returns <code>true</code> if any characters were eaten.
 	 */
-	eatWhile(match: any): boolean {
+	eatWhile(match: number | Function): boolean {
 		const start = this.pos;
 		while (!this.eof() && this.eat(match)) { }
 		return !this.pos.isEqual(start);

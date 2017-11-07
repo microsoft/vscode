@@ -8,13 +8,10 @@ import { HtmlNode } from 'EmmetNode';
 import { getNode, parseDocument, validate } from './util';
 
 export function updateTag(tagName: string): Thenable<boolean> | undefined {
-	if (!vscode.window.activeTextEditor) {
+	if (!validate(false) || !vscode.window.activeTextEditor) {
 		return;
 	}
 	let editor = vscode.window.activeTextEditor;
-	if (!validate(false)) {
-		return;
-	}
 	let rootNode = <HtmlNode>parseDocument(editor.document);
 	if (!rootNode) {
 		return;
