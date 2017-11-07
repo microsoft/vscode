@@ -103,9 +103,9 @@ export class ExtensionService implements IExtensionService {
 		toPromise(filterEvent(lifecycleService.onDidChangePhase, phase => phase === LifecyclePhase.Running)).then(() => {
 			// delay extension host creation and extension scanning
 			// until after the editors/panels are restored
-			this._startExtensionHostProcess([]);
-			this._scanAndHandleExtensions();
 		});
+		this._startExtensionHostProcess([]);
+		this._scanAndHandleExtensions();
 	}
 
 	public restartExtensionHost(): void {
