@@ -19,7 +19,7 @@ suite('Tests for Next/Previous Select/Edit point and Balance actions', () => {
 	margin: 20px 10px;
 	background-image: url('tryme.png');
 }
-
+		
 .boo .hoo {
 	margin: 10px;
 }
@@ -46,7 +46,7 @@ suite('Tests for Next/Previous Select/Edit point and Balance actions', () => {
 </head>
 <body>
 	<div>
-
+		
 	</div>
 	<div class="header">
 		<ul class="nav main">
