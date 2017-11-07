@@ -263,11 +263,6 @@ export class Sash extends EventEmitter {
 			this.$e = null;
 		}
 
-		if (this.gesture) {
-			this.gesture.dispose();
-			this.gesture = null;
-		}
-
 		super.dispose();
 	}
 }
