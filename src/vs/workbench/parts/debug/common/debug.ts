@@ -47,10 +47,10 @@ export const INTERNAL_CONSOLE_OPTIONS_SCHEMA = {
 	default: 'openOnFirstSessionStart',
 	description: nls.localize('internalConsoleOptions', "Controls behavior of the internal debug console.")
 };
-export const DEBUG_VIEWLET_OPTIONS_SCHEMA = {
+export const OPEN_DEBUG_OPTIONS_SCHEMA = {
 	enum: ['neverOpen', 'openOnSessionStart', 'openOnFirstSessionStart'],
 	default: 'openOnFirstSessionStart',
-	description: nls.localize('debugViewletOptions', "Controls whether debug viewlet should be open on debugging session start.")
+	description: nls.localize('openDebugOnStart', "Controls whether debug viewlet should be open on debugging session start.")
 };
 
 // raw
@@ -324,11 +324,11 @@ export enum State {
 
 export interface IDebugConfiguration {
 	allowBreakpointsEverywhere: boolean;
+	openDebugOnStart: string;
 	openExplorerOnEnd: boolean;
 	inlineValues: boolean;
 	hideActionBar: boolean;
 	internalConsoleOptions: string;
-	debugViewletOptions: string;
 }
 
 export interface IGlobalConfig {
@@ -342,7 +342,6 @@ export interface IEnvConfig {
 	type: string;
 	request: string;
 	internalConsoleOptions?: string;
-	debugViewletOptions?: string;
 	preLaunchTask?: string;
 	__restart?: any;
 	__sessionId?: string;

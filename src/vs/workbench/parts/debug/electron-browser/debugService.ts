@@ -872,11 +872,11 @@ export class DebugService implements debug.IDebugService {
 					this.panelService.openPanel(debug.REPL_ID, false).done(undefined, errors.onUnexpectedError);
 				}
 
-				const debugViewletOptions = configuration.debugViewletOptions || this.configurationService.getConfiguration<debug.IDebugConfiguration>('debug').debugViewletOptions;
-				// Open debug viewlet based on the visibility of the side bar and debugViewletOptions setting
+				const openDebugOptions = this.configurationService.getConfiguration<debug.IDebugConfiguration>('debug').openDebugOnStart;
+				// Open debug viewlet based on the visibility of the side bar and openDebugOnStart setting
 				if ((this.partService.isVisible(Parts.SIDEBAR_PART) || this.contextService.getWorkbenchState() === WorkbenchState.EMPTY)
-					&& ((debugViewletOptions === 'openOnSessionStart')
-						|| (debugViewletOptions === 'openOnFirstSessionStart' && !this.viewModel.changedWorkbenchViewState))) {
+					&& ((openDebugOptions === 'openOnSessionStart')
+						|| (openDebugOptions === 'openOnFirstSessionStart' && !this.viewModel.changedWorkbenchViewState))) {
 					this.viewModel.changedWorkbenchViewState = true;
 					this.viewletService.openViewlet(debug.VIEWLET_ID);
 				}
