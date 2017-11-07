@@ -27,8 +27,6 @@ let activeEditor: BaseEditor = <any>{
 
 let openedEditorInput;
 let openedEditorOptions;
-// @ts-ignore unused local
-let openedEditorPosition;
 
 function toResource(path) {
 	return URI.from({ scheme: 'custom', path });
@@ -70,7 +68,6 @@ class TestEditorPart implements IEditorPart {
 	public openEditor(input?: EditorInput, options?: EditorOptions, arg?: any): TPromise<BaseEditor> {
 		openedEditorInput = input;
 		openedEditorOptions = options;
-		openedEditorPosition = arg;
 
 		return TPromise.as(activeEditor);
 	}

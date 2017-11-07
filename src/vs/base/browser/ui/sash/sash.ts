@@ -51,7 +51,6 @@ export enum Orientation {
 export class Sash extends EventEmitter {
 
 	private $e: Builder;
-	// @ts-ignore unused property
 	private gesture: Gesture;
 	private layoutProvider: ISashLayoutProvider;
 	private isDisabled: boolean;
@@ -141,10 +140,6 @@ export class Sash extends EventEmitter {
 
 		let $window = $(window);
 		let containerCSSClass = `${this.getOrientation()}-cursor-container${isMacintosh ? '-mac' : ''}`;
-		// @ts-ignore unused local
-		let lastCurrentX = startX;
-		// @ts-ignore unused local
-		let lastCurrentY = startY;
 
 		$window.on('mousemove', (e) => {
 			DOM.EventHelper.stop(e, false);
@@ -156,9 +151,6 @@ export class Sash extends EventEmitter {
 				startY: startY,
 				currentY: mouseMoveEvent.posy
 			};
-
-			lastCurrentX = mouseMoveEvent.posx;
-			lastCurrentY = mouseMoveEvent.posy;
 
 			this.emit('change', event);
 		}).once('mouseup', (e) => {
@@ -193,11 +185,6 @@ export class Sash extends EventEmitter {
 			currentY: startY
 		});
 
-		// @ts-ignore unused local
-		let lastCurrentX = startX;
-		// @ts-ignore unused local
-		let lastCurrentY = startY;
-
 		listeners.push(DOM.addDisposableListener(this.$e.getHTMLElement(), EventType.Change, (event: GestureEvent) => {
 			if (types.isNumber(event.pageX) && types.isNumber(event.pageY)) {
 				this.emit('change', {
@@ -206,9 +193,6 @@ export class Sash extends EventEmitter {
 					startY: startY,
 					currentY: event.pageY
 				});
-
-				lastCurrentX = event.pageX;
-				lastCurrentY = event.pageY;
 			}
 		}));
 
@@ -280,6 +264,11 @@ export class Sash extends EventEmitter {
 		if (this.$e) {
 			this.$e.destroy();
 			this.$e = null;
+		}
+
+		if (this.gesture) {
+			this.gesture.dispose();
+			this.gesture = null;
 		}
 
 		super.dispose();

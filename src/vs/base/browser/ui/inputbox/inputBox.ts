@@ -54,7 +54,6 @@ export interface IMessage {
 
 export interface IInputValidationOptions {
 	validation: IInputValidator;
-	showMessage?: boolean;
 }
 
 export enum MessageType {
@@ -90,8 +89,6 @@ export class InputBox extends Widget {
 	private placeholder: string;
 	private ariaLabel: string;
 	private validation: IInputValidator;
-	// @ts-ignore unused property
-	private showValidationMessage: boolean;
 	private state = 'idle';
 	private cachedHeight: number;
 
@@ -136,7 +133,6 @@ export class InputBox extends Widget {
 
 		if (this.options.validationOptions) {
 			this.validation = this.options.validationOptions.validation;
-			this.showValidationMessage = this.options.validationOptions.showMessage || false;
 		}
 
 		this.element = dom.append(container, $('.monaco-inputbox.idle'));
@@ -498,7 +494,6 @@ export class InputBox extends Widget {
 		this.placeholder = null;
 		this.ariaLabel = null;
 		this.validation = null;
-		this.showValidationMessage = null;
 		this.state = null;
 		this.actionbar = null;
 

@@ -91,8 +91,6 @@ export class OutputService implements IOutputService {
 	private _onOutputChannel: Emitter<string>;
 	private _onActiveOutputChannel: Emitter<string>;
 
-	// @ts-ignore unused property
-	private _outputLinkDetector: OutputLinkProvider;
 	private _outputContentProvider: OutputContentProvider;
 	private _outputPanel: OutputPanel;
 
@@ -111,7 +109,7 @@ export class OutputService implements IOutputService {
 		const channels = this.getChannels();
 		this.activeChannelId = this.storageService.get(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE, channels && channels.length > 0 ? channels[0].id : null);
 
-		this._outputLinkDetector = instantiationService.createInstance(OutputLinkProvider);
+		instantiationService.createInstance(OutputLinkProvider);
 
 		this._outputContentProvider = instantiationService.createInstance(OutputContentProvider, this);
 

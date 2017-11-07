@@ -16,24 +16,10 @@ import pfs = require('vs/base/node/pfs');
 import Uri from 'vs/base/common/uri';
 import { BackupFileService, BackupFilesModel } from 'vs/workbench/services/backup/node/backupFileService';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
-import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { parseArgs } from 'vs/platform/environment/node/argv';
 import { RawTextSource } from 'vs/editor/common/model/textSource';
 import { TestContextService, TestTextResourceConfigurationService, getRandomTestPath } from 'vs/workbench/test/workbenchTestServices';
 import { Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-
-// @ts-ignore unused type
-class TestEnvironmentService extends EnvironmentService {
-
-	constructor(private _backupHome: string, private _backupWorkspacesPath: string) {
-		super(parseArgs(process.argv), process.execPath);
-	}
-
-	get backupHome(): string { return this._backupHome; }
-
-	get backupWorkspacesPath(): string { return this._backupWorkspacesPath; }
-}
 
 const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backupfileservice');
 const backupHome = path.join(parentDir, 'Backups');

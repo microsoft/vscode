@@ -168,8 +168,7 @@ export class PatternInputWidget extends Widget {
 			placeholder: this.placeholder || '',
 			ariaLabel: this.ariaLabel || '',
 			validationOptions: {
-				validation: null,
-				showMessage: true
+				validation: null
 			}
 		});
 		this._register(attachInputBoxStyler(this.inputBox, this.themeService));

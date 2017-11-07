@@ -53,7 +53,6 @@ import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { getPathLabel } from 'vs/base/common/labels';
 import { extractResources } from 'vs/workbench/browser/editor';
 
@@ -62,9 +61,7 @@ export class FileDataSource implements IDataSource {
 		@IProgressService private progressService: IProgressService,
 		@IMessageService private messageService: IMessageService,
 		@IFileService private fileService: IFileService,
-		@IPartService private partService: IPartService,
-		// @ts-ignore unused injected service
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IPartService private partService: IPartService
 	) { }
 
 	public getId(tree: ITree, stat: FileStat | Model): string {
@@ -353,8 +350,7 @@ export class FileRenderer implements IRenderer {
 		// Input field for name
 		const inputBox = new InputBox(label.element, this.contextViewService, {
 			validationOptions: {
-				validation: editableData.validator,
-				showMessage: true
+				validation: editableData.validator
 			},
 			ariaLabel: nls.localize('fileInputAriaLabel', "Type file name. Press Enter to confirm or Escape to cancel.")
 		});
@@ -426,11 +422,7 @@ export class FileController extends DefaultController {
 	constructor(state: FileViewletState,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		// @ts-ignore unused injected service
-		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		// @ts-ignore unused injected service
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
@@ -754,9 +746,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		@ITextFileService private textFileService: ITextFileService,
 		@IBackupFileService private backupFileService: IBackupFileService,
 		@IWindowService private windowService: IWindowService,
-		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
-		// @ts-ignore unused injected service
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService
 	) {
 		super(stat => this.statToResource(stat));
 
@@ -1035,15 +1025,11 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 				// 3.) run the move operation
 				.then(() => {
 					const targetResource = target.resource.with({ path: paths.join(target.resource.path, source.name) });
-					// @ts-ignore unused local
-					let didHandleConflict = false;
 
 					return this.fileService.moveFile(source.resource, targetResource).then(null, error => {
 
 						// Conflict
 						if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT) {
-							didHandleConflict = true;
-
 							const confirm: IConfirmation = {
 								message: nls.localize('confirmOverwriteMessage', "'{0}' already exists in the destination folder. Do you want to replace it?", source.name),
 								detail: nls.localize('irreversible', "This action is irreversible!"),
