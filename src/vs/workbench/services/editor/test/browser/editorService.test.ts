@@ -8,7 +8,7 @@
 import * as assert from 'assert';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
-import { Position, Direction, IEditor } from 'vs/platform/editor/common/editor';
+import { Position, Direction, IEditor, IEditorInput } from 'vs/platform/editor/common/editor';
 import URI from 'vs/base/common/uri';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorInput, EditorOptions, TextEditorOptions } from 'vs/workbench/common/editor';
@@ -25,19 +25,19 @@ let activeEditor: BaseEditor = <any>{
 	}
 };
 
-let openedEditorInput;
-let openedEditorOptions;
+let openedEditorInput: EditorInput;
+let openedEditorOptions: EditorOptions;
 
-function toResource(path) {
+function toResource(path: string) {
 	return URI.from({ scheme: 'custom', path });
 }
 
-function toFileResource(self, path) {
+function toFileResource(self: any, path: string) {
 	return URI.file(paths.join('C:\\', new Buffer(self.test.fullTitle()).toString('base64'), path));
 }
 
 class TestEditorPart implements IEditorPart {
-	private activeInput;
+	private activeInput: EditorInput;
 
 	public getId(): string {
 		return null;
@@ -260,7 +260,7 @@ suite('WorkbenchEditorService', () => {
 
 		let inp = instantiationService.createInstance(ResourceEditorInput, 'name', 'description', URI.parse('my://resource'));
 		let delegate = instantiationService.createInstance(DelegatingWorkbenchEditorService);
-		delegate.setEditorOpenHandler((input, options?) => {
+		delegate.setEditorOpenHandler((input: IEditorInput, options?: EditorOptions) => {
 			assert.strictEqual(input, inp);
 
 			return TPromise.as(ed);

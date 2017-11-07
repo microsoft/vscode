@@ -472,7 +472,7 @@ suite('Async', () => {
 	test('Queue - order is kept', function (done) {
 		let queue = new Async.Queue();
 
-		let res = [];
+		let res: number[] = [];
 
 		let f1 = () => TPromise.as(true).then(() => res.push(1));
 		let f2 = () => TPromise.timeout(10).then(() => res.push(2));
@@ -498,7 +498,7 @@ suite('Async', () => {
 	test('Queue - errors bubble individually but not cause stop', function (done) {
 		let queue = new Async.Queue();
 
-		let res = [];
+		let res: number[] = [];
 		let error = false;
 
 		let f1 = () => TPromise.as(true).then(() => res.push(1));
@@ -525,7 +525,7 @@ suite('Async', () => {
 	test('Queue - order is kept (chained)', function (done) {
 		let queue = new Async.Queue();
 
-		let res = [];
+		let res: number[] = [];
 
 		let f1 = () => TPromise.as(true).then(() => res.push(1));
 		let f2 = () => TPromise.timeout(10).then(() => res.push(2));
@@ -560,7 +560,7 @@ suite('Async', () => {
 			done();
 		});
 
-		let res = [];
+		let res: number[] = [];
 
 		let f1 = () => TPromise.timeout(10).then(() => res.push(2));
 		let f2 = () => TPromise.timeout(20).then(() => res.push(4));

@@ -171,7 +171,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 		test('Windows', () => {
 			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Windows, 'C:\\base', null, null, null);
 
-			let stub = sinon.stub(path, 'join', function (arg1, arg2) {
+			let stub = sinon.stub(path, 'join', function (arg1: string, arg2: string) {
 				return arg1 + '\\' + arg2;
 			});
 			assert.equal(linkHandler.preprocessPath('./src/file1'), 'C:\\base\\./src/file1');
@@ -184,7 +184,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 		test('Linux', () => {
 			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Linux, '/base', null, null, null);
 
-			let stub = sinon.stub(path, 'join', function (arg1, arg2) {
+			let stub = sinon.stub(path, 'join', function (arg1: string, arg2: string) {
 				return arg1 + '/' + arg2;
 			});
 

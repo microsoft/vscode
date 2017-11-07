@@ -75,7 +75,7 @@ class MyInputFactory implements IEditorInputFactory {
 }
 
 class MyInput extends EditorInput {
-	getPreferredEditorId(ids) {
+	getPreferredEditorId(ids: string[]) {
 		return ids[1];
 	}
 

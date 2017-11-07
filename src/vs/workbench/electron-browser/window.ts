@@ -121,7 +121,7 @@ export class ElectronWindow extends Themable {
 		});
 
 		// Support runAction event
-		ipc.on('vscode:runAction', (event, request: IRunActionInWindowRequest) => {
+		ipc.on('vscode:runAction', (_event: any, request: IRunActionInWindowRequest) => {
 			const args: any[] = [];
 
 			// If we run an action from the touchbar, we fill in the currently active resource
@@ -152,7 +152,7 @@ export class ElectronWindow extends Themable {
 		});
 
 		// Support resolve keybindings event
-		ipc.on('vscode:resolveKeybindings', (event, rawActionIds: string) => {
+		ipc.on('vscode:resolveKeybindings', (_event: any, rawActionIds: string) => {
 			let actionIds: string[] = [];
 			try {
 				actionIds = JSON.parse(rawActionIds);
@@ -168,7 +168,7 @@ export class ElectronWindow extends Themable {
 			}, () => errors.onUnexpectedError);
 		});
 
-		ipc.on('vscode:reportError', (event, error) => {
+		ipc.on('vscode:reportError', (_event: any, error: string) => {
 			if (error) {
 				const errorParsed = JSON.parse(error);
 				errorParsed.mainProcess = true;
@@ -177,36 +177,36 @@ export class ElectronWindow extends Themable {
 		});
 
 		// Support openFiles event for existing and new files
-		ipc.on('vscode:openFiles', (event, request: IOpenFileRequest) => this.onOpenFiles(request));
+		ipc.on('vscode:openFiles', (_event: any, request: IOpenFileRequest) => this.onOpenFiles(request));
 
 		// Support addFolders event if we have a workspace opened
-		ipc.on('vscode:addFolders', (event, request: IAddFoldersRequest) => this.onAddFolders(request));
+		ipc.on('vscode:addFolders', (_event: any, request: IAddFoldersRequest) => this.onAddFolders(request));
 
 		// Message support
-		ipc.on('vscode:showInfoMessage', (event, message: string) => {
+		ipc.on('vscode:showInfoMessage', (_event: any, message: string) => {
 			this.messageService.show(Severity.Info, message);
 		});
 
 		// Support toggling auto save
-		ipc.on('vscode.toggleAutoSave', event => {
+		ipc.on('vscode.toggleAutoSave', () => {
 			this.toggleAutoSave();
 		});
 
 		// Fullscreen Events
-		ipc.on('vscode:enterFullScreen', event => {
+		ipc.on('vscode:enterFullScreen', () => {
 			this.partService.joinCreation().then(() => {
 				browser.setFullscreen(true);
 			});
 		});
 
-		ipc.on('vscode:leaveFullScreen', event => {
+		ipc.on('vscode:leaveFullScreen', () => {
 			this.partService.joinCreation().then(() => {
 				browser.setFullscreen(false);
 			});
 		});
 
 		// High Contrast Events
-		ipc.on('vscode:enterHighContrast', event => {
+		ipc.on('vscode:enterHighContrast', () => {
 			const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
 			if (windowConfig && windowConfig.autoDetectHighContrast) {
 				this.partService.joinCreation().then(() => {
@@ -215,7 +215,7 @@ export class ElectronWindow extends Themable {
 			}
 		});
 
-		ipc.on('vscode:leaveHighContrast', event => {
+		ipc.on('vscode:leaveHighContrast', () => {
 			const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
 			if (windowConfig && windowConfig.autoDetectHighContrast) {
 				this.partService.joinCreation().then(() => {
@@ -225,12 +225,12 @@ export class ElectronWindow extends Themable {
 		});
 
 		// keyboard layout changed event
-		ipc.on('vscode:keyboardLayoutChanged', event => {
+		ipc.on('vscode:keyboardLayoutChanged', () => {
 			KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged();
 		});
 
 		// keyboard layout changed event
-		ipc.on('vscode:accessibilitySupportChanged', (event, accessibilitySupportEnabled: boolean) => {
+		ipc.on('vscode:accessibilitySupportChanged', (_event: any, accessibilitySupportEnabled: boolean) => {
 			browser.setAccessibilitySupport(accessibilitySupportEnabled ? platform.AccessibilitySupport.Enabled : platform.AccessibilitySupport.Disabled);
 		});
 

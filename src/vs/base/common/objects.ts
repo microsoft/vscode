@@ -16,7 +16,7 @@ export function clone<T>(obj: T): T {
 		return obj as any;
 	}
 	const result = (Array.isArray(obj)) ? <any>[] : <any>{};
-	Object.keys(obj).forEach(key => {
+	Object.keys(obj).forEach((key: keyof T) => {
 		if (obj[key] && typeof obj[key] === 'object') {
 			result[key] = clone(obj[key]);
 		} else {
@@ -31,7 +31,7 @@ export function deepClone<T>(obj: T): T {
 		return obj;
 	}
 	const result = (Array.isArray(obj)) ? <any>[] : <any>{};
-	Object.getOwnPropertyNames(obj).forEach(key => {
+	Object.getOwnPropertyNames(obj).forEach((key: keyof T) => {
 		if (obj[key] && typeof obj[key] === 'object') {
 			result[key] = deepClone(obj[key]);
 		} else {
@@ -73,7 +73,7 @@ function _cloneAndChange(obj: any, changer: (orig: any) => any, encounteredObjec
 		const r2 = {};
 		for (let i2 in obj) {
 			if (hasOwnProperty.call(obj, i2)) {
-				r2[i2] = _cloneAndChange(obj[i2], changer, encounteredObjects);
+				(r2 as any)[i2] = _cloneAndChange(obj[i2], changer, encounteredObjects);
 			}
 		}
 		encounteredObjects.pop();

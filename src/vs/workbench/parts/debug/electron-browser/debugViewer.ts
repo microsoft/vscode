@@ -53,7 +53,7 @@ export interface IRenderValueOptions {
 }
 
 function replaceWhitespace(value: string): string {
-	const map = { '\n': '\\n', '\r': '\\r', '\t': '\\t' };
+	const map: { [x: string]: string } = { '\n': '\\n', '\r': '\\r', '\t': '\\t' };
 	return value.replace(/[\n\r\t]/g, char => map[char]);
 }
 
