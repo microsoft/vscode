@@ -339,6 +339,7 @@ suite('Editor Stacks Model', () => {
 		let events = modelListener(model);
 
 		let group1 = model.openGroup('first');
+		// @ts-ignore unused property
 		let group2 = model.openGroup('second');
 		let group3 = model.openGroup('third');
 

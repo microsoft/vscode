@@ -1648,6 +1648,7 @@ export interface IProblemReporter extends IProblemReporterBase {
 	clearOutput(): void;
 }
 
+// @ts-ignore unused type
 class NullProblemReporter extends NullProblemReporterBase implements IProblemReporter {
 	clearOutput(): void { }
 }

@@ -23,6 +23,7 @@ import { TestContextService, TestTextResourceConfigurationService, getRandomTest
 import { Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
+// @ts-ignore unused type
 class TestEnvironmentService extends EnvironmentService {
 
 	constructor(private _backupHome: string, private _backupWorkspacesPath: string) {

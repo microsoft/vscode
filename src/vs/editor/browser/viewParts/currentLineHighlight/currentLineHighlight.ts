@@ -16,6 +16,7 @@ import { editorLineHighlight, editorLineHighlightBorder } from 'vs/editor/common
 export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 	private _context: ViewContext;
 	private _lineHeight: number;
+	// @ts-ignore unused property
 	private _readOnly: boolean;
 	private _renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
 	private _selectionIsEmpty: boolean;

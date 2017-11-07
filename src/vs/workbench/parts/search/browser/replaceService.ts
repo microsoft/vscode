@@ -99,8 +99,10 @@ export class ReplaceService implements IReplaceService {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IFileService private fileService: IFileService,
 		@IEditorService private editorService: IWorkbenchEditorService,
+		// @ts-ignore unused injected service
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITextModelService private textModelResolverService: ITextModelService,
+		// @ts-ignore unused injected service
 		@ISearchWorkbenchService private searchWorkbenchService: ISearchWorkbenchService
 	) {
 	}

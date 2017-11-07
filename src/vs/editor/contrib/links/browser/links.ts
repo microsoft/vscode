@@ -148,6 +148,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	private activeLinkDecorationId: string;
 	private openerService: IOpenerService;
 	private messageService: IMessageService;
+	// @ts-ignore unused injected service
 	private editorWorkerService: IEditorWorkerService;
 	private currentOccurrences: { [decorationId: string]: LinkOccurrence; };
 
@@ -389,6 +390,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class OpenLinkAction extends EditorAction {
 
 	constructor() {

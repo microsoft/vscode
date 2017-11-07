@@ -92,6 +92,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 	constructor(
 		container: HTMLElement,
+		// @ts-ignore unused injected service
 		@IExtensionService private extensionService: IExtensionService,
 		@IStorageService private storageService: IStorageService,
 		@IBroadcastService private broadcastService: IBroadcastService,

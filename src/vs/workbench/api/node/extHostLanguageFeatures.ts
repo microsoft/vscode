@@ -707,8 +707,10 @@ class LinkProviderAdapter {
 class ColorProviderAdapter {
 
 	constructor(
+		// @ts-ignore unused property
 		private _proxy: MainThreadLanguageFeaturesShape,
 		private _documents: ExtHostDocuments,
+		// @ts-ignore unused property
 		private _colorFormatCache: Map<string, number>,
 		private _provider: vscode.DocumentColorProvider
 	) { }

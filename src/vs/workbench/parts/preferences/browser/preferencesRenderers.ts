@@ -73,6 +73,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 	constructor(protected editor: ICodeEditor, public readonly preferencesModel: SettingsEditorModel,
 		@IPreferencesService protected preferencesService: IPreferencesService,
 		@ITelemetryService private telemetryService: ITelemetryService,
+		// @ts-ignore unused injected service
 		@ITextFileService private textFileService: ITextFileService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService protected instantiationService: IInstantiationService
@@ -251,6 +252,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 
 	constructor(protected editor: ICodeEditor, public readonly preferencesModel: DefaultSettingsEditorModel,
 		@IPreferencesService protected preferencesService: IPreferencesService,
+		// @ts-ignore unused injected service
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IInstantiationService protected instantiationService: IInstantiationService
 	) {
@@ -415,6 +417,7 @@ class DefaultSettingsHeaderRenderer extends Disposable {
 	private settingsHeaderWidget: DefaultSettingsHeaderWidget;
 	public onClick: Event<void>;
 
+	// @ts-ignore unused property
 	constructor(private editor: ICodeEditor, scope: ConfigurationScope) {
 		super();
 		const title = scope === ConfigurationScope.RESOURCE ? nls.localize('defaultFolderSettingsTitle', "Default Folder Settings") : nls.localize('defaultSettingsTitle', "Default Settings");
@@ -531,6 +534,7 @@ export class SettingsGroupTitleRenderer extends Disposable implements HiddenArea
 export class HiddenAreasRenderer extends Disposable {
 
 	constructor(private editor: ICodeEditor, private hiddenAreasProviders: HiddenAreasProvider[],
+		// @ts-ignore unused injected service
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super();
@@ -707,6 +711,7 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 	public hiddenAreas: IRange[] = [];
 
 	constructor(private editor: ICodeEditor,
+		// @ts-ignore unused injected service
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super();
@@ -811,6 +816,7 @@ export class HighlightMatchesRenderer extends Disposable {
 	private decorationIds: string[] = [];
 
 	constructor(private editor: ICodeEditor,
+		// @ts-ignore unused injected service
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super();
@@ -864,6 +870,7 @@ class EditSettingRenderer extends Disposable {
 
 	constructor(private editor: ICodeEditor, private masterSettingsModel: ISettingsEditorModel,
 		private settingHighlighter: SettingHighlighter,
+		// @ts-ignore unused injected service
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextMenuService private contextMenuService: IContextMenuService
@@ -1135,6 +1142,7 @@ class UnsupportedSettingsRenderer extends Disposable {
 	constructor(
 		private editor: editorCommon.ICommonCodeEditor,
 		private settingsEditorModel: SettingsEditorModel,
+		// @ts-ignore unused injected service
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
 		@IMarkerService private markerService: IMarkerService,
 		@IEnvironmentService private environmentService: IEnvironmentService

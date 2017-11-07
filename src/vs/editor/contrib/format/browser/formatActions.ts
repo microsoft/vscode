@@ -54,6 +54,7 @@ function alertFormattingEdits(edits: editorCommon.ISingleEditOperation[]): void 
 }
 
 @commonEditorContribution
+// @ts-ignore @editorAction uses the class
 class FormatOnType implements editorCommon.IEditorContribution {
 
 	private static ID = 'editor.contrib.autoFormat';
@@ -180,6 +181,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 }
 
 @commonEditorContribution
+// @ts-ignore @editorAction uses the class
 class FormatOnPaste implements editorCommon.IEditorContribution {
 
 	private static ID = 'editor.contrib.formatOnPaste';

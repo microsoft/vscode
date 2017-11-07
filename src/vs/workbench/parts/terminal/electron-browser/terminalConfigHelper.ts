@@ -42,6 +42,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	private _lastFontMeasurement: ITerminalFont;
 
 	public constructor(
+		// @ts-ignore unused property
 		private _platform: platform.Platform,
 		@IConfigurationService private _configurationService: IConfigurationService,
 		@IWorkspaceConfigurationService private _workspaceConfigurationService: IWorkspaceConfigurationService,

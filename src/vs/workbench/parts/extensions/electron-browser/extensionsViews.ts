@@ -58,8 +58,10 @@ export class ExtensionsListView extends ViewsViewletPanel {
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IListService private listService: IListService,
 		@IThemeService private themeService: IThemeService,
+		// @ts-ignore unused injected service
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IExtensionService private extensionService: IExtensionService,
+		// @ts-ignore unused injected service
 		@ICommandService private commandService: ICommandService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -67,6 +69,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 		@IExtensionTipsService private tipsService: IExtensionTipsService,
 		@IModeService private modeService: IModeService,
 		@ITelemetryService private telemetryService: ITelemetryService,
+		// @ts-ignore unused injected service
 		@IProgressService private progressService: IProgressService
 	) {
 		super({ ...(options as IViewOptions), ariaHeaderLabel: options.name }, keybindingService, contextMenuService);

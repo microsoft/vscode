@@ -34,6 +34,7 @@ class InPlaceReplaceController implements IEditorContribution {
 	});
 
 	private editor: ICommonCodeEditor;
+	// @ts-ignore unused property
 	private requestIdPool: number;
 	private currentRequest: TPromise<IInplaceReplaceSupportResult>;
 	private decorationRemover: TPromise<void>;
@@ -141,6 +142,7 @@ class InPlaceReplaceController implements IEditorContribution {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class InPlaceReplaceUp extends EditorAction {
 
 	constructor() {
@@ -166,6 +168,7 @@ class InPlaceReplaceUp extends EditorAction {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class InPlaceReplaceDown extends EditorAction {
 
 	constructor() {

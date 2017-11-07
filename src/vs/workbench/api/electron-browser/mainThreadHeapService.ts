@@ -69,6 +69,7 @@ export class HeapService implements IHeapService {
 
 	trackRecursive<T>(p: TPromise<T>): TPromise<T>;
 	trackRecursive<T>(obj: T): T;
+	// @ts-ignore unused generic parameter
 	trackRecursive<T>(obj: any): any {
 		if (TPromise.is(obj)) {
 			return obj.then(result => this.trackRecursive(result));

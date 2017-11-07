@@ -165,7 +165,9 @@ export class ExtensionEditor extends BaseEditor {
 	private content: HTMLElement;
 	private recommendation: HTMLElement;
 	private header: HTMLElement;
+	// @ts-ignore unused property
 	private _highlight: ITemplateData;
+	// @ts-ignore unused property
 	private highlightDisposable: IDisposable;
 
 	private extensionReadme: Cache<string>;
@@ -183,7 +185,9 @@ export class ExtensionEditor extends BaseEditor {
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
+		// @ts-ignore unused injected service
 		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
+		// @ts-ignore unused injected service
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IViewletService private viewletService: IViewletService,
@@ -195,6 +199,7 @@ export class ExtensionEditor extends BaseEditor {
 		@IListService private listService: IListService,
 		@IPartService private partService: IPartService,
 		@IContextViewService private contextViewService: IContextViewService,
+		// @ts-ignore unused injected service
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IExtensionTipsService private extensionTipsService: IExtensionTipsService
 	) {
@@ -927,6 +932,7 @@ const showCommand = new ShowExtensionEditorFindCommand({
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule(showCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
 
+// @ts-ignore unused type
 class HideExtensionEditorFindCommand extends Command {
 	public runCommand(accessor: ServicesAccessor, args: any): void {
 		const extensionEditor = this.getExtensionEditor(accessor);

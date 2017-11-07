@@ -25,21 +25,8 @@ suite('ViewModelDecorations', () => {
 			assert.equal(viewModel.getLineContent(4), 'will be ');
 			assert.equal(viewModel.getLineContent(5), 'wrapped');
 
-			let dec1: string;
-			let dec2: string;
-			let dec3: string;
-			let dec4: string;
-			let dec5: string;
-			let dec6: string;
-			let dec7: string;
-			let dec8: string;
-			let dec9: string;
-			let dec10: string;
-			let dec11: string;
-			let dec12: string;
-			let dec13: string;
-			let dec14: string;
-			let dec15: string;
+			//@ts-ignore
+			let dec1, dec2, dec3, dec4, dec5, dec6, dec7, dec8, dec9, dec10, dec11, dec12, dec13, dec14, dec15: string;
 			model.changeDecorations((accessor) => {
 				let createOpts = (id: string) => {
 					return {
@@ -280,6 +267,7 @@ suite('ViewModelDecorations', () => {
 			assert.equal(viewModel.getLineContent(4), 'will be ');
 			assert.equal(viewModel.getLineContent(5), 'wrapped');
 
+			// @ts-ignore unused local
 			let dec1: string;
 			model.changeDecorations((accessor) => {
 				dec1 = accessor.addDecoration(

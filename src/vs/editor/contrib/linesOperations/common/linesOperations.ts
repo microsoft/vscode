@@ -49,6 +49,7 @@ abstract class AbstractCopyLinesAction extends EditorAction {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class CopyLinesUpAction extends AbstractCopyLinesAction {
 	constructor() {
 		super(false, {
@@ -66,6 +67,7 @@ class CopyLinesUpAction extends AbstractCopyLinesAction {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class CopyLinesDownAction extends AbstractCopyLinesAction {
 	constructor() {
 		super(true, {
@@ -110,6 +112,7 @@ abstract class AbstractMoveLinesAction extends EditorAction {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class MoveLinesUpAction extends AbstractMoveLinesAction {
 	constructor() {
 		super(false, {
@@ -127,6 +130,7 @@ class MoveLinesUpAction extends AbstractMoveLinesAction {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class MoveLinesDownAction extends AbstractMoveLinesAction {
 	constructor() {
 		super(true, {
@@ -166,6 +170,7 @@ abstract class AbstractSortLinesAction extends EditorAction {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class SortLinesAscendingAction extends AbstractSortLinesAction {
 	constructor() {
 		super(false, {
@@ -178,6 +183,7 @@ class SortLinesAscendingAction extends AbstractSortLinesAction {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class SortLinesDescendingAction extends AbstractSortLinesAction {
 	constructor() {
 		super(true, {
@@ -276,6 +282,7 @@ abstract class AbstractRemoveLinesAction extends EditorAction {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class DeleteLinesAction extends AbstractRemoveLinesAction {
 
 	constructor() {
@@ -329,6 +336,7 @@ export class IndentLinesAction extends EditorAction {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class OutdentLinesAction extends EditorAction {
 	constructor() {
 		super({

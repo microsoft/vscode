@@ -54,7 +54,7 @@ export class TextAreaHandler extends ViewPart {
 
 	private readonly _viewController: ViewController;
 	private readonly _viewHelper: ITextAreaHandlerHelper;
-
+	// @ts-ignore unused property
 	private _pixelRatio: number;
 	private _accessibilitySupport: platform.AccessibilitySupport;
 	private _contentLeft: number;

@@ -60,6 +60,7 @@ const DEBUG_FUNCTION_BREAKPOINTS_KEY = 'debug.functionbreakpoint';
 const DEBUG_EXCEPTION_BREAKPOINTS_KEY = 'debug.exceptionbreakpoint';
 const DEBUG_WATCH_EXPRESSIONS_KEY = 'debug.watchexpressions';
 
+// @ts-ignore unused type
 interface StartSessionResult {
 	status: 'ok' | 'initialConfiguration' | 'saveConfiguration';
 	content?: string;
@@ -94,6 +95,7 @@ export class DebugService implements debug.IDebugService {
 		@IPanelService private panelService: IPanelService,
 		@IMessageService private messageService: IMessageService,
 		@IPartService private partService: IPartService,
+		// @ts-ignore unused injected service
 		@IWindowsService private windowsService: IWindowsService,
 		@IWindowService private windowService: IWindowService,
 		@IBroadcastService private broadcastService: IBroadcastService,
@@ -107,6 +109,7 @@ export class DebugService implements debug.IDebugService {
 		@ITaskService private taskService: ITaskService,
 		@IFileService private fileService: IFileService,
 		@IConfigurationService private configurationService: IConfigurationService,
+		// @ts-ignore unused injected service
 		@ICommandService private commandService: ICommandService
 	) {
 		this.toDispose = [];

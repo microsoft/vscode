@@ -18,6 +18,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 
 	constructor(
 		extHostContext: IExtHostContext,
+		// @ts-ignore unused injected service
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IMessageService private readonly _messageService: IMessageService,
 		@IChoiceService private readonly _choiceService: IChoiceService

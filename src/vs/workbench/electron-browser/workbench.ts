@@ -224,6 +224,7 @@ export class Workbench implements IPartService {
 		@IStorageService private storageService: IStorageService,
 		@IMessageService private messageService: IMessageService,
 		@IConfigurationService private configurationService: WorkspaceService,
+		// @ts-ignore unused injected service
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWindowService private windowService: IWindowService

@@ -29,6 +29,7 @@ export class ExtensionEnablementService implements IExtensionEnablementService {
 		@IStorageService private storageService: IStorageService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
+		// @ts-ignore unused injected service
 		@IExtensionManagementService private extensionManagementService: IExtensionManagementService
 	) {
 		extensionManagementService.onDidUninstallExtension(this.onDidUninstallExtension, this, this.disposables);

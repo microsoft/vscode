@@ -306,6 +306,8 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 export class StandaloneDiffEditor extends DiffEditorWidget implements IStandaloneDiffEditor {
 
 	private _contextViewService: IEditorContextViewService;
+
+	// @ts-ignore unused injected service
 	private _standaloneKeybindingService: StandaloneKeybindingService;
 
 	constructor(

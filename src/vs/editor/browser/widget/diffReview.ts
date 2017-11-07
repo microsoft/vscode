@@ -764,6 +764,7 @@ registerThemingParticipant((theme, collector) => {
 });
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class DiffReviewNext extends EditorAction {
 	constructor() {
 		super({
@@ -787,6 +788,7 @@ class DiffReviewNext extends EditorAction {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class DiffReviewPrev extends EditorAction {
 	constructor() {
 		super({

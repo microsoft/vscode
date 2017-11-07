@@ -22,6 +22,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 export class Adapter {
 
 	constructor(private rawAdapter: IRawAdapter, public extensionDescription: IExtensionDescription,
+		// @ts-ignore unused injected service
 		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ICommandService private commandService: ICommandService

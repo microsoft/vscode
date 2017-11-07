@@ -72,6 +72,7 @@ export class TestContextService implements IWorkspaceContextService {
 	public _serviceBrand: any;
 
 	private workspace: IWorkbenchWorkspace;
+	// @ts-ignore unused property
 	private id: string;
 	private options: any;
 

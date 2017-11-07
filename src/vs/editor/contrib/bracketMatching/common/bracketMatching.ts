@@ -20,6 +20,7 @@ import { editorBracketMatchBackground, editorBracketMatchBorder } from 'vs/edito
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class SelectBracketAction extends EditorAction {
 	constructor() {
 		super({

@@ -73,6 +73,7 @@ export class TestInstantiationService extends InstantiationService {
 	public stubPromise<T>(service?: ServiceIdentifier<T>, fnProperty?: string, value?: any): T | sinon.SinonStub;
 	public stubPromise<T>(service?: ServiceIdentifier<T>, ctor?: any, fnProperty?: string, value?: any): sinon.SinonStub;
 	public stubPromise<T>(service?: ServiceIdentifier<T>, obj?: any, fnProperty?: string, value?: any): sinon.SinonStub;
+	// @ts-ignore unused generic parameter
 	public stubPromise<T>(arg1?: any, arg2?: any, arg3?: any, arg4?: any): sinon.SinonStub {
 		arg3 = typeof arg2 === 'string' ? TPromise.as(arg3) : arg3;
 		arg4 = typeof arg2 !== 'string' && typeof arg3 === 'string' ? TPromise.as(arg4) : arg4;
@@ -87,6 +88,7 @@ export class TestInstantiationService extends InstantiationService {
 
 	private _create<T>(serviceMock: IServiceMock<T>, options: SinonOptions, reset?: boolean): any;
 	private _create<T>(ctor: any, options: SinonOptions): any;
+	// @ts-ignore unused generic parameter
 	private _create<T>(arg1: any, options: SinonOptions, reset: boolean = false): any {
 		if (this.isServiceMock(arg1)) {
 			let service = this._getOrCreateService(arg1, options, reset);

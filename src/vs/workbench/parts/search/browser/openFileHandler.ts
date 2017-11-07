@@ -123,6 +123,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ISearchService private searchService: ISearchService,
+		// @ts-ignore unused injected service
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {

@@ -11,6 +11,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import * as platform from 'vs/base/common/platform';
 import product from 'vs/platform/node/product';
 
+// @ts-ignore unused type
 abstract class AbstractGettingStarted implements IWorkbenchContribution {
 	protected static hideWelcomeSettingskey = 'workbench.hide.welcome';
 

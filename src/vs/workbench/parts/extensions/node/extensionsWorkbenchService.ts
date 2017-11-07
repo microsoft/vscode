@@ -332,6 +332,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		@IChoiceService private choiceService: IChoiceService,
 		@IURLService urlService: IURLService,
 		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
+		// @ts-ignore unused injected service
 		@IExtensionTipsService private tipsService: IExtensionTipsService,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 		@IWindowService private windowService: IWindowService

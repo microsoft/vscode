@@ -19,6 +19,8 @@ import * as types from 'vs/workbench/api/node/extHostTypes';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import * as vscode from 'vscode';
 
+
+// @ts-ignore unused type
 interface StringMap<V> {
 	[key: string]: V;
 }

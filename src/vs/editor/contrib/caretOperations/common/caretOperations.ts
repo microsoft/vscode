@@ -36,6 +36,7 @@ class MoveCaretAction extends EditorAction {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class MoveCaretLeftAction extends MoveCaretAction {
 	constructor() {
 		super(true, {
@@ -48,6 +49,7 @@ class MoveCaretLeftAction extends MoveCaretAction {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class MoveCaretRightAction extends MoveCaretAction {
 	constructor() {
 		super(false, {

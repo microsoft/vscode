@@ -143,6 +143,7 @@ export class WindowsManager implements IWindowsMainService {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IBackupMainService private backupService: IBackupMainService,
+		// @ts-ignore unused injected service
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IHistoryMainService private historyService: IHistoryMainService,
@@ -1672,6 +1673,7 @@ class WorkspacesManager {
 
 	constructor(
 		private workspacesService: IWorkspacesMainService,
+		// @ts-ignore unused injected service
 		private lifecycleService: ILifecycleService,
 		private backupService: IBackupMainService,
 		private environmentService: IEnvironmentService,

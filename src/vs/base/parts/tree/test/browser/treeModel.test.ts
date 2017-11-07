@@ -1439,7 +1439,7 @@ suite('TreeModel - Dynamic data model', () => {
 
 			var gotTimes = 0;
 			var gotListener = dataModel.addListener('gotChildren', (element) => { gotTimes++; });
-
+			// @ts-ignore unused local
 			var p1, p2;
 
 			var p1Completes = [];
@@ -1517,7 +1517,7 @@ suite('TreeModel - Dynamic data model', () => {
 			var gotTimes = 0;
 			var getListener = dataModel.addListener('getChildren', (element) => { getTimes++; });
 			var gotListener = dataModel.addListener('gotChildren', (element) => { gotTimes++; });
-
+			// @ts-ignore unused local
 			var p1, p2;
 
 			var p1Complete;

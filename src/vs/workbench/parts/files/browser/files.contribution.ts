@@ -111,6 +111,7 @@ interface ISerializedFileInput {
 class FileEditorInputFactory implements IEditorInputFactory {
 
 	constructor(
+		// @ts-ignore unused injected service
 		@ITextResourceConfigurationService private configurationService: ITextResourceConfigurationService
 	) {
 	}

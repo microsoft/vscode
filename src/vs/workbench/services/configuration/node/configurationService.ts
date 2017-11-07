@@ -68,6 +68,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	private configurationEditingService: ConfigurationEditingService;
 	private jsonEditingService: JSONEditingService;
 
+	// @ts-ignore unused injected service
 	constructor(private environmentService: IEnvironmentService, private workspacesService: IWorkspacesService, private workspaceSettingsRootFolder: string = WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME) {
 		super();
 

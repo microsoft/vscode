@@ -10,6 +10,7 @@ import { MainContext, MainThreadMessageServiceShape, MainThreadMessageOptions, I
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 
+// @ts-ignore unused generic parameter
 function isMessageItem<T>(item: any): item is vscode.MessageItem {
 	return item && item.title;
 }

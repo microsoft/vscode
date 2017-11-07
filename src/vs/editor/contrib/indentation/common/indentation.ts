@@ -333,6 +333,7 @@ export class ReindentLinesAction extends EditorAction {
 export class AutoIndentOnPasteCommand implements ICommand {
 
 	private _edits: TextEdit[];
+	// @ts-ignore @editorAction unused property
 	private _newEol: EndOfLineSequence;
 
 	private _initialSelection: Selection;

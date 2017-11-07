@@ -1131,6 +1131,7 @@ export enum TaskPanelKind {
 export class TaskGroup implements vscode.TaskGroup {
 
 	private _id: string;
+	// @ts-ignore unused property
 	private _label: string;
 
 	public static Clean: TaskGroup = new TaskGroup('clean', 'Clean');

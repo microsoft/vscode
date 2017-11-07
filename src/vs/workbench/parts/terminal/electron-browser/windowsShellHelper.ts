@@ -14,6 +14,7 @@ const SHELL_EXECUTABLES = ['cmd.exe', 'powershell.exe', 'bash.exe'];
 let windowsProcessTree;
 
 export class WindowsShellHelper {
+	// @ts-ignore unused property
 	private _childProcessIdStack: number[];
 	private _onCheckShell: Emitter<TPromise<string>>;
 	private _isDisposed: boolean;
@@ -22,6 +23,7 @@ export class WindowsShellHelper {
 
 	public constructor(
 		private _rootProcessId: number,
+		// @ts-ignore unused property
 		private _rootShellExecutable: string,
 		private _terminalInstance: ITerminalInstance,
 		private _xterm: XTermTerminal

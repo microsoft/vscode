@@ -94,6 +94,7 @@ export class LifecycleService implements ILifecycleService {
 	onBeforeWindowUnload: Event<IWindowUnloadEvent> = this._onBeforeWindowUnload.event;
 
 	constructor(
+		// @ts-ignore unused injected service
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILogService private logService: ILogService,
 		@IStorageService private storageService: IStorageService

@@ -583,6 +583,7 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 
 	constructor(private viewer: ITree, private fileMatch: FileMatch, private viewlet: SearchViewlet,
+		// @ts-ignore unused injected service
 		@IReplaceService private replaceService: IReplaceService,
 		@IKeybindingService keyBindingService: IKeybindingService,
 		@ITelemetryService private telemetryService: ITelemetryService) {

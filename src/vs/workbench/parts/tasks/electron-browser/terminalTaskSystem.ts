@@ -38,6 +38,7 @@ import {
 	TelemetryEvent, Triggers, TaskSystemEvents, TaskEvent, TaskType, TaskTerminateResponse
 } from 'vs/workbench/parts/tasks/common/taskSystem';
 
+// @ts-ignore unused type
 interface PrimaryTerminal {
 	terminal: ITerminalInstance;
 	busy: boolean;
@@ -68,6 +69,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		private markerService: IMarkerService, private modelService: IModelService,
 		private configurationResolverService: IConfigurationResolverService,
 		private telemetryService: ITelemetryService,
+		// @ts-ignore unused injected service
 		private workbenchEditorService: IWorkbenchEditorService,
 		private contextService: IWorkspaceContextService,
 		outputChannelId: string) {

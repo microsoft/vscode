@@ -36,6 +36,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		@IPartService _partService: IPartService,
 		@ILifecycleService _lifecycleService: ILifecycleService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
+		// @ts-ignore unused injected service
 		@IWindowService private _windowService: IWindowService,
 		@IQuickOpenService private _quickOpenService: IQuickOpenService,
 		@IChoiceService private _choiceService: IChoiceService,

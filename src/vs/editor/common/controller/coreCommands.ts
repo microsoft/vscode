@@ -1650,7 +1650,7 @@ export namespace CoreEditingCommands {
 	});
 
 }
-
+// @ts-ignore unused namespace
 namespace Config {
 
 	function findFocusedEditor(accessor: ServicesAccessor): editorCommon.ICommonCodeEditor {

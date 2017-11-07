@@ -164,6 +164,7 @@ abstract class AbstractSmartSelect extends EditorAction {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class GrowSelectionAction extends AbstractSmartSelect {
 	constructor() {
 		super(true, {
@@ -181,6 +182,7 @@ class GrowSelectionAction extends AbstractSmartSelect {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class ShrinkSelectionAction extends AbstractSmartSelect {
 	constructor() {
 		super(false, {

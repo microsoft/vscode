@@ -91,6 +91,7 @@ export abstract class BaseEditorPicker extends QuickOpenHandler {
 
 	constructor(
 		@IInstantiationService protected instantiationService: IInstantiationService,
+		// @ts-ignore unused injected service
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
 		@IEditorGroupService protected editorGroupService: IEditorGroupService

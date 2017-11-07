@@ -13,6 +13,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IUntitledResourceInput } from 'vs/platform/editor/common/editor';
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class InspectKeyMap extends EditorAction {
 
 	constructor() {

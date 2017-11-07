@@ -101,6 +101,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	onDidUninstallExtension: Event<DidUninstallExtensionEvent> = this._onDidUninstallExtension.event;
 
 	constructor(
+		// @ts-ignore unused injected service
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IChoiceService private choiceService: IChoiceService,
 		@IExtensionGalleryService private galleryService: IExtensionGalleryService

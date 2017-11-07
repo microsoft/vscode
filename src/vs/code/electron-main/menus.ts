@@ -72,6 +72,7 @@ export class CodeMenu {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IHistoryMainService private historyService: IHistoryMainService,
+		// @ts-ignore unused injected service
 		@IWorkspacesMainService private workspacesService: IWorkspacesMainService
 	) {
 		this.extensionViewlets = [];

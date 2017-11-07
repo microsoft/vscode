@@ -54,7 +54,9 @@ export class ActivitybarPart extends Part {
 	constructor(
 		id: string,
 		@IViewletService private viewletService: IViewletService,
+		// @ts-ignore unused injected service
 		@IExtensionService private extensionService: IExtensionService,
+		// @ts-ignore unused injected service
 		@IStorageService private storageService: IStorageService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IInstantiationService private instantiationService: IInstantiationService,

@@ -313,6 +313,7 @@ export class Repl extends Panel implements IPrivateReplService {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class ReplHistoryPreviousAction extends EditorAction {
 
 	constructor() {
@@ -338,6 +339,7 @@ class ReplHistoryPreviousAction extends EditorAction {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class ReplHistoryNextAction extends EditorAction {
 
 	constructor() {
@@ -363,6 +365,7 @@ class ReplHistoryNextAction extends EditorAction {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class AcceptReplInputAction extends EditorAction {
 
 	constructor() {

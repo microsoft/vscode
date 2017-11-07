@@ -21,7 +21,9 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
+// @ts-ignore unused type
 class MyEditorModel extends EditorModel { }
+// @ts-ignore unused type
 class MyTextEditorModel extends BaseTextEditorModel { }
 
 class ServiceAccessor {

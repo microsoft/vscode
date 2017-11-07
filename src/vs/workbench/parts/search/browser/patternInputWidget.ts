@@ -37,6 +37,7 @@ export class PatternInputWidget extends Widget {
 	private ariaLabel: string;
 
 	private domNode: HTMLElement;
+	// @ts-ignore unused property
 	private inputNode: HTMLInputElement;
 	protected inputBox: InputBox;
 

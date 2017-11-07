@@ -363,6 +363,7 @@ function foldingArgumentsConstraint(args: any) {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class UnfoldAction extends FoldingAction<FoldingArguments> {
 
 	constructor() {
@@ -407,6 +408,7 @@ class UnfoldAction extends FoldingAction<FoldingArguments> {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class UnFoldRecursivelyAction extends FoldingAction<void> {
 
 	constructor() {
@@ -428,6 +430,7 @@ class UnFoldRecursivelyAction extends FoldingAction<void> {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class FoldAction extends FoldingAction<FoldingArguments> {
 
 	constructor() {
@@ -472,6 +475,7 @@ class FoldAction extends FoldingAction<FoldingArguments> {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class FoldRecursivelyAction extends FoldingAction<void> {
 
 	constructor() {
@@ -498,6 +502,7 @@ class FoldRecursivelyAction extends FoldingAction<void> {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class FoldAllAction extends FoldingAction<void> {
 
 	constructor() {
@@ -519,6 +524,7 @@ class FoldAllAction extends FoldingAction<void> {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class UnfoldAllAction extends FoldingAction<void> {
 
 	constructor() {

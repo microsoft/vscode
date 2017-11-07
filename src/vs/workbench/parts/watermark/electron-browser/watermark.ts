@@ -114,6 +114,7 @@ export class WatermarkContribution implements IWorkbenchContribution {
 		@IPartService private partService: IPartService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		// @ts-ignore unused injected service
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {

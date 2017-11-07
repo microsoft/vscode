@@ -76,6 +76,7 @@ export class CodeApplication {
 		@ILogService private logService: ILogService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
+		// @ts-ignore unused injected service
 		@IConfigurationService private configurationService: ConfigurationService,
 		@IStorageService private storageService: IStorageService,
 		@IHistoryMainService private historyService: IHistoryMainService
