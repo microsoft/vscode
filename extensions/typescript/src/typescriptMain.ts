@@ -45,16 +45,6 @@ interface LanguageDescription {
 	isExternal?: boolean;
 }
 
-enum ProjectConfigAction {
-	None,
-	CreateConfig,
-	LearnMore
-}
-
-interface ProjectConfigMessageItem extends MessageItem {
-	id: ProjectConfigAction;
-}
-
 const standardLanguageDescriptions: LanguageDescription[] = [
 	{
 		id: 'typescript',
@@ -564,6 +554,16 @@ class TypeScriptServiceClientHost implements ITypeScriptServiceClientHost {
 			const doc = await workspace.openTextDocument(configFileName);
 			window.showTextDocument(doc, window.activeTextEditor ? window.activeTextEditor.viewColumn : undefined);
 			return;
+		}
+
+		enum ProjectConfigAction {
+			None,
+			CreateConfig,
+			LearnMore
+		}
+
+		interface ProjectConfigMessageItem extends MessageItem {
+			id: ProjectConfigAction;
 		}
 
 		const selected = await window.showInformationMessage<ProjectConfigMessageItem>(
