@@ -21,8 +21,7 @@ class MockConfigurationService implements IConfigurationService {
 	public keys() { return { default: [], user: [], workspace: [], workspaceFolder: [] }; }
 	public getConfiguration(): any { return this.configuration; }
 	public getValue<T>(key: string, overrides?: IConfigurationOverrides): T { return getConfigurationValue<T>(this.getConfiguration(), key); }
-	// @ts-ignore unused generic parameter
-	public updateValue<T>(): TPromise<void> { return null; }
+	public updateValue(): TPromise<void> { return null; }
 	public getConfigurationData(): any { return null; }
 	public onDidChangeConfiguration() { return { dispose() { } }; }
 	public reloadConfiguration() { return null; }

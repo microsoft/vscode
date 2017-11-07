@@ -55,8 +55,7 @@ export class ConfigurationModel implements IConfigurationModel {
 		addToValueTree(override.contents, key, value, e => { throw new Error(e); });
 	}
 
-	// @ts-ignore unused generic parameter
-	public override<V>(identifier: string): ConfigurationModel {
+	public override(identifier: string): ConfigurationModel {
 		const overrideContents = this.getContentsForOverrideIdentifer(identifier);
 
 		if (!overrideContents || typeof overrideContents !== 'object' || !Object.keys(overrideContents).length) {
@@ -386,8 +385,7 @@ export class Configuration {
 		});
 	}
 
-	// @ts-ignore unused generic parameter
-	private getConsolidateConfigurationModel<C>(overrides: IConfigurationOverrides, workspace: Workspace): ConfigurationModel {
+	private getConsolidateConfigurationModel(overrides: IConfigurationOverrides, workspace: Workspace): ConfigurationModel {
 		let configurationModel = this.getConsolidatedConfigurationModelForResource(overrides, workspace);
 		return overrides.overrideIdentifier ? configurationModel.override(overrides.overrideIdentifier) : configurationModel;
 	}

@@ -122,8 +122,7 @@ export const ViewsRegistry: IViewsRegistry = new class {
 		this._onViewsDeregistered.fire(viewsToDeregister);
 	}
 
-	// @ts-ignore unused generic parameter
-	registerTreeViewDataProvider<T>(id: string, factory: ITreeViewDataProvider) {
+	registerTreeViewDataProvider(id: string, factory: ITreeViewDataProvider) {
 		if (!this.isDataProviderRegistered(id)) {
 			// TODO: throw error
 		}
