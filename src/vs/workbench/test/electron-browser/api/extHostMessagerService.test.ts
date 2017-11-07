@@ -21,11 +21,11 @@ suite('ExtHostMessageService', function () {
 				setImmediate(() => m.actions[0].run());
 				return () => { };
 			}
-		} as IMessageService, <any>{
-			choose() {
+		} as IMessageService, {
+			choose(severity, message, options, modal) {
 				throw new Error('not implemented');
 			}
-		});
+		} as IChoiceService);
 
 		return service.$showMessage(1, 'h', {}, [{ handle: 42, title: 'a thing', isCloseAffordance: true }]).then(handle => {
 			assert.equal(handle, 42);
@@ -39,11 +39,11 @@ suite('ExtHostMessageService', function () {
 			show(sev: number, m: { actions: Action[] }) {
 				actions = m.actions;
 			}
-		} as IMessageService, <any>{
-			choose() {
+		} as IMessageService, {
+			choose(severity, message, options, modal) {
 				throw new Error('not implemented');
 			}
-		});
+		} as IChoiceService);
 
 		// default close action
 		service.$showMessage(1, '', {}, [{ title: 'a thing', isCloseAffordance: false, handle: 0 }]);
@@ -71,11 +71,11 @@ suite('ExtHostMessageService', function () {
 					c += 1;
 				};
 			}
-		} as IMessageService, <any>{
-			choose() {
+		} as IMessageService, {
+			choose(severity, message, options, modal) {
 				throw new Error('not implemented');
 			}
-		});
+		} as IChoiceService);
 
 		service.$showMessage(1, '', {}, [{ title: 'a thing', isCloseAffordance: true, handle: 0 }]);
 		assert.equal(actions.length, 1);

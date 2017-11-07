@@ -257,7 +257,7 @@ export class SearchViewlet extends Viewlet {
 
 		this.createSearchResultsView(builder);
 
-		this.actionRegistry = <any>{};
+		this.actionRegistry = {};
 		let actions: Action[] = [new CollapseDeepestExpandedLevelAction(this), new RefreshAction(this), new ClearSearchResultsAction(this)];
 		actions.forEach((action) => {
 			this.actionRegistry[action.id] = action;

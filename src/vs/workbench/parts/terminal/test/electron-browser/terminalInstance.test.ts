@@ -45,9 +45,9 @@ suite('Workbench - TerminalInstance', () => {
 			executable: '/bin/foosh',
 			args: ['-bar', 'baz']
 		};
-		const parentEnv1: IStringDictionary<string> = <any>{
+		const parentEnv1: IStringDictionary<string> = {
 			ok: true
-		};
+		} as any;
 		const env1 = TerminalInstance.createTerminalEnv(parentEnv1, shell1, '/foo', 'en-au');
 		assert.ok(env1['ok'], 'Parent environment is copied');
 		assert.deepStrictEqual(parentEnv1, { ok: true }, 'Parent environment is unchanged');
@@ -63,7 +63,7 @@ suite('Workbench - TerminalInstance', () => {
 			executable: '/bin/foosh',
 			args: []
 		};
-		const parentEnv2: IStringDictionary<string> = <any>{
+		const parentEnv2: IStringDictionary<string> = {
 			LANG: 'en_US.UTF-8'
 		};
 		const env2 = TerminalInstance.createTerminalEnv(parentEnv2, shell2, '/foo', 'en-au');

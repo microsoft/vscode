@@ -17,7 +17,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { Emitter } from 'vs/base/common/event';
 
-let activeViewlet: Viewlet = <any>{};
+let activeViewlet: Viewlet = {};
 
 class TestViewletService implements IViewletService {
 	public _serviceBrand: any;

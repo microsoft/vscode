@@ -53,11 +53,11 @@ function fromRange(rng: Range): number[] {
 suite('Multicursor selection', () => {
 	let queryState: { [key: string]: any; } = {};
 	let serviceCollection = new ServiceCollection();
-	serviceCollection.set(IStorageService, <any>{
+	serviceCollection.set(IStorageService, {
 		get: (key: string) => queryState[key],
 		getBoolean: (key: string) => !!queryState[key],
 		store: (key: string, value: any) => { queryState[key] = value; }
-	});
+	} as IStorageService);
 
 	test('issue #8817: Cursor position changes when you cancel multicursor', () => {
 		withMockCodeEditor([

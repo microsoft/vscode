@@ -11,7 +11,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { editorAction, ServicesAccessor, EditorAction, commonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
+import { editorAction, ServicesAccessor, EditorAction, commonEditorContribution, IActionOptions } from 'vs/editor/common/editorCommonExtensions';
 import { OnTypeFormattingEditProviderRegistry, DocumentRangeFormattingEditProviderRegistry } from 'vs/editor/common/modes';
 import { getOnTypeFormattingEdits, getDocumentFormattingEdits, getDocumentRangeFormattingEdits, NoProviderError } from '../common/format';
 import { EditOperationsCommand } from '../common/formatCommand';
@@ -366,7 +366,7 @@ CommandsRegistry.registerCommand('editor.action.format', accessor => {
 	if (editor) {
 		return new class extends AbstractFormatAction {
 			constructor() {
-				super(<any>{});
+				super({} as IActionOptions);
 			}
 			_getFormattingEdits(editor: editorCommon.ICommonCodeEditor): TPromise<editorCommon.ISingleEditOperation[]> {
 				const model = editor.getModel();
