@@ -136,9 +136,7 @@ class ViewTerminalAction extends Action {
 }
 
 class BuildStatusBarItem extends Themable implements IStatusbarItem {
-	private intervalToken: any;
 	private activeCount: number;
-	private static progressChars: string = '|/-\\';
 	private icons: HTMLElement[];
 
 	constructor(
@@ -174,7 +172,6 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 		let callOnDispose: IDisposable[] = [];
 
 		const element = document.createElement('div');
-		const progress = document.createElement('div');
 		const label = document.createElement('a');
 		const errorIcon = document.createElement('div');
 		const warningIcon = document.createElement('div');
@@ -182,13 +179,9 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 		const error = document.createElement('div');
 		const warning = document.createElement('div');
 		const info = document.createElement('div');
+		const building = document.createElement('div');
 
 		Dom.addClass(element, 'task-statusbar-item');
-
-		Dom.addClass(progress, 'task-statusbar-item-progress');
-		element.appendChild(progress);
-		progress.innerHTML = BuildStatusBarItem.progressChars[0];
-		$(progress).hide();
 
 		Dom.addClass(label, 'task-statusbar-item-label');
 		element.appendChild(label);
@@ -221,6 +214,12 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 		Dom.addClass(info, 'task-statusbar-item-label-counter');
 		label.appendChild(info);
 		$(info).hide();
+
+		Dom.addClass(building, 'task-statusbar-item-building');
+		element.appendChild(building);
+		building.innerHTML = nls.localize('building', 'Building...');
+		$(building).hide();
+
 
 		callOnDispose.push(Dom.addDisposableListener(label, 'click', (e: MouseEvent) => {
 			const panel = this.panelService.getActivePanel();
@@ -261,17 +260,7 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 			}
 			this.activeCount++;
 			if (this.activeCount === 1) {
-				let index = 1;
-				let chars = BuildStatusBarItem.progressChars;
-				progress.innerHTML = chars[0];
-				this.intervalToken = setInterval(() => {
-					progress.innerHTML = chars[index];
-					index++;
-					if (index >= chars.length) {
-						index = 0;
-					}
-				}, 50);
-				$(progress).show();
+				$(building).show();
 			}
 		}));
 
@@ -284,11 +273,7 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 			if (this.activeCount > 0) {
 				this.activeCount--;
 				if (this.activeCount === 0) {
-					$(progress).hide();
-					if (this.intervalToken) {
-						clearInterval(this.intervalToken);
-						this.intervalToken = null;
-					}
+					$(building).hide();
 				}
 			}
 		}));
@@ -298,11 +283,7 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 				return;
 			}
 			if (this.activeCount !== 0) {
-				$(progress).hide();
-				if (this.intervalToken) {
-					clearInterval(this.intervalToken);
-					this.intervalToken = null;
-				}
+				$(building).hide();
 				this.activeCount = 0;
 			}
 		}));
