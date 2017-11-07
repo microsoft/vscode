@@ -40,16 +40,16 @@ class TestTelemetryAppender implements ITelemetryAppender {
 }
 
 class ErrorTestingSettings {
-	public personalInfo;
-	public importantInfo;
-	public filePrefix;
-	public dangerousPathWithoutImportantInfo;
-	public dangerousPathWithImportantInfo;
-	public missingModelPrefix;
-	public missingModelMessage;
-	public noSuchFilePrefix;
-	public noSuchFileMessage;
-	public stack;
+	public personalInfo: string;
+	public importantInfo: string;
+	public filePrefix: string;
+	public dangerousPathWithoutImportantInfo: string;
+	public dangerousPathWithImportantInfo: string;
+	public missingModelPrefix: string;
+	public missingModelMessage: string;
+	public noSuchFilePrefix: string;
+	public noSuchFileMessage: string;
+	public stack: string[];
 
 	constructor() {
 		this.personalInfo = 'DANGEROUS/PATH';
@@ -684,7 +684,7 @@ suite('TelemetryService', () => {
 				getValue(key) {
 					return getConfigurationValue(this.getConfiguration(), key);
 				},
-				updateValue() {
+				updateValue(): TPromise<void> {
 					return null;
 				},
 				inspect(key: string) {
@@ -698,7 +698,7 @@ suite('TelemetryService', () => {
 				},
 				keys() { return { default: [], user: [], workspace: [], workspaceFolder: [] }; },
 				onDidChangeConfiguration: emitter.event,
-				reloadConfiguration() { return null; },
+				reloadConfiguration(): TPromise<void> { return null; },
 				getConfigurationData() { return null; }
 			});
 
