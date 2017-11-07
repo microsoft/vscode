@@ -170,8 +170,6 @@ class InspectTokensWidget extends Disposable implements IContentWidget {
 	public allowEditorOverflow = true;
 
 	private _editor: ICodeEditor;
-	// @ts-ignore unused injected service
-	private _standaloneThemeService: IStandaloneThemeService;
 	private _modeService: IModeService;
 	private _tokenizationSupport: ITokenizationSupport;
 	private _model: IModel;
@@ -184,7 +182,6 @@ class InspectTokensWidget extends Disposable implements IContentWidget {
 	) {
 		super();
 		this._editor = editor;
-		this._standaloneThemeService = standaloneThemeService;
 		this._modeService = modeService;
 		this._model = this._editor.getModel();
 		this._domNode = document.createElement('div');

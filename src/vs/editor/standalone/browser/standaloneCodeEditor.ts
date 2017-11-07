@@ -307,9 +307,6 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 
 	private _contextViewService: IEditorContextViewService;
 
-	// @ts-ignore unused injected service
-	private _standaloneKeybindingService: StandaloneKeybindingService;
-
 	constructor(
 		domElement: HTMLElement,
 		options: IDiffEditorConstructionOptions,
@@ -329,10 +326,6 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		}
 
 		super(domElement, options, editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService, messageService);
-
-		if (keybindingService instanceof StandaloneKeybindingService) {
-			this._standaloneKeybindingService = keybindingService;
-		}
 
 		this._contextViewService = <IEditorContextViewService>contextViewService;
 
