@@ -133,9 +133,8 @@ export class Snippet {
 	}
 }
 
-// @ts-ignore unused type
-namespace OpenSnippetsAction {
 
+{
 	const id = 'workbench.action.openSnippets';
 
 	CommandsRegistry.registerCommand(id, accessor => {

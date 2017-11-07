@@ -66,8 +66,6 @@ export class BoundModelReferenceCollection {
 export class MainThreadDocuments implements MainThreadDocumentsShape {
 
 	private _modelService: IModelService;
-	// @ts-ignore unused injected service
-	private _modeService: IModeService;
 	private _textModelResolverService: ITextModelService;
 	private _textFileService: ITextFileService;
 	private _fileService: IFileService;
@@ -90,7 +88,6 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 	) {
 		this._modelService = modelService;
-		this._modeService = modeService;
 		this._textModelResolverService = textModelResolverService;
 		this._textFileService = textFileService;
 		this._fileService = fileService;

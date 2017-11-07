@@ -25,8 +25,6 @@ suite('MainThreadDocumentsAndEditors', () => {
 	let codeEditorService: MockCodeEditorService;
 	let textFileService: ITextFileService;
 	let workbenchEditorService: IWorkbenchEditorService;
-	// @ts-ignore unused property
-	let documentAndEditor: MainThreadDocumentsAndEditors;
 	let deltas: IDocumentsAndEditorsDelta[] = [];
 	const hugeModelString = new Array(2 + (50 * 1024 * 1024)).join('-');
 
@@ -53,7 +51,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 			onEditorGroupMoved = Event.None;
 		};
 
-		documentAndEditor = new MainThreadDocumentsAndEditors(
+		new MainThreadDocumentsAndEditors(
 			OneGetThreadService(new class extends mock<ExtHostDocumentsAndEditorsShape>() {
 				$acceptDocumentsAndEditorsDelta(delta) { deltas.push(delta); }
 			}),
