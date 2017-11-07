@@ -298,4 +298,4 @@ export class TerminalLinkHandler {
 export interface LineColumnInfo {
 	lineNumber?: string;
 	columnNumber?: string;
-};
+}

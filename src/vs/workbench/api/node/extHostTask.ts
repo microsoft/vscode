@@ -431,7 +431,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 		this._extHostWorkspace = extHostWorkspace;
 		this._handleCounter = 0;
 		this._handlers = new Map<number, HandlerData>();
-	};
+	}
 
 	public registerTaskProvider(extension: IExtensionDescription, provider: vscode.TaskProvider): vscode.Disposable {
 		if (!provider) {

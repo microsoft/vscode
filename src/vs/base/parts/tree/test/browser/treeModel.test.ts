@@ -1741,7 +1741,7 @@ suite('TreeModel - bugs', () => {
 		}).done(() => {
 
 			// teardown
-			while (listeners.length > 0) { listeners.pop()(); };
+			while (listeners.length > 0) { listeners.pop()(); }
 			listeners = null;
 			model.dispose();
 			model = null;

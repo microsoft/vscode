@@ -153,7 +153,7 @@ export function addToValueTree(settingsTreeRoot: any, key: string, value: any, c
 				return;
 		}
 		curr = obj;
-	};
+	}
 
 	if (typeof curr === 'object') {
 		curr[last] = value; // workaround https://github.com/Microsoft/vscode/issues/13606

@@ -432,7 +432,7 @@ class DefaultSettingsHeaderRenderer extends Disposable {
 export class SettingsGroupTitleRenderer extends Disposable implements HiddenAreasProvider {
 
 	private _onHiddenAreasChanged: Emitter<void> = new Emitter<void>();
-	get onHiddenAreasChanged(): Event<void> { return this._onHiddenAreasChanged.event; };
+	get onHiddenAreasChanged(): Event<void> { return this._onHiddenAreasChanged.event; }
 
 	private settingsGroups: ISettingsGroup[];
 	private hiddenGroups: ISettingsGroup[] = [];

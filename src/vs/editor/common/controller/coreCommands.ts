@@ -114,7 +114,7 @@ export namespace EditorScroll_ {
 		value?: number;
 		revealCursor?: boolean;
 		select?: boolean;
-	};
+	}
 
 	export function parse(args: RawArguments): ParsedArguments {
 		let direction: Direction;
@@ -224,7 +224,7 @@ export namespace RevealLine_ {
 	export interface RawArguments {
 		lineNumber?: number;
 		at?: string;
-	};
+	}
 
 	/**
 	 * Values for reveal line 'at' argument

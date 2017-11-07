@@ -27,7 +27,7 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 
 export class TerminalService extends AbstractTerminalService implements ITerminalService {
 	private _configHelper: TerminalConfigHelper;
-	public get configHelper(): ITerminalConfigHelper { return this._configHelper; };
+	public get configHelper(): ITerminalConfigHelper { return this._configHelper; }
 
 	constructor(
 		@IContextKeyService _contextKeyService: IContextKeyService,

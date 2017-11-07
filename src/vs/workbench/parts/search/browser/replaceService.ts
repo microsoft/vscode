@@ -105,9 +105,9 @@ export class ReplaceService implements IReplaceService {
 	) {
 	}
 
-	public replace(match: Match): TPromise<any>
-	public replace(files: FileMatch[], progress?: IProgressRunner): TPromise<any>
-	public replace(match: FileMatchOrMatch, progress?: IProgressRunner, resource?: URI): TPromise<any>
+	public replace(match: Match): TPromise<any>;
+	public replace(files: FileMatch[], progress?: IProgressRunner): TPromise<any>;
+	public replace(match: FileMatchOrMatch, progress?: IProgressRunner, resource?: URI): TPromise<any>;
 	public replace(arg: any, progress: IProgressRunner = null, resource: URI = null): TPromise<any> {
 
 		let bulkEdit: BulkEdit = createBulkEdit(this.textModelResolverService, null, this.fileService);

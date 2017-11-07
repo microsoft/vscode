@@ -165,7 +165,7 @@ export class Adapter {
 		}
 
 		return TPromise.as(content);
-	};
+	}
 
 	public getSchemaAttributes(): IJSONSchema[] {
 		if (!this.rawAdapter.configurationAttributes) {

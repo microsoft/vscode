@@ -1649,7 +1649,7 @@ export interface IProblemReporter extends IProblemReporterBase {
 }
 
 class NullProblemReporter extends NullProblemReporterBase implements IProblemReporter {
-	clearOutput(): void { };
+	clearOutput(): void { }
 }
 
 class UUIDMap {

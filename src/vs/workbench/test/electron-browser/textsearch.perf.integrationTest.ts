@@ -166,4 +166,4 @@ class TestTelemetryService implements ITelemetryService {
 			machineId: 'someValue.machineId'
 		});
 	}
-};
+}

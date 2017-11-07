@@ -210,7 +210,7 @@ suite('Quick Open Scorer', () => {
 	});
 
 	test('scoreItem - avoid match scattering (bug #36119)', function () {
-		const resource = URI.file('projects/ui/cula/ats/target.mk');;
+		const resource = URI.file('projects/ui/cula/ats/target.mk');
 
 		const pathRes = scoreItem(resource, 'tcltarget.mk', true, ResourceAccessor, cache);
 		assert.ok(pathRes.score);

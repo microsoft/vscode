@@ -27,7 +27,7 @@ export class DocumentMergeConflict implements interfaces.IDocumentMergeConflict 
 
 			this.applyEdit(type, editor, edit);
 			return Promise.resolve(true);
-		};
+		}
 
 		return editor.edit((edit) => this.applyEdit(type, editor, edit));
 	}

@@ -358,7 +358,7 @@ class WelcomePage {
 					this.updateInstalledExtensions(container, installedExtensions);
 					break;
 				}
-			};
+			}
 		}));
 	}
 

@@ -412,5 +412,5 @@ export class WorkspaceStats {
 			this.reportRemotes(uris);
 			this.reportAzure(uris);
 		}
-	};
+	}
 }

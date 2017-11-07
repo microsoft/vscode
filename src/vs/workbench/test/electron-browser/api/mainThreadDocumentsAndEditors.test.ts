@@ -36,7 +36,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 		modelService = new ModelServiceImpl(null, configService);
 		codeEditorService = new MockCodeEditorService();
 		textFileService = new class extends mock<ITextFileService>() {
-			isDirty() { return false; };
+			isDirty() { return false; }
 			models = <any>{
 				onModelSaved: Event.None,
 				onModelReverted: Event.None,

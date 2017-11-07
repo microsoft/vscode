@@ -227,7 +227,7 @@ export class ExtensionLinter {
 			}
 
 			this.diagnosticsCollection.set(document.uri, diagnostics);
-		};
+		}
 	}
 
 	private locateToken(text: string, begin: number, end: number, token: MarkdownItType.Token, content: string) {

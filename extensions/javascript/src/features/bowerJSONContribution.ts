@@ -136,7 +136,7 @@ export class BowerJSONContribution implements IJSONContribution {
 				}
 				return null;
 			});
-		};
+		}
 		return null;
 	}
 

@@ -63,7 +63,7 @@ const DEBUG_WATCH_EXPRESSIONS_KEY = 'debug.watchexpressions';
 interface StartSessionResult {
 	status: 'ok' | 'initialConfiguration' | 'saveConfiguration';
 	content?: string;
-};
+}
 
 export class DebugService implements debug.IDebugService {
 	public _serviceBrand: any;

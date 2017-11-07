@@ -529,8 +529,8 @@ export class ConfigurationChangeEvent extends AbstractConfigurationChangeEvent i
 		return this._changedConfigurationByResource;
 	}
 
-	change(event: ConfigurationChangeEvent): ConfigurationChangeEvent
-	change(keys: string[], resource?: URI): ConfigurationChangeEvent
+	change(event: ConfigurationChangeEvent): ConfigurationChangeEvent;
+	change(keys: string[], resource?: URI): ConfigurationChangeEvent;
 	change(arg1: any, arg2?: any): ConfigurationChangeEvent {
 		if (arg1 instanceof ConfigurationChangeEvent) {
 			this._changedConfiguration = this._changedConfiguration.merge(arg1._changedConfiguration);

@@ -518,10 +518,10 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 		let navigator: INavigator<any> = this.getNavigatorAt(element, viewer);
 		if (element instanceof FolderMatch) {
 			// If file match is removed then next element is the next file match
-			while (!!navigator.next() && !(navigator.current() instanceof FolderMatch)) { };
+			while (!!navigator.next() && !(navigator.current() instanceof FolderMatch)) { }
 		} else if (element instanceof FileMatch) {
 			// If file match is removed then next element is the next file match
-			while (!!navigator.next() && !(navigator.current() instanceof FileMatch)) { };
+			while (!!navigator.next() && !(navigator.current() instanceof FileMatch)) { }
 		} else {
 			navigator.next();
 		}

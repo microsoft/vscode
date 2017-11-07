@@ -806,14 +806,14 @@ class TaskService extends EventEmitter implements ITaskService {
 				if (Task.matches(task, alias)) {
 					return task;
 				}
-			};
+			}
 			return undefined;
 		});
 	}
 
 	public tasks(): TPromise<Task[]> {
 		return this.getGroupedTasks().then(result => result.all());
-	};
+	}
 
 	public createSorter(): TaskSorter {
 		return new TaskSorter(this.contextService.getWorkspace() ? this.contextService.getWorkspace().folders : []);
@@ -1124,7 +1124,7 @@ class TaskService extends EventEmitter implements ITaskService {
 				}
 				promise = this.writeConfiguration(workspaceFolder, 'tasks.tasks', fileConfig.tasks);
 			}
-		};
+		}
 		if (!promise) {
 			return TPromise.as(undefined);
 		}
