@@ -3,40 +3,50 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CodeActionProvider, TextDocument, Range, CancellationToken, CodeActionContext, Command } from 'vscode';
+import * as vscode from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { vsRangeToTsFileRange } from '../utils/convert';
 import FormattingConfigurationManager from './formattingConfigurationManager';
 import { applyCodeAction } from '../utils/codeAction';
-import { CommandManager } from '../utils/commandManager';
+import { CommandManager, Command } from '../utils/commandManager';
 
 interface NumberSet {
 	[key: number]: boolean;
 }
 
-export default class TypeScriptCodeActionProvider implements CodeActionProvider {
-	private commandId: string;
+class ApplyCodeActionCommand implements Command {
 
+	public static readonly ID: string = '_typescript.applyCodeAction';
+	public readonly id: string = ApplyCodeActionCommand.ID;
+
+	constructor(
+		private readonly client: ITypeScriptServiceClient
+	) { }
+
+	execute(action: Proto.CodeAction, file: string): void {
+		applyCodeAction(this.client, action, file);
+	}
+}
+
+export default class TypeScriptCodeActionProvider implements vscode.CodeActionProvider {
 	private _supportedCodeActions?: Thenable<NumberSet>;
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
 		private readonly formattingConfigurationManager: FormattingConfigurationManager,
-		mode: string,
 		commandManager: CommandManager
 	) {
-		this.commandId = `_typescript.applyCodeAction.${mode}`;
-		commandManager.registerCommand(this.commandId, this.onCodeAction, this);
+		commandManager.register(new ApplyCodeActionCommand(this.client));
 	}
 
 	public async provideCodeActions(
-		document: TextDocument,
-		range: Range,
-		context: CodeActionContext,
-		token: CancellationToken
-	): Promise<Command[]> {
+		document: vscode.TextDocument,
+		range: vscode.Range,
+		context: vscode.CodeActionContext,
+		token: vscode.CancellationToken
+	): Promise<vscode.Command[]> {
 		if (!this.client.apiVersion.has213Features()) {
 			return [];
 		}
@@ -75,22 +85,18 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 		return this._supportedCodeActions;
 	}
 
-	private async getSupportedActionsForContext(context: CodeActionContext): Promise<Set<number>> {
+	private async getSupportedActionsForContext(context: vscode.CodeActionContext): Promise<Set<number>> {
 		const supportedActions = await this.supportedCodeActions;
 		return new Set(context.diagnostics
 			.map(diagnostic => +diagnostic.code)
 			.filter(code => supportedActions[code]));
 	}
 
-	private getCommandForAction(action: Proto.CodeAction, file: string): Command {
+	private getCommandForAction(action: Proto.CodeAction, file: string): vscode.Command {
 		return {
 			title: action.description,
-			command: this.commandId,
+			command: ApplyCodeActionCommand.ID,
 			arguments: [action, file]
 		};
-	}
-
-	private onCodeAction(action: Proto.CodeAction, file: string): Promise<boolean> {
-		return applyCodeAction(this.client, action, file);
 	}
 }

@@ -15,8 +15,8 @@ export class CommandManager {
 	private readonly commands = new Map<string, vscode.Disposable>();
 
 	public dispose() {
-		for (const registration of this.commands) {
-			registration[1].dispose();
+		for (const registration of this.commands.values()) {
+			registration.dispose();
 		}
 		this.commands.clear();
 	}
