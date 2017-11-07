@@ -12,7 +12,7 @@ import { isIPad } from 'vs/base/browser/browser';
 import { isMacintosh } from 'vs/base/common/platform';
 import types = require('vs/base/common/types');
 import DOM = require('vs/base/browser/dom');
-import { Gesture, EventType, GestureEvent } from 'vs/base/browser/touch';
+import { EventType, GestureEvent } from 'vs/base/browser/touch';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -51,7 +51,6 @@ export enum Orientation {
 export class Sash extends EventEmitter {
 
 	private $e: Builder;
-	private gesture: Gesture;
 	private layoutProvider: ISashLayoutProvider;
 	private isDisabled: boolean;
 	private hidden: boolean;
@@ -66,8 +65,6 @@ export class Sash extends EventEmitter {
 		if (isMacintosh) {
 			this.$e.addClass('mac');
 		}
-
-		this.gesture = new Gesture(this.$e.getHTMLElement());
 
 		this.$e.on(DOM.EventType.MOUSE_DOWN, (e) => { this.onMouseDown(e as MouseEvent); });
 		this.$e.on(DOM.EventType.DBLCLICK, (e) => { this.emit('reset', e as MouseEvent); });
