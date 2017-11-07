@@ -322,15 +322,15 @@ suite('Files - TextFileEditorModelManager', () => {
 
 		const resource = toResource('/path/index_something.txt');
 
-		manager.loadOrCreate(resource, { encoding: 'utf8' }).done((model: TextFileEditorModel) => {
+		manager.loadOrCreate(resource, { encoding: 'utf8' }).done(model => {
 			model.textEditorModel.setValue('make dirty');
 
-			manager.disposeModel(model);
+			manager.disposeModel(model as TextFileEditorModel);
 			assert.ok(!model.isDisposed());
 
 			model.revert(true);
 
-			manager.disposeModel(model);
+			manager.disposeModel(model as TextFileEditorModel);
 			assert.ok(model.isDisposed());
 
 			manager.dispose();

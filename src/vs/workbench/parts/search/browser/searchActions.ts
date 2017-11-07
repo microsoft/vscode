@@ -369,8 +369,8 @@ export class FindInWorkspaceAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		return this.viewletService.openViewlet(Constants.VIEWLET_ID, true).then((viewlet: SearchViewlet) => {
-			viewlet.searchInFolder(null);
+		return this.viewletService.openViewlet(Constants.VIEWLET_ID, true).then(viewlet => {
+			(viewlet as SearchViewlet).searchInFolder(null);
 		});
 	}
 }
@@ -406,9 +406,9 @@ export const findInFolderCommand = (accessor: ServicesAccessor, resource?: URI) 
 		}
 	}
 
-	viewletService.openViewlet(Constants.VIEWLET_ID, true).then((viewlet: SearchViewlet) => {
+	viewletService.openViewlet(Constants.VIEWLET_ID, true).then(viewlet => {
 		if (resource) {
-			viewlet.searchInFolder(resource);
+			(viewlet as SearchViewlet).searchInFolder(resource);
 		}
 	}).done(null, errors.onUnexpectedError);
 };
@@ -480,8 +480,8 @@ export class FocusNextSearchResultAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		return this.viewletService.openViewlet(Constants.VIEWLET_ID).then((searchViewlet: SearchViewlet) => {
-			searchViewlet.selectNextMatch();
+		return this.viewletService.openViewlet(Constants.VIEWLET_ID).then(searchViewlet => {
+			(searchViewlet as SearchViewlet).selectNextMatch();
 		});
 	}
 }
@@ -495,8 +495,8 @@ export class FocusPreviousSearchResultAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		return this.viewletService.openViewlet(Constants.VIEWLET_ID).then((searchViewlet: SearchViewlet) => {
-			searchViewlet.selectPreviousMatch();
+		return this.viewletService.openViewlet(Constants.VIEWLET_ID).then(searchViewlet => {
+			(searchViewlet as SearchViewlet).selectPreviousMatch();
 		});
 	}
 }

@@ -86,16 +86,16 @@ suite('Files - FileEditorInput', () => {
 
 						resolvedModelA.dispose();
 
-						return inputToResolve.resolve(true).then((resolved: TextFileEditorModel) => {
+						return inputToResolve.resolve(true).then(resolved => {
 							assert(resolvedModelA !== resolved); // Different instance, because input got disposed
 
-							let stat = resolved.getStat();
-							return inputToResolve.resolve(true).then((resolved: TextFileEditorModel) => {
-								assert(stat !== resolved.getStat()); // Different stat, because resolve always goes to the server for refresh
+							let stat = (resolved as TextFileEditorModel).getStat();
+							return inputToResolve.resolve(true).then(resolved => {
+								assert(stat !== (resolved as TextFileEditorModel).getStat()); // Different stat, because resolve always goes to the server for refresh
 
-								stat = resolved.getStat();
-								return inputToResolve.resolve(false).then((resolved: TextFileEditorModel) => {
-									assert(stat === resolved.getStat()); // Same stat, because not refreshed
+								stat = (resolved as TextFileEditorModel).getStat();
+								return inputToResolve.resolve(false).then(resolved => {
+									assert(stat === (resolved as TextFileEditorModel).getStat()); // Same stat, because not refreshed
 
 									done();
 								});
