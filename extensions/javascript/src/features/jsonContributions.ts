@@ -47,7 +47,7 @@ export class JSONHoverProvider implements HoverProvider {
 	constructor(private jsonContribution: IJSONContribution) {
 	}
 
-	public provideHover(document: TextDocument, position: Position, token: CancellationToken): Thenable<Hover> | null {
+	public provideHover(document: TextDocument, position: Position, _token: CancellationToken): Thenable<Hover> | null {
 		const fileName = basename(document.fileName);
 		const offset = document.offsetAt(position);
 		const location = getLocation(document.getText(), offset);
@@ -77,7 +77,7 @@ export class JSONCompletionItemProvider implements CompletionItemProvider {
 	constructor(private jsonContribution: IJSONContribution) {
 	}
 
-	public resolveCompletionItem(item: CompletionItem, token: CancellationToken): Thenable<CompletionItem | null> {
+	public resolveCompletionItem(item: CompletionItem, _token: CancellationToken): Thenable<CompletionItem | null> {
 		if (this.jsonContribution.resolveSuggestion) {
 			const resolver = this.jsonContribution.resolveSuggestion(item);
 			if (resolver) {
@@ -87,7 +87,7 @@ export class JSONCompletionItemProvider implements CompletionItemProvider {
 		return Promise.resolve(item);
 	}
 
-	public provideCompletionItems(document: TextDocument, position: Position, token: CancellationToken): Thenable<CompletionList | null> | null {
+	public provideCompletionItems(document: TextDocument, position: Position, _token: CancellationToken): Thenable<CompletionList | null> | null {
 
 		const fileName = basename(document.fileName);
 

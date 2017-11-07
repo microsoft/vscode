@@ -31,7 +31,7 @@ export class PackageJSONContribution implements IJSONContribution {
 	public constructor(private xhr: XHRRequest) {
 	}
 
-	public collectDefaultSuggestions(fileName: string, result: ISuggestionsCollector): Thenable<any> {
+	public collectDefaultSuggestions(_fileName: string, result: ISuggestionsCollector): Thenable<any> {
 		const defaultValue = {
 			'name': '${1:name}',
 			'description': '${2:description}',
@@ -48,7 +48,7 @@ export class PackageJSONContribution implements IJSONContribution {
 	}
 
 	public collectPropertySuggestions(
-		resource: string,
+		_resource: string,
 		location: Location,
 		currentWord: string,
 		addValue: boolean,
@@ -98,6 +98,7 @@ export class PackageJSONContribution implements IJSONContribution {
 						collector.error(localize('json.npm.error.repoaccess', 'Request to the NPM repository failed: {0}', success.responseText));
 						return 0;
 					}
+					return undefined;
 				}, (error) => {
 					collector.error(localize('json.npm.error.repoaccess', 'Request to the NPM repository failed: {0}', error.responseText));
 					return 0;
@@ -126,7 +127,7 @@ export class PackageJSONContribution implements IJSONContribution {
 	}
 
 	public collectValueSuggestions(
-		fileName: string,
+		_fileName: string,
 		location: Location,
 		result: ISuggestionsCollector
 	): Thenable<any> | null {
@@ -166,7 +167,7 @@ export class PackageJSONContribution implements IJSONContribution {
 						// ignore
 					}
 					return 0;
-				}, (error) => {
+				}, () => {
 					return 0;
 				});
 			}
@@ -213,12 +214,12 @@ export class PackageJSONContribution implements IJSONContribution {
 				// ignore
 			}
 			return [];
-		}, (error) => {
+		}, () => {
 			return [];
 		});
 	}
 
-	public getInfoContribution(fileName: string, location: Location): Thenable<MarkedString[] | null> | null {
+	public getInfoContribution(_fileName: string, location: Location): Thenable<MarkedString[] | null> | null {
 		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']) || location.matches(['optionalDependencies', '*']) || location.matches(['peerDependencies', '*']))) {
 			const pack = location.path[location.path.length - 1];
 			if (typeof pack === 'string') {

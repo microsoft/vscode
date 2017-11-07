@@ -30,7 +30,7 @@ export class BowerJSONContribution implements IJSONContribution {
 		return [{ language: 'json', pattern: '**/bower.json' }, { language: 'json', pattern: '**/.bower.json' }];
 	}
 
-	public collectDefaultSuggestions(resource: string, collector: ISuggestionsCollector): Thenable<any> {
+	public collectDefaultSuggestions(_resource: string, collector: ISuggestionsCollector): Thenable<any> {
 		const defaultValue = {
 			'name': '${1:name}',
 			'description': '${2:description}',
@@ -46,7 +46,7 @@ export class BowerJSONContribution implements IJSONContribution {
 		return Promise.resolve(null);
 	}
 
-	public collectPropertySuggestions(resource: string, location: Location, currentWord: string, addValue: boolean, isLast: boolean, collector: ISuggestionsCollector): Thenable<any> | null {
+	public collectPropertySuggestions(_resource: string, location: Location, currentWord: string, addValue: boolean, isLast: boolean, collector: ISuggestionsCollector): Thenable<any> | null {
 		if ((location.matches(['dependencies']) || location.matches(['devDependencies']))) {
 			if (currentWord.length > 0) {
 				const queryUrl = 'https://bower.herokuapp.com/packages/search/' + encodeURIComponent(currentWord);
@@ -85,6 +85,7 @@ export class BowerJSONContribution implements IJSONContribution {
 						collector.error(localize('json.bower.error.repoaccess', 'Request to the bower repository failed: {0}', success.responseText));
 						return 0;
 					}
+					return undefined;
 				}, (error) => {
 					collector.error(localize('json.bower.error.repoaccess', 'Request to the bower repository failed: {0}', error.responseText));
 					return 0;
@@ -113,7 +114,7 @@ export class BowerJSONContribution implements IJSONContribution {
 		return null;
 	}
 
-	public collectValueSuggestions(resource: string, location: Location, collector: ISuggestionsCollector): Thenable<any> {
+	public collectValueSuggestions(_resource: string, location: Location, collector: ISuggestionsCollector): Thenable<any> {
 		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']))) {
 			// not implemented. Could be do done calling the bower command. Waiting for web API: https://github.com/bower/registry/issues/26
 			const proposal = new CompletionItem(localize('json.bower.latest.version', 'latest'));
@@ -161,12 +162,12 @@ export class BowerJSONContribution implements IJSONContribution {
 				// ignore
 			}
 			return void 0;
-		}, (error) => {
+		}, () => {
 			return void 0;
 		});
 	}
 
-	public getInfoContribution(resource: string, location: Location): Thenable<MarkedString[] | null> | null {
+	public getInfoContribution(_resource: string, location: Location): Thenable<MarkedString[] | null> | null {
 		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']))) {
 			const pack = location.path[location.path.length - 1];
 			if (typeof pack === 'string') {

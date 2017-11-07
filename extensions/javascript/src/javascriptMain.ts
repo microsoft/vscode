@@ -16,7 +16,7 @@ export function activate(context: ExtensionContext): any {
 	nls.config({ locale: env.language });
 
 	configureHttpRequest();
-	workspace.onDidChangeConfiguration(e => configureHttpRequest());
+	workspace.onDidChangeConfiguration(() => configureHttpRequest());
 
 	context.subscriptions.push(addJSONProviders(httpRequest.xhr));
 }
