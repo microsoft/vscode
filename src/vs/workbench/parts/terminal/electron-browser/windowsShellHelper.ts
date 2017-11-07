@@ -14,8 +14,6 @@ const SHELL_EXECUTABLES = ['cmd.exe', 'powershell.exe', 'bash.exe'];
 let windowsProcessTree;
 
 export class WindowsShellHelper {
-	// @ts-ignore unused property
-	private _childProcessIdStack: number[];
 	private _onCheckShell: Emitter<TPromise<string>>;
 	private _isDisposed: boolean;
 	private _currentRequest: TPromise<string>;
@@ -23,8 +21,6 @@ export class WindowsShellHelper {
 
 	public constructor(
 		private _rootProcessId: number,
-		// @ts-ignore unused property
-		private _rootShellExecutable: string,
 		private _terminalInstance: ITerminalInstance,
 		private _xterm: XTermTerminal
 	) {
@@ -36,7 +32,6 @@ export class WindowsShellHelper {
 			windowsProcessTree = require.__$__nodeRequire('windows-process-tree');
 		}
 
-		this._childProcessIdStack = [this._rootProcessId];
 		this._isDisposed = false;
 		this._onCheckShell = new Emitter<TPromise<string>>();
 		// The debounce is necessary to prevent multiple processes from spawning when

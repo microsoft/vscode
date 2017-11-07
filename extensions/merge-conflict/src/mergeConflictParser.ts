@@ -81,7 +81,7 @@ export class MergeConflictParser {
 
 		return conflictDescriptors
 			.filter(Boolean)
-			.map(descriptor => new DocumentMergeConflict(document, descriptor));
+			.map(descriptor => new DocumentMergeConflict(descriptor));
 	}
 
 	private static scanItemTolMergeConflictDescriptor(document: vscode.TextDocument, scanned: IScanMergedConflict): interfaces.IDocumentMergeConflictDescriptor | null {

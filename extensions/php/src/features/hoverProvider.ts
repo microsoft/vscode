@@ -11,15 +11,15 @@ import { textToMarkedString } from './utils/markedTextUtil';
 
 export default class PHPHoverProvider implements HoverProvider {
 
-	public provideHover(document: TextDocument, position: Position, token: CancellationToken): Hover | undefined {
+	public provideHover(document: TextDocument, position: Position, _token: CancellationToken): Hover | undefined {
 		let enable = workspace.getConfiguration('php').get<boolean>('suggest.basic', true);
 		if (!enable) {
-			return;
+			return undefined;
 		}
 
 		let wordRange = document.getWordRangeAtPosition(position);
 		if (!wordRange) {
-			return;
+			return undefined;
 		}
 
 		let name = document.getText(wordRange);
@@ -30,5 +30,7 @@ export default class PHPHoverProvider implements HoverProvider {
 			let contents: MarkedString[] = [textToMarkedString(entry.description), { language: 'php', value: signature }];
 			return new Hover(contents, wordRange);
 		}
+
+		return undefined;
 	}
 }

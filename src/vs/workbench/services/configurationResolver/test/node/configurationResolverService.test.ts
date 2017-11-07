@@ -364,9 +364,7 @@ class MockCommandService implements ICommandService {
 	public callCount = 0;
 
 	onWillExecuteCommand = () => ({ dispose: () => { } });
-
-	// @ts-ignore unused generic parameter
-	public executeCommand<T>(commandId: string, ...args: any[]): TPromise<any> {
+	public executeCommand(commandId: string, ...args: any[]): TPromise<any> {
 		this.callCount++;
 		return TPromise.as(commandId);
 	}

@@ -618,8 +618,6 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 			{
 				let _charIndex = charIndex;
 				let _tabsCharDelta = tabsCharDelta;
-				// @ts-ignore unused local
-				let _charOffsetInPart = charOffsetInPart;
 
 				for (; _charIndex < partEndIndex; _charIndex++) {
 					const charCode = lineContent.charCodeAt(_charIndex);
@@ -627,13 +625,10 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 					if (charCode === CharCode.Tab) {
 						let insertSpacesCount = tabSize - (_charIndex + _tabsCharDelta) % tabSize;
 						_tabsCharDelta += insertSpacesCount - 1;
-						_charOffsetInPart += insertSpacesCount - 1;
 						partContentCnt += insertSpacesCount;
 					} else {
 						partContentCnt++;
 					}
-
-					_charOffsetInPart++;
 				}
 			}
 

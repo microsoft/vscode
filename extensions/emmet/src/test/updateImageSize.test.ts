@@ -7,11 +7,9 @@ import * as assert from 'assert';
 import { Selection } from 'vscode';
 import { withRandomFileEditor, closeAllEditors } from './testUtils';
 import { updateImageSize } from '../updateImageSize';
-import * as path from 'path';
 
 suite('Tests for Emmet actions on html tags', () => {
 	teardown(closeAllEditors);
-	const filePath = path.join(__dirname, '../../../../resources/linux/code.png');
 
 	test('update image css with multiple cursors in css file', () => {
 		const cssContents = `

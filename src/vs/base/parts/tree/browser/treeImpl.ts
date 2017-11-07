@@ -64,9 +64,6 @@ const defaultStyles: _.ITreeStyles = {
 export class Tree extends Events.EventEmitter implements _.ITree {
 
 	private container: HTMLElement;
-	// @ts-ignore unused property
-	private configuration: _.ITreeConfiguration;
-	private options: _.ITreeOptions;
 
 	private context: _.ITreeContext;
 	private model: Model.TreeModel;
@@ -88,16 +85,14 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 		this.toDispose.push(this._onDispose, this._onHighlightChange);
 
 		this.container = container;
-		this.configuration = configuration;
-		this.options = options;
-		mixin(this.options, defaultStyles, false);
+		mixin(options, defaultStyles, false);
 
-		this.options.twistiePixels = typeof this.options.twistiePixels === 'number' ? this.options.twistiePixels : 32;
-		this.options.showTwistie = this.options.showTwistie === false ? false : true;
-		this.options.indentPixels = typeof this.options.indentPixels === 'number' ? this.options.indentPixels : 12;
-		this.options.alwaysFocused = this.options.alwaysFocused === true ? true : false;
-		this.options.useShadows = this.options.useShadows === false ? false : true;
-		this.options.paddingOnRow = this.options.paddingOnRow === false ? false : true;
+		options.twistiePixels = typeof options.twistiePixels === 'number' ? options.twistiePixels : 32;
+		options.showTwistie = options.showTwistie === false ? false : true;
+		options.indentPixels = typeof options.indentPixels === 'number' ? options.indentPixels : 12;
+		options.alwaysFocused = options.alwaysFocused === true ? true : false;
+		options.useShadows = options.useShadows === false ? false : true;
+		options.paddingOnRow = options.paddingOnRow === false ? false : true;
 
 		this.context = new TreeContext(this, configuration, options);
 		this.model = new Model.TreeModel(this.context);

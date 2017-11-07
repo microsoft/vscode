@@ -10,8 +10,7 @@ import errors = require('vs/base/common/errors');
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import { IEditorViewState, isCommonCodeEditor } from 'vs/editor/common/editorCommon';
-// @ts-ignore unused import
-import { toResource, IEditorStacksModel, SideBySideEditorInput, IEditorGroup, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
+import { toResource, SideBySideEditorInput, IEditorGroup, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileOperationEvent, FileOperation, IFileService, FileChangeType, FileChangesEvent, indexOf } from 'vs/platform/files/common/files';
@@ -32,9 +31,8 @@ export class FileEditorTracker implements IWorkbenchContribution {
 
 	protected closeOnFileDelete: boolean;
 
-	// @ts-ignore unused propertyprivate stacks: IEditorStacksModel;
 	private toUnbind: IDisposable[];
-	private modelLoadQueue: ResourceQueue<void>;
+	private modelLoadQueue: ResourceQueue;
 	private activeOutOfWorkspaceWatchers: ResourceMap<URI>;
 
 	constructor(
@@ -48,9 +46,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 	) {
 		this.toUnbind = [];
-		// @ts-ignore unused property
-		this.stacks = editorGroupService.getStacksModel();
-		this.modelLoadQueue = new ResourceQueue<void>();
+		this.modelLoadQueue = new ResourceQueue();
 		this.activeOutOfWorkspaceWatchers = new ResourceMap<URI>();
 
 		this.onConfigurationUpdated(configurationService.getConfiguration<IWorkbenchEditorConfiguration>());

@@ -54,8 +54,6 @@ export class TextAreaHandler extends ViewPart {
 
 	private readonly _viewController: ViewController;
 	private readonly _viewHelper: ITextAreaHandlerHelper;
-	// @ts-ignore unused property
-	private _pixelRatio: number;
 	private _accessibilitySupport: platform.AccessibilitySupport;
 	private _contentLeft: number;
 	private _contentWidth: number;
@@ -86,7 +84,6 @@ export class TextAreaHandler extends ViewPart {
 
 		const conf = this._context.configuration.editor;
 
-		this._pixelRatio = conf.pixelRatio;
 		this._accessibilitySupport = conf.accessibilitySupport;
 		this._contentLeft = conf.layoutInfo.contentLeft;
 		this._contentWidth = conf.layoutInfo.contentWidth;
@@ -305,9 +302,6 @@ export class TextAreaHandler extends ViewPart {
 		}
 		if (e.lineHeight) {
 			this._lineHeight = conf.lineHeight;
-		}
-		if (e.pixelRatio) {
-			this._pixelRatio = conf.pixelRatio;
 		}
 		if (e.accessibilitySupport) {
 			this._accessibilitySupport = conf.accessibilitySupport;

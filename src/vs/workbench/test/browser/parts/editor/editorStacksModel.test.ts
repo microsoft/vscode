@@ -339,7 +339,6 @@ suite('Editor Stacks Model', () => {
 		let events = modelListener(model);
 
 		let group1 = model.openGroup('first');
-		// @ts-ignore unused property
 		let group2 = model.openGroup('second');
 		let group3 = model.openGroup('third');
 
@@ -365,6 +364,7 @@ suite('Editor Stacks Model', () => {
 
 		model.moveGroup(group3, 1);
 		assert.equal(events.moved.length, 2);
+		assert.ok(group2);
 	});
 
 	test('Groups - Event Aggregation', function () {

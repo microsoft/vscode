@@ -12,7 +12,7 @@ export default class PHPCompletionItemProvider implements CompletionItemProvider
 
 	public triggerCharacters = ['.', ':', '$'];
 
-	public provideCompletionItems(document: TextDocument, position: Position, token: CancellationToken): Promise<CompletionItem[]> {
+	public provideCompletionItems(document: TextDocument, position: Position, _token: CancellationToken): Promise<CompletionItem[]> {
 		let result: CompletionItem[] = [];
 
 		let shouldProvideCompletionItems = workspace.getConfiguration('php').get<boolean>('suggest.basic', true);

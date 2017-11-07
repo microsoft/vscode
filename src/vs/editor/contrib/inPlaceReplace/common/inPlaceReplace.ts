@@ -34,8 +34,6 @@ class InPlaceReplaceController implements IEditorContribution {
 	});
 
 	private editor: ICommonCodeEditor;
-	// @ts-ignore unused property
-	private requestIdPool: number;
 	private currentRequest: TPromise<IInplaceReplaceSupportResult>;
 	private decorationRemover: TPromise<void>;
 	private decorationIds: string[];
@@ -47,7 +45,6 @@ class InPlaceReplaceController implements IEditorContribution {
 	) {
 		this.editor = editor;
 		this.editorWorkerService = editorWorkerService;
-		this.requestIdPool = 0;
 		this.currentRequest = TPromise.as(<IInplaceReplaceSupportResult>null);
 		this.decorationRemover = TPromise.as(<void>null);
 		this.decorationIds = [];

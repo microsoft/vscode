@@ -156,8 +156,6 @@ export class ToggleMenuBarAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		// @ts-ignore unused injected service
-		@IMessageService private messageService: IMessageService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(id, label);
@@ -342,12 +340,9 @@ export class ShowStartupPerformance extends Action {
 			console.log(`Empty Workspace: ${metrics.emptyWorkbench}`);
 
 			let nodeModuleLoadTime: number;
-			// @ts-ignore unused local
-			let nodeModuleLoadDetails: any[];
 			if (this.environmentService.performance) {
 				const nodeModuleTimes = this.analyzeNodeModulesLoadTimes();
 				nodeModuleLoadTime = nodeModuleTimes.duration;
-				nodeModuleLoadDetails = nodeModuleTimes.table;
 			}
 
 			(<any>console).table(this.getStartupMetricsTable(nodeModuleLoadTime));
