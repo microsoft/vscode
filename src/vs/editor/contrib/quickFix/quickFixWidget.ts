@@ -33,8 +33,7 @@ export class QuickFixContextMenu {
 
 		const actions = fixes.then(value => {
 			return value.map(action => {
-				// TODO: just placeholders for testing
-				return new Action(action.command.id, (action.diagnostics ? '💡 ' : '✂️ ') + action.title, undefined, true, () => {
+				return new Action(action.command.id, action.title, undefined, true, () => {
 					return always(
 						this.onApplyCodeAction(action),
 						() => this._onDidExecuteCodeAction.fire(undefined));
