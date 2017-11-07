@@ -21,10 +21,10 @@ export class ModeServiceImpl implements IModeService {
 	private readonly _onDidCreateMode: Emitter<IMode> = new Emitter<IMode>();
 	public readonly onDidCreateMode: Event<IMode> = this._onDidCreateMode.event;
 
-	constructor() {
+	constructor(warnOnOverwrite = false) {
 		this._instantiatedModes = {};
 
-		this._registry = new LanguagesRegistry();
+		this._registry = new LanguagesRegistry(true, warnOnOverwrite);
 	}
 
 	protected _onReady(): TPromise<boolean> {
