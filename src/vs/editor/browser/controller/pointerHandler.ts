@@ -28,7 +28,7 @@ function gestureChangeEventMerger(lastEvent: IThrottledGestureEvent, currentEven
 		r.translationX += lastEvent.translationX;
 	}
 	return r;
-};
+}
 
 /**
  * Basically IE10 and IE11

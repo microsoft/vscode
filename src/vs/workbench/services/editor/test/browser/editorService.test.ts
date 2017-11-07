@@ -27,6 +27,7 @@ let activeEditor: BaseEditor = <any>{
 
 let openedEditorInput;
 let openedEditorOptions;
+// @ts-ignore unused local
 let openedEditorPosition;
 
 function toResource(path) {

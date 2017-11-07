@@ -10,7 +10,7 @@ import { SpectronApplication } from '../../spectron/application';
 export enum ActivityBarPosition {
 	LEFT = 0,
 	RIGHT = 1
-};
+}
 
 const SEARCH_INPUT = '.settings-search-input input';
 const EDITOR = '.editable-preferences-editor-container .monaco-editor textarea';

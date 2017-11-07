@@ -78,6 +78,7 @@ enum ProcessState {
 export class TerminalInstance implements ITerminalInstance {
 	private static readonly EOL_REGEX = /\r?\n/g;
 
+	// @ts-ignore unused property
 	private static _terminalProcessFactory: ITerminalProcessFactory = new StandardTerminalProcessFactory();
 	private static _lastKnownDimensions: Dimension = null;
 	private static _idCounter = 1;
@@ -133,7 +134,9 @@ export class TerminalInstance implements ITerminalInstance {
 		@IKeybindingService private _keybindingService: IKeybindingService,
 		@IMessageService private _messageService: IMessageService,
 		@IPanelService private _panelService: IPanelService,
+		// @ts-ignore unused injected service
 		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
+		// @ts-ignore unused injected service
 		@IWorkbenchEditorService private _editorService: IWorkbenchEditorService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IClipboardService private _clipboardService: IClipboardService,

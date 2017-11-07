@@ -11,7 +11,7 @@ import { ITerminalService, ITerminalInstance, ITerminalConfiguration } from 'vs/
 import { ITerminalService as IExternalTerminalService } from 'vs/workbench/parts/execution/common/execution';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
-const enum ShellType { cmd, powershell, bash };
+const enum ShellType { cmd, powershell, bash }
 
 export class TerminalSupport {
 

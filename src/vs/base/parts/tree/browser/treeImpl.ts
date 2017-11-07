@@ -64,6 +64,7 @@ const defaultStyles: _.ITreeStyles = {
 export class Tree extends Events.EventEmitter implements _.ITree {
 
 	private container: HTMLElement;
+	// @ts-ignore unused property
 	private configuration: _.ITreeConfiguration;
 	private options: _.ITreeOptions;
 

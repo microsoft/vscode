@@ -1878,8 +1878,10 @@ export class GlobalRevealInOSAction extends Action {
 	constructor(
 		id: string,
 		label: string,
+		// @ts-ignore unused injected service
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
+		// @ts-ignore unused injected service
 		@IMessageService private messageService: IMessageService
 	) {
 		super(id, label);
@@ -1920,8 +1922,11 @@ export class GlobalCopyPathAction extends Action {
 	constructor(
 		id: string,
 		label: string,
+		// @ts-ignore unused injected service
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		// @ts-ignore unused injected service
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		// @ts-ignore unused injected service
 		@IMessageService private messageService: IMessageService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {

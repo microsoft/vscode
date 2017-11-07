@@ -28,8 +28,8 @@ export class TextResourceConfigurationService extends Disposable implements ITex
 		this._register(this.configurationService.onDidChangeConfiguration(e => this._onDidChangeConfiguration.fire(e)));
 	}
 
-	getConfiguration<T>(resource: URI, section?: string): T
-	getConfiguration<T>(resource: URI, at?: IPosition, section?: string): T
+	getConfiguration<T>(resource: URI, section?: string): T;
+	getConfiguration<T>(resource: URI, at?: IPosition, section?: string): T;
 	getConfiguration<T>(resource: URI, arg2?: any, arg3?: any): T {
 		const position: IPosition = Position.isIPosition(arg2) ? arg2 : null;
 		const section: string = position ? (typeof arg3 === 'string' ? arg3 : void 0) : (typeof arg2 === 'string' ? arg2 : void 0);

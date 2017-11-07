@@ -14,6 +14,7 @@ export class TerminalWidgetManager {
 	private _messageListeners: IDisposable[] = [];
 
 	constructor(
+		// @ts-ignore unused property
 		private _configHelper: ITerminalConfigHelper,
 		terminalWrapper: HTMLElement
 	) {

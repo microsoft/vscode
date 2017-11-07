@@ -13,6 +13,7 @@ import { editorAction, EditorAction, ServicesAccessor } from 'vs/editor/common/e
 import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class TransposeLettersAction extends EditorAction {
 
 	constructor() {

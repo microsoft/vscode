@@ -217,11 +217,14 @@ export class ConfigurationManager implements IConfigurationManager {
 
 	constructor(
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		// @ts-ignore unused injected service
 		@IFileService private fileService: IFileService,
+		// @ts-ignore unused injected service
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		// @ts-ignore unused injected service
 		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ICommandService private commandService: ICommandService,

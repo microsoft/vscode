@@ -207,6 +207,7 @@ class SuggestionDetails {
 		private widget: SuggestWidget,
 		private editor: ICodeEditor,
 		private markdownRenderer: MarkdownRenderer,
+		// @ts-ignore unused property
 		private triggerKeybindingLabel: string
 	) {
 		this.disposables = [];

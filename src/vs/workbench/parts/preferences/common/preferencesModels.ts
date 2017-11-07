@@ -372,6 +372,7 @@ export class WorkspaceConfigModel extends SettingsEditorModel implements ISettin
 		_configurationTarget: ConfigurationTarget,
 		onDispose: Event<void>,
 		@IFileService private fileService: IFileService,
+		// @ts-ignore unused injected service
 		@ITextModelService private textModelResolverService: ITextModelService,
 		@ITextFileService textFileService: ITextFileService
 	) {
@@ -810,6 +811,7 @@ class SettingsContentBuilder {
 		return this._contentByLines[this._contentByLines.length - 1] || '';
 	}
 
+	// @ts-ignore unused property
 	constructor(private _rangeOffset = 0, private _maxLines = Infinity) {
 		this._contentByLines = [];
 	}

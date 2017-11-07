@@ -25,8 +25,8 @@ export class ViewletService implements IViewletService {
 	private extensionViewletsLoaded: TPromise<void>;
 	private extensionViewletsLoadedPromiseComplete: ValueCallback;
 
-	public get onDidViewletOpen(): Event<IViewlet> { return this.sidebarPart.onDidViewletOpen; };
-	public get onDidViewletClose(): Event<IViewlet> { return this.sidebarPart.onDidViewletClose; };
+	public get onDidViewletOpen(): Event<IViewlet> { return this.sidebarPart.onDidViewletOpen; }
+	public get onDidViewletClose(): Event<IViewlet> { return this.sidebarPart.onDidViewletClose; }
 
 	constructor(
 		sidebarPart: SidebarPart,

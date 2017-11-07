@@ -184,7 +184,7 @@ suite('Types', () => {
 		function isFoo(f) { }
 		assert.throws(() => types.validateConstraints([new foo()], [isFoo]));
 
-		function isFoo2(f) { return true; };
+		function isFoo2(f) { return true; }
 		types.validateConstraints([new foo()], [isFoo2]);
 
 		assert.throws(() => types.validateConstraints([1, true], [types.isNumber, types.isString]));

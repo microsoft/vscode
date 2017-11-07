@@ -51,6 +51,7 @@ export class PagedModel<T> implements IPagedModel<T> {
 
 	get length(): number { return this.pager.total; }
 
+	// @ts-ignore unused property
 	constructor(private arg: IPager<T> | T[], private pageTimeout: number = 500) {
 		this.pager = isArray(arg) ? singlePagePager<T>(arg) : arg;
 

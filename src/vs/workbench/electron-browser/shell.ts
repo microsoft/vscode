@@ -165,21 +165,30 @@ export class WorkbenchShell {
 		const [instantiationService, serviceCollection] = this.initServiceCollection(parent.getHTMLElement());
 
 		// Workbench
-		this.workbench = instantiationService.createInstance(Workbench, parent.getHTMLElement(), workbenchContainer.getHTMLElement(), this.configuration, serviceCollection);
-		this.workbench.startup({
-			onWorkbenchStarted: (info: IWorkbenchStartedInfo) => {
+		this.workbench = instantiationService.createInstance(Workbench, parent.getHTMLElement(), workbenchContainer.getHTMLElement(), this.configuration, serviceCollection, this.lifecycleService);
+		try {
+			this.workbench.startup({
+				onWorkbenchStarted: (info: IWorkbenchStartedInfo) => {
 
-				// run workbench started logic
-				this.onWorkbenchStarted(info);
+					// run workbench started logic
+					this.onWorkbenchStarted(info);
 
-				// start cached data manager
-				instantiationService.createInstance(NodeCachedDataManager);
+					// start cached data manager
+					instantiationService.createInstance(NodeCachedDataManager);
 
-				// Set lifecycle phase to `Runnning` so that other contributions
-				// can now do something
-				this.lifecycleService.phase = LifecyclePhase.Running;
-			}
-		});
+					// Set lifecycle phase to `Runnning` so that other contributions
+					// can now do something
+					this.lifecycleService.phase = LifecyclePhase.Running;
+				}
+			});
+		} catch (error) {
+
+			// Print out error
+			console.error(toErrorMessage(error, true));
+
+			// Rethrow
+			throw error;
+		}
 
 		// Window
 		this.workbench.getInstantiationService().createInstance(ElectronWindow, this.container);

@@ -102,6 +102,7 @@ class InspectTMScopesController extends Disposable implements IEditorContributio
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class InspectTMScopes extends EditorAction {
 
 	constructor() {

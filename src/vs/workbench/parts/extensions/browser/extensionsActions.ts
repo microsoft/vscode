@@ -111,7 +111,9 @@ export class UninstallAction extends Action {
 
 	constructor(
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		// @ts-ignore unused injected service
 		@IMessageService private messageService: IMessageService,
+		// @ts-ignore unused injected service
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super('extensions.uninstall', UninstallAction.UninstallLabel, UninstallAction.UninstallClass, false);
@@ -363,8 +365,10 @@ export class ManageExtensionAction extends Action {
 	set extension(extension: IExtension) { this._extension = extension; this._actionItem.extension = extension; this.update(); }
 
 	constructor(
+		// @ts-ignore unused injected service
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		// @ts-ignore unused injected service
 		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
@@ -427,6 +431,7 @@ export class EnableForWorkspaceAction extends Action implements IExtensionAction
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
+		// @ts-ignore unused injected service
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(EnableForWorkspaceAction.ID, label);
@@ -467,6 +472,7 @@ export class EnableGloballyAction extends Action implements IExtensionAction {
 	constructor(label: string,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
+		// @ts-ignore unused injected service
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(EnableGloballyAction.ID, label);
@@ -564,6 +570,7 @@ export class DisableForWorkspaceAction extends Action implements IExtensionActio
 	constructor(label: string,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		// @ts-ignore unused injected service
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(DisableForWorkspaceAction.ID, label);
@@ -603,6 +610,7 @@ export class DisableGloballyAction extends Action implements IExtensionAction {
 
 	constructor(label: string,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		// @ts-ignore unused injected service
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(DisableGloballyAction.ID, label);
@@ -802,6 +810,7 @@ export class ReloadAction extends Action {
 
 	constructor(
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		// @ts-ignore unused injected service
 		@IMessageService private messageService: IMessageService,
 		@IWindowService private windowService: IWindowService,
 		@IExtensionService private extensionService: IExtensionService
@@ -911,6 +920,7 @@ export class ShowEnabledExtensionsAction extends Action {
 		id: string,
 		label: string,
 		@IViewletService private viewletService: IViewletService,
+		// @ts-ignore unused injected service
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
 		super(id, label, 'clear-extensions', true);
@@ -935,6 +945,7 @@ export class ShowInstalledExtensionsAction extends Action {
 		id: string,
 		label: string,
 		@IViewletService private viewletService: IViewletService,
+		// @ts-ignore unused injected service
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
 		super(id, label, 'clear-extensions', true);
@@ -959,6 +970,7 @@ export class ShowDisabledExtensionsAction extends Action {
 		id: string,
 		label: string,
 		@IViewletService private viewletService: IViewletService,
+		// @ts-ignore unused injected service
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
 		super(id, label, 'null', true);
@@ -986,6 +998,7 @@ export class ClearExtensionsInputAction extends Action {
 		label: string,
 		onSearchChange: Event<string>,
 		@IViewletService private viewletService: IViewletService,
+		// @ts-ignore unused injected service
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
 		super(id, label, 'clear-extensions', true);
@@ -1553,6 +1566,7 @@ export class DisableAllAction extends Action {
 	constructor(
 		id: string = DisableAllAction.ID, label: string = DisableAllAction.LABEL,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		// @ts-ignore unused injected service
 		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService
 	) {
 		super(id, label);
@@ -1585,6 +1599,7 @@ export class DisableAllWorkpsaceAction extends Action {
 		id: string = DisableAllWorkpsaceAction.ID, label: string = DisableAllWorkpsaceAction.LABEL,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		// @ts-ignore unused injected service
 		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService
 	) {
 		super(id, label);

@@ -97,6 +97,7 @@ namespace ConfigureTaskAction {
 	export const TEXT = nls.localize('ConfigureTaskRunnerAction.label', "Configure Task");
 }
 
+// @ts-ignore unused type
 namespace ConfigureBuildTaskAction {
 	export const ID = 'workbench.action.tasks.configureBuildTask';
 	export const TEXT = nls.localize('ConfigureBuildTaskAction.label', "Configure Build Task");
@@ -120,6 +121,7 @@ class CloseMessageAction extends Action {
 	}
 }
 
+// @ts-ignore unused type
 class ViewTerminalAction extends Action {
 
 	public static ID = 'workbench.action.build.viewTerminal';
@@ -136,14 +138,13 @@ class ViewTerminalAction extends Action {
 }
 
 class BuildStatusBarItem extends Themable implements IStatusbarItem {
-	private intervalToken: any;
 	private activeCount: number;
-	private static progressChars: string = '|/-\\';
 	private icons: HTMLElement[];
 
 	constructor(
 		@IPanelService private panelService: IPanelService,
 		@IMarkerService private markerService: IMarkerService,
+		// @ts-ignore unused injected service
 		@IOutputService private outputService: IOutputService,
 		@ITaskService private taskService: ITaskService,
 		@IPartService private partService: IPartService,
@@ -174,7 +175,6 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 		let callOnDispose: IDisposable[] = [];
 
 		const element = document.createElement('div');
-		const progress = document.createElement('div');
 		const label = document.createElement('a');
 		const errorIcon = document.createElement('div');
 		const warningIcon = document.createElement('div');
@@ -182,13 +182,9 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 		const error = document.createElement('div');
 		const warning = document.createElement('div');
 		const info = document.createElement('div');
+		const building = document.createElement('div');
 
 		Dom.addClass(element, 'task-statusbar-item');
-
-		Dom.addClass(progress, 'task-statusbar-item-progress');
-		element.appendChild(progress);
-		progress.innerHTML = BuildStatusBarItem.progressChars[0];
-		$(progress).hide();
 
 		Dom.addClass(label, 'task-statusbar-item-label');
 		element.appendChild(label);
@@ -221,6 +217,12 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 		Dom.addClass(info, 'task-statusbar-item-label-counter');
 		label.appendChild(info);
 		$(info).hide();
+
+		Dom.addClass(building, 'task-statusbar-item-building');
+		element.appendChild(building);
+		building.innerHTML = nls.localize('building', 'Building...');
+		$(building).hide();
+
 
 		callOnDispose.push(Dom.addDisposableListener(label, 'click', (e: MouseEvent) => {
 			const panel = this.panelService.getActivePanel();
@@ -261,17 +263,7 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 			}
 			this.activeCount++;
 			if (this.activeCount === 1) {
-				let index = 1;
-				let chars = BuildStatusBarItem.progressChars;
-				progress.innerHTML = chars[0];
-				this.intervalToken = setInterval(() => {
-					progress.innerHTML = chars[index];
-					index++;
-					if (index >= chars.length) {
-						index = 0;
-					}
-				}, 50);
-				$(progress).show();
+				$(building).show();
 			}
 		}));
 
@@ -284,11 +276,7 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 			if (this.activeCount > 0) {
 				this.activeCount--;
 				if (this.activeCount === 0) {
-					$(progress).hide();
-					if (this.intervalToken) {
-						clearInterval(this.intervalToken);
-						this.intervalToken = null;
-					}
+					$(building).hide();
 				}
 			}
 		}));
@@ -298,11 +286,7 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 				return;
 			}
 			if (this.activeCount !== 0) {
-				$(progress).hide();
-				if (this.intervalToken) {
-					clearInterval(this.intervalToken);
-					this.intervalToken = null;
-				}
+				$(building).hide();
 				this.activeCount = 0;
 			}
 		}));
@@ -335,12 +319,17 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 class TaskStatusBarItem extends Themable implements IStatusbarItem {
 
 	constructor(
+		// @ts-ignore unused injected service
 		@IPanelService private panelService: IPanelService,
+		// @ts-ignore unused injected service
 		@IMarkerService private markerService: IMarkerService,
+		// @ts-ignore unused injected service
 		@IOutputService private outputService: IOutputService,
 		@ITaskService private taskService: ITaskService,
+		// @ts-ignore unused injected service
 		@IPartService private partService: IPartService,
 		@IThemeService themeService: IThemeService,
+		// @ts-ignore unused injected service
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 	) {
 		super(themeService);
@@ -397,10 +386,12 @@ class TaskStatusBarItem extends Themable implements IStatusbarItem {
 	}
 }
 
+// @ts-ignore unused type
 interface TaskServiceEventData {
 	error?: any;
 }
 
+// @ts-ignore unused type
 class NullTaskSystem extends EventEmitter implements ITaskSystem {
 	public run(task: Task): ITaskExecuteResult {
 		return {
@@ -548,6 +539,7 @@ class TaskService extends EventEmitter implements ITaskService {
 	public static OutputChannelId: string = 'tasks';
 	public static OutputChannelLabel: string = nls.localize('tasks', "Tasks");
 
+	// @ts-ignore unused injected service
 	private modeService: IModeService;
 	private configurationService: IConfigurationService;
 	private markerService: IMarkerService;
@@ -588,6 +580,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IModelService modelService: IModelService, @IExtensionService extensionService: IExtensionService,
 		@IQuickOpenService quickOpenService: IQuickOpenService,
+		// @ts-ignore unused injected service
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService,
 		@ITerminalService private terminalService: ITerminalService,
@@ -806,14 +799,14 @@ class TaskService extends EventEmitter implements ITaskService {
 				if (Task.matches(task, alias)) {
 					return task;
 				}
-			};
+			}
 			return undefined;
 		});
 	}
 
 	public tasks(): TPromise<Task[]> {
 		return this.getGroupedTasks().then(result => result.all());
-	};
+	}
 
 	public createSorter(): TaskSorter {
 		return new TaskSorter(this.contextService.getWorkspace() ? this.contextService.getWorkspace().folders : []);
@@ -1124,7 +1117,7 @@ class TaskService extends EventEmitter implements ITaskService {
 				}
 				promise = this.writeConfiguration(workspaceFolder, 'tasks.tasks', fileConfig.tasks);
 			}
-		};
+		}
 		if (!promise) {
 			return TPromise.as(undefined);
 		}
@@ -2057,6 +2050,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		};
 		let promise = this.getTasksForGroup(TaskGroup.Build).then((tasks) => {
 			if (tasks.length > 0) {
+				// @ts-ignore unused local
 				let { none, defaults, users } = this.splitPerGroupType(tasks);
 				if (defaults.length === 1) {
 					this.run(defaults[0]);
@@ -2101,6 +2095,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		};
 		let promise = this.getTasksForGroup(TaskGroup.Test).then((tasks) => {
 			if (tasks.length > 0) {
+				// @ts-ignore unused local
 				let { none, defaults, users } = this.splitPerGroupType(tasks);
 				if (defaults.length === 1) {
 					this.run(defaults[0]);

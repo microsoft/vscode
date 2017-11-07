@@ -29,6 +29,7 @@ export class BackupMainService implements IBackupMainService {
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ILogService private logService: ILogService,
+		// @ts-ignore unused injected service
 		@IWorkspacesMainService private workspacesService: IWorkspacesMainService
 	) {
 		this.backupHome = environmentService.backupHome;

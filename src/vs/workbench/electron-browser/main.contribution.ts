@@ -253,6 +253,12 @@ if (product.quality !== 'stable') {
 		'description': 'Indicates the amount to boost the "literal" component of the query. Temporary.',
 		'default': 10
 	};
+
+	workbenchProperties['workbench.settings.experimentalFuzzySearchAutoIngestFeedback'] = {
+		'type': 'boolean',
+		'description': 'Indicates whether feedback from this client should be automatically ingested.',
+		'default': false
+	};
 }
 
 if (isMacintosh) {

@@ -30,8 +30,10 @@ class FilesViewerActionContributor extends ActionBarContributor {
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
+		// @ts-ignore unused injected service
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IKeybindingService private keybindingService: IKeybindingService,
+		// @ts-ignore unused injected service
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super();

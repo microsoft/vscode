@@ -133,6 +133,7 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 	}
 
 	public resolveAny<T>(root: IWorkspaceFolder, value: T): T;
+	// @ts-ignore unused generic parameter
 	public resolveAny<T>(root: IWorkspaceFolder, value: any): any {
 		try {
 			this._lastWorkspaceFolder = root;
@@ -205,6 +206,7 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 	}
 
 	private resolveAnyLiteral<T>(root: IWorkspaceFolder, values: T): T;
+	// @ts-ignore unused generic parameter
 	private resolveAnyLiteral<T>(root: IWorkspaceFolder, values: any): any {
 		let result: IStringDictionary<string | IStringDictionary<string> | string[]> = Object.create(null);
 		Object.keys(values).forEach(key => {

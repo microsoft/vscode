@@ -15,4 +15,4 @@ export function fromEventEmitter<T>(emitter: EventEmitter, eventName: string, ma
 	const result = new Emitter<T>({ onFirstListenerAdd, onLastListenerRemove });
 
 	return result.event;
-};
+}

@@ -90,6 +90,7 @@ export class InputBox extends Widget {
 	private placeholder: string;
 	private ariaLabel: string;
 	private validation: IInputValidator;
+	// @ts-ignore unused property
 	private showValidationMessage: boolean;
 	private state = 'idle';
 	private cachedHeight: number;

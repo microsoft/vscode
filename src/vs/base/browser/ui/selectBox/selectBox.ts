@@ -36,6 +36,7 @@ export class SelectBox extends Widget {
 	private selectElement: HTMLSelectElement;
 	private options: string[];
 	private selected: number;
+	// @ts-ignore unused property
 	private container: HTMLElement;
 	private _onDidSelect: Emitter<ISelectData>;
 	private toDispose: IDisposable[];

@@ -332,6 +332,6 @@ export class SpectronApplication {
 				return 'Meta';
 			default:
 				return key.length === 1 ? key : key.charAt(0).toUpperCase() + key.slice(1);
-		};
+		}
 	}
 }

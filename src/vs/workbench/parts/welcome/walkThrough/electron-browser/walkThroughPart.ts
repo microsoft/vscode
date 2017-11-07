@@ -99,14 +99,17 @@ export class WalkThroughPart extends BaseEditor {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService protected themeService: IThemeService,
 		@IOpenerService private openerService: IOpenerService,
+		// @ts-ignore unused injected service
 		@IFileService private fileService: IFileService,
 		@IModelService protected modelService: IModelService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IStorageService private storageService: IStorageService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IConfigurationService private configurationService: IConfigurationService,
+		// @ts-ignore unused injected service
 		@IModeService private modeService: IModeService,
 		@IMessageService private messageService: IMessageService,
+		// @ts-ignore unused injected service
 		@IPartService private partService: IPartService
 	) {
 		super(WalkThroughPart.ID, telemetryService, themeService);

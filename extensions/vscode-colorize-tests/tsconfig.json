@@ -6,7 +6,8 @@
 		"lib": [
 			"es2015"
 		],
-		"sourceMap": true
+		"sourceMap": true,
+		"strict": true
 	},
 	"include": [
 		"src/**/*"

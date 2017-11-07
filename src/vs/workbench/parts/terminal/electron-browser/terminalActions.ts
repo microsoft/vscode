@@ -729,7 +729,9 @@ export class ShowPreviousFindTermTerminalFindWidgetAction extends Action {
 export class QuickOpenActionTermContributor extends ActionBarContributor {
 
 	constructor(
+		// @ts-ignore unused injected service
 		@ITerminalService private terminalService: ITerminalService,
+		// @ts-ignore unused injected service
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
@@ -775,6 +777,7 @@ export class RenameTerminalQuickOpenAction extends RenameTerminalAction {
 		private terminal: TerminalEntry,
 		@IQuickOpenService quickOpenService: IQuickOpenService,
 		@ITerminalService terminalService: ITerminalService,
+		// @ts-ignore unused injected service
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(id, label, quickOpenService, terminalService);

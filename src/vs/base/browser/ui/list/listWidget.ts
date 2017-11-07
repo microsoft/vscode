@@ -52,6 +52,7 @@ interface IRenderedElement {
 	index: number;
 }
 
+// @ts-ignore unused generic parameter
 class TraitRenderer<T, D> implements IRenderer<T, ITraitTemplateData>
 {
 	private rendered: IRenderedElement[] = [];

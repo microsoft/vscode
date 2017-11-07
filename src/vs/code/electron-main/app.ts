@@ -76,6 +76,7 @@ export class CodeApplication {
 		@ILogService private logService: ILogService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
+		// @ts-ignore unused injected service
 		@IConfigurationService private configurationService: ConfigurationService,
 		@IStorageService private storageService: IStorageService,
 		@IHistoryMainService private historyService: IHistoryMainService
@@ -393,6 +394,7 @@ export class CodeApplication {
 
 			// Ensure Windows foreground love module
 			try {
+				// tslint:disable-next-line:no-unused-expression
 				<any>require.__$__nodeRequire('windows-foreground-love');
 			} catch (e) {
 				if (!this.environmentService.isBuilt) {

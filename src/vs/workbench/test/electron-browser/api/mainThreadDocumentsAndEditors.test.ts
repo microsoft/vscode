@@ -25,7 +25,6 @@ suite('MainThreadDocumentsAndEditors', () => {
 	let codeEditorService: MockCodeEditorService;
 	let textFileService: ITextFileService;
 	let workbenchEditorService: IWorkbenchEditorService;
-	let documentAndEditor: MainThreadDocumentsAndEditors;
 	let deltas: IDocumentsAndEditorsDelta[] = [];
 	const hugeModelString = new Array(2 + (50 * 1024 * 1024)).join('-');
 
@@ -36,7 +35,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 		modelService = new ModelServiceImpl(null, configService);
 		codeEditorService = new MockCodeEditorService();
 		textFileService = new class extends mock<ITextFileService>() {
-			isDirty() { return false; };
+			isDirty() { return false; }
 			models = <any>{
 				onModelSaved: Event.None,
 				onModelReverted: Event.None,
@@ -52,7 +51,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 			onEditorGroupMoved = Event.None;
 		};
 
-		documentAndEditor = new MainThreadDocumentsAndEditors(
+		new MainThreadDocumentsAndEditors(
 			OneGetThreadService(new class extends mock<ExtHostDocumentsAndEditorsShape>() {
 				$acceptDocumentsAndEditorsDelta(delta) { deltas.push(delta); }
 			}),

@@ -205,7 +205,7 @@ export class Item extends Events.EventEmitter {
 	public next: Item;
 	public firstChild: Item;
 	public lastChild: Item;
-
+	// @ts-ignore unused property
 	private userContent: HTMLElement;
 
 	private height: number;

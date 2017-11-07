@@ -189,6 +189,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	private history: (IEditorInput | IResourceInput)[];
 	private recentlyClosedFiles: IRecentlyClosedFile[];
 	private loaded: boolean;
+	// @ts-ignore unused property
 	private registry: IEditorRegistry;
 	private resourceFilter: ResourceGlobMatcher;
 

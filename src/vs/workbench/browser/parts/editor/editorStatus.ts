@@ -795,6 +795,7 @@ export class ChangeModeAction extends Action {
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IInstantiationService private instantiationService: IInstantiationService,
+		// @ts-ignore unused injected service
 		@ICommandService private commandService: ICommandService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
 	) {

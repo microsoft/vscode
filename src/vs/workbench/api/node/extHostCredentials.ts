@@ -13,7 +13,7 @@ export class ExtHostCredentials implements ExtHostCredentialsShape {
 
 	constructor(mainContext: IMainContext) {
 		this._proxy = mainContext.get(MainContext.MainThreadCredentials);
-	};
+	}
 
 	readSecret(service: string, account: string): Thenable<string | undefined> {
 		return this._proxy.$readSecret(service, account);

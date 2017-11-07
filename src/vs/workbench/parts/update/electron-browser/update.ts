@@ -128,6 +128,7 @@ export abstract class AbstractShowReleaseNotesAction extends Action {
 	constructor(
 		id: string,
 		label: string,
+		// @ts-ignore unused property
 		private returnValue: boolean,
 		private version: string,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -182,6 +183,7 @@ export class ShowCurrentReleaseNotesAction extends AbstractShowReleaseNotesActio
 
 export class DownloadAction extends Action {
 
+	// @ts-ignore unused property
 	constructor(private url: string, @IUpdateService private updateService: IUpdateService) {
 		super('update.download', nls.localize('downloadNow', "Download Now"), null, true);
 	}
@@ -301,6 +303,7 @@ class CommandAction extends Action {
 	constructor(
 		commandId: string,
 		label: string,
+		// @ts-ignore unused injected service
 		@ICommandService private commandService: ICommandService
 	) {
 		super(`command-action:${commandId}`, label, undefined, true, () => commandService.executeCommand(commandId));

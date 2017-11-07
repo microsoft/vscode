@@ -21,6 +21,7 @@ export default class FileResultsNavigation extends Disposable {
 	private _openFile: Emitter<IOpenFileOptions> = new Emitter<IOpenFileOptions>();
 	public readonly openFile: Event<IOpenFileOptions> = this._openFile.event;
 
+	// @ts-ignore unused property
 	private throttler: Throttler;
 
 	constructor(private tree: ITree) {

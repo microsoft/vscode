@@ -83,6 +83,7 @@ class InspectTokensController extends Disposable implements IEditorContribution 
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class InspectTokens extends EditorAction {
 
 	constructor() {
@@ -169,6 +170,7 @@ class InspectTokensWidget extends Disposable implements IContentWidget {
 	public allowEditorOverflow = true;
 
 	private _editor: ICodeEditor;
+	// @ts-ignore unused injected service
 	private _standaloneThemeService: IStandaloneThemeService;
 	private _modeService: IModeService;
 	private _tokenizationSupport: ITokenizationSupport;

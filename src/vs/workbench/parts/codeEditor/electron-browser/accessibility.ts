@@ -278,6 +278,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class ShowAccessibilityHelpAction extends EditorAction {
 
 	constructor() {

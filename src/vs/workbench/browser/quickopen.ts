@@ -323,6 +323,7 @@ export interface ICommand {
 	icon?: string;
 }
 
+// @ts-ignore unused type
 class CommandEntry extends QuickOpenEntry {
 
 	constructor(private quickOpenService: IQuickOpenService, private prefix: string, private command: ICommand, highlights: IHighlight[]) {

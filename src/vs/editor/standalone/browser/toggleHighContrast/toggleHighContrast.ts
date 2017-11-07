@@ -10,6 +10,7 @@ import { editorAction, EditorAction, ServicesAccessor } from 'vs/editor/common/e
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class ToggleHighContrast extends EditorAction {
 
 	private _originalThemeName: string;

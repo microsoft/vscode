@@ -157,6 +157,7 @@ export class ClearCommandHistoryAction extends Action {
 	constructor(
 		id: string,
 		label: string,
+		// @ts-ignore unused injected service
 		@IStorageService private storageService: IStorageService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
@@ -175,6 +176,7 @@ export class ClearCommandHistoryAction extends Action {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class CommandPaletteEditorAction extends EditorAction {
 
 	constructor() {
@@ -322,6 +324,7 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 	}
 }
 
+// @ts-ignore unused type
 class CommandEntry extends BaseCommandEntry {
 
 	constructor(
@@ -402,6 +405,7 @@ export class CommandsHandler extends QuickOpenHandler {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IMenuService private menuService: IMenuService,
+		// @ts-ignore unused injected service
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {

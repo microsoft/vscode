@@ -20,6 +20,7 @@ export class Rulers extends ViewPart {
 	public domNode: FastDomNode<HTMLElement>;
 	private _renderedRulers: FastDomNode<HTMLElement>[];
 	private _rulers: number[];
+	// @ts-ignore unused property
 	private _height: number;
 	private _typicalHalfwidthCharacterWidth: number;
 

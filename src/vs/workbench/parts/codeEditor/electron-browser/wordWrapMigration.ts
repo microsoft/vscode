@@ -55,6 +55,7 @@ class WordWrapMigrationStorage {
 }
 
 @editorContribution
+// @ts-ignore @editorAction uses the class
 class WordWrapMigrationController extends Disposable implements IEditorContribution {
 
 	private static ID = 'editor.contrib.wordWrapMigrationController';

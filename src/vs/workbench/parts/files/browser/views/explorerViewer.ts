@@ -63,6 +63,7 @@ export class FileDataSource implements IDataSource {
 		@IMessageService private messageService: IMessageService,
 		@IFileService private fileService: IFileService,
 		@IPartService private partService: IPartService,
+		// @ts-ignore unused injected service
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) { }
 
@@ -425,8 +426,10 @@ export class FileController extends DefaultController {
 	constructor(state: FileViewletState,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
+		// @ts-ignore unused injected service
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
+		// @ts-ignore unused injected service
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService
@@ -752,6 +755,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		@IBackupFileService private backupFileService: IBackupFileService,
 		@IWindowService private windowService: IWindowService,
 		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
+		// @ts-ignore unused injected service
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super(stat => this.statToResource(stat));
@@ -1031,6 +1035,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 				// 3.) run the move operation
 				.then(() => {
 					const targetResource = target.resource.with({ path: paths.join(target.resource.path, source.name) });
+					// @ts-ignore unused local
 					let didHandleConflict = false;
 
 					return this.fileService.moveFile(source.resource, targetResource).then(null, error => {

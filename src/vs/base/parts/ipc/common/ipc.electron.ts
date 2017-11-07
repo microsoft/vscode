@@ -18,6 +18,7 @@ export class Protocol implements IMessagePassingProtocol {
 	private _onMessage: Event<any>;
 	get onMessage(): Event<any> { return this._onMessage; }
 
+	// @ts-ignore unused property
 	constructor(private sender: Sender, private onMessageEvent: Event<any>) {
 		const emitter = new Emitter<any>();
 		onMessageEvent(msg => emitter.fire(msg));

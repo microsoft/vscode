@@ -98,6 +98,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	private promisesToCompleteOnHide: ValueCallback[];
 	private previousActiveHandlerDescriptor: QuickOpenHandlerDescriptor;
 	private actionProvider = new ContributableActionProvider();
+	// @ts-ignore unused property
 	private previousValue = '';
 	private visibilityChangeTimeoutHandle: number;
 	private closeOnFocusLost: boolean;
@@ -107,9 +108,11 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IMessageService private messageService: IMessageService,
 		@ITelemetryService private telemetryService: ITelemetryService,
+		// @ts-ignore unused injected service
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IConfigurationService private configurationService: IConfigurationService,
+		// @ts-ignore unused injected service
 		@IHistoryService private historyService: IHistoryService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService,
@@ -1176,6 +1179,7 @@ class EditorHistoryHandler {
 	constructor(
 		@IHistoryService private historyService: IHistoryService,
 		@IInstantiationService private instantiationService: IInstantiationService,
+		// @ts-ignore unused injected service
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IFileService private fileService: IFileService
 	) {
@@ -1265,6 +1269,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IEnvironmentService environmentService: IEnvironmentService,
+		// @ts-ignore unused injected service
 		@IFileService private fileService: IFileService
 	) {
 		super(editorService);

@@ -6,7 +6,7 @@
 		],
 		"module": "commonjs",
 		"outDir": "./out",
-		"strictNullChecks": true,
+		"strict": true,
 		"experimentalDecorators": true
 	},
 	"include": [

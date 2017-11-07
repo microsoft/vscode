@@ -140,7 +140,7 @@ function withVisibleExplorer(accessor: ServicesAccessor): TPromise<ExplorerViewl
 	}
 
 	return viewletService.openViewlet(VIEWLET_ID, false) as TPromise<ExplorerViewlet>;
-};
+}
 
 export function withFocusedFilesExplorerViewItem(accessor: ServicesAccessor): TPromise<{ explorer: ExplorerViewlet, tree: ITree, item: FileStat }> {
 	return withFocusedFilesExplorer(accessor).then(res => {
@@ -155,7 +155,7 @@ export function withFocusedFilesExplorerViewItem(accessor: ServicesAccessor): TP
 
 		return { explorer, tree, item: tree.getFocus() };
 	});
-};
+}
 
 export function withFocusedFilesExplorer(accessor: ServicesAccessor): TPromise<{ explorer: ExplorerViewlet, tree: ITree }> {
 	return withVisibleExplorer(accessor).then(explorer => {
@@ -172,7 +172,7 @@ export function withFocusedFilesExplorer(accessor: ServicesAccessor): TPromise<{
 
 		return { explorer, tree };
 	});
-};
+}
 
 function withFocusedOpenEditorsViewItem(accessor: ServicesAccessor): TPromise<{ explorer: ExplorerViewlet, tree: ITree, item: OpenEditor }> {
 	return withVisibleExplorer(accessor).then(explorer => {
@@ -190,7 +190,7 @@ function withFocusedOpenEditorsViewItem(accessor: ServicesAccessor): TPromise<{ 
 
 		return { explorer, tree, item: focus };
 	});
-};
+}
 
 function withFocusedExplorerItem(accessor: ServicesAccessor): TPromise<FileStat | OpenEditor> {
 	return withFocusedFilesExplorerViewItem(accessor).then(res => {
@@ -206,7 +206,7 @@ function withFocusedExplorerItem(accessor: ServicesAccessor): TPromise<FileStat 
 			return void 0;
 		});
 	});
-};
+}
 
 export const renameFocusedFilesExplorerViewItemCommand = (accessor: ServicesAccessor) => {
 	runActionOnFocusedFilesExplorerViewItem(accessor, 'renameFile');

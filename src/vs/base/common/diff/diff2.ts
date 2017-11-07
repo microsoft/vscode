@@ -57,6 +57,7 @@ export class LcsDiff2 {
 	private ids_for_x: number[];
 	private ids_for_y: number[];
 
+	// @ts-ignore unused property
 	private hashFunc: IHashFunction;
 
 	private resultX: boolean[];

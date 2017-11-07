@@ -91,6 +91,7 @@ export class OutputService implements IOutputService {
 	private _onOutputChannel: Emitter<string>;
 	private _onActiveOutputChannel: Emitter<string>;
 
+	// @ts-ignore unused property
 	private _outputLinkDetector: OutputLinkProvider;
 	private _outputContentProvider: OutputContentProvider;
 	private _outputPanel: OutputPanel;

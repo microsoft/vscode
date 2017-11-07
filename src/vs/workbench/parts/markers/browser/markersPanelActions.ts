@@ -117,6 +117,7 @@ export class FilterAction extends Action {
 
 	public static ID: string = 'workbench.actions.problems.filter';
 
+	// @ts-ignore unused property
 	constructor(private markersPanel: MarkersPanel) {
 		super(FilterAction.ID, Messages.MARKERS_PANEL_ACTION_TOOLTIP_FILTER, 'markers-panel-action-filter', true);
 	}

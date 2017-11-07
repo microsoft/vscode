@@ -105,6 +105,7 @@ export class InsertCursorBelow extends EditorAction {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 
 	constructor() {

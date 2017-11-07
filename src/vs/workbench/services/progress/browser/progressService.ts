@@ -17,6 +17,8 @@ interface ProgressState {
 	worked?: number;
 	done?: boolean;
 	whilePromise?: TPromise<any>;
+	whileStart?: number;
+	whileDelay?: number;
 }
 
 export abstract class ScopedService {
@@ -87,7 +89,15 @@ export class WorkbenchProgressService extends ScopedService implements IProgress
 
 		// Replay Infinite Progress from Promise
 		if (this.progressState.whilePromise) {
-			this.doShowWhile();
+			let delay: number;
+			if (this.progressState.whileDelay > 0) {
+				const remainingDelay = this.progressState.whileDelay - (Date.now() - this.progressState.whileStart);
+				if (remainingDelay > 0) {
+					delay = remainingDelay;
+				}
+			}
+
+			this.doShowWhile(delay);
 		}
 
 		// Replay Infinite Progress
@@ -113,6 +123,8 @@ export class WorkbenchProgressService extends ScopedService implements IProgress
 		this.progressState.worked = void 0;
 		this.progressState.total = void 0;
 		this.progressState.whilePromise = void 0;
+		this.progressState.whileStart = void 0;
+		this.progressState.whileDelay = void 0;
 	}
 
 	public show(infinite: boolean, delay?: number): IProgressRunner;
@@ -218,6 +230,8 @@ export class WorkbenchProgressService extends ScopedService implements IProgress
 
 		// Keep Promise in State
 		this.progressState.whilePromise = promise;
+		this.progressState.whileDelay = delay || 0;
+		this.progressState.whileStart = Date.now();
 
 		let stop = () => {
 

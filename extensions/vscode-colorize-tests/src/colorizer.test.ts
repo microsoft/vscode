@@ -10,7 +10,7 @@ import { commands, Uri } from 'vscode';
 import { join, basename, normalize, dirname } from 'path';
 import * as fs from 'fs';
 
-function assertUnchangedTokens(testFixurePath: string, done) {
+function assertUnchangedTokens(testFixurePath: string, done: any) {
 	let fileName = basename(testFixurePath);
 
 	return commands.executeCommand('_workbench.captureSyntaxTokens', Uri.file(testFixurePath)).then(data => {

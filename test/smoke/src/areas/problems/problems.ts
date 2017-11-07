@@ -8,7 +8,7 @@ import { SpectronApplication } from '../../spectron/application';
 export enum ProblemSeverity {
 	WARNING = 0,
 	ERROR = 1
-};
+}
 
 export class Problems {
 

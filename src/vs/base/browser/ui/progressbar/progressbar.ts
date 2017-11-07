@@ -40,6 +40,7 @@ export class ProgressBar {
 	private toUnbind: IDisposable[];
 	private workedVal: number;
 	private element: Builder;
+	// @ts-ignore unused property
 	private animationRunning: boolean;
 	private bit: HTMLElement;
 	private totalWork: number;

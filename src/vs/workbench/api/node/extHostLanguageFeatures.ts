@@ -707,9 +707,7 @@ class LinkProviderAdapter {
 class ColorProviderAdapter {
 
 	constructor(
-		private _proxy: MainThreadLanguageFeaturesShape,
 		private _documents: ExtHostDocuments,
-		private _colorFormatCache: Map<string, number>,
 		private _provider: vscode.DocumentColorProvider
 	) { }
 
@@ -756,7 +754,6 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 	private _heapService: ExtHostHeapService;
 	private _diagnostics: ExtHostDiagnostics;
 	private _adapter = new Map<number, Adapter>();
-	private _colorFormatCache = new Map<string, number>();
 
 	constructor(
 		mainContext: IMainContext,
@@ -1039,7 +1036,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	registerColorProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentColorProvider): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter.set(handle, new ColorProviderAdapter(this._proxy, this._documents, this._colorFormatCache, provider));
+		this._adapter.set(handle, new ColorProviderAdapter(this._documents, provider));
 		this._proxy.$registerDocumentColorProvider(handle, selector);
 		return this._createDisposable(handle);
 	}
