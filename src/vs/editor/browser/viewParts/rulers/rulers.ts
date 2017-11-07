@@ -20,8 +20,6 @@ export class Rulers extends ViewPart {
 	public domNode: FastDomNode<HTMLElement>;
 	private _renderedRulers: FastDomNode<HTMLElement>[];
 	private _rulers: number[];
-	// @ts-ignore unused property
-	private _height: number;
 	private _typicalHalfwidthCharacterWidth: number;
 
 	constructor(context: ViewContext) {
@@ -32,7 +30,6 @@ export class Rulers extends ViewPart {
 		this.domNode.setClassName('view-rulers');
 		this._renderedRulers = [];
 		this._rulers = this._context.configuration.editor.viewInfo.rulers;
-		this._height = this._context.configuration.editor.layoutInfo.contentHeight;
 		this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
 	}
 
@@ -45,7 +42,6 @@ export class Rulers extends ViewPart {
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		if (e.viewInfo || e.layoutInfo || e.fontInfo) {
 			this._rulers = this._context.configuration.editor.viewInfo.rulers;
-			this._height = this._context.configuration.editor.layoutInfo.contentHeight;
 			this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
 			return true;
 		}
