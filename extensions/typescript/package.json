@@ -530,7 +530,7 @@
       },
       {
         "language": "typescriptreact",
-        "path": "./snippets/typescriptreact.json"
+        "path": "./snippets/typescript.json"
       }
     ],
     "jsonValidation": [
