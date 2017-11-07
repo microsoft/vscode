@@ -14,7 +14,7 @@ import * as Platform from 'vs/base/common/platform';
 import * as Types from 'vs/base/common/types';
 import * as UUID from 'vs/base/common/uuid';
 
-import { ValidationStatus, IProblemReporter as IProblemReporterBase, NullProblemReporter as NullProblemReporterBase } from 'vs/base/common/parsers';
+import { ValidationStatus, IProblemReporter as IProblemReporterBase } from 'vs/base/common/parsers';
 import {
 	NamedProblemMatcher, ProblemMatcher, ProblemMatcherParser, Config as ProblemMatcherConfig,
 	isNamedProblemMatcher, ProblemMatcherRegistry
@@ -1646,11 +1646,6 @@ export interface ParseResult {
 
 export interface IProblemReporter extends IProblemReporterBase {
 	clearOutput(): void;
-}
-
-// @ts-ignore unused type
-class NullProblemReporter extends NullProblemReporterBase implements IProblemReporter {
-	clearOutput(): void { }
 }
 
 class UUIDMap {
