@@ -188,7 +188,7 @@ configurationRegistry.registerConfiguration({
 			default: false
 		},
 		'debug.internalConsoleOptions': INTERNAL_CONSOLE_OPTIONS_SCHEMA,
-		'debug.openDebugOnStart': OPEN_DEBUG_OPTIONS_SCHEMA,
+		'debug.openDebug': OPEN_DEBUG_OPTIONS_SCHEMA,
 		'launch': {
 			type: 'object',
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'launch' }, "Global debug launch configuration. Should be used as an alternative to 'launch.json' that is shared across workspaces"),

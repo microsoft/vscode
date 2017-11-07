@@ -872,8 +872,8 @@ export class DebugService implements debug.IDebugService {
 					this.panelService.openPanel(debug.REPL_ID, false).done(undefined, errors.onUnexpectedError);
 				}
 
-				const openDebugOptions = this.configurationService.getConfiguration<debug.IDebugConfiguration>('debug').openDebugOnStart;
-				// Open debug viewlet based on the visibility of the side bar and openDebugOnStart setting
+				const openDebugOptions = this.configurationService.getConfiguration<debug.IDebugConfiguration>('debug').openDebug;
+				// Open debug viewlet based on the visibility of the side bar and openDebug setting
 				if ((this.partService.isVisible(Parts.SIDEBAR_PART) || this.contextService.getWorkbenchState() === WorkbenchState.EMPTY)
 					&& ((openDebugOptions === 'openOnSessionStart')
 						|| (openDebugOptions === 'openOnFirstSessionStart' && !this.viewModel.changedWorkbenchViewState))) {
