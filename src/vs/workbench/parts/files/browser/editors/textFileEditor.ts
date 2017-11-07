@@ -190,8 +190,8 @@ export class TextFileEditor extends BaseTextEditor {
 
 			// Best we can do is to reveal the folder in the explorer
 			if (this.contextService.isInsideWorkspace(input.getResource())) {
-				this.viewletService.openViewlet(VIEWLET_ID, true).done((viewlet: ExplorerViewlet) => {
-					return viewlet.getExplorerView().select(input.getResource(), true);
+				this.viewletService.openViewlet(VIEWLET_ID, true).done(viewlet => {
+					return (viewlet as ExplorerViewlet).getExplorerView().select(input.getResource(), true);
 				}, errors.onUnexpectedError);
 			}
 		}, errors.onUnexpectedError);
