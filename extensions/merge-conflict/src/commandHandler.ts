@@ -24,7 +24,7 @@ export default class CommandHandler implements vscode.Disposable {
 	private disposables: vscode.Disposable[] = [];
 	private tracker: interfaces.IDocumentMergeConflictTracker;
 
-	constructor(private context: vscode.ExtensionContext, trackerService: interfaces.IDocumentMergeConflictTrackerService) {
+	constructor(trackerService: interfaces.IDocumentMergeConflictTrackerService) {
 		this.tracker = trackerService.createTracker('commands');
 	}
 
@@ -62,19 +62,19 @@ export default class CommandHandler implements vscode.Disposable {
 		return this.accept(interfaces.CommitType.Both, editor, ...args);
 	}
 
-	acceptAllCurrent(editor: vscode.TextEditor, ...args: any[]): Promise<void> {
+	acceptAllCurrent(editor: vscode.TextEditor): Promise<void> {
 		return this.acceptAll(interfaces.CommitType.Current, editor);
 	}
 
-	acceptAllIncoming(editor: vscode.TextEditor, ...args: any[]): Promise<void> {
+	acceptAllIncoming(editor: vscode.TextEditor): Promise<void> {
 		return this.acceptAll(interfaces.CommitType.Incoming, editor);
 	}
 
-	acceptAllBoth(editor: vscode.TextEditor, ...args: any[]): Promise<void> {
+	acceptAllBoth(editor: vscode.TextEditor): Promise<void> {
 		return this.acceptAll(interfaces.CommitType.Both, editor);
 	}
 
-	async compare(editor: vscode.TextEditor, conflict: interfaces.IDocumentMergeConflict | null, ...args: any[]) {
+	async compare(editor: vscode.TextEditor, conflict: interfaces.IDocumentMergeConflict | null) {
 		const fileName = path.basename(editor.document.uri.fsPath);
 
 		// No conflict, command executed from command palette
@@ -102,15 +102,15 @@ export default class CommandHandler implements vscode.Disposable {
 		vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title);
 	}
 
-	navigateNext(editor: vscode.TextEditor, ...args: any[]): Promise<void> {
+	navigateNext(editor: vscode.TextEditor): Promise<void> {
 		return this.navigate(editor, NavigationDirection.Forwards);
 	}
 
-	navigatePrevious(editor: vscode.TextEditor, ...args: any[]): Promise<void> {
+	navigatePrevious(editor: vscode.TextEditor): Promise<void> {
 		return this.navigate(editor, NavigationDirection.Backwards);
 	}
 
-	async acceptSelection(editor: vscode.TextEditor, ...args: any[]): Promise<void> {
+	async acceptSelection(editor: vscode.TextEditor): Promise<void> {
 		let conflict = await this.findConflictContainingSelection(editor);
 
 		if (!conflict) {

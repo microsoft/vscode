@@ -13,7 +13,7 @@ export class DocumentMergeConflict implements interfaces.IDocumentMergeConflict 
 	public commonAncestors: interfaces.IMergeRegion[];
 	public splitter: vscode.Range;
 
-	constructor(document: vscode.TextDocument, descriptor: interfaces.IDocumentMergeConflictDescriptor) {
+	constructor(descriptor: interfaces.IDocumentMergeConflictDescriptor) {
 		this.range = descriptor.range;
 		this.current = descriptor.current;
 		this.incoming = descriptor.incoming;
