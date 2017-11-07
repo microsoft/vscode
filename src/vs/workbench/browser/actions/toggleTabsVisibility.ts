@@ -10,7 +10,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 
 export class ToggleTabsVisibilityAction extends Action {
@@ -32,7 +32,7 @@ export class ToggleTabsVisibilityAction extends Action {
 		const visibility = this.configurationService.getValue<string>(ToggleTabsVisibilityAction.tabsVisibleKey);
 		const newVisibilityValue = !visibility;
 
-		return this.configurationService.updateValue(ToggleTabsVisibilityAction.tabsVisibleKey, newVisibilityValue, ConfigurationTarget.USER);
+		return this.configurationService.updateValue(ToggleTabsVisibilityAction.tabsVisibleKey, newVisibilityValue);
 	}
 }
 
