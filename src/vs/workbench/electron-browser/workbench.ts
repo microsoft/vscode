@@ -79,7 +79,8 @@ import { ProgressService2 } from 'vs/workbench/services/progress/browser/progres
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
+import { ShutdownReason, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecycleService } from 'vs/workbench/services/lifecycle/electron-browser/lifecycleService';
 import { IWindowService, IWindowConfiguration as IWindowSettings, IWindowConfiguration, IPath } from 'vs/platform/windows/common/windows';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
@@ -217,10 +218,10 @@ export class Workbench implements IPartService {
 		container: HTMLElement,
 		configuration: IWindowConfiguration,
 		serviceCollection: ServiceCollection,
+		private lifecycleService: LifecycleService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IStorageService private storageService: IStorageService,
-		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IMessageService private messageService: IMessageService,
 		@IConfigurationService private configurationService: WorkspaceService,
 		@ITelemetryService private telemetryService: ITelemetryService,
@@ -339,6 +340,7 @@ export class Workbench implements IPartService {
 			const editorRestoreClock = time('restore:editors');
 			const restoredEditors: string[] = [];
 			compositeAndEditorPromises.push(this.resolveEditorsToOpen().then(inputs => {
+				this.lifecycleService.phase = LifecyclePhase.Restoring;
 				let editorOpenPromise: TPromise<IEditor[]>;
 				if (inputs.length) {
 					editorOpenPromise = this.editorService.openEditors(inputs.map(input => { return { input, position: EditorPosition.ONE }; }));

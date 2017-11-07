@@ -17,7 +17,6 @@ import { ReportPerformanceIssueAction } from 'vs/workbench/electron-browser/acti
 import { TPromise } from 'vs/base/common/winjs.base';
 import { join } from 'path';
 import { localize } from 'vs/nls';
-import { toPromise, filterEvent } from 'vs/base/common/event';
 import { readdir } from 'vs/base/node/pfs';
 import { stopProfiling } from 'vs/base/node/profiler';
 
@@ -33,8 +32,8 @@ class StartupProfiler implements IWorkbenchContribution {
 	) {
 		// wait for everything to be ready
 		TPromise.join<any>([
+			lifecycleService.when(LifecyclePhase.Running),
 			extensionService.onReady(),
-			toPromise(filterEvent(lifecycleService.onDidChangePhase, phase => phase === LifecyclePhase.Running)),
 		]).then(() => {
 			this._stopProfiling();
 		});

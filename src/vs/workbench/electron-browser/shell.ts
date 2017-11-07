@@ -165,7 +165,7 @@ export class WorkbenchShell {
 		const [instantiationService, serviceCollection] = this.initServiceCollection(parent.getHTMLElement());
 
 		// Workbench
-		this.workbench = instantiationService.createInstance(Workbench, parent.getHTMLElement(), workbenchContainer.getHTMLElement(), this.configuration, serviceCollection);
+		this.workbench = instantiationService.createInstance(Workbench, parent.getHTMLElement(), workbenchContainer.getHTMLElement(), this.configuration, serviceCollection, this.lifecycleService);
 		this.workbench.startup({
 			onWorkbenchStarted: (info: IWorkbenchStartedInfo) => {
 

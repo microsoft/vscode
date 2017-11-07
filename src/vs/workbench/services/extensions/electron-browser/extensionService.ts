@@ -33,7 +33,6 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { Action } from 'vs/base/common/actions';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { mark, time } from 'vs/base/common/performance';
-import { toPromise, filterEvent } from 'vs/base/common/event';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 const SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
@@ -100,12 +99,12 @@ export class ExtensionService implements IExtensionService {
 		this._extensionHostProcessCustomers = [];
 		this._extensionHostProcessProxy = null;
 
-		toPromise(filterEvent(lifecycleService.onDidChangePhase, phase => phase === LifecyclePhase.Running)).then(() => {
+		lifecycleService.when(LifecyclePhase.Restoring).then(() => {
 			// delay extension host creation and extension scanning
 			// until after the editors/panels are restored
+			this._startExtensionHostProcess([]);
+			this._scanAndHandleExtensions();
 		});
-		this._startExtensionHostProcess([]);
-		this._scanAndHandleExtensions();
 	}
 
 	public restartExtensionHost(): void {
