@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { CodeActionProvider, TextDocument, Range, CancellationToken, CodeActionContext, Command, commands, workspace, WorkspaceEdit, window, QuickPickItem, Selection } from 'vscode';
+import * as vscode from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
@@ -13,7 +13,7 @@ import { tsTextSpanToVsRange, vsRangeToTsFileRange, tsLocationToVsPosition } fro
 import FormattingOptionsManager from './formattingConfigurationManager';
 import { CommandManager } from '../utils/commandManager';
 
-export default class TypeScriptRefactorProvider implements CodeActionProvider {
+export default class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 	private doRefactorCommandId: string;
 	private selectRefactorCommandId: string;
 
@@ -31,11 +31,11 @@ export default class TypeScriptRefactorProvider implements CodeActionProvider {
 	}
 
 	public async provideCodeActions(
-		document: TextDocument,
-		range: Range,
-		_context: CodeActionContext,
-		token: CancellationToken
-	): Promise<Command[]> {
+		document: vscode.TextDocument,
+		range: vscode.Range,
+		_context: vscode.CodeActionContext,
+		token: vscode.CancellationToken
+	): Promise<vscode.Command[]> {
 		if (!this.client.apiVersion.has240Features()) {
 			return [];
 		}
@@ -52,7 +52,7 @@ export default class TypeScriptRefactorProvider implements CodeActionProvider {
 				return [];
 			}
 
-			const actions: Command[] = [];
+			const actions: vscode.Command[] = [];
 			for (const info of response.body) {
 				if (info.inlineable === false) {
 					actions.push({
@@ -76,8 +76,8 @@ export default class TypeScriptRefactorProvider implements CodeActionProvider {
 		}
 	}
 
-	private toWorkspaceEdit(edits: Proto.FileCodeEdits[]): WorkspaceEdit {
-		const workspaceEdit = new WorkspaceEdit();
+	private toWorkspaceEdit(edits: Proto.FileCodeEdits[]): vscode.WorkspaceEdit {
+		const workspaceEdit = new vscode.WorkspaceEdit();
 		for (const edit of edits) {
 			for (const textChange of edit.textChanges) {
 				workspaceEdit.replace(this.client.asUrl(edit.fileName),
@@ -88,8 +88,8 @@ export default class TypeScriptRefactorProvider implements CodeActionProvider {
 		return workspaceEdit;
 	}
 
-	private async selectRefactoring(document: TextDocument, file: string, info: Proto.ApplicableRefactorInfo, range: Range): Promise<boolean> {
-		const selected = await window.showQuickPick(info.actions.map((action): QuickPickItem => ({
+	private async selectRefactoring(document: vscode.TextDocument, file: string, info: Proto.ApplicableRefactorInfo, range: vscode.Range): Promise<boolean> {
+		const selected = await vscode.window.showQuickPick(info.actions.map((action): vscode.QuickPickItem => ({
 			label: action.name,
 			description: action.description
 		})));
@@ -99,7 +99,7 @@ export default class TypeScriptRefactorProvider implements CodeActionProvider {
 		return this.doRefactoring(document, file, info.name, selected.label, range);
 	}
 
-	private async doRefactoring(document: TextDocument, file: string, refactor: string, action: string, range: Range): Promise<boolean> {
+	private async doRefactoring(document: vscode.TextDocument, file: string, refactor: string, action: string, range: vscode.Range): Promise<boolean> {
 		await this.formattingOptionsManager.ensureFormatOptionsForDocument(document, undefined);
 
 		const args: Proto.GetEditsForRefactorRequestArgs = {
@@ -114,16 +114,16 @@ export default class TypeScriptRefactorProvider implements CodeActionProvider {
 		}
 
 		const edit = this.toWorkspaceEdit(response.body.edits);
-		if (!(await workspace.applyEdit(edit))) {
+		if (!(await vscode.workspace.applyEdit(edit))) {
 			return false;
 		}
 
 		const renameLocation = response.body.renameLocation;
 		if (renameLocation) {
-			if (window.activeTextEditor && window.activeTextEditor.document.uri.fsPath === file) {
+			if (vscode.window.activeTextEditor && vscode.window.activeTextEditor.document.uri.fsPath === file) {
 				const pos = tsLocationToVsPosition(renameLocation);
-				window.activeTextEditor.selection = new Selection(pos, pos);
-				await commands.executeCommand('editor.action.rename');
+				vscode.window.activeTextEditor.selection = new vscode.Selection(pos, pos);
+				await vscode.commands.executeCommand('editor.action.rename');
 			}
 		}
 		return true;
