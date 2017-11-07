@@ -17,7 +17,7 @@ import Cache from 'vs/base/common/cache';
 import { Action } from 'vs/base/common/actions';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import Severity from 'vs/base/common/severity';
-import { IDisposable, empty, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { Builder } from 'vs/base/browser/builder';
 import { domEvent } from 'vs/base/browser/event';
 import { append, $, addClass, removeClass, finalHandler, join } from 'vs/base/browser/dom';
@@ -25,13 +25,11 @@ import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionGalleryService, IExtensionManifest, IKeyBinding, IView, IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManifest, IKeyBinding, IView, IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ResolvedKeybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension, IExtensionDependencies } from 'vs/workbench/parts/extensions/common/extensions';
 import { Renderer, DataSource, Controller } from 'vs/workbench/parts/extensions/browser/dependenciesViewer';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITemplateData } from 'vs/workbench/parts/extensions/browser/extensionsList';
 import { RatingsWidget, InstallWidget } from 'vs/workbench/parts/extensions/browser/extensionsWidgets';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -165,10 +163,6 @@ export class ExtensionEditor extends BaseEditor {
 	private content: HTMLElement;
 	private recommendation: HTMLElement;
 	private header: HTMLElement;
-	// @ts-ignore unused property
-	private _highlight: ITemplateData;
-	// @ts-ignore unused property
-	private highlightDisposable: IDisposable;
 
 	private extensionReadme: Cache<string>;
 	private extensionChangelog: Cache<string>;
@@ -185,10 +179,6 @@ export class ExtensionEditor extends BaseEditor {
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		// @ts-ignore unused injected service
-		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
-		// @ts-ignore unused injected service
-		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IViewletService private viewletService: IViewletService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
@@ -199,20 +189,17 @@ export class ExtensionEditor extends BaseEditor {
 		@IListService private listService: IListService,
 		@IPartService private partService: IPartService,
 		@IContextViewService private contextViewService: IContextViewService,
-		// @ts-ignore unused injected service
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IExtensionTipsService private extensionTipsService: IExtensionTipsService
 	) {
 		super(ExtensionEditor.ID, telemetryService, themeService);
-		this._highlight = null;
-		this.highlightDisposable = empty;
 		this.disposables = [];
 		this.extensionReadme = null;
 		this.extensionChangelog = null;
 		this.extensionManifest = null;
 		this.extensionDependencies = null;
-		this.contextKey = KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS.bindTo(contextKeyService);
-		this.findInputFocusContextKey = KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_FOCUSED.bindTo(contextKeyService);
+		this.contextKey = KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS.bindTo(this.contextKeyService);
+		this.findInputFocusContextKey = KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_FOCUSED.bindTo(this.contextKeyService);
 	}
 
 	createEditor(parent: Builder): void {
@@ -900,7 +887,6 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	dispose(): void {
-		this._highlight = null;
 		this.transientDisposables = dispose(this.transientDisposables);
 		this.disposables = dispose(this.disposables);
 		super.dispose();
@@ -932,23 +918,6 @@ const showCommand = new ShowExtensionEditorFindCommand({
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule(showCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
 
-// @ts-ignore unused type
-class HideExtensionEditorFindCommand extends Command {
-	public runCommand(accessor: ServicesAccessor, args: any): void {
-		const extensionEditor = this.getExtensionEditor(accessor);
-		if (extensionEditor) {
-			extensionEditor.hideFind();
-		}
-	}
-
-	private getExtensionEditor(accessor: ServicesAccessor): ExtensionEditor {
-		const activeEditor = accessor.get(IWorkbenchEditorService).getActiveEditor() as ExtensionEditor;
-		if (activeEditor instanceof ExtensionEditor) {
-			return activeEditor;
-		}
-		return null;
-	}
-}
 const hideCommand = new ShowExtensionEditorFindCommand({
 	id: 'editor.action.extensioneditor.hidefind',
 	precondition: KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS,

@@ -85,11 +85,8 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorInputService: IEditorGroupService,
-		// @ts-ignore unused injected service
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
 		@IMessageService private messageService: IMessageService,
-		// @ts-ignore unused injected service
 		@IViewletService private viewletService: IViewletService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -108,7 +105,7 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 		this.searchInstalledExtensionsContextKey = SearchInstalledExtensionsContext.bindTo(contextKeyService);
 		this.recommendedExtensionsContextKey = RecommendedExtensionsContext.bindTo(contextKeyService);
 
-		this.disposables.push(viewletService.onDidViewletOpen(this.onViewletOpen, this, this.disposables));
+		this.disposables.push(this.viewletService.onDidViewletOpen(this.onViewletOpen, this, this.disposables));
 
 		this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AutoUpdateConfigurationKey)) {
