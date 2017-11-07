@@ -12,19 +12,21 @@ export interface Command {
 }
 
 export class CommandManager {
-	private readonly commands: vscode.Disposable[] = [];
+	private readonly commands = new Map<string, vscode.Disposable>();
 
 	public dispose() {
-		while (this.commands.length) {
-			const obj = this.commands.pop();
-			if (obj) {
-				obj.dispose();
-			}
+		for (const registration of this.commands) {
+			registration[1].dispose();
 		}
+		this.commands.clear();
 	}
 
 	public registerCommand(id: string, impl: (...args: any[]) => void, thisArg?: any) {
-		this.commands.push(vscode.commands.registerCommand(id, impl, thisArg));
+		if (this.commands.has(id)) {
+			return;
+		}
+
+		this.commands.set(id, vscode.commands.registerCommand(id, impl, thisArg));
 	}
 
 	public register(command: Command) {
