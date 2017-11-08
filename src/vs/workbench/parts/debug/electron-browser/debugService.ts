@@ -79,6 +79,7 @@ export class DebugService implements debug.IDebugService {
 	private debugState: IContextKey<string>;
 	private breakpointsToSendOnResourceSaved: Set<string>;
 	private launchJsonChanged: boolean;
+	private firstSessionStart: boolean;
 	private previousState: debug.State;
 
 	constructor(
@@ -126,6 +127,7 @@ export class DebugService implements debug.IDebugService {
 			this.loadExceptionBreakpoints(), this.loadWatchExpressions());
 		this.toDispose.push(this.model);
 		this.viewModel = new ViewModel();
+		this.firstSessionStart = true;
 
 		this.registerListeners(lifecycleService);
 	}
@@ -865,18 +867,16 @@ export class DebugService implements debug.IDebugService {
 				this.focusStackFrameAndEvaluate(null, process);
 
 				const internalConsoleOptions = configuration.internalConsoleOptions || this.configurationService.getConfiguration<debug.IDebugConfiguration>('debug').internalConsoleOptions;
-				if (internalConsoleOptions === 'openOnSessionStart' || (!this.viewModel.changedWorkbenchViewState && internalConsoleOptions === 'openOnFirstSessionStart')) {
+				if (internalConsoleOptions === 'openOnSessionStart' || (this.firstSessionStart && internalConsoleOptions === 'openOnFirstSessionStart')) {
 					this.panelService.openPanel(debug.REPL_ID, false).done(undefined, errors.onUnexpectedError);
 				}
 
 				const openDebugOptions = this.configurationService.getConfiguration<debug.IDebugConfiguration>('debug').openDebug;
 				// Open debug viewlet based on the visibility of the side bar and openDebug setting
-				if ((this.partService.isVisible(Parts.SIDEBAR_PART) || this.contextService.getWorkbenchState() === WorkbenchState.EMPTY)
-					&& ((openDebugOptions === 'openOnSessionStart')
-						|| (openDebugOptions === 'openOnFirstSessionStart' && !this.viewModel.changedWorkbenchViewState))) {
-					this.viewModel.changedWorkbenchViewState = true;
+				if (openDebugOptions === 'openOnSessionStart' || (openDebugOptions === 'openOnFirstSessionStart' && this.firstSessionStart)) {
 					this.viewletService.openViewlet(debug.VIEWLET_ID);
 				}
+				this.firstSessionStart = false;
 
 				this.debugType.set(configuration.type);
 				if (this.model.getProcesses().length > 1) {

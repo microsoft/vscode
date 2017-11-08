@@ -20,7 +20,7 @@ import { VariablesView, WatchExpressionsView, CallStackView, BreakpointsView } f
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import {
 	IDebugService, VIEWLET_ID, REPL_ID, CONTEXT_NOT_IN_DEBUG_MODE, CONTEXT_IN_DEBUG_MODE, INTERNAL_CONSOLE_OPTIONS_SCHEMA,
-	CONTEXT_DEBUG_STATE, VARIABLES_VIEW_ID, CALLSTACK_VIEW_ID, WATCH_VIEW_ID, BREAKPOINTS_VIEW_ID, OPEN_DEBUG_OPTIONS_SCHEMA
+	CONTEXT_DEBUG_STATE, VARIABLES_VIEW_ID, CALLSTACK_VIEW_ID, WATCH_VIEW_ID, BREAKPOINTS_VIEW_ID
 } from 'vs/workbench/parts/debug/common/debug';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -188,7 +188,11 @@ configurationRegistry.registerConfiguration({
 			default: false
 		},
 		'debug.internalConsoleOptions': INTERNAL_CONSOLE_OPTIONS_SCHEMA,
-		'debug.openDebug': OPEN_DEBUG_OPTIONS_SCHEMA,
+		'debug.openDebug': {
+			enum: ['neverOpen', 'openOnSessionStart', 'openOnFirstSessionStart'],
+			default: 'openOnFirstSessionStart',
+			description: nls.localize('openDebug', "Controls whether debug viewlet should be open on debugging session start.")
+		},
 		'launch': {
 			type: 'object',
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'launch' }, "Global debug launch configuration. Should be used as an alternative to 'launch.json' that is shared across workspaces"),
