@@ -8,8 +8,7 @@ import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IDebugService, IExceptionInfo } from 'vs/workbench/parts/debug/common/debug';
+import { IExceptionInfo } from 'vs/workbench/parts/debug/common/debug';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
@@ -27,12 +26,7 @@ export class ExceptionWidget extends ZoneWidget {
 
 	private _backgroundColor: Color;
 
-	// @ts-ignore unused property
-	constructor(editor: ICodeEditor, private exceptionInfo: IExceptionInfo, private lineNumber: number,
-		// @ts-ignore unused injected service
-		@IContextViewService private contextViewService: IContextViewService,
-		// @ts-ignore unused injected service
-		@IDebugService private debugService: IDebugService,
+	constructor(editor: ICodeEditor, private exceptionInfo: IExceptionInfo,
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {

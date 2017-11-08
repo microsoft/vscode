@@ -9,7 +9,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import Quickopen = require('vs/workbench/browser/quickopen');
 import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');
 import Model = require('vs/base/parts/quickopen/browser/quickOpenModel');
-import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IDebugService, ILaunch } from 'vs/workbench/parts/debug/common/debug';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import * as errors from 'vs/base/common/errors';
@@ -80,8 +79,6 @@ export class DebugQuickOpenHandler extends Quickopen.QuickOpenHandler {
 	private autoFocusIndex: number;
 
 	constructor(
-		// @ts-ignore unused injected service
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IDebugService private debugService: IDebugService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ICommandService private commandService: ICommandService
