@@ -23,6 +23,8 @@ import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOption
 import { IMarginData, IEmptyContentData } from 'vs/editor/browser/controller/mouseTarget';
 import { HiddenRangeModel } from 'vs/editor/contrib/folding/hiddenRangeModel';
 import { IRange } from 'vs/editor/common/core/range';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { computeRanges as computeIndentRanges } from 'vs/editor/contrib/folding/common/indentRangeProvider';
 
 export const ID = 'editor.contrib.folding';
 
@@ -164,7 +166,10 @@ export class FoldingController {
 	}
 
 	private computeRanges(editorModel: IModel) {
-		let ranges = editorModel.getIndentRanges();
+		let foldingRules = LanguageConfigurationRegistry.getFoldingRules(editorModel.getLanguageIdentifier().id);
+		let offSide = foldingRules && foldingRules.offSide;
+		let markers = foldingRules && foldingRules.markers;
+		let ranges = computeIndentRanges(editorModel, offSide, markers);
 		return ranges;
 	}
 

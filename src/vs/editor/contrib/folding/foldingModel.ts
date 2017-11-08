@@ -5,12 +5,7 @@
 
 import { IModel, IModelDecorationOptions } from 'vs/editor/common/editorCommon';
 import Event, { Emitter } from 'vs/base/common/event';
-import { IndentRanges } from 'vs/editor/common/model/indentRanges';
-
-export interface ILineRange {
-	startLineNumber: number;
-	endLineNumber: number;
-}
+import { FoldingRanges, ILineRange } from './foldingRanges';
 
 export interface IDecorationProvider {
 	getDecorationOption(region: FoldingRegion): IModelDecorationOptions;
@@ -28,7 +23,7 @@ export class FoldingModel {
 	private _decorationProvider: IDecorationProvider;
 
 	private _regions: FoldingRegion[] = [];
-	private _ranges: IndentRanges;
+	private _ranges: FoldingRanges;
 
 	private _updateEventEmitter = new Emitter<FoldingModelChangeEvent>();
 
@@ -58,7 +53,7 @@ export class FoldingModel {
 		this._updateEventEmitter.fire({ model: this, collapseStateChanged: regions });
 	}
 
-	public update(newRanges: IndentRanges): void {
+	public update(newRanges: FoldingRanges): void {
 		let editorDecorationIds = [];
 		let newEditorDecorations = [];
 
@@ -79,7 +74,7 @@ export class FoldingModel {
 		let recycleBin = this._regions;
 		let newRegions = [];
 
-		let newRegion = (ranges: IndentRanges, index: number, isCollapsed: boolean) => {
+		let newRegion = (ranges: FoldingRanges, index: number, isCollapsed: boolean) => {
 			let region = recycleBin.length ? recycleBin.pop() : new FoldingRegion();
 			region.init(ranges, index, isCollapsed);
 			newRegions.push(region);
@@ -209,9 +204,9 @@ export class FoldingModel {
 		let levelStack: FoldingRegion[] = trackLevel ? [] : null;
 		let index = region ? region.regionIndex + 1 : 0;
 		let endLineNumber = region ? region.endLineNumber : Number.MAX_VALUE;
-		for (let i = index, len = this.regions.length; i < len; i++) {
+		for (let i = index, len = this._ranges.length; i < len; i++) {
 			let current = this.regions[i];
-			if (current.startLineNumber < endLineNumber) {
+			if (this._ranges.getStartLineNumber(i) < endLineNumber) {
 				if (trackLevel) {
 					while (levelStack.length > 0 && !current.containedBy(levelStack[levelStack.length - 1])) {
 						levelStack.pop();
@@ -237,12 +232,12 @@ export class FoldingRegion {
 	public editorDecorationId: string;
 	public isCollapsed: boolean;
 	private index: number;
-	private indentRanges: IndentRanges;
+	private indentRanges: FoldingRanges;
 
 	constructor() {
 	}
 
-	public init(indentRanges: IndentRanges, index: number, isCollapsed: boolean): void {
+	public init(indentRanges: FoldingRanges, index: number, isCollapsed: boolean): void {
 		this.indentRanges = indentRanges;
 		this.index = index;
 		this.isCollapsed = isCollapsed;

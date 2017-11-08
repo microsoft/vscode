@@ -8,134 +8,28 @@
 import { ITextModel } from 'vs/editor/common/editorCommon';
 import { FoldingMarkers } from 'vs/editor/common/modes/languageConfiguration';
 import { computeIndentLevel } from 'vs/editor/common/model/modelLine';
-
-export const MAX_FOLDING_REGIONS = 0xFFFF;
+import { FoldingRanges, MAX_LINE_NUMBER } from 'vs/editor/contrib/folding/common/foldingRanges';
 
 const MAX_FOLDING_REGIONS_FOR_INDENT_LIMIT = 5000;
-const MASK_LINE_NUMBER = 0xFFFFFF;
-const MASK_INDENT = 0xFF000000;
 
-export class IndentRanges {
-	private _startIndexes: Uint32Array;
-	private _endIndexes: Uint32Array;
-	private _model: ITextModel;
-
-	constructor(startIndexes: Uint32Array, endIndexes: Uint32Array, model: ITextModel) {
-		if (startIndexes.length !== endIndexes.length || startIndexes.length > MAX_FOLDING_REGIONS) {
-			throw new Error('invalid startIndexes or endIndexes size');
-		}
-		this._startIndexes = startIndexes;
-		this._endIndexes = endIndexes;
-		this._model = model;
-		this._computeParentIndices();
-	}
-
-	private _computeParentIndices() {
-		let parentIndexes = [];
-		let isInsideLast = (startLineNumber: number, endLineNumber: number) => {
-			let index = parentIndexes[parentIndexes.length - 1];
-			return this.getStartLineNumber(index) <= startLineNumber && this.getEndLineNumber(index) >= endLineNumber;
-		};
-		for (let i = 0, len = this._startIndexes.length; i < len; i++) {
-			let startLineNumber = this._startIndexes[i];
-			let endLineNumber = this._endIndexes[i];
-			if (startLineNumber > MASK_LINE_NUMBER || endLineNumber > MASK_LINE_NUMBER) {
-				throw new Error('startLineNumber or endLineNumber must not exceed ' + MASK_LINE_NUMBER);
-			}
-			while (parentIndexes.length > 0 && !isInsideLast(startLineNumber, endLineNumber)) {
-				parentIndexes.pop();
-			}
-			let parentIndex = parentIndexes.length > 0 ? parentIndexes[parentIndexes.length - 1] : -1;
-			parentIndexes.push(i);
-			this._startIndexes[i] = startLineNumber + ((parentIndex & 0xFF) << 24);
-			this._endIndexes[i] = endLineNumber + ((parentIndex & 0xFF00) << 16);
-		}
-	}
-
-	public get length(): number {
-		return this._startIndexes.length;
-	}
-
-	public getStartLineNumber(index: number): number {
-		return this._startIndexes[index] & MASK_LINE_NUMBER;
-	}
-
-	public getEndLineNumber(index: number): number {
-		return this._endIndexes[index] & MASK_LINE_NUMBER;
-	}
-
-	public getParentIndex(index: number) {
-		let parent = ((this._startIndexes[index] & MASK_INDENT) >>> 24) + ((this._endIndexes[index] & MASK_INDENT) >>> 16);
-		if (parent === MAX_FOLDING_REGIONS) {
-			return -1;
-		}
-		return parent;
-	}
-
-	public getIndent(index: number) {
-		const lineNumber = this.getStartLineNumber(index);
-		const tabSize = this._model.getOptions().tabSize;
-		const lineContent = this._model.getLineContent(lineNumber);
-		return computeIndentLevel(lineContent, tabSize);
-	}
-
-	public contains(index: number, line: number) {
-		return this.getStartLineNumber(index) <= line && this.getEndLineNumber(index) >= line;
-	}
-
-	private findIndex(line: number) {
-		let low = 0, high = this._startIndexes.length;
-		if (high === 0) {
-			return -1; // no children
-		}
-		while (low < high) {
-			let mid = Math.floor((low + high) / 2);
-			if (line < this.getStartLineNumber(mid)) {
-				high = mid;
-			} else {
-				low = mid + 1;
-			}
-		}
-		return low - 1;
-	}
-
-
-	public findRange(line: number): number {
-		let index = this.findIndex(line);
-		if (index >= 0) {
-			let endLineNumber = this.getEndLineNumber(index);
-			if (endLineNumber >= line) {
-				return index;
-			}
-			index = this.getParentIndex(index);
-			while (index !== -1) {
-				if (this.contains(index, line)) {
-					return index;
-				}
-				index = this.getParentIndex(index);
-			}
-		}
-		return -1;
-	}
-}
 // public only for testing
 export class RangesCollector {
 	private _startIndexes: number[];
 	private _endIndexes: number[];
 	private _indentOccurrences: number[];
 	private _length: number;
-	private _foldingRegionsLimit: number;
+	private _FoldingRangesLimit: number;
 
-	constructor(foldingRegionsLimit: number) {
+	constructor(FoldingRangesLimit: number) {
 		this._startIndexes = [];
 		this._endIndexes = [];
 		this._indentOccurrences = [];
 		this._length = 0;
-		this._foldingRegionsLimit = foldingRegionsLimit;
+		this._FoldingRangesLimit = FoldingRangesLimit;
 	}
 
 	public insertFirst(startLineNumber: number, endLineNumber: number, indent: number) {
-		if (startLineNumber > MASK_LINE_NUMBER || endLineNumber > MASK_LINE_NUMBER) {
+		if (startLineNumber > MAX_LINE_NUMBER || endLineNumber > MAX_LINE_NUMBER) {
 			return;
 		}
 		let index = this._length;
@@ -148,7 +42,7 @@ export class RangesCollector {
 	}
 
 	public toIndentRanges(model: ITextModel) {
-		if (this._length <= this._foldingRegionsLimit) {
+		if (this._length <= this._FoldingRangesLimit) {
 			// reverse and create arrays of the exact length
 			let startIndexes = new Uint32Array(this._length);
 			let endIndexes = new Uint32Array(this._length);
@@ -156,14 +50,14 @@ export class RangesCollector {
 				startIndexes[k] = this._startIndexes[i];
 				endIndexes[k] = this._endIndexes[i];
 			}
-			return new IndentRanges(startIndexes, endIndexes, model);
+			return new FoldingRanges(startIndexes, endIndexes);
 		} else {
 			let entries = 0;
 			let maxIndent = this._indentOccurrences.length;
 			for (let i = 0; i < this._indentOccurrences.length; i++) {
 				let n = this._indentOccurrences[i];
 				if (n) {
-					if (n + entries > this._foldingRegionsLimit) {
+					if (n + entries > this._FoldingRangesLimit) {
 						maxIndent = i;
 						break;
 					}
@@ -184,7 +78,7 @@ export class RangesCollector {
 					k++;
 				}
 			}
-			return new IndentRanges(startIndexes, endIndexes, model);
+			return new FoldingRanges(startIndexes, endIndexes);
 		}
 
 	}
@@ -193,9 +87,9 @@ export class RangesCollector {
 
 interface PreviousRegion { indent: number; line: number; marker: boolean; }
 
-export function computeRanges(model: ITextModel, offSide: boolean, markers?: FoldingMarkers, foldingRegionsLimit = MAX_FOLDING_REGIONS_FOR_INDENT_LIMIT): IndentRanges {
+export function computeRanges(model: ITextModel, offSide: boolean, markers?: FoldingMarkers, FoldingRangesLimit = MAX_FOLDING_REGIONS_FOR_INDENT_LIMIT): FoldingRanges {
 	const tabSize = model.getOptions().tabSize;
-	let result = new RangesCollector(foldingRegionsLimit);
+	let result = new RangesCollector(FoldingRangesLimit);
 
 	let pattern = void 0;
 	if (markers) {

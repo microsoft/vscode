@@ -15,7 +15,6 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection, ISelection } from 'vs/editor/common/core/selection';
-import { IndentRanges } from 'vs/editor/common/model/indentRanges';
 import { ITextSource } from 'vs/editor/common/model/textSource';
 import {
 	ModelRawContentChangedEvent, IModelContentChangedEvent, IModelDecorationsChangedEvent,
@@ -895,11 +894,6 @@ export interface ITokenizedModel extends ITextModel {
 	 * @internal
 	 */
 	matchBracket(position: IPosition): [Range, Range];
-
-	/**
-	 * @internal
-	 */
-	getIndentRanges(): IndentRanges;
 
 	/**
 	 * @internal

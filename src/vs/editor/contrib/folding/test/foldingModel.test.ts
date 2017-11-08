@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import { FoldingModel, FoldingRegion, setCollapseStateAtLevel, setCollapseStateLevelsDown, setCollapseStateLevelsUp } from 'vs/editor/contrib/folding/foldingModel';
 import { Model } from 'vs/editor/common/model/model';
-import { computeRanges } from 'vs/editor/common/model/indentRanges';
+import { computeRanges } from 'vs/editor/contrib/folding/common/indentRangeProvider';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 import { TrackedRangeStickiness } from 'vs/editor/common/editorCommon';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
