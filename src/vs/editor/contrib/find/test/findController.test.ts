@@ -13,7 +13,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { CommonFindController, FindStartFocusAction, IFindStartOptions, NextMatchFindAction, StartFindAction } from 'vs/editor/contrib/find/common/findController';
-import { withMockCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { HistoryNavigator } from 'vs/base/common/history';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -78,7 +78,7 @@ suite('FindController', () => {
 	} as IStorageService);
 
 	test('issue #1857: F3, Find Next, acts like "Find Under Cursor"', () => {
-		withMockCodeEditor([
+		withTestCodeEditor([
 			'ABC',
 			'ABC',
 			'XYZ',
@@ -136,7 +136,7 @@ suite('FindController', () => {
 	});
 
 	test('issue #3090: F3 does not loop with two matches on a single line', () => {
-		withMockCodeEditor([
+		withTestCodeEditor([
 			'import nls = require(\'vs/nls\');'
 		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 
@@ -159,7 +159,7 @@ suite('FindController', () => {
 	});
 
 	test('issue #6149: Auto-escape highlighted text for search and replace regex mode', () => {
-		withMockCodeEditor([
+		withTestCodeEditor([
 			'var x = (3 * 5)',
 			'var y = (3 * 5)',
 			'var z = (3  * 5)',
@@ -185,7 +185,7 @@ suite('FindController', () => {
 	});
 
 	test('issue #9043: Clear search scope when find widget is hidden', () => {
-		withMockCodeEditor([
+		withTestCodeEditor([
 			'var x = (3 * 5)',
 			'var y = (3 * 5)',
 			'var z = (3 * 5)',
@@ -213,7 +213,7 @@ suite('FindController', () => {
 	});
 
 	test('find term is added to history on state change', () => {
-		withMockCodeEditor([
+		withTestCodeEditor([
 			'var x = (3 * 5)',
 			'var y = (3 * 5)',
 			'var z = (3 * 5)',
@@ -229,7 +229,7 @@ suite('FindController', () => {
 	});
 
 	test('find term is added with delay', (done) => {
-		withMockCodeEditor([
+		withTestCodeEditor([
 			'var x = (3 * 5)',
 			'var y = (3 * 5)',
 			'var z = (3 * 5)',
@@ -249,7 +249,7 @@ suite('FindController', () => {
 	});
 
 	test('show previous find term', () => {
-		withMockCodeEditor([
+		withTestCodeEditor([
 			'var x = (3 * 5)',
 			'var y = (3 * 5)',
 			'var z = (3 * 5)',
@@ -266,7 +266,7 @@ suite('FindController', () => {
 	});
 
 	test('show previous find term do not update history', () => {
-		withMockCodeEditor([
+		withTestCodeEditor([
 			'var x = (3 * 5)',
 			'var y = (3 * 5)',
 			'var z = (3 * 5)',
@@ -283,7 +283,7 @@ suite('FindController', () => {
 	});
 
 	test('show next find term', () => {
-		withMockCodeEditor([
+		withTestCodeEditor([
 			'var x = (3 * 5)',
 			'var y = (3 * 5)',
 			'var z = (3 * 5)',
@@ -303,7 +303,7 @@ suite('FindController', () => {
 	});
 
 	test('show next find term do not update history', () => {
-		withMockCodeEditor([
+		withTestCodeEditor([
 			'var x = (3 * 5)',
 			'var y = (3 * 5)',
 			'var z = (3 * 5)',
@@ -323,7 +323,7 @@ suite('FindController', () => {
 	});
 
 	test('issue #18111: Regex replace with single space replaces with no space', () => {
-		withMockCodeEditor([
+		withTestCodeEditor([
 			'HRESULT OnAmbientPropertyChange(DISPID   dispid);'
 		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 
@@ -348,7 +348,7 @@ suite('FindController', () => {
 	});
 
 	test('issue #24714: Regular expression with ^ in search & replace', () => {
-		withMockCodeEditor([
+		withTestCodeEditor([
 			'',
 			'line2',
 			'line3'
@@ -399,7 +399,7 @@ suite('FindController query options persistence', () => {
 	} as IStorageService);
 
 	test('matchCase', () => {
-		withMockCodeEditor([
+		withTestCodeEditor([
 			'abc',
 			'ABC',
 			'XYZ',
@@ -426,7 +426,7 @@ suite('FindController query options persistence', () => {
 	queryState = { 'editor.isRegex': false, 'editor.matchCase': false, 'editor.wholeWord': true };
 
 	test('wholeWord', () => {
-		withMockCodeEditor([
+		withTestCodeEditor([
 			'ABC',
 			'AB',
 			'XYZ',
@@ -451,7 +451,7 @@ suite('FindController query options persistence', () => {
 	});
 
 	test('toggling options is saved', () => {
-		withMockCodeEditor([
+		withTestCodeEditor([
 			'ABC',
 			'AB',
 			'XYZ',

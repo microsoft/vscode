@@ -10,14 +10,14 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
-import { withMockCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { Model } from 'vs/editor/common/model/model';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { Cursor } from 'vs/editor/common/controller/cursor';
 
 function testCommand(lines: string[], selections: Selection[], edits: IIdentifiedSingleEditOperation[], expectedLines: string[], expectedSelections: Selection[]): void {
-	withMockCodeEditor(lines, {}, (editor, cursor) => {
+	withTestCodeEditor(lines, {}, (editor, cursor) => {
 		const model = editor.getModel();
 
 		cursor.setSelections('tests', selections);

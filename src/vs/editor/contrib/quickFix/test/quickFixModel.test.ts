@@ -9,7 +9,7 @@ import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Model } from 'vs/editor/common/model/model';
-import { mockCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { QuickFixOracle } from 'vs/editor/contrib/quickFix/browser/quickFixModel';
 import { CodeActionProviderRegistry, LanguageIdentifier } from 'vs/editor/common/modes';
@@ -33,7 +33,7 @@ suite('QuickFix', () => {
 		});
 		markerService = new MarkerService();
 		model = Model.createFromString('foobar  foo bar\nfarboo far boo', undefined, languageIdentifier, uri);
-		editor = mockCodeEditor([], { model });
+		editor = createTestCodeEditor(model);
 		editor.setPosition({ lineNumber: 1, column: 1 });
 	});
 

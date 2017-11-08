@@ -10,7 +10,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
-import { withMockCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 
 export function testCommand(
 	lines: string[],
@@ -21,7 +21,7 @@ export function testCommand(
 	expectedSelection: Selection
 ): void {
 	let model = Model.createFromString(lines.join('\n'), undefined, languageIdentifier);
-	withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+	withTestCodeEditor(null, { model: model }, (editor, cursor) => {
 
 		cursor.setSelections('tests', [selection]);
 

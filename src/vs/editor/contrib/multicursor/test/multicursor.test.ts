@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { withMockCodeEditor, MockCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { withTestCodeEditor, TestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
 import { InsertCursorAbove, InsertCursorBelow, MultiCursorSelectionController, SelectHighlightsAction, AddSelectionToNextFindMatchAction } from 'vs/editor/contrib/multicursor/common/multicursor';
@@ -17,7 +17,7 @@ import { CommonFindController } from 'vs/editor/contrib/find/common/findControll
 suite('Multicursor', () => {
 
 	test('issue #2205: Multi-cursor pastes in reverse order', () => {
-		withMockCodeEditor([
+		withTestCodeEditor([
 			'abc',
 			'def'
 		], {}, (editor, cursor) => {
@@ -35,7 +35,7 @@ suite('Multicursor', () => {
 	});
 
 	test('issue #1336: Insert cursor below on last line adds a cursor to the end of the current line', () => {
-		withMockCodeEditor([
+		withTestCodeEditor([
 			'abc'
 		], {}, (editor, cursor) => {
 			let addCursorDownAction = new InsertCursorBelow();
@@ -60,7 +60,7 @@ suite('Multicursor selection', () => {
 	} as IStorageService);
 
 	test('issue #8817: Cursor position changes when you cancel multicursor', () => {
-		withMockCodeEditor([
+		withTestCodeEditor([
 			'var x = (3 * 5)',
 			'var y = (3 * 5)',
 			'var z = (3 * 5)',
@@ -89,7 +89,7 @@ suite('Multicursor selection', () => {
 	});
 
 	test('issue #5400: "Select All Occurrences of Find Match" does not select all if find uses regex', () => {
-		withMockCodeEditor([
+		withTestCodeEditor([
 			'something',
 			'someething',
 			'someeething',
@@ -120,7 +120,7 @@ suite('Multicursor selection', () => {
 	});
 
 	test('AddSelectionToNextFindMatchAction can work with multiline', () => {
-		withMockCodeEditor([
+		withTestCodeEditor([
 			'',
 			'qwe',
 			'rty',
@@ -154,7 +154,7 @@ suite('Multicursor selection', () => {
 	});
 
 	test('issue #6661: AddSelectionToNextFindMatchAction can work with touching ranges', () => {
-		withMockCodeEditor([
+		withTestCodeEditor([
 			'abcabc',
 			'abc',
 			'abcabc',
@@ -203,7 +203,7 @@ suite('Multicursor selection', () => {
 	});
 
 	test('issue #23541: Multiline Ctrl+D does not work in CRLF files', () => {
-		withMockCodeEditor([
+		withTestCodeEditor([
 			'',
 			'qwe',
 			'rty',
@@ -238,8 +238,8 @@ suite('Multicursor selection', () => {
 		});
 	});
 
-	function testMulticursor(text: string[], callback: (editor: MockCodeEditor, findController: CommonFindController) => void): void {
-		withMockCodeEditor(text, { serviceCollection: serviceCollection }, (editor, cursor) => {
+	function testMulticursor(text: string[], callback: (editor: TestCodeEditor, findController: CommonFindController) => void): void {
+		withTestCodeEditor(text, { serviceCollection: serviceCollection }, (editor, cursor) => {
 			let findController = editor.registerAndInstantiateContribution<CommonFindController>(CommonFindController);
 			let multiCursorSelectController = editor.registerAndInstantiateContribution<MultiCursorSelectionController>(MultiCursorSelectionController);
 
@@ -250,7 +250,7 @@ suite('Multicursor selection', () => {
 		});
 	}
 
-	function testAddSelectionToNextFindMatchAction(text: string[], callback: (editor: MockCodeEditor, action: AddSelectionToNextFindMatchAction, findController: CommonFindController) => void): void {
+	function testAddSelectionToNextFindMatchAction(text: string[], callback: (editor: TestCodeEditor, action: AddSelectionToNextFindMatchAction, findController: CommonFindController) => void): void {
 		testMulticursor(text, (editor, findController) => {
 			let action = new AddSelectionToNextFindMatchAction();
 			callback(editor, action, findController);

@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
 import { Handler, IModel, DefaultEndOfLine } from 'vs/editor/common/editorCommon';
-import { withMockCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { DeleteAllLeftAction, JoinLinesAction, TransposeAction, UpperCaseAction, LowerCaseAction, DeleteAllRightAction, InsertLineBeforeAction, InsertLineAfterAction, IndentLinesAction } from 'vs/editor/contrib/linesOperations/common/linesOperations';
 import { Cursor } from 'vs/editor/common/controller/cursor';
 import { Model } from 'vs/editor/common/model/model';
@@ -17,7 +17,7 @@ import { CoreEditingCommands } from 'vs/editor/common/controller/coreCommands';
 suite('Editor Contrib - Line Operations', () => {
 	suite('DeleteAllLeftAction', () => {
 		test('should delete to the left of the cursor', function () {
-			withMockCodeEditor(
+			withTestCodeEditor(
 				[
 					'one',
 					'two',
@@ -38,7 +38,7 @@ suite('Editor Contrib - Line Operations', () => {
 		});
 
 		test('should work in multi cursor mode', function () {
-			withMockCodeEditor(
+			withTestCodeEditor(
 				[
 					'hello',
 					'world',
@@ -75,7 +75,7 @@ suite('Editor Contrib - Line Operations', () => {
 		});
 
 		test('issue #36234: should push undo stop', () => {
-			withMockCodeEditor(
+			withTestCodeEditor(
 				[
 					'one',
 					'two',
@@ -103,7 +103,7 @@ suite('Editor Contrib - Line Operations', () => {
 
 	suite('JoinLinesAction', () => {
 		test('should join lines and insert space if necessary', function () {
-			withMockCodeEditor(
+			withTestCodeEditor(
 				[
 					'hello',
 					'world',
@@ -148,7 +148,7 @@ suite('Editor Contrib - Line Operations', () => {
 		});
 
 		test('should work in multi cursor mode', function () {
-			withMockCodeEditor(
+			withTestCodeEditor(
 				[
 					'hello',
 					'world',
@@ -192,7 +192,7 @@ suite('Editor Contrib - Line Operations', () => {
 		});
 
 		test('should push undo stop', function () {
-			withMockCodeEditor(
+			withTestCodeEditor(
 				[
 					'hello',
 					'world'
@@ -218,7 +218,7 @@ suite('Editor Contrib - Line Operations', () => {
 	});
 
 	test('transpose', function () {
-		withMockCodeEditor(
+		withTestCodeEditor(
 			[
 				'hello world',
 				'',
@@ -256,7 +256,7 @@ suite('Editor Contrib - Line Operations', () => {
 		);
 
 		// fix #16633
-		withMockCodeEditor(
+		withTestCodeEditor(
 			[
 				'',
 				'',
@@ -294,7 +294,7 @@ suite('Editor Contrib - Line Operations', () => {
 	});
 
 	test('toggle case', function () {
-		withMockCodeEditor(
+		withTestCodeEditor(
 			[
 				'hello world',
 				'öçşğü'
@@ -335,7 +335,7 @@ suite('Editor Contrib - Line Operations', () => {
 			}
 		);
 
-		withMockCodeEditor(
+		withTestCodeEditor(
 			[
 				'',
 				'   '
@@ -369,7 +369,7 @@ suite('Editor Contrib - Line Operations', () => {
 
 	suite('DeleteAllRightAction', () => {
 		test('should be noop on empty', () => {
-			withMockCodeEditor([''], {}, (editor, cursor) => {
+			withTestCodeEditor([''], {}, (editor, cursor) => {
 				const model = editor.getModel();
 				const action = new DeleteAllRightAction();
 
@@ -390,7 +390,7 @@ suite('Editor Contrib - Line Operations', () => {
 		});
 
 		test('should delete selected range', () => {
-			withMockCodeEditor([
+			withTestCodeEditor([
 				'hello',
 				'world'
 			], {}, (editor, cursor) => {
@@ -415,7 +415,7 @@ suite('Editor Contrib - Line Operations', () => {
 		});
 
 		test('should delete to the right of the cursor', () => {
-			withMockCodeEditor([
+			withTestCodeEditor([
 				'hello',
 				'world'
 			], {}, (editor, cursor) => {
@@ -435,7 +435,7 @@ suite('Editor Contrib - Line Operations', () => {
 		});
 
 		test('should join two lines, if at the end of the line', () => {
-			withMockCodeEditor([
+			withTestCodeEditor([
 				'hello',
 				'world'
 			], {}, (editor, cursor) => {
@@ -460,7 +460,7 @@ suite('Editor Contrib - Line Operations', () => {
 		});
 
 		test('should work with multiple cursors', () => {
-			withMockCodeEditor([
+			withTestCodeEditor([
 				'hello',
 				'there',
 				'world'
@@ -509,7 +509,7 @@ suite('Editor Contrib - Line Operations', () => {
 		});
 
 		test('should work with undo/redo', () => {
-			withMockCodeEditor([
+			withTestCodeEditor([
 				'hello',
 				'there',
 				'world'
@@ -551,7 +551,7 @@ suite('Editor Contrib - Line Operations', () => {
 				'Second line',
 				'Third line'
 			];
-			withMockCodeEditor(TEXT, {}, (editor, cursor) => {
+			withTestCodeEditor(TEXT, {}, (editor, cursor) => {
 				editor.setPosition(new Position(lineNumber, column));
 				let insertLineBeforeAction = new InsertLineBeforeAction();
 
@@ -592,7 +592,7 @@ suite('Editor Contrib - Line Operations', () => {
 				'Second line',
 				'Third line'
 			];
-			withMockCodeEditor(TEXT, {}, (editor, cursor) => {
+			withTestCodeEditor(TEXT, {}, (editor, cursor) => {
 				editor.setPosition(new Position(lineNumber, column));
 				let insertLineAfterAction = new InsertLineAfterAction();
 
@@ -641,7 +641,7 @@ suite('Editor Contrib - Line Operations', () => {
 			}
 		);
 
-		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
 			let indentLinesAction = new IndentLinesAction();
 			editor.setPosition(new Position(1, 2));
 

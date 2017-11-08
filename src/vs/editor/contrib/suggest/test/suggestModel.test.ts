@@ -13,7 +13,7 @@ import { Model } from 'vs/editor/common/model/model';
 import { ICommonCodeEditor, Handler } from 'vs/editor/common/editorCommon';
 import { ISuggestSupport, ISuggestResult, SuggestRegistry, SuggestTriggerKind } from 'vs/editor/common/modes';
 import { SuggestModel, LineContext } from 'vs/editor/contrib/suggest/browser/suggestModel';
-import { MockCodeEditor, MockScopeLocation } from 'vs/editor/test/browser/testCodeEditor';
+import { TestCodeEditor, MockScopeLocation } from 'vs/editor/test/browser/testCodeEditor';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -23,7 +23,7 @@ import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtil
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 
-function createMockEditor(model: Model): MockCodeEditor {
+function createMockEditor(model: Model): TestCodeEditor {
 	const contextKeyService = new MockContextKeyService();
 	const telemetryService = NullTelemetryService;
 	const instantiationService = new InstantiationService(new ServiceCollection(
@@ -31,7 +31,7 @@ function createMockEditor(model: Model): MockCodeEditor {
 		[ITelemetryService, telemetryService]
 	));
 
-	const editor = new MockCodeEditor(new MockScopeLocation(), {}, instantiationService, contextKeyService);
+	const editor = new TestCodeEditor(new MockScopeLocation(), {}, instantiationService, contextKeyService);
 	editor.setModel(model);
 	return editor;
 }

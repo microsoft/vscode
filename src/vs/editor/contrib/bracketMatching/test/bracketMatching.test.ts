@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { withMockCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { Position } from 'vs/editor/common/core/position';
 import { Model } from 'vs/editor/common/model/model';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
@@ -34,7 +34,7 @@ suite('bracket matching', () => {
 		let mode = new BracketMode();
 		let model = Model.createFromString('var x = (3 + (5-7)) + ((5+3)+5);', undefined, mode.getLanguageIdentifier());
 
-		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
 			let bracketMatchingController = editor.registerAndInstantiateContribution<BracketMatchingController>(BracketMatchingController);
 
 			// start on closing bracket
@@ -66,7 +66,7 @@ suite('bracket matching', () => {
 		let mode = new BracketMode();
 		let model = Model.createFromString('var x = (3 + (5-7)); y();', undefined, mode.getLanguageIdentifier());
 
-		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
 			let bracketMatchingController = editor.registerAndInstantiateContribution<BracketMatchingController>(BracketMatchingController);
 
 			// start position between brackets

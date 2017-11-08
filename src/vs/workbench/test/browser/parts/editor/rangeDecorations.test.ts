@@ -13,7 +13,7 @@ import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import WorkbenchEditorService = require('vs/workbench/services/editor/common/editorService');
 import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
 import { Model } from 'vs/editor/common/model/model';
-import { mockCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IEditorInput } from 'vs/platform/editor/common/editor';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
@@ -41,7 +41,7 @@ suite('Editor - Range decorations', () => {
 		instantiationService.stub(IModelService, stubModelService(instantiationService));
 		text = 'LINE1' + '\n' + 'LINE2' + '\n' + 'LINE3' + '\n' + 'LINE4' + '\r\n' + 'LINE5';
 		model = aModel(URI.file('some_file'));
-		codeEditor = mockCodeEditor([], { model });
+		codeEditor = createTestCodeEditor(model);
 		mockEditorService(codeEditor.getModel().uri);
 
 		instantiationService.stub(WorkbenchEditorService.IWorkbenchEditorService, 'getActiveEditor', { getControl: () => { return codeEditor; } });

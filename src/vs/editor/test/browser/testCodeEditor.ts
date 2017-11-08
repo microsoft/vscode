@@ -17,7 +17,7 @@ import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
-export class MockCodeEditor extends CommonCodeEditor {
+export class TestCodeEditor extends CommonCodeEditor {
 
 	public _isFocused = true;
 
@@ -67,7 +67,7 @@ export class MockScopeLocation implements IContextKeyServiceTarget {
 	getAttribute(attr: string): string { return undefined; }
 }
 
-export interface MockCodeEditorCreationOptions extends editorOptions.IEditorOptions {
+export interface TestCodeEditorCreationOptions extends editorOptions.IEditorOptions {
 	/**
 	 * The initial model associated with this code editor.
 	 */
@@ -75,7 +75,7 @@ export interface MockCodeEditorCreationOptions extends editorOptions.IEditorOpti
 	serviceCollection?: ServiceCollection;
 }
 
-export function withMockCodeEditor(text: string[], options: MockCodeEditorCreationOptions, callback: (editor: MockCodeEditor, cursor: Cursor) => void): void {
+export function withTestCodeEditor(text: string[], options: TestCodeEditorCreationOptions, callback: (editor: TestCodeEditor, cursor: Cursor) => void): void {
 	// create a model if necessary and remember it in order to dispose it.
 	let modelToDispose: Model = null;
 	if (!options.model) {
@@ -83,7 +83,7 @@ export function withMockCodeEditor(text: string[], options: MockCodeEditorCreati
 		options.model = modelToDispose;
 	}
 
-	let editor = <MockCodeEditor>_mockCodeEditor(options);
+	let editor = <TestCodeEditor>_createTestCodeEditor(options);
 	callback(editor, editor.getCursor());
 
 	if (modelToDispose) {
@@ -92,15 +92,11 @@ export function withMockCodeEditor(text: string[], options: MockCodeEditorCreati
 	editor.dispose();
 }
 
-export function mockCodeEditor(text: string[], options: MockCodeEditorCreationOptions): CommonCodeEditor {
-	// TODO: who owns this model now?
-	if (!options.model) {
-		options.model = Model.createFromString(text.join('\n'));
-	}
-	return _mockCodeEditor(options);
+export function createTestCodeEditor(model: editorCommon.IModel): CommonCodeEditor {
+	return _createTestCodeEditor({ model: model });
 }
 
-function _mockCodeEditor(options: MockCodeEditorCreationOptions): CommonCodeEditor {
+function _createTestCodeEditor(options: TestCodeEditorCreationOptions): CommonCodeEditor {
 
 	let contextKeyService = new MockContextKeyService();
 
@@ -108,7 +104,7 @@ function _mockCodeEditor(options: MockCodeEditorCreationOptions): CommonCodeEdit
 	services.set(IContextKeyService, contextKeyService);
 	let instantiationService = new InstantiationService(services);
 
-	let editor = new MockCodeEditor(new MockScopeLocation(), options, instantiationService, contextKeyService);
+	let editor = new TestCodeEditor(new MockScopeLocation(), options, instantiationService, contextKeyService);
 	editor.setModel(options.model);
 	return editor;
 }

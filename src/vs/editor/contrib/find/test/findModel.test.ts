@@ -12,14 +12,14 @@ import { Range } from 'vs/editor/common/core/range';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { FindModelBoundToEditorModel } from 'vs/editor/contrib/find/common/findModel';
 import { FindReplaceState } from 'vs/editor/contrib/find/common/findState';
-import { withMockCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { CoreNavigationCommands } from 'vs/editor/common/controller/coreCommands';
 
 suite('FindModel', () => {
 
 	function findTest(testName: string, callback: (editor: ICommonCodeEditor, cursor: Cursor) => void): void {
 		test(testName, () => {
-			withMockCodeEditor([
+			withTestCodeEditor([
 				'// my cool header',
 				'#include "cool.h"',
 				'#include <iostream>',

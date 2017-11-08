@@ -10,7 +10,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { SnippetSession } from 'vs/editor/contrib/snippet/browser/snippetSession';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
-import { mockCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { Model } from 'vs/editor/common/model/model';
 
 suite('SnippetSession', function () {
@@ -28,7 +28,7 @@ suite('SnippetSession', function () {
 
 	setup(function () {
 		model = Model.createFromString('function foo() {\n    console.log(a);\n}');
-		editor = mockCodeEditor([], { model });
+		editor = createTestCodeEditor(model);
 		editor.setSelections([new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5)]);
 		assert.equal(model.getEOL(), '\n');
 	});

@@ -8,13 +8,13 @@ import * as assert from 'assert';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { getSelectionSearchString } from 'vs/editor/contrib/find/common/find';
-import { withMockCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 
 
 suite('Find', () => {
 
 	test('search string at position', () => {
-		withMockCodeEditor([
+		withTestCodeEditor([
 			'ABC DEF',
 			'0123 456'
 		], {}, (editor, cursor) => {
@@ -37,7 +37,7 @@ suite('Find', () => {
 	});
 
 	test('search string with selection', () => {
-		withMockCodeEditor([
+		withTestCodeEditor([
 			'ABC DEF',
 			'0123 456'
 		], {}, (editor, cursor) => {
@@ -61,7 +61,7 @@ suite('Find', () => {
 	});
 
 	test('search string with multiline selection', () => {
-		withMockCodeEditor([
+		withTestCodeEditor([
 			'ABC DEF',
 			'0123 456'
 		], {}, (editor, cursor) => {

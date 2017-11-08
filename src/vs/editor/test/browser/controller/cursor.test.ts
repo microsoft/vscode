@@ -23,7 +23,7 @@ import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { CoreNavigationCommands, CoreEditingCommands } from 'vs/editor/common/controller/coreCommands';
-import { withMockCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 let H = Handler;
@@ -696,7 +696,7 @@ suite('Editor Controller - Cursor', () => {
 	});
 
 	test('column select 1', () => {
-		withMockCodeEditor([
+		withTestCodeEditor([
 			'\tprivate compute(a:number): boolean {',
 			'\t\tif (a + 3 === 0 || a + 5 === 0) {',
 			'\t\t\treturn false;',
@@ -1146,7 +1146,7 @@ suite('Editor Controller - Regression tests', () => {
 			},
 		);
 
-		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
 			cursor.setSelections('test', [new Selection(1, 1, 1, 13)]);
 
 			// Check that indenting maintains the selection start at column 1
@@ -1171,7 +1171,7 @@ suite('Editor Controller - Regression tests', () => {
 			},
 		);
 
-		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
 			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\n', 'assert1');
 
@@ -1237,7 +1237,7 @@ suite('Editor Controller - Regression tests', () => {
 			mode.getLanguageIdentifier()
 		);
 
-		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
 			moveTo(cursor, 1, 6, false);
 			assertCursor(cursor, new Selection(1, 6, 1, 6));
 
@@ -1264,7 +1264,7 @@ suite('Editor Controller - Regression tests', () => {
 			}
 		);
 
-		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
 			moveTo(cursor, 1, 7, false);
 			assertCursor(cursor, new Selection(1, 7, 1, 7));
 
@@ -1296,7 +1296,7 @@ suite('Editor Controller - Regression tests', () => {
 			},
 		);
 
-		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
 			moveTo(cursor, 7, 1, false);
 			assertCursor(cursor, new Selection(7, 1, 7, 1));
 
@@ -1311,7 +1311,7 @@ suite('Editor Controller - Regression tests', () => {
 	test('bug #16740: [editor] Cut line doesn\'t quite cut the last line', () => {
 
 		// Part 1 => there is text on the last line
-		withMockCodeEditor([
+		withTestCodeEditor([
 			'asdasd',
 			'qwerty'
 		], {}, (editor, cursor) => {
@@ -1327,7 +1327,7 @@ suite('Editor Controller - Regression tests', () => {
 		});
 
 		// Part 2 => there is no text on the last line
-		withMockCodeEditor([
+		withTestCodeEditor([
 			'asdasd',
 			''
 		], {}, (editor, cursor) => {
@@ -1385,7 +1385,7 @@ suite('Editor Controller - Regression tests', () => {
 			},
 		);
 
-		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
 			moveTo(cursor, 3, 2, false);
 			moveTo(cursor, 1, 14, true);
 			assertCursor(cursor, new Selection(3, 2, 1, 14));
@@ -1434,7 +1434,7 @@ suite('Editor Controller - Regression tests', () => {
 			}
 		);
 
-		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
 			moveTo(cursor, 1, 1, false);
 			moveTo(cursor, 3, 4, true);
 
@@ -1516,7 +1516,7 @@ suite('Editor Controller - Regression tests', () => {
 			}
 		);
 
-		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
 			moveTo(cursor, 3, 2, false);
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(3), '\t    \tx: 3');
@@ -1540,7 +1540,7 @@ suite('Editor Controller - Regression tests', () => {
 			}
 		);
 
-		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
 			moveTo(cursor, 1, 15, false);
 			moveTo(cursor, 1, 22, true);
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
@@ -1636,7 +1636,7 @@ suite('Editor Controller - Regression tests', () => {
 			].join('\n')
 		);
 
-		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
 			CoreNavigationCommands.WordSelect.runCoreEditorCommand(cursor, { position: new Position(1, 8) });
 			assert.deepEqual(cursor.getSelection(), new Selection(1, 6, 1, 10));
 
@@ -1744,7 +1744,7 @@ suite('Editor Controller - Regression tests', () => {
 
 	test('issue #36740: wordwrap creates an extra step / character at the wrapping point', () => {
 		// a single model line => 4 view lines
-		withMockCodeEditor([
+		withTestCodeEditor([
 			[
 				'Lorem ipsum ',
 				'dolor sit amet ',
@@ -1824,7 +1824,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 			}
 		);
 
-		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
 			// Tab on column 1
 			CoreNavigationCommands.MoveTo.runCoreEditorCommand(cursor, { position: new Position(2, 1) });
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
@@ -2053,7 +2053,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 			}
 		);
 
-		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
 
 			moveTo(cursor, 3, 1);
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
@@ -2097,7 +2097,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 			}
 		);
 
-		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
 
 			// Move cursor to the end, verify that we do not trim whitespaces if line has values
 			moveTo(cursor, 1, model.getLineContent(1).length + 1);
@@ -2163,7 +2163,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 			}
 		);
 
-		withMockCodeEditor(null, { model: model, useTabStops: false }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model, useTabStops: false }, (editor, cursor) => {
 			// DeleteLeft removes just one whitespace
 			moveTo(cursor, 2, 9);
 			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
@@ -2189,7 +2189,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 			}
 		);
 
-		withMockCodeEditor(null, { model: model, useTabStops: true }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model, useTabStops: true }, (editor, cursor) => {
 			// DeleteLeft does not remove tab size, because some text exists before
 			moveTo(cursor, 2, model.getLineContent(2).length + 1);
 			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
@@ -2260,7 +2260,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 			}
 		);
 
-		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
 			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\n', 'assert1');
 
@@ -2428,7 +2428,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			mode.getLanguageIdentifier()
 		);
 
-		withMockCodeEditor(null, { model: model, autoIndent: true }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model, autoIndent: true }, (editor, cursor) => {
 			moveTo(cursor, 2, 11, false);
 			assertCursor(cursor, new Selection(2, 11, 2, 11));
 
@@ -2907,7 +2907,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			mode.getLanguageIdentifier()
 		);
 
-		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
 			moveTo(cursor, 4, 1, false);
 			assertCursor(cursor, new Selection(4, 1, 4, 1));
 
@@ -2939,7 +2939,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			mode.getLanguageIdentifier()
 		);
 
-		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
 			moveTo(cursor, 4, 2, false);
 			assertCursor(cursor, new Selection(4, 2, 4, 2));
 
@@ -2971,7 +2971,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			mode.getLanguageIdentifier()
 		);
 
-		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
 			moveTo(cursor, 4, 1, false);
 			assertCursor(cursor, new Selection(4, 1, 4, 1));
 
@@ -3002,7 +3002,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			mode.getLanguageIdentifier()
 		);
 
-		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
 			moveTo(cursor, 4, 3, false);
 			assertCursor(cursor, new Selection(4, 3, 4, 3));
 
@@ -3033,7 +3033,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			mode.getLanguageIdentifier()
 		);
 
-		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
 			moveTo(cursor, 4, 4, false);
 			assertCursor(cursor, new Selection(4, 4, 4, 4));
 
@@ -3064,7 +3064,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			mode.getLanguageIdentifier()
 		);
 
-		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
 
 			moveTo(cursor, 3, 1);
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
@@ -3100,7 +3100,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			rubyMode.getLanguageIdentifier()
 		);
 
-		withMockCodeEditor(null, { model: model, autoIndent: true }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model, autoIndent: true }, (editor, cursor) => {
 			moveTo(cursor, 4, 7, false);
 			assertCursor(cursor, new Selection(4, 7, 4, 7));
 
@@ -3237,7 +3237,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			mode.getLanguageIdentifier()
 		);
 
-		withMockCodeEditor(null, { model: model, autoIndent: false }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model, autoIndent: false }, (editor, cursor) => {
 			moveTo(cursor, 7, 6, false);
 			assertCursor(cursor, new Selection(7, 6, 7, 6));
 
@@ -3841,7 +3841,7 @@ suite('autoClosingPairs', () => {
 			mode.getLanguageIdentifier()
 		);
 
-		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
 			cursor.setSelections('test', [
 				new Selection(1, 4, 1, 4),
 				new Selection(1, 10, 1, 10),
@@ -3870,7 +3870,7 @@ suite('autoClosingPairs', () => {
 			].join('\n')
 		);
 
-		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
 			CoreNavigationCommands.WordSelect.runEditorCommand(null, editor, {
 				position: new Position(3, 7)
 			});
@@ -3894,7 +3894,7 @@ suite('Undo stops', () => {
 			].join('\n')
 		);
 
-		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
 			cursor.setSelections('test', [new Selection(1, 3, 1, 3)]);
 			cursorCommand(cursor, H.Type, { text: 'first' }, 'keyboard');
 			assert.equal(model.getLineContent(1), 'A first line');
@@ -3923,7 +3923,7 @@ suite('Undo stops', () => {
 			].join('\n')
 		);
 
-		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
 			cursor.setSelections('test', [new Selection(1, 3, 1, 3)]);
 			cursorCommand(cursor, H.Type, { text: 'first' }, 'keyboard');
 			assert.equal(model.getLineContent(1), 'A first line');
@@ -3952,7 +3952,7 @@ suite('Undo stops', () => {
 			].join('\n')
 		);
 
-		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
 			cursor.setSelections('test', [new Selection(2, 8, 2, 8)]);
 			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
@@ -3986,7 +3986,7 @@ suite('Undo stops', () => {
 			].join('\n')
 		);
 
-		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
 			cursor.setSelections('test', [new Selection(2, 8, 2, 8)]);
 			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
@@ -4024,7 +4024,7 @@ suite('Undo stops', () => {
 			].join('\n')
 		);
 
-		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
 			cursor.setSelections('test', [new Selection(2, 9, 2, 9)]);
 			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
 			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
@@ -4055,7 +4055,7 @@ suite('Undo stops', () => {
 			].join('\n')
 		);
 
-		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
 			cursor.setSelections('test', [new Selection(2, 9, 2, 9)]);
 			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
 			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
@@ -4091,7 +4091,7 @@ suite('Undo stops', () => {
 			].join('\n')
 		);
 
-		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
 			cursor.setSelections('test', [new Selection(1, 3, 1, 3)]);
 			cursorCommand(cursor, H.Type, { text: 'first and interesting' }, 'keyboard');
 			assert.equal(model.getLineContent(1), 'A first and interesting line');
