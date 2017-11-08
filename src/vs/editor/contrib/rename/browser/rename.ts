@@ -29,6 +29,8 @@ import { WorkspaceEdit, RenameProviderRegistry } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { Range } from 'vs/editor/common/core/range';
+import { MessageController } from 'vs/editor/contrib/message/messageController';
+import { EditorState, CodeEditorStateFlag } from 'vs/editor/common/core/editorState';
 
 
 export function rename(model: IReadOnlyModel, position: Position, newName: string): TPromise<WorkspaceEdit> {
@@ -147,11 +149,16 @@ class RenameController implements IEditorContribution {
 
 			// start recording of file changes so that we can figure out if a file that
 			// is to be renamed conflicts with another (concurrent) modification
-			let edit = createBulkEdit(this._textModelResolverService, <ICodeEditor>this.editor, this._fileService);
+			const edit = createBulkEdit(this._textModelResolverService, <ICodeEditor>this.editor, this._fileService);
+			const state = new EditorState(this.editor, CodeEditorStateFlag.Position | CodeEditorStateFlag.Value | CodeEditorStateFlag.Selection | CodeEditorStateFlag.Scroll);
 
 			const renameOperation = rename(this.editor.getModel(), this.editor.getPosition(), newName).then(result => {
 				if (result.rejectReason) {
-					this._messageService.show(Severity.Info, result.rejectReason);
+					if (state.validate(this.editor)) {
+						MessageController.get(this.editor).showMessage(result.rejectReason, this.editor.getPosition());
+					} else {
+						this._messageService.show(Severity.Info, result.rejectReason);
+					}
 					return undefined;
 				}
 				edit.add(result.edits);
