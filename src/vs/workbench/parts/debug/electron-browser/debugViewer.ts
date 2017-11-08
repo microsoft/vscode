@@ -15,7 +15,7 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import * as dom from 'vs/base/browser/dom';
 import { IMouseEvent, DragMouseEvent } from 'vs/base/browser/mouseEvent';
 import { getPathLabel } from 'vs/base/common/labels';
-import { IAction, IActionRunner } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ITree, IAccessibilityProvider, ContextMenuEvent, IDataSource, IRenderer, DRAG_OVER_REJECT, IDragAndDropData, IDragOverReaction, IActionProvider } from 'vs/base/parts/tree/browser/tree';
 import { InputBox, IInputValidationOptions } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -310,8 +310,7 @@ export class CallStackController extends BaseDebugController {
 
 export class CallStackActionProvider implements IActionProvider {
 
-	// @ts-ignore unused injected service
-	constructor( @IInstantiationService private instantiationService: IInstantiationService, @debug.IDebugService private debugService: debug.IDebugService) {
+	constructor( @IInstantiationService private instantiationService: IInstantiationService) {
 		// noop
 	}
 
@@ -886,19 +885,13 @@ export class WatchExpressionsRenderer implements IRenderer {
 	private static WATCH_EXPRESSION_TEMPLATE_ID = 'watchExpression';
 	private static VARIABLE_TEMPLATE_ID = 'variables';
 	private toDispose: lifecycle.IDisposable[];
-	// @ts-ignore unused property
-	private actionProvider: WatchExpressionsActionProvider;
 
 	constructor(
-		actionProvider: IActionProvider,
-		// @ts-ignore unused property
-		private actionRunner: IActionRunner,
 		@debug.IDebugService private debugService: debug.IDebugService,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IThemeService private themeService: IThemeService
 	) {
 		this.toDispose = [];
-		this.actionProvider = <WatchExpressionsActionProvider>actionProvider;
 	}
 
 	public getHeight(tree: ITree, element: any): number {
@@ -1135,10 +1128,6 @@ export class BreakpointsRenderer implements IRenderer {
 	private static BREAKPOINT_TEMPLATE_ID = 'breakpoint';
 
 	constructor(
-		// @ts-ignore unused property
-		private actionProvider: BreakpointsActionProvider,
-		// @ts-ignore unused property
-		private actionRunner: IActionRunner,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@debug.IDebugService private debugService: debug.IDebugService,
 		@IContextViewService private contextViewService: IContextViewService,

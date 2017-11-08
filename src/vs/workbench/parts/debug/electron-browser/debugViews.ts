@@ -194,7 +194,7 @@ export class WatchExpressionsView extends ViewsViewletPanel {
 		const actionProvider = new viewer.WatchExpressionsActionProvider(this.instantiationService);
 		this.tree = new Tree(this.treeContainer, {
 			dataSource: new viewer.WatchExpressionsDataSource(),
-			renderer: this.instantiationService.createInstance(viewer.WatchExpressionsRenderer, actionProvider, this.actionRunner),
+			renderer: this.instantiationService.createInstance(viewer.WatchExpressionsRenderer),
 			accessibilityProvider: new viewer.WatchExpressionsAccessibilityProvider(),
 			controller: this.instantiationService.createInstance(viewer.WatchExpressionsController, actionProvider, MenuId.DebugWatchContext),
 			dnd: this.instantiationService.createInstance(viewer.WatchExpressionsDragAndDrop)
@@ -415,7 +415,7 @@ export class BreakpointsView extends ViewsViewletPanel {
 
 		this.tree = new Tree(this.treeContainer, {
 			dataSource: new viewer.BreakpointsDataSource(),
-			renderer: this.instantiationService.createInstance(viewer.BreakpointsRenderer, actionProvider, this.actionRunner),
+			renderer: this.instantiationService.createInstance(viewer.BreakpointsRenderer),
 			accessibilityProvider: this.instantiationService.createInstance(viewer.BreakpointsAccessibilityProvider),
 			controller,
 			sorter: {
