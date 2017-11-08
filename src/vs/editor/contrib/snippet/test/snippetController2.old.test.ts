@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
-import { MockCodeEditor, withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
+import { MockCodeEditor, withMockCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { Cursor } from 'vs/editor/common/controller/cursor';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';

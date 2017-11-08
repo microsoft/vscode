@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
 import { Handler, IModel, DefaultEndOfLine } from 'vs/editor/common/editorCommon';
-import { withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
+import { withMockCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { DeleteAllLeftAction, JoinLinesAction, TransposeAction, UpperCaseAction, LowerCaseAction, DeleteAllRightAction, InsertLineBeforeAction, InsertLineAfterAction, IndentLinesAction } from 'vs/editor/contrib/linesOperations/common/linesOperations';
 import { Cursor } from 'vs/editor/common/controller/cursor';
 import { Model } from 'vs/editor/common/model/model';

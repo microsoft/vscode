@@ -6,7 +6,7 @@
 
 import { Selection } from 'vs/editor/common/core/selection';
 import { DeleteLinesCommand } from 'vs/editor/contrib/linesOperations/common/deleteLinesCommand';
-import { testCommand } from 'vs/editor/test/common/commands/commandTestUtils';
+import { testCommand } from 'vs/editor/test/browser/testCommand';
 
 function testDeleteLinesCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 	testCommand(lines, null, selection, (sel) => DeleteLinesCommand.createFromSelection(sel), expectedLines, expectedSelection);
@@ -191,4 +191,3 @@ suite('Editor Contrib - Delete Lines Command', () => {
 		);
 	});
 });
-

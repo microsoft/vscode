@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
+import { withMockCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { Position } from 'vs/editor/common/core/position';
 import { Model } from 'vs/editor/common/model/model';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';

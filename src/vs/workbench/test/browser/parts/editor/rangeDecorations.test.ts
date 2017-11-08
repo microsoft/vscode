@@ -13,7 +13,7 @@ import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import WorkbenchEditorService = require('vs/workbench/services/editor/common/editorService');
 import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
 import { Model } from 'vs/editor/common/model/model';
-import { mockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
+import { mockCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IEditorInput } from 'vs/platform/editor/common/editor';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
@@ -28,12 +28,6 @@ import { CoreNavigationCommands } from 'vs/editor/common/controller/coreCommands
 suite('Editor - Range decorations', () => {
 
 	let instantiationService: TestInstantiationService;
-	// @ts-ignore unused injected service
-	let editorService: WorkbenchEditorService.IWorkbenchEditorService;
-	// @ts-ignore unused injected service
-	let modelService: IModelService;
-	// @ts-ignore unused injected service
-	let modeService: IModeService;
 	let codeEditor: editorCommon.ICommonCodeEditor;
 	let model: Model;
 	let text: string;
@@ -42,9 +36,9 @@ suite('Editor - Range decorations', () => {
 
 	setup(() => {
 		instantiationService = <TestInstantiationService>workbenchInstantiationService();
-		editorService = <WorkbenchEditorService.IWorkbenchEditorService>instantiationService.stub(WorkbenchEditorService.IWorkbenchEditorService, new TestEditorService());
-		modeService = instantiationService.stub(IModeService, ModeServiceImpl);
-		modelService = <IModelService>instantiationService.stub(IModelService, stubModelService(instantiationService));
+		instantiationService.stub(WorkbenchEditorService.IWorkbenchEditorService, new TestEditorService());
+		instantiationService.stub(IModeService, ModeServiceImpl);
+		instantiationService.stub(IModelService, stubModelService(instantiationService));
 		text = 'LINE1' + '\n' + 'LINE2' + '\n' + 'LINE3' + '\n' + 'LINE4' + '\r\n' + 'LINE5';
 		model = aModel(URI.file('some_file'));
 		codeEditor = mockCodeEditor([], { model });

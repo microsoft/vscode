@@ -10,7 +10,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
-import { withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
+import { withMockCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 
 export function testCommand(
 	lines: string[],
@@ -67,28 +67,4 @@ export function getEditOperation(model: editorCommon.IModel, command: editorComm
 	};
 	command.getEditOperations(model, editOperationBuilder);
 	return operations;
-}
-
-/**
- * Create single edit operation
- */
-export function createSingleEditOp(text: string, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): editorCommon.IIdentifiedSingleEditOperation {
-	return {
-		identifier: null,
-		range: new Range(selectionLineNumber, selectionColumn, positionLineNumber, positionColumn),
-		text: text,
-		forceMoveMarkers: false
-	};
-}
-
-/**
- * Create single edit operation
- */
-export function createInsertDeleteSingleEditOp(text: string, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): editorCommon.IIdentifiedSingleEditOperation {
-	return {
-		identifier: null,
-		range: new Range(selectionLineNumber, selectionColumn, positionLineNumber, positionColumn),
-		text: text,
-		forceMoveMarkers: true
-	};
 }

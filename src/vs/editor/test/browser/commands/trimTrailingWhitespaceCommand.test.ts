@@ -8,9 +8,34 @@ import * as assert from 'assert';
 import { TrimTrailingWhitespaceCommand, trimTrailingWhitespace } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
-import { createInsertDeleteSingleEditOp, createSingleEditOp, getEditOperation } from 'vs/editor/test/common/commands/commandTestUtils';
+import { getEditOperation } from 'vs/editor/test/browser/testCommand';
 import { withEditorModel } from 'vs/editor/test/common/editorTestUtils';
+
+/**
+ * Create single edit operation
+ */
+function createInsertDeleteSingleEditOp(text: string, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): IIdentifiedSingleEditOperation {
+	return {
+		identifier: null,
+		range: new Range(selectionLineNumber, selectionColumn, positionLineNumber, positionColumn),
+		text: text,
+		forceMoveMarkers: true
+	};
+}
+
+/**
+ * Create single edit operation
+ */
+export function createSingleEditOp(text: string, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): IIdentifiedSingleEditOperation {
+	return {
+		identifier: null,
+		range: new Range(selectionLineNumber, selectionColumn, positionLineNumber, positionColumn),
+		text: text,
+		forceMoveMarkers: false
+	};
+}
 
 function assertTrimTrailingWhitespaceCommand(text: string[], expected: IIdentifiedSingleEditOperation[]): void {
 	return withEditorModel(text, (model) => {
@@ -79,4 +104,3 @@ suite('Editor Commands - Trim Trailing Whitespace Command', () => {
 	});
 
 });
-

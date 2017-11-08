@@ -13,7 +13,7 @@ import { Model } from 'vs/editor/common/model/model';
 import { ICommonCodeEditor, Handler } from 'vs/editor/common/editorCommon';
 import { ISuggestSupport, ISuggestResult, SuggestRegistry, SuggestTriggerKind } from 'vs/editor/common/modes';
 import { SuggestModel, LineContext } from 'vs/editor/contrib/suggest/browser/suggestModel';
-import { MockCodeEditor, MockScopeLocation } from 'vs/editor/test/common/mocks/mockCodeEditor';
+import { MockCodeEditor, MockScopeLocation } from 'vs/editor/test/browser/testCodeEditor';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';

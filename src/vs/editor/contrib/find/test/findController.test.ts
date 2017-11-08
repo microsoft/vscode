@@ -13,7 +13,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { CommonFindController, FindStartFocusAction, IFindStartOptions, NextMatchFindAction, StartFindAction } from 'vs/editor/contrib/find/common/findController';
-import { withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
+import { withMockCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { HistoryNavigator } from 'vs/base/common/history';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService } from 'vs/platform/storage/common/storage';

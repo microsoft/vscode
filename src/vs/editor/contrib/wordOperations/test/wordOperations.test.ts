@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
-import { withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
+import { withMockCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import {
 	CursorWordLeft, CursorWordLeftSelect, CursorWordStartLeft,
 	CursorWordEndLeft, CursorWordStartLeftSelect, CursorWordEndLeftSelect,

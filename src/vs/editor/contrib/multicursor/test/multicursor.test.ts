@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { withMockCodeEditor, MockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
+import { withMockCodeEditor, MockCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
 import { InsertCursorAbove, InsertCursorBelow, MultiCursorSelectionController, SelectHighlightsAction, AddSelectionToNextFindMatchAction } from 'vs/editor/contrib/multicursor/common/multicursor';

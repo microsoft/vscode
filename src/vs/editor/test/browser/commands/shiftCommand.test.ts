@@ -7,13 +7,26 @@
 import * as assert from 'assert';
 import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
 import { Selection } from 'vs/editor/common/core/selection';
+import { Range } from 'vs/editor/common/core/range';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
 import { IndentAction } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { createSingleEditOp, getEditOperation, testCommand } from 'vs/editor/test/common/commands/commandTestUtils';
+import { getEditOperation, testCommand } from 'vs/editor/test/browser/testCommand';
 import { withEditorModel } from 'vs/editor/test/common/editorTestUtils';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
+
+/**
+ * Create single edit operation
+ */
+export function createSingleEditOp(text: string, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): IIdentifiedSingleEditOperation {
+	return {
+		identifier: null,
+		range: new Range(selectionLineNumber, selectionColumn, positionLineNumber, positionColumn),
+		text: text,
+		forceMoveMarkers: false
+	};
+}
 
 class DocBlockCommentMode extends MockMode {
 

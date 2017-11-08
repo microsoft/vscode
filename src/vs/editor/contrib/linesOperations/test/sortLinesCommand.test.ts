@@ -6,7 +6,7 @@
 
 import { Selection } from 'vs/editor/common/core/selection';
 import { SortLinesCommand } from 'vs/editor/contrib/linesOperations/common/sortLinesCommand';
-import { testCommand } from 'vs/editor/test/common/commands/commandTestUtils';
+import { testCommand } from 'vs/editor/test/browser/testCommand';
 
 function testSortLinesAscendingCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 	testCommand(lines, null, selection, (sel) => new SortLinesCommand(sel, false), expectedLines, expectedSelection);
