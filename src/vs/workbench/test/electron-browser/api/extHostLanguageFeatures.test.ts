@@ -655,11 +655,11 @@ suite('ExtHostLanguageFeatures', function () {
 			return getCodeActions(model, model.getFullModelRange()).then(value => {
 				assert.equal(value.length, 2);
 
-				let [first, second] = <Command[]>value;
+				let [first, second] = value;
 				assert.equal(first.title, 'Testing1');
-				assert.equal(first.id, 'test1');
+				assert.equal(first.command.id, 'test1');
 				assert.equal(second.title, 'Testing2');
-				assert.equal(second.id, 'test2');
+				assert.equal(second.command.id, 'test2');
 			});
 		});
 	});
