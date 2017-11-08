@@ -17,4 +17,9 @@ export interface IClipboardService {
 	 * Writes text to the system clipboard.
 	 */
 	writeText(text: string): void;
+
+	/**
+	 * Reads the content of the clipboard in plain text
+	 */
+	readText(): string;
 }

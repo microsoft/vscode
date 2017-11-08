@@ -50,6 +50,8 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { once } from 'vs/base/common/event';
+import { ClipboardContentProvider } from 'vs/workbench/parts/clipboard/clipboardContentProvider';
+
 
 export interface IEditableData {
 	action: IAction;
@@ -2037,6 +2039,57 @@ export class CompareWithSavedAction extends Action {
 			const editorLabel = nls.localize('modifiedLabel', "{0} (on disk) ↔ {1}", name, name);
 
 			return this.editorService.openEditor({ leftResource: URI.from({ scheme: CompareWithSavedAction.SCHEME, path: resource.fsPath }), rightResource: resource, label: editorLabel });
+		}
+
+		return TPromise.as(true);
+	}
+
+	public dispose(): void {
+		super.dispose();
+
+		this.toDispose = dispose(this.toDispose);
+	}
+}
+
+export class CompareWithClipboardAction extends Action {
+
+	public static ID = 'workbench.files.action.compareWithClipboard';
+	public static LABEL = nls.localize('compareWithClipboard', "Compare Active File with Clipboard");
+
+	private static SCHEME = 'compareWithClipboard';
+
+	private toDispose: IDisposable[];
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ITextModelService textModelService: ITextModelService,
+	) {
+		super(id, label);
+
+		this.enabled = true;
+		this.toDispose = [];
+
+		const provider = instantiationService.createInstance(ClipboardContentProvider);
+		// this.toDispose.push(provider);
+
+		const registrationDisposal = textModelService.registerTextModelContentProvider(CompareWithClipboardAction.SCHEME, provider);
+		this.toDispose.push(registrationDisposal);
+	}
+
+	public run(): TPromise<any> {
+		let resource: URI = toResource(this.editorService.getActiveEditorInput(),
+			{ supportSideBySide: true, filter: 'file' }
+		);
+
+
+		if (resource && resource.scheme === 'file') {
+			const name = paths.basename(resource.fsPath);
+			const editorLabel = nls.localize('clipboardComparisonLabel', "Clipboard ↔ {0}", name);
+
+			return this.editorService.openEditor({ leftResource: URI.from({ scheme: CompareWithClipboardAction.SCHEME, path: resource.fsPath }), rightResource: resource, label: editorLabel });
 		}
 
 		return TPromise.as(true);
