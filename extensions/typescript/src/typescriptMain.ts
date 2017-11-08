@@ -25,7 +25,6 @@ import TypeScriptServiceClient from './typescriptServiceClient';
 import { ITypeScriptServiceClientHost } from './typescriptService';
 
 import BufferSyncSupport from './features/bufferSyncSupport';
-import { JsDocCompletionProvider, TryCompleteJsDocCommand } from './features/jsDocCompletionProvider';
 import TypeScriptTaskProviderManager from './features/taskProvider';
 
 import * as ProjectStatus from './utils/projectStatus';
@@ -36,7 +35,7 @@ import { openOrCreateConfigFile, isImplicitProjectConfigFile } from './utils/tsc
 import { tsLocationToVsPosition } from './utils/convert';
 import FormattingConfigurationManager from './features/formattingConfigurationManager';
 import * as languageModeIds from './utils/languageModeIds';
-import { CommandManager } from './utils/commandManager';
+import { CommandManager, Command } from './utils/commandManager';
 
 interface LanguageDescription {
 	id: string;
@@ -59,6 +58,84 @@ const standardLanguageDescriptions: LanguageDescription[] = [
 		configFile: 'jsconfig.json'
 	}
 ];
+
+class ReloadTypeScriptProjectsCommand implements Command {
+	public readonly id = 'typescript.reloadProjects';
+
+	public constructor(
+		private readonly lazyClientHost: () => TypeScriptServiceClientHost
+	) { }
+
+	public execute() {
+		this.lazyClientHost().reloadProjects();
+	}
+}
+
+class ReloadJavaScriptProjectsCommand implements Command {
+	public readonly id = 'javascript.reloadProjects';
+
+	public constructor(
+		private readonly lazyClientHost: () => TypeScriptServiceClientHost
+	) { }
+
+	public execute() {
+		this.lazyClientHost().reloadProjects();
+	}
+}
+
+class SelectTypeScriptVersionCommand implements Command {
+	public readonly id = 'typescript.selectTypeScriptVersion';
+
+	public constructor(
+		private readonly lazyClientHost: () => TypeScriptServiceClientHost
+	) { }
+
+	public execute() {
+		this.lazyClientHost().serviceClient.onVersionStatusClicked();
+	}
+}
+
+class OpenTsServerLogCommand implements Command {
+	public readonly id = 'typescript.openTsServerLog';
+
+	public constructor(
+		private readonly lazyClientHost: () => TypeScriptServiceClientHost
+	) { }
+
+	public execute() {
+		this.lazyClientHost().serviceClient.openTsServerLogFile();
+	}
+}
+
+class RestartTsServerCommand implements Command {
+	public readonly id = 'typescript.restartTsServer';
+
+	public constructor(
+		private readonly lazyClientHost: () => TypeScriptServiceClientHost
+	) { }
+
+	public execute() {
+		this.lazyClientHost().serviceClient.restartTsServer();
+	}
+}
+
+class GoToProjectConfigCommand implements Command {
+	public readonly id = 'typescript.goToProjectConfig';
+
+	public constructor(
+		private readonly lazyClientHost: () => TypeScriptServiceClientHost,
+	) { }
+
+	public execute() {
+		const editor = window.activeTextEditor;
+		if (editor) {
+			const isTsProject = languages.match([languageModeIds.typescript, languageModeIds.typescriptreact], editor.document) > 0;
+			this.lazyClientHost().goToProjectConfig(isTsProject, editor.document.uri);
+		}
+	}
+}
+
+
 
 export function activate(context: ExtensionContext): void {
 	const plugins = getContributedTypeScriptServerPlugins();
@@ -87,40 +164,14 @@ export function activate(context: ExtensionContext): void {
 	})();
 
 
-	commandManager.registerCommand('typescript.reloadProjects', () => {
-		lazyClientHost().reloadProjects();
-	});
-
-	commandManager.registerCommand('javascript.reloadProjects', () => {
-		lazyClientHost().reloadProjects();
-	});
-
-	commandManager.registerCommand('typescript.selectTypeScriptVersion', () => {
-		lazyClientHost().serviceClient.onVersionStatusClicked();
-	});
-
-	commandManager.registerCommand('typescript.openTsServerLog', () => {
-		lazyClientHost().serviceClient.openTsServerLogFile();
-	});
-
-	commandManager.registerCommand('typescript.restartTsServer', () => {
-		lazyClientHost().serviceClient.restartTsServer();
-	});
+	commandManager.register(new ReloadTypeScriptProjectsCommand(lazyClientHost));
+	commandManager.register(new ReloadJavaScriptProjectsCommand(lazyClientHost));
+	commandManager.register(new SelectTypeScriptVersionCommand(lazyClientHost));
+	commandManager.register(new OpenTsServerLogCommand(lazyClientHost));
+	commandManager.register(new RestartTsServerCommand(lazyClientHost));
+	commandManager.register(new GoToProjectConfigCommand(lazyClientHost));
 
 	context.subscriptions.push(new TypeScriptTaskProviderManager(() => lazyClientHost().serviceClient));
-
-	const goToProjectConfig = (isTypeScript: boolean) => {
-		const editor = window.activeTextEditor;
-		if (editor) {
-			lazyClientHost().goToProjectConfig(isTypeScript, editor.document.uri);
-		}
-	};
-	commandManager.registerCommand('typescript.goToProjectConfig', goToProjectConfig.bind(null, true));
-	commandManager.registerCommand('javascript.goToProjectConfig', goToProjectConfig.bind(null, false));
-
-	const jsDocCompletionCommand = new TryCompleteJsDocCommand(() => lazyClientHost().serviceClient);
-	commandManager.registerCommand(TryCompleteJsDocCommand.COMMAND_NAME, jsDocCompletionCommand.tryCompleteJsDoc, jsDocCompletionCommand);
-
 
 	const EMPTY_ELEMENTS: string[] = ['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'keygen', 'link', 'menuitem', 'meta', 'param', 'source', 'track', 'wbr'];
 
@@ -248,7 +299,7 @@ class LanguageProvider {
 		this.disposables.push(formattingProviderManager);
 		this.toUpdateOnConfigurationChanged.push(formattingProviderManager);
 
-		this.disposables.push(languages.registerCompletionItemProvider(selector, new JsDocCompletionProvider(client), '*'));
+		this.disposables.push(languages.registerCompletionItemProvider(selector, new (await import('./features/jsDocCompletionProvider')).default(client, this.commandManager), '*'));
 		this.disposables.push(languages.registerHoverProvider(selector, new (await import('./features/hoverProvider')).default(client)));
 		this.disposables.push(languages.registerDefinitionProvider(selector, new (await import('./features/definitionProvider')).default(client)));
 		this.disposables.push(languages.registerDocumentHighlightProvider(selector, new (await import('./features/documentHighlightProvider')).default(client)));
