@@ -25,14 +25,14 @@ import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 
 let colorRegistry = <IColorRegistry>Registry.as(Extensions.ColorContribution);
 
-const tokenGroupToScopesMap = {
-	comments: 'comment',
-	strings: 'string',
-	keywords: 'keyword',
-	numbers: 'constant.numeric',
-	types: 'entity.name.type',
-	functions: 'entity.name.function',
-	variables: 'variable'
+const tokenGroupToScopesMap: { [setting: string]: string[] } = {
+	comments: ['comment'],
+	strings: ['string'],
+	keywords: ['keyword', 'keyword.control', 'storage', 'storage.type'],
+	numbers: ['constant.numeric'],
+	types: ['entity.name.type'],
+	functions: ['entity.name.function'],
+	variables: ['variable']
 };
 
 export class ColorThemeData implements IColorTheme {
@@ -95,22 +95,18 @@ export class ColorThemeData implements IColorTheme {
 	public setCustomTokenColors(customTokenColors: ITokenColorCustomizations) {
 		let generalRules: ITokenColorizationRule[] = [];
 
-		let value, settings, scope;
 		Object.keys(tokenGroupToScopesMap).forEach(key => {
-			value = customTokenColors[key];
-			settings = typeof value === 'string'
-				? { foreground: value }
-				: value;
-			scope = tokenGroupToScopesMap[key];
-
-			if (!settings) {
-				return;
+			let value = customTokenColors[key];
+			if (value) {
+				let settings = typeof value === 'string' ? { foreground: value } : value;
+				let scopes = tokenGroupToScopesMap[key];
+				for (let scope of scopes) {
+					generalRules.push({
+						scope,
+						settings
+					});
+				}
 			}
-
-			generalRules.push({
-				scope,
-				settings
-			});
 		});
 
 		const textMateRules: ITokenColorizationRule[] = customTokenColors.textMateRules || [];
