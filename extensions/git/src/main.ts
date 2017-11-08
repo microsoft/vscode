@@ -48,7 +48,7 @@ async function init(context: ExtensionContext, disposables: Disposable[]): Promi
 
 	outputChannel.appendLine(localize('using git', "Using git {0} from {1}", info.version, info.path));
 
-	const onOutput = str => outputChannel.append(str);
+	const onOutput = (str: string) => outputChannel.append(str);
 	git.onOutput.addListener('log', onOutput);
 	disposables.push(toDisposable(() => git.onOutput.removeListener('log', onOutput)));
 

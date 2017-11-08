@@ -86,7 +86,7 @@ export function once(fn: (...args: any[]) => any): (...args: any[]) => any {
 
 export function assign<T>(destination: T, ...sources: any[]): T {
 	for (const source of sources) {
-		Object.keys(source).forEach(key => destination[key] = source[key]);
+		Object.keys(source).forEach(key => (destination as any)[key] = source[key]);
 	}
 
 	return destination;
@@ -115,12 +115,12 @@ export function groupBy<T>(arr: T[], fn: (el: T) => string): { [key: string]: T[
 	}, Object.create(null));
 }
 
-export function denodeify<R>(fn: Function): (...args) => Promise<R> {
-	return (...args) => new Promise<R>((c, e) => fn(...args, (err, r) => err ? e(err) : c(r)));
+export function denodeify<R>(fn: Function): (...args: any[]) => Promise<R> {
+	return (...args) => new Promise<R>((c, e) => fn(...args, (err: any, r: any) => err ? e(err) : c(r)));
 }
 
-export function nfcall<R>(fn: Function, ...args): Promise<R> {
-	return new Promise<R>((c, e) => fn(...args, (err, r) => err ? e(err) : c(r)));
+export function nfcall<R>(fn: Function, ...args: any[]): Promise<R> {
+	return new Promise<R>((c, e) => fn(...args, (err: any, r: any) => err ? e(err) : c(r)));
 }
 
 export async function mkdirp(path: string, mode?: number): Promise<boolean> {

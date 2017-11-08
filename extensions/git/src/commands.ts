@@ -1384,7 +1384,7 @@ export class CommandCenter {
 	}
 
 	private createCommand(id: string, key: string, method: Function, options: CommandOptions): (...args: any[]) => any {
-		const result = (...args) => {
+		const result = (...args: any[]) => {
 			let result: Promise<any>;
 
 			if (!options.repository) {
@@ -1433,7 +1433,7 @@ export class CommandCenter {
 							.replace(/^error: /mi, '')
 							.replace(/^> husky.*$/mi, '')
 							.split(/[\r\n]/)
-							.filter(line => !!line)
+							.filter((line: string) => !!line)
 						[0];
 
 						message = hint
@@ -1459,7 +1459,7 @@ export class CommandCenter {
 		};
 
 		// patch this object, so people can call methods directly
-		this[key] = result;
+		(this as any)[key] = result;
 
 		return result;
 	}
