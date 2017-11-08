@@ -16,7 +16,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ICommonCodeEditor, ScrollType, IModel } from 'vs/editor/common/editorCommon';
 import { registerEditorAction, ServicesAccessor, EditorAction, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { registerEditorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { FoldingModel, setCollapseStateAtLevel, CollapseMemento, setCollapseStateLevelsDown, setCollapseStateLevelsUp } from 'vs/editor/contrib/folding/common/foldingModel';
 import { FoldingDecorationProvider } from './foldingDecorations';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -27,7 +27,6 @@ import { IRange } from 'vs/editor/common/core/range';
 
 export const ID = 'editor.contrib.folding';
 
-@editorContribution
 export class FoldingController {
 
 	static MAX_FOLDING_REGIONS = 5000;
@@ -546,6 +545,7 @@ class FoldLevelAction extends FoldingAction<void> {
 	}
 }
 
+registerEditorContribution(FoldingController);
 registerEditorAction(new UnfoldAction());
 registerEditorAction(new UnFoldRecursivelyAction());
 registerEditorAction(new FoldAction());

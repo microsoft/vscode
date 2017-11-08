@@ -16,7 +16,7 @@ import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { registerEditorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { registerEditorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ModesContentHoverWidget } from './modesContentHover';
 import { ModesGlyphHoverWidget } from './modesGlyphHover';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -25,7 +25,6 @@ import { editorHoverHighlight, editorHoverBackground, editorHoverBorder, textLin
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/browser/markdownRenderer';
 
-@editorContribution
 export class ModesHoverController implements editorCommon.IEditorContribution {
 
 	private static ID = 'editor.contrib.hover';
@@ -195,6 +194,7 @@ class ShowHoverAction extends EditorAction {
 	}
 }
 
+registerEditorContribution(ModesHoverController);
 registerEditorAction(new ShowHoverAction());
 
 // theming

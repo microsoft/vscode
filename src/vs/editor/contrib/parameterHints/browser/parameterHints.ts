@@ -13,11 +13,10 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { registerEditorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { registerEditorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ParameterHintsWidget } from './parameterHintsWidget';
 import { Context } from '../common/parameterHints';
 
-@editorContribution
 class ParameterHintsController implements IEditorContribution {
 
 	private static ID = 'editor.controller.parameterHints';
@@ -82,6 +81,7 @@ export class TriggerParameterHintsAction extends EditorAction {
 	}
 }
 
+registerEditorContribution(ParameterHintsController);
 registerEditorAction(new TriggerParameterHintsAction());
 
 const weight = CommonEditorRegistry.commandWeight(75);

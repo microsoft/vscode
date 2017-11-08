@@ -16,7 +16,7 @@ import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Location, DefinitionProviderRegistry } from 'vs/editor/common/modes';
 import { ICodeEditor, IMouseTarget, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { registerEditorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { getDefinitionsAtPosition } from './goToDeclaration';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -26,8 +26,6 @@ import { EditorState, CodeEditorStateFlag } from 'vs/editor/common/core/editorSt
 import { DefinitionAction, DefinitionActionConfig } from './goToDeclarationCommands';
 import { ClickLinkGesture, ClickLinkMouseEvent, ClickLinkKeyboardEvent } from 'vs/editor/contrib/goToDeclaration/browser/clickLinkGesture';
 
-@editorContribution
-// @ts-ignore @editorAction uses the class
 class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorContribution {
 
 	private static ID = 'editor.contrib.gotodefinitionwithmouse';
@@ -218,6 +216,8 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		this.toUnhook = dispose(this.toUnhook);
 	}
 }
+
+registerEditorContribution(GotoDefinitionWithMouseEditorContribution);
 
 registerThemingParticipant((theme, collector) => {
 	let activeLinkForeground = theme.getColor(editorActiveLinkForeground);

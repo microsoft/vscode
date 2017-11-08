@@ -11,7 +11,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ICommonCodeEditor, IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { registerEditorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 
 class CursorState {
 	readonly selections: Selection[];
@@ -35,7 +35,6 @@ class CursorState {
 	}
 }
 
-@editorContribution
 export class CursorUndoController extends Disposable implements IEditorContribution {
 
 	private static ID = 'editor.contrib.cursorUndoController';
@@ -127,4 +126,5 @@ export class CursorUndo extends EditorCommand {
 	}
 }
 
+registerEditorContribution(CursorUndoController);
 registerEditorCommand(new CursorUndo());

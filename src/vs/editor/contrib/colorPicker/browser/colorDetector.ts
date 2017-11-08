@@ -8,7 +8,7 @@ import { hash } from 'vs/base/common/hash';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICommonCodeEditor, IEditorContribution } from 'vs/editor/common/editorCommon';
-import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { registerEditorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
@@ -19,7 +19,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 
 const MAX_DECORATORS = 500;
 
-@editorContribution
 export class ColorDetector implements IEditorContribution {
 
 	private static ID: string = 'editor.contrib.colorDetector';
@@ -234,3 +233,5 @@ export class ColorDetector implements IEditorContribution {
 		return this._colorDatas.get(decorations[0].id);
 	}
 }
+
+registerEditorContribution(ColorDetector);

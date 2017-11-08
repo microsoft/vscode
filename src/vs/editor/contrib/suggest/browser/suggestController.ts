@@ -18,7 +18,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { registerEditorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { alert } from 'vs/base/browser/ui/aria/aria';
-import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { registerEditorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { ISuggestSupport } from 'vs/editor/common/modes';
@@ -75,7 +75,6 @@ class AcceptOnCharacterOracle {
 	}
 }
 
-@editorContribution
 export class SuggestController implements IEditorContribution {
 
 	private static ID: string = 'editor.contrib.suggestController';
@@ -324,6 +323,7 @@ export class TriggerSuggestAction extends EditorAction {
 	}
 }
 
+registerEditorContribution(SuggestController);
 registerEditorAction(new TriggerSuggestAction());
 
 const weight = CommonEditorRegistry.commandWeight(90);

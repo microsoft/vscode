@@ -20,14 +20,13 @@ import { ICommonCodeEditor, IEditorContribution, IScrollEvent, ScrollType } from
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { registerEditorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { registerEditorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 
 export interface IPosition {
 	x: number;
 	y: number;
 }
 
-@editorContribution
 export class ContextMenuController implements IEditorContribution {
 
 	private static ID = 'editor.contrib.contextmenu';
@@ -238,4 +237,5 @@ class ShowContextMenu extends EditorAction {
 	}
 }
 
+registerEditorContribution(ContextMenuController);
 registerEditorAction(new ShowContextMenu());

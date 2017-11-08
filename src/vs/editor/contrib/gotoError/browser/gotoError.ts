@@ -21,7 +21,7 @@ import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { registerEditorAction, ServicesAccessor, IActionOptions, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { registerEditorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { registerColor, oneOf } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
@@ -426,7 +426,6 @@ class MarkerNavigationAction extends EditorAction {
 	}
 }
 
-@editorContribution
 class MarkerController implements editorCommon.IEditorContribution {
 
 	private static ID = 'editor.contrib.markerController';
@@ -533,6 +532,7 @@ class PrevMarkerAction extends MarkerNavigationAction {
 	}
 }
 
+registerEditorContribution(MarkerController);
 registerEditorAction(new NextMarkerAction());
 registerEditorAction(new PrevMarkerAction());
 

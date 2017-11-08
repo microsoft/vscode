@@ -28,7 +28,7 @@ import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
 import { Color, RGBA } from 'vs/base/common/color';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { registerEditorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { registerEditorAction, ServicesAccessor, EditorAction, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { PeekViewWidget, getOuterEditor } from 'vs/editor/contrib/referenceSearch/browser/peekViewWidget';
 import { IContextKeyService, IContextKey, ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -452,7 +452,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-@editorContribution
 export class DirtyDiffController implements IEditorContribution {
 
 	private static ID = 'editor.contrib.dirtydiff';
@@ -1079,6 +1078,8 @@ export class DirtyDiffWorkbenchController implements ext.IWorkbenchContribution,
 		this.items = null;
 	}
 }
+
+registerEditorContribution(DirtyDiffController);
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const editorGutterModifiedBackgroundColor = theme.getColor(editorGutterModifiedBackground);

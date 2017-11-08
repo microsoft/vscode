@@ -17,7 +17,7 @@ import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ServicesAccessor, registerEditorCommand, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { registerEditorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { SmartSnippetInserter } from 'vs/workbench/parts/preferences/common/smartSnippetInserter';
 import { DefineKeybindingOverlayWidget } from 'vs/workbench/parts/preferences/browser/keybindingWidgets';
@@ -35,7 +35,6 @@ const NLS_KB_LAYOUT_ERROR_MESSAGE = nls.localize('defineKeybinding.kbLayoutError
 
 const INTERESTING_FILE = /keybindings\.json$/;
 
-@editorContribution
 export class DefineKeybindingController extends Disposable implements editorCommon.IEditorContribution {
 
 	private static ID = 'editor.contrib.defineKeybinding';
@@ -391,4 +390,5 @@ function isInterestingEditorModel(editor: editorCommon.ICommonCodeEditor): boole
 	return INTERESTING_FILE.test(url);
 }
 
+registerEditorContribution(DefineKeybindingController);
 registerEditorCommand(new DefineKeybindingCommand());

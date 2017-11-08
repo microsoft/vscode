@@ -12,7 +12,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { ICommonCodeEditor, IEditorContribution, IModel } from 'vs/editor/common/editorCommon';
 import { registerEditorAction, EditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor, ContentWidgetPositionPreference, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { registerEditorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { TokenMetadata } from 'vs/editor/common/model/tokensBinaryEncoding';
 import { TokenizationRegistry, LanguageIdentifier, FontStyle, StandardTokenType, ITokenizationSupport, IState } from 'vs/editor/common/modes';
@@ -25,7 +25,6 @@ import { registerThemingParticipant, HIGH_CONTRAST } from 'vs/platform/theme/com
 import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
 
 
-@editorContribution
 class InspectTokensController extends Disposable implements IEditorContribution {
 
 	private static ID = 'editor.contrib.inspectTokens';
@@ -331,6 +330,7 @@ class InspectTokensWidget extends Disposable implements IContentWidget {
 	}
 }
 
+registerEditorContribution(InspectTokensController);
 registerEditorAction(new InspectTokens());
 
 registerThemingParticipant((theme, collector) => {

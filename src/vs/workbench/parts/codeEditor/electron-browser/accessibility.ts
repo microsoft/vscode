@@ -21,7 +21,7 @@ import { ICommonCodeEditor, IEditorContribution } from 'vs/editor/common/editorC
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { registerEditorAction, CommonEditorRegistry, EditorAction, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { registerEditorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorWidgetBackground, widgetShadow, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -34,7 +34,6 @@ import URI from 'vs/base/common/uri';
 
 const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = new RawContextKey<boolean>('accessibilityHelpWidgetVisible', false);
 
-@editorContribution
 class AccessibilityHelpController extends Disposable implements IEditorContribution {
 
 	private static ID = 'editor.contrib.accessibilityHelpController';
@@ -300,6 +299,7 @@ class ShowAccessibilityHelpAction extends EditorAction {
 	}
 }
 
+registerEditorContribution(AccessibilityHelpController);
 registerEditorAction(new ShowAccessibilityHelpAction());
 
 const AccessibilityHelpCommand = EditorCommand.bindToContribution<AccessibilityHelpController>(AccessibilityHelpController.get);

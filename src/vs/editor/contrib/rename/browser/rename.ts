@@ -15,7 +15,7 @@ import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from '
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { registerEditorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
-import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { registerEditorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ICommonCodeEditor, IEditorContribution, IReadOnlyModel } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { createBulkEdit } from 'vs/editor/common/services/bulkEdit';
@@ -83,7 +83,6 @@ export function rename(model: IReadOnlyModel, position: Position, newName: strin
 
 const CONTEXT_RENAME_INPUT_VISIBLE = new RawContextKey<boolean>('renameInputVisible', false);
 
-@editorContribution
 class RenameController implements IEditorContribution {
 
 	private static ID = 'editor.contrib.renameController';
@@ -229,6 +228,7 @@ export class RenameAction extends EditorAction {
 	}
 }
 
+registerEditorContribution(RenameController);
 registerEditorAction(new RenameAction());
 
 const RenameCommand = EditorCommand.bindToContribution<RenameController>(RenameController.get);

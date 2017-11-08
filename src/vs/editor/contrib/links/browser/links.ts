@@ -19,7 +19,7 @@ import { LinkProviderRegistry } from 'vs/editor/common/modes';
 import { ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { getLinks, Link } from 'vs/editor/contrib/links/common/links';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { registerEditorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { Position } from 'vs/editor/common/core/position';
@@ -128,7 +128,6 @@ class LinkOccurrence {
 	}
 }
 
-@editorContribution
 class LinkDetector implements editorCommon.IEditorContribution {
 
 	private static ID: string = 'editor.linkDetector';
@@ -408,6 +407,7 @@ class OpenLinkAction extends EditorAction {
 	}
 }
 
+registerEditorContribution(LinkDetector);
 registerEditorAction(new OpenLinkAction());
 
 registerThemingParticipant((theme, collector) => {
