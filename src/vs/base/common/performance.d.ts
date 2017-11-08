@@ -12,6 +12,18 @@ export interface PerformanceEntry {
 
 export function mark(name: string): void;
 export function measure(name: string, from?: string, to?: string): void;
+
+/**
+ * Time something, shorthant for `mark` and `measure`
+ */
 export function time(name: string): { stop(): void };
+
+/**
+ * All entries filtered by type and sorted by `startTime`.
+ */
 export function getEntries(type?: 'mark' | 'measure'): PerformanceEntry[];
+
+/**
+ * Import entries
+ */
 export function importEntries(entries: PerformanceEntry[]): void;
