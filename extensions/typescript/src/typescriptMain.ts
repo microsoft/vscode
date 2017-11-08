@@ -135,8 +135,6 @@ class GoToProjectConfigCommand implements Command {
 	}
 }
 
-
-
 export function activate(context: ExtensionContext): void {
 	const plugins = getContributedTypeScriptServerPlugins();
 
@@ -162,7 +160,6 @@ export function activate(context: ExtensionContext): void {
 			return clientHost;
 		};
 	})();
-
 
 	commandManager.register(new ReloadTypeScriptProjectsCommand(lazyClientHost));
 	commandManager.register(new ReloadJavaScriptProjectsCommand(lazyClientHost));
