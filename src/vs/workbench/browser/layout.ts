@@ -710,7 +710,6 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 
 	// change part size along the main axis
 	public resizePart(part: Parts, sizeChange: number): void {
-		const visibleEditorCount = this.editorService.getVisibleEditors().length;
 		const panelPosition = this.partService.getPanelPosition();
 		const sizeChangePxWidth = this.workbenchSize.width * (sizeChange / 100);
 		const sizeChangePxHeight = this.workbenchSize.height * (sizeChange / 100);
@@ -721,8 +720,8 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			case Parts.SIDEBAR_PART:
 				this.sidebarWidth = this.sidebarWidth + sizeChangePxWidth; // Sidebar can not become smaller than MIN_PART_WIDTH
 
-				if (this.layoutEditorGroupsVertically && (this.workbenchSize.width - this.sidebarWidth < visibleEditorCount * MIN_EDITOR_PART_WIDTH)) {
-					this.sidebarWidth = (this.workbenchSize.width - visibleEditorCount * MIN_EDITOR_PART_WIDTH);
+				if (this.layoutEditorGroupsVertically && (this.workbenchSize.width - this.sidebarWidth < this.editorCountForWidth * MIN_EDITOR_PART_WIDTH)) {
+					this.sidebarWidth = (this.workbenchSize.width - this.editorCountForWidth * MIN_EDITOR_PART_WIDTH);
 				}
 
 				doLayout = true;
@@ -739,7 +738,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			case Parts.EDITOR_PART:
 				// If we have one editor we can cheat and resize sidebar with the negative delta
 				// If the sidebar is not visible and panel is, resize panel main axis with negative Delta
-				if (visibleEditorCount === 1) {
+				if (this.editorCountForWidth === 1) {
 					if (this.partService.isVisible(Parts.SIDEBAR_PART)) {
 						this.sidebarWidth = this.sidebarWidth - sizeChangePxWidth;
 						doLayout = true;
