@@ -10,7 +10,7 @@
 import { TextEditor, Range, Position, window, TextEdit } from 'vscode';
 import * as path from 'path';
 import { getImageSize } from './imageSizeHelper';
-import { parseDocument, getNode, iterateCSSToken, getCssPropertyFromRule, isStyleSheet } from './util';
+import { parseDocument, getNode, iterateCSSToken, getCssPropertyFromRule, isStyleSheet, validate } from './util';
 import { HtmlNode, CssToken, HtmlToken, Attribute, Property } from 'EmmetNode';
 import { locateFile } from './locateFile';
 import parseStylesheet from '@emmetio/css-parser';
@@ -20,11 +20,10 @@ import { DocumentStreamReader } from './bufferStream';
  * Updates size of context image in given editor
  */
 export function updateImageSize() {
-	let editor = window.activeTextEditor;
-	if (!editor) {
-		window.showInformationMessage('No editor is active.');
+	if (!validate() || !window.activeTextEditor) {
 		return;
 	}
+	const editor = window.activeTextEditor;
 
 	let allUpdatesPromise = editor.selections.reverse().map(selection => {
 		let position = selection.isReversed ? selection.active : selection.anchor;
@@ -49,7 +48,7 @@ export function updateImageSize() {
 /**
  * Updates image size of context tag of HTML model
  */
-function updateImageSizeHTML(editor: TextEditor, position: Position): Promise<TextEdit[]> {
+function updateImageSizeHTML(editor: TextEditor, position: Position): Promise<TextEdit[] | undefined> {
 	const src = getImageSrcHTML(getImageHTMLNode(editor, position));
 
 	if (!src) {
@@ -70,7 +69,7 @@ function updateImageSizeHTML(editor: TextEditor, position: Position): Promise<Te
 }
 
 function updateImageSizeStyleTag(editor: TextEditor, position: Position): Promise<TextEdit[]> {
-	let getPropertyInsiderStyleTag = (editor) => {
+	const getPropertyInsiderStyleTag = (editor: TextEditor): Property | undefined => {
 		const rootNode = parseDocument(editor.document);
 		const currentNode = <HtmlNode>getNode(rootNode, position);
 		if (currentNode && currentNode.name === 'style'
@@ -79,7 +78,7 @@ function updateImageSizeStyleTag(editor: TextEditor, position: Position): Promis
 			let buffer = new DocumentStreamReader(editor.document, currentNode.open.end, new Range(currentNode.open.end, currentNode.close.start));
 			let rootNode = parseStylesheet(buffer);
 			const node = getNode(rootNode, position);
-			return (node && node.type === 'property') ? <Property>node : null;
+			return (node && node.type === 'property') ? <Property>node : undefined;
 		}
 	};
 
@@ -93,7 +92,7 @@ function updateImageSizeCSSFile(editor: TextEditor, position: Position): Promise
 /**
  * Updates image size of context rule of stylesheet model
  */
-function updateImageSizeCSS(editor: TextEditor, position: Position, fetchNode: (editor, position) => Property): Promise<TextEdit[]> {
+function updateImageSizeCSS(editor: TextEditor, position: Position, fetchNode: (editor: TextEditor, position: Position) => Property | undefined): Promise<TextEdit[]> {
 
 	const src = getImageSrcCSS(fetchNode(editor, position), position);
 
@@ -141,10 +140,8 @@ function getImageCSSNode(editor: TextEditor, position: Position): Property {
 
 /**
  * Returns image source from given <img> node
- * @param  {HtmlNode} node
- * @return {string}
  */
-function getImageSrcHTML(node: HtmlNode): string {
+function getImageSrcHTML(node: HtmlNode): string | undefined {
 	const srcAttr = getAttribute(node, 'src');
 	if (!srcAttr) {
 		return;
@@ -155,11 +152,8 @@ function getImageSrcHTML(node: HtmlNode): string {
 
 /**
  * Returns image source from given `url()` token
- * @param  {Property} node
- * @param {Position}
- * @return {string}
  */
-function getImageSrcCSS(node: Property, position: Position): string {
+function getImageSrcCSS(node: Property | undefined, position: Position): string | undefined {
 	if (!node) {
 		return;
 	}
@@ -213,10 +207,6 @@ function updateHTMLTag(editor: TextEditor, node: HtmlNode, width: number, height
 
 /**
  * Updates size of given CSS rule
- * @param  {TextEditor} editor
- * @param  {Property}   srcProp
- * @param  {number}     width
- * @param  {number}     height
  */
 function updateCSSNode(editor: TextEditor, srcProp: Property, width: number, height: number): TextEdit[] {
 	const rule = srcProp.parent;
@@ -252,36 +242,28 @@ function updateCSSNode(editor: TextEditor, srcProp: Property, width: number, hei
 
 /**
  * Returns attribute object with `attrName` name from given HTML node
- * @param  {Node} node
- * @param  {String} attrName
- * @return {Object}
  */
-function getAttribute(node, attrName): Attribute {
+function getAttribute(node: HtmlNode, attrName: string): Attribute {
 	attrName = attrName.toLowerCase();
-	return node && node.open.attributes.find(attr => attr.name.value.toLowerCase() === attrName);
+	return node && (node.open as any).attributes.find(attr => attr.name.value.toLowerCase() === attrName);
 }
 
 /**
  * Returns quote character, used for value of given attribute. May return empty
  * string if attribute wasn’t quoted
- * @param  {TextEditor} editor
- * @param  {Object} attr
- * @return {String}
+
  */
-function getAttributeQuote(editor, attr) {
+function getAttributeQuote(editor: TextEditor, attr: any): string {
 	const range = new Range(attr.value ? attr.value.end : attr.end, attr.end);
 	return range.isEmpty ? '' : editor.document.getText(range);
 }
 
 /**
  * Finds 'url' token for given `pos` point in given CSS property `node`
- * @param  {Node}  node
- * @param  {Position} pos
- * @return {Token}
  */
-function findUrlToken(node, pos: Position) {
-	for (let i = 0, il = node.parsedValue.length, url; i < il; i++) {
-		iterateCSSToken(node.parsedValue[i], (token: CssToken) => {
+function findUrlToken(node: Property, pos: Position): CssToken | undefined {
+	for (let i = 0, il = (node as any).parsedValue.length, url; i < il; i++) {
+		iterateCSSToken((node as any).parsedValue[i], (token: CssToken) => {
 			if (token.type === 'url' && token.start.isBeforeOrEqual(pos) && token.end.isAfterOrEqual(pos)) {
 				url = token;
 				return false;
@@ -296,11 +278,8 @@ function findUrlToken(node, pos: Position) {
 
 /**
  * Returns a string that is used to delimit properties in current node’s rule
- * @param  {TextEditor} editor
- * @param  {Property}       node
- * @return {String}
  */
-function getPropertyDelimitor(editor: TextEditor, node: Property) {
+function getPropertyDelimitor(editor: TextEditor, node: Property): string {
 	let anchor;
 	if (anchor = (node.previousSibling || node.parent.contentStartToken)) {
 		return editor.document.getText(new Range(anchor.end, node.start));
