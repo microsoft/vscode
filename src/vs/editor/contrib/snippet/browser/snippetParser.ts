@@ -327,7 +327,7 @@ export class Transform extends Marker {
 
 	clone(): Transform {
 		let ret = new Transform();
-		ret.regexp = new RegExp(this.regexp.source, this.regexp.ignoreCase ? 'i' : '');
+		ret.regexp = new RegExp(this.regexp.source, '' + (this.regexp.ignoreCase ? 'i' : '') + (this.regexp.global ? 'g' : ''));
 		ret._children = this.children.map(child => child.clone());
 		return ret;
 	}

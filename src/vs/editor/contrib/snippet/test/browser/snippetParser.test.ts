@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { Scanner, TokenType, SnippetParser, Text, Placeholder, Variable, Marker, TextmateSnippet, Choice, FormatString } from 'vs/editor/contrib/snippet/browser/snippetParser';
+import { Scanner, TokenType, SnippetParser, Text, Placeholder, Variable, Marker, TextmateSnippet, Choice, FormatString, Transform } from 'vs/editor/contrib/snippet/browser/snippetParser';
 
 suite('SnippetParser', () => {
 
@@ -604,5 +604,18 @@ suite('SnippetParser', () => {
 		assert.equal(first.index, 1);
 		assert.equal(second.index, 0);
 
+	});
+
+	test('Snippet optional transforms are not applied correctly when reusing the same variable, #37702', function () {
+
+		const transform = new Transform();
+		transform.appendChild(new FormatString(1, 'upcase'));
+		transform.appendChild(new FormatString(2, 'upcase'));
+		transform.regexp = /^(.)|-(.)/g;
+
+		assert.equal(transform.resolve('my-file-name'), 'MyFileName');
+
+		const clone = transform.clone();
+		assert.equal(clone.resolve('my-file-name'), 'MyFileName');
 	});
 });
