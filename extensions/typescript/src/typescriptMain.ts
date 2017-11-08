@@ -334,10 +334,10 @@ class LanguageProvider {
 		this.toUpdateOnConfigurationChanged.push(implementationCodeLensProvider);
 		this.disposables.push(languages.registerCodeLensProvider(selector, implementationCodeLensProvider));
 
-		for (const modeId of this.description.modeIds) {
-			this.disposables.push(languages.registerWorkspaceSymbolProvider(new (await import('./features/workspaceSymbolProvider')).default(client, modeId)));
+		this.disposables.push(languages.registerWorkspaceSymbolProvider(new (await import('./features/workspaceSymbolProvider')).default(client, this.description.modeIds)));
 
-			if (!this.description.isExternal) {
+		if (!this.description.isExternal) {
+			for (const modeId of this.description.modeIds) {
 				this.disposables.push(languages.setLanguageConfiguration(modeId, {
 					indentationRules: {
 						// ^(.*\*/)?\s*\}.*$

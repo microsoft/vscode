@@ -24,7 +24,8 @@ function getSymbolKind(item: Proto.NavtoItem): SymbolKind {
 export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbolProvider {
 	public constructor(
 		private client: ITypeScriptServiceClient,
-		private modeId: string) { }
+		private modeIds: string[]
+	) { }
 
 	public async provideWorkspaceSymbols(search: string, token: CancellationToken): Promise<SymbolInformation[]> {
 		// typescript wants to have a resource even when asking
@@ -34,14 +35,14 @@ export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbo
 		const editor = window.activeTextEditor;
 		if (editor) {
 			const document = editor.document;
-			if (document && document.languageId === this.modeId) {
+			if (document && this.modeIds.indexOf(document.languageId) >= 0) {
 				uri = document.uri;
 			}
 		}
 		if (!uri) {
 			const documents = workspace.textDocuments;
 			for (const document of documents) {
-				if (document.languageId === this.modeId) {
+				if (this.modeIds.indexOf(document.languageId) >= 0) {
 					uri = document.uri;
 					break;
 				}
