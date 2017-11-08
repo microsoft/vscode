@@ -168,7 +168,7 @@ class TestTelemetryService implements ITelemetryService {
 
 	public publicLog(eventName: string, data?: any): TPromise<void> {
 		this.events.push({ name: eventName, data: data });
-		return TPromise.as<void>(null);
+		return TPromise.wrap<void>(null);
 	}
 
 	public getTelemetryInfo(): TPromise<ITelemetryInfo> {

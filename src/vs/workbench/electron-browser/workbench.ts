@@ -794,7 +794,7 @@ export class Workbench implements IPartService {
 		}
 
 		// If sidebar becomes hidden, also hide the current active Viewlet if any
-		let promise = TPromise.as<any>(null);
+		let promise = TPromise.wrap<any>(null);
 		if (hidden && this.sidebarPart.getActiveViewlet()) {
 			promise = this.sidebarPart.hideActiveViewlet().then(() => {
 				const activeEditor = this.editorPart.getActiveEditor();
@@ -845,7 +845,7 @@ export class Workbench implements IPartService {
 		}
 
 		// If panel part becomes hidden, also hide the current active panel if any
-		let promise = TPromise.as<any>(null);
+		let promise = TPromise.wrap<any>(null);
 		if (hidden && this.panelPart.getActivePanel()) {
 			promise = this.panelPart.hideActivePanel().then(() => {
 				// Pass Focus to Editor if Panel part is now hidden

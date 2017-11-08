@@ -138,7 +138,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		}
 
 		// First check if panel is hidden and show if so
-		let promise = TPromise.as<any>(null);
+		let promise = TPromise.wrap(null);
 		if (!this.partService.isVisible(Parts.PANEL_PART)) {
 			try {
 				this.blockOpeningPanel = true;

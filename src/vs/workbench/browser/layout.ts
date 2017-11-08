@@ -256,7 +256,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			let sidebarPosition = this.partService.getSideBarPosition();
 			let isSidebarVisible = this.partService.isVisible(Parts.SIDEBAR_PART);
 			let newSashWidth = (sidebarPosition === Position.LEFT) ? startSidebarWidth + e.currentX - startX : startSidebarWidth - e.currentX + startX;
-			let promise = TPromise.as<void>(null);
+			let promise = TPromise.wrap<void>(null);
 
 			// Sidebar visible
 			if (isSidebarVisible) {
@@ -295,7 +295,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			let doLayout = false;
 			let isPanelVisible = this.partService.isVisible(Parts.PANEL_PART);
 			let newSashHeight = startPanelHeight - (e.currentY - startY);
-			let promise = TPromise.as<void>(null);
+			let promise = TPromise.wrap<void>(null);
 
 			// Panel visible
 			if (isPanelVisible) {
@@ -333,7 +333,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			let doLayout = false;
 			let isPanelVisible = this.partService.isVisible(Parts.PANEL_PART);
 			let newSashWidth = startPanelWidth - (e.currentX - startXTwo);
-			let promise = TPromise.as<void>(null);
+			let promise = TPromise.wrap<void>(null);
 
 			// Panel visible
 			if (isPanelVisible) {

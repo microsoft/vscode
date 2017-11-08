@@ -68,7 +68,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		// Return early for same input unless we force to open
 		const forceOpen = options && options.forceOpen;
 		if (!forceOpen && input.matches(this.input)) {
-			return TPromise.as<void>(null);
+			return TPromise.wrap<void>(null);
 		}
 
 		// Otherwise set input and resolve

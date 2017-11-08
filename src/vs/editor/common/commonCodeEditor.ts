@@ -713,7 +713,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 
 		const action = this.getAction(handlerId);
 		if (action) {
-			TPromise.as(action.run()).done(null, onUnexpectedError);
+			TPromise.as(action.run()).then(null, onUnexpectedError);
 			return;
 		}
 

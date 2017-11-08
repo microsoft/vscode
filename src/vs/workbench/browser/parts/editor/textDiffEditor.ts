@@ -120,7 +120,7 @@ export class TextDiffEditor extends BaseTextEditor {
 				textOptions.apply(<IDiffEditor>this.getControl(), ScrollType.Smooth);
 			}
 
-			return TPromise.as<void>(null);
+			return TPromise.wrap<void>(null);
 		}
 
 		// Dispose previous diff navigator

@@ -17,11 +17,11 @@ import { ITelemetryService, ITelemetryInfo, ITelemetryData } from 'vs/platform/t
 export const NullTelemetryService = new class implements ITelemetryService {
 	_serviceBrand: undefined;
 	publicLog(eventName: string, data?: ITelemetryData) {
-		return TPromise.as<void>(null);
+		return TPromise.wrap<void>(null);
 	}
 	isOptedIn: true;
 	getTelemetryInfo(): TPromise<ITelemetryInfo> {
-		return TPromise.as({
+		return TPromise.wrap({
 			instanceId: 'someValue.instanceId',
 			sessionId: 'someValue.sessionId',
 			machineId: 'someValue.machineId'

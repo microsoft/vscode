@@ -64,7 +64,7 @@ export class TextResourceEditor extends BaseTextEditor {
 				textOptions.apply(this.getControl(), ScrollType.Smooth);
 			}
 
-			return TPromise.as<void>(null);
+			return TPromise.wrap<void>(null);
 		}
 
 		// Remember view settings if input changes

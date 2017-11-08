@@ -505,7 +505,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 			}
 		}
 
-		return TPromise.as<OutlineModel>(null);
+		return TPromise.wrap<OutlineModel>(null);
 	}
 
 	public decorateOutline(fullRange: IRange, startRange: IRange, editor: IEditor, position: Position): void {

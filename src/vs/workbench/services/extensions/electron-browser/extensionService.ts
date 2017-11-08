@@ -49,7 +49,7 @@ function messageWithSource2(source: string, message: string): string {
 }
 
 const hasOwnProperty = Object.hasOwnProperty;
-const NO_OP_VOID_PROMISE = TPromise.as<void>(void 0);
+const NO_OP_VOID_PROMISE = TPromise.wrap<void>(void 0);
 
 export class ExtensionService implements IExtensionService {
 	public _serviceBrand: any;

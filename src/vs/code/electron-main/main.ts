@@ -73,7 +73,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 	const environmentService = accessor.get(IEnvironmentService);
 
 	function allowSetForegroundWindow(service: LaunchChannelClient): TPromise<void> {
-		let promise = TPromise.as<void>(void 0);
+		let promise = TPromise.wrap<void>(void 0);
 		if (platform.isWindows) {
 			promise = service.getMainProcessId()
 				.then(processId => {

@@ -465,7 +465,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		if (!types.isUndefinedOrNull(settingsTarget)) {
 			return this.configurationWriter.writeConfiguration(ICON_THEME_SETTING, this.currentIconTheme.settingsId, settingsTarget).then(_ => this.currentIconTheme);
 		}
-		return TPromise.as(this.currentIconTheme);
+		return TPromise.wrap(this.currentIconTheme);
 	}
 
 	private get configurationWriter(): ConfigurationWriter {
@@ -480,7 +480,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 function _applyIconTheme(this: any, data: FileIconThemeData, onApply: (theme: FileIconThemeData) => TPromise<IFileIconTheme>): TPromise<IFileIconTheme> {
 	if (!data) {
 		_applyRules('', iconThemeRulesClassName);
-		return TPromise.as(onApply(data));
+		return onApply(data);
 	}
 	return data.ensureLoaded(this).then(styleSheetContent => {
 		_applyRules(styleSheetContent, iconThemeRulesClassName);

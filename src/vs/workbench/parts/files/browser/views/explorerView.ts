@@ -349,7 +349,7 @@ export class ExplorerView extends ViewsViewletPanel {
 
 				// Return now if the workbench has not yet been created - in this case the workbench takes care of restoring last used editors
 				if (!this.partService.isCreated()) {
-					return TPromise.as(null);
+					return TPromise.wrap(null);
 				}
 
 				// Otherwise restore last used file: By lastActiveFileResource

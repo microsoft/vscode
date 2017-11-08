@@ -185,7 +185,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 	public openEditor(input: IResourceInputType, sideBySide?: boolean): TPromise<IEditor>;
 	public openEditor(input: any, arg2?: any, arg3?: any): TPromise<IEditor> {
 		if (!input) {
-			return TPromise.as<IEditor>(null);
+			return TPromise.wrap<IEditor>(null);
 		}
 
 		// Workbench Input Support
@@ -200,7 +200,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 			if (schema === network.Schemas.http || schema === network.Schemas.https) {
 				window.open(resourceInput.resource.toString(true));
 
-				return TPromise.as<IEditor>(null);
+				return TPromise.wrap<IEditor>(null);
 			}
 		}
 
@@ -211,7 +211,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 			return this.doOpenEditor(typedInput, TextEditorOptions.from(textInput), arg2);
 		}
 
-		return TPromise.as<IEditor>(null);
+		return TPromise.wrap<IEditor>(null);
 	}
 
 	private toOptions(options?: IEditorOptions | EditorOptions): EditorOptions {

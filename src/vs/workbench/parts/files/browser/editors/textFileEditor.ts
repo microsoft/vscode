@@ -92,7 +92,7 @@ export class TextFileEditor extends BaseTextEditor {
 				(<TextEditorOptions>options).apply(this.getControl(), ScrollType.Smooth);
 			}
 
-			return TPromise.as<void>(null);
+			return TPromise.wrap<void>(null);
 		}
 
 		// Remember view settings if input changes

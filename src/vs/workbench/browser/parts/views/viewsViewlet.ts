@@ -95,7 +95,7 @@ export abstract class ViewsViewletPanel extends ViewletPanel {
 			this.updateTreeVisibility(this.tree, visible && this.isExpanded());
 		}
 
-		return TPromise.as(null);
+		return TPromise.wrap(null);
 	}
 
 	focus(): void {

@@ -61,6 +61,7 @@ declare module monaco {
 
 		public static as(value: null): Promise<null>;
 		public static as(value: undefined): Promise<undefined>;
+		public static as<T>(value: PromiseLike<T>): PromiseLike<T>;
 		public static as<T, SomePromise extends PromiseLike<T>>(value: SomePromise): SomePromise;
 		public static as<T>(value: T): Promise<T>;
 

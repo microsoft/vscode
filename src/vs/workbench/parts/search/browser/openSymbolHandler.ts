@@ -86,7 +86,7 @@ class SymbolEntry extends EditorQuickOpenEntry {
 
 		TPromise.as(this._bearingResolve)
 			.then(_ => super.run(mode, context))
-			.done(undefined, onUnexpectedError);
+			.then(undefined, onUnexpectedError);
 
 		// hide if OPEN
 		return mode === Mode.OPEN;

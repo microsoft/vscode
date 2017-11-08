@@ -960,12 +960,12 @@ class TaskService extends EventEmitter implements ITaskService {
 	public customize(task: ContributedTask | CustomTask, properties?: CustomizationProperties, openConfig?: boolean): TPromise<void> {
 		let workspaceFolder = Task.getWorkspaceFolder(task);
 		if (!workspaceFolder) {
-			return TPromise.as<void>(undefined);
+			return TPromise.wrap<void>(undefined);
 		}
 		let configuration = this.getConfiguration(workspaceFolder);
 		if (configuration.hasParseErrors) {
 			this.messageService.show(Severity.Warning, nls.localize('customizeParseErrors', 'The current task configuration has errors. Please fix the errors first before customizing a task.'));
-			return TPromise.as<void>(undefined);
+			return TPromise.wrap<void>(undefined);
 		}
 
 		let fileConfig = configuration.config;
@@ -1734,7 +1734,7 @@ class TaskService extends EventEmitter implements ITaskService {
 					: new Action(
 						'workbench.action.tasks.terminate',
 						nls.localize('TerminateAction.label', "Terminate Task"),
-						undefined, true, () => { this.runTerminateCommand(); return TPromise.as<void>(undefined); });
+						undefined, true, () => { this.runTerminateCommand(); return TPromise.wrap<void>(undefined); });
 				closeAction.closeFunction = this.messageService.show(buildError.severity, { message: buildError.message, actions: [action, closeAction] });
 			} else {
 				this.messageService.show(buildError.severity, buildError.message);
