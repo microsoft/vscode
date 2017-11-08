@@ -27,7 +27,6 @@ import { ProblemMatcher, ProblemMatcherRegistry /*, ProblemPattern, getResource 
 
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { ITerminalService, ITerminalInstance, IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
 import { IOutputService, IOutputChannel } from 'vs/workbench/parts/output/common/output';
@@ -63,8 +62,6 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		private markerService: IMarkerService, private modelService: IModelService,
 		private configurationResolverService: IConfigurationResolverService,
 		private telemetryService: ITelemetryService,
-		// @ts-ignore unused injected service
-		private workbenchEditorService: IWorkbenchEditorService,
 		private contextService: IWorkspaceContextService,
 		outputChannelId: string) {
 		super();

@@ -24,7 +24,6 @@ import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ProblemMatcher, ProblemMatcherRegistry } from 'vs/platform/markers/common/problemMatcher';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEvents } from 'vs/workbench/parts/tasks/common/problemCollectors';
 import {
@@ -44,8 +43,6 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 	private outputService: IOutputService;
 	private telemetryService: ITelemetryService;
 	private configurationResolverService: IConfigurationResolverService;
-	// @ts-ignore unused injected service
-	private contextService: IWorkspaceContextService;
 
 	private outputChannel: IOutputChannel;
 
@@ -55,12 +52,11 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 	private activeTaskPromise: TPromise<ITaskSummary>;
 
 	constructor(markerService: IMarkerService, modelService: IModelService, telemetryService: ITelemetryService,
-		outputService: IOutputService, configurationResolverService: IConfigurationResolverService, contextService: IWorkspaceContextService, outputChannelId: string) {
+		outputService: IOutputService, configurationResolverService: IConfigurationResolverService, outputChannelId: string) {
 		super();
 		this.markerService = markerService;
 		this.modelService = modelService;
 		this.outputService = outputService;
-		this.contextService = contextService;
 		this.telemetryService = telemetryService;
 		this.configurationResolverService = configurationResolverService;
 

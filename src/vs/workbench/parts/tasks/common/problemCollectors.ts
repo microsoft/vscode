@@ -297,18 +297,15 @@ export enum ProblemHandlingStrategy {
 
 export class StartStopProblemCollector extends AbstractProblemCollector implements IProblemMatcher {
 	private owners: string[];
-	// @ts-ignore unused property
-	private strategy: ProblemHandlingStrategy;
 
 	private currentOwner: string;
 	private currentResource: string;
 
-	constructor(problemMatchers: ProblemMatcher[], markerService: IMarkerService, modelService: IModelService, strategy: ProblemHandlingStrategy = ProblemHandlingStrategy.Clean) {
+	constructor(problemMatchers: ProblemMatcher[], markerService: IMarkerService, modelService: IModelService, _strategy: ProblemHandlingStrategy = ProblemHandlingStrategy.Clean) {
 		super(problemMatchers, markerService, modelService);
 		let ownerSet: { [key: string]: boolean; } = Object.create(null);
 		problemMatchers.forEach(description => ownerSet[description.owner] = true);
 		this.owners = Object.keys(ownerSet);
-		this.strategy = strategy;
 		this.owners.forEach((owner) => {
 			this.recordResourcesToClean(owner);
 		});
