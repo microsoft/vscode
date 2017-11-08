@@ -35,9 +35,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
-import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
-import { CredentialsService } from 'vs/platform/credentials/node/credentialsService';
-import { CredentialsChannel } from 'vs/platform/credentials/node/credentialsIpc';
 import { resolveCommonProperties, machineIdStorageKey, machineIdIpcChannel } from 'vs/platform/telemetry/node/commonProperties';
 import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
 import product from 'vs/platform/node/product';
@@ -288,7 +285,6 @@ export class CodeApplication {
 		services.set(IWindowsMainService, new SyncDescriptor(WindowsManager));
 		services.set(IWindowsService, new SyncDescriptor(WindowsService, this.sharedProcess));
 		services.set(ILaunchService, new SyncDescriptor(LaunchService));
-		services.set(ICredentialsService, new SyncDescriptor(CredentialsService));
 
 		// Telemtry
 		if (this.environmentService.isBuilt && !this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
@@ -346,9 +342,6 @@ export class CodeApplication {
 		this.electronIpcServer.registerChannel('windows', windowsChannel);
 		this.sharedProcessClient.done(client => client.registerChannel('windows', windowsChannel));
 
-		const credentialsService = accessor.get(ICredentialsService);
-		const credentialsChannel = new CredentialsChannel(credentialsService);
-		this.electronIpcServer.registerChannel('credentials', credentialsChannel);
 
 		// Lifecycle
 		this.lifecycleService.ready();
