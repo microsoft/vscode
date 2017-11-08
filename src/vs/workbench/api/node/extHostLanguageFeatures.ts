@@ -269,7 +269,7 @@ class QuickFixAdapter {
 		this._provider = provider;
 	}
 
-	provideCodeActions(resource: URI, range: IRange): TPromise<modes.CodeAction[]> {
+	provideCodeActions(resource: URI, range: IRange): TPromise<(modes.CodeAction | modes.Command)[]> {
 
 		const doc = this._documents.getDocumentData(resource).document;
 		const ran = <vscode.Range>TypeConverters.toRange(range);
@@ -293,7 +293,7 @@ class QuickFixAdapter {
 			if (!Array.isArray(commands)) {
 				return undefined;
 			}
-			return commands.map(action => {
+			return commands.map((action): modes.CodeAction => {
 				if (!action) {
 					return undefined;
 				}

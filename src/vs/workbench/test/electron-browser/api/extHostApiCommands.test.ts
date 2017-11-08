@@ -369,8 +369,8 @@ suite('ExtHostLanguageFeatureCommands', function () {
 	// --- quickfix
 
 	test('QuickFix, back and forth', function () {
-		disposables.push(extHost.registerCodeActionProvider(defaultSelector, <vscode.CodeActionProvider>{
-			provideCodeActions(): any {
+		disposables.push(extHost.registerCodeActionProvider(defaultSelector, {
+			provideCodeActions(): vscode.Command[] {
 				return [{ command: 'testing', title: 'Title', arguments: [1, 2, true] }];
 			}
 		}));
