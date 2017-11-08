@@ -23,7 +23,6 @@
         editor-wrapping: [],
         emmet: [ ramya-rao-a ],
         error-list: [],
-        extensions: [],
         git: [ joaomoreno ],
         hot-exit: [ Tyriar ],
         html: [ aeschli ],
