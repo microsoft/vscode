@@ -183,9 +183,13 @@ export class FoldingController {
 	}
 
 	private onHiddenRangesChanges(hiddenRanges: IRange[]) {
+		if (hiddenRanges.length) {
 		let selections = this.editor.getSelections();
+			if (selections) {
 		if (this.hiddenRangeModel.adjustSelections(selections)) {
 			this.editor.setSelections(selections);
+		}
+			}
 		}
 		this.editor.setHiddenAreas(hiddenRanges);
 	}
@@ -200,6 +204,7 @@ export class FoldingController {
 		this.getFoldingModel().then(foldingModel => { // null is returned if folding got disabled in the meantime
 			if (foldingModel) {
 				let selections = this.editor.getSelections();
+				if (selections) {
 				for (let selection of selections) {
 					let lineNumber = selection.selectionStartLineNumber;
 					if (this.hiddenRangeModel.isHidden(lineNumber)) {
@@ -207,6 +212,7 @@ export class FoldingController {
 						foldingModel.toggleCollapseState(toToggle);
 					}
 				}
+			}
 			}
 		});
 
@@ -322,7 +328,8 @@ abstract class FoldingAction<T> extends EditorAction {
 	}
 
 	protected getSelectedLines(editor: ICommonCodeEditor) {
-		return editor.getSelections().map(s => s.startLineNumber);
+		let selections = editor.getSelections();
+		return selections ? selections.map(s => s.startLineNumber) : [];
 	}
 
 	protected getLineNumbers(args: FoldingArguments, editor: ICommonCodeEditor) {
