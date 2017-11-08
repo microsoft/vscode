@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { ICommonCodeEditor, ScrollType, IEditorContribution, FindMatch, TrackedRangeStickiness, OverviewRulerLane, IModel } from 'vs/editor/common/editorCommon';
+import { ScrollType, IEditorContribution, FindMatch, TrackedRangeStickiness, OverviewRulerLane, IModel } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { registerEditorAction, registerCommonEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { Range } from 'vs/editor/common/core/range';
@@ -23,6 +23,7 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDeco
 import { overviewRulerSelectionHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { INewFindReplaceState, FindOptionOverride } from 'vs/editor/contrib/find/common/findState';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export class InsertCursorAbove extends EditorAction {
 	constructor() {
@@ -42,7 +43,7 @@ export class InsertCursorAbove extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor, args: any): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
 		const cursors = editor._getCursors();
 		const context = cursors.context;
 
@@ -81,7 +82,7 @@ export class InsertCursorBelow extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor, args: any): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
 		const cursors = editor._getCursors();
 		const context = cursors.context;
 
@@ -117,7 +118,7 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 		});
 	}
 
-	private getCursorsForSelection(selection: Selection, editor: ICommonCodeEditor): Selection[] {
+	private getCursorsForSelection(selection: Selection, editor: ICodeEditor): Selection[] {
 		if (selection.isEmpty()) {
 			return [];
 		}
@@ -135,7 +136,7 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 		return newSelections;
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		let selections = editor.getSelections();
 		let newSelections = selections
 			.map((selection) => this.getCursorsForSelection(selection, editor))
@@ -157,7 +158,7 @@ export class MultiCursorSessionResult {
 
 export class MultiCursorSession {
 
-	public static create(editor: ICommonCodeEditor, findController: CommonFindController): MultiCursorSession {
+	public static create(editor: ICodeEditor, findController: CommonFindController): MultiCursorSession {
 		const findState = findController.getState();
 
 		// Find widget owns entirely what we search for if:
@@ -206,7 +207,7 @@ export class MultiCursorSession {
 	}
 
 	constructor(
-		private readonly _editor: ICommonCodeEditor,
+		private readonly _editor: ICodeEditor,
 		public readonly findController: CommonFindController,
 		public readonly isDisconnectedFromFindController: boolean,
 		public readonly searchText: string,
@@ -304,16 +305,16 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 
 	private static ID = 'editor.contrib.multiCursorController';
 
-	private readonly _editor: ICommonCodeEditor;
+	private readonly _editor: ICodeEditor;
 	private _ignoreSelectionChange: boolean;
 	private _session: MultiCursorSession;
 	private _sessionDispose: IDisposable[];
 
-	public static get(editor: ICommonCodeEditor): MultiCursorSelectionController {
+	public static get(editor: ICodeEditor): MultiCursorSelectionController {
 		return editor.getContribution<MultiCursorSelectionController>(MultiCursorSelectionController.ID);
 	}
 
-	constructor(editor: ICommonCodeEditor) {
+	constructor(editor: ICodeEditor) {
 		super();
 		this._editor = editor;
 		this._ignoreSelectionChange = false;
@@ -502,7 +503,7 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 
 export abstract class MultiCursorSelectionControllerAction extends EditorAction {
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const multiCursorController = MultiCursorSelectionController.get(editor);
 		if (!multiCursorController) {
 			return;
@@ -655,13 +656,13 @@ class SelectionHighlighterState {
 export class SelectionHighlighter extends Disposable implements IEditorContribution {
 	private static ID = 'editor.contrib.selectionHighlighter';
 
-	private editor: ICommonCodeEditor;
+	private editor: ICodeEditor;
 	private _isEnabled: boolean;
 	private decorations: string[];
 	private updateSoon: RunOnceScheduler;
 	private state: SelectionHighlighterState;
 
-	constructor(editor: ICommonCodeEditor) {
+	constructor(editor: ICodeEditor) {
 		super();
 		this.editor = editor;
 		this._isEnabled = editor.getConfiguration().contribInfo.selectionHighlight;
@@ -711,7 +712,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 		this._setState(SelectionHighlighter._createState(this._isEnabled, this.editor));
 	}
 
-	private static _createState(isEnabled: boolean, editor: ICommonCodeEditor): SelectionHighlighterState {
+	private static _createState(isEnabled: boolean, editor: ICodeEditor): SelectionHighlighterState {
 		if (!isEnabled) {
 			return null;
 		}

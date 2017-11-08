@@ -12,12 +12,49 @@ import { CommonCodeEditor } from 'vs/editor/common/commonCodeEditor';
 import { CommonEditorConfiguration } from 'vs/editor/common/config/commonEditorConfig';
 import { Cursor } from 'vs/editor/common/controller/cursor';
 import * as editorCommon from 'vs/editor/common/editorCommon';
+import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { Model } from 'vs/editor/common/model/model';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import Event, { Emitter } from 'vs/base/common/event';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IPosition } from 'vs/editor/common/core/position';
 
-export class TestCodeEditor extends CommonCodeEditor {
+export class TestCodeEditor extends CommonCodeEditor implements editorBrowser.ICodeEditor {
+
+	private readonly _onMouseUp: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>());
+	public readonly onMouseUp: Event<editorBrowser.IEditorMouseEvent> = this._onMouseUp.event;
+
+	private readonly _onMouseDown: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>());
+	public readonly onMouseDown: Event<editorBrowser.IEditorMouseEvent> = this._onMouseDown.event;
+
+	private readonly _onMouseDrag: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>());
+	public readonly onMouseDrag: Event<editorBrowser.IEditorMouseEvent> = this._onMouseDrag.event;
+
+	private readonly _onMouseDrop: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>());
+	public readonly onMouseDrop: Event<editorBrowser.IEditorMouseEvent> = this._onMouseDrop.event;
+
+	private readonly _onContextMenu: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>());
+	public readonly onContextMenu: Event<editorBrowser.IEditorMouseEvent> = this._onContextMenu.event;
+
+	private readonly _onMouseMove: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>());
+	public readonly onMouseMove: Event<editorBrowser.IEditorMouseEvent> = this._onMouseMove.event;
+
+	private readonly _onMouseLeave: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>());
+	public readonly onMouseLeave: Event<editorBrowser.IEditorMouseEvent> = this._onMouseLeave.event;
+
+	private readonly _onKeyUp: Emitter<IKeyboardEvent> = this._register(new Emitter<IKeyboardEvent>());
+	public readonly onKeyUp: Event<IKeyboardEvent> = this._onKeyUp.event;
+
+	private readonly _onKeyDown: Emitter<IKeyboardEvent> = this._register(new Emitter<IKeyboardEvent>());
+	public readonly onKeyDown: Event<IKeyboardEvent> = this._onKeyDown.event;
+
+	private readonly _onDidScrollChange: Emitter<editorCommon.IScrollEvent> = this._register(new Emitter<editorCommon.IScrollEvent>());
+	public readonly onDidScrollChange: Event<editorCommon.IScrollEvent> = this._onDidScrollChange.event;
+
+	private readonly _onDidChangeViewZones: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onDidChangeViewZones: Event<void> = this._onDidChangeViewZones.event;
 
 	public _isFocused = true;
 
@@ -57,6 +94,23 @@ export class TestCodeEditor extends CommonCodeEditor {
 		}
 		this._contextKeyService.dispose();
 	}
+
+	//#region ICodeEditor
+	getDomNode(): HTMLElement { throw new Error('Not implemented'); }
+	addContentWidget(widget: editorBrowser.IContentWidget): void { throw new Error('Not implemented'); }
+	layoutContentWidget(widget: editorBrowser.IContentWidget): void { throw new Error('Not implemented'); }
+	removeContentWidget(widget: editorBrowser.IContentWidget): void { throw new Error('Not implemented'); }
+	addOverlayWidget(widget: editorBrowser.IOverlayWidget): void { throw new Error('Not implemented'); }
+	layoutOverlayWidget(widget: editorBrowser.IOverlayWidget): void { throw new Error('Not implemented'); }
+	removeOverlayWidget(widget: editorBrowser.IOverlayWidget): void { throw new Error('Not implemented'); }
+	changeViewZones(callback: (accessor: editorBrowser.IViewZoneChangeAccessor) => void): void { throw new Error('Not implemented'); }
+	getOffsetForColumn(lineNumber: number, column: number): number { throw new Error('Not implemented'); }
+	render(): void { throw new Error('Not implemented'); }
+	getTargetAtClientPoint(clientX: number, clientY: number): editorBrowser.IMouseTarget { throw new Error('Not implemented'); }
+	getScrolledVisiblePosition(position: IPosition): { top: number; left: number; height: number; } { throw new Error('Not implemented'); }
+	setAriaActiveDescendant(id: string): void { throw new Error('Not implemented'); }
+	applyFontInfo(target: HTMLElement): void { throw new Error('Not implemented'); }
+	//#endregion ICodeEditor
 }
 
 export class MockScopeLocation implements IContextKeyServiceTarget {
