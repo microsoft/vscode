@@ -16,6 +16,7 @@ import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { toResource } from 'vs/workbench/common/editor';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 
 export class ConfigurationResolverService implements IConfigurationResolverService {
 	_serviceBrand: any;
@@ -103,10 +104,14 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 
 	private getFilePath(): string {
 		let input = this.editorService.getActiveEditorInput();
+		if (input instanceof DiffEditorInput) {
+			input = input.modifiedInput;
+		}
 		if (!input) {
 			return '';
 		}
-		let fileResource = toResource(input, { filter: 'file' });
+
+		const fileResource = toResource(input, { filter: 'file' });
 		if (!fileResource) {
 			return '';
 		}
