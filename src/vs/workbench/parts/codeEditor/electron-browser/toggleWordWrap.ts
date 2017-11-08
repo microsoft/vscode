@@ -131,6 +131,7 @@ function applyWordWrapState(editor: ICommonCodeEditor, state: IWordWrapState): v
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class ToggleWordWrapAction extends EditorAction {
 
 	constructor() {
@@ -175,6 +176,7 @@ class ToggleWordWrapAction extends EditorAction {
 }
 
 @commonEditorContribution
+// @ts-ignore @editorAction uses the class
 class ToggleWordWrapController extends Disposable implements IEditorContribution {
 
 	private static _ID = 'editor.contrib.toggleWordWrapController';

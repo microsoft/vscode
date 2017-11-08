@@ -364,7 +364,7 @@ declare module 'xterm' {
 		 * Scroll the display of the terminal
 		 * @param amount The number of lines to scroll down (negative scroll up).
 		 */
-		scrollDisp(amount: number): void;
+		scrollLines(amount: number): void;
 
 		/**
 		 * Scroll the display of the terminal by a number of pages.

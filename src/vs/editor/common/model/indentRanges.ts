@@ -191,7 +191,7 @@ export class RangesCollector {
 }
 
 
-interface PreviousRegion { indent: number; line: number; marker: boolean; };
+interface PreviousRegion { indent: number; line: number; marker: boolean; }
 
 export function computeRanges(model: ITextModel, offSide: boolean, markers?: FoldingMarkers, foldingRegionsLimit = MAX_FOLDING_REGIONS_FOR_INDENT_LIMIT): IndentRanges {
 	const tabSize = model.getOptions().tabSize;

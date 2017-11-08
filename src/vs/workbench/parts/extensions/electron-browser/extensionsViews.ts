@@ -18,8 +18,6 @@ import { SortBy, SortOrder, IQueryOptions, LocalExtensionType, IExtensionTipsSer
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { append, $, toggleClass } from 'vs/base/browser/dom';
 import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -36,7 +34,6 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IProgressService } from 'vs/platform/progress/common/progress';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { EventType } from 'vs/base/common/events';
@@ -58,16 +55,13 @@ export class ExtensionsListView extends ViewsViewletPanel {
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IListService private listService: IListService,
 		@IThemeService private themeService: IThemeService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IExtensionService private extensionService: IExtensionService,
-		@ICommandService private commandService: ICommandService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorInputService: IEditorGroupService,
 		@IExtensionTipsService private tipsService: IExtensionTipsService,
 		@IModeService private modeService: IModeService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IProgressService private progressService: IProgressService
+		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		super({ ...(options as IViewOptions), ariaHeaderLabel: options.name }, keybindingService, contextMenuService);
 	}
@@ -191,7 +185,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 		if (idMatch) {
 			const name = idMatch[1];
 
-			return this.extensionsWorkbenchService.queryGallery({ names: [name] })
+			return this.extensionsWorkbenchService.queryGallery({ names: [name], source: 'queryById' })
 				.then(pager => new PagedModel(pager));
 		}
 
@@ -273,7 +267,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 		}
 
 		if (text) {
-			options = assign(options, { text: text.substr(0, 350) });
+			options = assign(options, { text: text.substr(0, 350), source: 'searchText' });
 		} else {
 			options.source = 'viewlet';
 		}
@@ -417,19 +411,10 @@ export class ExtensionsListView extends ViewsViewletPanel {
 
 	// Sorts the firsPage of the pager in the same order as given array of extension ids
 	private sortFirstPage(pager: IPager<IExtension>, ids: string[]) {
-		if (ids.length !== pager.pageSize) {
-			return;
-		}
 		ids = ids.map(x => x.toLowerCase());
-		let newFirstPage = new Array(pager.pageSize);
-		for (let i = 0; i < pager.pageSize; i++) {
-			let index = ids.indexOf(pager.firstPage[i].id.toLowerCase());
-			if (index === -1) {
-				return; // Something went wrong, Abort! Abort!
-			}
-			newFirstPage[index] = pager.firstPage[i];
-		}
-		pager.firstPage = newFirstPage;
+		pager.firstPage.sort((a, b) => {
+			return ids.indexOf(a.id.toLowerCase()) < ids.indexOf(b.id.toLowerCase()) ? -1 : 1;
+		});
 	}
 
 	private setModel(model: IPagedModel<IExtension>) {

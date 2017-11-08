@@ -11,6 +11,7 @@ import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostC
 @extHostNamedCustomer(MainContext.MainThreadCredentials)
 export class MainThreadCredentials implements MainThreadCredentialsShape {
 
+	// @ts-ignore unused property
 	private _proxy: ExtHostCredentialsShape;
 
 	constructor(

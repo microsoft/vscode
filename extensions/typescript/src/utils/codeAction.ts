@@ -6,11 +6,11 @@
 import { WorkspaceEdit, workspace } from 'vscode';
 import * as Proto from '../protocol';
 import { tsTextSpanToVsRange } from './convert';
-import { ITypescriptServiceClient } from '../typescriptService';
+import { ITypeScriptServiceClient } from '../typescriptService';
 
 
 export async function applyCodeAction(
-	client: ITypescriptServiceClient,
+	client: ITypeScriptServiceClient,
 	action: Proto.CodeAction,
 	file: string
 ): Promise<boolean> {

@@ -24,6 +24,7 @@ export class LinkDetector {
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		// @ts-ignore unused injected service
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		// noop

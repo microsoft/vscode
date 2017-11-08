@@ -80,6 +80,7 @@ export class DebugQuickOpenHandler extends Quickopen.QuickOpenHandler {
 	private autoFocusIndex: number;
 
 	constructor(
+		// @ts-ignore unused injected service
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IDebugService private debugService: IDebugService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,

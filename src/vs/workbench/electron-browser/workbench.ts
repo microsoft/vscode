@@ -16,11 +16,10 @@ import { Builder, $ } from 'vs/base/browser/builder';
 import { Delayer, RunOnceScheduler } from 'vs/base/common/async';
 import * as browser from 'vs/base/browser/browser';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { startTimer } from 'vs/base/node/startupTimers';
+import { time } from 'vs/base/common/performance';
 import errors = require('vs/base/common/errors');
 import { BackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { Position as EditorPosition, IResourceDiffInput, IUntitledResourceInput, IEditor, IResourceInput } from 'vs/platform/editor/common/editor';
@@ -79,7 +78,8 @@ import { ProgressService2 } from 'vs/workbench/services/progress/browser/progres
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
+import { ShutdownReason, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecycleService } from 'vs/workbench/services/lifecycle/electron-browser/lifecycleService';
 import { IWindowService, IWindowConfiguration as IWindowSettings, IWindowConfiguration, IPath } from 'vs/platform/windows/common/windows';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
@@ -87,7 +87,6 @@ import { IMenuService, SyncActionDescriptor } from 'vs/platform/actions/common/a
 import { MenuService } from 'vs/platform/actions/common/menuService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { OpenRecentAction, ToggleDevToolsAction, ReloadWindowAction, ShowPreviousWindowTab, MoveWindowTabToNewWindow, MergeAllWindowTabs, ShowNextWindowTab, ToggleWindowTabsBar } from 'vs/workbench/electron-browser/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
@@ -217,13 +216,12 @@ export class Workbench implements IPartService {
 		container: HTMLElement,
 		configuration: IWindowConfiguration,
 		serviceCollection: ServiceCollection,
+		private lifecycleService: LifecycleService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IStorageService private storageService: IStorageService,
-		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IMessageService private messageService: IMessageService,
 		@IConfigurationService private configurationService: WorkspaceService,
-		@ITelemetryService private telemetryService: ITelemetryService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWindowService private windowService: IWindowService
 	) {
@@ -268,134 +266,135 @@ export class Workbench implements IPartService {
 	 * once. Use the shutdown function to free up resources created by the workbench on startup.
 	 */
 	public startup(callbacks?: IWorkbenchCallbacks): void {
-		try {
-			this.workbenchStarted = true;
-			this.callbacks = callbacks;
+		this.workbenchStarted = true;
+		this.callbacks = callbacks;
 
-			// Create Workbench
-			this.createWorkbench();
+		// Create Workbench
+		this.createWorkbench();
 
-			// Install some global actions
-			this.createGlobalActions();
+		// Install some global actions
+		this.createGlobalActions();
 
-			// Services
-			this.initServices();
-			if (this.callbacks && this.callbacks.onServicesCreated) {
-				this.callbacks.onServicesCreated();
+		// Services
+		this.initServices();
+		if (this.callbacks && this.callbacks.onServicesCreated) {
+			this.callbacks.onServicesCreated();
+		}
+
+		// Contexts
+		this.messagesVisibleContext = MessagesVisibleContext.bindTo(this.contextKeyService);
+		this.editorsVisibleContext = EditorsVisibleContext.bindTo(this.contextKeyService);
+		this.inZenMode = InZenModeContext.bindTo(this.contextKeyService);
+		this.sideBarVisibleContext = SidebarVisibleContext.bindTo(this.contextKeyService);
+
+		// Register Listeners
+		this.registerListeners();
+
+		// Settings
+		this.initSettings();
+
+		// Create Workbench and Parts
+		this.renderWorkbench();
+
+		// Workbench Layout
+		this.createWorkbenchLayout();
+
+		// Restore Parts
+		this.restoreParts().done(startedInfo => {
+			this.workbenchCreated = true;
+			this.creationPromiseComplete(true);
+
+			if (this.callbacks && this.callbacks.onWorkbenchStarted) {
+				this.callbacks.onWorkbenchStarted(startedInfo);
+			}
+		});
+	}
+
+	private restoreParts(): TPromise<IWorkbenchStartedInfo> {
+		const restorePromises: TPromise<any>[] = [];
+
+		// Restore Editors
+		const editorRestoreStopWatch = StopWatch.create();
+		const editorRestoreClock = time('restore:editors');
+		const restoredEditors: string[] = [];
+		restorePromises.push(this.resolveEditorsToOpen().then(inputs => {
+			this.lifecycleService.phase = LifecyclePhase.Restoring;
+
+			let editorOpenPromise: TPromise<IEditor[]>;
+			if (inputs.length) {
+				editorOpenPromise = this.editorService.openEditors(inputs.map(input => { return { input, position: EditorPosition.ONE }; }));
+			} else {
+				editorOpenPromise = this.editorPart.restoreEditors();
 			}
 
-			// Contexts
-			this.messagesVisibleContext = MessagesVisibleContext.bindTo(this.contextKeyService);
-			this.editorsVisibleContext = EditorsVisibleContext.bindTo(this.contextKeyService);
-			this.inZenMode = InZenModeContext.bindTo(this.contextKeyService);
-			this.sideBarVisibleContext = SidebarVisibleContext.bindTo(this.contextKeyService);
+			return editorOpenPromise.then(editors => {
+				this.handleEditorBackground(); // make sure we show the proper background in the editor area
 
-			// Register Listeners
-			this.registerListeners();
+				editorRestoreClock.stop();
+				editorRestoreStopWatch.stop();
 
-			// Settings
-			this.initSettings();
-
-			// Create Workbench and Parts
-			this.renderWorkbench();
-
-			// Workbench Layout
-			this.createWorkbenchLayout();
-
-			// Load composites and editors in parallel
-			const compositeAndEditorPromises: TPromise<any>[] = [];
-
-			// Restore last opened viewlet
-			let viewletRestoreStopWatch: StopWatch;
-			let viewletIdToRestore: string;
-			if (!this.sideBarHidden) {
-				this.sideBarVisibleContext.set(true);
-
-				if (this.shouldRestoreLastOpenedViewlet()) {
-					viewletIdToRestore = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE);
-				}
-
-				if (!viewletIdToRestore) {
-					viewletIdToRestore = this.viewletService.getDefaultViewletId();
-				}
-
-				viewletRestoreStopWatch = StopWatch.create();
-				const viewletTimer = startTimer('restore:viewlet');
-				compositeAndEditorPromises.push(viewletTimer.while(this.viewletService.openViewlet(viewletIdToRestore)).then(() => {
-					viewletRestoreStopWatch.stop();
-				}));
-			}
-
-			// Load Panel
-			const panelRegistry = Registry.as<PanelRegistry>(PanelExtensions.Panels);
-			const panelId = this.storageService.get(PanelPart.activePanelSettingsKey, StorageScope.WORKSPACE, panelRegistry.getDefaultPanelId());
-			if (!this.panelHidden && !!panelId) {
-				compositeAndEditorPromises.push(this.panelPart.openPanel(panelId, false));
-			}
-
-			// Load Editors
-			const editorRestoreStopWatch = StopWatch.create();
-			const restoredEditors: string[] = [];
-			const editorsTimer = startTimer('restore:editors');
-			compositeAndEditorPromises.push(editorsTimer.while(this.resolveEditorsToOpen().then(inputs => {
-				let editorOpenPromise: TPromise<IEditor[]>;
-				if (inputs.length) {
-					editorOpenPromise = this.editorService.openEditors(inputs.map(input => { return { input, position: EditorPosition.ONE }; }));
-				} else {
-					editorOpenPromise = this.editorPart.restoreEditors();
-				}
-
-				return editorOpenPromise.then(editors => {
-					this.handleEditorBackground(); // make sure we show the proper background in the editor area
-					editorRestoreStopWatch.stop();
-
-					for (const editor of editors) {
-						if (editor) {
-							if (editor.input) {
-								restoredEditors.push(editor.input.getName());
-							} else {
-								restoredEditors.push(`other:${editor.getId()}`);
-							}
+				for (const editor of editors) {
+					if (editor) {
+						if (editor.input) {
+							restoredEditors.push(editor.input.getName());
+						} else {
+							restoredEditors.push(`other:${editor.getId()}`);
 						}
 					}
-				});
-			})));
+				}
+			});
+		}));
 
-			if (this.storageService.getBoolean(Workbench.zenModeActiveSettingKey, StorageScope.WORKSPACE, false)) {
-				this.toggleZenMode(true);
+		// Restore Sidebar
+		let viewletRestoreStopWatch: StopWatch;
+		let viewletIdToRestore: string;
+		if (!this.sideBarHidden) {
+			this.sideBarVisibleContext.set(true);
+
+			if (this.shouldRestoreLastOpenedViewlet()) {
+				viewletIdToRestore = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE);
 			}
 
-			// Flag workbench as created once done
-			const workbenchDone = (error?: Error) => {
-				this.workbenchCreated = true;
-				this.creationPromiseComplete(true);
+			if (!viewletIdToRestore) {
+				viewletIdToRestore = this.viewletService.getDefaultViewletId();
+			}
 
-				if (this.callbacks && this.callbacks.onWorkbenchStarted) {
-					this.callbacks.onWorkbenchStarted({
-						customKeybindingsCount: this.keybindingService.customKeybindingsCount(),
-						restoreViewletDuration: viewletRestoreStopWatch ? Math.round(viewletRestoreStopWatch.elapsed()) : 0,
-						restoreEditorsDuration: Math.round(editorRestoreStopWatch.elapsed()),
-						pinnedViewlets: this.activitybarPart.getPinned(),
-						restoredViewlet: viewletIdToRestore,
-						restoredEditors
-					});
-				}
-
-				if (error) {
-					errors.onUnexpectedError(error);
-				}
-			};
-
-			// Join viewlet, panel and editor promises
-			TPromise.join(compositeAndEditorPromises).then(() => workbenchDone(), error => workbenchDone(error));
-		} catch (error) {
-
-			// Print out error
-			console.error(toErrorMessage(error, true));
-
-			// Rethrow
-			throw error;
+			viewletRestoreStopWatch = StopWatch.create();
+			const viewletRestoreClock = time('restore:viewlet');
+			restorePromises.push(this.viewletService.openViewlet(viewletIdToRestore).then(() => {
+				viewletRestoreStopWatch.stop();
+				viewletRestoreClock.stop();
+			}));
 		}
+
+		// Restore Panel
+		const panelRegistry = Registry.as<PanelRegistry>(PanelExtensions.Panels);
+		const panelId = this.storageService.get(PanelPart.activePanelSettingsKey, StorageScope.WORKSPACE, panelRegistry.getDefaultPanelId());
+		if (!this.panelHidden && !!panelId) {
+			restorePromises.push(this.panelPart.openPanel(panelId, false));
+		}
+
+		// Restore Zen Mode if active
+		if (this.storageService.getBoolean(Workbench.zenModeActiveSettingKey, StorageScope.WORKSPACE, false)) {
+			this.toggleZenMode(true);
+		}
+
+		const onRestored = (error?: Error): IWorkbenchStartedInfo => {
+			if (error) {
+				errors.onUnexpectedError(error);
+			}
+
+			return {
+				customKeybindingsCount: this.keybindingService.customKeybindingsCount(),
+				restoreViewletDuration: viewletRestoreStopWatch ? Math.round(viewletRestoreStopWatch.elapsed()) : 0,
+				restoreEditorsDuration: Math.round(editorRestoreStopWatch.elapsed()),
+				pinnedViewlets: this.activitybarPart.getPinned(),
+				restoredViewlet: viewletIdToRestore,
+				restoredEditors
+			};
+		};
+
+		return TPromise.join(restorePromises).then(() => onRestored(), error => onRestored(error));
 	}
 
 	private createGlobalActions(): void {

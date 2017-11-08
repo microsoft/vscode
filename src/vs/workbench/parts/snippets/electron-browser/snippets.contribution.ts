@@ -133,8 +133,8 @@ export class Snippet {
 	}
 }
 
-namespace OpenSnippetsAction {
 
+{
 	const id = 'workbench.action.openSnippets';
 
 	CommandsRegistry.registerCommand(id, accessor => {

@@ -95,7 +95,7 @@
       },
       {
         "language": "javascriptreact",
-        "path": "./snippets/javascriptreact.json"
+        "path": "./snippets/javascript.json"
       }
     ],
     "jsonValidation": [

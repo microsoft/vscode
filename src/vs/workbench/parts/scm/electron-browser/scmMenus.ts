@@ -28,6 +28,7 @@ export class SCMMenus implements IDisposable {
 	private disposables: IDisposable[] = [];
 
 	constructor(
+		// @ts-ignore unused property
 		private provider: ISCMProvider | undefined,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMenuService private menuService: IMenuService

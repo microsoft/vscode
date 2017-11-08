@@ -55,8 +55,12 @@ step "Publish RPM package" \
 # SNAP_FILENAME="$(ls $REPO/.build/linux/snap/$ARCH/ | grep .snap)"
 # SNAP_PATH="$REPO/.build/linux/snap/$ARCH/$SNAP_FILENAME"
 
+IS_FROZEN="$(node build/tfs/linux/frozen-check.js $VSCODE_QUALITY)"
+
 if [ -z "$VSCODE_QUALITY" ]; then
 	echo "VSCODE_QUALITY is not set, skipping repo package publish"
+elif [ "$IS_FROZEN" = "true" ]; then
+	echo "$VSCODE_QUALITY is frozen, skipping repo package publish"
 else
 	if [ "$BUILD_SOURCEBRANCH" = "master" ] || [ "$BUILD_SOURCEBRANCH" = "refs/heads/master" ]; then
 		if [[ $BUILD_QUEUEDBY = *"Project Collection Service Accounts"* || $BUILD_QUEUEDBY = *"Microsoft.VisualStudio.Services.TFS"* ]]; then

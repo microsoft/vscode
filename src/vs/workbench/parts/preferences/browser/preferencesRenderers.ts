@@ -6,6 +6,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import { Delayer } from 'vs/base/common/async';
+import * as strings from 'vs/base/common/strings';
 import { tail } from 'vs/base/common/arrays';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
@@ -16,7 +17,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IPreferencesService, ISettingsGroup, ISetting, IPreferencesEditorModel, IFilterResult, ISettingsEditorModel, IScoredResults } from 'vs/workbench/parts/preferences/common/preferences';
+import { IPreferencesService, ISettingsGroup, ISetting, IPreferencesEditorModel, IFilterResult, ISettingsEditorModel, IScoredResults, IWorkbenchSettingsConfiguration } from 'vs/workbench/parts/preferences/common/preferences';
 import { SettingsEditorModel, DefaultSettingsEditorModel, WorkspaceConfigurationEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { IContextMenuService, ContextSubMenu } from 'vs/platform/contextview/browser/contextView';
@@ -73,6 +74,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 	constructor(protected editor: ICodeEditor, public readonly preferencesModel: SettingsEditorModel,
 		@IPreferencesService protected preferencesService: IPreferencesService,
 		@ITelemetryService private telemetryService: ITelemetryService,
+		// @ts-ignore unused injected service
 		@ITextFileService private textFileService: ITextFileService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService protected instantiationService: IInstantiationService
@@ -251,6 +253,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 
 	constructor(protected editor: ICodeEditor, public readonly preferencesModel: DefaultSettingsEditorModel,
 		@IPreferencesService protected preferencesService: IPreferencesService,
+		// @ts-ignore unused injected service
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IInstantiationService protected instantiationService: IInstantiationService
 	) {
@@ -415,6 +418,7 @@ class DefaultSettingsHeaderRenderer extends Disposable {
 	private settingsHeaderWidget: DefaultSettingsHeaderWidget;
 	public onClick: Event<void>;
 
+	// @ts-ignore unused property
 	constructor(private editor: ICodeEditor, scope: ConfigurationScope) {
 		super();
 		const title = scope === ConfigurationScope.RESOURCE ? nls.localize('defaultFolderSettingsTitle', "Default Folder Settings") : nls.localize('defaultSettingsTitle', "Default Settings");
@@ -432,7 +436,7 @@ class DefaultSettingsHeaderRenderer extends Disposable {
 export class SettingsGroupTitleRenderer extends Disposable implements HiddenAreasProvider {
 
 	private _onHiddenAreasChanged: Emitter<void> = new Emitter<void>();
-	get onHiddenAreasChanged(): Event<void> { return this._onHiddenAreasChanged.event; };
+	get onHiddenAreasChanged(): Event<void> { return this._onHiddenAreasChanged.event; }
 
 	private settingsGroups: ISettingsGroup[];
 	private hiddenGroups: ISettingsGroup[] = [];
@@ -531,6 +535,7 @@ export class SettingsGroupTitleRenderer extends Disposable implements HiddenArea
 export class HiddenAreasRenderer extends Disposable {
 
 	constructor(private editor: ICodeEditor, private hiddenAreasProviders: HiddenAreasProvider[],
+		// @ts-ignore unused injected service
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super();
@@ -551,7 +556,13 @@ export class HiddenAreasRenderer extends Disposable {
 }
 
 export class FeedbackWidgetRenderer extends Disposable {
-	private static COMMENT_TEXT = 'Modify the below results to match your expectations. Assign scores to indicate their relevance. Replace this comment with any text feedback.';
+	private static DEFAULT_COMMENT_TEXT = 'Replace this comment with any text feedback.';
+	private static DEFAULT_ALTS = ['alt 1', 'alt 2'];
+	private static INSTRUCTION_TEXT = [
+		'// Modify the "resultScores" section to contain only your expected results. Assign scores to indicate their relevance.',
+		'// Results present in "resultScores" will be automatically "boosted" for this query, if they are not already at the top of the result set.',
+		'// Add phrase pairs to the "alts" section to have them considered to be synonyms in queries.'
+	].join('\n');
 
 	private _feedbackWidget: FloatingClickWidget;
 	private _currentResult: IFilterResult;
@@ -560,7 +571,9 @@ export class FeedbackWidgetRenderer extends Disposable {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IMessageService private messageService: IMessageService
+		@IMessageService private messageService: IMessageService,
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super();
 	}
@@ -583,7 +596,7 @@ export class FeedbackWidgetRenderer extends Disposable {
 	}
 
 	private getFeedback(): void {
-		if (!this.telemetryService.isOptedIn) {
+		if (!this.telemetryService.isOptedIn && this.environmentService.appQuality) {
 			this.messageService.show(Severity.Error, 'Can\'t send feedback, user is opted out of telemetry');
 			return;
 		}
@@ -592,14 +605,15 @@ export class FeedbackWidgetRenderer extends Disposable {
 		const actualResultNames = Object.keys(result.metadata.scoredResults);
 
 		const feedbackQuery = {};
-		feedbackQuery['comment'] = FeedbackWidgetRenderer.COMMENT_TEXT;
+		feedbackQuery['comment'] = FeedbackWidgetRenderer.DEFAULT_COMMENT_TEXT;
 		feedbackQuery['queryString'] = result.query;
 		feedbackQuery['resultScores'] = {};
 		actualResultNames.forEach(settingKey => {
 			feedbackQuery['resultScores'][settingKey] = 10;
 		});
+		feedbackQuery['alts'] = [FeedbackWidgetRenderer.DEFAULT_ALTS];
 
-		const contents = JSON.stringify(feedbackQuery, undefined, '    ');
+		const contents = FeedbackWidgetRenderer.INSTRUCTION_TEXT + '\n' + JSON.stringify(feedbackQuery, undefined, '    ');
 		this.editorService.openEditor({ contents, language: 'json' }, /*sideBySide=*/true).then(feedbackEditor => {
 			const sendFeedbackWidget = this._register(this.instantiationService.createInstance(FloatingClickWidget, feedbackEditor.getControl(), 'Send feedback', null));
 			sendFeedbackWidget.render();
@@ -617,7 +631,9 @@ export class FeedbackWidgetRenderer extends Disposable {
 
 	private sendFeedback(feedbackEditor: ICodeEditor, result: IFilterResult, actualResults: IScoredResults): TPromise<void> {
 		const model = feedbackEditor.getModel();
-		const expectedQueryLines = model.getLinesContent();
+		const expectedQueryLines = model.getLinesContent()
+			.filter(line => !strings.startsWith(line, '//'));
+
 		let expectedQuery: any;
 		try {
 			expectedQuery = JSON.parse(expectedQueryLines.join('\n'));
@@ -626,7 +642,17 @@ export class FeedbackWidgetRenderer extends Disposable {
 			return TPromise.wrapError(new Error('Invalid JSON: ' + e.message));
 		}
 
-		const userComment = expectedQuery.comment === FeedbackWidgetRenderer.COMMENT_TEXT ? undefined : expectedQuery.comment;
+		const userComment = expectedQuery.comment === FeedbackWidgetRenderer.DEFAULT_COMMENT_TEXT ? undefined : expectedQuery.comment;
+
+		// validate alts
+		if (!this.validateAlts(expectedQuery.alts)) {
+			return TPromise.wrapError(new Error('alts must be an array of 2-element string arrays'));
+		}
+
+		const altsAdded = expectedQuery.alts && expectedQuery.alts[0] && (expectedQuery.alts[0][0] !== FeedbackWidgetRenderer.DEFAULT_ALTS[0] || expectedQuery.alts[0][1] !== FeedbackWidgetRenderer.DEFAULT_ALTS[1]);
+		const alts = altsAdded ? expectedQuery.alts : undefined;
+		const workbenchSettings = this.configurationService.getConfiguration<IWorkbenchSettingsConfiguration>().workbench.settings;
+		const autoIngest = workbenchSettings.experimentalFuzzySearchAutoIngestFeedback;
 
 		/* __GDPR__
 			"settingsSearchResultFeedback" : {
@@ -646,8 +672,31 @@ export class FeedbackWidgetRenderer extends Disposable {
 			expectedResults: expectedQuery.resultScores,
 			url: result.metadata.remoteUrl,
 			duration: result.metadata.duration,
-			timestamp: result.metadata.timestamp
+			timestamp: result.metadata.timestamp,
+			buildNumber: this.environmentService.settingsSearchBuildId,
+			alts,
+			autoIngest
 		});
+	}
+
+	private validateAlts(alts?: string[][]): boolean {
+		if (!alts) {
+			return true;
+		}
+
+		if (!Array.isArray(alts)) {
+			return false;
+		}
+
+		if (!alts.length) {
+			return true;
+		}
+
+		if (!alts.every(altPair => Array.isArray(altPair) && altPair.length === 2 && typeof altPair[0] === 'string' && typeof altPair[1] === 'string')) {
+			return false;
+		}
+
+		return true;
 	}
 
 	private disposeWidget(): void {
@@ -670,6 +719,7 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 	public hiddenAreas: IRange[] = [];
 
 	constructor(private editor: ICodeEditor,
+		// @ts-ignore unused injected service
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super();
@@ -774,6 +824,7 @@ export class HighlightMatchesRenderer extends Disposable {
 	private decorationIds: string[] = [];
 
 	constructor(private editor: ICodeEditor,
+		// @ts-ignore unused injected service
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super();
@@ -827,6 +878,7 @@ class EditSettingRenderer extends Disposable {
 
 	constructor(private editor: ICodeEditor, private masterSettingsModel: ISettingsEditorModel,
 		private settingHighlighter: SettingHighlighter,
+		// @ts-ignore unused injected service
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextMenuService private contextMenuService: IContextMenuService
@@ -1098,6 +1150,7 @@ class UnsupportedSettingsRenderer extends Disposable {
 	constructor(
 		private editor: editorCommon.ICommonCodeEditor,
 		private settingsEditorModel: SettingsEditorModel,
+		// @ts-ignore unused injected service
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
 		@IMarkerService private markerService: IMarkerService,
 		@IEnvironmentService private environmentService: IEnvironmentService

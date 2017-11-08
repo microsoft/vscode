@@ -1878,9 +1878,7 @@ export class GlobalRevealInOSAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IMessageService private messageService: IMessageService
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(id, label);
 	}
@@ -1920,9 +1918,6 @@ export class GlobalCopyPathAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IMessageService private messageService: IMessageService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(id, label);

@@ -27,8 +27,11 @@ export class ExceptionWidget extends ZoneWidget {
 
 	private _backgroundColor: Color;
 
+	// @ts-ignore unused property
 	constructor(editor: ICodeEditor, private exceptionInfo: IExceptionInfo, private lineNumber: number,
+		// @ts-ignore unused injected service
 		@IContextViewService private contextViewService: IContextViewService,
+		// @ts-ignore unused injected service
 		@IDebugService private debugService: IDebugService,
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private instantiationService: IInstantiationService

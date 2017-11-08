@@ -71,11 +71,11 @@ function fromRange(rng: Range): number[] {
 suite('FindController', () => {
 	let queryState: { [key: string]: any; } = {};
 	let serviceCollection = new ServiceCollection();
-	serviceCollection.set(IStorageService, <any>{
+	serviceCollection.set(IStorageService, {
 		get: (key: string) => queryState[key],
 		getBoolean: (key: string) => !!queryState[key],
 		store: (key: string, value: any) => { queryState[key] = value; }
-	});
+	} as IStorageService);
 
 	test('issue #1857: F3, Find Next, acts like "Find Under Cursor"', () => {
 		withMockCodeEditor([
@@ -392,11 +392,11 @@ suite('FindController query options persistence', () => {
 	queryState['editor.matchCase'] = false;
 	queryState['editor.wholeWord'] = false;
 	let serviceCollection = new ServiceCollection();
-	serviceCollection.set(IStorageService, <any>{
+	serviceCollection.set(IStorageService, {
 		get: (key: string) => queryState[key],
 		getBoolean: (key: string) => !!queryState[key],
 		store: (key: string, value: any) => { queryState[key] = value; }
-	});
+	} as IStorageService);
 
 	test('matchCase', () => {
 		withMockCodeEditor([

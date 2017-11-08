@@ -50,8 +50,10 @@ export class VariablesView extends ViewsViewletPanel {
 	private expandedElements: any[];
 
 	constructor(
+		// @ts-ignore unused property
 		private options: IViewletViewOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
+		// @ts-ignore unused injected service
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IDebugService private debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -162,6 +164,7 @@ export class WatchExpressionsView extends ViewsViewletPanel {
 	private settings: any;
 
 	constructor(
+		// @ts-ignore unused property
 		private options: IViewletViewOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IDebugService private debugService: IDebugService,
@@ -256,6 +259,7 @@ export class CallStackView extends ViewsViewletPanel {
 	constructor(
 		private options: IViewletViewOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
+		// @ts-ignore unused injected service
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IDebugService private debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -390,6 +394,7 @@ export class BreakpointsView extends ViewsViewletPanel {
 	private settings: any;
 
 	constructor(
+		// @ts-ignore unused property
 		private options: IViewletViewOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IDebugService private debugService: IDebugService,

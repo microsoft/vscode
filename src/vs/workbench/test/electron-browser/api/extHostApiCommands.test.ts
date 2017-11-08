@@ -131,6 +131,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 	suiteTeardown(() => {
 		setUnexpectedErrorHandler(originalErrorHandler);
 		model.dispose();
+		mainThread.dispose();
 	});
 
 	teardown(function (done) {

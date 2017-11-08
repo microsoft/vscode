@@ -12,10 +12,10 @@ import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
 suite('Telemetry - common properties', function () {
 
-	const commit = void 0;
-	const version = void 0;
-	const source = void 0;
-	let storageService;
+	const commit: string = void 0;
+	const version: string = void 0;
+	const source: string = void 0;
+	let storageService: StorageService;
 
 	setup(() => {
 		storageService = new StorageService(new InMemoryLocalStorage(), null, TestWorkspace.id);

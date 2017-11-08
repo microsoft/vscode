@@ -55,7 +55,7 @@ export class ConfigurationModel implements IConfigurationModel {
 		addToValueTree(override.contents, key, value, e => { throw new Error(e); });
 	}
 
-	public override<V>(identifier: string): ConfigurationModel {
+	public override(identifier: string): ConfigurationModel {
 		const overrideContents = this.getContentsForOverrideIdentifer(identifier);
 
 		if (!overrideContents || typeof overrideContents !== 'object' || !Object.keys(overrideContents).length) {
@@ -385,7 +385,7 @@ export class Configuration {
 		});
 	}
 
-	private getConsolidateConfigurationModel<C>(overrides: IConfigurationOverrides, workspace: Workspace): ConfigurationModel {
+	private getConsolidateConfigurationModel(overrides: IConfigurationOverrides, workspace: Workspace): ConfigurationModel {
 		let configurationModel = this.getConsolidatedConfigurationModelForResource(overrides, workspace);
 		return overrides.overrideIdentifier ? configurationModel.override(overrides.overrideIdentifier) : configurationModel;
 	}
@@ -529,8 +529,8 @@ export class ConfigurationChangeEvent extends AbstractConfigurationChangeEvent i
 		return this._changedConfigurationByResource;
 	}
 
-	change(event: ConfigurationChangeEvent): ConfigurationChangeEvent
-	change(keys: string[], resource?: URI): ConfigurationChangeEvent
+	change(event: ConfigurationChangeEvent): ConfigurationChangeEvent;
+	change(keys: string[], resource?: URI): ConfigurationChangeEvent;
 	change(arg1: any, arg2?: any): ConfigurationChangeEvent {
 		if (arg1 instanceof ConfigurationChangeEvent) {
 			this._changedConfiguration = this._changedConfiguration.merge(arg1._changedConfiguration);

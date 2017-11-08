@@ -6,7 +6,7 @@
 import { DocumentRangeFormattingEditProvider, OnTypeFormattingEditProvider, FormattingOptions, TextDocument, Position, Range, CancellationToken, TextEdit, WorkspaceConfiguration, Disposable, languages, workspace } from 'vscode';
 
 import * as Proto from '../protocol';
-import { ITypescriptServiceClient } from '../typescriptService';
+import { ITypeScriptServiceClient } from '../typescriptService';
 import { tsTextSpanToVsRange } from '../utils/convert';
 import FormattingConfigurationManager from './formattingConfigurationManager';
 
@@ -14,7 +14,7 @@ export class TypeScriptFormattingProvider implements DocumentRangeFormattingEdit
 	private enabled: boolean = true;
 
 	public constructor(
-		private readonly client: ITypescriptServiceClient,
+		private readonly client: ITypeScriptServiceClient,
 		private readonly formattingOptionsManager: FormattingConfigurationManager
 	) { }
 

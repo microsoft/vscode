@@ -179,9 +179,9 @@
       "resolved": "https://registry.npmjs.org/https-proxy-agent/-/https-proxy-agent-0.3.6.tgz"
     },
     "iconv-lite": {
-      "version": "0.4.15",
-      "from": "iconv-lite@0.4.15",
-      "resolved": "https://registry.npmjs.org/iconv-lite/-/iconv-lite-0.4.15.tgz"
+      "version": "0.4.19",
+      "from": "iconv-lite@0.4.19",
+      "resolved": "https://registry.npmjs.org/iconv-lite/-/iconv-lite-0.4.19.tgz"
     },
     "inherits": {
       "version": "2.0.1",
@@ -249,9 +249,9 @@
       "resolved": "https://registry.npmjs.org/isobject/-/isobject-2.1.0.tgz"
     },
     "jschardet": {
-      "version": "1.5.1",
-      "from": "jschardet@>=1.5.1 <2.0.0",
-      "resolved": "https://registry.npmjs.org/jschardet/-/jschardet-1.5.1.tgz"
+      "version": "1.6.0",
+      "from": "jschardet@>=1.6.0 <2.0.0",
+      "resolved": "https://registry.npmjs.org/jschardet/-/jschardet-1.6.0.tgz"
     },
     "keytar": {
       "version": "4.0.5",
@@ -590,8 +590,8 @@
     },
     "xterm": {
       "version": "2.9.1",
-      "from": "Tyriar/xterm.js#vscode-release/1.18",
-      "resolved": "git+https://github.com/Tyriar/xterm.js.git#074dbb562062423e322300a513869eed1836a9ba"
+      "from": "Tyriar/xterm.js#vscode-release/1.19",
+      "resolved": "git+https://github.com/Tyriar/xterm.js.git#d242c552cb5c88125ac257ccaebed7fe336d9266"
     },
     "yauzl": {
       "version": "2.8.0",

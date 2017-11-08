@@ -588,6 +588,7 @@ suite('TextAreaState', () => {
 	});
 });
 
+// @ts-ignore unused class
 class SimpleModel implements ISimpleModel {
 
 	private _lines: string[];

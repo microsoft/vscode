@@ -44,6 +44,7 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 	private outputService: IOutputService;
 	private telemetryService: ITelemetryService;
 	private configurationResolverService: IConfigurationResolverService;
+	// @ts-ignore unused injected service
 	private contextService: IWorkspaceContextService;
 
 	private outputChannel: IOutputChannel;

@@ -150,7 +150,8 @@ export class DefinitionAction extends EditorAction {
 			resource: uri,
 			options: {
 				selection: Range.collapseToStart(range),
-				revealIfVisible: !sideBySide
+				revealIfVisible: !sideBySide,
+				revealInCenterIfOutsideViewport: true
 			}
 		}, sideBySide).then(editor => {
 			return editor && <editorCommon.ICommonCodeEditor>editor.getControl();

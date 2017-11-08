@@ -34,7 +34,6 @@ class InPlaceReplaceController implements IEditorContribution {
 	});
 
 	private editor: ICommonCodeEditor;
-	private requestIdPool: number;
 	private currentRequest: TPromise<IInplaceReplaceSupportResult>;
 	private decorationRemover: TPromise<void>;
 	private decorationIds: string[];
@@ -46,7 +45,6 @@ class InPlaceReplaceController implements IEditorContribution {
 	) {
 		this.editor = editor;
 		this.editorWorkerService = editorWorkerService;
-		this.requestIdPool = 0;
 		this.currentRequest = TPromise.as(<IInplaceReplaceSupportResult>null);
 		this.decorationRemover = TPromise.as(<void>null);
 		this.decorationIds = [];
@@ -141,6 +139,7 @@ class InPlaceReplaceController implements IEditorContribution {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class InPlaceReplaceUp extends EditorAction {
 
 	constructor() {
@@ -166,6 +165,7 @@ class InPlaceReplaceUp extends EditorAction {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class InPlaceReplaceDown extends EditorAction {
 
 	constructor() {

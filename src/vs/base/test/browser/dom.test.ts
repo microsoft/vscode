@@ -86,11 +86,11 @@ suite('dom', () => {
 	//});
 
 	test('safeStringify', function () {
-		let obj1 = {
+		let obj1: any = {
 			friend: null
 		};
 
-		let obj2 = {
+		let obj2: any = {
 			friend: null
 		};
 
@@ -100,7 +100,7 @@ suite('dom', () => {
 		let arr: any = [1];
 		arr.push(arr);
 
-		let circular = {
+		let circular: any = {
 			a: 42,
 			b: null,
 			c: [

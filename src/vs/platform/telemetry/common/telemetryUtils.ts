@@ -14,12 +14,12 @@ import { IKeybindingService, KeybindingSource } from 'vs/platform/keybinding/com
 import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { ITelemetryService, ITelemetryInfo, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 
-export const NullTelemetryService = {
-	_serviceBrand: undefined,
+export const NullTelemetryService = new class implements ITelemetryService {
+	_serviceBrand: undefined;
 	publicLog(eventName: string, data?: ITelemetryData) {
 		return TPromise.as<void>(null);
-	},
-	isOptedIn: true,
+	}
+	isOptedIn: true;
 	getTelemetryInfo(): TPromise<ITelemetryInfo> {
 		return TPromise.as({
 			instanceId: 'someValue.instanceId',

@@ -17,8 +17,8 @@ interface ExpandAbbreviationInput {
 	filter?: string;
 }
 
-export function wrapWithAbbreviation(args) {
-	if (!validate(false)) {
+export function wrapWithAbbreviation(args: any) {
+	if (!validate(false) || !vscode.window.activeTextEditor) {
 		return;
 	}
 
@@ -50,8 +50,8 @@ export function wrapWithAbbreviation(args) {
 	});
 }
 
-export function wrapIndividualLinesWithAbbreviation(args) {
-	if (!validate(false)) {
+export function wrapIndividualLinesWithAbbreviation(args: any) {
+	if (!validate(false) || !vscode.window.activeTextEditor) {
 		return;
 	}
 
@@ -88,7 +88,7 @@ export function wrapIndividualLinesWithAbbreviation(args) {
 
 }
 
-export function expandEmmetAbbreviation(args): Thenable<boolean> {
+export function expandEmmetAbbreviation(args: any): Thenable<boolean> {
 	const syntax = getSyntaxFromArgs(args);
 	if (!syntax || !validate()) {
 		return fallbackTab();
@@ -179,7 +179,7 @@ export function expandEmmetAbbreviation(args): Thenable<boolean> {
 	});
 }
 
-function fallbackTab(): Thenable<boolean> {
+function fallbackTab(): Thenable<boolean | undefined> | undefined {
 	if (vscode.workspace.getConfiguration('emmet')['triggerExpansionOnTab'] === true) {
 		return vscode.commands.executeCommand('tab');
 	}
@@ -226,7 +226,8 @@ export function isValidLocationForEmmetAbbreviation(currentNode: Node, syntax: s
 
 	const currentHtmlNode = <HtmlNode>currentNode;
 	if (currentHtmlNode.close) {
-		return getInnerRange(currentHtmlNode).contains(position);
+		const innerRange = getInnerRange(currentHtmlNode);
+		return !!innerRange && innerRange.contains(position);
 	}
 
 	return false;
@@ -247,7 +248,7 @@ function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: Ex
 	// Snippet to replace at multiple cursors are not the same
 	// `editor.insertSnippet` will have to be called for each instance separately
 	// We will not be able to maintain multiple cursors after snippet insertion
-	let insertPromises = [];
+	let insertPromises: Thenable<boolean>[] = [];
 	if (!insertSameSnippet) {
 		expandAbbrList.forEach((expandAbbrInput: ExpandAbbreviationInput) => {
 			let expandedText = expandAbbr(expandAbbrInput);
@@ -278,7 +279,7 @@ function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: Ex
 /**
  * Expands abbreviation as detailed in given input.
  */
-function expandAbbr(input: ExpandAbbreviationInput): string {
+function expandAbbr(input: ExpandAbbreviationInput): string | undefined {
 	const helper = getEmmetHelper();
 	const expandOptions = helper.getExpandOptions(input.syntax, getEmmetConfiguration(input.syntax), input.filter);
 
@@ -322,7 +323,7 @@ function expandAbbr(input: ExpandAbbreviationInput): string {
 
 }
 
-function getSyntaxFromArgs(args: any): string {
+function getSyntaxFromArgs(args: any): string | undefined {
 	let editor = vscode.window.activeTextEditor;
 	if (!editor) {
 		vscode.window.showInformationMessage('No editor is active.');

@@ -491,6 +491,7 @@ class WordHighlightNavigationAction extends EditorAction {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class NextWordHighlightAction extends WordHighlightNavigationAction {
 	constructor() {
 		super(true, {
@@ -507,6 +508,7 @@ class NextWordHighlightAction extends WordHighlightNavigationAction {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class PrevWordHighlightAction extends WordHighlightNavigationAction {
 	constructor() {
 		super(false, {

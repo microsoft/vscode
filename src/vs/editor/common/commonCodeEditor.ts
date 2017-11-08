@@ -1036,7 +1036,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 class EditorContextKeysManager extends Disposable {
 
 	private _editor: CommonCodeEditor;
-
+	// @ts-ignore unused property
 	private _editorId: IContextKey<string>;
 	private _editorFocus: IContextKey<boolean>;
 	private _editorTextFocus: IContextKey<boolean>;

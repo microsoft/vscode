@@ -22,6 +22,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 export class Adapter {
 
 	constructor(private rawAdapter: IRawAdapter, public extensionDescription: IExtensionDescription,
+		// @ts-ignore unused injected service
 		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ICommandService private commandService: ICommandService
@@ -35,7 +36,7 @@ export class Adapter {
 
 	public getAdapterExecutable(root: IWorkspaceFolder, verifyAgainstFS = true): TPromise<IAdapterExecutable> {
 
-		if (this.rawAdapter.adapterExecutableCommand) {
+		if (this.rawAdapter.adapterExecutableCommand && root) {
 			return this.commandService.executeCommand<IAdapterExecutable>(this.rawAdapter.adapterExecutableCommand, root.uri.toString()).then(ad => {
 				return this.verifyAdapterDetails(ad, verifyAgainstFS);
 			});
@@ -165,7 +166,7 @@ export class Adapter {
 		}
 
 		return TPromise.as(content);
-	};
+	}
 
 	public getSchemaAttributes(): IJSONSchema[] {
 		if (!this.rawAdapter.configurationAttributes) {

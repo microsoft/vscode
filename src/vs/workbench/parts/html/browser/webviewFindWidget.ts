@@ -25,7 +25,7 @@ export class WebviewFindWidget extends SimpleFindWidget {
 		if (this.webview !== null && val) {
 			this.webview.find(val, { findNext: true, forward: !previous });
 		}
-	};
+	}
 
 	public hide() {
 		super.hide();

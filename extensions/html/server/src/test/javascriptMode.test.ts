@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import 'mocha';
 import * as assert from 'assert';
 import { getJavascriptMode } from '../modes/javascriptMode';
 import { TextDocument } from 'vscode-languageserver-types';

@@ -178,7 +178,7 @@ class TestTelemetryService implements ITelemetryService {
 			machineId: 'someValue.machineId'
 		});
 	}
-};
+}
 
 class TestExperimentService implements IExperimentService {
 

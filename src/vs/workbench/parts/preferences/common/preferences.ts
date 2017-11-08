@@ -23,6 +23,7 @@ export interface IWorkbenchSettingsConfiguration {
 			experimentalFuzzySearchEndpoint: string;
 			experimentalFuzzySearchKey: string;
 			experimentalFuzzySearchBoost: number;
+			experimentalFuzzySearchAutoIngestFeedback: boolean;
 		}
 	};
 }

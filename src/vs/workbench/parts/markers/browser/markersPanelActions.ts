@@ -52,7 +52,7 @@ export class ToggleMarkersPanelAction extends TogglePanelAction {
 
 export class ShowProblemsPanelAction extends Action {
 
-	public static ID = 'workbench.action.problems.show';
+	public static ID = 'workbench.action.problems.focus';
 	public static LABEL = Messages.MARKERS_PANEL_SHOW_LABEL;
 
 	constructor(id: string, label: string,
@@ -117,6 +117,7 @@ export class FilterAction extends Action {
 
 	public static ID: string = 'workbench.actions.problems.filter';
 
+	// @ts-ignore unused property
 	constructor(private markersPanel: MarkersPanel) {
 		super(FilterAction.ID, Messages.MARKERS_PANEL_ACTION_TOOLTIP_FILTER, 'markers-panel-action-filter', true);
 	}

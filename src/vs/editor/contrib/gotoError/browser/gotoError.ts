@@ -504,6 +504,7 @@ class MarkerController implements editorCommon.IEditorContribution {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class NextMarkerAction extends MarkerNavigationAction {
 	constructor() {
 		super(true, {
@@ -520,6 +521,7 @@ class NextMarkerAction extends MarkerNavigationAction {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class PrevMarkerAction extends MarkerNavigationAction {
 	constructor() {
 		super(false, {

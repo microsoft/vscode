@@ -15,8 +15,8 @@ export function clone<T>(obj: T): T {
 		// See https://github.com/Microsoft/TypeScript/issues/10990
 		return obj as any;
 	}
-	const result = (Array.isArray(obj)) ? <any>[] : <any>{};
-	Object.keys(obj).forEach(key => {
+	const result: any = Array.isArray(obj) ? [] : {};
+	Object.keys(obj).forEach((key: keyof T) => {
 		if (obj[key] && typeof obj[key] === 'object') {
 			result[key] = clone(obj[key]);
 		} else {
@@ -30,8 +30,8 @@ export function deepClone<T>(obj: T): T {
 	if (!obj || typeof obj !== 'object') {
 		return obj;
 	}
-	const result = (Array.isArray(obj)) ? <any>[] : <any>{};
-	Object.getOwnPropertyNames(obj).forEach(key => {
+	const result: any = Array.isArray(obj) ? [] : {};
+	Object.getOwnPropertyNames(obj).forEach((key: keyof T) => {
 		if (obj[key] && typeof obj[key] === 'object') {
 			result[key] = deepClone(obj[key]);
 		} else {
@@ -73,7 +73,7 @@ function _cloneAndChange(obj: any, changer: (orig: any) => any, encounteredObjec
 		const r2 = {};
 		for (let i2 in obj) {
 			if (hasOwnProperty.call(obj, i2)) {
-				r2[i2] = _cloneAndChange(obj[i2], changer, encounteredObjects);
+				(r2 as any)[i2] = _cloneAndChange(obj[i2], changer, encounteredObjects);
 			}
 		}
 		encounteredObjects.pop();
@@ -231,7 +231,7 @@ export function derive(baseClass: any, derivedClass: any): void {
 	}
 
 	// Cast to any due to Bug 16188:PropertyDescriptor set and get function should be optional.
-	Object.defineProperty(derivedClass.prototype, 'constructor', <any>{ value: derivedClass, writable: true, configurable: true, enumerable: true });
+	Object.defineProperty(derivedClass.prototype, 'constructor', { value: derivedClass, writable: true, configurable: true, enumerable: true });
 }
 
 /**

@@ -1,8 +1,8 @@
 {
   "name": "code-oss-dev",
-  "version": "1.18.0",
+  "version": "1.19.0",
   "electronVersion": "1.7.9",
-  "distro": "82a28e412b9f8680bfd461d2b28e005fd6b70e84",
+  "distro": "6be5539c8022d6e13554fe648525c1a8bff700d9",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -31,8 +31,8 @@
     "graceful-fs": "4.1.11",
     "http-proxy-agent": "0.2.7",
     "https-proxy-agent": "0.3.6",
-    "iconv-lite": "0.4.15",
-    "jschardet": "^1.5.1",
+    "iconv-lite": "0.4.19",
+    "jschardet": "1.6.0",
     "keytar": "^4.0.5",
     "minimist": "1.2.0",
     "native-keymap": "1.2.5",
@@ -44,7 +44,7 @@
     "vscode-debugprotocol": "1.24.0",
     "vscode-ripgrep": "0.6.0-patch.0",
     "vscode-textmate": "^3.2.0",
-    "xterm": "Tyriar/xterm.js#vscode-release/1.18",
+    "xterm": "Tyriar/xterm.js#vscode-release/1.19",
     "yauzl": "2.8.0"
   },
   "devDependencies": {
@@ -85,7 +85,7 @@
     "gulp-shell": "^0.5.2",
     "gulp-sourcemaps": "^1.11.0",
     "gulp-tsb": "2.0.4",
-    "gulp-tslint": "^7.0.1",
+    "gulp-tslint": "^8.1.2",
     "gulp-uglify": "^3.0.0",
     "gulp-util": "^3.0.6",
     "gulp-vinyl-zip": "^1.2.2",
@@ -107,8 +107,8 @@
     "rimraf": "^2.2.8",
     "sinon": "^1.17.2",
     "source-map": "^0.4.4",
-    "tslint": "^4.3.1",
-    "typescript": "2.5.2",
+    "tslint": "^5.8.0",
+    "typescript": "2.6.1",
     "typescript-formatter": "4.0.1",
     "uglify-es": "^3.0.18",
     "underscore": "^1.8.2",

@@ -290,6 +290,11 @@ export interface IExtensionEnablementService {
 	canEnable(identifier: IExtensionIdentifier): boolean;
 
 	/**
+	 * Returns `true` if the given extension identifier is enabled.
+	 */
+	isEnabled(identifier: IExtensionIdentifier): boolean;
+
+	/**
 	 * Enable or disable the given extension.
 	 * if `workspace` is `true` then enablement is done for workspace, otherwise globally.
 	 *

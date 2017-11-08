@@ -12,7 +12,7 @@ export default class Messages {
 
 	public static MARKERS_PANEL_VIEW_CATEGORY: string = nls.localize('viewCategory', "View");
 	public static MARKERS_PANEL_TOGGLE_LABEL: string = nls.localize('problems.view.toggle.label', "Toggle Problems");
-	public static MARKERS_PANEL_SHOW_LABEL: string = nls.localize('problems.view.show.label', "Show Problems");
+	public static MARKERS_PANEL_SHOW_LABEL: string = nls.localize('problems.view.focus.label', "Focus Problems");
 	public static MARKERS_PANEL_HIDE_LABEL: string = nls.localize('problems.view.hide.label', "Hide Problems");
 
 	public static PROBLEMS_PANEL_CONFIGURATION_TITLE: string = nls.localize('problems.panel.configuration.title', "Problems View");

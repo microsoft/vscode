@@ -292,6 +292,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		@IRequestService private requestService: IRequestService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ITelemetryService private telemetryService: ITelemetryService,
+		// @ts-ignore unused injected service
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		const config = product.extensionsGallery;

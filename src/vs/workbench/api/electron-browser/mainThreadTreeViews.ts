@@ -103,6 +103,7 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 		this._onDispose.fire();
 	}
 
+	// @ts-ignore unused property
 	private clearChildren(treeItemHandle: TreeItemHandle): void {
 		const children = this.childrenMap.get(treeItemHandle);
 		if (children) {
@@ -132,6 +133,7 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 		}
 	}
 
+	// @ts-ignore unused property
 	private populateElementsToExpand(elements: ITreeItem[], toExpand: ITreeItem[]) {
 		for (const element of elements) {
 			if (element.collapsibleState === TreeItemCollapsibleState.Expanded) {

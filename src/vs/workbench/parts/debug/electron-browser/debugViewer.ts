@@ -53,7 +53,7 @@ export interface IRenderValueOptions {
 }
 
 function replaceWhitespace(value: string): string {
-	const map = { '\n': '\\n', '\r': '\\r', '\t': '\\t' };
+	const map: { [x: string]: string } = { '\n': '\\n', '\r': '\\r', '\t': '\\t' };
 	return value.replace(/[\n\r\t]/g, char => map[char]);
 }
 
@@ -143,7 +143,7 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 	inputBox.select();
 
 	let disposed = false;
-	const toDispose: [lifecycle.IDisposable] = [inputBox, styler];
+	const toDispose: lifecycle.IDisposable[] = [inputBox, styler];
 
 	const wrapUp = once((renamed: boolean) => {
 		if (!disposed) {
@@ -310,6 +310,7 @@ export class CallStackController extends BaseDebugController {
 
 export class CallStackActionProvider implements IActionProvider {
 
+	// @ts-ignore unused injected service
 	constructor( @IInstantiationService private instantiationService: IInstantiationService, @debug.IDebugService private debugService: debug.IDebugService) {
 		// noop
 	}
@@ -885,10 +886,12 @@ export class WatchExpressionsRenderer implements IRenderer {
 	private static WATCH_EXPRESSION_TEMPLATE_ID = 'watchExpression';
 	private static VARIABLE_TEMPLATE_ID = 'variables';
 	private toDispose: lifecycle.IDisposable[];
+	// @ts-ignore unused property
 	private actionProvider: WatchExpressionsActionProvider;
 
 	constructor(
 		actionProvider: IActionProvider,
+		// @ts-ignore unused property
 		private actionRunner: IActionRunner,
 		@debug.IDebugService private debugService: debug.IDebugService,
 		@IContextViewService private contextViewService: IContextViewService,
@@ -1132,7 +1135,9 @@ export class BreakpointsRenderer implements IRenderer {
 	private static BREAKPOINT_TEMPLATE_ID = 'breakpoint';
 
 	constructor(
+		// @ts-ignore unused property
 		private actionProvider: BreakpointsActionProvider,
+		// @ts-ignore unused property
 		private actionRunner: IActionRunner,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@debug.IDebugService private debugService: debug.IDebugService,

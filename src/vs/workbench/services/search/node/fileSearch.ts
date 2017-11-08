@@ -493,7 +493,7 @@ export class FileWalker {
 				if (self.isLimitHit) {
 					break;
 				}
-			};
+			}
 		}
 		matchDirectory(rootEntries);
 	}

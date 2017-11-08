@@ -12,6 +12,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class ExpandAbbreviationAction extends EmmetEditorAction {
 
 	constructor() {

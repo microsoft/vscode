@@ -80,7 +80,7 @@ export class ContextMenuHandler {
 		}
 		if (container) {
 			this.$el = $(container);
-			this.$el.on('mousedown', (e: MouseEvent) => this.onMouseDown(e));
+			this.$el.on('mousedown', (e: Event) => this.onMouseDown(e as MouseEvent));
 		}
 	}
 

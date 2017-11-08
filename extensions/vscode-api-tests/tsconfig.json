@@ -7,7 +7,7 @@
 			"es2015"
 		],
 		"sourceMap": true,
-		"strictNullChecks": true
+		"strict": true
 	},
 	"include": [
 		"src/**/*"

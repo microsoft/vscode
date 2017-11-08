@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import { getDeepestNode, findNextWord, findPrevWord, getNode } from './util';
 import { Node, CssNode, Rule, Property } from 'EmmetNode';
 
-export function nextItemStylesheet(startOffset: vscode.Position, endOffset: vscode.Position, editor: vscode.TextEditor, rootNode: Node): vscode.Selection {
+export function nextItemStylesheet(startOffset: vscode.Position, endOffset: vscode.Position, editor: vscode.TextEditor, rootNode: Node): vscode.Selection | undefined {
 	let currentNode = <CssNode>getNode(rootNode, endOffset, true);
 	if (!currentNode) {
 		currentNode = <CssNode>rootNode;
@@ -50,7 +50,7 @@ export function nextItemStylesheet(startOffset: vscode.Position, endOffset: vsco
 
 }
 
-export function prevItemStylesheet(startOffset: vscode.Position, endOffset: vscode.Position, editor: vscode.TextEditor, rootNode: CssNode): vscode.Selection {
+export function prevItemStylesheet(startOffset: vscode.Position, endOffset: vscode.Position, editor: vscode.TextEditor, rootNode: CssNode): vscode.Selection | undefined {
 	let currentNode = <CssNode>getNode(rootNode, startOffset);
 	if (!currentNode) {
 		currentNode = rootNode;
@@ -88,7 +88,7 @@ export function prevItemStylesheet(startOffset: vscode.Position, endOffset: vsco
 }
 
 
-function getSelectionFromNode(node: Node, document: vscode.TextDocument): vscode.Selection {
+function getSelectionFromNode(node: Node, document: vscode.TextDocument): vscode.Selection | undefined {
 	if (!node) {
 		return;
 	}
@@ -98,7 +98,7 @@ function getSelectionFromNode(node: Node, document: vscode.TextDocument): vscode
 }
 
 
-function getSelectionFromProperty(node: Node, document: vscode.TextDocument, selectionStart: vscode.Position, selectionEnd: vscode.Position, selectFullValue: boolean, direction: string): vscode.Selection {
+function getSelectionFromProperty(node: Node, document: vscode.TextDocument, selectionStart: vscode.Position, selectionEnd: vscode.Position, selectFullValue: boolean, direction: string): vscode.Selection | undefined {
 	if (!node || node.type !== 'property') {
 		return;
 	}

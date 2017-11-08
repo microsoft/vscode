@@ -222,7 +222,7 @@ class SuggestionDetails {
 
 		this.header = append(this.body, $('.header'));
 		this.close = append(this.header, $('span.close'));
-		this.close.title = nls.localize('readLess', "Read less...{0}", triggerKeybindingLabel);
+		this.close.title = nls.localize('readLess', "Read less...{0}", this.triggerKeybindingLabel);
 		this.type = append(this.header, $('p.type'));
 
 		this.docs = append(this.body, $('p.docs'));
@@ -425,7 +425,8 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 		this.list = new List(this.listElement, this, [renderer], {
 			useShadows: false,
-			selectOnMouseDown: true
+			selectOnMouseDown: true,
+			focusOnMouseDown: false
 		});
 
 		this.toDispose = [
