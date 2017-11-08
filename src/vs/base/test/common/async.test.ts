@@ -595,4 +595,29 @@ suite('Async', () => {
 		const r1Queue2 = queue.queueFor(URI.file('/some/path'));
 		assert.notEqual(r1Queue, r1Queue2); // previous one got disposed after finishing
 	});
+
+	test('ThrottledEmitter', function () {
+		const emitter = new Async.ThrottledEmitter();
+
+		const fnThatEmitsEvent = () => {
+			emitter.fire();
+		};
+
+		const promiseFn = TPromise.timeout(0).then(() => {
+			fnThatEmitsEvent();
+			fnThatEmitsEvent();
+			fnThatEmitsEvent();
+		});
+
+		let count = 0;
+		emitter.event(() => {
+			count++;
+		});
+
+		emitter.throttle(promiseFn);
+
+		promiseFn.then(() => {
+			assert.equal(count, 1);
+		});
+	});
 });

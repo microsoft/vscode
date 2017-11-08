@@ -46,7 +46,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { join } from 'vs/base/common/paths';
 import { isCommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { IEditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
-import { always } from 'vs/base/common/async';
+import { ThrottledEmitter } from 'vs/base/common/async';
 
 class ProgressMonitor {
 
@@ -71,41 +71,6 @@ interface IEditorReplacement extends EditorIdentifier {
 	editor: EditorInput;
 	replaceWith: EditorInput;
 	options?: EditorOptions;
-}
-
-class ThrottledEmitter<T> extends Emitter<T> {
-	private suspended: boolean;
-
-	private lastEvent: T;
-	private hasLastEvent: boolean;
-
-	public throttle<C>(promise: TPromise<C>): TPromise<C> {
-		this.suspended = true;
-
-		return always(promise, () => this.resume());
-	}
-
-	public fire(event?: T): any {
-		if (this.suspended) {
-			this.lastEvent = event;
-			this.hasLastEvent = true;
-
-			return;
-		}
-
-		return super.fire(event);
-	}
-
-	private resume(): void {
-		this.suspended = false;
-
-		if (this.hasLastEvent) {
-			this.fire(this.lastEvent);
-		}
-
-		this.hasLastEvent = false;
-		this.lastEvent = void 0;
-	}
 }
 
 /**
