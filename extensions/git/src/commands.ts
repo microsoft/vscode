@@ -184,7 +184,25 @@ export class CommandCenter {
 		}
 
 		if (!left) {
+			if (right.scheme === 'git') {
+				const repository = this.model.getRepository(right);
+
+				if (repository) {
+					const { path, ref } = fromGitUri(right);
+
+					if (/png$/i.test(path)) {
+						const contents = await repository.show(ref, path);
+						const buffer = new Buffer(contents);
+						const uri = `data:data:image/png;base64,${buffer.toString('base64')}`;
+
+						await commands.executeCommand<void>('vscode.open', uri, opts);
+						return;
+					}
+				}
+			}
+
 			await commands.executeCommand<void>('vscode.open', right, opts);
+
 			return;
 		}
 
